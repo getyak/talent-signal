@@ -1,0 +1,16 @@
+{
+  "name": "talent-signal",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "scripts": {
+    "dev": "pnpm --filter @talent-signal/web dev",
+    "build": "pnpm --filter @talent-signal/web build",
+    "ios:check": "./scripts/ios/check.sh",
+    "ios:generate": "./scripts/ios/generate.sh",
+    "lint": "pnpm --filter @talent-signal/web lint",
+    "typecheck": "pnpm --filter @talent-signal/web typecheck",
+    "test": "pnpm --filter @talent-signal/web test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  }
+}

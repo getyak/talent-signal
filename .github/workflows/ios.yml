@@ -1,0 +1,101 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "apps/ios/**"
+      - "fastlane/**"
+      - "scripts/ios/**"
+      - "Gemfile*"
+      - ".github/workflows/ios.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/ios/**"
+      - "fastlane/**"
+      - "scripts/ios/**"
+      - "Gemfile*"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+    inputs:
+      upload_testflight:
+        description: "Upload the verified build to TestFlight"
+        required: true
+        default: true
+        type: boolean
+      release_version:
+        description: "Marketing version"
+        required: true
+        default: "0.1.0"
+        type: string
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Build and test
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test iOS
+        run: ./scripts/ios/check.sh
+
+  testflight:
+    name: Upload to TestFlight
+    needs: checks
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload_testflight)
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Configure certificate repository access
+        env:
+          MATCH_DEPLOY_KEY: ${{ secrets.MATCH_DEPLOY_KEY }}
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/match-ssh"
+          printf '%s\n' "$MATCH_DEPLOY_KEY" > "$RUNNER_TEMP/match-ssh/key"
+          chmod 600 "$RUNNER_TEMP/match-ssh/key"
+
+      - name: Write App Store Connect API key
+        env:
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: printf '%s\n' "$API_KEY_CONTENT" > "$RUNNER_TEMP/asc_key.p8"
+
+      - name: Archive and upload
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          RELEASE_VERSION: ${{ inputs.release_version || '0.1.0' }}
+          FASTLANE_SKIP_UPDATE_CHECK: "1"
+        run: bundle exec fastlane ios beta
+
+      - name: Preserve IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TalentSignal-${{ github.run_number }}
+          path: build/ios/TalentSignal.ipa
+          retention-days: 14

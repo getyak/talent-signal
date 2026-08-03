@@ -1,0 +1,4 @@
+interface:
+  display_name: "Candidate Signal Analysis"
+  short_description: "Turn recruiter chat signals into reviewable next actions."
+  default_prompt: "Use $candidate-signal-analysis to extract evidence-backed action cards and one next-step insight."

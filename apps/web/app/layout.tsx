@@ -1,0 +1,94 @@
+import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Mono, Manrope } from "next/font/google";
+import type { ReactNode } from "react";
+import { siteConfig } from "@/lib/site";
+import "./globals.css";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "optional",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+  display: "optional",
+});
+
+export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
+  title: {
+    default: siteConfig.title,
+    template: `%s | ${siteConfig.name}`,
+  },
+  description: siteConfig.description,
+  applicationName: siteConfig.name,
+  authors: [{ name: siteConfig.name }],
+  creator: siteConfig.name,
+  publisher: siteConfig.name,
+  keywords: [
+    "candidate momentum",
+    "executive search software",
+    "independent recruiter tools",
+    "candidate intelligence",
+    "recruiting workflow",
+    "boutique search firm",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    siteName: siteConfig.name,
+    title: siteConfig.title,
+    description: siteConfig.description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.title,
+    description: siteConfig.description,
+  },
+  category: "technology",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f2f1ed" },
+    { media: "(prefers-color-scheme: dark)", color: "#141412" },
+  ],
+};
+
+const themeScript = `
+  (() => {
+    try {
+      const stored = localStorage.getItem("talent-signal-theme");
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme = stored || (systemDark ? "dark" : "light");
+    } catch {
+      document.documentElement.dataset.theme = "light";
+    }
+  })();
+`;
+
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className={`${manrope.variable} ${plexMono.variable}`}>
+        <a className="skip-link" href="#main-content">
+          Skip to content
+        </a>
+        {children}
+      </body>
+    </html>
+  );
+}
