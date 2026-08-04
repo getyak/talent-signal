@@ -1,0 +1,198 @@
+$ /Users/xiongxinwei/.nvm/versions/node/v22.22.0/bin/node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test apps/chrome-extension/tests/integrated-package.test.mjs
+
+TAP version 13
+# Subtest: normalizes only the active source metadata supplied by Chrome
+ok 1 - normalizes only the active source metadata supplied by Chrome
+  ---
+  duration_ms: 2.106916
+  type: 'test'
+  ...
+# Subtest: rejects empty and over-broad text selections
+ok 2 - rejects empty and over-broad text selections
+  ---
+  duration_ms: 26.035917
+  type: 'test'
+  ...
+# Subtest: turns temporary-access denial into a truthful retry instruction
+ok 3 - turns temporary-access denial into a truthful retry instruction
+  ---
+  duration_ms: 0.787417
+  type: 'test'
+  ...
+# Subtest: keeps an unclassified capture failure distinct from permission denial
+ok 4 - keeps an unclassified capture failure distinct from permission denial
+  ---
+  duration_ms: 0.436292
+  type: 'test'
+  ...
+# Subtest: accepts only localhost development origins
+ok 5 - accepts only localhost development origins
+  ---
+  duration_ms: 0.5085
+  type: 'test'
+  ...
+# Subtest: separates observed source, reviewed asset, authorization, and receipt
+ok 6 - separates observed source, reviewed asset, authorization, and receipt
+  ---
+  duration_ms: 0.428583
+  type: 'test'
+  ...
+# Subtest: classifies pending, received, duplicate, stale, and invalid responses truthfully
+ok 7 - classifies pending, received, duplicate, stale, and invalid responses truthfully
+  ---
+  duration_ms: 0.361708
+  type: 'test'
+  ...
+# Subtest: treats a timeout as unknown and an unreachable service as failed
+ok 8 - treats a timeout as unknown and an unreachable service as failed
+  ---
+  duration_ms: 0.156792
+  type: 'test'
+  ...
+# Subtest: retries offline with the same idempotency key and prevents duplicate creation
+ok 9 - retries offline with the same idempotency key and prevents duplicate creation
+  ---
+  duration_ms: 15.024042
+  type: 'test'
+  ...
+# Subtest: reconciles an unknown fixture receipt without resubmitting
+ok 10 - reconciles an unknown fixture receipt without resubmitting
+  ---
+  duration_ms: 3.417458
+  type: 'test'
+  ...
+# Subtest: requires an observable ready session and never exposes a credential
+ok 11 - requires an observable ready session and never exposes a credential
+  ---
+  duration_ms: 0.442166
+  type: 'test'
+  ...
+# Subtest: normalizes crop controls without allowing an empty image
+ok 12 - normalizes crop controls without allowing an empty image
+  ---
+  duration_ms: 0.269459
+  type: 'test'
+  ...
+# Subtest: keeps redaction geometry reviewable after crop
+ok 13 - keeps redaction geometry reviewable after crop
+  ---
+  duration_ms: 0.320625
+  type: 'test'
+  ...
+# Subtest: recognizes redactions removed by crop and estimates payload size
+ok 14 - recognizes redactions removed by crop and estimates payload size
+  ---
+  duration_ms: 0.202334
+  type: 'test'
+  ...
+# Subtest: labels proposal, no-action, ambiguity, and blocked inference without confirmation
+ok 15 - labels proposal, no-action, ambiguity, and blocked inference without confirmation
+  ---
+  duration_ms: 0.535209
+  type: 'test'
+  ...
+# Subtest: falls back to a visible blocked state for an unknown disposition
+ok 16 - falls back to a visible blocked state for an unknown disposition
+  ---
+  duration_ms: 0.276625
+  type: 'test'
+  ...
+# Subtest: ships a synthetic long mixed-script sample for reflow and assistive checks
+ok 17 - ships a synthetic long mixed-script sample for reflow and assistive checks
+  ---
+  duration_ms: 0.273542
+  type: 'test'
+  ...
+# Subtest: keeps fixture transport explicit and separate from ordinary localhost drafts
+ok 18 - keeps fixture transport explicit and separate from ordinary localhost drafts
+  ---
+  duration_ms: 0.103917
+  type: 'test'
+  ...
+# Subtest: presents pending, received, failed, stale, and unknown receipt truth distinctly
+ok 19 - presents pending, received, failed, stale, and unknown receipt truth distinctly
+  ---
+  duration_ms: 0.203542
+  type: 'test'
+  ...
+# Subtest: blocks resubmit while pending, received, or unknown and exposes reconciliation
+ok 20 - blocks resubmit while pending, received, or unknown and exposes reconciliation
+  ---
+  duration_ms: 0.146291
+  type: 'test'
+  ...
+# Subtest: names a duplicate receipt without claiming a second creation
+ok 21 - names a duplicate receipt without claiming a second creation
+  ---
+  duration_ms: 0.082709
+  type: 'test'
+  ...
+# Subtest: keeps session loading, ready, and absent states textually distinct
+ok 22 - keeps session loading, ready, and absent states textually distinct
+  ---
+  duration_ms: 0.141
+  type: 'test'
+  ...
+# Subtest: progress order remains evidence, session, then explicit submit
+ok 23 - progress order remains evidence, session, then explicit submit
+  ---
+  duration_ms: 0.206583
+  type: 'test'
+  ...
+# Subtest: bundles the exact shared fixture contract without semantic drift
+ok 24 - bundles the exact shared fixture contract without semantic drift
+  ---
+  duration_ms: 0.540583
+  type: 'test'
+  ...
+# Subtest: all eight cases keep disposition, evidence, and action boundaries explicit
+ok 25 - all eight cases keep disposition, evidence, and action boundaries explicit
+  ---
+  duration_ms: 0.380458
+  type: 'test'
+  ...
+# Subtest: critical blockers abstain instead of manufacturing persistence or effects
+ok 26 - critical blockers abstain instead of manufacturing persistence or effects
+  ---
+  duration_ms: 0.18075
+  type: 'test'
+  ...
+# Subtest: uses Manifest V3 and the exact minimum permission set
+ok 27 - uses Manifest V3 and the exact minimum permission set
+  ---
+  duration_ms: 0.080083
+  type: 'test'
+  ...
+# Subtest: declares no ambient collection or broad access surfaces
+ok 28 - declares no ambient collection or broad access surfaces
+  ---
+  duration_ms: 0.310375
+  type: 'test'
+  ...
+# Subtest: ships only local extension code in the review page
+ok 29 - ships only local extension code in the review page
+  ---
+  duration_ms: 0.513
+  type: 'test'
+  ...
+# Subtest: provides unique landmarks, live status, and an ordered review path
+ok 30 - provides unique landmarks, live status, and an ordered review path
+  ---
+  duration_ms: 0.602292
+  type: 'test'
+  ...
+# Subtest: declares visible focus, increased contrast, narrow reflow, and reduced motion
+ok 31 - declares visible focus, increased contrast, narrow reflow, and reduced motion
+  ---
+  duration_ms: 0.217458
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 31
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 202.688875

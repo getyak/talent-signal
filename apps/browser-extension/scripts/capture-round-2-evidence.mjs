@@ -453,6 +453,7 @@ const run = {
   states: [],
   accessibility: [],
   keyboard_only_flow: null,
+  evidence_trace: null,
   media: {},
   zoom: {},
   caveat:
@@ -474,6 +475,19 @@ try {
   );
   run.states.push(
     await stateSnapshot(core, "core_review", "01-core-review-390.png"),
+  );
+  await core.getByRole("button", { name: "View message m1" }).first().click();
+  run.evidence_trace = await core.evaluate(() => ({
+    trigger: "View message m1",
+    focused_id: document.activeElement?.id ?? null,
+    focused_text:
+      document.activeElement?.textContent?.replace(/\s+/g, " ").trim() ?? null,
+    highlighted:
+      document.activeElement?.classList.contains("is-evidence-target") ?? false,
+  }));
+  run.evidence_trace.screenshot = await screenshot(
+    core,
+    "01b-exact-evidence-focused-390.png",
   );
   run.accessibility.push(await runAxe(core, axeText, "core_review_390"));
   await core.close();
@@ -507,6 +521,21 @@ try {
     ),
   );
   await ambiguity.close();
+
+  const blocked = await openExtensionPage(
+    context,
+    extensionId,
+    "?mode=fixture&case=TS-BOUND-01&scenario=received",
+    { width: 390, height: 844 },
+  );
+  run.states.push(
+    await stateSnapshot(
+      blocked,
+      "blocked_inference",
+      "03b-blocked-inference-390.png",
+    ),
+  );
+  await blocked.close();
 
   const permission = await context.newPage();
   await permission.setViewportSize({ width: 390, height: 760 });
@@ -876,7 +905,12 @@ const transcriptLines = [
   ),
   "",
 ];
-await writeFile(transcriptPath, `${transcriptLines.join("\n")}\n`);
+const transcript = transcriptLines
+  .map((line) => line.trimEnd())
+  .join("\n")
+  .trimEnd()
+  .concat("\n");
+await writeFile(transcriptPath, transcript);
 
 process.stdout.write(
   `${JSON.stringify({
