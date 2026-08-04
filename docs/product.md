@@ -1,78 +1,104 @@
-# Product brief
+# Product
 
-## User and job
+## Audience and job
 
-**Primary user:** an independent recruiter or boutique-search recruiter handling high-value, relationship-led searches.
+Talent Signal serves independent recruiters and boutique search teams handling
+high-value, relationship-led assignments.
 
-**Job to be done:** after a meaningful candidate conversation, help me retain what changes the candidate’s likelihood of moving, turn it into the right operational update, and tell me the next best step before momentum is lost.
+After a meaningful conversation, it helps the recruiter answer:
 
-## Problem
+> What changed, why does it matter now, and what is the smallest safe action
+> that keeps the relationship moving?
 
-Candidate intent lives in fragmented, unstructured conversations. Existing ATS products record process but seldom translate a deadline, constraint, or commitment into a timely recommendation. A generic summary does not change an outcome.
-
-## Value proposition
+## Promise
 
 Never lose a strong candidate in the gaps between conversations.
 
-## MVP scope
+The product reduces context reconstruction and missed timing. It does not
+replace the recruiter's relationship judgment.
 
-- Input: one screenshot, optional context, and seeded local candidate data.
-- Actions: create contact, update contact, create meeting — all reviewable.
-- Output: a confirmed-fact timeline, one evidence-backed insight, and one recommended next action.
+## Product loop
 
-## Identity and role principle
+![Talent Signal product architecture](talent-signal-product-architecture.png)
 
-The product records people, not permanent candidate identities. A person may be
-a founder of one company, a product manager at another, a candidate in one
-search, a client stakeholder in another assignment, and a referrer elsewhere.
-These contexts must resolve to one person without flattening them into one
-universal profile.
+The loop is:
 
-Model the distinction explicitly:
+1. capture one meaningful source from the recruiter's current surface;
+2. separate explicit evidence from ambiguity and interpretation;
+3. let the recruiter correct and confirm what changed;
+4. propose one smallest useful next step;
+5. require a separate decision before consequential action;
+6. observe the result and carry confirmed context forward.
 
-- `Person` is the stable identity shared across authorized contexts.
-- `OrganizationRole` describes a time-bounded role such as founder or product
-  manager at a company.
-- `AssignmentParticipation` describes a person's role in a specific search or
-  assignment, such as candidate, client stakeholder, recruiter, or referrer.
-- `Relationship` connects people, companies, roles, and assignments with a
-  type, valid time, evidence, and history.
-- `Tag` is a user-controlled discovery and grouping aid. A tag does not create,
-  verify, replace, or merge an identity or role.
+The editable diagram is
+[`talent-signal-product-architecture.excalidraw`](talent-signal-product-architecture.excalidraw).
 
-Role claims follow the same evidence contract as other decision-relevant facts:
-they may be proposed, confirmed, edited, ambiguous, expired, or superseded and
-must preserve source provenance. Assignment-sensitive facts, including the fact
-that someone is considering a role, remain permission-scoped and must not leak
-into founder, client, or general relationship views.
+## Canonical experience
 
-The MVP remains candidate-momentum-first. Its candidate brief is the default
-assignment-scoped projection of a person, not a separate person record. Future
-founder, client, product-specialist, or referrer views may change the contextual
-fields and actions while preserving the same identity, evidence, and
-relationship history. This flexibility must not turn the MVP into an
-infinitely configurable CRM.
+The product is organized around a person viewed within a relationship or
+assignment context.
 
-## MVP processing contract
+Cards, lists, timelines, graphs, Today, and living pages are different views of
+the same governed relationship state. A person may be a candidate in one
+assignment, a client stakeholder in another, and a referrer elsewhere without
+becoming several unrelated identities.
 
-The runtime order is:
+Context-specific evidence must not leak merely because identity is shared.
 
-`evidence episode → structured evidence state → reviewable action cards → user
-decision → verified external result → semantic memory and wiki projection →
-insight and next step`
+## What the product remembers
 
-The product may read previously confirmed candidate memory before proposing an
-action, but a new screenshot does not enter active memory before review. Fact
-confirmation and action approval are separate decisions even when the interface
-presents them together. An action card is a pending tool proposal, not a fact,
-and dismissing an action does not invalidate its supporting evidence.
-See the
-[agent execution and memory boundary](architecture.md#agent-execution-and-memory-boundary)
-for the runtime contract and failure cases.
+The product remembers:
 
-## Strategic boundary
+- explicit preferences, constraints, commitments, and deadlines;
+- how current understanding changed over time;
+- unresolved questions and dependencies;
+- what action was proposed, approved, attempted, and observed;
+- corrections, contradictions, and superseded state.
 
-Start as a mobile, recruiter-controlled capture loop for the interview
-assignment. Evolve toward a desktop workbench with a shared person identity and
-multiple task-specific relationship lenses; never compete as a full ATS or
-generic CRM.
+It distinguishes:
+
+- source evidence;
+- user-confirmed state;
+- model interpretation;
+- action intent;
+- observed outcome.
+
+## Attention model
+
+The default unit of attention is not a score. It is a current dependency:
+
+- what is blocking a decision;
+- who controls it;
+- when it matters;
+- what evidence supports it;
+- the smallest appropriate next step.
+
+`no_action` is a valid and often valuable result.
+
+## Initial wedge
+
+Begin with intentional mobile capture and a web review surface. The first
+complete experience should take one recruiter-controlled conversation through
+reviewed state, one safe action, and a verified result.
+
+Broader research, desktop workflows, channels, and external agents should reuse
+the same truth and approval boundaries.
+
+## Non-goals
+
+- a general autonomous recruiter;
+- a generic conversation summarizer;
+- automatic candidate ranking or rejection;
+- a full ATS or configurable CRM;
+- ambient collection of private communication;
+- message volume as a success metric;
+- a generated wiki that becomes the system of record.
+
+## Product success
+
+Success means the recruiter can act with less reconstruction and greater
+confidence while the candidate experiences more relevant, timely, and
+human communication.
+
+See [Principles](principles.md), [Capture to action](capture-to-action.md), and
+[Design system](design-system.md).

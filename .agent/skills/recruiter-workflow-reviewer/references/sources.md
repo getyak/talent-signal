@@ -6,7 +6,7 @@ Checked 2026-08-04.
 
 - [`README.md`](../../../../README.md) — candidate-momentum workspace for independent recruiters; intentional screenshot import.
 - [`docs/product.md`](../../../../docs/product.md) — JTBD, MVP actions, mobile wedge, and non-ATS boundary.
-- [`docs/deep-research-candidate-momentum-loop.md`](../../../../docs/deep-research-candidate-momentum-loop.md) — evidence-first state/action/outcome loop, risk cases, and research plan.
+- [`docs/research/candidate-momentum-loop.md`](../../../../docs/research/candidate-momentum-loop.md) — evidence-first state/action/outcome loop, risk cases, and research plan.
 - [`docs/decisions/0001-product-wedge.md`](../../../../docs/decisions/0001-product-wedge.md) — selected product wedge.
 - [`docs/decisions/0002-surface-strategy.md`](../../../../docs/decisions/0002-surface-strategy.md) — iOS capture and later desktop workbench.
 

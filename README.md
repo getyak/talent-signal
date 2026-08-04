@@ -13,18 +13,18 @@ Talent Signal turns recruiter-controlled conversation screenshots into reviewabl
 
 ## Repository map
 
-- `docs/` — product, design, architecture, research, and delivery decisions.
+- [`docs/README.md`](docs/README.md) — task-routed project knowledge map.
 - `apps/ios/` — iOS capture and timely-briefing client.
 - `apps/web/` — product narrative and browser-safe evidence-review demo.
 - `packages/domain/` — shared product vocabulary and contracts.
-- `.agent/skills/` — canonical project-local review skills; `.agents/skills/` keeps discovery aliases and the existing candidate-signal workflow.
+- `.agents/skills/` — Codex-discoverable product, review, and knowledge Skills.
 - `.github/` — CI and contribution conventions.
 
 ## Status
 
-The native iOS MVP shell and web product site are implemented. The iOS release
-pipeline targets `com.talentsignal.app` and supports App Store Connect/TestFlight
-delivery through Fastlane.
+The repository contains a native iOS product shell, a web narrative and
+evidence-review experience, shared product contracts, and the foundations of a
+governed evidence-to-action system.
 
 ## Web development
 

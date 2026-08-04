@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Knowledge Steward"
+  short_description: "Keep project knowledge lean, durable, and agent-readable"
+  default_prompt: "Use $project-knowledge-steward to capture durable learning without bloating project context."

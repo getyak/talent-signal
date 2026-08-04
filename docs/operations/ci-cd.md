@@ -80,6 +80,11 @@ OpenAI documentation URLs are also excluded because their anti-automation layer
 returns HTTP 403 to GitHub-hosted runners; the rest of those domains are still
 checked.
 
+The repository documentation check separately verifies the knowledge map,
+required Agent guidance, canonical-document context budgets, local links, and
+the boundary that keeps implementation-level specifications out of
+foundational documents.
+
 ## Failure and recovery
 
 - Use `gh run list`, `gh run view RUN_ID`, and `gh run rerun RUN_ID --failed`

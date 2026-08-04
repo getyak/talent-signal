@@ -10,7 +10,7 @@
     "apps/ios/Sources/Features/CandidateSignalView.swift lines 4-309",
     "apps/ios/Sources/Domain/CandidateSignal.swift lines 3-57",
     "docs/product.md lines 17-21",
-    "docs/deep-research-candidate-momentum-loop.md lines 778-832 and 943-1020",
+    "docs/research/candidate-momentum-loop.md lines 778-832 and 943-1020",
     "xcodebuild Debug generic iOS Simulator build: BUILD SUCCEEDED on 2026-08-04",
     "No Simulator was booted; tap, VoiceOver, Dynamic Type, permission, and interruption paths were not executed",
     "Computed contrast ratios: white/signalRed 4.24:1; signalRed/ink 4.19:1"

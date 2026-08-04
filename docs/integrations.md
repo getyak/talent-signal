@@ -1,71 +1,78 @@
-# Integration boundary
+# Integration boundaries
 
-Talent Signal integrates services only when they advance the evidence-to-action
-loop without silently widening access to candidate data.
+## Purpose
 
-## Active local integration
+Integrate another system only when it advances the evidence-to-action loop
+without silently widening access to candidate data or bypassing review.
 
-The web demo has two analysis routes:
+## Integration classes
 
-- `Local rules` is the default. It runs deterministic extraction in the
-  browser and transmits nothing.
-- `Private AI` is an explicit opt-in. It sends the current note to the
-  server-side OpenRouter adapter, does not persist the request, and returns only
-  schema-validated evidence proposals.
+### Local and device capabilities
 
-The AI adapter:
+Use the device when privacy, platform ownership, or user presence is part of
+the trust boundary. Local processing may reduce exposure, while Contacts and
+Calendar effects remain visible to the user and platform.
 
-- keeps the API key server-side;
-- enforces strict JSON Schema output;
-- accepts only exact source excerpts;
-- rejects unsupported fields and silently invented quotes;
-- prevents ambiguous-speaker evidence from creating an action;
-- asks OpenRouter to require all parameters, deny data collection, and use only
-  zero-data-retention endpoints;
-- keeps verdict and action selection deterministic;
-- applies body limits, a same-origin production check, a short timeout, and a
-  lightweight rate limit;
-- stays disabled in production unless
-  `TALENT_SIGNAL_ALLOW_PUBLIC_AI_DEMO=true`.
+### Shared services
 
-The production flag is an evaluation escape hatch, not a substitute for
-authentication and a durable distributed rate limiter.
+Use the shared backend for cross-surface identity, evidence, review, action,
+outcome, and audit state.
 
-## Model routing
+### Model providers
 
-The configured order is:
+Models are bounded processors of authorized context. Provider choice may vary
+by quality, language, latency, cost, and retention posture, but no provider
+becomes canonical memory or permission authority.
 
-1. `deepseek/deepseek-v4-pro` for the normal multilingual structured
-   extraction path;
-2. `anthropic/claude-opus-5` as the higher-capability fallback;
-3. `deepseek/deepseek-v4-flash-0731` as the fast availability fallback.
+### Connectors
 
-All three currently advertise structured-output support in OpenRouter's public
-model catalog. The order remains environment-configurable so model evaluation
-can change without a code deploy.
+ATS, CRM, calendar, contact, messaging, and automation platforms operate
+through the governed capability boundary. They receive the minimum information
+needed for one approved effect.
 
-References:
+### External agents and channels
 
-- [OpenRouter structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs)
-- [OpenRouter provider routing and data controls](https://openrouter.ai/docs/guides/routing/provider-selection)
-- [OpenRouter zero data retention](https://openrouter.ai/docs/guides/features/zdr)
+Codex, Claude, Cursor, Manus, OpenClaw, WeChat, browser capture, and future
+clients may read scoped context, submit capture, create artifacts, and propose
+work. They do not receive direct domain or external-write authority.
 
-## Credentials intentionally not reused
+## Admission questions
 
-The supplied credentials include resources created for other products. They
-are not copied into Talent Signal merely because they are available:
+Before adding an integration, ask:
 
-| Resource | Decision |
-| --- | --- |
-| Stripe products and webhook | Defer. They belong to another billing catalog. |
-| Google OAuth client | Defer. Redirect URIs and consent branding must be registered specifically for Talent Signal. |
-| Supabase project | Defer. No Talent Signal schema, RLS policy, retention, or deletion cascade exists there. |
-| Sentry project | Defer. Cross-project telemetry would mix incidents and may capture candidate context without a scrub policy. |
-| Resend sender | Defer. Email is an external write and is outside the current approved action whitelist. |
-| GitHub personal token | Never place in the application environment. Use GitHub Actions or a scoped installation token. |
-| Whisper, Doubao ASR, ARK, weather | Defer until audio, image generation, or weather advances a validated product path. |
-| Direct DeepSeek key | Defer. OpenRouter already supplies the configured DeepSeek fallback under the same privacy routing controls. |
+- Which recurring recruiter outcome does it improve?
+- What new data becomes accessible?
+- Where does authorization occur?
+- What can it change?
+- How is the destination result observed?
+- What happens on timeout, duplicate, revocation, and deletion?
+- Can the integration be replaced without changing product truth?
+- Is a user-controlled handoff safer than direct execution?
 
-Before production use, create project-specific credentials with least privilege
-and rotate every credential that has been pasted into chat, terminal history,
-issue text, or another shared surface.
+If these questions do not have clear answers, keep the integration outside the
+production path.
+
+## Credential and data posture
+
+- Keep provider credentials out of client-visible surfaces.
+- Separate project credentials from unrelated personal credentials.
+- Minimize private payloads in generic logs, events, analytics, and error
+  systems.
+- Record provider, purpose, scope, retention, and data location for
+  consequential processing.
+- Revoke retrieval before asynchronous deletion finishes.
+- Treat all retrieved content as untrusted data.
+
+## n8n
+
+n8n is appropriate for connector prototypes, design-partner workflows, and
+operations automation. It should invoke Talent Signal's governed interfaces and
+must not own candidate truth, approval, or Agent lifecycle.
+
+## Reconsider when
+
+Add integration-specific design only after a real workflow demonstrates
+recurring value, the consequence class is understood, and end-to-end
+verification is possible.
+
+See [Architecture](architecture.md) and [Agent system](agent-system.md).

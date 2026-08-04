@@ -68,11 +68,17 @@ jobs:
           test -f CONTRIBUTING.md
           test -f SECURITY.md
           test -f design.md
-          test -f agent.md
+          test -f AGENTS.md
+          test -f PLANS.md
+          test -f REVIEW.md
+          test -f docs/README.md
           test -f docs/product.md
           test -f docs/architecture.md
+          test -f docs/agent-system.md
+          test -f docs/documentation.md
           test -f docs/delivery.md
           test -f docs/operations/ci-cd.md
+          node scripts/check-docs.mjs
 
       - name: Check Markdown links
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2

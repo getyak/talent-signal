@@ -1,4 +1,4 @@
-# Research synthesis: AI-era executive search
+# Market thesis: AI-era executive search
 
 ## Core thesis
 
