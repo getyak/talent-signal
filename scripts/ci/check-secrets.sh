@@ -8,7 +8,7 @@ status=0
 
 while IFS= read -r path; do
   case "$path" in
-    *.env.example | .env.example)
+    *.env.example)
       ;;
     *)
       printf 'Tracked secret-like file is not allowed: %s\n' "$path" >&2
