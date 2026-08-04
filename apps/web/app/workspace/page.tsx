@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { WorkspaceApp } from "@/components/workspace-app";
+import { loadCandidateWorkspace } from "@/lib/server/candidateWorkspace";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,12 @@ export default async function WorkspacePage() {
     redirect("/login?callbackUrl=/workspace");
   }
 
+  const { dataset, source } = await loadCandidateWorkspace();
+
   return (
     <WorkspaceApp
+      dataset={dataset}
+      source={source}
       user={{
         email: session.user.email,
         name: session.user.name,
