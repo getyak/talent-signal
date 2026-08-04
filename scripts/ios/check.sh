@@ -30,9 +30,16 @@ simulator_id="$(
 xcrun simctl boot "$simulator_id" >/dev/null 2>&1 || true
 xcrun simctl bootstatus "$simulator_id" -b
 
-xcodebuild \
-  -project "$project_path" \
-  -scheme "$scheme_name" \
-  -destination "platform=iOS Simulator,id=$simulator_id" \
-  -parallel-testing-enabled NO \
-  test
+test_arguments=(
+  -project "$project_path"
+  -scheme "$scheme_name"
+  -destination "platform=iOS Simulator,id=$simulator_id"
+  -parallel-testing-enabled NO
+)
+
+if [ -n "${RESULT_BUNDLE_PATH:-}" ]; then
+  mkdir -p "$(dirname "$RESULT_BUNDLE_PATH")"
+  test_arguments+=(-resultBundlePath "$RESULT_BUNDLE_PATH")
+fi
+
+xcodebuild "${test_arguments[@]}" test

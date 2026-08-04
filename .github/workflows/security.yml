@@ -1,0 +1,150 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ios: ${{ steps.filter.outputs.ios }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect Swift analysis scope
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          ios="$(./scripts/ci/has-ios-changes.sh "$BASE_SHA" "$HEAD_SHA" --ci-files)"
+          echo "ios=$ios" >> "$GITHUB_OUTPUT"
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never
+
+  secret-hygiene:
+    name: Secret hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Reject tracked secret material
+        run: ./scripts/ci/check-secrets.sh
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@d1ba80a13dd99fba24a470575428917156a28b43 # v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@d1ba80a13dd99fba24a470575428917156a28b43 # v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  codeql-swift:
+    name: CodeQL (swift)
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@d1ba80a13dd99fba24a470575428917156a28b43 # v4
+        with:
+          build-mode: manual
+          languages: swift
+          queries: security-extended
+
+      - name: Build Swift sources for analysis
+        run: |
+          xcodebuild \
+            -project apps/ios/TalentSignal.xcodeproj \
+            -scheme TalentSignal \
+            -configuration Release \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@d1ba80a13dd99fba24a470575428917156a28b43 # v4
+        with:
+          category: /language:swift
+
+  required:
+    name: Security required
+    needs: [changes, dependency-review, secret-hygiene, codeql, codeql-swift]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CHANGES_RESULT: ${{ needs.changes.result }}
+      DEPENDENCY_RESULT: ${{ needs.dependency-review.result }}
+      SECRET_RESULT: ${{ needs.secret-hygiene.result }}
+      CODEQL_RESULT: ${{ needs.codeql.result }}
+      SWIFT_RESULT: ${{ needs.codeql-swift.result }}
+    steps:
+      - name: Enforce security job results
+        run: |
+          test "$CHANGES_RESULT" = "success"
+          test "$DEPENDENCY_RESULT" = "success" || test "$DEPENDENCY_RESULT" = "skipped"
+          test "$SECRET_RESULT" = "success"
+          test "$CODEQL_RESULT" = "success"
+          test "$SWIFT_RESULT" = "success" || test "$SWIFT_RESULT" = "skipped"

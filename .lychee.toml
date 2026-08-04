@@ -1,0 +1,16 @@
+cache = true
+max_cache_age = "1d"
+max_retries = 3
+retry_wait_time = 2
+timeout = 30
+accept = ["200..=204", "429"]
+scheme = ["https", "http"]
+exclude_loopback = true
+exclude = [
+  '^https://www\.cac\.gov\.cn/',
+]
+exclude_path = [
+  '(^|/)tmp/',
+  '(^|/)node_modules/',
+  '(^|/)\.next/',
+]

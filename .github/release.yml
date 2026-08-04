@@ -1,0 +1,23 @@
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking-change
+    - title: Product and features
+      labels:
+        - enhancement
+        - product
+    - title: Reliability and security
+      labels:
+        - bug
+        - security
+        - area:ci
+    - title: Documentation
+      labels:
+        - area:docs
+    - title: Other changes
+      labels:
+        - "*"

@@ -4,46 +4,156 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+
 jobs:
-  docs:
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ios: ${{ steps.filter.outputs.ios }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out the tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect iOS-related changes
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          ios="$(./scripts/ci/has-ios-changes.sh "$BASE_SHA" "$HEAD_SHA" --ci-files)"
+          echo "ios=$ios" >> "$GITHUB_OUTPUT"
+          echo "iOS checks required: $ios"
+
+  repository:
+    name: Repository policy and docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Verify repository policy
+        run: |
+          ./scripts/ci/check-actions-pinned.sh
+          ./scripts/ci/check-secrets.sh
+          find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          shellcheck scripts/ci/*.sh scripts/ios/*.sh
+
+      - name: Install actionlint
+        run: ./scripts/ci/install-actionlint.sh "$RUNNER_TEMP/bin"
+
+      - name: Validate GitHub Actions workflows
+        run: |
+          "$RUNNER_TEMP/bin/actionlint" -color
+
       - name: Verify required project documents
         run: |
           test -f README.md
+          test -f CONTRIBUTING.md
+          test -f SECURITY.md
           test -f design.md
           test -f agent.md
           test -f docs/product.md
           test -f docs/architecture.md
           test -f docs/delivery.md
+          test -f docs/operations/ci-cd.md
+
       - name: Check Markdown links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
-          use-quiet-mode: 'yes'
+          args: --config .lychee.toml --no-progress './**/*.md'
+          fail: true
+          jobSummary: true
 
   web:
+    name: Web quality
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6.0.9
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
           version: 11.18.0
-      - uses: actions/setup-node@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
       - name: Lint
         run: pnpm lint
+
       - name: Typecheck
         run: pnpm typecheck
+
       - name: Test
         run: pnpm test
+
       - name: Build
         run: pnpm build
+
+  ios:
+    name: iOS build and test
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Build and test iOS
+        env:
+          RESULT_BUNDLE_PATH: ${{ github.workspace }}/build/ios/TestResults.xcresult
+        run: ./scripts/ios/check.sh
+
+      - name: Preserve failed test results
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ios-test-results-${{ github.run_id }}
+          path: build/ios/TestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
+  required:
+    name: CI required
+    needs: [changes, repository, web, ios]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CHANGES_RESULT: ${{ needs.changes.result }}
+      REPOSITORY_RESULT: ${{ needs.repository.result }}
+      WEB_RESULT: ${{ needs.web.result }}
+      IOS_RESULT: ${{ needs.ios.result }}
+    steps:
+      - name: Enforce required job results
+        run: |
+          test "$CHANGES_RESULT" = "success"
+          test "$REPOSITORY_RESULT" = "success"
+          test "$WEB_RESULT" = "success"
+          test "$IOS_RESULT" = "success" || test "$IOS_RESULT" = "skipped"

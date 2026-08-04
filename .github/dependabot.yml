@@ -4,3 +4,39 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: "02:15"
+      timezone: Asia/Singapore
+    open-pull-requests-limit: 5
+    labels: [dependencies, area:ci]
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:30"
+      timezone: Asia/Singapore
+    open-pull-requests-limit: 10
+    labels: [dependencies, area:web]
+    groups:
+      web-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: bundler
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:45"
+      timezone: Asia/Singapore
+    open-pull-requests-limit: 5
+    labels: [dependencies, area:ios]
+    groups:
+      fastlane-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]

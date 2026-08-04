@@ -1,0 +1,6 @@
+paths:
+  ".github/workflows/*.{yml,yaml}":
+    ignore:
+      # macos-26 is a current GitHub-hosted label that actionlint 1.7.7
+      # predates. Keep every other runner-label check enabled.
+      - 'label "macos-26" is unknown'

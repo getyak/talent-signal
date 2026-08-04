@@ -1,0 +1,208 @@
+name: Release iOS
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      publish_testflight:
+        description: Publish a verified build to TestFlight
+        required: true
+        default: false
+        type: boolean
+      version_override:
+        description: Optional semantic version, for example 0.2.0
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-ios
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Decide whether to release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release_sha: ${{ steps.decision.outputs.release_sha }}
+      should_release: ${{ steps.decision.outputs.should_release }}
+    steps:
+      - name: Check out verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Evaluate release policy
+        id: decision
+        env:
+          BASE_SHA: ${{ github.event.workflow_run.pull_requests[0].base.sha || '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISH_TESTFLIGHT: ${{ inputs.publish_testflight || false }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          should_release=false
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            should_release="$PUBLISH_TESTFLIGHT"
+          else
+            base_sha="$BASE_SHA"
+            if ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+              base_sha="$(git rev-parse "${RELEASE_SHA}^")"
+            fi
+
+            if ! git diff --quiet "$base_sha" "$RELEASE_SHA" -- \
+              apps/ios fastlane scripts/ios Gemfile Gemfile.lock; then
+              should_release=true
+            fi
+          fi
+
+          echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "should_release=$should_release" >> "$GITHUB_OUTPUT"
+          echo "TestFlight release required: $should_release"
+
+  testflight:
+    name: Publish TestFlight
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    environment:
+      name: testflight
+      url: https://appstoreconnect.apple.com/apps
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.release_sha }}
+
+      - name: Validate release secrets
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          MATCH_DEPLOY_KEY: ${{ secrets.MATCH_DEPLOY_KEY }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: |
+          missing=0
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            DEVELOPMENT_TEAM \
+            MATCH_DEPLOY_KEY \
+            MATCH_GIT_URL \
+            MATCH_KEYCHAIN_PASSWORD \
+            MATCH_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Compute release version
+        id: version
+        env:
+          VERSION_OVERRIDE: ${{ inputs.version_override || '' }}
+        run: ./scripts/ci/next-ios-version.sh "$VERSION_OVERRIDE"
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Configure signing material
+        env:
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          MATCH_DEPLOY_KEY: ${{ secrets.MATCH_DEPLOY_KEY }}
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/match-ssh"
+          printf '%s\n' "$MATCH_DEPLOY_KEY" > "$RUNNER_TEMP/match-ssh/key"
+          chmod 600 "$RUNNER_TEMP/match-ssh/key"
+          printf '%s\n' "$API_KEY_CONTENT" > "$RUNNER_TEMP/asc_key.p8"
+          chmod 600 "$RUNNER_TEMP/asc_key.p8"
+          echo "BUILD_NUMBER=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_ENV"
+
+      - name: Archive and upload
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+          FASTLANE_SKIP_UPDATE_CHECK: "1"
+        run: bundle exec fastlane ios beta
+
+      - name: Attest IPA provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: build/ios/TalentSignal.ipa
+
+      - name: Tag successful TestFlight release
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+        run: |
+          git fetch --tags --force origin
+          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null 2>&1 ||
+            git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $RELEASE_TAG was created while this build was running"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
+          git push origin "$RELEASE_TAG"
+
+      - name: Create GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            build/ios/TalentSignal.ipa \
+            --generate-notes \
+            --prerelease \
+            --title "$RELEASE_TAG" \
+            --verify-tag
+
+      - name: Preserve IPA
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: TalentSignal-${{ steps.version.outputs.release_version }}
+          path: build/ios/TalentSignal.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/asc_key.p8"
+          rm -f "$RUNNER_TEMP/match-ssh/key"
