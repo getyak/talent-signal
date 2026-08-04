@@ -18,9 +18,11 @@ The product is not:
 
 The central design idea is:
 
-> A candidate is a living page. Cards, lists, timelines, and graphs are views of
-> that page. Every important claim can be traced back to evidence and through
-> its change history.
+> A person has one canonical identity. A candidate is that person participating
+> in a specific assignment, and the candidate living page is the MVP's
+> canonical working projection. Cards, lists, timelines, and graphs are views
+> of the same person, role, assignment, and relationship objects. Every
+> important claim can be traced back to evidence and through its change history.
 
 ### Reference interpretation
 
@@ -42,8 +44,10 @@ meaning explicit.
 
 ### 2.1 Page before card
 
-The candidate page is the canonical object. A card is a compact projection for
-scanning and selection, never the only place where candidate state lives.
+The person is the canonical identity. The candidate page is the canonical
+assignment-scoped working projection for the MVP. A card is a compact
+projection for scanning and selection, never the only place where identity,
+role, or candidate state lives.
 
 ### 2.2 Evidence before interpretation
 
@@ -51,11 +55,14 @@ Verified facts, proposed facts, and inferences must look different. A source is
 one click away from every decision-relevant fact. Confidence is established by
 provenance and editability, not by a decorative percentage.
 
-### 2.3 Views change the lens, not the truth
+### 2.3 Context changes the lens, not the person
 
-Card, list, timeline, and graph views use the same underlying candidate and
-relationship objects. Switching views preserves search, filters, sorting,
-selection, and the visible information hierarchy.
+Founder, product manager, candidate, client stakeholder, recruiter, and
+referrer are contextual roles or participations, not mutually exclusive person
+types. Card, list, timeline, and graph views use the same underlying person,
+role, assignment, and relationship objects. Switching a view or role lens
+preserves person identity, applicable history, search, filters, sorting, and
+selection while changing only the context-relevant facts and actions.
 
 ### 2.4 Change must remain visible
 
@@ -93,11 +100,18 @@ notice hidden in settings.
 flowchart LR
     E["Evidence episode"] --> A["Proposed assertion"]
     A --> F["Confirmed fact version"]
-    F --> P["Candidate page"]
-    P --> C["Card view"]
-    P --> L["List view"]
-    P --> T["Timeline view"]
-    P --> G["Relationship graph"]
+    F --> P["Person"]
+    F --> R["Organization role"]
+    F --> S["Assignment participation"]
+    F --> X["Relationship"]
+    P --> W["Candidate page: MVP projection"]
+    R --> W
+    S --> W
+    X --> W
+    W --> C["Card view"]
+    W --> L["List view"]
+    W --> T["Timeline view"]
+    W --> G["Relationship graph"]
     F --> N["Next action"]
     N --> O["Outcome"]
     E --> H["Audit history"]
@@ -112,7 +126,12 @@ The interface should reflect this model:
 - `Evidence episode`: one intentional import or conversation event.
 - `Assertion`: one atomic AI proposal with an exact source span.
 - `Fact version`: a recruiter-confirmed state with valid time and system time.
-- `Relationship`: a typed connection with evidence and history.
+- `Person`: one resolved human identity shared across authorized contexts.
+- `Organization role`: a typed, time-bounded role held by a person at a
+  company, such as founder or product manager.
+- `Assignment participation`: a person's contextual role in one search or
+  assignment, such as candidate, client stakeholder, recruiter, or referrer.
+- `Relationship`: a typed, time-bounded connection with evidence and history.
 - `Action`: a proposed or confirmed next move with owner and due time.
 - `Outcome`: what actually happened after the action.
 - `Audit event`: an append-only record of proposal, edit, confirmation,
@@ -120,6 +139,31 @@ The interface should reflect this model:
 
 Do not design a view that requires flattening these objects into one summary
 string.
+
+### 3.1 Identity, role lenses, and tags
+
+Render a contextual card or page from:
+
+`stable person identity + selected role or assignment + current user task +
+authorized evidence`
+
+Use a shared identity header for name, avatar, and resolved contact identity.
+The contextual body answers the question for the selected lens:
+
+- a founder lens emphasizes company, company stage, hiring needs, decision
+  role, and current relationship;
+- a candidate lens emphasizes assignment, preferences, constraints, process
+  state, and the smallest next action;
+- a product-manager lens emphasizes current organization, domain experience,
+  work evidence, and relevant relationships;
+- a client lens emphasizes active assignments, requirements, commitments,
+  decision relationships, and follow-up work.
+
+Do not show every role at once or create duplicate people to obtain different
+cards. Free-form tags may filter and group people, but they must not silently
+merge identities, assert a role, or determine what private facts are visible.
+Role changes preserve before-and-after values, valid time, confirmation state,
+and exact evidence. Ambiguous identity matches remain visibly unresolved.
 
 ## 4. Design dials by surface
 
@@ -252,7 +296,8 @@ When switching Card and List:
 
 ### 8.2 Candidate card
 
-Each candidate card contains:
+Each candidate card combines the stable person identity with the selected
+assignment lens. It contains:
 
 1. Avatar or initials, name, current role and company.
 2. At most three high-signal tags.
@@ -265,6 +310,8 @@ The card must not contain:
 - a momentum progress bar;
 - more than three colored tags;
 - a miniature full profile;
+- facts from another role or assignment merely because they belong to the same
+  person;
 - decorative charts without a time series;
 - generic AI summaries.
 
@@ -438,6 +485,9 @@ and action language. Platform-native navigation and controls remain native.
 - Give every graph insight a textual equivalent.
 - Do not expose sensitive facts on a card unless they are required for the
   current task and the viewer is authorized.
+- Treat role and assignment scopes as privacy boundaries. A person's candidate
+  status or job-search evidence must not appear in founder, client, or general
+  relationship views without explicit authorization.
 - Avoid identifiable screenshots in marketing and fixtures.
 - Make deletion state and derivative deletion legible from the source episode.
 
@@ -447,17 +497,23 @@ and action language. Platform-native navigation and controls remain native.
   SwiftUI tokens. Do not maintain competing palettes.
 - Keep Phosphor as the web icon family. Use SF Symbols on iOS.
 - Build Card and List from one view model so their semantics cannot drift.
+- Build contextual cards from a shared person identity model plus an explicit
+  role or assignment projection; do not duplicate a person per lens.
 - Keep provenance and audit fields in the domain model, not in display-only
   strings.
 - Provide loading, empty, ambiguous, error, proposed, confirmed, edited,
   dismissed, failed, expired, and superseded states.
 - Test light and dark themes, reduced motion, mobile collapse, keyboard
   navigation, long names, missing avatars, three tags, no tags, and stale
-  evidence.
+  evidence. Also test one person with multiple simultaneous roles, ambiguous
+  identity resolution, expired roles, and cross-context permission boundaries.
 
 ## 17. Design review checklist
 
-- Is the candidate page the canonical object?
+- Is there one canonical person identity and one assignment-scoped candidate
+  projection rather than duplicate people?
+- Does the selected role lens change contextual information without changing
+  identity or leaking evidence from another assignment?
 - Does each view answer a specific user question?
 - Does switching views preserve context?
 - Can every important fact return to exact evidence?

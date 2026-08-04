@@ -2,6 +2,11 @@
 
 Use a shared, auditable domain model behind an iOS-first client. Keep OCR, LLM, contact, and calendar integrations behind adapters.
 
+The detailed import surfaces, evidence-compilation stages, device-versus-server
+capability routing, iOS system integrations, failure contract, and delivery
+sequence are defined in
+[`import-to-action-technical-design.md`](import-to-action-technical-design.md).
+
 ## Architecture diagram
 
 ![Talent Signal architecture and data flywheel](talent-signal-architecture.png)
@@ -13,7 +18,8 @@ Use a shared, auditable domain model behind an iOS-first client. Keep OCR, LLM, 
 ```text
 apps/ios       SwiftUI client, import, card review, candidate brief
 apps/web       future desktop workbench
-packages/domain Candidate, Evidence, ActionCard, Insight contracts
+packages/domain Person, Role, AssignmentParticipation, Relationship, Evidence,
+                ActionProposal, and Insight contracts
 services/api   authentication, orchestration, audit log
 services/ai    OCR and structured extraction adapters
 ```
@@ -24,9 +30,48 @@ output contract, validates exact evidence spans in code, and returns proposals
 only. It does not persist candidate text or execute contact/calendar writes.
 See [`integrations.md`](integrations.md) for its model and credential boundary.
 
+## Shared backend and deployment decision
+
+The first real multi-surface workflow requires one shared backend. iOS, the
+browser/plugin importer, and the web workbench synchronize through that backend
+and never directly with one another. Local drafts and caches may remain
+device-specific, while submitted evidence, review state, confirmed facts,
+actions, outcomes, and audit history have one authorized system of record.
+
+The MVP backend is a managed modular monolith:
+
+- managed PostgreSQL for domain state, versions, authorization, and audit;
+- managed object storage for intentionally uploaded screenshots, audio, and
+  attachments;
+- one shared API for ingestion, review, synchronization, and safe command
+  execution;
+- a durable database-backed job/outbox boundary for extraction and connectors;
+- derived, rebuildable candidate, Today, search, and wiki projections.
+
+Own the application code, schema, cloud project, credentials, retention policy,
+and backups. Do not operate a physical server, manually maintained VPS,
+Kubernetes cluster, graph database, or separate vector database for the MVP.
+
+The complete topology, client responsibility matrix, data placement rules,
+sync protocol, and conditions for later self-hosting are recorded in
+[`ADR 0003`](decisions/0003-shared-backend-topology.md).
+
 ## Core entities
 
-- `Candidate`: identity, assignment scope, stage, and current-state projection.
+- `Person`: stable resolved identity shared across authorized contexts. A person
+  does not have one permanent product role.
+- `OrganizationRole`: a typed, time-bounded, evidence-backed role held by a
+  person at an organization, such as founder or product manager.
+- `AssignmentParticipation`: a typed, permission-scoped participation in a
+  search or assignment, such as candidate, client stakeholder, recruiter, or
+  referrer, including stage and contextual state when applicable.
+- `Relationship`: a typed, directed when necessary, time-bounded connection
+  among people, organizations, roles, and assignments with provenance and
+  append-only history.
+- `Tag`: a user-controlled discovery and grouping label. It is not an identity,
+  identity-resolution signal by default, verified role, or permission grant.
+- `Candidate`: the MVP compatibility projection of a `Person` plus a candidate
+  `AssignmentParticipation`; it is not a separate human identity.
 - `EvidenceEpisode`: one intentional import with source, capture context,
   retention policy, and deletion state.
 - `EvidenceSpan`: exact text, speaker, image coordinates, OCR version, and
@@ -43,6 +88,34 @@ See [`integrations.md`](integrations.md) for its model and credential boundary.
   from active facts, hypotheses, actions, and outcomes.
 - `Insight`: one evidence-backed inference, rationale, and smallest useful next
   step.
+
+## Identity and contextual projection decision
+
+Resolve each human to one `Person`, then attach organizational roles,
+assignment participations, and relationships as independently versioned
+objects. The same person may simultaneously be a founder, product manager,
+candidate, client stakeholder, or referrer. Creating a new lens must not create
+a duplicate person or overwrite another current role.
+
+Each role, participation, and relationship assertion carries:
+
+- exact evidence references and assertion state;
+- valid time and recorded time;
+- confirmation actor and current provenance state;
+- scope and visibility inherited from the source and assignment;
+- supersession or expiry history.
+
+User-created tags remain useful for retrieval and saved views but never become
+identity authority. Identity matching must represent `matched`, `unknown`, and
+`ambiguous` states explicitly and require review before merging records.
+
+The candidate brief and `WikiSnapshot` remain the MVP's default working
+surface. They are assignment-scoped projections compiled from the authorized
+person, role, participation, relationship, fact, action, and outcome objects.
+Founder, client, or domain-specialist cards may use different projections later
+without changing the underlying identity. Projection code must enforce
+contextual privacy so that candidate status or job-search evidence does not
+appear in another lens merely because the person identity is shared.
 
 ## Agent execution and memory boundary
 

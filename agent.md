@@ -18,7 +18,12 @@ Optimize for timely, trustworthy judgment rather than feature volume.
 
 ## Product and design
 
-- The candidate page is canonical. Card, List, Timeline, and Graph are views.
+- A person has one canonical identity. The candidate page is the canonical
+  assignment-scoped working projection for the MVP; Card, List, Timeline, and
+  Graph are views of the same person, role, assignment, and relationship data.
+- Treat candidate, founder, product manager, client stakeholder, recruiter, and
+  referrer as contextual roles or participations, never mutually exclusive
+  person types or free-form tags that replace verified identity.
 - Every important fact, relationship, and state change must be traceable.
 - Use quiet neutrals, one vermilion accent, scarce elevation, and restrained
   motion. Avoid generic AI aesthetics and dashboard clutter.
