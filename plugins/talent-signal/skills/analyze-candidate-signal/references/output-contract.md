@@ -30,7 +30,8 @@ Provide one JSON object:
 `authorization.kind` must be `synthetic` or `user_authorized`.
 `authorization.purpose` must describe the current bounded use. Messages need
 unique non-empty IDs, a speaker label, and exact text. Missing context stays
-missing.
+missing. The analyzer recognizes `candidate` and `recruiter` speaker labels;
+any other or explicitly uncertain speaker stops at clarification.
 
 ## Output
 

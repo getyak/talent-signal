@@ -33,6 +33,7 @@ PROHIBITED_ASSESSMENT_TERMS = (
     "potential score",
     "acceptance probability",
 )
+RECOGNIZED_SPEAKERS = {"candidate", "recruiter"}
 
 
 class ContractError(ValueError):
@@ -200,9 +201,14 @@ def _evidence(
 
 def _source(payload: dict[str, Any]) -> dict[str, Any]:
     context = payload["context"]
+    messages = payload["messages"]
     candidate = context.get("candidate")
     assignment = context.get("assignment")
     ambiguous_identity = not candidate or not assignment
+    ambiguous_speaker = bool(context.get("speaker_uncertain")) or any(
+        message["speaker"].lower() not in RECOGNIZED_SPEAKERS
+        for message in messages
+    )
     return {
         "authorization": payload["authorization"]["kind"],
         "purpose": payload["authorization"]["purpose"],
@@ -213,6 +219,9 @@ def _source(payload: dict[str, Any]) -> dict[str, Any]:
         "assignment_scope": assignment,
         "candidate_binding": (
             "ambiguous" if ambiguous_identity else "scoped_for_review"
+        ),
+        "speaker_binding": (
+            "ambiguous" if ambiguous_speaker else "supplied_for_review"
         ),
     }
 
@@ -288,6 +297,47 @@ def analyze(payload: Any) -> dict[str, Any]:
             "outcome_handoff": {
                 "status": "needs_clarification",
                 "summary": "Candidate identity remains unresolved; nothing was bound or changed.",
+                "confirmed_state_changed": False,
+                "external_effect": "not_attempted",
+                "requires_human_decision": True,
+            },
+        }
+        validate_packet(packet, messages)
+        return packet
+
+    ambiguous_speaker_ids = [
+        message["id"]
+        for message in messages
+        if message["speaker"].lower() not in RECOGNIZED_SPEAKERS
+    ]
+    if context.get("speaker_uncertain"):
+        ambiguous_speaker_ids = [message["id"] for message in messages]
+    if ambiguous_speaker_ids:
+        packet = {
+            "schema_version": SCHEMA_VERSION,
+            "source": _source(payload),
+            "disposition": "clarify",
+            "evidence": [],
+            "proposed_temporal_state": [],
+            "ambiguities": [
+                _ambiguity(
+                    kind="speaker_identity",
+                    description=(
+                        "One or more supplied speaker labels are unknown or "
+                        "explicitly uncertain."
+                    ),
+                    message_ids=ambiguous_speaker_ids,
+                    blocks=["state_confirmation", "action_execution"],
+                )
+            ],
+            "action_proposal": None,
+            "no_action": {
+                "reason": "Resolve speaker identity before proposing state or action.",
+                "evidence_message_ids": ambiguous_speaker_ids,
+            },
+            "outcome_handoff": {
+                "status": "needs_clarification",
+                "summary": "Speaker identity remains unresolved; no state or action was proposed.",
                 "confirmed_state_changed": False,
                 "external_effect": "not_attempted",
                 "requires_human_decision": True,

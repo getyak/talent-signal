@@ -327,6 +327,40 @@ def _supplemental_boundary_checks(analyzer: Any) -> list[dict[str, str]]:
     except analyzer.ContractError:
         missing_authorization_passed = True
 
+    ambiguous_speaker = {
+        "authorization": {
+            "kind": "synthetic",
+            "purpose": "Adversarial ambiguous-speaker regression check.",
+        },
+        "context": {
+            "captured_at": "2026-08-03T10:00:00+08:00",
+            "source_timezone": "Asia/Singapore",
+            "candidate": "Alex Chen",
+            "assignment": "Staff Product Designer",
+        },
+        "messages": [
+            {
+                "id": "m1",
+                "speaker": "unknown",
+                "text": (
+                    "I have another offer and need to decide Wednesday. "
+                    "Remote matters a lot."
+                ),
+            }
+        ],
+    }
+    speaker_packet = analyzer.analyze(ambiguous_speaker)
+    ambiguous_speaker_passed = (
+        speaker_packet["disposition"] == "clarify"
+        and speaker_packet["source"]["speaker_binding"] == "ambiguous"
+        and not speaker_packet["proposed_temporal_state"]
+        and speaker_packet["action_proposal"] is None
+        and any(
+            ambiguity.get("kind") == "speaker_identity"
+            for ambiguity in speaker_packet["ambiguities"]
+        )
+    )
+
     return [
         {
             "name": "missing_identity_blocks_state_and_action",
@@ -335,6 +369,10 @@ def _supplemental_boundary_checks(analyzer: Any) -> list[dict[str, str]]:
         {
             "name": "missing_authorization_is_rejected",
             "status": "pass" if missing_authorization_passed else "fail",
+        },
+        {
+            "name": "ambiguous_speaker_blocks_state_and_action",
+            "status": "pass" if ambiguous_speaker_passed else "fail",
         },
     ]
 
