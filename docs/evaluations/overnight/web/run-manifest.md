@@ -9,7 +9,7 @@
 - Fixture suite: `talent-signal-candidate-momentum-v1`
 - Fixture version: `2026-08-05.1`
 - Started: `2026-08-05`, Asia/Singapore
-- Result commit: pending final local commit
+- Result implementation commit: `0978eba253e95ce275d6458622e3012f8e24dcdc`
 
 ## Outcome and boundary
 
@@ -57,7 +57,7 @@ pnpm --filter @talent-signal/web build      PASS
 - [x] Exercise all eight cases and directly record `TS-CORE-01`.
 - [x] Run up to three evidence-driven correction loops.
 - [x] Freeze final checks, artifact locators, gaps, and diff.
-- [ ] Record the local result commit.
+- [x] Record the local result commit.
 
 ## Correction loops
 
