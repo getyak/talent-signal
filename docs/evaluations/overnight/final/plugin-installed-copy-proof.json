@@ -1,5 +1,5 @@
 {
-  "status": "pass_with_host_gap",
+  "status": "pass_with_host_proof",
   "plugin": "talent-signal",
   "version": "0.1.0",
   "installed_copy_method": "Copied the frozen repository-local plugin tree to a fresh disposable /tmp directory and invoked validation plus the analyzer from that copy.",
@@ -13,14 +13,20 @@
   "supplemental_boundary_result": "3/3 pass",
   "external_tools_or_effects": false,
   "host_install": {
-    "status": "blocked",
+    "status": "pass",
     "codex_cli_version": "0.146.0",
-    "exact_blocker": "The reviewed plugin tree has no local marketplace snapshot, while `codex plugin add` accepts only plugins from a configured marketplace. Mutating the user's real Codex profile would also violate the required disposable-profile boundary.",
-    "not_claimed": "No actual Codex host installation or model-selected Skill invocation is claimed."
+    "plugin_id": "talent-signal@personal",
+    "installed": true,
+    "enabled": true,
+    "version": "0.1.0",
+    "installed_cache_root": "/Users/xiongxinwei/.codex/plugins/cache/personal/talent-signal/0.1.0",
+    "ephemeral_read_only_invocation": "pass",
+    "evidence": "docs/evaluations/overnight/final/plugin-host-install-proof.json"
   },
   "evidence": [
     "docs/evaluations/overnight/final/plugin-local-validation.json",
     "docs/evaluations/overnight/final/plugin-fixture-results.json",
-    "docs/evaluations/overnight/final/plugin-ts-core-01-installed-copy.json"
+    "docs/evaluations/overnight/final/plugin-ts-core-01-installed-copy.json",
+    "docs/evaluations/overnight/final/plugin-host-install-proof.json"
   ]
 }

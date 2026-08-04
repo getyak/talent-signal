@@ -29,7 +29,8 @@
       "observed_disposition": "propose_action",
       "evidence_locators": [
         "docs/evaluations/overnight/final/plugin-fixture-results.json",
-        "docs/evaluations/overnight/final/backend-evaluation-summary.json"
+        "docs/evaluations/overnight/final/backend-evaluation-summary.json",
+        "docs/evaluations/overnight/final/plugin-host-install-proof.json"
       ],
       "exact_gap": null
     },
@@ -253,6 +254,7 @@
         "docs/evaluations/overnight/final/web-desktop-before-review.png",
         "docs/evaluations/overnight/final/ios-review-sequence.json",
         "docs/evaluations/overnight/final/plugin-ts-core-01-installed-copy.json",
+        "docs/evaluations/overnight/final/plugin-host-install-proof.json",
         "docs/evaluations/overnight/final/TS-CORE-01-backend-canonical-trace.json"
       ],
       "exact_gap": null
@@ -263,6 +265,7 @@
       "evidence_locators": [
         "docs/evaluations/overnight/final/boundary-evidence-summary.json",
         "docs/evaluations/overnight/final/plugin-installed-copy-proof.json",
+        "docs/evaluations/overnight/final/plugin-host-install-proof.json",
         "docs/evaluations/overnight/final/artifact-data-boundary-scan.json"
       ],
       "exact_gap": null
@@ -272,7 +275,6 @@
     "Real Chrome load-unpacked, visible toolbar or selected-text invocation, positive temporary activeTab grant, pre-Submit network silence, and extension-originated backend receipt.",
     "Authenticated Web journey at 390 px, 200% zoom, reduced motion, and with a screen reader.",
     "Loaded Chrome popup keyboard and screen-reader traversal.",
-    "iOS VoiceOver traversal and smallest supported iPhone layout.",
-    "Actual Codex host installation and model-selected Skill invocation."
+    "iOS VoiceOver traversal and smallest supported iPhone layout."
   ]
 }

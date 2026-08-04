@@ -27,7 +27,8 @@
   "strengths": [
     "The real Web flow makes the current evidence, four proposed facts, separate confirmation, one bounded action preview, and verified destination outcome visible in order.",
     "Fact confirmation leaves the action unapproved, and approval still does not display success until destination readback matches.",
-    "The offline screen preserves the review state and the recovered screen returns to the same verified backend version."
+    "The offline screen preserves the review state and the recovered screen returns to the same verified backend version.",
+    "The actual Codex host loads the installed Skill from the personal cache and returns the same proposal-only TS-CORE-01 semantic packet without repository plugin-source access or an external effect."
   ],
   "missing_evidence": [
     "Uncoached first-use recording.",

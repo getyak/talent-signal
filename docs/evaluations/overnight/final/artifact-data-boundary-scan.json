@@ -19,8 +19,8 @@
     {
       "check": "non_local_network_locations",
       "status": "pass",
-      "matches": 2,
-      "classification": "Both matches are the standard apple.com plist namespace embedded by Xcode in xcresult Info.plist files, not observed network destinations."
+      "matches": 4,
+      "classification": "Two matches are the standard apple.com plist namespace embedded by Xcode in xcresult Info.plist files. Two are the same private Docker bridge health endpoint recorded in Compose service metadata. None is an observed external product destination."
     },
     {
       "check": "public_email_or_candidate_source_markers",
@@ -43,6 +43,7 @@
   "live_external_writes": false,
   "notes": [
     "The only person and conversation content is the checked-in synthetic candidate-momentum fixture.",
-    "Artifact logs were captured from local validation, Docker, Xcode Simulator, repository-local analyzer invocation, and a localhost Web session."
+    "Artifact logs were captured from local validation, Docker, Xcode Simulator, repository-local analyzer invocation, an ephemeral read-only Codex host invocation, and a localhost Web session.",
+    "The normalized Codex host proof includes only plugin state, installed-cache paths and digests, synthetic TS-CORE-01 evidence spans, commands, exit codes, and guarded result semantics."
   ]
 }

@@ -1,9 +1,10 @@
 # Talent Signal localhost integration result
 
 Status: **BLOCKED**. The backend, real authenticated Web flow, iOS localhost
-readback, and repository-local installed-copy analyzer form one coherent
-synthetic TS-CORE-01 state after receipt. The integrated release gate cannot
-pass because the authorized Chrome controller could not open
+readback, repository-local installed-copy analyzer, and actual Codex
+host-installed analyzer form one coherent synthetic TS-CORE-01 state after
+receipt. The integrated release gate cannot pass because the authorized Chrome
+controller could not open
 `chrome://extensions`, load the frozen MV3 build, or directly prove the
 temporary capture grant and pre-Submit silence boundary.
 
@@ -14,7 +15,7 @@ temporary capture grant and pre-Submit silence boundary.
 - Preserved current-main base:
   `ef0f7b5e0fdb32f8ee3164b6893f3061bf083bc4`
 - Base delta: exactly one commit, `Polish repository front door`
-- Integrated evidence commit:
+- Integrated product commit:
   `1c9c3f0f2866b2d4c3651d422f5d886dd796c996`
 - Fixture suite: `talent-signal-candidate-momentum-v1`,
   version `2026-08-05.1`
@@ -44,6 +45,10 @@ The exact accepted cherry-pick mapping is in `integration-freeze.json`.
   Release simulator build against localhost.
 - The disposable repository-local plugin copy passed 8/8 frozen fixtures and
   3/3 supplemental boundary probes with no external tools or effects.
+- The actual Codex host reports `talent-signal@personal` installed and enabled
+  at version `0.1.0`. A fresh ephemeral read-only session loaded the installed
+  cache Skill and returned the same guarded TS-CORE-01 semantic packet with no
+  repository plugin-source access, external tool, or external effect.
 - Tests, lint, type checks, production builds, package validation, schema
   validation, and documentation checks passed.
 
@@ -79,8 +84,6 @@ localhost transport harness do not substitute for that proof.
 2. Capture the authenticated Web journey at 390 px, 200% zoom, reduced motion,
    and with a screen reader; also capture loaded-popup keyboard access and iOS
    VoiceOver order.
-3. Make the frozen repository-local plugin installable in an actual Codex host
-   and prove TS-CORE-01 semantic parity there.
 
 The completed manifest is `run-manifest.json`; the honest verifier output is
 `verifier.log`; the panel decision is `panel.json`.

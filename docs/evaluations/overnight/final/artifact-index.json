@@ -49,7 +49,17 @@
     {
       "id": "plugin-installed-copy-proof",
       "locator": "docs/evaluations/overnight/final/plugin-installed-copy-proof.json",
-      "sha256": "9f8db89b96ec7400755179ebb42c1254dce2c71dbaa8cf39c8440f3b3c7ee7c0"
+      "sha256": "aa833ada007f2ab695a0ae4dc590cf8305d28d28d9d53ea0b51385ede0fb65a2"
+    },
+    {
+      "id": "plugin-host-install-proof-json",
+      "locator": "docs/evaluations/overnight/final/plugin-host-install-proof.json",
+      "sha256": "338888dd7f9972311e3c3fb7a1d5c3e7c64da1f8c7a3f56eb4cb2bea4fabb630"
+    },
+    {
+      "id": "plugin-host-install-proof-text",
+      "locator": "docs/evaluations/overnight/final/plugin-host-install-proof.txt",
+      "sha256": "7cbe80f4efc6a93490ae50c3751862fbbef6b281b429e4a98b6cae21a758a97e"
     },
     {
       "id": "plugin-fixture-results",
@@ -69,12 +79,12 @@
     {
       "id": "integrated-web-browser-craft-review",
       "locator": "docs/evaluations/overnight/final/web-browser-craft-review.json",
-      "sha256": "056779389d6eef94218a227743093eac5f1d873b9d8e349cb294e6741b5b444a"
+      "sha256": "d099e4b18983117a1ddc35b84f36e7e9052f006be6e2a2057e5be25983790aee"
     },
     {
       "id": "recruiter-workflow-review",
       "locator": "docs/evaluations/overnight/final/recruiter-workflow-review.json",
-      "sha256": "729f46662c39f00784cb5024495859dbba987276ba49438930485f313df78ae6"
+      "sha256": "a31f7549904a3e4a4c9c8752f93b3ccfc4cf4f6496dddc93126d342ef3c2251b"
     },
     {
       "id": "evidence-safety-review",
@@ -99,17 +109,27 @@
     {
       "id": "panel",
       "locator": "docs/evaluations/overnight/final/panel.json",
-      "sha256": "134a2218bafd11d5da7e28e800fe9e0c3e0a972e941e68b7b696424959a35633"
+      "sha256": "75cf35612d96f0bc836550bd2db445b096fa531046a2ba4049ef4d6b33084164"
     },
     {
       "id": "artifact-data-boundary-scan",
       "locator": "docs/evaluations/overnight/final/artifact-data-boundary-scan.json",
-      "sha256": "b010862d340e2c9242bc2fe3371d5bc78dfff5a8d4d758cbe5a3f74c0da003b8"
+      "sha256": "b40bfcd8fe340ee0fec0ef0b0e88c0ef144433aebe0e3be05ba35bc4a19daff5"
+    },
+    {
+      "id": "correction-loops",
+      "locator": "docs/evaluations/overnight/final/correction-loops.json",
+      "sha256": "145185342c68b9b252328b45cdcf0b23f96fd78f551732d8cbae1cc473d11ea8"
+    },
+    {
+      "id": "summary",
+      "locator": "docs/evaluations/overnight/final/summary.md",
+      "sha256": "dd977070b099508053a8ae048159d93863cebf74add60a22ab8cec8eca1633a2"
     },
     {
       "id": "run-manifest",
       "locator": "docs/evaluations/overnight/final/run-manifest.json",
-      "sha256": "aa4b364ab202d11a94f23f5eeb46c8880272c5adb97347d565f7eadb9ac4f0ef"
+      "sha256": "81ff8b44401917ae0052ad6fc0e2ed02dc2642d5baf60b6de643706305763708"
     },
     {
       "id": "verifier-output",
