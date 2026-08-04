@@ -17,7 +17,7 @@ Talent Signal turns recruiter-controlled conversation screenshots into reviewabl
 - `apps/ios/` — iOS capture and timely-briefing client.
 - `apps/web/` — product narrative and browser-safe evidence-review demo.
 - `packages/domain/` — shared product vocabulary and contracts.
-- `skills/` — project-local candidate-signal analysis workflow.
+- `.agents/skills/` — project-local agent workflows, including candidate-signal analysis.
 - `.github/` — CI and contribution conventions.
 
 ## Status
