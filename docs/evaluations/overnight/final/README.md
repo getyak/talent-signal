@@ -1,5 +1,28 @@
 # Overnight final evidence directory
 
+## Completed run
+
+The frozen integration at
+`1c9c3f0f2866b2d4c3651d422f5d886dd796c996` is **blocked**, not passed.
+Backend, authenticated Web, iOS, and the repository-local installed plugin copy
+share the same synthetic TS-CORE-01 source and semantic state. The active
+evidence-safety veto is `XS-CAPTURE-01`: the authorized Chrome control surface
+could not load the unpacked extension or prove the real activeTab/selected-text
+permission, pre-Submit silence, and extension-originated receipt.
+
+Start with:
+
+- [`summary.md`](summary.md) for the concise human result and three remaining
+  issues;
+- [`run-manifest.json`](run-manifest.json) for machine-readable pass/fail
+  assertions;
+- [`panel.json`](panel.json) for the validated five-lens adjudication;
+- [`integration-freeze.json`](integration-freeze.json) for the exact base delta
+  and reviewed-to-integrated commit provenance;
+- [`artifact-index.json`](artifact-index.json) for frozen evidence digests;
+- [`verifier.log`](verifier.log) for the expected four-condition hard-gate
+  failure.
+
 This directory is the fan-in point for the frozen six-object localhost review.
 It contains evaluation evidence only. Surface owners keep their own recordings,
 screenshots, logs, and manifests in their assigned `overnight/<surface>/`
