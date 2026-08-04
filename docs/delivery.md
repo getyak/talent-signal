@@ -1,49 +1,85 @@
-# 48-hour delivery plan
+# Delivery
 
-## Day 1
+## Delivery principle
 
-- Build iOS navigation and seeded candidate model.
-- Implement screenshot import and optional context input.
-- Implement deterministic extraction fixtures and action-card parsing.
-- Build review, edit, confirm, and dismiss flows.
+Ship complete evidence-to-outcome slices, not horizontal layers of
+infrastructure or isolated AI features.
 
-## Day 2
+Every slice should be usable by a recruiter, observable across the system, and
+safe under ambiguity, failure, and correction.
 
-- Build candidate timeline and momentum-insight screen.
-- Add a high-risk candidate and a no-action scenario.
-- Add tests for card transitions and insight eligibility.
-- Record a short demo and document local/cloud run instructions.
+## Current foundation
+
+The repository demonstrates the product language, evidence review, action-card
+states, candidate continuity, and initial model boundaries.
+
+This foundation is useful for learning but is not yet a production relationship
+system.
+
+## Delivery sequence
+
+### 1. Governed evidence
+
+One real source becomes inspectable evidence, correctly bound context, and
+reviewed temporal state across mobile and web.
+
+The slice is complete when the user can correct it and deletion reaches every
+derived representation.
+
+### 2. One safe action
+
+One reviewed state change can produce one exact action, independent approval,
+controlled execution, destination observation, and recovery without
+duplication.
+
+### 3. Relationship continuity
+
+Today, timeline, and the living page use confirmed state and observed outcomes
+to reduce context reconstruction and surface one current dependency.
+
+### 4. Reviewable learning
+
+Repeated corrections and outcomes may produce a tentative playbook with
+evidence, exceptions, and a next validation window.
+
+### 5. External Agent access
+
+Two different Agent clients can perform the same scoped read, research,
+artifact, and proposal workflow through one provider-neutral boundary without
+gaining consequential write authority.
+
+### 6. Evidence-gated expansion
+
+Add new channels, connectors, parallel research, or specialized infrastructure
+only after the earlier loop demonstrates recurring value and acceptable trust.
+
+## Prioritization
+
+Prefer work that improves:
+
+- evidence correctness;
+- time to useful review;
+- user correction and control;
+- resolution of a real dependency;
+- external-effect verification;
+- deletion and recovery;
+- reuse across surfaces without widening scope.
+
+Deprioritize work that mainly increases feature count, generated prose,
+automation theater, or speculative infrastructure.
 
 ## Definition of done
 
-The complete loop runs with fixtures without external dependencies. A live provider can be enabled without changing the UI contract.
+A delivery is done when:
 
-## Next vertical slice: shared multi-surface backend
+- the user outcome is directly observable;
+- consequential state is evidence-backed and auditable;
+- ambiguity, no-action, failure, stale state, and retry are safe;
+- the relevant surface has been tested;
+- the next Agent can recover intent from repository state;
+- durable learning has been consolidated without bloating always-on context.
 
-The 48-hour prototype proves the interaction contract but not cross-device
-state. The next production slice implements the topology in
-[`ADR 0003`](decisions/0003-shared-backend-topology.md):
+## Planning
 
-1. create project-specific authentication and workspace authorization;
-2. add PostgreSQL migrations for evidence episodes, evidence spans, assertions,
-   fact versions, action proposals, executions, outcomes, and audit events;
-3. add object storage with intentional upload, scoped access, retention, and
-   derivative deletion;
-4. expose one versioned API contract used by iOS, web, and later the
-   browser/plugin importer;
-5. add idempotent import, asynchronous processing status, optimistic review
-   versions, and duplicate prevention;
-6. complete one vertical path: capture on iOS, inspect and confirm on web, then
-   read the same confirmed candidate state from both surfaces.
-
-### Definition of done
-
-- The backend, not a client database or rendered wiki page, is authoritative
-  after an episode is submitted.
-- An ambiguous assertion cannot enter active candidate truth without review.
-- A stale client receives a conflict instead of overwriting a newer decision.
-- Raw assets and their registered derivatives follow the selected retention and
-  deletion contract.
-- No external contact, calendar, ATS, notification, or message mutation is
-  included in this slice unless its proposal, approval, idempotency, verified
-  result, and audit path are implemented end to end.
+Use [`PLANS.md`](../PLANS.md) for active multi-step work. Delivery phases
+describe direction; plans describe the current execution.

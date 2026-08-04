@@ -9,15 +9,16 @@ description: Design, implement, or review Talent Signal product and marketing su
 
 Read these files completely before making design decisions:
 
-1. `../../../agent.md`
-2. `../../../docs/product.md`
-3. `../../../docs/design-system.md`
+1. `../../../AGENTS.md`
+2. `../../../docs/README.md`
+3. `../../../docs/product.md`
+4. `../../../docs/design-system.md`
 
 For marketing-site work, also read `../../../design.md` and
-`../../../docs/web-experience.md`.
+`../../../docs/reference/web-experience.md`.
 
 For evidence, action, timeline, graph, or audit work, read the relevant sections
-of `../../../docs/deep-research-candidate-momentum-loop.md` before designing the
+of `../../../docs/research/candidate-momentum-loop.md` before designing the
 data presentation.
 
 ## Classify the surface
@@ -47,25 +48,15 @@ Identify:
 - the mutation, approval, and failure states;
 - the one item that deserves visual attention.
 
-Treat the candidate page as canonical. Build Card, List, Timeline, and Graph as
-consistent views of the same domain objects.
+Treat governed relationship state as canonical. Build Candidate Page, Card,
+List, Timeline, and Graph as consistent views of that state.
 
 ## Declare the design read
 
-State the surface, audience, visual character, and design dials.
-
-Use these defaults:
-
-| Surface | Variance | Motion | Density |
-| --- | ---: | ---: | ---: |
-| Marketing | 8 | 7 | 4 |
-| Desktop workspace | 5 | 3 | 6 |
-| Evidence review | 4 | 2 | 6 |
-| Relationship graph | 6 | 4 | 5 |
-| iOS capture and Today | 4 | 2 | 5 |
-
-Lower motion when implementation scope cannot support correct state
-transitions or reduced-motion behavior.
+State the surface, audience, visual character, and intended balance of
+variance, motion, and density. Use more expressive composition for narrative
+surfaces and more restraint for review or action. Lower motion when the
+implementation cannot support correct transitions and reduced-motion behavior.
 
 ## Compose the surface
 
@@ -86,15 +77,12 @@ Apply these rules:
 
 ## Apply the visual system
 
-- Reuse the pearl, graphite, off-white, and vermilion semantic tokens already
-  defined by the project.
-- Use Manrope for display and interface text.
-- Use IBM Plex Mono only for operational evidence metadata.
-- Use level 0 or 1 materiality for default content and lists.
-- Use 12-14px radii and a restrained warm shadow for object cards.
-- Keep tags neutral by default and show at most three on a candidate card.
-- Keep Phosphor on web and SF Symbols on iOS.
-- Do not introduce a second palette, icon family, or competing radius system.
+- Match the project's quiet neutral and restrained vermilion character.
+- Follow the existing product's typography, spacing, materiality, and icon
+  idiom rather than restating implementation tokens in the Skill.
+- Use strong hierarchy before borders, shadows, or additional containers.
+- Keep tags and metadata secondary to the current dependency and evidence.
+- Do not introduce a competing palette, icon language, or material system.
 
 ## Implement complete states
 

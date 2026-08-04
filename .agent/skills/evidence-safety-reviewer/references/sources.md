@@ -21,5 +21,5 @@ Checked 2026-08-04. Links support principles; they do not certify Talent Signal 
 
 ## Project evidence
 
-- [`docs/deep-research-candidate-momentum-loop.md`](../../../../docs/deep-research-candidate-momentum-loop.md) — proposed evidence chain, data classes, privacy modes, action governance, and evaluation targets.
+- [`docs/research/candidate-momentum-loop.md`](../../../../docs/research/candidate-momentum-loop.md) — proposed evidence chain, data classes, privacy modes, action governance, and evaluation targets.
 - [`apps/ios/Resources/PrivacyInfo.xcprivacy`](../../../../apps/ios/Resources/PrivacyInfo.xcprivacy) — one current platform privacy artifact; inspect all active targets before drawing conclusions.
