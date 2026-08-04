@@ -46,6 +46,18 @@ export default function PrivacyPage() {
           </section>
 
           <section>
+            <h2>Workspace sign-in</h2>
+            <p>
+              The initialized web workspace uses encrypted session cookies.
+              Google and Apple sign-in sends the authentication request to the
+              selected identity provider under that provider&apos;s privacy
+              terms. Configured email sign-in verifies a server-side password
+              hash and does not store the plaintext password in the
+              application.
+            </p>
+          </section>
+
+          <section>
             <h2>Confirmation before change</h2>
             <p>
               Contact and calendar mutations require a clear review step. A
@@ -65,8 +77,12 @@ export default function PrivacyPage() {
           <aside>
             <h2>About the live demo</h2>
             <p>
-              The current web demo uses deterministic browser-side rules. It
-              does not upload, persist, or transmit the conversation text.
+              Local mode uses deterministic browser-side rules and does not
+              transmit the conversation text. When the optional private AI
+              route is configured, it runs only after the user selects it. The
+              note is sent to the configured model provider with zero-retention
+              and no-data-collection routing requested; Talent Signal does not
+              persist the note or include it in application logs.
             </p>
             <Link className="text-link" href="/demo">
               Open live demo

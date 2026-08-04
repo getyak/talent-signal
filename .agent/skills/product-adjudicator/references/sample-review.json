@@ -1,0 +1,26 @@
+{
+  "reviewer": "mobile-ux-reviewer",
+  "lens": "mobile task completion, visual hierarchy, accessibility, and recovery",
+  "verdict": "pass_with_changes",
+  "score": 2,
+  "confidence": "direct",
+  "findings": [
+    {
+      "severity": "high",
+      "criterion": "State completeness",
+      "observation": "Retry creates a second meeting after the first request succeeds but the client times out.",
+      "evidence": "build 42; TS-ACT-03; iPhone 15; destination Calendar contains event IDs A and B",
+      "user_impact": "The recruiter can double-book the candidate and damage trust.",
+      "recommendation": "Reconcile with an idempotency key before offering retry.",
+      "verification": "Run TS-ACT-03 ten times; exactly one destination event exists in every run."
+    }
+  ],
+  "strengths": [
+    "The preview identifies the candidate, timezone, and destination calendar."
+  ],
+  "missing_evidence": [],
+  "vetoes": [],
+  "open_questions": [
+    "Does the calendar adapter expose a stable client request identifier?"
+  ]
+}

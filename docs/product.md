@@ -20,6 +20,23 @@ Never lose a strong candidate in the gaps between conversations.
 - Actions: create contact, update contact, create meeting — all reviewable.
 - Output: a confirmed-fact timeline, one evidence-backed insight, and one recommended next action.
 
+## MVP processing contract
+
+The runtime order is:
+
+`evidence episode → structured evidence state → reviewable action cards → user
+decision → verified external result → semantic memory and wiki projection →
+insight and next step`
+
+The product may read previously confirmed candidate memory before proposing an
+action, but a new screenshot does not enter active memory before review. Fact
+confirmation and action approval are separate decisions even when the interface
+presents them together. An action card is a pending tool proposal, not a fact,
+and dismissing an action does not invalidate its supporting evidence.
+See the
+[agent execution and memory boundary](architecture.md#agent-execution-and-memory-boundary)
+for the runtime contract and failure cases.
+
 ## Strategic boundary
 
 Start as a mobile, recruiter-controlled capture loop for the interview assignment. Evolve toward a desktop workbench; never compete as a full ATS or generic CRM.

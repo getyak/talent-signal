@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "Talent Signal",
   title: "Talent Signal | Candidate momentum, made legible",
   description:
-    "Turn recruiter-owned candidate conversations into reviewable actions and evidence-backed next steps before momentum slips.",
+    "Turn candidate conversations into living, source-linked briefs and one clear next move before momentum slips.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://talentsignal.ai",
   email: "hello@talentsignal.ai",
 } as const;

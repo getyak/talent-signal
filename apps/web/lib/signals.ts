@@ -1,8 +1,24 @@
-export type EvidenceKind =
-  | "availability"
-  | "competing-offer"
-  | "deadline"
+export const evidenceKinds = [
+  "availability",
+  "client-dependency",
+  "commitment",
+  "competing-offer",
+  "constraint",
+  "deadline",
+  "location-or-work-mode",
+  "next-meeting",
+  "open-question",
+  "preference",
+  "stage-change",
+] as const;
+
+export type EvidenceKind = (typeof evidenceKinds)[number];
+export type EvidenceModality =
+  | "commitment"
+  | "constraint"
+  | "explicit-fact"
   | "preference";
+export type EvidenceSpeaker = "candidate" | "recruiter" | "unknown";
 
 export type Verdict = "Advance" | "At risk" | "Resolve blocker" | "Wait";
 
@@ -10,6 +26,9 @@ export type Evidence = {
   id: EvidenceKind;
   label: string;
   excerpt: string;
+  modality: EvidenceModality;
+  speaker: EvidenceSpeaker;
+  ambiguities: string[];
 };
 
 export type ProposedAction = {
@@ -36,33 +55,33 @@ const evidenceRules: Array<{
   id: EvidenceKind;
   label: string;
   pattern: RegExp;
-  excerpt: string;
+  modality: EvidenceModality;
 }> = [
   {
     id: "competing-offer",
     label: "Competing offer",
     pattern: /\b(another|competing|other)\s+offer\b|\boffer in hand\b/i,
-    excerpt: "Another offer is active.",
+    modality: "explicit-fact",
   },
   {
     id: "deadline",
     label: "Decision window",
     pattern:
       /\b(by|before|decide|decision|deadline)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|this week|next week)\b/i,
-    excerpt: "A decision deadline is explicit.",
+    modality: "commitment",
   },
   {
     id: "preference",
     label: "Remote constraint",
     pattern: /\b(remote|hybrid|work from home|flexibility)\b/i,
-    excerpt: "Work-location flexibility matters.",
+    modality: "preference",
   },
   {
     id: "availability",
     label: "Tuesday availability",
     pattern:
-      /\b(monday|tuesday|wednesday|thursday|friday)\b.*\b(morning|afternoon|evening|available|works|speak|call)\b|\b(available|works|speak|call)\b.*\b(monday|tuesday|wednesday|thursday|friday)\b/i,
-    excerpt: "A concrete conversation window is available.",
+      /\b(available|works|speak|call)\b[^.!?\n]{0,48}\b(monday|tuesday|wednesday|thursday|friday)\b(?:[^.!?\n]{0,24}\b(morning|afternoon|evening)\b)?|\b(monday|tuesday|wednesday|thursday|friday)\b[^.!?\n]{0,48}\b(morning|afternoon|evening|available|works|speak|call)\b/i,
+    modality: "commitment",
   },
 ];
 
@@ -73,7 +92,11 @@ export function deriveInsight(evidence: Evidence[]): Insight {
   const kinds = new Set(evidence.map((item) => item.id));
   const hasDecisionPressure =
     kinds.has("deadline") || kinds.has("competing-offer");
-  const hasUnresolvedConstraint = kinds.has("preference");
+  const hasUnresolvedConstraint =
+    kinds.has("preference") ||
+    kinds.has("constraint") ||
+    kinds.has("location-or-work-mode") ||
+    kinds.has("client-dependency");
 
   if (hasDecisionPressure && hasUnresolvedConstraint) {
     return {
@@ -93,7 +116,11 @@ export function deriveInsight(evidence: Evidence[]): Insight {
     };
   }
 
-  if (kinds.has("availability")) {
+  if (
+    kinds.has("availability") ||
+    kinds.has("commitment") ||
+    kinds.has("next-meeting")
+  ) {
     return {
       verdict: "Advance",
       rationale:
@@ -110,35 +137,41 @@ export function deriveInsight(evidence: Evidence[]): Insight {
   };
 }
 
-export function analyzeConversation(input: string): AnalysisResult {
-  const normalized = input.trim();
-  const evidence = normalized
-    ? evidenceRules
-        .filter((rule) => rule.pattern.test(normalized))
-        .map(({ id, label, excerpt }) => ({ id, label, excerpt }))
-    : [];
+const actionTitles: Record<EvidenceKind, string> = {
+  availability: "Review candidate availability",
+  "client-dependency": "Record client dependency",
+  commitment: "Record candidate commitment",
+  "competing-offer": "Record competing offer",
+  constraint: "Record candidate constraint",
+  deadline: "Record decision deadline",
+  "location-or-work-mode": "Record work-mode requirement",
+  "next-meeting": "Review proposed meeting",
+  "open-question": "Record open candidate question",
+  preference: "Record candidate preference",
+  "stage-change": "Record process stage change",
+};
 
-  const actions: ProposedAction[] = evidence.map((item) => {
-    if (item.id === "availability") {
+export function buildAnalysis(evidence: Evidence[]): AnalysisResult {
+  const actions = evidence.flatMap<ProposedAction>((item) => {
+    if (item.speaker !== "candidate" || item.ambiguities.length > 0) {
+      return [];
+    }
+
+    if (item.id === "availability" || item.id === "next-meeting") {
       return {
-        id: "meeting-tuesday",
+        id: `meeting-${item.id}`,
         type: "create-meeting",
-        title: "Create Tuesday meeting",
-        detail: "Propose Tuesday afternoon. Time remains editable.",
+        title: actionTitles[item.id],
+        detail:
+          "Create a meeting proposal from the quoted window. Date and time remain editable.",
         evidenceId: item.id,
       };
     }
 
-    const titles: Record<Exclude<EvidenceKind, "availability">, string> = {
-      "competing-offer": "Record competing offer",
-      deadline: "Record decision deadline",
-      preference: "Record remote preference",
-    };
-
     return {
       id: `update-${item.id}`,
       type: "update-contact",
-      title: titles[item.id],
+      title: actionTitles[item.id],
       detail: "Add as a confirmed candidate fact with its source attached.",
       evidenceId: item.id,
     };
@@ -149,4 +182,29 @@ export function analyzeConversation(input: string): AnalysisResult {
     actions,
     insight: deriveInsight(evidence),
   };
+}
+
+export function analyzeConversation(input: string): AnalysisResult {
+  const normalized = input.trim();
+  const evidence = normalized
+    ? evidenceRules.flatMap<Evidence>((rule) => {
+        const match = rule.pattern.exec(normalized);
+        if (!match) {
+          return [];
+        }
+
+        return [
+          {
+            id: rule.id,
+            label: rule.label,
+            excerpt: match[0],
+            modality: rule.modality,
+            speaker: "candidate",
+            ambiguities: [],
+          },
+        ];
+      })
+    : [];
+
+  return buildAnalysis(evidence);
 }

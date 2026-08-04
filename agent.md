@@ -1,34 +1,45 @@
-# Agent working agreement
+# Talent Signal agent guide
 
 ## Mission
 
-Build Talent Signal as an evidence-first candidate-momentum product. Optimize for useful recruiter judgment, not feature volume.
+Build an evidence-first candidate-momentum layer for independent recruiters.
+Optimize for timely, trustworthy judgment rather than feature volume.
 
-## Rules
+## Non-negotiables
 
 1. Treat screenshots and candidate data as sensitive.
-2. Never invent a candidate attribute, deadline, preference, or relationship.
-3. Preserve original evidence for every extracted item.
-4. Require confirmation before a contact or calendar mutation.
-5. Separate facts from inferences and explain every risk assessment with evidence.
-6. Keep the core loop usable with one screenshot and one existing contact.
+2. Extract explicit facts only. Label inference and ambiguity.
+3. Keep exact source evidence and append-only change history.
+4. Require review before contact, calendar, ATS, or message mutations.
+5. Recommend one smallest useful next action with a reason and timeframe.
+6. Rank work attention, never a person's worth, personality, or protected
+   characteristics.
+7. Keep the one-screenshot, one-candidate loop usable.
 
-## Language standard
+## Product and design
 
-- Write all source code, identifiers, comments, tests, user-interface copy, and repository documentation in English.
-- Write commit messages, pull-request content, issue content, and release notes in English.
-- User-facing conversation may follow the user's preferred language, but artifacts committed to this repository remain English.
+- The candidate page is canonical. Card, List, Timeline, and Graph are views.
+- Every important fact, relationship, and state change must be traceable.
+- Use quiet neutrals, one vermilion accent, scarce elevation, and restrained
+  motion. Avoid generic AI aesthetics and dashboard clutter.
+- Show complete proposed, edited, confirmed, dismissed, failed, expired, and
+  superseded states.
 
-## Quality bar
+## Language
 
-An insight is acceptable only if it answers: who needs attention, why now, and what single action reduces uncertainty or risk.
+Keep committed source code, identifiers, comments, tests, UI copy, repository
+documentation, commits, issues, and pull requests in English. Conversation may
+follow the user's language.
 
-## Validation
+## Read before changing
 
-- Test unknown, matched, and ambiguous candidates.
-- Test screenshots with no actionable content.
-- Test edit and dismiss behavior for every action-card type.
-- Verify dismissed cards do not mutate records.
-- Verify imported source data and derivatives can be deleted.
+- Product decisions: `docs/product.md`
+- UI or interaction: `docs/design-system.md` and `design.md`
+- Data contracts: `docs/architecture.md`
+- Candidate extraction: `.agents/skills/candidate-signal-analysis/SKILL.md`
+- Product design: `.agents/skills/design-talent-signal/SKILL.md`
 
-Read `docs/product.md` before product decisions, `design.md` before UI work, and `docs/architecture.md` before data-contract changes.
+## Verify
+
+Test unknown, matched, ambiguous, empty, edit, dismiss, failure, expiry, and
+deletion paths. Confirm dismissed or failed actions never mutate records.

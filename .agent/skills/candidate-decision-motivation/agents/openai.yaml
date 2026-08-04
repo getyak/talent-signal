@@ -1,0 +1,4 @@
+interface:
+  display_name: "Candidate Decision Motivation"
+  short_description: "Audit decision drivers, blockers, and unresolved tradeoffs."
+  default_prompt: "Use $candidate-decision-motivation to review the candidate decision conditions and missing evidence."

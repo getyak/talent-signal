@@ -25,8 +25,11 @@ export function SiteHeader() {
 
         <div className="site-header__actions">
           <ThemeToggle />
-          <Link className="button button--compact desktop-cta" href="/demo">
-            Open live demo
+          <Link
+            className="button button--compact desktop-cta"
+            href="/login?callbackUrl=/workspace"
+          >
+            Sign in
           </Link>
           <button
             className="icon-button menu-button"
@@ -62,10 +65,10 @@ export function SiteHeader() {
           ))}
           <Link
             className="button"
-            href="/demo"
+            href="/login?callbackUrl=/workspace"
             onClick={() => setMenuOpen(false)}
           >
-            Open live demo
+            Sign in
           </Link>
         </nav>
       )}
