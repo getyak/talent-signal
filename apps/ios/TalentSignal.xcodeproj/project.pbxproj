@@ -10,12 +10,23 @@
 		3030219A987894DFC181C6EE /* CandidateSignalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */; };
 		365E77E8A50219E17D683328 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 314171A5678C6A592D77C852 /* PrivacyInfo.xcprivacy */; };
 		4C34F2CBF98A408B15499182 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B1750D9C713D5C7F54F4423 /* Assets.xcassets */; };
+		5AB53512D99F0073F3911B6E /* CandidateSignalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */; };
 		71C2191A8B9F500124E59F7D /* TalentSignalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C6AFD36C53DCE168525B5F /* TalentSignalApp.swift */; };
 		72B340A984815C3C9D0858BB /* CandidateSignalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */; };
+		855BD6D5CC0D965D2DB61D81 /* FixtureSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */; };
+		AD08E92344FA0B6C172C1F68 /* CandidateSignalComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */; };
+		E5D75A0095F3C32C3AAA9E0D /* CandidateSignalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */; };
 		EA6EA4AEAC8EDD736735E7A8 /* CandidateSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E1DC0CB9D729B8B77463673 /* CandidateSignal.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		B780431B2B9128D1A0EC66C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5C7B84FBD86399226040C604 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7EF5E514C35D7F87373ACE73;
+			remoteInfo = TalentSignal;
+		};
 		EED9CCC1AF2B13190C71170B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 5C7B84FBD86399226040C604 /* Project object */;
@@ -26,14 +37,19 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalStore.swift; sourceTree = "<group>"; };
 		2E1DC0CB9D729B8B77463673 /* CandidateSignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignal.swift; sourceTree = "<group>"; };
 		314171A5678C6A592D77C852 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalUITests.swift; sourceTree = "<group>"; };
 		5B1750D9C713D5C7F54F4423 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		77C6AFD36C53DCE168525B5F /* TalentSignalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalApp.swift; sourceTree = "<group>"; };
 		9974BB03ADAB6E9F626E0388 /* TalentSignalTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TalentSignalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A011F41DFE4C6D032707B858 /* TalentSignalUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TalentSignalUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalTests.swift; sourceTree = "<group>"; };
 		EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TalentSignal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureSyncClient.swift; sourceTree = "<group>"; };
 		F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalView.swift; sourceTree = "<group>"; };
+		F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalComponents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -59,8 +75,17 @@
 				B6B247646EF67B2E1643E203 /* App */,
 				FA3BD25D5D842857C19D40DD /* Domain */,
 				F6F74B7EE616BD628B110A20 /* Features */,
+				D8A8D595EBD5932C805DAE83 /* Services */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		C44A1D05CD0EA51DDD875F43 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */,
+			);
+			path = UITests;
 			sourceTree = "<group>";
 		};
 		CB5A598FB680E4FC5C5CE15C /* Resources */ = {
@@ -72,11 +97,20 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		D8A8D595EBD5932C805DAE83 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		F54F15976CECF9C1991FC931 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */,
 				9974BB03ADAB6E9F626E0388 /* TalentSignalTests.xctest */,
+				A011F41DFE4C6D032707B858 /* TalentSignalUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -84,6 +118,8 @@
 		F6F74B7EE616BD628B110A20 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */,
+				1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */,
 				F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */,
 			);
 			path = Features;
@@ -103,6 +139,7 @@
 				CB5A598FB680E4FC5C5CE15C /* Resources */,
 				BBDC5D37D43F60DADC79F480 /* Sources */,
 				5F3AB4552568EA1521E713B1 /* Tests */,
+				C44A1D05CD0EA51DDD875F43 /* UITests */,
 				F54F15976CECF9C1991FC931 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -146,6 +183,24 @@
 			productReference = EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */;
 			productType = "com.apple.product-type.application";
 		};
+		DF0FB815C41430500ED5DB07 /* TalentSignalUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 01A30111D52189976720BC37 /* Build configuration list for PBXNativeTarget "TalentSignalUITests" */;
+			buildPhases = (
+				7710131302FE4EEB39CC915B /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				81A5BD6717FCF645801554A6 /* PBXTargetDependency */,
+			);
+			name = TalentSignalUITests;
+			packageProductDependencies = (
+			);
+			productName = TalentSignalUITests;
+			productReference = A011F41DFE4C6D032707B858 /* TalentSignalUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -161,6 +216,11 @@
 					};
 					7EF5E514C35D7F87373ACE73 = {
 						DevelopmentTeam = 6RG2F8YY59;
+					};
+					DF0FB815C41430500ED5DB07 = {
+						DevelopmentTeam = 6RG2F8YY59;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 7EF5E514C35D7F87373ACE73;
 					};
 				};
 			};
@@ -180,6 +240,7 @@
 			targets = (
 				7EF5E514C35D7F87373ACE73 /* TalentSignal */,
 				7A1E5332413A7E18BB45A742 /* TalentSignalTests */,
+				DF0FB815C41430500ED5DB07 /* TalentSignalUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -205,12 +266,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7710131302FE4EEB39CC915B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5AB53512D99F0073F3911B6E /* CandidateSignalUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F1FF3CD7EC8417977129DD78 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				EA6EA4AEAC8EDD736735E7A8 /* CandidateSignal.swift in Sources */,
+				AD08E92344FA0B6C172C1F68 /* CandidateSignalComponents.swift in Sources */,
+				E5D75A0095F3C32C3AAA9E0D /* CandidateSignalStore.swift in Sources */,
 				72B340A984815C3C9D0858BB /* CandidateSignalView.swift in Sources */,
+				855BD6D5CC0D965D2DB61D81 /* FixtureSyncClient.swift in Sources */,
 				71C2191A8B9F500124E59F7D /* TalentSignalApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -222,6 +294,11 @@
 			isa = PBXTargetDependency;
 			target = 7EF5E514C35D7F87373ACE73 /* TalentSignal */;
 			targetProxy = EED9CCC1AF2B13190C71170B /* PBXContainerItemProxy */;
+		};
+		81A5BD6717FCF645801554A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7EF5E514C35D7F87373ACE73 /* TalentSignal */;
+			targetProxy = B780431B2B9128D1A0EC66C1 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -238,6 +315,7 @@
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Talent Signal imports only the conversation screenshot you choose.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -321,6 +399,42 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
+		};
+		70F237BCE1B3A60626A0D33D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.app.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TalentSignal;
+			};
+			name = Release;
+		};
+		7A52FAE0ECB3D9069865DCCF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.app.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TalentSignal;
+			};
+			name = Debug;
 		};
 		9A5103871C7FD4F9B835CC71 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -418,6 +532,7 @@
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Talent Signal imports only the conversation screenshot you choose.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -463,6 +578,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		01A30111D52189976720BC37 /* Build configuration list for PBXNativeTarget "TalentSignalUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7A52FAE0ECB3D9069865DCCF /* Debug */,
+				70F237BCE1B3A60626A0D33D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		79203FE62FCB1A768BB14631 /* Build configuration list for PBXNativeTarget "TalentSignalTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
