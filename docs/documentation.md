@@ -48,9 +48,9 @@ also be reflected in the relevant canonical document.
 
 ### Skills and operational playbooks
 
-A Skill contains a reusable method that an agent should apply to a recognizable
-task. Operational documents contain recurring human or system procedures that
-do not justify a Skill.
+Repository Skills live under `.agents/skills/`. A Skill contains a reusable
+method that an agent should apply to a recognizable task. Operational documents
+contain recurring human or system procedures that do not justify a Skill.
 
 Method belongs here, not in foundational product prose.
 

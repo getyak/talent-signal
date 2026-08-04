@@ -4,9 +4,11 @@
   "private": true,
   "packageManager": "pnpm@11.18.0",
   "scripts": {
+    "architecture:check": "node scripts/check-architecture-diagrams.mjs",
+    "architecture:generate": "node scripts/generate-architecture-diagrams.mjs",
     "dev": "pnpm --filter @talent-signal/web dev",
     "build": "pnpm --filter @talent-signal/web build",
-    "docs:check": "node scripts/check-docs.mjs && node scripts/wiki.mjs check",
+    "docs:check": "node scripts/check-docs.mjs && node scripts/wiki.mjs check && pnpm architecture:check",
     "eval:core": "node scripts/evals/validate-candidate-momentum.mjs",
     "hooks:install": "./scripts/install-git-hooks.sh",
     "ios:check": "./scripts/ios/check.sh",

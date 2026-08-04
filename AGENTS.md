@@ -4,83 +4,60 @@ Build quiet, evidence-first relationship intelligence for independent
 recruiters. Optimize for trustworthy momentum, not feature volume or agent
 theater.
 
-## Retrieve context
+## Start with context
 
 Read [`docs/README.md`](docs/README.md) and follow its task-based routing. Do not
-front-load every document or ask the user to repeat context the repository can
-provide.
+front-load the repository or ask the user to repeat context it already owns.
 
 For substantial or uncertain work, use [`PLANS.md`](PLANS.md). Review completed
 work through [`REVIEW.md`](REVIEW.md).
 
-## Product invariants
+## Non-negotiable boundaries
 
 - Treat candidate conversations and screenshots as sensitive, purpose-bound
   evidence.
-- Keep observed evidence, confirmed state, interpretation, action, and outcome
+- Keep evidence, confirmed state, interpretation, action, and observed outcome
   distinct.
-- Require a human decision before consequential external writes.
-- Preserve identity, provenance, time, scope, and reversibility.
+- Require a human decision before consequential external writes; generated
+  pages, summaries, memories, and proposals carry no execution authority.
+- Preserve identity, provenance, time, authorization scope, and reversibility.
 - Rank work attention, never a person's worth, personality, protected traits,
   culture fit, or acceptance probability.
-- Prefer one smallest useful next step over a broad autonomous plan.
-- A generated page, summary, or memory is never execution authority.
 
-## Default loop
+## Work to proof
 
-1. Define one outcome, its boundaries, and observable proof of completion.
-2. Inspect the existing state, retrieve only relevant context, and preserve
-   unrelated user changes.
-3. Expose unknowns, then choose the smallest complete slice that can test the
-   direction.
-4. Work until evidence demonstrates the outcome, not merely until edits exist.
-5. When evidence invalidates the approach, stop and re-plan instead of stacking
-   patches.
-6. Before handoff, inspect the result, record remaining uncertainty, and route
-   any durable learning.
+1. Define one outcome, its boundary, and observable completion evidence.
+2. Inspect existing state, expose important unknowns, and preserve unrelated
+   user changes.
+3. Deliver the smallest complete slice that can test the direction.
+4. Verify the state that matters from the real surface; an edit, build, model
+   response, or connector call is not proof by itself.
+5. Re-plan when evidence invalidates the approach, then route durable learning
+   before handoff.
 
-## Compound learning
+Prefer the narrowest relevant checks. For documentation changes, also run
+`pnpm docs:check`. Test ambiguity, no-action, failure, stale state, retry,
+recovery, and deletion when they are relevant to the outcome.
 
-Treat a correction as a possible system defect, not only a prompt adjustment.
-Fix the instance first. When the failure is repeated or consequential, use
-`$project-knowledge-steward` to encode the narrowest durable prevention:
+## Keep knowledge lean
 
-- prefer a test, check, schema, or tool for deterministic behavior;
-- use a Skill for a reusable method;
-- reserve `AGENTS.md` for repository-wide invariants and recurring gotchas.
+- Keep canonical repository documentation in English.
+- Maintain one authoritative home per claim. Put stable judgment in canonical
+  docs, rationale in an ADR, reusable method in `.agents/skills/`, active state
+  in a plan, and deterministic behavior in code or tests.
+- Capture new human or LLM-authored articles in `_index/`; never hand-edit a
+  `wiki-generated` page.
+- Use `$project-knowledge-steward` after a repeated or consequential correction
+  to encode the narrowest durable prevention and remove superseded guidance.
 
-Add a way to verify the prevention and remove superseded guidance. Do not grow
-always-on context after one ambiguous incident.
+Follow [`docs/documentation.md`](docs/documentation.md). Do not expand this
+always-on file for one ambiguous incident.
 
-## Long and parallel work
+## Isolate concurrent work
 
 - Keep resumable progress in plans and inspectable artifacts, not only in chat.
 - Isolate independent write work with worktrees or non-overlapping ownership.
-- Never let multiple agents mutate the same source or external state; keep one
-  owner for synthesis and final verification.
+- Keep one owner for each source or external state and one owner for synthesis
+  and final verification.
 - More time or agents does not broaden authorization, evidence access, or the
   definition of done.
-
-## Documentation
-
-- Keep canonical repository documentation in English; conversation may follow
-  the user, and source research may preserve its original language when that
-  improves fidelity.
-- Foundational docs express stable decisions and judgment, not implementation
-  inventories, API shapes, parameters, or code walkthroughs.
-- Put reusable method in a Skill, decision rationale in an ADR, temporary state
-  in a plan, and executable detail in code, tests, schemas, or tooling.
-- Maintain one canonical home for each claim and link to it instead of
-  repeating it.
-- Capture new human or LLM-authored articles in `_index/` before compiling
-  reviewed pages into `docs/`; never hand-edit a `wiki-generated` page.
-- Follow [`docs/documentation.md`](docs/documentation.md).
-
-## Verification
-
-A successful edit, model response, connector call, or build is not the outcome.
-Verify the state that matters from the user's surface whenever practical.
-
-Run the narrowest relevant checks, then `pnpm docs:check` for documentation
-changes. Inspect the diff before handoff. When relevant, test ambiguity,
-no-action, failure, stale state, retry, recovery, and deletion paths.

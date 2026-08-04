@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -50,17 +49,17 @@ function absoluteBounds(element) {
   };
 }
 
-function pngDimensions(path) {
-  const output = execFileSync("/usr/bin/sips", [
-    "-g",
-    "pixelWidth",
-    "-g",
-    "pixelHeight",
-    path,
-  ]).toString();
-  const width = Number(output.match(/pixelWidth: (\d+)/)?.[1]);
-  const height = Number(output.match(/pixelHeight: (\d+)/)?.[1]);
-  return { width, height };
+async function pngDimensions(path) {
+  const png = await readFile(path);
+  const signature = png.subarray(0, 8).toString("hex");
+  assert(
+    signature === "89504e470d0a1a0a",
+    `${path}: invalid PNG signature`,
+  );
+  return {
+    width: png.readUInt32BE(16),
+    height: png.readUInt32BE(20),
+  };
 }
 
 async function checkScene(config) {
@@ -175,7 +174,7 @@ async function checkScene(config) {
 
   const pngStat = await stat(pngPath);
   assert(pngStat.size > 100_000, `${config.name}: PNG is unexpectedly small`);
-  const png = pngDimensions(pngPath);
+  const png = await pngDimensions(pngPath);
   const sceneRatio = canvas.width / canvas.height;
   const pngRatio = png.width / png.height;
   assert(
@@ -212,13 +211,13 @@ results.push(
       "iOS",
       "Web",
       "Android",
-      "浏览器插件",
-      "Agent 起草",
-      "猎头确认",
-      "MEMORY 记住",
-      "WIKI / LIVING PAGE",
-      "Wiki 是解释层，不是执行事实源",
-      "不做候选人评分",
+      "Browser extension",
+      "Agent draft",
+      "Recruiter decision",
+      "MEMORY / WHAT IS KNOWN",
+      "WIKI / HOW IT READS",
+      "never authorizes execution",
+      "no candidate scoring",
     ],
     requiredElementSuffixes: [
       "flow-capture-agent",
@@ -229,7 +228,7 @@ results.push(
       "flywheel-loop",
     ],
     dashedElementSuffixes: ["android-box", "extension-box"],
-    renderPhrases: ["Talent Signal 产品架构", "猎头确认"],
+    renderPhrases: ["Talent Signal Product Architecture", "Recruiter decision"],
   }),
 );
 results.push(
@@ -281,7 +280,7 @@ results.push(
       "ats-adapter-box",
     ],
     forbiddenElementSuffixes: ["insight-to-wiki"],
-    renderPhrases: ["Talent Signal 系统架构", "Human Approval Checkpoint"],
+    renderPhrases: ["Talent Signal System Architecture", "Human Approval Checkpoint"],
   }),
 );
 

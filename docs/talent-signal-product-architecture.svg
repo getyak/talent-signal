@@ -1,83 +1,83 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 1928 1088" width="1928" height="1088">
-<rect x="-4" y="-4" width="1928" height="1088" fill="#f2f1ed" />
-<rect x="20" y="20" width="1880" height="1040" rx="10" fill="#faf9f5" stroke="none" stroke-width="0" stroke-dasharray="none" />
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="38" font-weight="700" text-anchor="start"><tspan x="74" y="91.25">Talent Signal 产品架构</tspan></text>
-<text fill="#64615a" font-family="Hiragino Sans GB, sans-serif" font-size="20" font-weight="400" text-anchor="start"><tspan x="76" y="133.5">一次捕获，核对证据，推进下一步，让候选人关系不断档</tspan></text>
-<polyline points="1510,72 1580,72" fill="none" stroke="#181816" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="none" />
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="16" font-weight="400" text-anchor="start"><tspan x="1592" y="78">V1 范围</tspan></text>
-<polyline points="1510,112 1580,112" fill="none" stroke="#747068" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="12 10" />
-<text fill="#747068" font-family="Hiragino Sans GB, sans-serif" font-size="16" font-weight="400" text-anchor="start"><tspan x="1592" y="118">后续演进</tspan></text>
-<rect x="70" y="205" width="410" height="510" rx="10" fill="#f5f3ee" stroke="#b9b5ac" stroke-width="1" stroke-dasharray="none" />
-<rect x="535" y="205" width="400" height="510" rx="10" fill="#dce8ef" stroke="#b9b5ac" stroke-width="1" stroke-dasharray="none" />
-<rect x="990" y="205" width="370" height="510" rx="10" fill="#f0d4cd" stroke="#d84a35" stroke-width="2" stroke-dasharray="none" />
-<rect x="1415" y="205" width="435" height="510" rx="10" fill="#dce8df" stroke="#356c51" stroke-width="2" stroke-dasharray="none" />
-<polyline points="480,462 535,462" fill="none" stroke="#181816" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="none" /><polygon points="535,462 523,469 523,455" fill="#181816" />
-<polyline points="935,462 990,462" fill="none" stroke="#181816" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="none" /><polygon points="990,462 978,469 978,455" fill="#181816" />
-<polyline points="1360,462 1415,462" fill="none" stroke="#181816" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="none" /><polygon points="1415,462 1403,469 1403,455" fill="#181816" />
-<rect x="98" y="232" width="38" height="38" rx="10" fill="#b53727" stroke="#b53727" stroke-width="1" stroke-dasharray="none" />
-<text fill="#ffffff" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="400" text-anchor="middle"><tspan x="117" y="257.375">1</tspan></text>
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="24" font-weight="700" text-anchor="start"><tspan x="150" y="255">随手捕获</tspan></text>
-<text fill="#64615a" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="150" y="280">在你已经工作的地方开始，不要求先整理笔记</tspan></text>
-<rect x="98" y="335" width="170" height="135" rx="10" fill="#faf9f5" stroke="#181816" stroke-width="2" stroke-dasharray="none" />
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="21" font-weight="700" text-anchor="start"><tspan x="118" y="375.875">iOS</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="118" y="404">截图 / Share Sheet</tspan><tspan x="118" y="424.25">拍照 · Today Brief</tspan></text>
-<rect x="112" y="442" width="58" height="24" rx="10" fill="#181816" stroke="#181816" stroke-width="1" stroke-dasharray="none" />
-<text fill="#ffffff" font-family="Hiragino Sans GB, sans-serif" font-size="12" font-weight="400" text-anchor="middle"><tspan x="141" y="458.5">V1</tspan></text>
-<rect x="285" y="335" width="167" height="135" rx="10" fill="#faf9f5" stroke="#181816" stroke-width="2" stroke-dasharray="none" />
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="21" font-weight="700" text-anchor="start"><tspan x="305" y="375.875">Web</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="305" y="404">粘贴 / 上传</tspan><tspan x="305" y="424.25">证据审阅 · 工作台</tspan></text>
-<rect x="299" y="442" width="58" height="24" rx="10" fill="#181816" stroke="#181816" stroke-width="1" stroke-dasharray="none" />
-<text fill="#ffffff" font-family="Hiragino Sans GB, sans-serif" font-size="12" font-weight="400" text-anchor="middle"><tspan x="328" y="458.5">V1</tspan></text>
-<rect x="98" y="492" width="170" height="135" rx="10" fill="#faf9f5" stroke="#747068" stroke-width="2" stroke-dasharray="12 10" />
-<text fill="#747068" font-family="Hiragino Sans GB, sans-serif" font-size="20" font-weight="700" text-anchor="start"><tspan x="118" y="532.5">Android</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="118" y="561">系统分享 / 上传</tspan><tspan x="118" y="581.25">简报 · 提醒</tspan></text>
-<rect x="285" y="492" width="167" height="135" rx="10" fill="#faf9f5" stroke="#747068" stroke-width="2" stroke-dasharray="12 10" />
-<text fill="#747068" font-family="Hiragino Sans GB, sans-serif" font-size="18" font-weight="700" text-anchor="start"><tspan x="305" y="531.75">浏览器插件</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="14" font-weight="400" text-anchor="start"><tspan x="305" y="560">主动截取选中内容</tspan><tspan x="305" y="578.9">侧边证据审阅</tspan></text>
-<text fill="#64615a" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="99" y="674.625">所有入口都进入同一个捕获收件箱（Capture Inbox）</tspan></text>
-<rect x="565" y="232" width="38" height="38" rx="10" fill="#315f7d" stroke="#315f7d" stroke-width="1" stroke-dasharray="none" />
-<text fill="#ffffff" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="400" text-anchor="middle"><tspan x="584" y="257.375">2</tspan></text>
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="24" font-weight="700" text-anchor="start"><tspan x="617" y="255">Agent 起草</tspan></text>
-<text fill="#64615a" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="617" y="280">替你做整理，不替你做关系判断</tspan></text>
-<rect x="565" y="329" width="335" height="32" rx="10" fill="#315f7d" stroke="#315f7d" stroke-width="1" stroke-dasharray="none" />
-<text fill="#ffffff" font-family="Hiragino Sans GB, sans-serif" font-size="14" font-weight="400" text-anchor="middle"><tspan x="732.5" y="350.25">受控工作流 · 可暂停 · 可恢复</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="16" font-weight="400" text-anchor="start"><tspan x="575" y="399">01  理解证据</tspan><tspan x="575" y="420.6">      OCR · 说话人 · 日期 · 原文片段</tspan><tspan x="575" y="442.2"></tspan><tspan x="575" y="463.8">02  匹配上下文</tspan><tspan x="575" y="485.4">      人物 · 职位 · 搜索项目 · 冲突</tspan><tspan x="575" y="507"></tspan><tspan x="575" y="528.6">03  拟定事实与行动</tspan><tspan x="575" y="550.2">      联系人 · 会议 · 跟进 · 不行动 / no_action</tspan></text>
-<rect x="565" y="590" width="335" height="86" rx="10" fill="#faf9f5" stroke="#315f7d" stroke-width="1" stroke-dasharray="none" />
-<text fill="#315f7d" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="585" y="618">证据不足就澄清或放弃</tspan><tspan x="585" y="638.25">不会静默写入，也不评价人的好坏</tspan></text>
-<rect x="1020" y="232" width="38" height="38" rx="10" fill="#b53727" stroke="#b53727" stroke-width="1" stroke-dasharray="none" />
-<text fill="#ffffff" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="400" text-anchor="middle"><tspan x="1039" y="257.375">3</tspan></text>
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="24" font-weight="700" text-anchor="start"><tspan x="1072" y="255">猎头确认</tspan></text>
-<text fill="#64615a" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="1072" y="280">事实确认与行动批准是两次独立决定</tspan></text>
-<text fill="#b53727" font-family="Hiragino Sans GB, sans-serif" font-size="20" font-weight="400" text-anchor="start"><tspan x="1020" y="350">先看原话，再看变化，</tspan><tspan x="1020" y="375">最后看将要发生什么。</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="400" text-anchor="start"><tspan x="1020" y="427">✓  原文证据与说话人</tspan><tspan x="1020" y="454.54">✓  建议写入的前后值</tspan><tspan x="1020" y="482.08">✓  歧义、冲突与过期时间</tspan><tspan x="1020" y="509.62">✓  目标、字段、时间与影响</tspan><tspan x="1020" y="537.16">✓  编辑 / 确认 / 忽略 / 撤销</tspan></text>
-<rect x="1020" y="635" width="305" height="38" rx="10" fill="#b53727" stroke="#b53727" stroke-width="1" stroke-dasharray="none" />
-<text fill="#ffffff" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="middle"><tspan x="1172.5" y="659.625">只有明确批准的版本可以执行</tspan></text>
-<rect x="1445" y="232" width="38" height="38" rx="10" fill="#356c51" stroke="#356c51" stroke-width="1" stroke-dasharray="none" />
-<text fill="#ffffff" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="400" text-anchor="middle"><tspan x="1464" y="257.375">4</tspan></text>
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="24" font-weight="700" text-anchor="start"><tspan x="1497" y="255">关系不断档</tspan></text>
-<text fill="#64615a" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="1497" y="280">下一次对话从已确认的上下文开始</tspan></text>
-<text fill="#356c51" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="1445" y="357.625">MEMORY 记住</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="400" text-anchor="start"><tspan x="1445" y="391">已确认事实 · 决策驱动</tspan><tspan x="1445" y="415.14">行动结果 · 版本与有效期</tspan><tspan x="1445" y="439.28">按任务和权限隔离</tspan></text>
-<polyline points="1445,500 1808,500" fill="none" stroke="#356c51" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="none" />
-<text fill="#356c51" font-family="Hiragino Sans GB, sans-serif" font-size="15" font-weight="400" text-anchor="start"><tspan x="1445" y="538.625">WIKI / LIVING PAGE 讲清楚</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="400" text-anchor="start"><tspan x="1445" y="572">候选人时间线 · 开放问题</tspan><tspan x="1445" y="596.14">证据入口 · 负责人和截止时间</tspan><tspan x="1445" y="620.28">一个最小、具体的下一步</tspan></text>
-<text fill="#64615a" font-family="Hiragino Sans GB, sans-serif" font-size="14" font-weight="400" text-anchor="start"><tspan x="1445" y="687.75">Wiki 是解释层，不是执行事实源</tspan></text>
-<rect x="150" y="790" width="1620" height="150" rx="10" fill="#faf9f5" stroke="#356c51" stroke-width="2" stroke-dasharray="none" />
-<text fill="#356c51" font-family="Hiragino Sans GB, sans-serif" font-size="21" font-weight="700" text-anchor="start"><tspan x="182" y="835.875">可审计的数据飞轮</tspan></text>
-<rect x="455" y="812" width="255" height="96" rx="10" fill="#f5f3ee" stroke="#b9b5ac" stroke-width="2" stroke-dasharray="none" />
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="700" text-anchor="start"><tspan x="475" y="851.375">已验证结果</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="14" font-weight="400" text-anchor="start"><tspan x="475" y="875">外部系统返回真实结果</tspan></text>
-<rect x="815" y="812" width="275" height="96" rx="10" fill="#dce8df" stroke="#b9b5ac" stroke-width="2" stroke-dasharray="none" />
-<text fill="#356c51" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="700" text-anchor="start"><tspan x="835" y="851.375">确认记忆 Confirmed Memory</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="14" font-weight="400" text-anchor="start"><tspan x="835" y="875">只沉淀确认事实与结果</tspan></text>
-<rect x="1195" y="812" width="330" height="96" rx="10" fill="#f5f3ee" stroke="#b9b5ac" stroke-width="2" stroke-dasharray="none" />
-<text fill="#181816" font-family="Hiragino Sans GB, sans-serif" font-size="17" font-weight="700" text-anchor="start"><tspan x="1215" y="851.375">下一次对话自带上下文</tspan></text>
-<text fill="#34332f" font-family="Hiragino Sans GB, sans-serif" font-size="14" font-weight="400" text-anchor="start"><tspan x="1215" y="875">减少重复追问，也不丢失变化</tspan></text>
-<polyline points="710,860 815,860" fill="none" stroke="#356c51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="none" /><polygon points="815,860 803,867 803,853" fill="#356c51" />
-<polyline points="1090,860 1195,860" fill="none" stroke="#356c51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="none" /><polygon points="1195,860 1183,867 1183,853" fill="#356c51" />
-<polyline points="1525,860 1680,860 1680,752 745,752 745,715" fill="none" stroke="#356c51" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="none" /><polygon points="745,715 752,727 738,727" fill="#356c51" />
-<rect x="1105" y="736" width="265" height="30" rx="10" fill="#faf9f5" stroke="none" stroke-width="0" stroke-dasharray="none" />
-<text fill="#356c51" font-family="Hiragino Sans GB, sans-serif" font-size="14" font-weight="400" text-anchor="middle"><tspan x="1237.5" y="756.25">让下一次建议更贴近当前关系</tspan></text>
-<text fill="#64615a" font-family="Hiragino Sans GB, sans-serif" font-size="16" font-weight="400" text-anchor="middle"><tspan x="958" y="1010">产品边界：不是 ATS 替代品  ·  不做候选人评分  ·  不后台监控  ·  自动化只减少行政工作，不替代人的沟通</tspan></text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1944 1104" width="1944" height="1104">
+<rect x="-12" y="-12" width="1944" height="1104" fill="#f2f1ed" />
+<rect x="20" y="20" width="1880" height="1040" rx="8" fill="#faf9f5" stroke="none" stroke-width="0" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="38" font-weight="700" text-anchor="start" opacity="1"><tspan x="74" y="91.25">Talent Signal Product Architecture</tspan></text>
+<text fill="#64615a" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="20" font-weight="400" text-anchor="start" opacity="1"><tspan x="76" y="133.5">Capture once. Review the evidence. Move the relationship forward with context.</tspan></text>
+<polyline points="1510,72 1580,72" fill="none" stroke="#181816" stroke-width="3" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="16" font-weight="400" text-anchor="start" opacity="1"><tspan x="1592" y="78">V1 scope</tspan></text>
+<polyline points="1510,112 1580,112" fill="none" stroke="#747068" stroke-width="3" stroke-dasharray="12 10" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#747068" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="16" font-weight="400" text-anchor="start" opacity="1"><tspan x="1592" y="118">Later</tspan></text>
+<rect x="70" y="205" width="410" height="510" rx="8" fill="#f5f3ee" stroke="#b9b5ac" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<rect x="535" y="205" width="400" height="510" rx="8" fill="#dce8ef" stroke="#b9b5ac" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<rect x="990" y="205" width="370" height="510" rx="8" fill="#f0d4cd" stroke="#d84a35" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<rect x="1415" y="205" width="435" height="510" rx="8" fill="#dce8df" stroke="#356c51" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<polyline points="480,462 535,462" fill="none" stroke="#181816" stroke-width="3" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" /><polygon points="535,462 523,469 523,455" fill="#181816" />
+<polyline points="935,462 990,462" fill="none" stroke="#181816" stroke-width="3" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" /><polygon points="990,462 978,469 978,455" fill="#181816" />
+<polyline points="1360,462 1415,462" fill="none" stroke="#181816" stroke-width="3" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" /><polygon points="1415,462 1403,469 1403,455" fill="#181816" />
+<rect x="98" y="232" width="38" height="38" rx="8" fill="#b53727" stroke="#b53727" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#ffffff" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="400" text-anchor="middle" opacity="1"><tspan x="117" y="257.375">1</tspan></text>
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="24" font-weight="700" text-anchor="start" opacity="1"><tspan x="150" y="255">Capture in flow</tspan></text>
+<text fill="#64615a" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="150" y="280">Start where you already work.</tspan><tspan x="150" y="299.5">No pre-organized notes.</tspan></text>
+<rect x="98" y="335" width="170" height="135" rx="8" fill="#faf9f5" stroke="#181816" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="21" font-weight="700" text-anchor="start" opacity="1"><tspan x="114" y="375.875">iOS</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="start" opacity="1"><tspan x="114" y="403">Screenshot · camera</tspan><tspan x="114" y="421.9">Share Sheet · Today</tspan></text>
+<rect x="112" y="442" width="58" height="24" rx="8" fill="#181816" stroke="#181816" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#ffffff" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="middle" opacity="1"><tspan x="141" y="459.25">V1</tspan></text>
+<rect x="285" y="335" width="167" height="135" rx="8" fill="#faf9f5" stroke="#181816" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="21" font-weight="700" text-anchor="start" opacity="1"><tspan x="301" y="375.875">Web</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="start" opacity="1"><tspan x="301" y="403">Paste / upload</tspan><tspan x="301" y="421.9">Review · workspace</tspan></text>
+<rect x="299" y="442" width="58" height="24" rx="8" fill="#181816" stroke="#181816" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#ffffff" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="middle" opacity="1"><tspan x="328" y="459.25">V1</tspan></text>
+<rect x="98" y="492" width="170" height="135" rx="8" fill="#faf9f5" stroke="#747068" stroke-width="2" stroke-dasharray="12 10" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#747068" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="20" font-weight="700" text-anchor="start" opacity="1"><tspan x="118" y="532.5">Android</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="118" y="561">System share</tspan><tspan x="118" y="581.25">Briefs · reminders</tspan></text>
+<rect x="285" y="492" width="167" height="135" rx="8" fill="#faf9f5" stroke="#747068" stroke-width="2" stroke-dasharray="12 10" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#747068" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="700" text-anchor="start" opacity="1"><tspan x="305" y="530.625">Browser extension</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="start" opacity="1"><tspan x="305" y="560">Selected context</tspan><tspan x="305" y="578.9">Side-panel review</tspan></text>
+<text fill="#64615a" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="99" y="674.625">Every surface enters one shared Capture Inbox.</tspan></text>
+<rect x="565" y="232" width="38" height="38" rx="8" fill="#315f7d" stroke="#315f7d" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#ffffff" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="400" text-anchor="middle" opacity="1"><tspan x="584" y="257.375">2</tspan></text>
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="24" font-weight="700" text-anchor="start" opacity="1"><tspan x="617" y="255">Agent draft</tspan></text>
+<text fill="#64615a" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="617" y="280">Organizes evidence; never owns</tspan><tspan x="617" y="299.5">relationship judgment.</tspan></text>
+<rect x="565" y="329" width="335" height="32" rx="8" fill="#315f7d" stroke="#315f7d" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#ffffff" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="middle" opacity="1"><tspan x="732.5" y="350.25">Governed · Pausable · Recoverable</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="16" font-weight="400" text-anchor="start" opacity="1"><tspan x="575" y="399">01  Interpret evidence</tspan><tspan x="575" y="420.6">      OCR · speaker · date · exact excerpt</tspan><tspan x="575" y="442.2"></tspan><tspan x="575" y="463.8">02  Resolve context</tspan><tspan x="575" y="485.4">      Person · role · assignment · conflicts</tspan><tspan x="575" y="507"></tspan><tspan x="575" y="528.6">03  Draft facts and actions</tspan><tspan x="575" y="550.2">      Contact · meeting · follow-up · no_action</tspan></text>
+<rect x="565" y="590" width="335" height="86" rx="8" fill="#faf9f5" stroke="#315f7d" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#315f7d" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="585" y="618">Weak evidence → clarify or stop</tspan><tspan x="585" y="638.25">No silent writes. No person scoring.</tspan></text>
+<rect x="1020" y="232" width="38" height="38" rx="8" fill="#b53727" stroke="#b53727" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#ffffff" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="400" text-anchor="middle" opacity="1"><tspan x="1039" y="257.375">3</tspan></text>
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="24" font-weight="700" text-anchor="start" opacity="1"><tspan x="1072" y="255">Recruiter decision</tspan></text>
+<text fill="#64615a" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="1072" y="280">Fact confirmation and action</tspan><tspan x="1072" y="299.5">approval stay separate.</tspan></text>
+<text fill="#b53727" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="20" font-weight="400" text-anchor="start" opacity="1"><tspan x="1020" y="350">Read the source. See the change.</tspan><tspan x="1020" y="375">Preview the exact effect.</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="400" text-anchor="start" opacity="1"><tspan x="1020" y="427">✓  Exact evidence + speaker</tspan><tspan x="1020" y="454.54">✓  Proposed before / after value</tspan><tspan x="1020" y="482.08">✓  Ambiguity, conflict, expiry</tspan><tspan x="1020" y="509.62">✓  Target, field, timing, impact</tspan><tspan x="1020" y="537.16">✓  Edit / confirm / dismiss / undo</tspan></text>
+<rect x="1020" y="635" width="305" height="38" rx="8" fill="#b53727" stroke="#b53727" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#ffffff" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="middle" opacity="1"><tspan x="1172.5" y="659.625">Only the approved version may execute</tspan></text>
+<rect x="1445" y="232" width="38" height="38" rx="8" fill="#356c51" stroke="#356c51" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#ffffff" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="400" text-anchor="middle" opacity="1"><tspan x="1464" y="257.375">4</tspan></text>
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="24" font-weight="700" text-anchor="start" opacity="1"><tspan x="1497" y="255">Relationship continuity</tspan></text>
+<text fill="#64615a" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="1497" y="280">The next conversation starts</tspan><tspan x="1497" y="299.5">from confirmed context.</tspan></text>
+<text fill="#356c51" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="1445" y="357.625">MEMORY / WHAT IS KNOWN</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="400" text-anchor="start" opacity="1"><tspan x="1445" y="391">Confirmed facts · decision drivers</tspan><tspan x="1445" y="415.14">Observed outcomes · version · expiry</tspan><tspan x="1445" y="439.28">Scoped by assignment and permission</tspan></text>
+<polyline points="1445,500 1808,500" fill="none" stroke="#356c51" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#356c51" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="15" font-weight="400" text-anchor="start" opacity="1"><tspan x="1445" y="538.625">WIKI / HOW IT READS</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="400" text-anchor="start" opacity="1"><tspan x="1445" y="572">Candidate timeline · open questions</tspan><tspan x="1445" y="596.14">Evidence links · owner · due date</tspan><tspan x="1445" y="620.28">One small, concrete next step</tspan></text>
+<text fill="#64615a" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="start" opacity="1"><tspan x="1445" y="687.75">The Wiki explains; it never authorizes execution.</tspan></text>
+<rect x="150" y="790" width="1620" height="150" rx="8" fill="#faf9f5" stroke="#356c51" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#356c51" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="21" font-weight="700" text-anchor="start" opacity="1"><tspan x="182" y="835.875">Auditable learning loop</tspan></text>
+<rect x="455" y="812" width="255" height="96" rx="8" fill="#f5f3ee" stroke="#b9b5ac" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="700" text-anchor="start" opacity="1"><tspan x="475" y="851.375">Verified outcome</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="start" opacity="1"><tspan x="475" y="875">Observed in the destination</tspan></text>
+<rect x="815" y="812" width="275" height="96" rx="8" fill="#dce8df" stroke="#b9b5ac" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#356c51" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="700" text-anchor="start" opacity="1"><tspan x="835" y="851.375">Confirmed memory</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="start" opacity="1"><tspan x="835" y="875">Only reviewed facts and outcomes persist</tspan></text>
+<rect x="1195" y="812" width="330" height="96" rx="8" fill="#f5f3ee" stroke="#b9b5ac" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#181816" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="17" font-weight="700" text-anchor="start" opacity="1"><tspan x="1215" y="851.375">Next conversation has context</tspan></text>
+<text fill="#34332f" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="start" opacity="1"><tspan x="1215" y="875">Less repetition without losing change</tspan></text>
+<polyline points="710,860 815,860" fill="none" stroke="#356c51" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" /><polygon points="815,860 803,867 803,853" fill="#356c51" />
+<polyline points="1090,860 1195,860" fill="none" stroke="#356c51" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" /><polygon points="1195,860 1183,867 1183,853" fill="#356c51" />
+<polyline points="1525,860 1680,860 1680,752 745,752 745,715" fill="none" stroke="#356c51" stroke-width="2" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" /><polygon points="745,715 752,727 738,727" fill="#356c51" />
+<rect x="1105" y="736" width="265" height="30" rx="8" fill="#faf9f5" stroke="none" stroke-width="0" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round" opacity="1" />
+<text fill="#356c51" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="14" font-weight="400" text-anchor="middle" opacity="1"><tspan x="1237.5" y="756.25">Better context for the next decision</tspan></text>
+<text fill="#64615a" font-family='"Helvetica Neue", Helvetica, "PingFang SC", Arial, sans-serif' font-size="16" font-weight="400" text-anchor="middle" opacity="1"><tspan x="958" y="1010">Boundary: not an ATS replacement  ·  no candidate scoring  ·  no ambient monitoring  ·  automation reduces admin, not human care</tspan></text>
 </svg>

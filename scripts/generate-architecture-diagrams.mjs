@@ -307,7 +307,7 @@ function buildProductDiagram(api) {
     48,
     1270,
     58,
-    "Talent Signal 产品架构",
+    "Talent Signal Product Architecture",
     38,
     { align: "left", color: colors.ink },
   );
@@ -317,7 +317,7 @@ function buildProductDiagram(api) {
     108,
     1240,
     36,
-    "一次捕获，核对证据，推进下一步，让候选人关系不断档",
+    "Capture once. Review the evidence. Move the relationship forward with context.",
     20,
     { align: "left", color: colors.muted },
   );
@@ -327,7 +327,7 @@ function buildProductDiagram(api) {
     strokeColor: colors.ink,
     strokeWidth: 3,
   });
-  text("legend-v1-text", 1592, 57, 120, 30, "V1 范围", 16, {
+  text("legend-v1-text", 1592, 57, 120, 30, "V1 scope", 16, {
     align: "left",
   });
   arrow("legend-future", [[1510, 112], [1580, 112]], {
@@ -336,7 +336,7 @@ function buildProductDiagram(api) {
     strokeStyle: "dashed",
     strokeWidth: 3,
   });
-  text("legend-future-text", 1592, 97, 170, 30, "后续演进", 16, {
+  text("legend-future-text", 1592, 97, 170, 30, "Later", 16, {
     align: "left",
     color: colors.future,
   });
@@ -380,8 +380,8 @@ function buildProductDiagram(api) {
     98,
     232,
     "1",
-    "随手捕获",
-    "在你已经工作的地方开始，不要求先整理笔记",
+    "Capture in flow",
+    "Start where you already work.\nNo pre-organized notes.",
     { width: 250, subtitleWidth: 290 },
   );
   node(
@@ -391,18 +391,19 @@ function buildProductDiagram(api) {
     170,
     135,
     "iOS",
-    "截图 / Share Sheet\n拍照 · Today Brief",
+    "Screenshot · camera\nShare Sheet · Today",
     {
       strokeColor: colors.ink,
       backgroundColor: colors.surface,
       titleSize: 21,
-      bodySize: 15,
+      bodySize: 14,
       bodyTop: 54,
+      padding: 16,
     },
   );
   badge("ios-status", 112, 442, 58, "V1", {
     height: 24,
-    fontSize: 12,
+    fontSize: 14,
     backgroundColor: colors.ink,
     strokeColor: colors.ink,
   });
@@ -413,18 +414,19 @@ function buildProductDiagram(api) {
     167,
     135,
     "Web",
-    "粘贴 / 上传\n证据审阅 · 工作台",
+    "Paste / upload\nReview · workspace",
     {
       strokeColor: colors.ink,
       backgroundColor: colors.surface,
       titleSize: 21,
-      bodySize: 15,
+      bodySize: 14,
       bodyTop: 54,
+      padding: 16,
     },
   );
   badge("web-status", 299, 442, 58, "V1", {
     height: 24,
-    fontSize: 12,
+    fontSize: 14,
     backgroundColor: colors.ink,
     strokeColor: colors.ink,
   });
@@ -435,7 +437,7 @@ function buildProductDiagram(api) {
     170,
     135,
     "Android",
-    "系统分享 / 上传\n简报 · 提醒",
+    "System share\nBriefs · reminders",
     {
       strokeColor: colors.future,
       backgroundColor: colors.surface,
@@ -452,14 +454,14 @@ function buildProductDiagram(api) {
     492,
     167,
     135,
-    "浏览器插件",
-    "主动截取选中内容\n侧边证据审阅",
+    "Browser extension",
+    "Selected context\nSide-panel review",
     {
       strokeColor: colors.future,
       backgroundColor: colors.surface,
       strokeStyle: "dashed",
       titleColor: colors.future,
-      titleSize: 18,
+      titleSize: 15,
       bodySize: 14,
       bodyTop: 54,
     },
@@ -470,7 +472,7 @@ function buildProductDiagram(api) {
     648,
     350,
     42,
-    "所有入口都进入同一个捕获收件箱（Capture Inbox）",
+    "Every surface enters one shared Capture Inbox.",
     15,
     { align: "left", color: colors.muted },
   );
@@ -480,11 +482,11 @@ function buildProductDiagram(api) {
     565,
     232,
     "2",
-    "Agent 起草",
-    "替你做整理，不替你做关系判断",
+    "Agent draft",
+    "Organizes evidence; never owns\nrelationship judgment.",
     { width: 250, subtitleWidth: 290, accent: colors.blue },
   );
-  badge("agent-runtime", 565, 329, 335, "受控工作流 · 可暂停 · 可恢复", {
+  badge("agent-runtime", 565, 329, 335, "Governed · Pausable · Recoverable", {
     height: 32,
     fontSize: 14,
     backgroundColor: colors.blue,
@@ -496,7 +498,7 @@ function buildProductDiagram(api) {
     383,
     315,
     175,
-    "01  理解证据\n      OCR · 说话人 · 日期 · 原文片段\n\n02  匹配上下文\n      人物 · 职位 · 搜索项目 · 冲突\n\n03  拟定事实与行动\n      联系人 · 会议 · 跟进 · 不行动 / no_action",
+    "01  Interpret evidence\n      OCR · speaker · date · exact excerpt\n\n02  Resolve context\n      Person · role · assignment · conflicts\n\n03  Draft facts and actions\n      Contact · meeting · follow-up · no_action",
     16,
     {
       align: "left",
@@ -516,7 +518,7 @@ function buildProductDiagram(api) {
     603,
     295,
     58,
-    "证据不足就澄清或放弃\n不会静默写入，也不评价人的好坏",
+    "Weak evidence → clarify or stop\nNo silent writes. No person scoring.",
     15,
     {
       align: "left",
@@ -531,8 +533,8 @@ function buildProductDiagram(api) {
     1020,
     232,
     "3",
-    "猎头确认",
-    "事实确认与行动批准是两次独立决定",
+    "Recruiter decision",
+    "Fact confirmation and action\napproval stay separate.",
     { width: 250, subtitleWidth: 285, accent: colors.accentStrong },
   );
   text(
@@ -541,7 +543,7 @@ function buildProductDiagram(api) {
     330,
     310,
     58,
-    "先看原话，再看变化，\n最后看将要发生什么。",
+    "Read the source. See the change.\nPreview the exact effect.",
     20,
     {
       align: "left",
@@ -556,7 +558,7 @@ function buildProductDiagram(api) {
     410,
     310,
     205,
-    "✓  原文证据与说话人\n✓  建议写入的前后值\n✓  歧义、冲突与过期时间\n✓  目标、字段、时间与影响\n✓  编辑 / 确认 / 忽略 / 撤销",
+    "✓  Exact evidence + speaker\n✓  Proposed before / after value\n✓  Ambiguity, conflict, expiry\n✓  Target, field, timing, impact\n✓  Edit / confirm / dismiss / undo",
     17,
     {
       align: "left",
@@ -565,7 +567,7 @@ function buildProductDiagram(api) {
       lineHeight: 1.62,
     },
   );
-  badge("review-rule", 1020, 635, 305, "只有明确批准的版本可以执行", {
+  badge("review-rule", 1020, 635, 305, "Only the approved version may execute", {
     height: 38,
     fontSize: 15,
     backgroundColor: colors.accentStrong,
@@ -577,11 +579,11 @@ function buildProductDiagram(api) {
     1445,
     232,
     "4",
-    "关系不断档",
-    "下一次对话从已确认的上下文开始",
+    "Relationship continuity",
+    "The next conversation starts\nfrom confirmed context.",
     { width: 280, subtitleWidth: 325, accent: colors.success },
   );
-  text("memory-label", 1445, 337, 170, 30, "MEMORY 记住", 15, {
+  text("memory-label", 1445, 337, 230, 30, "MEMORY / WHAT IS KNOWN", 15, {
     align: "left",
     color: colors.success,
   });
@@ -591,7 +593,7 @@ function buildProductDiagram(api) {
     374,
     350,
     108,
-    "已确认事实 · 决策驱动\n行动结果 · 版本与有效期\n按任务和权限隔离",
+    "Confirmed facts · decision drivers\nObserved outcomes · version · expiry\nScoped by assignment and permission",
     17,
     {
       align: "left",
@@ -605,7 +607,7 @@ function buildProductDiagram(api) {
     strokeColor: colors.success,
     strokeWidth: 1,
   });
-  text("wiki-label", 1445, 518, 245, 30, "WIKI / LIVING PAGE 讲清楚", 15, {
+  text("wiki-label", 1445, 518, 245, 30, "WIKI / HOW IT READS", 15, {
     align: "left",
     color: colors.success,
   });
@@ -615,7 +617,7 @@ function buildProductDiagram(api) {
     555,
     350,
     105,
-    "候选人时间线 · 开放问题\n证据入口 · 负责人和截止时间\n一个最小、具体的下一步",
+    "Candidate timeline · open questions\nEvidence links · owner · due date\nOne small, concrete next step",
     17,
     {
       align: "left",
@@ -630,7 +632,7 @@ function buildProductDiagram(api) {
     670,
     360,
     25,
-    "Wiki 是解释层，不是执行事实源",
+    "The Wiki explains; it never authorizes execution.",
     14,
     { align: "left", color: colors.muted },
   );
@@ -640,7 +642,7 @@ function buildProductDiagram(api) {
     backgroundColor: colors.surface,
     strokeWidth: 2,
   });
-  text("flywheel-title", 182, 812, 250, 32, "可审计的数据飞轮", 21, {
+  text("flywheel-title", 182, 812, 250, 32, "Auditable learning loop", 21, {
     align: "left",
     color: colors.success,
   });
@@ -650,8 +652,8 @@ function buildProductDiagram(api) {
     812,
     255,
     96,
-    "已验证结果",
-    "外部系统返回真实结果",
+    "Verified outcome",
+    "Observed in the destination",
     {
       strokeColor: colors.line,
       backgroundColor: colors.futureFill,
@@ -668,8 +670,8 @@ function buildProductDiagram(api) {
     812,
     275,
     96,
-    "确认记忆 Confirmed Memory",
-    "只沉淀确认事实与结果",
+    "Confirmed memory",
+    "Only reviewed facts and outcomes persist",
     {
       strokeColor: colors.line,
       backgroundColor: colors.successSoft,
@@ -686,8 +688,8 @@ function buildProductDiagram(api) {
     812,
     330,
     96,
-    "下一次对话自带上下文",
-    "减少重复追问，也不丢失变化",
+    "Next conversation has context",
+    "Less repetition without losing change",
     {
       strokeColor: colors.line,
       backgroundColor: colors.futureFill,
@@ -720,7 +722,7 @@ function buildProductDiagram(api) {
       strokeWidth: 2,
     },
   );
-  label("flywheel-loop-label", 1105, 736, 265, "让下一次建议更贴近当前关系", {
+  label("flywheel-loop-label", 1105, 736, 265, "Better context for the next decision", {
     backgroundColor: colors.surface,
     color: colors.success,
     fontSize: 14,
@@ -732,7 +734,7 @@ function buildProductDiagram(api) {
     985,
     1760,
     38,
-    "产品边界：不是 ATS 替代品  ·  不做候选人评分  ·  不后台监控  ·  自动化只减少行政工作，不替代人的沟通",
+    "Boundary: not an ATS replacement  ·  no candidate scoring  ·  no ambient monitoring  ·  automation reduces admin, not human care",
     16,
     { align: "center", color: colors.muted },
   );
@@ -747,7 +749,7 @@ function buildSystemDiagram(api) {
     strokeWidth: 0,
     locked: true,
   });
-  text("title", 74, 45, 1320, 58, "Talent Signal 系统架构", 38, {
+  text("title", 74, 45, 1320, 58, "Talent Signal System Architecture", 38, {
     align: "left",
     color: colors.ink,
   });
@@ -757,7 +759,7 @@ function buildSystemDiagram(api) {
     105,
     1380,
     36,
-    "证据优先、人在回路、可恢复执行、可重建记忆",
+    "Evidence first · human in the loop · recoverable effects · rebuildable memory",
     20,
     { align: "left", color: colors.muted },
   );
@@ -766,7 +768,7 @@ function buildSystemDiagram(api) {
     strokeColor: colors.ink,
     strokeWidth: 3,
   });
-  text("legend-v1-text", 1852, 53, 150, 30, "V1 架构合同", 16, {
+  text("legend-v1-text", 1852, 53, 150, 30, "V1 contract", 16, {
     align: "left",
   });
   arrow("legend-future", [[1770, 108], [1840, 108]], {
@@ -775,7 +777,7 @@ function buildSystemDiagram(api) {
     strokeStyle: "dashed",
     strokeWidth: 3,
   });
-  text("legend-future-text", 1852, 93, 180, 30, "后续表面 / 扩展", 16, {
+  text("legend-future-text", 1852, 93, 180, 30, "Later surfaces", 16, {
     align: "left",
     color: colors.future,
   });
@@ -797,7 +799,7 @@ function buildSystemDiagram(api) {
     350,
     130,
     "iOS · SwiftUI",
-    "截图 / Share Sheet · 证据审阅\nAction Cards · Today Brief · 恢复任务",
+    "Screenshot / Share Sheet · Evidence review\nAction Cards · Today Brief · Resume",
     {
       strokeColor: colors.ink,
       backgroundColor: colors.surface,
@@ -813,7 +815,7 @@ function buildSystemDiagram(api) {
     350,
     130,
     "Web · Next.js",
-    "Capture Inbox · Living Page\n工作台 · 时间线 · 审计 · 深度研究",
+    "Capture Inbox · Living Page\nWorkspace · Timeline · Audit · Research",
     {
       strokeColor: colors.ink,
       backgroundColor: colors.surface,
@@ -829,7 +831,7 @@ function buildSystemDiagram(api) {
     350,
     130,
     "Android",
-    "系统分享 · 证据审阅\n简报 · 通知 · 恢复任务",
+    "System share · Evidence review\nBriefs · Notifications · Resume",
     {
       strokeColor: colors.future,
       backgroundColor: colors.surface,
@@ -847,14 +849,14 @@ function buildSystemDiagram(api) {
     350,
     130,
     "Browser Extension",
-    "主动截取选中上下文\n来源标记 · 侧边审阅 · 禁止后台抓取",
+    "Selected-context capture\nSource label · side review\nNo ambient scraping",
     {
       strokeColor: colors.future,
       backgroundColor: colors.surface,
       strokeStyle: "dashed",
       titleColor: colors.future,
       titleSize: 20,
-      bodySize: 15,
+      bodySize: 14,
       bodyTop: 52,
     },
   );
@@ -881,7 +883,7 @@ function buildSystemDiagram(api) {
     362,
     1980,
     30,
-    "多端只是同一任务状态的不同入口；人物、事实、权限和审计不在客户端各自复制。",
+    "Surfaces are views of one governed task; identity, facts, permissions, and audit remain shared.",
     15,
     { align: "center", color: colors.muted },
   );
@@ -908,7 +910,7 @@ function buildSystemDiagram(api) {
     355,
     98,
     "Gateway / BFF",
-    "版本化 API · 限流 · 输入大小 · 状态流",
+    "Versioned API · rate limits · input bounds · state flow",
     {
       strokeColor: colors.line,
       backgroundColor: colors.surface,
@@ -926,7 +928,7 @@ function buildSystemDiagram(api) {
     355,
     98,
     "Identity + Scope",
-    "用户 / 租户 / Assignment 权限 · RLS",
+    "User · tenant · assignment scope · RLS",
     {
       strokeColor: colors.line,
       backgroundColor: colors.surface,
@@ -944,7 +946,7 @@ function buildSystemDiagram(api) {
     355,
     98,
     "Capture Ingest",
-    "意图确认 · 去重 · 校验 · 加密对象引用",
+    "Intent confirmation · dedupe\nValidation · encrypted object refs",
     {
       strokeColor: colors.line,
       backgroundColor: colors.surface,
@@ -962,7 +964,7 @@ function buildSystemDiagram(api) {
     355,
     98,
     "Run State + Checkpoint",
-    "可暂停 / 恢复 · proposal 版本 · 过期",
+    "Pause / resume · proposal versions · expiry",
     {
       strokeColor: colors.line,
       backgroundColor: colors.surface,
@@ -980,7 +982,7 @@ function buildSystemDiagram(api) {
     410,
     98,
     "Status / Notification",
-    "进度与结果，不传私密正文 · 客户端可重连",
+    "Progress + outcome only\nNo private body text · reconnectable",
     {
       strokeColor: colors.line,
       backgroundColor: colors.surface,
@@ -1013,7 +1015,7 @@ function buildSystemDiagram(api) {
     712,
     1475,
     22,
-    "这些是权限角色，不要求多 Agent 对话；每一步都有严格 schema、checkpoint 和审计。",
+    "Bounded roles · deterministic state · audited steps · no multi-agent chat",
     14,
     { align: "left", color: colors.blue },
   );
@@ -1042,7 +1044,7 @@ function buildSystemDiagram(api) {
     280,
     130,
     "Evidence Compiler",
-    "OCR / layout / speaker\nidentity candidates · assertions\nprompt injection 视为数据",
+    "OCR / layout / speaker\nidentity candidates · assertions\nprompt injection remains untrusted data",
     {
       strokeColor: colors.blue,
       backgroundColor: colors.surface,
@@ -1059,7 +1061,7 @@ function buildSystemDiagram(api) {
     280,
     130,
     "Context Resolver",
-    "只读 scoped memory\n人物 / 项目匹配 · 冲突\nunknown / ambiguous",
+    "read-only scoped memory\nperson / assignment match · conflicts\nunknown / ambiguous",
     {
       strokeColor: colors.blue,
       backgroundColor: colors.surface,
@@ -1076,7 +1078,7 @@ function buildSystemDiagram(api) {
     280,
     130,
     "Action Planner",
-    "白名单 proposal\ncontact / meeting / follow-up\nno_action / clarify",
+    "allowlisted proposals\ncontact / meeting / follow-up\nno_action / clarify",
     {
       strokeColor: colors.blue,
       backgroundColor: colors.surface,
@@ -1093,7 +1095,7 @@ function buildSystemDiagram(api) {
     300,
     160,
     "Human Approval Checkpoint",
-    "事实：confirm / edit / dismiss\n行动：approve / edit / reject\n展示证据、目标、变化与影响",
+    "fact: confirm / edit / dismiss\naction: approve / edit / reject\nshow evidence, target, change, and impact",
     {
       strokeColor: colors.accent,
       backgroundColor: colors.accentSoft,
@@ -1110,7 +1112,7 @@ function buildSystemDiagram(api) {
     300,
     130,
     "Execution Guard",
-    "执行时重验权限 / 版本 / 过期\n时区 / 冲突 / duplicate\nidempotency + outbox",
+    "recheck scope / version / expiry\ntime zone / conflict / duplicate\nidempotency + outbox",
     {
       strokeColor: colors.accent,
       backgroundColor: colors.surface,
@@ -1127,7 +1129,7 @@ function buildSystemDiagram(api) {
     325,
     130,
     "Connector Executor",
-    "一次明确批准的调用\n等待 external id / result\n失败 · retry · reconcile · reverse",
+    "one explicitly approved call\nawait external id / result\nfail · retry · reconcile · reverse",
     {
       strokeColor: colors.accent,
       backgroundColor: colors.surface,
@@ -1183,7 +1185,7 @@ function buildSystemDiagram(api) {
     345,
     92,
     "Insight Synthesizer",
-    "what changed · labeled inference · one next step · no write",
+    "what changed · labeled inference\none next step · no write",
     {
       strokeColor: colors.violet,
       backgroundColor: colors.violetSoft,
@@ -1192,6 +1194,7 @@ function buildSystemDiagram(api) {
       bodySize: 14,
       bodyTop: 48,
       bottomPadding: 10,
+      lineHeight: 1.1,
     },
   );
   node(
@@ -1201,7 +1204,7 @@ function buildSystemDiagram(api) {
     345,
     92,
     "Wiki Compiler",
-    "async projection · evidence links · rebuildable · no tool args",
+    "async projection · evidence links\nrebuildable · no tool args",
     {
       strokeColor: colors.success,
       backgroundColor: colors.successSoft,
@@ -1210,6 +1213,7 @@ function buildSystemDiagram(api) {
       bodySize: 14,
       bodyTop: 48,
       bottomPadding: 10,
+      lineHeight: 1.1,
     },
   );
   arrow(
@@ -1292,14 +1296,15 @@ function buildSystemDiagram(api) {
     300,
     125,
     "Wiki + Retrieval",
-    "WikiSnapshot · search index · cache\nderived / rebuildable / deletion-coupled",
+    "WikiSnapshot · search index · cache\nderived · rebuildable\ndeletion-coupled",
     {
       strokeColor: colors.future,
       backgroundColor: colors.surface,
       titleColor: colors.ink,
       titleSize: 17,
-      bodySize: 13,
+      bodySize: 14,
       bodyTop: 48,
+      lineHeight: 1.2,
     },
   );
 
@@ -1365,14 +1370,15 @@ function buildSystemDiagram(api) {
     180,
     125,
     "AI Adapters",
-    "OCR / Vision / LLM\nstrict schema per role\nZDR · proposal only",
+    "OCR / Vision / LLM\nrole-specific schema\nZDR · proposal only",
     {
       strokeColor: colors.violet,
       backgroundColor: colors.violetSoft,
       titleColor: colors.violet,
       titleSize: 16,
-      bodySize: 12,
+      bodySize: 14,
       bodyTop: 48,
+      lineHeight: 1.2,
     },
   );
   node(
@@ -1388,8 +1394,9 @@ function buildSystemDiagram(api) {
       backgroundColor: colors.surface,
       titleColor: colors.accentStrong,
       titleSize: 15,
-      bodySize: 12,
+      bodySize: 14,
       bodyTop: 48,
+      lineHeight: 1.2,
     },
   );
   node(
@@ -1406,8 +1413,9 @@ function buildSystemDiagram(api) {
       strokeStyle: "dashed",
       titleColor: colors.future,
       titleSize: 16,
-      bodySize: 12,
+      bodySize: 14,
       bodyTop: 48,
+      lineHeight: 1.2,
     },
   );
   arrow(

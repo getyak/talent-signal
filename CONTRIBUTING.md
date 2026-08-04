@@ -15,6 +15,16 @@ pnpm check
 source and compiled wiki are committed. Install the local push gate once with
 `pnpm hooks:install`; CI runs the same read-only wiki check.
 
+When changing the product or system architecture diagrams, regenerate the
+editable scenes and rendered assets, then run the structural check:
+
+```bash
+pnpm architecture:generate
+pnpm architecture:check
+```
+
+Commit the `.excalidraw`, `.svg`, and `.png` outputs together.
+
 For iOS changes, also run:
 
 ```bash
