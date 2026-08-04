@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evidence Safety Reviewer"
+  short_description: "Audit provenance, privacy, consent, and reversible actions."
+  default_prompt: "Use $evidence-safety-reviewer to audit this candidate evidence flow for safety and professional ethics."

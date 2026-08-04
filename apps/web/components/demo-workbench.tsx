@@ -5,9 +5,12 @@ import {
   CalendarBlank,
   Check,
   CheckCircle,
+  Cpu,
   NotePencil,
   PencilSimple,
+  ShieldCheck,
   UserCirclePlus,
+  WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -16,11 +19,24 @@ import {
   analyzeConversation,
   sampleConversation,
   type AnalysisResult,
+  type Evidence,
   type ProposedAction,
 } from "@/lib/signals";
 
 type Phase = "error" | "idle" | "loading" | "ready";
 type ActionStatus = "confirmed" | "dismissed" | "pending";
+type AnalysisMode = "ai" | "local";
+
+type AiResponse = {
+  result: AnalysisResult;
+  meta: {
+    mode: "ai";
+    model: string;
+    provider: string;
+  };
+};
+
+const candidateContext = "Leila Hartmann, VP Product candidate";
 
 function ActionIcon({ type }: Pick<ProposedAction, "type">) {
   if (type === "create-meeting") {
@@ -43,7 +59,33 @@ function WorkbenchSkeleton() {
   );
 }
 
-function EmptyAnalysis() {
+function EmptyAnalysis({ evidence }: { evidence: Evidence[] }) {
+  if (evidence.length > 0) {
+    return (
+      <div className="empty-analysis">
+        <WarningCircle aria-hidden="true" size={28} />
+        <div>
+          <h3>Evidence needs clarification</h3>
+          <p>
+            The note contains a possible signal, but its speaker or meaning is
+            ambiguous. No operational change was proposed.
+          </p>
+          <div className="ambiguous-evidence">
+            {evidence.map((item) => (
+              <div key={item.id}>
+                <strong>{item.label}</strong>
+                <q>{item.excerpt}</q>
+                {item.ambiguities.map((ambiguity) => (
+                  <span key={ambiguity}>{ambiguity}</span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="empty-analysis">
       <NotePencil aria-hidden="true" size={28} />
@@ -58,14 +100,26 @@ function EmptyAnalysis() {
   );
 }
 
-export function DemoWorkbench() {
+export function DemoWorkbench({
+  aiEnabled,
+  aiProvider,
+}: {
+  aiEnabled: boolean;
+  aiProvider: string;
+}) {
   const [input, setInput] = useState(sampleConversation);
+  const [mode, setMode] = useState<AnalysisMode>("local");
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [statuses, setStatuses] = useState<Record<string, ActionStatus>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [errorMessage, setErrorMessage] = useState("");
+  const [analysisMeta, setAnalysisMeta] = useState<AiResponse["meta"] | null>(
+    null,
+  );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -73,32 +127,91 @@ export function DemoWorkbench() {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
+      requestRef.current?.abort();
     };
   }, []);
 
-  function runAnalysis() {
+  function applyResult(nextResult: AnalysisResult) {
+    setResult(nextResult);
+    setEdits(
+      Object.fromEntries(
+        nextResult.actions.map((action) => [action.id, action.detail]),
+      ),
+    );
+    setPhase("ready");
+  }
+
+  async function runAnalysis() {
     if (!input.trim()) {
+      setErrorMessage("Add a conversation note before analyzing evidence.");
       setPhase("error");
       setResult(null);
       return;
     }
 
     setPhase("loading");
+    setErrorMessage("");
     setStatuses({});
     setEditingId(null);
+    setAnalysisMeta(null);
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
-    timerRef.current = setTimeout(() => {
-      const nextResult = analyzeConversation(input);
-      setResult(nextResult);
-      setEdits(
-        Object.fromEntries(
-          nextResult.actions.map((action) => [action.id, action.detail]),
-        ),
+    requestRef.current?.abort();
+
+    if (mode === "local") {
+      timerRef.current = setTimeout(() => {
+        applyResult(analyzeConversation(input));
+      }, reduceMotion ? 100 : 720);
+      return;
+    }
+
+    const controller = new AbortController();
+    requestRef.current = controller;
+
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          candidateContext,
+          conversation: input,
+          sourceSpeaker: "candidate",
+        }),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const payload = (await response.json()) as
+        | AiResponse
+        | { error?: string };
+      if (!response.ok || !("result" in payload)) {
+        throw new Error(
+          "error" in payload && payload.error
+            ? payload.error
+            : "Private AI analysis is unavailable.",
+        );
+      }
+
+      setAnalysisMeta(payload.meta);
+      applyResult(payload.result);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+      setResult(null);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Private AI analysis is unavailable.",
       );
-      setPhase("ready");
-    }, reduceMotion ? 100 : 720);
+      setPhase("error");
+    } finally {
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+      }
+    }
   }
 
   function updateStatus(id: string, status: ActionStatus) {
@@ -110,12 +223,34 @@ export function DemoWorkbench() {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
+    requestRef.current?.abort();
     setInput(sampleConversation);
+    setMode("local");
     setPhase("idle");
     setResult(null);
     setStatuses({});
     setEditingId(null);
     setEdits({});
+    setErrorMessage("");
+    setAnalysisMeta(null);
+  }
+
+  function selectMode(nextMode: AnalysisMode) {
+    if (nextMode === "ai" && !aiEnabled) {
+      return;
+    }
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    requestRef.current?.abort();
+    setMode(nextMode);
+    setPhase("idle");
+    setResult(null);
+    setStatuses({});
+    setEditingId(null);
+    setEdits({});
+    setErrorMessage("");
+    setAnalysisMeta(null);
   }
 
   const actionSummary = result
@@ -140,12 +275,13 @@ export function DemoWorkbench() {
           <label htmlFor="candidate-context">Candidate context</label>
           <input
             id="candidate-context"
-            value="Leila Hartmann, VP Product candidate"
+            value={candidateContext}
             readOnly
             aria-describedby="candidate-context-help"
           />
           <p id="candidate-context-help" className="field-helper">
-            Seeded locally for this product demonstration.
+            Candidate identity and source speaker are seeded locally for this
+            product demonstration.
           </p>
         </div>
 
@@ -165,23 +301,57 @@ export function DemoWorkbench() {
             aria-describedby="conversation-evidence-help conversation-evidence-error"
           />
           <p id="conversation-evidence-help" className="field-helper">
-            This demo runs deterministic extraction in your browser. It does
-            not upload or save the text.
+            {mode === "local"
+              ? "Local rules run in your browser. The text is not transmitted or saved."
+              : `This note is sent to ${aiProvider} for transient analysis. Talent Signal does not persist it.`}
           </p>
           {phase === "error" && (
             <p id="conversation-evidence-error" className="field-error">
-              Add a conversation note before analyzing evidence.
+              {errorMessage}
             </p>
           )}
         </div>
 
+        <fieldset className="analysis-mode">
+          <legend>Analysis route</legend>
+          <button
+            type="button"
+            data-active={mode === "local"}
+            aria-pressed={mode === "local"}
+            onClick={() => selectMode("local")}
+          >
+            <Cpu aria-hidden="true" size={17} />
+            <span>
+              <strong>Local rules</strong>
+              <small>Browser only</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            data-active={mode === "ai"}
+            aria-pressed={mode === "ai"}
+            disabled={!aiEnabled}
+            onClick={() => selectMode("ai")}
+          >
+            <ShieldCheck aria-hidden="true" size={17} />
+            <span>
+              <strong>Private AI</strong>
+              <small>{aiEnabled ? "Explicit upload" : "Not configured"}</small>
+            </span>
+          </button>
+        </fieldset>
+
         <button
           className="button analyze-button"
           type="button"
-          onClick={runAnalysis}
+          onClick={() => void runAnalysis()}
           disabled={phase === "loading"}
         >
-          {phase === "loading" ? "Analyzing evidence" : "Analyze evidence"}
+          {phase === "loading"
+            ? "Analyzing evidence"
+            : mode === "ai"
+              ? "Analyze with private AI"
+              : "Analyze locally"}
         </button>
       </section>
 
@@ -196,9 +366,16 @@ export function DemoWorkbench() {
             <h2 id="demo-output-title">Action review</h2>
           </div>
           {phase === "ready" && result && result.actions.length > 0 && (
-            <p className="confirmation-count">
-              {actionSummary} of {result.actions.length} confirmed
-            </p>
+            <div className="analysis-summary">
+              <p className="confirmation-count">
+                {actionSummary} of {result.actions.length} confirmed
+              </p>
+              {analysisMeta && (
+                <p className="analysis-origin">
+                  {analysisMeta.provider} · {analysisMeta.model}
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -236,7 +413,7 @@ export function DemoWorkbench() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
             >
-              <EmptyAnalysis />
+              <EmptyAnalysis evidence={result.evidence} />
             </motion.div>
           )}
 
@@ -310,13 +487,18 @@ export function DemoWorkbench() {
                         )}
 
                         <p className="evidence-reference">
-                          Source:{" "}
+                          Source ·{" "}
+                          {result.evidence.find(
+                            (item) => item.id === action.evidenceId,
+                          )?.label}
+                        </p>
+                        <q className="evidence-quote">
                           {
                             result.evidence.find(
                               (item) => item.id === action.evidenceId,
-                            )?.label
+                            )?.excerpt
                           }
-                        </p>
+                        </q>
 
                         {status === "pending" ? (
                           <div className="action-card__actions">

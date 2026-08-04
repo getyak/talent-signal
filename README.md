@@ -17,7 +17,7 @@ Talent Signal turns recruiter-controlled conversation screenshots into reviewabl
 - `apps/ios/` — iOS capture and timely-briefing client.
 - `apps/web/` — product narrative and browser-safe evidence-review demo.
 - `packages/domain/` — shared product vocabulary and contracts.
-- `.agents/skills/` — project-local agent workflows, including candidate-signal analysis.
+- `.agent/skills/` — canonical project-local review skills; `.agents/skills/` keeps discovery aliases and the existing candidate-signal workflow.
 - `.github/` — CI and contribution conventions.
 
 ## Status
@@ -38,3 +38,6 @@ Run the complete web quality gate with:
 ```bash
 pnpm check
 ```
+
+The optional, server-only AI evidence route and its privacy boundary are
+documented in [`docs/integrations.md`](docs/integrations.md).

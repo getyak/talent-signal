@@ -1,15 +1,19 @@
 # Design specification
 
+The canonical cross-platform aesthetic, view, provenance, timeline, and
+relationship-graph rules live in `docs/design-system.md`. Read that document
+before changing any product surface.
+
 ## Product position
 
 Talent Signal is a candidate-momentum assistant for independent recruiters and boutique search firms. It treats a screenshot as an intentional evidence import, not as a surveillance channel.
 
 ## Primary iOS flow
 
-1. **Import** — share or select a screenshot, optionally add context, and see an explicit data-use notice.
-2. **Review actions** — show only concrete, high-confidence cards: create contact, update contact, create meeting. Every card includes source evidence plus Confirm, Edit, and Dismiss.
-3. **Candidate brief** — show verified facts, commitments, constraints, and upcoming actions as a compact timeline.
-4. **Momentum insight** — lead with `Advance`, `Resolve blocker`, `At risk`, or `Wait`, explain why, and give one smallest next action.
+1. **Import:** share or select a screenshot, optionally add context, and see an explicit data-use notice.
+2. **Review actions:** show only concrete, high-confidence cards: create contact, update contact, create meeting. Every card includes source evidence plus Confirm, Edit, and Dismiss.
+3. **Candidate brief:** show verified facts, commitments, constraints, and upcoming actions as a compact timeline.
+4. **Momentum insight:** lead with `Advance`, `Resolve blocker`, `At risk`, or `Wait`, explain why, and give one smallest next action.
 
 ## Example
 
@@ -17,13 +21,19 @@ Input: “I have another offer and need to decide by Wednesday. I can speak Tues
 
 Cards: update competing-offer status; update decision deadline; update remote-work preference; create Tuesday meeting.
 
-Insight: `At risk` — Alex has a near decision window and an unresolved constraint. Confirm remote policy before scheduling a generic interview.
+Insight: `At risk`. Alex has a near decision window and an unresolved constraint. Confirm remote policy before scheduling a generic interview.
 
 ## Visual rules
 
 - Quiet, editorial, and confidence-building; avoid dashboard density.
 - Use action cards as documents of consent, not AI magic.
 - Keep the Today screen to three prioritized candidate briefs.
+- Treat each candidate as a living page. Card, list, timeline, and graph are
+  views of the same evidence-backed object.
+- Use borderless page and list composition by default. Add card elevation only
+  for selectable, comparable, draggable, approvable, or focused objects.
+- Keep every decision-relevant fact, relationship, and state change traceable
+  to exact evidence and append-only history.
 
 ## Web experience
 
@@ -41,7 +51,9 @@ The web surface is a product narrative plus a browser-safe interaction demo. It 
 
 - Use Manrope for display and interface text, with IBM Plex Mono for evidence metadata.
 - Use pearl grey, graphite, and off-white neutrals with one vermilion signal accent.
-- Cards use a 20px radius, fields use a 12px radius, and buttons use a full-pill radius.
+- Marketing cards use a 20px radius. Product object cards use 12-14px,
+  focused overlays use 16px, fields use 10-12px, and primary action buttons
+  use a full-pill radius.
 - Support light and dark themes with matching hierarchy and the same accent hue.
 - Use generated editorial photography only when it strengthens the evidence or recruiter-judgment story.
 

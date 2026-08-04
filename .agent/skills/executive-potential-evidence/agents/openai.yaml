@@ -1,0 +1,4 @@
+interface:
+  display_name: "Executive Potential Evidence"
+  short_description: "Review longitudinal evidence of executive growth potential."
+  default_prompt: "Use $executive-potential-evidence to assess whether the available evidence supports any potential-related observation."
