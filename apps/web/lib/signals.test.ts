@@ -36,7 +36,10 @@ describe("deriveInsight", () => {
       {
         id: "availability",
         label: "Friday availability",
-        excerpt: "A concrete conversation window is available.",
+        excerpt: "Friday afternoon works",
+        modality: "commitment",
+        speaker: "candidate",
+        ambiguities: [],
       },
     ]);
 

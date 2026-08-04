@@ -1,0 +1,4 @@
+interface:
+  display_name: "Inclusive Sourcing Recall"
+  short_description: "Find hidden talent and audit sourcing recall and exclusions."
+  default_prompt: "Use $inclusive-sourcing-recall to challenge this sourcing strategy for hidden qualified talent."

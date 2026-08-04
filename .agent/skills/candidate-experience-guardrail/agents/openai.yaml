@@ -1,0 +1,4 @@
+interface:
+  display_name: "Candidate Experience Guardrail"
+  short_description: "Protect human trust across candidate-facing experiences."
+  default_prompt: "Use $candidate-experience-guardrail to audit this flow or message for candidate trust and human connection."

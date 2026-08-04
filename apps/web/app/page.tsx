@@ -7,8 +7,8 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import Image from "next/image";
 import Link from "next/link";
+import { CandidateLibraryPreview } from "@/components/candidate-library-preview";
 import { FaqList } from "@/components/faq-list";
-import { LiveBrief } from "@/components/live-brief";
 import { Reveal } from "@/components/reveal";
 import { SignalSceneShell } from "@/components/signal-scene-shell";
 import { SiteFooter } from "@/components/site-footer";
@@ -72,19 +72,22 @@ export default function HomePage() {
         <section className="hero shell" aria-labelledby="hero-title">
           <div className="hero__copy">
             <div>
-              <p className="eyebrow">Candidate momentum, made legible</p>
+              <p className="eyebrow">Relational intelligence for search</p>
               <h1 id="hero-title">Know who needs you now.</h1>
               <p className="hero__lede">
-                Turn recruiter-owned conversations into evidence-backed actions
-                before momentum slips.
+                Turn candidate conversations into a living, source-linked brief
+                with one clear next move.
               </p>
               <div className="hero__actions">
-                <Link className="button" href="/demo">
-                  Open live demo
+                <Link
+                  className="button"
+                  href="/login?callbackUrl=/workspace"
+                >
+                  Enter workspace
                   <ArrowRight aria-hidden="true" size={17} />
                 </Link>
-                <Link className="button button--secondary" href="/#method">
-                  See the method
+                <Link className="button button--secondary" href="/#product">
+                  See the product
                 </Link>
               </div>
             </div>
@@ -93,16 +96,16 @@ export default function HomePage() {
           <div className="hero__visual">
             <div className="signal-frame">
               <div className="signal-frame__topline">
-                <span>Evidence field</span>
-                <span>Live model</span>
+                <span>Relationship context</span>
+                <span>One-hop view</span>
               </div>
               <SignalSceneShell />
               <div className="signal-frame__outcome">
                 <span>
-                  <strong>4</strong> explicit facts
+                  <strong>4</strong> confirmed facts
                 </span>
                 <span>
-                  <strong>1</strong> smallest next step
+                  <strong>1</strong> next action
                 </span>
               </div>
             </div>
@@ -117,22 +120,40 @@ export default function HomePage() {
             </p>
             <p>
               <SlidersHorizontal aria-hidden="true" size={20} />
-              Every change stays editable
+              Every view keeps its context
             </p>
             <p>
               <LockKey aria-hidden="true" size={20} />
-              Nothing mutates silently
+              Nothing changes silently
             </p>
           </div>
         </section>
 
-        <section id="product" className="evidence-story section shell">
-          <Reveal className="evidence-story__heading">
-            <h2>The signal is between the lines.</h2>
+        <section
+          id="product"
+          className="workspace-story section shell"
+          aria-labelledby="workspace-story-title"
+        >
+          <Reveal className="workspace-story__heading">
+            <h2 id="workspace-story-title">
+              One candidate. Every useful view.
+            </h2>
             <p>
-              Deadlines, constraints, and commitments change outcomes. Talent
-              Signal separates them from conversational noise without hiding
-              the evidence.
+              Cards help you scan. Lists help you compare. The candidate page
+              keeps the facts, decisions, and history intact.
+            </p>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <CandidateLibraryPreview />
+          </Reveal>
+        </section>
+
+        <section className="evidence-story section shell">
+          <Reveal className="evidence-story__heading">
+            <h2>A living page, not another summary.</h2>
+            <p>
+              New information appends to the record. Earlier facts remain
+              visible, so every decision can be traced to its evidence.
             </p>
           </Reveal>
 
@@ -152,27 +173,14 @@ export default function HomePage() {
               <p>A competing offer created decision pressure.</p>
             </Reveal>
             <Reveal delay={0.05}>
-              <p className="metadata">What matters</p>
-              <p>Remote flexibility remains unresolved.</p>
+              <p className="metadata">What remains open</p>
+              <p>Remote flexibility still needs client confirmation.</p>
             </Reveal>
             <Reveal delay={0.1}>
-              <p className="metadata">What to do</p>
+              <p className="metadata">Smallest next move</p>
               <p>Confirm policy before adding another interview.</p>
             </Reveal>
           </div>
-        </section>
-
-        <section className="live-section section shell" aria-labelledby="live-title">
-          <Reveal className="section-heading">
-            <h2 id="live-title">A recommendation that can show its work.</h2>
-            <p>
-              Change the evidence in scope. The verdict and next action respond
-              with it.
-            </p>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <LiveBrief />
-          </Reveal>
         </section>
 
         <section id="method" className="method-section section shell">
@@ -192,8 +200,8 @@ export default function HomePage() {
             <Reveal>
               <h2>Designed around recruiter judgment.</h2>
               <p>
-                The product does not replace the relationship. It protects the
-                details that make good judgment possible.
+                Talent Signal protects the context behind a relationship
+                without pretending to replace the person who earned it.
               </p>
             </Reveal>
 
@@ -202,7 +210,7 @@ export default function HomePage() {
                 <article>
                   <h3>Capture with intent</h3>
                   <p>
-                    Import one meaningful conversation and decide whether the
+                    Import one meaningful conversation and choose whether its
                     source should be retained.
                   </p>
                 </article>
@@ -211,8 +219,8 @@ export default function HomePage() {
                 <article>
                   <h3>Confirm every change</h3>
                   <p>
-                    Review, edit, or dismiss contact and calendar proposals
-                    before they leave the workspace.
+                    Review, edit, or dismiss proposed updates before they leave
+                    the workspace.
                   </p>
                 </article>
               </Reveal>
@@ -220,8 +228,8 @@ export default function HomePage() {
                 <article>
                   <h3>Advance with context</h3>
                   <p>
-                    See one verdict, its rationale, and the smallest action that
-                    reduces uncertainty.
+                    See one decision, its evidence, and the smallest action
+                    that reduces uncertainty.
                   </p>
                 </article>
               </Reveal>
@@ -237,7 +245,7 @@ export default function HomePage() {
           <Reveal className="trust-section__heading">
             <h2 id="trust-title">Restraint is a product feature.</h2>
             <p>
-              High-trust search needs clear boundaries, not invisible
+              High-trust search needs visible boundaries, not invisible
               automation.
             </p>
           </Reveal>
@@ -257,17 +265,17 @@ export default function HomePage() {
                 <CheckCircle aria-hidden="true" size={24} />
                 <h3>Consent before mutation</h3>
                 <p>
-                  Contact and calendar actions require an explicit confirmation.
+                  Contact and calendar actions require explicit confirmation.
                 </p>
               </article>
             </Reveal>
             <Reveal delay={0.1}>
               <article>
                 <CheckCircle aria-hidden="true" size={24} />
-                <h3>Deletion means deletion</h3>
+                <h3>History before overwrite</h3>
                 <p>
-                  Source evidence and derived records are designed to leave
-                  together.
+                  New facts may supersede old ones, but the chain stays
+                  readable.
                 </p>
               </article>
             </Reveal>
@@ -281,27 +289,10 @@ export default function HomePage() {
         >
           <Reveal className="faq-section__heading">
             <h2 id="faq-title">Before you put trust in the system.</h2>
-            <p>
-              The boundaries are as important as the recommendation.
-            </p>
+            <p>The boundaries matter as much as the recommendation.</p>
           </Reveal>
           <Reveal>
             <FaqList />
-          </Reveal>
-        </section>
-
-        <section className="closing-cta shell">
-          <Reveal>
-            <div className="closing-cta__inner">
-              <h2>Keep the signal. Lose the scramble.</h2>
-              <p>
-                Test the review loop with sample evidence in your browser.
-              </p>
-              <Link className="button button--light" href="/demo">
-                Open live demo
-                <ArrowRight aria-hidden="true" size={17} />
-              </Link>
-            </div>
           </Reveal>
         </section>
       </main>
