@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Manrope } from "next/font/google";
+import { Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 import { siteConfig } from "@/lib/site";
 import "./globals.css";
@@ -7,13 +7,6 @@ import "./globals.css";
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-sans",
-  display: "optional",
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-mono",
   display: "optional",
 });
 
@@ -79,11 +72,15 @@ const themeScript = `
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={`${manrope.variable} ${plexMono.variable}`}>
+      <body className={manrope.variable}>
         <a className="skip-link" href="#main-content">
           Skip to content
         </a>

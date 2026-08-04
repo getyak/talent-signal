@@ -17,7 +17,8 @@ export function SiteFooter() {
             <p className="footer-heading">Explore</p>
             <Link href="/#product">Product</Link>
             <Link href="/#method">Method</Link>
-            <Link href="/demo">Open live demo</Link>
+            <Link href="/demo">Evidence review</Link>
+            <Link href="/login?callbackUrl=/workspace">Workspace</Link>
           </div>
           <div>
             <p className="footer-heading">Trust</p>

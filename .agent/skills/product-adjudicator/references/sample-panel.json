@@ -1,0 +1,118 @@
+{
+  "panel_id": "TS-2026-08-04-001",
+  "artifact": {
+    "id": "calendar-confirmation",
+    "type": "ios-build",
+    "version": "build-42"
+  },
+  "scenario": "Calendar permission is present during preview and the write executes before final confirmation.",
+  "frozen_evidence": [
+    "build 42",
+    "TS-ACT-04 recording sha256:example",
+    "calendar destination log example-17"
+  ],
+  "review_plan": [
+    {
+      "reviewer": "evidence-safety-reviewer",
+      "status": "selected",
+      "reason": "The path turns private evidence into an external write."
+    },
+    {
+      "reviewer": "mobile-ux-reviewer",
+      "status": "selected",
+      "reason": "The release path is an iOS confirmation flow."
+    },
+    {
+      "reviewer": "executive-potential-evidence",
+      "status": "omitted",
+      "reason": "The artifact contains no executive assessment."
+    }
+  ],
+  "reviews": [
+    {
+      "reviewer": "evidence-safety-reviewer",
+      "lens": "evidence integrity, privacy, and safe action",
+      "verdict": "fail",
+      "score": 0,
+      "confidence": "direct",
+      "findings": [
+        {
+          "severity": "blocker",
+          "criterion": "User authorization",
+          "observation": "The event is written before the user confirms the exact target and effect.",
+          "evidence": "TS-ACT-04 recording 00:14 and destination log example-17",
+          "user_impact": "A candidate can receive an unauthorized calendar invitation.",
+          "recommendation": "Move execution after an editable, explicit confirmation step.",
+          "verification": "No destination event exists before final confirmation in the automated action test."
+        }
+      ],
+      "strengths": [
+        "The preview displays the candidate and event timezone."
+      ],
+      "missing_evidence": [],
+      "vetoes": [
+        "Silent calendar write"
+      ],
+      "open_questions": []
+    },
+    {
+      "reviewer": "mobile-ux-reviewer",
+      "lens": "mobile task completion, visual hierarchy, accessibility, and recovery",
+      "verdict": "pass_with_changes",
+      "score": 2,
+      "confidence": "direct",
+      "findings": [
+        {
+          "severity": "high",
+          "criterion": "Feedback and recovery",
+          "observation": "The primary button label implies review while execution has already started.",
+          "evidence": "TS-ACT-04 recording 00:13–00:15 on build 42",
+          "user_impact": "The recruiter cannot form a correct mental model or stop the write.",
+          "recommendation": "Use a non-executing preview followed by an action-labeled confirmation.",
+          "verification": "Interaction inspection shows no network or destination mutation before confirmation."
+        }
+      ],
+      "strengths": [
+        "Candidate and timezone remain legible at AX5."
+      ],
+      "missing_evidence": [],
+      "vetoes": [],
+      "open_questions": []
+    }
+  ],
+  "adjudication": {
+    "verdict": "fail",
+    "release_gate": "block",
+    "top_findings": [
+      {
+        "reviewer": "evidence-safety-reviewer",
+        "criterion": "User authorization",
+        "severity": "blocker",
+        "reason": "The current sequence can send an invitation before explicit approval.",
+        "next_step": "Separate preview from execution and label the final effect.",
+        "verification": "Pass TS-ACT-04 with no destination mutation before confirmation."
+      }
+    ],
+    "agreements": [
+      "Both reviewers observed that the displayed review state does not match execution state."
+    ],
+    "disagreements": [],
+    "veto_resolution": [
+      {
+        "reviewer": "evidence-safety-reviewer",
+        "veto": "Silent calendar write",
+        "status": "active",
+        "evidence": "TS-ACT-04 recording and destination log example-17"
+      }
+    ],
+    "rationale": "The safety owner has a directly observed authorization veto; visual clarity cannot average it away."
+  },
+  "next_tests": [
+    {
+      "owner": "ios",
+      "test": "Move the write behind explicit confirmation and rerun TS-ACT-04.",
+      "evidence_required": "Screen recording, network trace, and destination calendar state.",
+      "pass_condition": "Zero external mutations before confirmation and truthful recovery after permission revocation."
+    }
+  ]
+}

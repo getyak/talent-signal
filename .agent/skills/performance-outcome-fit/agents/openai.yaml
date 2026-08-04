@@ -1,0 +1,4 @@
+interface:
+  display_name: "Performance Outcome Fit"
+  short_description: "Review role outcomes, career value, and win-win fit."
+  default_prompt: "Use $performance-outcome-fit to review whether this experience supports a credible win-win career move."
