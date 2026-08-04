@@ -12,3 +12,4 @@ What user or product outcome does this change improve?
 
 - [ ] Relevant tests pass.
 - [ ] The primary iOS flow was checked manually.
+- [ ] `_index/` and generated `docs/` are synchronized when knowledge changed.

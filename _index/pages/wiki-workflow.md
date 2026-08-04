@@ -1,0 +1,101 @@
+---
+id: wiki-workflow
+title: Wiki authoring workflow
+summary: The manual and LLM workflow for capturing, compiling, checking, and pushing knowledge.
+status: published
+target: docs/wiki-workflow.md
+---
+
+# Wiki authoring workflow
+
+Use this workflow whenever a human, Codex, or another LLM adds durable project
+knowledge.
+
+## Capture before synthesis
+
+Put new material in the narrowest raw layer:
+
+- source evidence or a safe screenshot record in `_index/sources/`;
+- personal thinking and open questions in `_index/notes/`;
+- a new article draft in `_index/inbox/`.
+
+Search `_index/pages/` before creating a page. Update the existing canonical
+concept when possible. If no page fits, create one from
+`_index/templates/page.md` and keep it in `draft` until its scope and claims are
+reviewed.
+
+## LLM management strategy
+
+An LLM must:
+
+1. read `AGENTS.md`, `_index/README.md`, and related source pages;
+2. write a new article to `_index/inbox/`, not directly to generated `docs/`;
+3. cite or record the source of time-sensitive and externally derived claims;
+4. separate observation, user note, inference, and accepted decision;
+5. reconcile terminology and links before promoting the article;
+6. edit the `_index/pages/` source when revising a generated page;
+7. compile and inspect both source and generated diffs;
+8. stop rather than inventing missing identity, provenance, rights, or facts.
+
+Generated prose is a proposal until reviewed. An LLM may improve structure and
+clarity, but it must not silently change a governing product decision or turn a
+rough note into policy.
+
+## Publish and compile
+
+Set a reviewed source page to `status: published`, then run:
+
+```bash
+pnpm wiki:build
+```
+
+The compiler validates page metadata, resolves wiki links, writes normal
+Markdown to the declared `docs/` target, adds backlinks, removes only orphaned
+files bearing its generated marker, and appends `_index/log.md` only when
+output changes. The curated `docs/README.md` remains the human-maintained task
+router and must link each published operational page; compilation rejects an
+unrouted published page.
+
+Review the diff for meaning, not only syntax:
+
+- the title and summary are exact;
+- facts and inference remain distinguishable;
+- every generated link points to the intended concept;
+- backlinks expose useful relationships rather than accidental coupling;
+- no private or unlicensed raw material leaked into `docs/`.
+
+## Validate and push
+
+Run:
+
+```bash
+pnpm wiki:test
+pnpm wiki:check
+```
+
+`wiki:check` is read-only. It fails if generated output is stale, metadata or
+wiki links are invalid, a generated target is missing, or an orphaned generated
+page remains.
+
+Install the local push gate once:
+
+```bash
+pnpm hooks:install
+```
+
+When commits being pushed change `_index/`, generated `docs/`, or the compiler,
+the hook runs both the repository knowledge contract and the read-only compiler
+check. It never edits a commit during push. If the compiler check fails, run
+`pnpm wiki:build`, review and commit the result, then push again. CI repeats the
+same validation so an uninstalled local hook cannot bypass the repository rule.
+
+## Recover and archive
+
+If a published page is replaced, preserve useful raw reasoning, set the old
+source to `archived`, update inbound links, and compile. The compiler may delete
+only the old generated projection carrying its marker; source history remains
+in Git.
+
+If compilation produces a misleading page, revert the source and generated
+changes together or fix the source and rebuild. Never repair only the compiled
+copy.

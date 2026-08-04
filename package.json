@@ -6,13 +6,17 @@
   "scripts": {
     "dev": "pnpm --filter @talent-signal/web dev",
     "build": "pnpm --filter @talent-signal/web build",
-    "docs:check": "node scripts/check-docs.mjs",
+    "docs:check": "node scripts/check-docs.mjs && node scripts/wiki.mjs check",
     "eval:core": "node scripts/evals/validate-candidate-momentum.mjs",
+    "hooks:install": "./scripts/install-git-hooks.sh",
     "ios:check": "./scripts/ios/check.sh",
     "ios:generate": "./scripts/ios/generate.sh",
     "lint": "pnpm --filter @talent-signal/web lint",
     "typecheck": "pnpm --filter @talent-signal/web typecheck",
     "test": "pnpm --filter @talent-signal/web test",
+    "wiki:build": "node scripts/wiki.mjs build",
+    "wiki:check": "node scripts/wiki.mjs check",
+    "wiki:test": "node --test scripts/wiki.test.mjs",
     "check": "pnpm docs:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   }
 }

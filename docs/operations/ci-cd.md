@@ -85,6 +85,21 @@ required Agent guidance, canonical-document context budgets, local links, and
 the boundary that keeps implementation-level specifications out of
 foundational documents.
 
+## Wiki compilation gate
+
+Knowledge articles are edited in `_index/` and compiled into generated `docs/`
+pages. The repository CI runs the compiler tests and a read-only
+`node scripts/wiki.mjs check`. The check compares every generated page
+byte-for-byte, validates metadata and wiki links, and rejects missing, stale, or
+orphaned generated files.
+
+Contributors should install `.githooks/pre-push` with `pnpm hooks:install`.
+When a push contains `_index/`, generated `docs/`, or compiler changes, the
+hook runs both the repository knowledge contract and the read-only compiler
+check. A stale compilation must be resolved by running `pnpm wiki:build`,
+reviewing and committing the source plus generated diff, and then pushing
+again. The hook never mutates a commit during push.
+
 ## Failure and recovery
 
 - Use `gh run list`, `gh run view RUN_ID`, and `gh run rerun RUN_ID --failed`

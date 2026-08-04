@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+remote_name="${1:-origin}"
+zero_sha="0000000000000000000000000000000000000000"
+changed_file_list="$(mktemp)"
+trap 'rm -f "$changed_file_list"' EXIT
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  if [[ -z "${local_sha:-}" || "$local_sha" == "$zero_sha" ]]; then
+    continue
+  fi
+
+  if [[ -n "${remote_sha:-}" && "$remote_sha" != "$zero_sha" ]]; then
+    git diff --name-only "$remote_sha" "$local_sha" >> "$changed_file_list"
+  else
+    while read -r commit; do
+      git diff-tree --no-commit-id --name-only -r "$commit" >> "$changed_file_list"
+    done < <(git rev-list "$local_sha" --not --remotes="$remote_name")
+  fi
+done
+
+if grep -Eq '^(_index/|docs/|scripts/wiki\\.mjs$|scripts/wiki\\.test\\.mjs$)' "$changed_file_list"; then
+  echo "Documentation changes detected; verifying the knowledge contract and compiled Wiki..."
+  node scripts/check-docs.mjs
+  node scripts/wiki.mjs check
+fi
