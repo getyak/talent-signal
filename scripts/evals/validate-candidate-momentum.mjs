@@ -67,7 +67,7 @@ const paths = {
   ),
   adjudicatorValidator: resolve(
     repositoryRoot,
-    ".agent/skills/product-adjudicator/scripts/validate_review.py"
+    ".agents/skills/product-adjudicator/scripts/validate_review.py"
   )
 };
 

@@ -170,6 +170,19 @@ final class CandidateSignalTests: XCTestCase {
             ).scenario,
             .stalePreview
         )
+        XCTAssertEqual(
+            AppLaunchConfiguration.parse(
+                arguments: [
+                    "TalentSignal",
+                    "--backend-url", "http://127.0.0.1:4317"
+                ]
+            ),
+            AppLaunchConfiguration(
+                scenario: .backend,
+                endpoint: nil,
+                backendEndpoint: "http://127.0.0.1:4317"
+            )
+        )
     }
 
     @MainActor

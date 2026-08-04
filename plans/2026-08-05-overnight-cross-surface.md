@@ -244,7 +244,7 @@ The five specialist packets retain their own 0–4 scores and lowest material
 dimensions. They are validated with:
 
 ```sh
-python3 .agent/skills/product-adjudicator/scripts/validate_review.py \
+python3 .agents/skills/product-adjudicator/scripts/validate_review.py \
   path/to/review.json
 ```
 

@@ -18,6 +18,7 @@ import type {
   SubmitAnalysisProposalRequest,
   SyncResponse,
   TemporalStateResponse,
+  WorkspaceReviewResponse,
 } from "./schemas.js";
 
 export class TalentSignalHttpError extends Error {
@@ -145,6 +146,13 @@ export class TalentSignalClient {
   getTemporalState(assignmentId: string): Promise<TemporalStateResponse> {
     return this.request(
       `/v1/state?assignment_id=${encodeURIComponent(assignmentId)}`,
+      { method: "GET" },
+    );
+  }
+
+  getWorkspaceReview(fixtureCaseId: string): Promise<WorkspaceReviewResponse> {
+    return this.request(
+      `/v1/workspace-review?fixture_case_id=${encodeURIComponent(fixtureCaseId)}`,
       { method: "GET" },
     );
   }

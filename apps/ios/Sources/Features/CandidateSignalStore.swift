@@ -4,6 +4,7 @@ enum ImportKind: Equatable {
     case fixture(String)
     case selectedImage
     case localhost
+    case backend
 
     var title: String {
         switch self {
@@ -13,6 +14,8 @@ enum ImportKind: Equatable {
             return "Reading selected image"
         case .localhost:
             return "Syncing localhost fixtures"
+        case .backend:
+            return "Reading canonical localhost state"
         }
     }
 }
@@ -54,18 +57,23 @@ final class CandidateSignalStore: ObservableObject {
     @Published private(set) var session: ReviewSession?
     @Published var selectedFixtureID = "TS-CORE-01"
     @Published var localhostAddress = "http://127.0.0.1:8787/candidate-momentum-v1.json"
+    @Published var backendAddress = "http://127.0.0.1:4317"
     @Published private(set) var sourceNotice = "Bundled synthetic suite · 8 cases · \(FixtureCatalog.version)"
+    @Published private(set) var backendSnapshot: BackendWorkspaceSnapshot?
 
     private let loader: FixtureLoading
+    private let backendLoader: BackendWorkspaceLoading
     private let importDelayNanoseconds: UInt64
     private var importTask: Task<Void, Never>?
 
     init(
         loader: FixtureLoading = URLFixtureLoader(),
+        backendLoader: BackendWorkspaceLoading = URLBackendWorkspaceLoader(),
         importDelayNanoseconds: UInt64 = 2_000_000_000,
         launchConfiguration: AppLaunchConfiguration = .current
     ) {
         self.loader = loader
+        self.backendLoader = backendLoader
         self.importDelayNanoseconds = importDelayNanoseconds
         apply(launchConfiguration)
     }
@@ -134,6 +142,38 @@ final class CandidateSignalStore: ObservableObject {
         }
     }
 
+    func syncFromBackend() {
+        guard let url = URL(string: backendAddress) else {
+            stage = .importFailed(
+                ImportFailure(
+                    kind: .backend,
+                    message: FixtureSyncError.invalidAddress.localizedDescription
+                )
+            )
+            return
+        }
+
+        start(kind: .backend) { [weak self] in
+            guard let self else { return }
+            let snapshot = try await backendLoader.loadWorkspace(
+                from: url,
+                fixtureCaseID: "TS-CORE-01"
+            )
+            try Task.checkCancellation()
+            let fixture = try snapshot.fixtureCase()
+            backendSnapshot = snapshot
+            selectedFixtureID = fixture.id
+            sourceNotice = [
+                "Localhost canonical state",
+                snapshot.accountSlug,
+                "account \(snapshot.accountID.prefix(8))",
+                "state \(snapshot.confirmedState.id.prefix(8))",
+                "v\(snapshot.confirmedState.version)"
+            ].joined(separator: " · ")
+            open(fixture, snapshot: snapshot)
+        }
+    }
+
     func cancelImport() {
         guard case let .importing(kind) = stage else { return }
         cancelCurrentTask()
@@ -151,6 +191,8 @@ final class CandidateSignalStore: ObservableObject {
             reset()
         case .localhost:
             syncFromLocalhost()
+        case .backend:
+            syncFromBackend()
         }
     }
 
@@ -228,6 +270,7 @@ final class CandidateSignalStore: ObservableObject {
         cancelCurrentTask()
         session = nil
         suite = FixtureCatalog.bundled
+        backendSnapshot = nil
         sourceNotice = "Bundled synthetic suite · 8 cases · \(FixtureCatalog.version)"
         stage = .idle
     }
@@ -240,8 +283,32 @@ final class CandidateSignalStore: ObservableObject {
         return true
     }
 
-    private func open(_ fixture: FixtureCase) {
-        session = ReviewSession(fixture: fixture)
+    private func open(
+        _ fixture: FixtureCase,
+        snapshot: BackendWorkspaceSnapshot? = nil
+    ) {
+        var review = ReviewSession(fixture: fixture)
+        if let snapshot {
+            for fact in review.facts {
+                let confirmed = snapshot.confirmedState.assertions.first {
+                    $0.field == fact.assertion.field
+                }
+                if let confirmed {
+                    if confirmed.value == fact.assertion.value {
+                        _ = review.confirm(factID: fact.id)
+                    } else {
+                        _ = review.edit(factID: fact.id, value: confirmed.value)
+                    }
+                    continue
+                }
+                if snapshot.analysis.assertions.first(
+                    where: { $0.field == fact.assertion.field }
+                )?.reviewStatus == "dismissed" {
+                    _ = review.dismiss(factID: fact.id)
+                }
+            }
+        }
+        session = review
         stage = .reviewingFixture
     }
 
@@ -275,6 +342,9 @@ final class CandidateSignalStore: ObservableObject {
         if let endpoint = configuration.endpoint {
             localhostAddress = endpoint
         }
+        if let backendEndpoint = configuration.backendEndpoint {
+            backendAddress = backendEndpoint
+        }
 
         switch configuration.scenario {
         case let .fixture(id):
@@ -306,6 +376,8 @@ final class CandidateSignalStore: ObservableObject {
             session = staleSession
             selectedFixtureID = fixture.id
             stage = .actionPreview
+        case .backend:
+            syncFromBackend()
         case .idle:
             break
         }
@@ -328,10 +400,22 @@ struct AppLaunchConfiguration: Equatable {
         case importCancelled
         case importFailed
         case stalePreview
+        case backend
     }
 
     let scenario: Scenario
     let endpoint: String?
+    let backendEndpoint: String?
+
+    init(
+        scenario: Scenario,
+        endpoint: String?,
+        backendEndpoint: String? = nil
+    ) {
+        self.scenario = scenario
+        self.endpoint = endpoint
+        self.backendEndpoint = backendEndpoint
+    }
 
     static var current: AppLaunchConfiguration {
         parse(arguments: ProcessInfo.processInfo.arguments)
@@ -341,9 +425,12 @@ struct AppLaunchConfiguration: Equatable {
         let fixtureID = value(after: "--fixture-id", in: arguments)
         let scenarioValue = value(after: "--scenario", in: arguments)
         let endpoint = value(after: "--endpoint", in: arguments)
+        let backendEndpoint = value(after: "--backend-url", in: arguments)
 
         let scenario: Scenario
-        if let fixtureID {
+        if backendEndpoint != nil {
+            scenario = .backend
+        } else if let fixtureID {
             scenario = .fixture(fixtureID)
         } else {
             switch scenarioValue {
@@ -359,7 +446,11 @@ struct AppLaunchConfiguration: Equatable {
                 scenario = .idle
             }
         }
-        return AppLaunchConfiguration(scenario: scenario, endpoint: endpoint)
+        return AppLaunchConfiguration(
+            scenario: scenario,
+            endpoint: endpoint,
+            backendEndpoint: backendEndpoint
+        )
     }
 
     private static func value(after flag: String, in arguments: [String]) -> String? {

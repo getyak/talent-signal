@@ -24,6 +24,7 @@ import {
   SubmitAnalysisProposalRequestSchema,
   SyncResponseSchema,
   TemporalStateResponseSchema,
+  WorkspaceReviewResponseSchema,
   type ApproveActionRequest,
   type AssertionDecisionRequest,
   type CreateCaptureRequest,
@@ -67,6 +68,7 @@ import {
 import { decideAssertion } from "./modules/decisions.js";
 import { submitAnalysisProposal } from "./modules/proposals.js";
 import { readSyncEvents } from "./modules/sync.js";
+import { getWorkspaceReview } from "./modules/workspace.js";
 
 const IdParamsSchema = Type.Object(
   { id: Type.String({ format: "uuid" }) },
@@ -82,6 +84,16 @@ const SyncQuerySchema = Type.Object(
 );
 const StateQuerySchema = Type.Object(
   { assignment_id: Type.String({ format: "uuid" }) },
+  { additionalProperties: false },
+);
+const WorkspaceReviewQuerySchema = Type.Object(
+  {
+    fixture_case_id: Type.String({
+      minLength: 1,
+      maxLength: 80,
+      pattern: "^TS-[A-Z]+-[0-9]{2}$",
+    }),
+  },
   { additionalProperties: false },
 );
 
@@ -293,6 +305,28 @@ export async function buildApp(
     },
     async (request) =>
       getTemporalState(pool, request.auth, request.query.assignment_id),
+  );
+
+  app.get<{ Querystring: { fixture_case_id: string } }>(
+    "/v1/workspace-review",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["review"],
+        security,
+        querystring: WorkspaceReviewQuerySchema,
+        response: {
+          200: WorkspaceReviewResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getWorkspaceReview(
+        pool,
+        request.auth,
+        request.query.fixture_case_id,
+      ),
   );
 
   app.post<{

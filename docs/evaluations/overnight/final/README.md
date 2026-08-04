@@ -165,7 +165,7 @@ node scripts/evals/validate-candidate-momentum.mjs \
   --craft-review docs/evaluations/overnight/final/web-browser-craft-review.json
 node scripts/evals/verify-localhost-journey.mjs \
   docs/evaluations/overnight/final/run-manifest.json
-python3 .agent/skills/product-adjudicator/scripts/validate_review.py \
+python3 .agents/skills/product-adjudicator/scripts/validate_review.py \
   docs/evaluations/overnight/final/panel.json
 pnpm docs:check
 ```

@@ -1,0 +1,143 @@
+$ ./apps/backend/scripts/local-check.sh
+Scope: all 4 workspace projects
+Already up to date
+Done in 753ms using pnpm v11.18.0
+
+ RUN  v4.1.10 /Users/xiongxinwei/.codex/worktrees/7b14/talent-signal/apps/backend
+
+
+ Test Files  3 passed (3)
+      Tests  6 passed (6)
+   Start at  04:20:43
+   Duration  530ms (transform 212ms, setup 0ms, import 431ms, tests 36ms, environment 0ms)
+
+ Image talent-signal-backend-local:dev Building
+ Image talent-signal-backend-local:dev Building
+ Image talent-signal-backend-local:dev Building
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.64kB done
+#1 DONE 0.0s
+
+#2 [api internal] load build definition from Dockerfile
+#2 transferring dockerfile: 716B done
+#2 DONE 0.0s
+
+#3 [migrate internal] load metadata for docker.io/library/node:24-bookworm-slim
+#3 DONE 6.3s
+
+#4 [api internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [seed  1/12] FROM docker.io/library/node:24-bookworm-slim@sha256:cd84903a12dbd26b46f1f3b8144a2568c41c5d37ddd0c7a80a34c7a19786b35f
+#5 resolve docker.io/library/node:24-bookworm-slim@sha256:cd84903a12dbd26b46f1f3b8144a2568c41c5d37ddd0c7a80a34c7a19786b35f 0.0s done
+#5 DONE 0.1s
+
+#6 [api internal] load build context
+#6 transferring context: 374.42kB 0.0s done
+#6 DONE 0.1s
+
+#7 [seed  2/12] RUN npm install --global pnpm@11.18.0
+#7 CACHED
+
+#8 [seed  3/12] WORKDIR /app
+#8 CACHED
+
+#9 [seed  4/12] COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+#9 CACHED
+
+#10 [seed  8/12] RUN pnpm install --frozen-lockfile --ignore-scripts --filter @talent-signal/backend...
+#10 CACHED
+
+#11 [seed  5/12] COPY apps/backend/package.json apps/backend/package.json
+#11 CACHED
+
+#12 [seed  6/12] COPY apps/web/package.json apps/web/package.json
+#12 CACHED
+
+#13 [seed  7/12] COPY packages/contracts/package.json packages/contracts/package.json
+#13 CACHED
+
+#14 [seed  9/12] COPY packages/contracts packages/contracts
+#14 CACHED
+
+#15 [seed 10/12] COPY apps/backend apps/backend
+#15 DONE 0.4s
+
+#16 [api 11/12] COPY evals/candidate-momentum-v1.json evals/candidate-momentum-v1.json
+#16 DONE 0.2s
+
+#17 [api 12/12] RUN pnpm --filter @talent-signal/backend build
+#17 1.361 $ pnpm --filter @talent-signal/contracts build && tsc6 -p tsconfig.json
+#17 1.984 $ tsc6 -p tsconfig.json
+#17 DONE 8.1s
+
+#18 [seed] exporting to image
+#18 exporting layers
+#18 exporting layers 0.4s done
+#18 exporting manifest sha256:33a3f09b176bbcbaa66da139824f78f3de34f3ddde405e557d57da8eb7b1e903 0.1s done
+#18 exporting config sha256:d7b3d7925afe724d1aad66e33788f346fce16408cdc264d50e29f43fd66a82b4
+#18 exporting config sha256:d7b3d7925afe724d1aad66e33788f346fce16408cdc264d50e29f43fd66a82b4 0.1s done
+#18 exporting attestation manifest sha256:f6e0c8fbe6021efc81ac1c75b24eba37af3e8e36aa21f1b32c6963a1f00ff027
+#18 exporting attestation manifest sha256:f6e0c8fbe6021efc81ac1c75b24eba37af3e8e36aa21f1b32c6963a1f00ff027 0.1s done
+#18 exporting manifest list sha256:562ba85081d73514cc711788b0bbeb0513a072077ad621ac764f0bd49742033d 0.1s done
+#18 naming to docker.io/library/talent-signal-backend-local:dev 0.0s done
+#18 unpacking to docker.io/library/talent-signal-backend-local:dev
+#18 unpacking to docker.io/library/talent-signal-backend-local:dev 0.2s done
+#18 DONE 1.0s
+
+#19 [api] exporting to image
+#19 exporting layers 0.4s done
+#19 exporting manifest sha256:95ab655b0bf964946443ae9eb75285b08a81f689fd8b8a49ab17b9a887fa0716 0.0s done
+#19 exporting config sha256:08c3dacb87e14a185b3637654eba9422b4d709c9363240222eb1564768ec8587 0.1s done
+#19 exporting attestation manifest sha256:ef439628212906bd176e5d5a7d52d7096a21c27b31fa8c2bbabe296a468c7e52 0.1s done
+#19 exporting manifest list sha256:b87db5ad2f79da67938a6504517d35ca6785e1d80816b1ffdd3d2928fe82227a 0.1s done
+#19 naming to docker.io/library/talent-signal-backend-local:dev 0.0s done
+#19 unpacking to docker.io/library/talent-signal-backend-local:dev 0.2s done
+#19 DONE 1.0s
+
+#20 [migrate] exporting to image
+#20 exporting layers 0.4s done
+#20 exporting manifest sha256:b89300825eda761dc9bec71c2c26d6f6b5ad47b98949876f8403b989fea64331 0.1s done
+#20 exporting config sha256:612a508152e3f85f3f92867f925a7a787e08f7958bce596f962f68f12f8f6ba4 0.1s done
+#20 exporting attestation manifest sha256:4a64c639378feda481a2698157d7924f9004ca75ffc3ea027009a92edc9590f6 0.1s done
+#20 exporting manifest list sha256:74b41a3013fe9cde86170bd9c73d37f343fc7e64b3f147f72ad4a4a4e41e5e19 0.1s done
+#20 naming to docker.io/library/talent-signal-backend-local:dev 0.0s done
+#20 unpacking to docker.io/library/talent-signal-backend-local:dev 0.2s done
+#20 DONE 1.2s
+
+#21 [api] resolving provenance for metadata file
+#21 DONE 0.3s
+
+#22 [seed] resolving provenance for metadata file
+#22 DONE 0.3s
+
+#23 [migrate] resolving provenance for metadata file
+#23 DONE 0.0s
+ Image talent-signal-backend-local:dev Built
+ Image talent-signal-backend-local:dev Built
+ Image talent-signal-backend-local:dev Built
+ Network talent-signal-backend-check_default Creating
+ Network talent-signal-backend-check_default Created
+ Volume talent-signal-backend-check_talent_signal_postgres Creating
+ Volume talent-signal-backend-check_talent_signal_postgres Created
+ Container talent-signal-backend-check-postgres-1 Creating
+ Container talent-signal-backend-check-postgres-1 Created
+ Container talent-signal-backend-check-migrate-1 Creating
+ Container talent-signal-backend-check-migrate-1 Created
+ Container talent-signal-backend-check-seed-1 Creating
+ Container talent-signal-backend-check-seed-1 Created
+ Container talent-signal-backend-check-api-1 Creating
+ Container talent-signal-backend-check-api-1 Created
+ Container talent-signal-backend-check-postgres-1 Starting
+ Container talent-signal-backend-check-postgres-1 Started
+ Container talent-signal-backend-check-postgres-1 Waiting
+ Container talent-signal-backend-check-postgres-1 Healthy
+ Container talent-signal-backend-check-migrate-1 Starting
+ Container talent-signal-backend-check-migrate-1 Started
+ Container talent-signal-backend-check-postgres-1 Waiting
+ Container talent-signal-backend-check-migrate-1 Waiting
+ Container talent-signal-backend-check-postgres-1 Healthy
+ Container talent-signal-backend-check-migrate-1 Error service "migrate" didn't complete successfully: exit 1
+service "migrate" didn't complete successfully: exit 1
+[ELIFECYCLE] Command failed with exit code 1.

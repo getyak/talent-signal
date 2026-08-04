@@ -540,6 +540,64 @@ export const TemporalStateResponseSchema = Type.Object(
   { $id: "TemporalStateResponse", additionalProperties: false },
 );
 
+export const WorkspaceReviewResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    data_classification: Type.Literal("synthetic_fixture_only"),
+    account_id: Id,
+    account_slug: Type.String(),
+    subject: Type.Object(
+      {
+        id: Id,
+        display_label: Type.String(),
+      },
+      { additionalProperties: false },
+    ),
+    assignment: Type.Object(
+      {
+        id: Id,
+        display_label: Type.String(),
+      },
+      { additionalProperties: false },
+    ),
+    capture: CaptureResponseSchema,
+    analysis: AnalysisProposalResponseSchema,
+    confirmed_state: Type.Object(
+      {
+        id: Id,
+        version: Type.Integer({ minimum: 0 }),
+        assertions: Type.Array(
+          Type.Object(
+            {
+              id: Id,
+              field: Type.String(),
+              value: Type.String(),
+              status: Type.Literal("confirmed"),
+              state_status: Type.Union([
+                Type.Literal("active"),
+                Type.Literal("superseded"),
+                Type.Literal("contested"),
+                Type.Literal("expired"),
+              ]),
+              evidence_message_id: Type.String(),
+              evidence_id: Id,
+              evidence_quote: Type.Union([Type.String(), Type.Null()]),
+              source_assertion_id: Id,
+              confirmed_by_decision_id: Id,
+            },
+            { additionalProperties: false },
+          ),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    latest_approval: Type.Union([ApprovalResponseSchema, Type.Null()]),
+    latest_effect: Type.Union([EffectResultResponseSchema, Type.Null()]),
+    audit_cursor: Type.Integer({ minimum: 0 }),
+  },
+  { $id: "WorkspaceReviewResponse", additionalProperties: false },
+);
+
 export const DeletionLineageResponseSchema = Type.Object(
   {
     deletion_id: Id,
@@ -608,6 +666,9 @@ export type SyncResponse = Static<typeof SyncResponseSchema>;
 export type DeleteCaptureRequest = Static<typeof DeleteCaptureRequestSchema>;
 export type DeleteCaptureResponse = Static<typeof DeleteCaptureResponseSchema>;
 export type TemporalStateResponse = Static<typeof TemporalStateResponseSchema>;
+export type WorkspaceReviewResponse = Static<
+  typeof WorkspaceReviewResponseSchema
+>;
 export type DeletionLineageResponse = Static<
   typeof DeletionLineageResponseSchema
 >;

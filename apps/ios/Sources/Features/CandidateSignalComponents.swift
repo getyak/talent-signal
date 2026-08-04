@@ -732,8 +732,8 @@ extension Color {
     static let tsEvidence = Color(
         uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.15, green: 0.145, blue: 0.132, alpha: 1)
-                : UIColor(red: 0.94, green: 0.925, blue: 0.88, alpha: 1)
+                ? UIColor(red: 0.055, green: 0.053, blue: 0.048, alpha: 1)
+                : UIColor(red: 0.99, green: 0.988, blue: 0.98, alpha: 1)
         }
     )
     static let tsInk = Color(

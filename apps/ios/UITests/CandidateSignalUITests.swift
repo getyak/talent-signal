@@ -150,6 +150,31 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Localhost fixture provenance")
     }
 
+    func testBackendCanonicalStateReadsConfirmedFactsFromLocalhost() {
+        app.launchArguments = [
+            "--backend-url", "http://127.0.0.1:4317"
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("fixture-banner").waitForExistence(timeout: 12))
+        XCTAssertTrue(app.staticTexts["Alex Chen"].exists)
+        XCTAssertTrue(element("message-m1").exists)
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(
+                    format: "label CONTAINS %@",
+                    "Localhost canonical state · fixture-alpha"
+                )
+            ).firstMatch.exists
+        )
+        XCTAssertEqual(app.staticTexts.matching(identifier: "fact-decision-competing_process-m1").element.label, "Confirmed locally")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "fact-decision-decision_deadline-m1").element.label, "Confirmed locally")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "fact-decision-availability-m1").element.label, "Confirmed locally")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "fact-decision-work_mode_preference-m1").element.label, "Confirmed locally")
+        XCTAssertTrue(app.buttons["review-action"].exists)
+        preserveScreenshot("TS-CORE-01 canonical backend state")
+    }
+
     func testBackgroundInterruptionPreservesReviewDecision() {
         launch(fixtureID: "TS-CORE-01")
 
@@ -166,6 +191,7 @@ final class CandidateSignalUITests: XCTestCase {
     func testAX5DarkModeCriticalContentRemainsReachable() throws {
         app.launchArguments = [
             "--fixture-id", "TS-CORE-01",
+            "--force-dark",
             "-AppleInterfaceStyle", "Dark",
             "-UIPreferredContentSizeCategoryName",
             "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
@@ -185,6 +211,7 @@ final class CandidateSignalUITests: XCTestCase {
                 .sufficientElementDescription
             ])
         }
+        preserveScreenshot("AX5 dark critical review")
     }
 
     func testAccessibilityOrderPlacesEvidenceBeforeFactDecision() {

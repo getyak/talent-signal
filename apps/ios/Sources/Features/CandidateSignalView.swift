@@ -206,8 +206,12 @@ struct CandidateSignalView: View {
             detail: failure.message
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                if failure.kind == .localhost {
-                    Button("Retry localhost sync") {
+                if failure.kind == .localhost || failure.kind == .backend {
+                    Button(
+                        failure.kind == .backend
+                            ? "Retry canonical state read"
+                            : "Retry localhost sync"
+                    ) {
                         store.retryImport()
                     }
                     .buttonStyle(TSPrimaryButtonStyle())

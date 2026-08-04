@@ -401,7 +401,7 @@ the craft rubric, but does not replace a common 0–4 specialist packet.
 Validate every packet and the final panel with:
 
 ```sh
-python3 .agent/skills/product-adjudicator/scripts/validate_review.py \
+python3 .agents/skills/product-adjudicator/scripts/validate_review.py \
   path/to/review-or-panel.json
 ```
 
