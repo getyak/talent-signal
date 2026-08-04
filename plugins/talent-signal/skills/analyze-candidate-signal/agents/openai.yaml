@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyze Candidate Signal"
+  short_description: "Review evidence and propose one safe next step"
+  default_prompt: "Use $analyze-candidate-signal to review this authorized conversation and return a proposal-only packet."
