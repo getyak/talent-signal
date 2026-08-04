@@ -72,6 +72,8 @@ always-on context after one ambiguous incident.
   in a plan, and executable detail in code, tests, schemas, or tooling.
 - Maintain one canonical home for each claim and link to it instead of
   repeating it.
+- Capture new human or LLM-authored articles in `_index/` before compiling
+  reviewed pages into `docs/`; never hand-edit a `wiki-generated` page.
 - Follow [`docs/documentation.md`](docs/documentation.md).
 
 ## Verification

@@ -27,6 +27,8 @@ Architecture and Agent System.
 
 - [Documentation system](documentation.md): where knowledge belongs, how it is
   written, and how it is pruned.
+- [Wiki authoring workflow](wiki-workflow.md): how raw sources, notes, and LLM
+  drafts are compiled into checked, bidirectionally linked pages.
 - [Codex work system](codex-work-system.md): how plans, goals, verification,
   skills, memory, worktrees, and recurring work fit together.
 - [`AGENTS.md`](../AGENTS.md): small always-on repository guidance.

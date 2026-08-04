@@ -14,6 +14,8 @@ Talent Signal turns recruiter-controlled conversation screenshots into reviewabl
 ## Repository map
 
 - [`docs/README.md`](docs/README.md) — task-routed project knowledge map.
+- [`_index/`](_index/README.md) — raw wiki sources, notes, article drafts, and
+  publishable source pages.
 - `apps/ios/` — iOS capture and timely-briefing client.
 - `apps/web/` — product narrative and browser-safe evidence-review demo.
 - `packages/domain/` — shared product vocabulary and contracts.
@@ -38,6 +40,18 @@ Run the complete web quality gate with:
 ```bash
 pnpm check
 ```
+
+Compile and validate the project wiki with:
+
+```bash
+pnpm wiki:build
+pnpm wiki:test
+pnpm wiki:check
+pnpm hooks:install
+```
+
+The hook installation is local and one-time. It prevents pushes containing a
+stale `_index/` to `docs/` compilation; CI enforces the same check.
 
 The optional, server-only AI evidence route and its privacy boundary are
 documented in [`docs/integrations.md`](docs/integrations.md).

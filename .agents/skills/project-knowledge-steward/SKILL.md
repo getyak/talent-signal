@@ -17,6 +17,9 @@ Read:
 - `docs/documentation.md`
 - the canonical document currently owning the topic
 
+Read `_index/README.md` when capturing a new article, raw source, personal note,
+or LLM-authored draft, or when changing a `wiki-generated` page.
+
 Read `docs/codex-work-system.md` when the request concerns Agent effectiveness,
 continuity, planning, memory, worktrees, verification, or recurring work.
 
@@ -46,6 +49,18 @@ store it.
 5. Remove stale implementation detail from foundational docs.
 6. Preserve uncertainty and reconsideration signals.
 7. Run the documentation checks and inspect the diff.
+
+New standalone knowledge articles start in `_index/inbox/`. Repository-safe
+evidence belongs in `_index/sources/`, and unresolved personal synthesis belongs
+in `_index/notes/`. Promote reviewed operational articles to `_index/pages/`
+and compile them with `pnpm wiki:build`. Existing human-maintained canonical
+documents remain edited in place unless an explicit migration makes their
+source ownership clear.
+
+Never hand-edit a page with a `wiki-generated` marker. Use wiki links in the
+source when the relationship is durable; compilation emits portable Markdown
+links and backlinks. After an `_index/` change, run `pnpm wiki:test` and
+`pnpm docs:check`.
 
 Prefer editing an existing surface over creating a new file. Create a new
 document only when it answers a distinct recurring question with clear

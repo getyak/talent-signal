@@ -68,6 +68,18 @@ must be consolidated, archived, or removed when the task ends.
 
 Chat history is not a durable project record.
 
+### Raw intake and compiled wiki
+
+`_index/` preserves repository-safe sources, personal notes, article drafts,
+and the editable form of publishable operational knowledge. Raw material does
+not become authoritative merely because it is tracked or model-readable.
+
+Reviewed `_index/pages/` sources may compile into concise `docs/` pages. A page
+with a `wiki-generated` marker is edited only through its source. The curated
+knowledge map remains human-maintained so task routing expresses judgment
+rather than a filesystem inventory. See the
+[Wiki authoring workflow](wiki-workflow.md) for the operational method.
+
 ### Executable truth
 
 Code, types, schemas, tests, fixtures, generated references, and automated

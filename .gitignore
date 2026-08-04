@@ -23,3 +23,5 @@ secrets/
 fastlane/Preview.html
 fastlane/report.xml
 fastlane/screenshots/
+_index/private/*
+!_index/private/README.md
