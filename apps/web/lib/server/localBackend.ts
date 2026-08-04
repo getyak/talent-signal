@@ -2,10 +2,14 @@ import "server-only";
 
 import {
   CONTRACT_VERSION,
+  SIMULATED_CAPABILITY,
   TalentSignalClient,
   type AnalysisProposalResponse,
   type AssertionDecisionRequest,
+  type DeleteCaptureResponse,
+  type DeletionLineageResponse,
   type EffectResultResponse,
+  type SimulatedEffectPreview,
   type SubmitAnalysisProposalRequest,
   type WorkspaceReviewResponse,
 } from "@talent-signal/contracts";
@@ -298,5 +302,106 @@ export async function executeBackendAction(
   return {
     effect,
     workspace: await client.getWorkspaceReview(TS_CORE_01),
+  };
+}
+
+export async function reconcileBackendEffect(
+  attemptId: string,
+): Promise<{
+  effect: EffectResultResponse;
+  workspace: WorkspaceReviewResponse;
+}> {
+  const { client } = await authenticatedClient("web-effect-reconciliation");
+  const effect = await client.reconcileEffect(attemptId, {
+    idempotency_key: `web-reconcile:${attemptId}`,
+  });
+  return {
+    effect,
+    workspace: await client.getWorkspaceReview(TS_CORE_01),
+  };
+}
+
+export async function revokeBackendApproval(
+  approvalId: string,
+): Promise<WorkspaceReviewResponse> {
+  const { client } = await authenticatedClient("web-approval-revocation");
+  await client.revokeApproval(approvalId, {
+    idempotency_key: `web-revoke-approval:${approvalId}`,
+    reason: "Recruiter cancelled the synthetic local effect approval.",
+  });
+  return client.getWorkspaceReview(TS_CORE_01);
+}
+
+export async function revokeBackendCapability(): Promise<{
+  capability: string;
+  status: "revoked";
+}> {
+  const { client } = await authenticatedClient("web-capability-revocation");
+  return client.revokeCapability({
+    idempotency_key: "web-revoke:local-simulated-attention",
+    capability: SIMULATED_CAPABILITY,
+    reason: "Round-2 Web recovery proof before local effect execution.",
+  });
+}
+
+export type IntegrationRevisionVariant =
+  | "stale_approval"
+  | "timeout_after_effect";
+
+function revisedPreview(
+  current: SimulatedEffectPreview,
+  variant: IntegrationRevisionVariant,
+): SimulatedEffectPreview {
+  if (variant === "timeout_after_effect") {
+    return {
+      ...current,
+      simulation_behavior: "timeout_after_write",
+    };
+  }
+  return {
+    ...current,
+    change: {
+      ...current.change,
+      title: `${current.change.title} — revised`,
+    },
+  };
+}
+
+export async function reviseBackendActionForEvaluation(
+  actionId: string,
+  variant: IntegrationRevisionVariant,
+): Promise<WorkspaceReviewResponse> {
+  const { client } = await authenticatedClient("web-action-revision");
+  const workspace = await client.getWorkspaceReview(TS_CORE_01);
+  const action = workspace.analysis.action;
+  if (!action || action.id !== actionId) {
+    throw new Error("The current synthetic action proposal was not found.");
+  }
+  await client.reviseAction(action.id, {
+    idempotency_key: `web-revise:${action.id}:v${action.version}:${variant}`,
+    expected_action_version: action.version,
+    exact_preview: revisedPreview(action.exact_preview, variant),
+    reason:
+      variant === "timeout_after_effect"
+        ? "Exercise truthful unknown-result reconciliation."
+        : "Exercise stale approval after an exact preview change.",
+  });
+  return client.getWorkspaceReview(TS_CORE_01);
+}
+
+export async function deleteBackendCapture(
+  captureId: string,
+): Promise<{
+  deletion: DeleteCaptureResponse;
+  lineage: DeletionLineageResponse;
+}> {
+  const { client } = await authenticatedClient("web-source-deletion");
+  const deletion = await client.deleteCapture(captureId, {
+    idempotency_key: `web-delete:${captureId}`,
+    reason: "Recruiter requested deletion of the synthetic local source.",
+  });
+  return {
+    deletion,
+    lineage: await client.getDeletionLineage(deletion.deletion_id),
   };
 }

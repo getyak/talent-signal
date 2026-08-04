@@ -2,6 +2,7 @@
 
 import {
   ArrowCounterClockwise,
+  ArrowLeft,
   ArrowSquareOut,
   Check,
   CheckCircle,
@@ -369,6 +370,10 @@ export function WorkspaceApp({
         </nav>
 
         <div className="review-sidebar__foot">
+          <Link href="/workspace">
+            <ArrowLeft aria-hidden="true" size={16} />
+            Canonical journey
+          </Link>
           <Link href="/">
             <ArrowSquareOut aria-hidden="true" size={16} />
             Product site
@@ -401,7 +406,7 @@ export function WorkspaceApp({
           </div>
         </header>
 
-        <main id="main-content" className="review-main">
+        <main id="main-content" className="review-main" tabIndex={-1}>
           <section
             className="review-source-note"
             aria-label="Workspace data source"

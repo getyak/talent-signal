@@ -8,6 +8,7 @@ import {
   loadBackendWorkspace,
 } from "@/lib/server/localBackend";
 import { loadCandidateWorkspace } from "@/lib/server/candidateWorkspace";
+import WorkspaceLoading from "./loading";
 
 export const dynamic = "force-dynamic";
 
@@ -21,21 +22,38 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function WorkspacePage() {
+export default async function WorkspacePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ surface?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) {
     redirect("/login?callbackUrl=/workspace");
   }
 
   if (isIntegrationMode()) {
+    const { surface } = await searchParams;
+    if (surface === "loading") {
+      return <WorkspaceLoading />;
+    }
     let workspace: Awaited<ReturnType<typeof loadBackendWorkspace>> | null =
       null;
     let integrationError: string | null = null;
     try {
       workspace = await loadBackendWorkspace();
-    } catch {
-      integrationError =
-        "No submitted TS-CORE-01 capture is available in the account-scoped localhost backend.";
+    } catch (caught) {
+      const status =
+        caught &&
+        typeof caught === "object" &&
+        "status" in caught &&
+        typeof caught.status === "number"
+          ? caught.status
+          : null;
+      if (status !== 404) {
+        integrationError =
+          "The account-scoped localhost backend could not be reached. No verified state is claimed.";
+      }
     }
     return (
       <IntegratedWorkspaceApp
