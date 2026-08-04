@@ -7,6 +7,7 @@
     "dev": "pnpm --filter @talent-signal/web dev",
     "build": "pnpm --filter @talent-signal/web build",
     "docs:check": "node scripts/check-docs.mjs",
+    "eval:core": "node scripts/evals/validate-candidate-momentum.mjs",
     "ios:check": "./scripts/ios/check.sh",
     "ios:generate": "./scripts/ios/generate.sh",
     "lint": "pnpm --filter @talent-signal/web lint",
