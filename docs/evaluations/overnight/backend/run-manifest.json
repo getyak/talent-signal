@@ -1,6 +1,6 @@
 {
   "run_id": "backend-shared-authority-2026-08-05",
-  "status": "verified_pending_commit",
+  "status": "verified",
   "ownership": [
     "apps/backend/**",
     "packages/contracts/**",
@@ -11,7 +11,7 @@
     "docs/evaluations/overnight/backend/**"
   ],
   "base_commit": "f66581cbf8a1b1154156fc25231a6ff82f11c61f",
-  "result_commit": null,
+  "result_commit": "9c3b167641a7e11f5df945211e3cc6772b1702f8",
   "fixture": {
     "path": "evals/candidate-momentum-v1.json",
     "suite_id": "talent-signal-candidate-momentum-v1",
