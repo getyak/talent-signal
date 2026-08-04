@@ -1,0 +1,437 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3E38A302C010371D54ADEDE8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 277B7C09E6ED0F14746F9920 /* PrivacyInfo.xcprivacy */; };
+		414C63D7C792AA743AFEA107 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A33FCD06D104227EBE4E7489 /* Assets.xcassets */; };
+		B143E5D3372CC998FDF1FBF3 /* TalentSignalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93BFB8EEF712769B0462EB82 /* TalentSignalTests.swift */; };
+		F1C91AFCA44B44ADCADBC5AA /* SignalWorkbenchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A7BDD58E9B959EBFAF5B306 /* SignalWorkbenchView.swift */; };
+		FE4C14EB951EA15F7F99E284 /* TalentSignalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F5F07962456270826E708A4 /* TalentSignalApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		EED9CCC1AF2B13190C71170B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5C7B84FBD86399226040C604 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7EF5E514C35D7F87373ACE73;
+			remoteInfo = TalentSignal;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		1A7BDD58E9B959EBFAF5B306 /* SignalWorkbenchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalWorkbenchView.swift; sourceTree = "<group>"; };
+		277B7C09E6ED0F14746F9920 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		42DD19B6778ACE5B4766646B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		8F5F07962456270826E708A4 /* TalentSignalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalApp.swift; sourceTree = "<group>"; };
+		93BFB8EEF712769B0462EB82 /* TalentSignalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalTests.swift; sourceTree = "<group>"; };
+		9974BB03ADAB6E9F626E0388 /* TalentSignalTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TalentSignalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A33FCD06D104227EBE4E7489 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TalentSignal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0D9D88ED6CA7909D661B42E5 /* TalentSignal */ = {
+			isa = PBXGroup;
+			children = (
+				42DD19B6778ACE5B4766646B /* Info.plist */,
+				1A7BDD58E9B959EBFAF5B306 /* SignalWorkbenchView.swift */,
+				8F5F07962456270826E708A4 /* TalentSignalApp.swift */,
+				F2AF1E4C09E8296E40CC554D /* Resources */,
+			);
+			name = TalentSignal;
+			path = apps/ios/TalentSignal;
+			sourceTree = "<group>";
+		};
+		D616C61338BE1C3824150710 /* TalentSignalTests */ = {
+			isa = PBXGroup;
+			children = (
+				93BFB8EEF712769B0462EB82 /* TalentSignalTests.swift */,
+			);
+			name = TalentSignalTests;
+			path = apps/ios/TalentSignalTests;
+			sourceTree = "<group>";
+		};
+		F2AF1E4C09E8296E40CC554D /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A33FCD06D104227EBE4E7489 /* Assets.xcassets */,
+				277B7C09E6ED0F14746F9920 /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		F54F15976CECF9C1991FC931 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */,
+				9974BB03ADAB6E9F626E0388 /* TalentSignalTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		FC3E87D24265DCFBA4BEE614 = {
+			isa = PBXGroup;
+			children = (
+				0D9D88ED6CA7909D661B42E5 /* TalentSignal */,
+				D616C61338BE1C3824150710 /* TalentSignalTests */,
+				F54F15976CECF9C1991FC931 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7A1E5332413A7E18BB45A742 /* TalentSignalTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 79203FE62FCB1A768BB14631 /* Build configuration list for PBXNativeTarget "TalentSignalTests" */;
+			buildPhases = (
+				59CA6F3037E5972C3462E746 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6DF94ABD34B7ADAEB5FEE12B /* PBXTargetDependency */,
+			);
+			name = TalentSignalTests;
+			packageProductDependencies = (
+			);
+			productName = TalentSignalTests;
+			productReference = 9974BB03ADAB6E9F626E0388 /* TalentSignalTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		7EF5E514C35D7F87373ACE73 /* TalentSignal */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5A34AAF31142B57AFC46493 /* Build configuration list for PBXNativeTarget "TalentSignal" */;
+			buildPhases = (
+				F1FF3CD7EC8417977129DD78 /* Sources */,
+				BFE1103C47A5CF786FD3202D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TalentSignal;
+			packageProductDependencies = (
+			);
+			productName = TalentSignal;
+			productReference = EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5C7B84FBD86399226040C604 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					7A1E5332413A7E18BB45A742 = {
+						DevelopmentTeam = 6RG2F8YY59;
+					};
+					7EF5E514C35D7F87373ACE73 = {
+						DevelopmentTeam = 6RG2F8YY59;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 89F2B14DE336868E999CFC5C /* Build configuration list for PBXProject "TalentSignal" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = FC3E87D24265DCFBA4BEE614;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F54F15976CECF9C1991FC931 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7EF5E514C35D7F87373ACE73 /* TalentSignal */,
+				7A1E5332413A7E18BB45A742 /* TalentSignalTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BFE1103C47A5CF786FD3202D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				414C63D7C792AA743AFEA107 /* Assets.xcassets in Resources */,
+				3E38A302C010371D54ADEDE8 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		59CA6F3037E5972C3462E746 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B143E5D3372CC998FDF1FBF3 /* TalentSignalTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1FF3CD7EC8417977129DD78 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1C91AFCA44B44ADCADBC5AA /* SignalWorkbenchView.swift in Sources */,
+				FE4C14EB951EA15F7F99E284 /* TalentSignalApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		6DF94ABD34B7ADAEB5FEE12B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7EF5E514C35D7F87373ACE73 /* TalentSignal */;
+			targetProxy = EED9CCC1AF2B13190C71170B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1A1A903134B3860421BE4234 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = apps/ios/TalentSignal/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.app;
+				PRODUCT_MODULE_NAME = TalentSignal;
+				PRODUCT_NAME = "Talent Signal";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5048CD84F7069EFC329B6659 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 6RG2F8YY59;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		9A5103871C7FD4F9B835CC71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TalentSignal.app/TalentSignal";
+			};
+			name = Debug;
+		};
+		C59C0B7BFB325E03E28A2985 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 6RG2F8YY59;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		D967CF76C8A3A8041B6AEA3A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = apps/ios/TalentSignal/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.app;
+				PRODUCT_MODULE_NAME = TalentSignal;
+				PRODUCT_NAME = "Talent Signal";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F340FD3D84E6D3D3A37DCBA7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TalentSignal.app/TalentSignal";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		79203FE62FCB1A768BB14631 /* Build configuration list for PBXNativeTarget "TalentSignalTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9A5103871C7FD4F9B835CC71 /* Debug */,
+				F340FD3D84E6D3D3A37DCBA7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		89F2B14DE336868E999CFC5C /* Build configuration list for PBXProject "TalentSignal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C59C0B7BFB325E03E28A2985 /* Debug */,
+				5048CD84F7069EFC329B6659 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B5A34AAF31142B57AFC46493 /* Build configuration list for PBXNativeTarget "TalentSignal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D967CF76C8A3A8041B6AEA3A /* Debug */,
+				1A1A903134B3860421BE4234 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5C7B84FBD86399226040C604 /* Project object */;
+}
