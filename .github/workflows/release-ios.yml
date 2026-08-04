@@ -59,6 +59,8 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             should_release="$PUBLISH_TESTFLIGHT"
           else
+            # BASE_SHA is injected through the step environment.
+            # shellcheck disable=SC2153
             base_sha="$BASE_SHA"
             if ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
               base_sha="$(git rev-parse "${RELEASE_SHA}^")"
