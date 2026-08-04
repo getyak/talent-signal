@@ -9,9 +9,16 @@
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to review</a>
+    <div
+      id="assistive-status"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
 
     <header class="app-header">
-      <div class="brand" aria-label="Talent Signal">
+      <div class="brand">
         <span class="brand-mark" aria-hidden="true">
           <i></i><i></i><i></i>
         </span>
@@ -35,7 +42,9 @@
           <p class="eyebrow" id="capture-eyebrow">Intentional capture</p>
           <span class="state-chip state-chip--observed">Nothing collected</span>
         </div>
-        <h1 id="capture-title">Bring only what matters into review.</h1>
+        <h1 id="capture-title" tabindex="-1">
+          Bring only what matters into review.
+        </h1>
         <p class="lede" id="capture-lede">
           Choose the visible page or text you selected. Talent Signal will show
           the exact payload before anything leaves this panel.
@@ -74,7 +83,14 @@
           </p>
         </div>
 
-        <div id="capture-alert" class="alert" role="status" aria-live="polite" hidden>
+        <div
+          id="capture-alert"
+          class="alert"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          hidden
+        >
           <strong id="capture-alert-title"></strong>
           <p id="capture-alert-copy"></p>
         </div>
@@ -115,11 +131,31 @@
           <p class="eyebrow">Observed source</p>
           <span id="capture-kind-chip" class="state-chip state-chip--observed"></span>
         </div>
-        <h1>Review the evidence, then decide.</h1>
+        <h1 id="review-heading" tabindex="-1">
+          Review the evidence, then decide.
+        </h1>
         <p class="lede">
           Source context and the final pixels or text stay visible at the
           consequence boundary.
         </p>
+
+        <ol class="review-steps" aria-label="Review progress">
+          <li data-state="current">
+            <span aria-hidden="true">1</span>
+            <strong>Inspect evidence</strong>
+            <small id="step-evidence">Current</small>
+          </li>
+          <li data-state="upcoming">
+            <span aria-hidden="true">2</span>
+            <strong>Check local session</strong>
+            <small id="step-session">Not checked</small>
+          </li>
+          <li data-state="upcoming">
+            <span aria-hidden="true">3</span>
+            <strong>Submit explicitly</strong>
+            <small id="step-submit">Not approved</small>
+          </li>
+        </ol>
 
         <section class="source-block" aria-labelledby="source-title">
           <h2 id="source-title">Source context</h2>
@@ -151,8 +187,8 @@
           <div class="canvas-frame">
             <canvas
               id="review-canvas"
-              tabindex="0"
-              aria-label="Reviewed screenshot preview. Drag to add a redaction."
+              role="img"
+              aria-label="Reviewed screenshot preview. Pointer users can drag to redact. Keyboard users can use the crop and redaction controls after the image."
             ></canvas>
             <span class="canvas-hint">Drag to redact</span>
           </div>
@@ -216,7 +252,12 @@
           </p>
         </section>
 
-        <section id="fixture-review" class="asset-review fixture-review" hidden>
+        <section
+          id="fixture-review"
+          class="asset-review fixture-review"
+          aria-labelledby="fixture-title"
+          hidden
+        >
           <div class="section-heading">
             <div>
               <p class="eyebrow">Synthetic evidence</p>
@@ -230,12 +271,16 @@
           </p>
           <div id="fixture-context" class="fixture-context"></div>
           <div>
-            <h3>Observed messages</h3>
+            <h3 id="fixture-messages-title">Observed messages</h3>
             <ol id="fixture-messages" class="message-list"></ol>
           </div>
           <div>
             <h3>Fixture contract · proposed understanding</h3>
-            <p id="fixture-disposition" class="disposition"></p>
+            <p
+              id="fixture-disposition"
+              class="disposition"
+              aria-live="off"
+            ></p>
             <div id="fixture-assertions" class="assertion-list"></div>
           </div>
           <div id="fixture-action-block">
@@ -248,12 +293,23 @@
           </div>
         </section>
 
-        <section id="local-cleared" class="asset-review local-cleared" hidden>
-          <p class="eyebrow">Local copy cleared</p>
+        <section
+          id="local-cleared"
+          class="asset-review local-cleared"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          hidden
+        >
+          <div class="eyebrow-row">
+            <p class="eyebrow">Private asset lifecycle</p>
+            <span class="state-chip state-chip--deleted">Deleted locally</span>
+          </div>
           <h2>The reviewed private payload is no longer held in this panel.</h2>
           <p>
             Source metadata and the receipt remain visible. Backend retention
-            or deletion still requires separate service evidence.
+            or derivative deletion is still unverified and requires separate
+            service evidence.
           </p>
         </section>
 
@@ -322,6 +378,7 @@
             class="submission-status"
             role="status"
             aria-live="polite"
+            aria-atomic="true"
             hidden
           >
             <span id="submission-state-label"></span>

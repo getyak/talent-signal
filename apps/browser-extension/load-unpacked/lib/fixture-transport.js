@@ -8,11 +8,23 @@ export const FIXTURE_SCENARIOS = [
   "unknown_then_received",
 ];
 
+export const FIXTURE_DELAY_MS = 2_000;
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 function fixtureReceipt(requestId) {
   return `TS-FIXTURE-${requestId.slice(0, 8).toUpperCase()}`;
 }
 
-export async function fixtureSubmit({ envelope, scenario, attempt = 1 }) {
+export async function fixtureSubmit({
+  envelope,
+  scenario,
+  attempt = 1,
+  delayMs = FIXTURE_DELAY_MS,
+}) {
+  await delay(delayMs);
   const receiptId = fixtureReceipt(envelope.request_id);
 
   switch (scenario) {
@@ -47,7 +59,12 @@ export async function fixtureSubmit({ envelope, scenario, attempt = 1 }) {
   }
 }
 
-export async function fixtureCheck({ requestId, scenario }) {
+export async function fixtureCheck({
+  requestId,
+  scenario,
+  delayMs = FIXTURE_DELAY_MS,
+}) {
+  await delay(delayMs);
   if (scenario === "unknown_then_received") {
     return classifyReceiptResponse(200, {
       status: "received",

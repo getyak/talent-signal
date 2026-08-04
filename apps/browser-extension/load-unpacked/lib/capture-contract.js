@@ -71,6 +71,8 @@ export function makeCaptureDraft({
   dataUrl = null,
   text = null,
   fixtureCase = null,
+  transport = kind === "fixture" ? "fixture" : "localhost",
+  syntheticLabel = null,
   createdAt = new Date().toISOString(),
 }) {
   return {
@@ -82,6 +84,8 @@ export function makeCaptureDraft({
     original_text: text,
     reviewed_text: text,
     fixture_case: fixtureCase,
+    transport,
+    synthetic_label: syntheticLabel,
     crop: { left: 0, top: 0, right: 0, bottom: 0 },
     redactions: [],
     revision: 0,

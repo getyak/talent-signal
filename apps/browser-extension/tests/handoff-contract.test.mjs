@@ -106,19 +106,26 @@ test("treats a timeout as unknown and an unreachable service as failed", () => {
 test("retries offline with the same idempotency key and prevents duplicate creation", async () => {
   const packet = envelope();
   await assert.rejects(
-    fixtureSubmit({ envelope: packet, scenario: "offline", attempt: 1 }),
+    fixtureSubmit({
+      envelope: packet,
+      scenario: "offline",
+      attempt: 1,
+      delayMs: 0,
+    }),
     /offline/i,
   );
   const retried = await fixtureSubmit({
     envelope: packet,
     scenario: "offline",
     attempt: 2,
+    delayMs: 0,
   });
   assert.equal(retried.state, "received");
 
   const duplicate = await fixtureSubmit({
     envelope: packet,
     scenario: "duplicate",
+    delayMs: 0,
   });
   assert.equal(duplicate.state, "received");
   assert.equal(duplicate.duplicate, true);
@@ -131,12 +138,14 @@ test("reconciles an unknown fixture receipt without resubmitting", async () => {
     fixtureSubmit({
       envelope: packet,
       scenario: "unknown_then_received",
+      delayMs: 0,
     }),
     (error) => error.name === "AbortError",
   );
   const reconciled = await fixtureCheck({
     requestId: packet.request_id,
     scenario: "unknown_then_received",
+    delayMs: 0,
   });
   assert.equal(reconciled.state, "received");
 });

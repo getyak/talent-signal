@@ -23,11 +23,20 @@ import {
   fixtureCheck,
   fixtureSubmit,
 } from "./lib/fixture-transport.js";
+import {
+  dispositionPresentation,
+  isSyntheticTransport,
+  LONG_MIXED_SCRIPT_SAMPLE,
+  progressPresentation,
+  sessionPresentation,
+  submissionPresentation,
+} from "./lib/review-presentation.js";
 
 const byId = (id) => document.getElementById(id);
 
 const elements = {
   modeSelect: byId("mode-select"),
+  assistiveStatus: byId("assistive-status"),
   captureView: byId("capture-view"),
   reviewView: byId("review-view"),
   captureEyebrow: byId("capture-eyebrow"),
@@ -45,6 +54,10 @@ const elements = {
   captureAlertCopy: byId("capture-alert-copy"),
   backButton: byId("back-button"),
   removeButton: byId("remove-button"),
+  reviewHeading: byId("review-heading"),
+  stepEvidence: byId("step-evidence"),
+  stepSession: byId("step-session"),
+  stepSubmit: byId("step-submit"),
   captureKindChip: byId("capture-kind-chip"),
   sourceTitle: byId("source-page-title"),
   sourceUrl: byId("source-url"),
@@ -156,14 +169,28 @@ function bytesLabel(bytes) {
   return `${(bytes / 1_000_000).toFixed(1)} MB`;
 }
 
-function showCaptureAlert(title, copy) {
+function announce(message) {
+  elements.assistiveStatus.textContent = "";
+  requestAnimationFrame(() => {
+    elements.assistiveStatus.textContent = message;
+  });
+}
+
+function showCaptureAlert(title, copy, tone = "error") {
   elements.captureAlertTitle.textContent = title;
   elements.captureAlertCopy.textContent = copy;
+  elements.captureAlert.dataset.tone = tone;
+  elements.captureAlert.setAttribute(
+    "role",
+    tone === "error" ? "alert" : "status",
+  );
   elements.captureAlert.hidden = false;
 }
 
 function clearCaptureAlert() {
   elements.captureAlert.hidden = true;
+  delete elements.captureAlert.dataset.tone;
+  elements.captureAlert.setAttribute("role", "status");
   elements.captureAlertTitle.textContent = "";
   elements.captureAlertCopy.textContent = "";
 }
@@ -172,9 +199,14 @@ function setCaptureBusy(busy, label = "Capturing…") {
   elements.captureVisible.disabled = busy;
   elements.captureSelection.disabled = busy;
   elements.loadFixture.disabled = busy;
+  elements.captureView.setAttribute("aria-busy", String(busy));
 
   if (busy) {
-    showCaptureAlert(label, "Nothing will be submitted during this step.");
+    showCaptureAlert(
+      label,
+      "Nothing will be submitted during this step.",
+      "progress",
+    );
   }
 }
 
@@ -309,7 +341,21 @@ async function loadSelectedFixture() {
     kind: "fixture",
     source,
     fixtureCase,
+    transport: "fixture",
     createdAt: fixtureCase.context.captured_at,
+  });
+  await openReview(draft);
+}
+
+async function loadLongMixedScriptSample() {
+  const sample = LONG_MIXED_SCRIPT_SAMPLE;
+  const draft = makeCaptureDraft({
+    kind: "selected_text",
+    source: sample.source,
+    text: sample.text,
+    transport: "fixture",
+    syntheticLabel: sample.synthetic_label,
+    createdAt: sample.source.captured_at,
   });
   await openReview(draft);
 }
@@ -340,7 +386,10 @@ async function openReview(draft) {
   elements.reviewView.hidden = false;
   elements.modeSelect.disabled = true;
   renderReview();
-  await checkSession({ quiet: true });
+  elements.backButton.focus();
+  announce(
+    "Capture review opened. Inspect source and exact evidence, check the local session, then approve and submit explicitly.",
+  );
 }
 
 function clearDraft() {
@@ -365,6 +414,9 @@ function clearDraft() {
   elements.captureView.hidden = false;
   elements.modeSelect.disabled = false;
   clearCaptureAlert();
+  renderMode();
+  elements.captureTitle.focus();
+  announce("Capture removed. No reviewed payload remains in this panel.");
 }
 
 function renderReview() {
@@ -381,6 +433,9 @@ function renderReview() {
     selected_text: "Selected text",
     fixture: "Synthetic fixture",
   }[draft.kind];
+  if (draft.synthetic_label) {
+    elements.captureKindChip.textContent = draft.synthetic_label;
+  }
 
   const cleared = Boolean(draft.local_cleared);
   elements.localCleared.hidden = !cleared;
@@ -402,6 +457,26 @@ function renderReview() {
   renderSession();
   renderRetention();
   renderSubmission();
+  renderProgress();
+}
+
+function renderProgress() {
+  const steps = progressPresentation({
+    sessionState: state.session.state,
+    approved: elements.approvalCheck.checked,
+    submissionState: state.submission.state,
+  });
+  const stepElements = [
+    elements.stepEvidence,
+    elements.stepSession,
+    elements.stepSubmit,
+  ];
+
+  steps.forEach((step, index) => {
+    const copy = stepElements[index];
+    copy.textContent = step.label;
+    copy.closest("li").dataset.state = step.state;
+  });
 }
 
 function syncCropInputs() {
@@ -514,6 +589,19 @@ function renderTextSummary() {
   const edited = text !== state.draft?.original_text;
   elements.textSummary.textContent =
     `${text.length.toLocaleString()} characters${edited ? " · edited" : ""}`;
+  resizeTextEditor();
+}
+
+function resizeTextEditor() {
+  elements.reviewedText.style.height = "auto";
+  const rootSize = Number.parseFloat(
+    getComputedStyle(document.documentElement).fontSize,
+  );
+  const maximum = rootSize * 42;
+  elements.reviewedText.style.height =
+    `${Math.min(elements.reviewedText.scrollHeight + 2, maximum)}px`;
+  elements.reviewedText.dataset.overflow =
+    elements.reviewedText.scrollHeight > maximum ? "scroll" : "expanded";
 }
 
 function renderFixture() {
@@ -554,6 +642,8 @@ function renderFixture() {
   elements.fixtureMessages.replaceChildren();
   for (const message of fixtureCase.messages) {
     const item = document.createElement("li");
+    item.id = `fixture-message-${message.id}`;
+    item.tabIndex = -1;
     item.append(
       node("span", `${message.id} · ${message.speaker}`),
       node("p", message.text),
@@ -561,18 +651,9 @@ function renderFixture() {
     elements.fixtureMessages.append(item);
   }
 
-  const dispositionCopy = {
-    propose_action:
-      "Propose one bounded action after review; no effect is authorized.",
-    no_action: "No action is warranted. Preserve only the scoped evidence.",
-    clarify:
-      "Clarification is required. Do not bind identity, normalize time, persist a fact, or act.",
-    block:
-      "The requested inference is prohibited. Do not score or rank the candidate.",
-  };
-  elements.fixtureDisposition.textContent =
-    dispositionCopy[fixtureCase.expected.disposition] ??
-    fixtureCase.expected.disposition;
+  const disposition = dispositionPresentation(fixtureCase.expected.disposition);
+  elements.fixtureDisposition.textContent = disposition.label;
+  elements.fixtureDisposition.dataset.state = disposition.state;
 
   elements.fixtureAssertions.replaceChildren();
   if (fixtureCase.expected.assertions.length === 0) {
@@ -582,23 +663,71 @@ function renderFixture() {
   } else {
     for (const assertion of fixtureCase.expected.assertions) {
       const item = node("article", null, "assertion");
+      const messageId = `fixture-message-${assertion.evidence_message_id}`;
+      item.dataset.state = assertion.status;
+      item.setAttribute("aria-describedby", messageId);
       item.append(
         node("strong", `${assertion.field} · ${assertion.status}`),
-        node("p", assertion.value),
+      );
+      const priorValue =
+        fixtureCase.context.prior_state?.[assertion.field] ?? null;
+      if (priorValue) {
+        const change = node("p", null, "state-change");
+        change.append(
+          node("del", priorValue),
+          node("span", "→ proposed change"),
+          node("strong", assertion.value),
+        );
+        item.append(change);
+      } else {
+        item.append(node("p", assertion.value));
+      }
+      item.append(
         node(
           "small",
-          `Evidence ${assertion.evidence_message_id}: “${assertion.evidence_quote}”`,
+          `Exact evidence ${assertion.evidence_message_id}: “${assertion.evidence_quote}”`,
         ),
       );
+      const links = node("div", null, "evidence-links");
+      const openEvidence = node(
+        "button",
+        `View message ${assertion.evidence_message_id}`,
+        "evidence-link",
+      );
+      openEvidence.type = "button";
+      openEvidence.addEventListener("click", () =>
+        focusFixtureMessage(assertion.evidence_message_id),
+      );
+      links.append(openEvidence);
+      item.append(links);
       elements.fixtureAssertions.append(item);
     }
   }
 
   const action = fixtureCase.expected.action;
   elements.fixtureActionBlock.hidden = !action;
-  elements.fixtureAction.textContent = action
-    ? `${action.type.replaceAll("_", " ")} · ${action.target}. ${action.reason} Due ${action.due}; owned by ${action.owner}.`
-    : "";
+  elements.fixtureAction.replaceChildren();
+  if (action) {
+    elements.fixtureAction.append(
+      document.createTextNode(
+        `${action.type.replaceAll("_", " ")} · ${action.target}. ${action.reason} Due ${action.due}; owned by ${action.owner}.`,
+      ),
+    );
+    const actionLinks = node("span", null, "evidence-links");
+    for (const messageId of action.evidence_message_ids ?? []) {
+      const openEvidence = node(
+        "button",
+        `View action evidence ${messageId}`,
+        "evidence-link",
+      );
+      openEvidence.type = "button";
+      openEvidence.addEventListener("click", () =>
+        focusFixtureMessage(messageId),
+      );
+      actionLinks.append(openEvidence);
+    }
+    elements.fixtureAction.append(actionLinks);
+  }
 
   elements.fixtureBoundaries.replaceChildren();
   fixtureCase.expected.must_not.forEach((boundary) => {
@@ -606,30 +735,41 @@ function renderFixture() {
   });
 }
 
+function focusFixtureMessage(messageId) {
+  for (const message of elements.fixtureMessages.children) {
+    message.classList.remove("is-evidence-target");
+  }
+  const target = byId(`fixture-message-${messageId}`);
+  if (!target) {
+    return;
+  }
+  target.classList.add("is-evidence-target");
+  target.scrollIntoView({ block: "center", behavior: "auto" });
+  target.focus({ preventScroll: true });
+  announce(`Exact evidence ${messageId} focused.`);
+}
+
 function renderSession() {
-  const fixture = state.draft?.kind === "fixture";
-  elements.originField.hidden = fixture;
-  elements.openSignIn.hidden = fixture;
+  const synthetic = isSyntheticTransport(state.draft);
+  const presentation = sessionPresentation(state.session, synthetic);
+  elements.originField.hidden = synthetic;
+  elements.openSignIn.hidden = synthetic;
   elements.checkSession.hidden = false;
-  elements.checkSession.textContent = fixture
-    ? "Refresh synthetic session"
+  elements.checkSession.textContent = synthetic
+    ? state.session.state === "ready"
+      ? "Refresh synthetic session"
+      : "Check synthetic session"
     : "Check session";
-  elements.sessionState.className = "state-chip";
-  elements.sessionState.classList.add(
-    state.session.state === "ready"
-      ? "state-chip--ready"
-      : state.session.state === "checking"
-        ? "state-chip--pending"
-        : "state-chip--unknown",
-  );
-  elements.sessionState.textContent = {
-    ready: fixture ? "Synthetic session" : "Session ready",
-    checking: "Checking",
-    not_ready: "Not connected",
-    not_checked: "Not checked",
-  }[state.session.state];
+  elements.checkSession.disabled = presentation.busy;
+  elements.sessionState.className = `state-chip ${presentation.chip_class}`;
+  elements.sessionState.textContent = presentation.chip_label;
   elements.sessionCopy.textContent = state.session.message;
+  elements.sessionCopy.closest("section").setAttribute(
+    "aria-busy",
+    String(presentation.busy),
+  );
   updateSubmitAvailability();
+  renderProgress();
 }
 
 function renderRetention() {
@@ -643,33 +783,25 @@ function renderRetention() {
   };
   elements.retentionCopy.textContent = copy[elements.retentionMode.value];
   elements.handoffTarget.textContent =
-    state.draft?.kind === "fixture"
+    isSyntheticTransport(state.draft)
       ? "Synthetic fixture transport · no network"
       : elements.localOrigin.value;
 }
 
 function renderSubmission() {
   const submission = state.submission;
-  const visible = submission.state !== "idle";
-  elements.submissionStatus.hidden = !visible;
-  elements.checkReceipt.hidden = !["pending", "unknown"].includes(
-    submission.state,
+  const presentation = submissionPresentation(submission);
+  elements.submissionStatus.hidden = !presentation.visible;
+  elements.submissionStatus.setAttribute(
+    "aria-busy",
+    String(presentation.busy),
   );
+  elements.checkReceipt.hidden = !presentation.check_receipt;
 
-  if (visible) {
+  if (presentation.visible) {
     elements.submissionStatus.dataset.state = submission.state;
     elements.submissionStateLabel.textContent = submission.state;
-    elements.submissionTitle.textContent = {
-      pending: "Waiting for receipt evidence",
-      received: submission.duplicate
-        ? "Already received — duplicate avoided"
-        : "Receipt confirmed",
-      failed:
-        submission.code === "session_stale"
-          ? "Local session changed"
-          : "Upload failed",
-      unknown: "Receipt is unknown",
-    }[submission.state];
+    elements.submissionTitle.textContent = presentation.title;
     elements.submissionCopy.textContent = submission.message ?? "";
     elements.receiptId.hidden = !submission.receipt_id;
     elements.receiptId.textContent = submission.receipt_id
@@ -677,17 +809,9 @@ function renderSubmission() {
       : "";
   }
 
-  elements.submitButton.textContent =
-    submission.state === "failed"
-      ? "Retry same reviewed packet"
-      : submission.state === "pending"
-        ? "Upload pending"
-        : submission.state === "received"
-          ? "Received"
-          : submission.state === "unknown"
-            ? "Check receipt first"
-            : "Submit reviewed capture";
+  elements.submitButton.textContent = presentation.action_label;
   updateSubmitAvailability();
+  renderProgress();
 }
 
 function assetIsReady() {
@@ -704,14 +828,13 @@ function assetIsReady() {
 }
 
 function updateSubmitAvailability() {
-  const blockedState = ["pending", "received", "unknown"].includes(
-    state.submission.state,
-  );
+  const presentation = submissionPresentation(state.submission);
   elements.submitButton.disabled =
     !assetIsReady() ||
     !elements.approvalCheck.checked ||
     state.session.state !== "ready" ||
-    blockedState;
+    presentation.blocks_submit;
+  renderProgress();
 }
 
 function reviewAsset() {
@@ -823,7 +946,7 @@ async function submitHandoff() {
 
   let origin = DEFAULT_LOCAL_ORIGIN;
   try {
-    if (state.draft.kind !== "fixture") {
+    if (!isSyntheticTransport(state.draft)) {
       origin = normalizeLocalOrigin(elements.localOrigin.value);
     }
   } catch (error) {
@@ -845,7 +968,7 @@ async function submitHandoff() {
     retentionMode: elements.retentionMode.value,
     requestIdentity: state.requestIdentity,
     handoffTarget:
-      state.draft.kind === "fixture"
+      isSyntheticTransport(state.draft)
         ? "fixture://local-transport"
         : origin,
     sessionVersion: state.session.session_version ?? null,
@@ -882,7 +1005,7 @@ async function submitHandoff() {
         ? "received"
         : elements.fixtureScenario.value;
     const result =
-      state.draft.kind === "fixture"
+      isSyntheticTransport(state.draft)
         ? await fixtureSubmit({
             envelope,
             scenario,
@@ -924,11 +1047,11 @@ async function checkReceipt() {
 
   try {
     const origin =
-      state.draft.kind === "fixture"
+      isSyntheticTransport(state.draft)
         ? DEFAULT_LOCAL_ORIGIN
         : normalizeLocalOrigin(elements.localOrigin.value);
     const result =
-      state.draft.kind === "fixture"
+      isSyntheticTransport(state.draft)
         ? await fixtureCheck({
             requestId: state.requestIdentity.request_id,
             scenario: elements.fixtureScenario.value,
@@ -945,12 +1068,22 @@ async function checkReceipt() {
   renderSubmission();
 }
 
-async function checkSession({ quiet = false } = {}) {
+async function checkSession() {
   if (!state.draft) {
     return;
   }
 
-  if (state.draft.kind === "fixture") {
+  const synthetic = isSyntheticTransport(state.draft);
+  state.session = {
+    state: "checking",
+    message: synthetic
+      ? "Checking the synthetic session without making a network request."
+      : "Checking only the browser-managed localhost session.",
+  };
+  renderSession();
+
+  if (synthetic) {
+    await new Promise((resolve) => setTimeout(resolve, 140));
     if (
       elements.fixtureScenario.value === "stale_session" &&
       state.submission.code === "session_stale"
@@ -965,14 +1098,9 @@ async function checkSession({ quiet = false } = {}) {
           : "Synthetic local session is ready. No network request or external effect will occur.",
     };
     renderSession();
+    announce(state.session.message);
     return;
   }
-
-  state.session = {
-    state: "checking",
-    message: "Checking only the browser-managed localhost session.",
-  };
-  renderSession();
 
   try {
     const origin = normalizeLocalOrigin(elements.localOrigin.value);
@@ -994,12 +1122,10 @@ async function checkSession({ quiet = false } = {}) {
       message:
         "No local session was observed. Nothing was submitted; open the local sign-in flow and check again.",
     };
-    if (!quiet) {
-      elements.sessionCopy.focus?.();
-    }
   }
 
   renderSession();
+  announce(state.session.message);
 }
 
 async function openSignIn() {
@@ -1140,7 +1266,14 @@ elements.localOrigin.addEventListener("change", () => {
   draftChanged();
   renderSession();
 });
-elements.approvalCheck.addEventListener("change", updateSubmitAvailability);
+elements.approvalCheck.addEventListener("change", () => {
+  updateSubmitAvailability();
+  announce(
+    elements.approvalCheck.checked
+      ? "Reviewed payload approved for this exact capture handoff. Submission has not occurred."
+      : "Capture handoff approval removed.",
+  );
+});
 elements.submitButton.addEventListener("click", submitHandoff);
 elements.checkReceipt.addEventListener("click", checkReceipt);
 elements.checkSession.addEventListener("click", () => checkSession());
@@ -1152,7 +1285,11 @@ async function initialize() {
   try {
     await loadFixtureSuite();
     if (state.mode === "fixture") {
-      await loadSelectedFixture();
+      if (query.get("audit") === "long-mixed-text") {
+        await loadLongMixedScriptSample();
+      } else {
+        await loadSelectedFixture();
+      }
     }
   } catch (error) {
     showCaptureAlert("Fixture package unavailable", error.message);
