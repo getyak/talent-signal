@@ -1,0 +1,4 @@
+interface:
+  display_name: "Selection Science Auditor"
+  short_description: "Audit hiring assessments for validity, structure, and bias."
+  default_prompt: "Use $selection-science-auditor to audit this assessment or evaluation design against selection science."
