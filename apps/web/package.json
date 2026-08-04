@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "auth:hash-password": "node scripts/hash-password.mjs",
     "start": "next start",
     "lint": "eslint app components lib next.config.ts vitest.config.ts postcss.config.mjs",
     "typecheck": "tsc --noEmit",
@@ -15,9 +16,11 @@
     "@phosphor-icons/react": "2.1.10",
     "motion": "12.43.0",
     "next": "16.2.12",
+    "next-auth": "5.0.0-beta.32",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "three": "0.185.1"
+    "three": "0.185.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",

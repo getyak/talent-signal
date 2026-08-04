@@ -3,11 +3,11 @@ import { resolve } from "node:path";
 
 const inputPath = resolve(
   process.cwd(),
-  "docs/talent-signal-architecture.excalidraw",
+  process.argv[2] ?? "docs/talent-signal-architecture.excalidraw",
 );
 const outputPath = resolve(
   process.cwd(),
-  "docs/talent-signal-architecture.svg",
+  process.argv[3] ?? inputPath.replace(/\.excalidraw$/, ".svg"),
 );
 
 const document = JSON.parse(await readFile(inputPath, "utf8"));
