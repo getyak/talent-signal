@@ -111,6 +111,9 @@
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: var(--card-radius);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent),
+    0 28px 72px color-mix(in srgb, var(--ink) 7%, transparent);
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
   min-height: 660px;
@@ -446,7 +449,7 @@
 
 .historySection {
   border-top: 1px solid var(--line);
-  padding-block: clamp(96px, 10vw, 150px);
+  padding-block: clamp(84px, 7.6vw, 116px);
 }
 
 .historyGrid {
@@ -454,12 +457,12 @@
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   list-style: none;
-  margin: clamp(54px, 7vw, 94px) 0 0;
+  margin: clamp(48px, 5.5vw, 72px) 0 0;
   padding: 0;
 }
 
 .historyGrid li {
-  min-height: 190px;
+  min-height: 164px;
   padding: 24px 20px 0 0;
 }
 
@@ -485,7 +488,7 @@
   background: color-mix(in srgb, var(--surface-muted) 54%, var(--background));
   border-bottom: 1px solid var(--line);
   border-top: 1px solid var(--line);
-  padding-block: clamp(88px, 9vw, 136px);
+  padding-block: clamp(82px, 7.6vw, 112px);
 }
 
 .counterfactualInner {
@@ -547,7 +550,7 @@
 }
 
 .judgmentSection {
-  padding-block: clamp(100px, 10vw, 156px);
+  padding-block: clamp(88px, 8.4vw, 128px);
 }
 
 .judgmentGrid {
@@ -561,6 +564,9 @@
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: var(--card-radius);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent),
+    0 22px 56px color-mix(in srgb, var(--ink) 6%, transparent);
   margin: 0;
   overflow: hidden;
   position: sticky;
@@ -676,7 +682,7 @@
 
 .decisionPair {
   border-top: 1px solid var(--ink);
-  margin-top: clamp(58px, 7vw, 94px);
+  margin-top: clamp(48px, 5.6vw, 72px);
 }
 
 .decisionPair article {
@@ -711,12 +717,12 @@
 
 .researchSection {
   border-top: 1px solid var(--line);
-  padding-block: clamp(96px, 10vw, 148px);
+  padding-block: clamp(84px, 7.8vw, 118px);
 }
 
 .researchGrid {
   display: grid;
-  gap: clamp(58px, 7vw, 92px);
+  gap: clamp(50px, 5.8vw, 74px);
 }
 
 .researchIntro {
@@ -752,12 +758,12 @@
 .questionsSection {
   background: color-mix(in srgb, var(--surface-muted) 30%, var(--background));
   border-top: 1px solid var(--line);
-  padding-block: clamp(92px, 9vw, 140px);
+  padding-block: clamp(82px, 7.6vw, 114px);
 }
 
 .questionsGrid {
   display: grid;
-  gap: clamp(52px, 7vw, 86px);
+  gap: clamp(46px, 5.4vw, 68px);
 }
 
 .questionsIntro {
@@ -772,7 +778,7 @@
 
 .closing {
   border-top: 1px solid var(--line);
-  padding-block: clamp(100px, 11vw, 170px);
+  padding-block: clamp(88px, 8.6vw, 128px);
 }
 
 .closingInner {
@@ -881,6 +887,7 @@
   }
 
   .judgmentLedger {
+    box-shadow: none;
     max-width: 560px;
   }
 
@@ -918,6 +925,7 @@
 
   .workbench {
     border-radius: 14px;
+    box-shadow: none;
   }
 
   .sourcePane,
