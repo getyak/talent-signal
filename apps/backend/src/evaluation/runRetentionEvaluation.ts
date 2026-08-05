@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
 import {
+  CONTRACT_VERSION,
   TalentSignalClient,
   TalentSignalHttpError,
   type CreateCaptureRequest,
@@ -76,7 +77,7 @@ async function completeReview(
     producer: {
       kind: "fixture_compiler",
       name: "source-retention-evaluator",
-      version: "2026-08-05.2",
+      version: CONTRACT_VERSION,
     },
     disposition: "no_action",
     assertions: withAssertion
@@ -122,6 +123,57 @@ async function main(): Promise<void> {
     user_email: "recruiter@beta.local",
     client_label: "retention-cross-account",
   });
+
+  const multiMessageSelection = captureRequest("invalid-multi-selection", {
+    requested_mode: "evidence_crop",
+    source_scope: "reviewed_selected_text",
+  });
+  multiMessageSelection.messages.push({
+    source_message_id: "synthetic-retention-message-2",
+    sequence: 1,
+    speaker: "unknown",
+    text: "A second message must not fit a reviewed selection claim.",
+  });
+  await expectHttpError(
+    recruiter.createCapture(multiMessageSelection),
+    422,
+    "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+  );
+
+  const unsupportedSingleCrop = captureRequest(
+    "unsupported-single-crop",
+    {
+      requested_mode: "evidence_crop",
+      source_scope: "reviewed_evidence_crop",
+    },
+    "screenshot_metadata",
+  );
+  await expectHttpError(
+    recruiter.createCapture(unsupportedSingleCrop),
+    422,
+    "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+  );
+
+  const multiMessageCrop = {
+    ...unsupportedSingleCrop,
+    idempotency_key: `${runId}:invalid-multi-crop:capture`,
+    source: {
+      ...unsupportedSingleCrop.source,
+      source_locator: `retention-evaluator:${runId}:invalid-multi-crop`,
+    },
+    messages: [...unsupportedSingleCrop.messages],
+  };
+  multiMessageCrop.messages.push({
+    source_message_id: "synthetic-crop-message-2",
+    sequence: 1,
+    speaker: "unknown",
+    text: "A second message must not fit one reviewed crop claim.",
+  });
+  await expectHttpError(
+    recruiter.createCapture(multiMessageCrop),
+    422,
+    "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+  );
 
   const ephemeralRequest = captureRequest("ephemeral", {
     requested_mode: "ephemeral",
@@ -282,7 +334,7 @@ async function main(): Promise<void> {
 
   const result = {
     evidence_id: `TS-2026-08-05-${runId}`,
-    artifact_contract_version: "2026-08-05.2",
+    artifact_contract_version: CONTRACT_VERSION,
     api_base_url: baseUrl,
     synthetic_data_only: true,
     accepted_modes: {
@@ -304,6 +356,18 @@ async function main(): Promise<void> {
       full_source_fixture: receiptSummary(fullSourceReceipt),
     },
     unsupported: {
+      multi_message_selected_text: {
+        status: 422,
+        code: "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+      },
+      single_message_evidence_crop: {
+        status: 422,
+        code: "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+      },
+      multi_message_evidence_crop: {
+        status: 422,
+        code: "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+      },
       transcript_full_source: {
         status: 422,
         code: "FULL_SOURCE_TRANSPORT_UNSUPPORTED",

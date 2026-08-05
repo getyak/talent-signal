@@ -82,6 +82,9 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     func testImportCancellationAndRecovery() {
+        app.launchArguments = [
+            "--fixture-import-delay-seconds", "10"
+        ]
         launch()
 
         tapWhenVisible(app.buttons["open-fixture"])

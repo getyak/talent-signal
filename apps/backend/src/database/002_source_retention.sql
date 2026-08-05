@@ -12,18 +12,29 @@ CREATE TABLE source_retention_receipts (
   receipt_id uuid PRIMARY KEY,
   account_id uuid NOT NULL,
   capture_id uuid NOT NULL,
-  policy_version text NOT NULL CHECK (policy_version = 'source-retention.v1'),
+  policy_version text NOT NULL CHECK (policy_version = 'source-retention.v2'),
   requested_mode text NOT NULL CHECK (
-    requested_mode IN ('ephemeral', 'evidence_crop', 'full_source')
+    requested_mode IN (
+      'ephemeral',
+      'evidence_crop',
+      'full_source',
+      'legacy_unknown'
+    )
   ),
   effective_mode text NOT NULL CHECK (
-    effective_mode IN ('ephemeral', 'evidence_crop', 'full_source')
+    effective_mode IN (
+      'ephemeral',
+      'evidence_crop',
+      'full_source',
+      'legacy_unknown'
+    )
   ),
   source_scope text NOT NULL CHECK (
     source_scope IN (
       'reviewed_selected_text',
       'reviewed_evidence_crop',
-      'full_reviewed_source'
+      'full_reviewed_source',
+      'legacy_unknown'
     )
   ),
   source_locator text,
@@ -38,7 +49,8 @@ CREATE TABLE source_retention_receipts (
       'retained_until_deadline',
       'review_completed',
       'retention_deadline_elapsed',
-      'manual_deletion'
+      'manual_deletion',
+      'legacy_unverified'
     )
   ),
   review_completed_at timestamptz,
@@ -78,7 +90,8 @@ CREATE TABLE source_retention_events (
       'analysis_proposal_committed',
       'review_completed',
       'retention_deadline_elapsed',
-      'manual_deletion'
+      'manual_deletion',
+      'legacy_unverified'
     )
   ),
   occurred_at timestamptz NOT NULL,
@@ -110,29 +123,105 @@ SELECT
   captures.id,
   captures.account_id,
   captures.id,
-  'source-retention.v1',
-  'full_source',
-  'full_source',
-  'full_reviewed_source',
+  'source-retention.v2',
+  'legacy_unknown',
+  'legacy_unknown',
+  'legacy_unknown',
   captures.source_metadata->>'source_locator',
-  captures.retention_until,
-  COALESCE(captures.retention_until, captures.created_at + interval '7 days'),
-  CASE WHEN captures.status = 'deleted' THEN 'deleted' ELSE 'available' END,
+  NULL,
+  NULL,
+  CASE
+    WHEN captures.status = 'deleted' THEN 'deleted'
+    ELSE 'purged'
+  END,
   CASE
     WHEN captures.status = 'deleted' THEN 'manual_deletion'
-    ELSE 'retained_until_deadline'
+    ELSE 'legacy_unverified'
   END,
-  captures.deleted_at,
+  CASE
+    WHEN captures.status = 'deleted' THEN captures.deleted_at
+    ELSE now()
+  END,
   captures.deleted_at,
   captures.created_at,
   captures.updated_at
 FROM captures;
 
 UPDATE captures
-SET retention_until = receipts.retention_until
+SET retention_until = NULL
 FROM source_retention_receipts receipts
 WHERE receipts.account_id = captures.account_id
   AND receipts.capture_id = captures.id;
+
+UPDATE evidence_items
+SET status = 'purged',
+    redacted_text = NULL,
+    content_hash = 'legacy-unverified',
+    purged_at = receipts.source_purged_at
+FROM source_retention_receipts receipts
+WHERE receipts.account_id = evidence_items.account_id
+  AND receipts.capture_id = evidence_items.capture_id
+  AND receipts.effective_mode = 'legacy_unknown'
+  AND evidence_items.status = 'active';
+
+UPDATE proposed_assertions
+SET evidence_quote = NULL
+FROM source_retention_receipts receipts
+WHERE receipts.account_id = proposed_assertions.account_id
+  AND receipts.capture_id = proposed_assertions.capture_id
+  AND receipts.effective_mode = 'legacy_unknown';
+
+UPDATE captures
+SET source_metadata = jsonb_strip_nulls(jsonb_build_object(
+      'kind', source_kind,
+      'captured_at', source_metadata->'captured_at',
+      'source_timezone', source_metadata->'source_timezone',
+      'purpose',
+      'Legacy source unavailable because its original scope was unverified.'
+    )),
+    purpose =
+      'Legacy source unavailable because its original scope was unverified.',
+    version = version + 1,
+    updated_at = receipts.source_purged_at
+FROM source_retention_receipts receipts
+WHERE receipts.account_id = captures.account_id
+  AND receipts.capture_id = captures.id
+  AND receipts.effective_mode = 'legacy_unknown'
+  AND captures.status = 'active';
+
+UPDATE idempotency_records
+SET response_body = jsonb_build_object(
+      'capture_id',
+      receipts.capture_id
+    )
+FROM source_retention_receipts receipts
+WHERE receipts.account_id = idempotency_records.account_id
+  AND receipts.effective_mode = 'legacy_unknown'
+  AND idempotency_records.operation_scope = 'create_capture'
+  AND idempotency_records.response_body->>'id' =
+    receipts.capture_id::text;
+
+UPDATE idempotency_records
+SET response_body = jsonb_set(
+      response_body,
+      '{assertions}',
+      COALESCE(
+        (
+          SELECT jsonb_agg(
+            jsonb_set(assertion, '{evidence_quote}', 'null'::jsonb, true)
+          )
+          FROM jsonb_array_elements(response_body->'assertions') assertion
+        ),
+        '[]'::jsonb
+      ),
+      true
+    )
+FROM source_retention_receipts receipts
+WHERE receipts.account_id = idempotency_records.account_id
+  AND receipts.effective_mode = 'legacy_unknown'
+  AND idempotency_records.operation_scope =
+    'submit_analysis:' || receipts.capture_id::text
+  AND idempotency_records.response_body ? 'assertions';
 
 INSERT INTO source_retention_events(
   id,
@@ -152,6 +241,28 @@ SELECT
   'capture_submitted',
   created_at
 FROM source_retention_receipts;
+
+INSERT INTO source_retention_events(
+  id,
+  account_id,
+  receipt_id,
+  capture_id,
+  event_type,
+  reason,
+  occurred_at
+)
+SELECT
+  gen_random_uuid(),
+  account_id,
+  receipt_id,
+  capture_id,
+  'source_purged',
+  'legacy_unverified',
+  source_purged_at
+FROM source_retention_receipts
+WHERE source_access_state = 'purged'
+  AND source_access_reason = 'legacy_unverified'
+  AND source_purged_at IS NOT NULL;
 
 INSERT INTO source_retention_events(
   id,

@@ -9,6 +9,7 @@ import type {
   DeleteCaptureResponse,
   TemporalStateResponse,
 } from "@talent-signal/contracts";
+import { SOURCE_RETENTION_POLICY_VERSION } from "@talent-signal/contracts";
 import type { Pool, PoolClient } from "pg";
 
 import { ApiError } from "../lib/apiError.js";
@@ -25,6 +26,7 @@ import {
   enforceSourceRetentionForCapture,
   markSourceDeleted,
   resolveSourceRetentionPolicy,
+  validateSourceRetentionPayload,
 } from "./sourceRetention.js";
 
 interface CaptureRow {
@@ -172,7 +174,7 @@ async function loadCapture(
     source: {
       ...capture.source_metadata,
       retention: {
-        policy_version: "source-retention.v1",
+        policy_version: SOURCE_RETENTION_POLICY_VERSION,
         requested_mode: capture.requested_mode,
         effective_mode: capture.effective_mode,
         source_scope: capture.source_scope,
@@ -204,6 +206,7 @@ export async function createCapture(
   auth: AuthContext,
   request: CreateCaptureRequest,
 ): Promise<MutationResult<CaptureResponse>> {
+  validateSourceRetentionPayload(request);
   return inTransaction(pool, async (client) => {
     const idempotency = await claimIdempotency(
       client,

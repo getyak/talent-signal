@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   SOURCE_RETENTION_POLICY_VERSION,
   type CaptureSourceInput,
+  type CreateCaptureRequest,
   type SourceRetentionReceipt,
   type SourceRetentionRequest,
 } from "@talent-signal/contracts";
@@ -38,9 +39,9 @@ interface RetentionRow {
   account_id: string;
   capture_id: string;
   policy_version: typeof SOURCE_RETENTION_POLICY_VERSION;
-  requested_mode: SourceRetentionRequest["requested_mode"];
-  effective_mode: SourceRetentionRequest["requested_mode"];
-  source_scope: SourceRetentionRequest["source_scope"];
+  requested_mode: SourceRetentionReceipt["requested_policy"]["mode"];
+  effective_mode: SourceRetentionReceipt["effective_policy"]["mode"];
+  source_scope: SourceRetentionReceipt["effective_policy"]["source_scope"];
   requested_retention_until: Date | null;
   retention_until: Date | null;
   source_access_state: SourceAccessState;
@@ -53,6 +54,33 @@ interface RetentionRow {
 
 function invalidPolicy(code: string, message: string): never {
   throw new ApiError(422, code, message);
+}
+
+export function validateSourceRetentionPayload(
+  request: CreateCaptureRequest,
+): void {
+  const { kind, retention } = request.source;
+  const singleAtomicMessage =
+    request.messages.length === 1 &&
+    request.messages[0]?.sequence === 0;
+
+  if (
+    retention.source_scope === "reviewed_selected_text" &&
+    (kind !== "transcript" || !singleAtomicMessage)
+  ) {
+    invalidPolicy(
+      "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+      "Reviewed selected text requires one atomic transcript message.",
+    );
+  }
+  if (
+    retention.source_scope === "reviewed_evidence_crop"
+  ) {
+    invalidPolicy(
+      "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+      "Reviewed evidence-crop retention is unavailable until the backend governs the actual crop asset.",
+    );
+  }
 }
 
 export function resolveSourceRetentionPolicy(
@@ -467,7 +495,10 @@ async function loadSourceRetentionReceipt(
       mode: row.effective_mode,
       source_scope: row.source_scope,
       retention_until: row.retention_until?.toISOString() ?? null,
-      review_completion_event: "analysis_proposal_committed",
+      review_completion_event:
+        row.effective_mode === "legacy_unknown"
+          ? null
+          : "analysis_proposal_committed",
     },
     source_access: {
       state: row.source_access_state,

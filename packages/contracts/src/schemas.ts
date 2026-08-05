@@ -7,6 +7,8 @@ import {
   SIMULATED_ADAPTER,
   SIMULATED_CAPABILITY,
   SOURCE_RETENTION_MODES,
+  SOURCE_RETENTION_RECEIPT_MODES,
+  SOURCE_RETENTION_RECEIPT_SCOPES,
   SOURCE_RETENTION_POLICY_VERSION,
   SOURCE_SCOPES,
 } from "./constants.js";
@@ -95,13 +97,13 @@ export const SourceRetentionSummarySchema = Type.Object(
   {
     policy_version: Type.Literal(SOURCE_RETENTION_POLICY_VERSION),
     requested_mode: Type.Union(
-      SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+      SOURCE_RETENTION_RECEIPT_MODES.map((mode) => Type.Literal(mode)),
     ),
     effective_mode: Type.Union(
-      SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+      SOURCE_RETENTION_RECEIPT_MODES.map((mode) => Type.Literal(mode)),
     ),
     source_scope: Type.Union(
-      SOURCE_SCOPES.map((scope) => Type.Literal(scope)),
+      SOURCE_RETENTION_RECEIPT_SCOPES.map((scope) => Type.Literal(scope)),
     ),
     source_access_state: Type.Union([
       Type.Literal("available"),
@@ -114,6 +116,7 @@ export const SourceRetentionSummarySchema = Type.Object(
       Type.Literal("review_completed"),
       Type.Literal("retention_deadline_elapsed"),
       Type.Literal("manual_deletion"),
+      Type.Literal("legacy_unverified"),
     ]),
     requested_retention_until: Type.Union([Timestamp, Type.Null()]),
     retention_until: Type.Union([Timestamp, Type.Null()]),
@@ -699,10 +702,14 @@ export const SourceRetentionReceiptSchema = Type.Object(
     requested_policy: Type.Object(
       {
         mode: Type.Union(
-          SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+          SOURCE_RETENTION_RECEIPT_MODES.map((mode) =>
+            Type.Literal(mode),
+          ),
         ),
         source_scope: Type.Union(
-          SOURCE_SCOPES.map((scope) => Type.Literal(scope)),
+          SOURCE_RETENTION_RECEIPT_SCOPES.map((scope) =>
+            Type.Literal(scope),
+          ),
         ),
         retention_until: Type.Union([Timestamp, Type.Null()]),
       },
@@ -711,15 +718,20 @@ export const SourceRetentionReceiptSchema = Type.Object(
     effective_policy: Type.Object(
       {
         mode: Type.Union(
-          SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+          SOURCE_RETENTION_RECEIPT_MODES.map((mode) =>
+            Type.Literal(mode),
+          ),
         ),
         source_scope: Type.Union(
-          SOURCE_SCOPES.map((scope) => Type.Literal(scope)),
+          SOURCE_RETENTION_RECEIPT_SCOPES.map((scope) =>
+            Type.Literal(scope),
+          ),
         ),
         retention_until: Type.Union([Timestamp, Type.Null()]),
-        review_completion_event: Type.Literal(
-          "analysis_proposal_committed",
-        ),
+        review_completion_event: Type.Union([
+          Type.Literal("analysis_proposal_committed"),
+          Type.Null(),
+        ]),
       },
       { additionalProperties: false },
     ),
@@ -736,6 +748,7 @@ export const SourceRetentionReceiptSchema = Type.Object(
           Type.Literal("review_completed"),
           Type.Literal("retention_deadline_elapsed"),
           Type.Literal("manual_deletion"),
+          Type.Literal("legacy_unverified"),
         ]),
       },
       { additionalProperties: false },
@@ -767,6 +780,7 @@ export const SourceRetentionReceiptSchema = Type.Object(
             Type.Literal("review_completed"),
             Type.Literal("retention_deadline_elapsed"),
             Type.Literal("manual_deletion"),
+            Type.Literal("legacy_unverified"),
           ]),
           occurred_at: Timestamp,
         },

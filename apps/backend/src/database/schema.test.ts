@@ -50,5 +50,19 @@ describe("authority schema", () => {
     expect(sql).toContain(
       "source_access_state IN ('available', 'purged', 'deleted')",
     );
+    const legacyBackfill = sql.slice(
+      sql.indexOf("INSERT INTO source_retention_receipts("),
+    );
+    expect(legacyBackfill).toContain("'legacy_unknown'");
+    expect(legacyBackfill).toContain("'legacy_unverified'");
+    expect(legacyBackfill).toContain("ELSE 'purged'");
+    expect(legacyBackfill).toContain("content_hash = 'legacy-unverified'");
+    expect(legacyBackfill).toContain("'source_purged'");
+    expect(legacyBackfill).toContain(
+      "source_access_reason = 'legacy_unverified'",
+    );
+    expect(legacyBackfill).not.toContain(
+      "'full_source',\n  'full_source',\n  'full_reviewed_source'",
+    );
   });
 });

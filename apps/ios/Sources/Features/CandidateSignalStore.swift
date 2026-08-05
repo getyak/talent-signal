@@ -69,12 +69,13 @@ final class CandidateSignalStore: ObservableObject {
     init(
         loader: FixtureLoading = URLFixtureLoader(),
         backendLoader: BackendWorkspaceLoading = URLBackendWorkspaceLoader(),
-        importDelayNanoseconds: UInt64 = 2_000_000_000,
+        importDelayNanoseconds: UInt64? = nil,
         launchConfiguration: AppLaunchConfiguration = .current
     ) {
         self.loader = loader
         self.backendLoader = backendLoader
         self.importDelayNanoseconds = importDelayNanoseconds
+            ?? Self.configuredImportDelayNanoseconds()
         apply(launchConfiguration)
     }
 
@@ -381,6 +382,20 @@ final class CandidateSignalStore: ObservableObject {
         case .idle:
             break
         }
+    }
+
+    private static func configuredImportDelayNanoseconds(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> UInt64 {
+        guard let flagIndex = arguments.firstIndex(
+            of: "--fixture-import-delay-seconds"
+        ),
+        arguments.indices.contains(flagIndex + 1),
+        let seconds = Double(arguments[flagIndex + 1]),
+        (0.1...30).contains(seconds) else {
+            return 2_000_000_000
+        }
+        return UInt64(seconds * 1_000_000_000)
     }
 }
 

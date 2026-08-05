@@ -1137,7 +1137,7 @@ async function main(): Promise<void> {
     info?: { version?: string };
     paths?: Record<string, unknown>;
   };
-  assert.equal(openApi.info?.version, "2026-08-05.2");
+  assert.equal(openApi.info?.version, "2026-08-05.3");
   assert(openApi.paths?.["/v1/captures"]);
   assert(openApi.paths?.["/v1/actions/{id}/executions"]);
   assert.equal(
