@@ -3,6 +3,58 @@ export const DEFAULT_LOCAL_ORIGIN = "http://localhost:3000";
 export const MAX_HANDOFF_BYTES = 8_000_000;
 
 const LOCAL_ORIGINS = new Set(["localhost", "127.0.0.1"]);
+const RETENTION_MODES = new Set([
+  "ephemeral",
+  "evidence_crop",
+  "full_source",
+]);
+
+export function retentionCompatibility(captureKind, retentionMode) {
+  if (!RETENTION_MODES.has(retentionMode)) {
+    return {
+      supported: false,
+      message: "This source-retention mode is not recognized.",
+    };
+  }
+  if (captureKind === "fixture") {
+    return {
+      supported: true,
+      message: "Synthetic fixture transport makes no network request.",
+    };
+  }
+  if (captureKind === "visible_tab") {
+    return {
+      supported: false,
+      message:
+        "Visible-tab images cannot be submitted: the localhost backend has no governed image-asset lifecycle yet. Use reviewed selected text.",
+    };
+  }
+  if (captureKind !== "selected_text") {
+    return {
+      supported: false,
+      message: "This capture transport has no governed retention contract.",
+    };
+  }
+  if (retentionMode === "full_source") {
+    return {
+      supported: false,
+      message:
+        "Selected text is only a reviewed excerpt, not the full source. Full-source retention is unavailable.",
+    };
+  }
+  if (retentionMode === "ephemeral") {
+    return {
+      supported: true,
+      message:
+        "After the backend commits the review handoff, submitted text is purged automatically. Only a receipt, non-source lineage, and derived proposal remain; Web cannot reopen the source text.",
+    };
+  }
+  return {
+    supported: true,
+    message:
+      "Only the final reviewed selection is retained for Web evidence review, with an enforceable deadline returned in the receipt.",
+  };
+}
 
 export function normalizeLocalOrigin(value) {
   let parsed;
@@ -40,6 +92,10 @@ export function buildHandoffEnvelope({
 }) {
   if (!draft || !reviewedAsset || !requestIdentity || !handoffTarget) {
     throw new Error("A reviewed draft, target, and request identity are required.");
+  }
+  const retention = retentionCompatibility(draft.kind, retentionMode);
+  if (!retention.supported) {
+    throw new Error(retention.message);
   }
 
   return {
@@ -110,11 +166,18 @@ export function classifyReceiptResponse(status, body = {}) {
     body.status === "received" &&
     receiptId
   ) {
+    const retention = body.retention ?? null;
     return {
       state: "received",
       receipt_id: receiptId,
       duplicate: Boolean(body.duplicate),
-      message: "The local service confirmed receipt of this review packet.",
+      retention,
+      message:
+        retention?.source_access?.state === "purged"
+          ? "Receipt confirmed. The ephemeral source is already purged; only receipt, lineage, and derived review state remain."
+          : retention?.effective_policy?.retention_until
+            ? `Receipt confirmed. The reviewed evidence remains available until ${retention.effective_policy.retention_until}.`
+            : "The local service confirmed receipt of this review packet.",
     };
   }
 

@@ -1,4 +1,17 @@
-export const CONTRACT_VERSION = "2026-08-05.1" as const;
+export const CONTRACT_VERSION = "2026-08-05.2" as const;
+export const SOURCE_RETENTION_POLICY_VERSION = "source-retention.v1" as const;
+
+export const SOURCE_RETENTION_MODES = [
+  "ephemeral",
+  "evidence_crop",
+  "full_source",
+] as const;
+
+export const SOURCE_SCOPES = [
+  "reviewed_selected_text",
+  "reviewed_evidence_crop",
+  "full_reviewed_source",
+] as const;
 
 export const ASSERTION_FIELDS = [
   "availability",

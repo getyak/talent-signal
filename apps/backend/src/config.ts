@@ -3,6 +3,7 @@ export interface BackendConfig {
   databaseUrl: string;
   host: string;
   port: number;
+  retentionSweepIntervalMs: number;
   sessionTtlSeconds: number;
   simulatedAuthEnabled: boolean;
 }
@@ -44,6 +45,13 @@ export function loadConfig(): BackendConfig {
     databaseUrl: requireValue("DATABASE_URL"),
     host: process.env.HOST ?? "0.0.0.0",
     port: Number.parseInt(process.env.PORT ?? "4317", 10),
+    retentionSweepIntervalMs: Math.max(
+      1_000,
+      Number.parseInt(
+        process.env.RETENTION_SWEEP_INTERVAL_MS ?? "60000",
+        10,
+      ),
+    ),
     sessionTtlSeconds: Number.parseInt(
       process.env.SESSION_TTL_SECONDS ?? "28800",
       10,

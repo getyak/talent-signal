@@ -17,6 +17,10 @@ import {
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
 import type { MutationResult } from "./captures.js";
+import {
+  completeSourceReview,
+  enforceSourceRetentionForCapture,
+} from "./sourceRetention.js";
 
 interface CaptureProposalContext {
   id: string;
@@ -150,8 +154,22 @@ export async function submitAnalysisProposal(
       request,
     );
     if (idempotency.replay) {
+      const sourcePurged = await enforceSourceRetentionForCapture(
+        client,
+        auth.accountId,
+        captureId,
+      );
+      const body = idempotency.replay.body as AnalysisProposalResponse;
       return {
-        body: idempotency.replay.body as AnalysisProposalResponse,
+        body: sourcePurged
+          ? {
+              ...body,
+              assertions: body.assertions.map((assertion) => ({
+                ...assertion,
+                evidence_quote: null,
+              })),
+            }
+          : body,
         replayed: true,
         status: idempotency.replay.status,
       };
@@ -404,6 +422,18 @@ export async function submitAnalysisProposal(
       action,
       created_at: createdAt.toISOString(),
     };
+    const sourcePurged = await completeSourceReview(
+      client,
+      auth,
+      captureId,
+      createdAt,
+    );
+    if (sourcePurged) {
+      body.assertions = body.assertions.map((assertion) => ({
+        ...assertion,
+        evidence_quote: null,
+      }));
+    }
     await completeIdempotency(client, idempotency, 201, body);
     return { body, replayed: false, status: 201 };
   });

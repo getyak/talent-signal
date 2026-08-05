@@ -17,6 +17,7 @@ import {
   DEFAULT_LOCAL_ORIGIN,
   MAX_HANDOFF_BYTES,
   normalizeLocalOrigin,
+  retentionCompatibility,
   sessionCopy,
 } from "./lib/handoff-contract.js";
 import {
@@ -773,15 +774,18 @@ function renderSession() {
 }
 
 function renderRetention() {
-  const copy = {
-    ephemeral:
-      "Ask the local service to discard submitted pixels or text after review. Receipt does not prove deletion.",
-    evidence_crop:
-      "Ask the local service to keep only this reviewed payload as source evidence. Derived deletion remains a backend responsibility.",
-    full_source:
-      "Ask the local service to keep the full reviewed payload. Use only when audit need justifies longer source retention.",
-  };
-  elements.retentionCopy.textContent = copy[elements.retentionMode.value];
+  const captureKind = state.draft?.kind ?? "selected_text";
+  for (const option of elements.retentionMode.options) {
+    option.disabled = !retentionCompatibility(
+      captureKind,
+      option.value,
+    ).supported;
+  }
+  const compatibility = retentionCompatibility(
+    captureKind,
+    elements.retentionMode.value,
+  );
+  elements.retentionCopy.textContent = compatibility.message;
   elements.handoffTarget.textContent =
     isSyntheticTransport(state.draft)
       ? "Synthetic fixture transport · no network"
@@ -829,8 +833,13 @@ function assetIsReady() {
 
 function updateSubmitAvailability() {
   const presentation = submissionPresentation(state.submission);
+  const retentionSupported = retentionCompatibility(
+    state.draft?.kind,
+    elements.retentionMode.value,
+  ).supported;
   elements.submitButton.disabled =
     !assetIsReady() ||
+    !retentionSupported ||
     !elements.approvalCheck.checked ||
     state.session.state !== "ready" ||
     presentation.blocks_submit;

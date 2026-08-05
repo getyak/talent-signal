@@ -357,14 +357,14 @@
           <label class="retention-field">
             <span>Requested source retention</span>
             <select id="retention-mode">
-              <option value="ephemeral">Ephemeral source (default)</option>
-              <option value="evidence_crop">Keep reviewed evidence only</option>
+              <option value="ephemeral">Ephemeral source</option>
+              <option value="evidence_crop" selected>Keep reviewed evidence (default)</option>
               <option value="full_source">Keep full reviewed source</option>
             </select>
           </label>
           <p id="retention-copy" class="retention-copy">
-            Ask the local service to discard submitted pixels or text after
-            review. Receipt does not prove deletion.
+            Keep only the final reviewed selection for Web evidence review.
+            The receipt will show the enforced deadline.
           </p>
           <label class="approval-check">
             <input id="approval-check" type="checkbox" />

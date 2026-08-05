@@ -15,6 +15,7 @@ import type {
   ReviseActionRequest,
   SessionResponse,
   SimulatedLoginRequest,
+  SourceRetentionReceipt,
   SubmitAnalysisProposalRequest,
   SyncResponse,
   TemporalStateResponse,
@@ -71,6 +72,23 @@ export class TalentSignalClient {
 
   getCapture(captureId: string): Promise<CaptureResponse> {
     return this.request(`/v1/captures/${captureId}`, { method: "GET" });
+  }
+
+  getSourceRetentionReceipt(
+    captureId: string,
+  ): Promise<SourceRetentionReceipt> {
+    return this.request(`/v1/captures/${captureId}/retention`, {
+      method: "GET",
+    });
+  }
+
+  getSourceRetentionReceiptByLocator(
+    sourceLocator: string,
+  ): Promise<SourceRetentionReceipt> {
+    return this.request(
+      `/v1/source-retention-receipts?source_locator=${encodeURIComponent(sourceLocator)}`,
+      { method: "GET" },
+    );
   }
 
   submitAnalysis(

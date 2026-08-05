@@ -15,6 +15,7 @@
     "seed:built": "node dist/database/seed.js",
     "test": "vitest run",
     "test:integration": "tsx src/evaluation/runEvaluation.ts",
+    "test:retention": "tsx src/evaluation/runRetentionEvaluation.ts",
     "test:integration:built": "node dist/evaluation/runEvaluation.js",
     "ci": "./scripts/ci.sh",
     "check:local": "./scripts/local-check.sh"

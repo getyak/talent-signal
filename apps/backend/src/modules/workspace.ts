@@ -134,6 +134,7 @@ export async function getWorkspaceReview(
       "No active review exists for this synthetic case.",
     );
   }
+  const capture = await getCapture(pool, auth, workspaceCapture.id);
 
   const analysisResult = await pool.query<AnalysisRow>(
     `SELECT
@@ -156,9 +157,8 @@ export async function getWorkspaceReview(
     );
   }
 
-  const [capture, assertionsResult, actionResult, statesResult, cursorResult] =
+  const [assertionsResult, actionResult, statesResult, cursorResult] =
     await Promise.all([
-      getCapture(pool, auth, workspaceCapture.id),
       pool.query<AssertionRow>(
         `SELECT
            id, field, proposal_status, review_status, proposed_value,

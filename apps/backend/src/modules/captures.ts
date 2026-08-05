@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type {
   CaptureResponse,
+  CaptureSourceInput,
   CreateCaptureRequest,
   DeletionLineageResponse,
   DeleteCaptureRequest,
@@ -19,6 +20,12 @@ import {
 } from "../lib/idempotency.js";
 import { inTransaction } from "../database/pool.js";
 import type { AuthContext } from "./auth.js";
+import {
+  createSourceRetentionRecord,
+  enforceSourceRetentionForCapture,
+  markSourceDeleted,
+  resolveSourceRetentionPolicy,
+} from "./sourceRetention.js";
 
 interface CaptureRow {
   id: string;
@@ -29,7 +36,16 @@ interface CaptureRow {
   identity_status: "bound" | "ambiguous" | "unbound";
   subject_id: string | null;
   assignment_id: string | null;
-  source_metadata: CaptureResponse["source"];
+  source_metadata: Omit<CaptureSourceInput, "retention">;
+  requested_mode: CaptureResponse["source"]["retention"]["requested_mode"];
+  effective_mode: CaptureResponse["source"]["retention"]["effective_mode"];
+  source_scope: CaptureResponse["source"]["retention"]["source_scope"];
+  source_access_state: CaptureResponse["source"]["retention"]["source_access_state"];
+  source_access_reason: CaptureResponse["source"]["retention"]["source_access_reason"];
+  requested_retention_until: Date | null;
+  retention_until: Date | null;
+  review_completed_at: Date | null;
+  source_purged_at: Date | null;
   created_at: Date;
 }
 
@@ -40,7 +56,7 @@ interface EvidenceRow {
   speaker: string;
   redacted_text: string | null;
   content_hash: string;
-  status: "active" | "deleted";
+  status: "active" | "purged" | "deleted";
 }
 
 export interface MutationResult<T> {
@@ -108,10 +124,19 @@ async function loadCapture(
 ): Promise<CaptureResponse> {
   const captureResult = await client.query<CaptureRow>(
     `SELECT
-       id, account_id, fixture_case_id, status, version, identity_status,
-       subject_id, assignment_id, source_metadata, created_at
+       captures.id, captures.account_id, captures.fixture_case_id,
+       captures.status, captures.version, captures.identity_status,
+       captures.subject_id, captures.assignment_id, captures.source_metadata,
+       receipts.requested_mode, receipts.effective_mode,
+       receipts.source_scope, receipts.source_access_state,
+       receipts.source_access_reason, receipts.requested_retention_until,
+       receipts.retention_until, receipts.review_completed_at,
+       receipts.source_purged_at, captures.created_at
      FROM captures
-     WHERE account_id = $1 AND id = $2`,
+     JOIN source_retention_receipts receipts
+       ON receipts.account_id = captures.account_id
+      AND receipts.capture_id = captures.id
+     WHERE captures.account_id = $1 AND captures.id = $2`,
     [accountId, captureId],
   );
   const capture = captureResult.rows[0];
@@ -144,7 +169,23 @@ async function loadCapture(
     identity_status: capture.identity_status,
     subject_id: capture.subject_id,
     assignment_id: capture.assignment_id,
-    source: capture.source_metadata,
+    source: {
+      ...capture.source_metadata,
+      retention: {
+        policy_version: "source-retention.v1",
+        requested_mode: capture.requested_mode,
+        effective_mode: capture.effective_mode,
+        source_scope: capture.source_scope,
+        source_access_state: capture.source_access_state,
+        source_access_reason: capture.source_access_reason,
+        requested_retention_until:
+          capture.requested_retention_until?.toISOString() ?? null,
+        retention_until: capture.retention_until?.toISOString() ?? null,
+        review_completed_at:
+          capture.review_completed_at?.toISOString() ?? null,
+        source_purged_at: capture.source_purged_at?.toISOString() ?? null,
+      },
+    },
     messages: messagesResult.rows.map((message) => ({
       id: message.id,
       source_message_id: message.source_message_id,
@@ -172,8 +213,30 @@ export async function createCapture(
       request,
     );
     if (idempotency.replay) {
+      const replayCaptureId =
+        typeof idempotency.replay.body === "object" &&
+        idempotency.replay.body !== null &&
+        "capture_id" in idempotency.replay.body
+          ? String(idempotency.replay.body.capture_id)
+          : typeof idempotency.replay.body === "object" &&
+              idempotency.replay.body !== null &&
+              "id" in idempotency.replay.body
+            ? String(idempotency.replay.body.id)
+            : null;
+      if (!replayCaptureId) {
+        throw new ApiError(
+          409,
+          "IDEMPOTENCY_STATE_UNAVAILABLE",
+          "The prior capture response could not be resolved.",
+        );
+      }
+      await enforceSourceRetentionForCapture(
+        client,
+        auth.accountId,
+        replayCaptureId,
+      );
       return {
-        body: idempotency.replay.body as CaptureResponse,
+        body: await loadCapture(client, auth.accountId, replayCaptureId),
         replayed: true,
         status: idempotency.replay.status,
       };
@@ -184,15 +247,30 @@ export async function createCapture(
         ? await resolveBoundIdentity(client, auth.accountId, request.identity)
         : { subjectId: null, assignmentId: null };
     const captureId = randomUUID();
+    const submittedAt = new Date();
+    const retentionPolicy = resolveSourceRetentionPolicy(
+      request.source.retention,
+      submittedAt,
+      request.source.kind,
+    );
+    const sourceMetadata: Omit<CaptureSourceInput, "retention"> = {
+      kind: request.source.kind,
+      captured_at: request.source.captured_at,
+      source_timezone: request.source.source_timezone,
+      purpose: request.source.purpose,
+      ...(request.source.source_locator
+        ? { source_locator: request.source.source_locator }
+        : {}),
+    };
 
     await client.query(
       `INSERT INTO captures(
          id, account_id, created_by_user_id, subject_id, assignment_id,
          fixture_case_id, source_kind, source_metadata, identity_status,
-         identity_context, purpose, retention_until
+         identity_context, purpose, retention_until, created_at, updated_at
        )
        VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13
        )`,
       [
         captureId,
@@ -202,13 +280,21 @@ export async function createCapture(
         identity.assignmentId,
         request.fixture_case_id ?? null,
         request.source.kind,
-        request.source,
+        sourceMetadata,
         request.identity.status,
         request.identity,
         request.source.purpose,
-        request.source.retention_until ?? null,
+        retentionPolicy.retentionUntil,
+        submittedAt,
       ],
     );
+    await createSourceRetentionRecord(client, {
+      accountId: auth.accountId,
+      captureId,
+      sourceLocator: request.source.source_locator ?? null,
+      policy: retentionPolicy,
+      submittedAt,
+    });
 
     for (const message of request.messages) {
       await client.query(
@@ -241,10 +327,14 @@ export async function createCapture(
         identity_status: request.identity.status,
         message_count: request.messages.length,
         source_kind: request.source.kind,
+        requested_retention_mode: retentionPolicy.requestedMode,
+        source_scope: retentionPolicy.sourceScope,
       },
     );
     const body = await loadCapture(client, auth.accountId, captureId);
-    await completeIdempotency(client, idempotency, 201, body);
+    await completeIdempotency(client, idempotency, 201, {
+      capture_id: captureId,
+    });
     return { body, replayed: false, status: 201 };
   });
 }
@@ -254,7 +344,27 @@ export async function getCapture(
   auth: AuthContext,
   captureId: string,
 ): Promise<CaptureResponse> {
-  return loadCapture(pool, auth.accountId, captureId);
+  return inTransaction(pool, async (client) => {
+    const ownedCapture = await client.query<{ id: string }>(
+      `SELECT id
+       FROM captures
+       WHERE account_id = $1 AND id = $2`,
+      [auth.accountId, captureId],
+    );
+    if (!ownedCapture.rows[0]) {
+      throw new ApiError(
+        404,
+        "CAPTURE_NOT_FOUND",
+        "The capture was not found.",
+      );
+    }
+    await enforceSourceRetentionForCapture(
+      client,
+      auth.accountId,
+      captureId,
+    );
+    return loadCapture(client, auth.accountId, captureId);
+  });
 }
 
 export async function getTemporalState(
@@ -637,6 +747,8 @@ export async function deleteCapture(
        WHERE account_id = $1 AND id = $2`,
       [auth.accountId, captureId],
     );
+    const sourceDeletedAt = new Date();
+    await markSourceDeleted(client, auth, captureId, sourceDeletedAt);
     const captureIdentity = capture.rows[0];
     if (captureIdentity.assignment_id) {
       const assignmentStillUsed = await client.query<{ used: boolean }>(
@@ -734,7 +846,7 @@ export async function deleteCapture(
         derivatives_deleted: entities.rows.length,
       },
     );
-    const now = new Date().toISOString();
+    const now = sourceDeletedAt.toISOString();
     const body: DeleteCaptureResponse = {
       deletion_id: deletionId,
       capture_id: captureId,

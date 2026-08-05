@@ -6,6 +6,7 @@ import {
   classifyTransportError,
   createRequestIdentity,
   normalizeLocalOrigin,
+  retentionCompatibility,
   sessionCopy,
 } from "../load-unpacked/lib/handoff-contract.js";
 import {
@@ -66,6 +67,54 @@ test("separates observed source, reviewed asset, authorization, and receipt", ()
   });
   assert.equal("receipt" in result, false);
   assert.doesNotMatch(JSON.stringify(result), /cookie|bearer|password|token/i);
+});
+
+test("fails closed for unsupported browser retention combinations", () => {
+  assert.equal(
+    retentionCompatibility("selected_text", "ephemeral").supported,
+    true,
+  );
+  assert.equal(
+    retentionCompatibility("selected_text", "evidence_crop").supported,
+    true,
+  );
+  assert.equal(
+    retentionCompatibility("selected_text", "full_source").supported,
+    false,
+  );
+  assert.equal(
+    retentionCompatibility("visible_tab", "evidence_crop").supported,
+    false,
+  );
+  assert.throws(() =>
+    buildHandoffEnvelope({
+      draft: { ...draft, kind: "visible_tab" },
+      reviewedAsset: { type: "reviewed_image" },
+      retentionMode: "evidence_crop",
+      requestIdentity: createRequestIdentity(draft.id, () => "request-2"),
+      handoffTarget: "http://localhost:3000",
+    }),
+  );
+});
+
+test("preserves effective retention and source access from the receipt", () => {
+  const receipt = classifyReceiptResponse(202, {
+    status: "received",
+    receipt_id: "receipt-ephemeral",
+    retention: {
+      effective_policy: {
+        mode: "ephemeral",
+        retention_until: null,
+      },
+      source_access: {
+        state: "purged",
+        reason: "review_completed",
+      },
+    },
+  });
+  assert.equal(receipt.state, "received");
+  assert.equal(receipt.retention.source_access.state, "purged");
+  assert.match(receipt.message, /already purged/i);
 });
 
 test("classifies pending, received, duplicate, stale, and invalid responses truthfully", () => {

@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import {
   isIntegrationMode,
-  loadBackendWorkspace,
+  loadBrowserReceipt,
 } from "@/lib/server/localBackend";
 
 export const dynamic = "force-dynamic";
@@ -31,21 +31,12 @@ export async function GET(
     return NextResponse.json({ code: "receipt_not_found" }, { status: 404 });
   }
   try {
-    const workspace = await loadBackendWorkspace(
-      "chrome-extension-receipt-readback",
-    );
-    if (
-      workspace.capture.source.source_locator !==
-      `browser-extension-request:${requestId}`
-    ) {
-      return NextResponse.json(
-        { code: "receipt_not_found" },
-        { status: 404 },
-      );
-    }
+    const retention = await loadBrowserReceipt(requestId);
     return NextResponse.json({
       status: "received",
-      receipt_id: workspace.capture.id,
+      receipt_id: retention.receipt_id,
+      capture_id: retention.capture_id,
+      retention,
     });
   } catch (error) {
     if (error instanceof TalentSignalHttpError && error.status === 404) {

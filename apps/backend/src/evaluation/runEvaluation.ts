@@ -159,8 +159,11 @@ function captureRequest(
       captured_at: new Date(testCase.context.captured_at).toISOString(),
       source_timezone: testCase.context.source_timezone,
       purpose: "Synthetic candidate-momentum contract evaluation",
-      retention_until: null,
       source_locator: `evals/candidate-momentum-v1.json#${testCase.id}`,
+      retention: {
+        requested_mode: "full_source",
+        source_scope: "full_reviewed_source",
+      },
     },
     identity: identityFor(testCase),
     messages: testCase.messages.map((message, sequence) => ({
@@ -1134,7 +1137,7 @@ async function main(): Promise<void> {
     info?: { version?: string };
     paths?: Record<string, unknown>;
   };
-  assert.equal(openApi.info?.version, "2026-08-05.1");
+  assert.equal(openApi.info?.version, "2026-08-05.2");
   assert(openApi.paths?.["/v1/captures"]);
   assert(openApi.paths?.["/v1/actions/{id}/executions"]);
   assert.equal(

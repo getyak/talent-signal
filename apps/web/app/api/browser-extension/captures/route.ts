@@ -25,9 +25,15 @@ export async function POST(request: Request) {
   }
   try {
     const payload: unknown = await request.json();
-    return NextResponse.json(await submitBrowserHandoff(payload), {
-      status: 202,
-    });
+    return NextResponse.json(
+      await submitBrowserHandoff(payload, {
+        idempotencyKey: request.headers.get("idempotency-key"),
+        sessionVersion: request.headers.get(
+          "x-talent-signal-session-version",
+        ),
+      }),
+      { status: 202 },
+    );
   } catch (error) {
     if (error instanceof TalentSignalHttpError) {
       return NextResponse.json(

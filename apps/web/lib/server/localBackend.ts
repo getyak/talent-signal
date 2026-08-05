@@ -4,12 +4,13 @@ import {
   CONTRACT_VERSION,
   SIMULATED_CAPABILITY,
   TalentSignalClient,
-  type AnalysisProposalResponse,
+  TalentSignalHttpError,
   type AssertionDecisionRequest,
   type DeleteCaptureResponse,
   type DeletionLineageResponse,
   type EffectResultResponse,
   type SimulatedEffectPreview,
+  type SourceRetentionReceipt,
   type SubmitAnalysisProposalRequest,
   type WorkspaceReviewResponse,
 } from "@talent-signal/contracts";
@@ -45,6 +46,16 @@ export type BrowserHandoffEnvelope = {
     type: "reviewed_text";
     text: string;
     edited_from_selection: boolean;
+  } | {
+    type: "reviewed_image";
+    mime_type: "image/jpeg";
+    width: number;
+    height: number;
+    data_url: string;
+    edits: {
+      crop_percent: Record<string, number>;
+      redactions_percent: Array<Record<string, number>>;
+    };
   };
   authorization: {
     decision: "submit_reviewed_capture";
@@ -96,18 +107,74 @@ async function authenticatedClient(clientLabel: string) {
 
 function assertSyntheticBrowserHandoff(
   value: unknown,
+  headers: {
+    idempotencyKey: string | null;
+    sessionVersion: string | null;
+  },
 ): asserts value is BrowserHandoffEnvelope {
   if (!value || typeof value !== "object") {
     throw new Error("The reviewed handoff body is required.");
   }
   const envelope = value as Partial<BrowserHandoffEnvelope>;
   const frozen = fixtureCase(TS_CORE_01);
+  if (
+    typeof envelope.idempotency_key !== "string" ||
+    headers.idempotencyKey !== envelope.idempotency_key
+  ) {
+    throw new TalentSignalHttpError(
+      400,
+      "idempotency_key_mismatch",
+      "The Idempotency-Key header must match the reviewed handoff packet.",
+      null,
+    );
+  }
+  if (
+    envelope.session?.version &&
+    headers.sessionVersion !== envelope.session.version
+  ) {
+    throw new TalentSignalHttpError(
+      409,
+      "session_stale",
+      "The reviewed handoff session version changed before Submit.",
+      null,
+    );
+  }
+  if (envelope.source?.capture_kind === "visible_tab") {
+    throw new TalentSignalHttpError(
+      422,
+      "source_transport_unsupported",
+      "The localhost backend cannot yet govern visible-tab image assets. Submit reviewed selected text instead.",
+      { capture_kind: "visible_tab" },
+    );
+  }
+  if (envelope.retention_mode === "full_source") {
+    throw new TalentSignalHttpError(
+      422,
+      "retention_mode_unsupported",
+      "Selected text is not a complete reviewed source, so full-source retention is unavailable.",
+      {
+        capture_kind: envelope.source?.capture_kind,
+        retention_mode: envelope.retention_mode,
+      },
+    );
+  }
+  if (
+    !["ephemeral", "evidence_crop"].includes(
+      envelope.retention_mode ?? "",
+    )
+  ) {
+    throw new TalentSignalHttpError(
+      422,
+      "retention_mode_unsupported",
+      "The requested source-retention mode is not supported for this transport.",
+      null,
+    );
+  }
   const expectedText = frozen.messages[0]?.text;
   if (
     envelope.schema_version !== "browser-capture-handoff.v1" ||
     typeof envelope.request_id !== "string" ||
     !/^[a-zA-Z0-9-]{8,80}$/.test(envelope.request_id) ||
-    typeof envelope.idempotency_key !== "string" ||
     envelope.idempotency_key.length > 128 ||
     envelope.purpose !== "candidate_conversation_evidence_review" ||
     envelope.session?.credential_transport !== "browser_managed" ||
@@ -187,13 +254,18 @@ export async function localSessionStatus() {
 
 export async function submitBrowserHandoff(
   value: unknown,
+  headers: {
+    idempotencyKey: string | null;
+    sessionVersion: string | null;
+  },
 ): Promise<{
   capture_id: string;
-  proposal: AnalysisProposalResponse;
   receipt_id: string;
+  proposal_count: number;
+  retention: SourceRetentionReceipt;
   status: "received";
 }> {
-  assertSyntheticBrowserHandoff(value);
+  assertSyntheticBrowserHandoff(value, headers);
   const envelope = value;
   const frozen = fixtureCase(TS_CORE_01);
   const candidate = frozen.context.candidate;
@@ -204,7 +276,7 @@ export async function submitBrowserHandoff(
 
   const { client } = await authenticatedClient("chrome-extension-handoff");
   const capture = await client.createCapture({
-    idempotency_key: envelope.idempotency_key,
+    idempotency_key: `browser-handoff:${envelope.request_id}`,
     fixture_case_id: frozen.id,
     source: {
       kind: "transcript",
@@ -212,8 +284,11 @@ export async function submitBrowserHandoff(
       source_timezone: frozen.context.source_timezone,
       purpose:
         "Synthetic TS-CORE-01 selected-text capture approved in the local browser extension",
-      retention_until: null,
       source_locator: `browser-extension-request:${envelope.request_id}`,
+      retention: {
+        requested_mode: envelope.retention_mode,
+        source_scope: "reviewed_selected_text",
+      },
     },
     identity: {
       status: "bound",
@@ -228,19 +303,34 @@ export async function submitBrowserHandoff(
       source_message_id: message.id,
       sequence,
       speaker: message.speaker,
-      text: message.text,
+      text: envelope.review.type === "reviewed_text"
+        ? envelope.review.text
+        : message.text,
     })),
   });
   const proposal = await client.submitAnalysis(
     capture.id,
     analysisRequest(frozen),
   );
+  const retention = await client.getSourceRetentionReceipt(capture.id);
   return {
     capture_id: capture.id,
-    proposal,
     receipt_id: capture.id,
+    proposal_count: proposal.assertions.length,
+    retention,
     status: "received",
   };
+}
+
+export async function loadBrowserReceipt(
+  requestId: string,
+): Promise<SourceRetentionReceipt> {
+  const { client } = await authenticatedClient(
+    "chrome-extension-receipt-readback",
+  );
+  return client.getSourceRetentionReceiptByLocator(
+    `browser-extension-request:${requestId}`,
+  );
 }
 
 export async function loadBackendWorkspace(

@@ -5,25 +5,25 @@ import { fileURLToPath } from "node:url";
 import { loadConfig } from "../config.js";
 import { createPool } from "./pool.js";
 
-const VERSION = "001_authority";
+const MIGRATIONS = ["001_authority", "002_source_retention"] as const;
+
+async function migrationSql(version: string): Promise<string> {
+  const filename = `${version}.sql`;
+  const builtSqlPath = fileURLToPath(new URL(`./${filename}`, import.meta.url));
+  const sourceSqlPath = fileURLToPath(
+    new URL(`../../src/database/${filename}`, import.meta.url),
+  );
+  return readFile(builtSqlPath, "utf8").catch(
+    async () => readFile(sourceSqlPath, "utf8"),
+  );
+}
 
 export async function migrate(): Promise<void> {
   const config = loadConfig();
   const pool = createPool(config);
-  const builtSqlPath = fileURLToPath(
-    new URL("./001_authority.sql", import.meta.url),
-  );
-  const sourceSqlPath = fileURLToPath(
-    new URL("../../src/database/001_authority.sql", import.meta.url),
-  );
-  const sql = await readFile(builtSqlPath, "utf8").catch(
-    async () => readFile(sourceSqlPath, "utf8"),
-  );
-  const checksum = createHash("sha256").update(sql).digest("hex");
   const client = await pool.connect();
 
   try {
-    await client.query("BEGIN");
     await client.query(
       `CREATE TABLE IF NOT EXISTS schema_migrations (
         version text PRIMARY KEY,
@@ -31,28 +31,36 @@ export async function migrate(): Promise<void> {
         applied_at timestamptz NOT NULL DEFAULT now()
       )`,
     );
-    const existing = await client.query<{ checksum: string }>(
-      "SELECT checksum FROM schema_migrations WHERE version = $1",
-      [VERSION],
-    );
-    if (existing.rows[0]) {
-      if (existing.rows[0].checksum !== checksum) {
-        throw new Error(
-          `Migration ${VERSION} differs from the already applied checksum.`,
-        );
+    for (const version of MIGRATIONS) {
+      const sql = await migrationSql(version);
+      const checksum = createHash("sha256").update(sql).digest("hex");
+      const existing = await client.query<{ checksum: string }>(
+        "SELECT checksum FROM schema_migrations WHERE version = $1",
+        [version],
+      );
+      if (existing.rows[0]) {
+        if (existing.rows[0].checksum !== checksum) {
+          throw new Error(
+            `Migration ${version} differs from the already applied checksum.`,
+          );
+        }
+        continue;
       }
-      await client.query("COMMIT");
-      return;
-    }
 
-    await client.query(sql);
-    await client.query(
-      "INSERT INTO schema_migrations(version, checksum) VALUES ($1, $2)",
-      [VERSION, checksum],
-    );
-    await client.query("COMMIT");
+      await client.query("BEGIN");
+      try {
+        await client.query(sql);
+        await client.query(
+          "INSERT INTO schema_migrations(version, checksum) VALUES ($1, $2)",
+          [version, checksum],
+        );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    }
   } catch (error) {
-    await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();

@@ -21,6 +21,7 @@ import {
   ReviseActionRequestSchema,
   SessionResponseSchema,
   SimulatedLoginRequestSchema,
+  SourceRetentionReceiptSchema,
   SubmitAnalysisProposalRequestSchema,
   SyncResponseSchema,
   TemporalStateResponseSchema,
@@ -68,6 +69,11 @@ import {
 import { decideAssertion } from "./modules/decisions.js";
 import { submitAnalysisProposal } from "./modules/proposals.js";
 import { readSyncEvents } from "./modules/sync.js";
+import {
+  getSourceRetentionReceipt,
+  getSourceRetentionReceiptByLocator,
+  sweepDueSourceRetention,
+} from "./modules/sourceRetention.js";
 import { getWorkspaceReview } from "./modules/workspace.js";
 
 const IdParamsSchema = Type.Object(
@@ -93,6 +99,12 @@ const WorkspaceReviewQuerySchema = Type.Object(
       maxLength: 80,
       pattern: "^TS-[A-Z]+-[0-9]{2}$",
     }),
+  },
+  { additionalProperties: false },
+);
+const SourceLocatorQuerySchema = Type.Object(
+  {
+    source_locator: Type.String({ minLength: 1, maxLength: 500 }),
   },
   { additionalProperties: false },
 );
@@ -200,7 +212,7 @@ export async function buildApp(
       const result = await pool.query<{ version: string }>(
         `SELECT version
          FROM schema_migrations
-         WHERE version = '001_authority'`,
+         WHERE version = '002_source_retention'`,
       );
       if (!result.rows[0]) {
         throw new Error("migration unavailable");
@@ -287,6 +299,46 @@ export async function buildApp(
       },
     },
     async (request) => getCapture(pool, request.auth, request.params.id),
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/captures/:id/retention",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["retention"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: SourceRetentionReceiptSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getSourceRetentionReceipt(pool, request.auth, request.params.id),
+  );
+
+  app.get<{ Querystring: { source_locator: string } }>(
+    "/v1/source-retention-receipts",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["retention"],
+        security,
+        querystring: SourceLocatorQuerySchema,
+        response: {
+          200: SourceRetentionReceiptSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getSourceRetentionReceiptByLocator(
+        pool,
+        request.auth,
+        request.query.source_locator,
+      ),
   );
 
   app.get<{ Querystring: { assignment_id: string } }>(
@@ -620,6 +672,16 @@ export async function buildApp(
         Number.parseInt(request.query.after ?? "0", 10),
       ),
   );
+
+  const retentionSweep = setInterval(() => {
+    void sweepDueSourceRetention(pool).catch((error: unknown) => {
+      app.log.error({ err: error }, "Source-retention sweep failed");
+    });
+  }, config.retentionSweepIntervalMs);
+  retentionSweep.unref();
+  app.addHook("onClose", async () => {
+    clearInterval(retentionSweep);
+  });
 
   return app;
 }

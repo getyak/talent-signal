@@ -35,4 +35,20 @@ describe("authority schema", () => {
     expect(sql).toContain("FOREIGN KEY (account_id, action_id)");
     expect(sql).toContain("FOREIGN KEY (account_id, assertion_id)");
   });
+
+  it("adds an account-scoped source-retention receipt and lifecycle", async () => {
+    const sql = await readFile(
+      new URL("./002_source_retention.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE TABLE source_retention_receipts");
+    expect(sql).toContain("CREATE TABLE source_retention_events");
+    expect(sql).toContain("UNIQUE (account_id, capture_id)");
+    expect(sql).toContain(
+      "FOREIGN KEY (account_id, capture_id) REFERENCES captures(account_id, id)",
+    );
+    expect(sql).toContain(
+      "source_access_state IN ('available', 'purged', 'deleted')",
+    );
+  });
 });

@@ -6,6 +6,9 @@ import {
   DISPOSITIONS,
   SIMULATED_ADAPTER,
   SIMULATED_CAPABILITY,
+  SOURCE_RETENTION_MODES,
+  SOURCE_RETENTION_POLICY_VERSION,
+  SOURCE_SCOPES,
 } from "./constants.js";
 
 const Id = Type.String({ format: "uuid" });
@@ -57,6 +60,69 @@ export const SessionResponseSchema = Type.Object(
   { $id: "SessionResponse", additionalProperties: false },
 );
 
+export const SourceRetentionRequestSchema = Type.Object(
+  {
+    requested_mode: Type.Union(
+      SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+    ),
+    source_scope: Type.Union(
+      SOURCE_SCOPES.map((scope) => Type.Literal(scope)),
+    ),
+    requested_retention_until: Type.Optional(Timestamp),
+  },
+  { additionalProperties: false },
+);
+
+export const CaptureSourceInputSchema = Type.Object(
+  {
+    kind: Type.Union([
+      Type.Literal("fixture"),
+      Type.Literal("transcript"),
+      Type.Literal("screenshot_metadata"),
+    ]),
+    captured_at: Timestamp,
+    source_timezone: NullableString,
+    purpose: Type.String({ minLength: 1, maxLength: 240 }),
+    source_locator: Type.Optional(
+      Type.String({ minLength: 1, maxLength: 500 }),
+    ),
+    retention: SourceRetentionRequestSchema,
+  },
+  { additionalProperties: false },
+);
+
+export const SourceRetentionSummarySchema = Type.Object(
+  {
+    policy_version: Type.Literal(SOURCE_RETENTION_POLICY_VERSION),
+    requested_mode: Type.Union(
+      SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+    ),
+    effective_mode: Type.Union(
+      SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+    ),
+    source_scope: Type.Union(
+      SOURCE_SCOPES.map((scope) => Type.Literal(scope)),
+    ),
+    source_access_state: Type.Union([
+      Type.Literal("available"),
+      Type.Literal("purged"),
+      Type.Literal("deleted"),
+    ]),
+    source_access_reason: Type.Union([
+      Type.Literal("awaiting_review_completion"),
+      Type.Literal("retained_until_deadline"),
+      Type.Literal("review_completed"),
+      Type.Literal("retention_deadline_elapsed"),
+      Type.Literal("manual_deletion"),
+    ]),
+    requested_retention_until: Type.Union([Timestamp, Type.Null()]),
+    retention_until: Type.Union([Timestamp, Type.Null()]),
+    review_completed_at: Type.Union([Timestamp, Type.Null()]),
+    source_purged_at: Type.Union([Timestamp, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
 export const CaptureSourceSchema = Type.Object(
   {
     kind: Type.Union([
@@ -67,10 +133,10 @@ export const CaptureSourceSchema = Type.Object(
     captured_at: Timestamp,
     source_timezone: NullableString,
     purpose: Type.String({ minLength: 1, maxLength: 240 }),
-    retention_until: Type.Optional(Type.Union([Timestamp, Type.Null()])),
     source_locator: Type.Optional(
       Type.String({ minLength: 1, maxLength: 500 }),
     ),
+    retention: SourceRetentionSummarySchema,
   },
   { additionalProperties: false },
 );
@@ -141,7 +207,7 @@ export const CreateCaptureRequestSchema = Type.Object(
     fixture_case_id: Type.Optional(
       Type.String({ minLength: 1, maxLength: 80 }),
     ),
-    source: CaptureSourceSchema,
+    source: CaptureSourceInputSchema,
     identity: CaptureIdentitySchema,
     messages: Type.Array(EvidenceMessageInputSchema, {
       minItems: 1,
@@ -159,7 +225,11 @@ export const EvidenceMessageSchema = Type.Object(
     speaker: Type.String(),
     text: Type.Union([Type.String(), Type.Null()]),
     content_hash: Type.String(),
-    status: Type.Union([Type.Literal("active"), Type.Literal("deleted")]),
+    status: Type.Union([
+      Type.Literal("active"),
+      Type.Literal("purged"),
+      Type.Literal("deleted"),
+    ]),
   },
   { additionalProperties: false },
 );
@@ -620,6 +690,93 @@ export const DeletionLineageResponseSchema = Type.Object(
   { $id: "DeletionLineageResponse", additionalProperties: false },
 );
 
+export const SourceRetentionReceiptSchema = Type.Object(
+  {
+    receipt_id: Id,
+    capture_id: Id,
+    account_id: Id,
+    policy_version: Type.Literal(SOURCE_RETENTION_POLICY_VERSION),
+    requested_policy: Type.Object(
+      {
+        mode: Type.Union(
+          SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+        ),
+        source_scope: Type.Union(
+          SOURCE_SCOPES.map((scope) => Type.Literal(scope)),
+        ),
+        retention_until: Type.Union([Timestamp, Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+    effective_policy: Type.Object(
+      {
+        mode: Type.Union(
+          SOURCE_RETENTION_MODES.map((mode) => Type.Literal(mode)),
+        ),
+        source_scope: Type.Union(
+          SOURCE_SCOPES.map((scope) => Type.Literal(scope)),
+        ),
+        retention_until: Type.Union([Timestamp, Type.Null()]),
+        review_completion_event: Type.Literal(
+          "analysis_proposal_committed",
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    source_access: Type.Object(
+      {
+        state: Type.Union([
+          Type.Literal("available"),
+          Type.Literal("purged"),
+          Type.Literal("deleted"),
+        ]),
+        reason: Type.Union([
+          Type.Literal("awaiting_review_completion"),
+          Type.Literal("retained_until_deadline"),
+          Type.Literal("review_completed"),
+          Type.Literal("retention_deadline_elapsed"),
+          Type.Literal("manual_deletion"),
+        ]),
+      },
+      { additionalProperties: false },
+    ),
+    lifecycle: Type.Object(
+      {
+        submitted_at: Timestamp,
+        review_completed_at: Type.Union([Timestamp, Type.Null()]),
+        retention_until: Type.Union([Timestamp, Type.Null()]),
+        source_purged_at: Type.Union([Timestamp, Type.Null()]),
+        deleted_at: Type.Union([Timestamp, Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+    deletion_id: Type.Union([Id, Type.Null()]),
+    lineage: Type.Array(
+      Type.Object(
+        {
+          event_id: Id,
+          event_type: Type.Union([
+            Type.Literal("source_submitted"),
+            Type.Literal("review_completed"),
+            Type.Literal("source_purged"),
+            Type.Literal("source_deleted"),
+          ]),
+          reason: Type.Union([
+            Type.Literal("capture_submitted"),
+            Type.Literal("analysis_proposal_committed"),
+            Type.Literal("review_completed"),
+            Type.Literal("retention_deadline_elapsed"),
+            Type.Literal("manual_deletion"),
+          ]),
+          occurred_at: Timestamp,
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { $id: "SourceRetentionReceipt", additionalProperties: false },
+);
+
 export const RevokeCapabilityRequestSchema = Type.Object(
   {
     idempotency_key: IdempotencyKey,
@@ -633,6 +790,10 @@ export type SimulatedLoginRequest = Static<
   typeof SimulatedLoginRequestSchema
 >;
 export type SessionResponse = Static<typeof SessionResponseSchema>;
+export type SourceRetentionRequest = Static<
+  typeof SourceRetentionRequestSchema
+>;
+export type CaptureSourceInput = Static<typeof CaptureSourceInputSchema>;
 export type CreateCaptureRequest = Static<typeof CreateCaptureRequestSchema>;
 export type CaptureResponse = Static<typeof CaptureResponseSchema>;
 export type SubmitAnalysisProposalRequest = Static<
@@ -671,6 +832,9 @@ export type WorkspaceReviewResponse = Static<
 >;
 export type DeletionLineageResponse = Static<
   typeof DeletionLineageResponseSchema
+>;
+export type SourceRetentionReceipt = Static<
+  typeof SourceRetentionReceiptSchema
 >;
 export type RevokeCapabilityRequest = Static<
   typeof RevokeCapabilityRequestSchema
