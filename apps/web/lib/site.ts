@@ -3,13 +3,14 @@ export const siteConfig = {
   title: "Talent Signal | Candidate momentum, made legible",
   description:
     "Turn candidate conversations into living, source-linked briefs and one clear next move before momentum slips.",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://talentsignal.ai",
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://gettalentsignal.com",
   email: "hello@talentsignal.ai",
 } as const;
 
 export const navigation = [
   { href: "/#product", label: "Product" },
   { href: "/#method", label: "Method" },
+  { href: "/blog", label: "Blog" },
   { href: "/#principles", label: "Principles" },
   { href: "/#questions", label: "Questions" },
 ] as const;

@@ -31,6 +31,9 @@ export const metadata: Metadata = {
   ],
   alternates: {
     canonical: "/",
+    types: {
+      "application/rss+xml": `${siteConfig.url}/rss.xml`,
+    },
   },
   openGraph: {
     type: "website",
@@ -46,6 +49,12 @@ export const metadata: Metadata = {
     description: siteConfig.description,
   },
   category: "technology",
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    other: {
+      "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION ?? "",
+    },
+  },
 };
 
 export const viewport: Viewport = {
