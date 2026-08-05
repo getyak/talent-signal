@@ -34,11 +34,27 @@ type EffectSnapshot = {
 
 export type IntegrationAuthorityInput = {
   action: ActionSnapshot;
-  allFactsReviewed: boolean;
+  allRequiredFactsConfirmed: boolean;
   approval: ApprovalSnapshot;
   effect: EffectSnapshot;
   now?: Date;
 };
+
+export function areRequiredAssertionsConfirmed(
+  requiredAssertionIds: string[],
+  assertions: Array<{ id: string; review_status: string }>,
+): boolean {
+  return (
+    requiredAssertionIds.length > 0 &&
+    requiredAssertionIds.every((assertionId) =>
+      assertions.some(
+        (assertion) =>
+          assertion.id === assertionId &&
+          assertion.review_status === "confirmed",
+      ),
+    )
+  );
+}
 
 export function presentedAssertionValue(
   assertionId: string,
@@ -57,7 +73,7 @@ export function presentedAssertionValue(
 
 export function deriveIntegrationAuthorityState({
   action,
-  allFactsReviewed,
+  allRequiredFactsConfirmed,
   approval,
   effect,
   now = new Date(),
@@ -66,7 +82,7 @@ export function deriveIntegrationAuthorityState({
     return "no_action";
   }
 
-  if (!allFactsReviewed) {
+  if (!allRequiredFactsConfirmed) {
     return "review_required";
   }
 

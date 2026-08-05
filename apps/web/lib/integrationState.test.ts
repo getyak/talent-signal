@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  areRequiredAssertionsConfirmed,
   deriveIntegrationAuthorityState,
   integrationStateAnnouncement,
   presentedAssertionValue,
@@ -18,7 +19,7 @@ function input(
       status: "proposed",
       version: 1,
     },
-    allFactsReviewed: true,
+    allRequiredFactsConfirmed: true,
     approval: null,
     effect: null,
     now,
@@ -30,12 +31,33 @@ describe("authenticated integration authority state", () => {
   it("keeps fact review separate from action approval", () => {
     expect(
       deriveIntegrationAuthorityState(
-        input({ allFactsReviewed: false }),
+        input({ allRequiredFactsConfirmed: false }),
       ),
     ).toBe("review_required");
     expect(deriveIntegrationAuthorityState(input())).toBe(
       "ready_for_approval",
     );
+  });
+
+  it("blocks authority when an action-bound fact was dismissed", () => {
+    expect(
+      areRequiredAssertionsConfirmed(
+        ["assertion-1", "assertion-2"],
+        [
+          { id: "assertion-1", review_status: "confirmed" },
+          { id: "assertion-2", review_status: "dismissed" },
+        ],
+      ),
+    ).toBe(false);
+    expect(
+      areRequiredAssertionsConfirmed(
+        ["assertion-1"],
+        [
+          { id: "assertion-1", review_status: "confirmed" },
+          { id: "assertion-2", review_status: "dismissed" },
+        ],
+      ),
+    ).toBe(true);
   });
 
   it("rejects expired and version-mismatched approval as stale", () => {

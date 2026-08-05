@@ -18,13 +18,20 @@ import {
   X,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 
 import {
+  areRequiredAssertionsConfirmed,
   deriveIntegrationAuthorityState,
   integrationStateAnnouncement,
   presentedAssertionValue,
 } from "@/lib/integrationState";
+import {
+  createSyntheticBrowserHandoff,
+  FROZEN_SYNTHETIC_SOURCE,
+  reuseSyntheticBrowserHandoff,
+} from "@/lib/browserHandoff";
 
 import { ThemeToggle } from "./theme-toggle";
 
@@ -64,9 +71,6 @@ type DeletionState = {
     }>;
   };
 } | null;
-
-const FROZEN_SYNTHETIC_SOURCE =
-  "I have another offer and need to decide Wednesday. I can speak Tuesday afternoon, but remote matters a lot.";
 
 function reviewLabel(status: string) {
   switch (status) {
@@ -127,6 +131,9 @@ export function IntegratedWorkspaceApp({
   const [deleteConfirmation, setDeleteConfirmation] = useState(false);
   const [capabilityRevoked, setCapabilityRevoked] = useState(false);
   const abortController = useRef<AbortController | null>(null);
+  const syntheticHandoff = useRef<ReturnType<
+    typeof createSyntheticBrowserHandoff
+  > | null>(null);
 
   const assertions = workspace?.analysis.assertions ?? [];
   const allFactsReviewed =
@@ -138,10 +145,16 @@ export function IntegratedWorkspaceApp({
     (assertion) => assertion.review_status === "confirmed",
   ).length;
   const action = workspace?.analysis.action ?? null;
+  const allRequiredFactsConfirmed =
+    action !== null &&
+    areRequiredAssertionsConfirmed(
+      action.required_assertion_ids,
+      assertions,
+    );
   const approval = workspace?.latest_approval ?? null;
   const authorityState = deriveIntegrationAuthorityState({
     action,
-    allFactsReviewed,
+    allRequiredFactsConfirmed,
     approval,
     effect: workspace?.latest_effect ?? null,
   });
@@ -252,40 +265,19 @@ export function IntegratedWorkspaceApp({
     setError(null);
     setAnnouncement("Submitting the reviewed synthetic source.");
     try {
-      const requestId = `round2-web-${crypto.randomUUID()}`;
+      const request = reuseSyntheticBrowserHandoff(
+        syntheticHandoff.current,
+        {
+          approvedAt: new Date().toISOString(),
+          origin: window.location.origin,
+          requestId: `web-local-${crypto.randomUUID()}`,
+        },
+      );
+      syntheticHandoff.current = request;
       const response = await fetch("/api/browser-extension/captures", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          schema_version: "browser-capture-handoff.v1",
-          request_id: requestId,
-          idempotency_key: "round2-web-ts-core-01",
-          purpose: "candidate_conversation_evidence_review",
-          retention_mode: "ephemeral",
-          handoff_target:
-            "http://127.0.0.1:3300/api/browser-extension/captures",
-          session: {
-            version: null,
-            credential_transport: "browser_managed",
-          },
-          source: {
-            capture_kind: "selected_text",
-            title: "Synthetic TS-CORE-01",
-            url: "http://127.0.0.1:3300/",
-            captured_at: "2026-08-03T02:00:00.000Z",
-          },
-          review: {
-            type: "reviewed_text",
-            text: FROZEN_SYNTHETIC_SOURCE,
-            edited_from_selection: false,
-          },
-          authorization: {
-            decision: "submit_reviewed_capture",
-            approved_at: new Date().toISOString(),
-            statement:
-              "Submit this reviewed synthetic capture to the localhost backend.",
-          },
-        }),
+        headers: request.headers,
+        body: JSON.stringify(request.body),
       });
       const payload = (await response.json()) as {
         code?: string;
@@ -335,6 +327,25 @@ export function IntegratedWorkspaceApp({
     } finally {
       setMutation(null);
     }
+  }
+
+  function openExactEvidence(
+    event: MouseEvent<HTMLAnchorElement>,
+    evidenceId: string,
+  ) {
+    const targetId = `source-evidence-${evidenceId}`;
+    const target = document.getElementById(targetId);
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+    window.history.replaceState(null, "", `#${targetId}`);
+    target.scrollIntoView({ block: "center" });
+    target.focus({ preventScroll: true });
+    setAnnouncement(
+      "Exact source opened. Speaker, time, and scope remain visible.",
+    );
   }
 
   function cancelMutation() {
@@ -853,6 +864,12 @@ export function IntegratedWorkspaceApp({
                           <a
                             className="integration-evidence"
                             href={`#source-evidence-${assertion.evidence_id}`}
+                            onClick={(event) =>
+                              openExactEvidence(
+                                event,
+                                assertion.evidence_id,
+                              )
+                            }
                           >
                             <LinkSimple size={16} aria-hidden="true" />
                             <span>
@@ -1012,6 +1029,12 @@ export function IntegratedWorkspaceApp({
                           <a
                             className="integration-action__evidence"
                             href={`#source-evidence-${action.evidence_ids[0]}`}
+                            onClick={(event) =>
+                              openExactEvidence(
+                                event,
+                                action.evidence_ids[0],
+                              )
+                            }
                           >
                             <LinkSimple size={16} aria-hidden="true" />
                             Open the exact source for this action
@@ -1031,9 +1054,9 @@ export function IntegratedWorkspaceApp({
                               aria-hidden="true"
                             />
                             <p>
-                              Review every fact first. Confirmation creates
-                              zero effects and grants no authority to this
-                              proposal.
+                              {allFactsReviewed
+                                ? "This proposal cannot receive authority because a required fact was dismissed. The evidence record remains reviewable and no action runs."
+                                : "Review every required fact first. Confirmation creates zero effects and grants no authority to this proposal."}
                             </p>
                           </div>
                         ) : null}
@@ -1254,7 +1277,7 @@ export function IntegratedWorkspaceApp({
                       external system.
                     </p>
                     {action &&
-                    allFactsReviewed &&
+                    allRequiredFactsConfirmed &&
                     !approvalComplete &&
                     action.exact_preview.simulation_behavior !==
                       "timeout_after_write" ? (
