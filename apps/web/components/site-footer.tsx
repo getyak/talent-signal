@@ -18,13 +18,16 @@ export function SiteFooter() {
             <Link href="/#product">Product</Link>
             <Link href="/#method">Method</Link>
             <Link href="/demo">Evidence review</Link>
+            <Link href="/blog">Blog</Link>
             <Link href="/login?callbackUrl=/workspace">Workspace</Link>
           </div>
           <div>
             <p className="footer-heading">Trust</p>
             <Link href="/#principles">Principles</Link>
             <Link href="/privacy">Privacy</Link>
+            <Link href="/blog/about">Editorial method</Link>
             <Link href="/#questions">Questions</Link>
+            <Link href="/rss.xml">RSS</Link>
           </div>
         </nav>
       </div>

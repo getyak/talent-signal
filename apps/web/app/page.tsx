@@ -7,12 +7,15 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import Image from "next/image";
 import Link from "next/link";
+import { BlogPostPreview } from "@/components/blog-post-preview";
 import { CandidateLibraryPreview } from "@/components/candidate-library-preview";
 import { FaqList } from "@/components/faq-list";
 import { Reveal } from "@/components/reveal";
 import { SignalSceneShell } from "@/components/signal-scene-shell";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { StructuredData } from "@/components/structured-data";
+import { blogPosts } from "@/lib/blog";
 import { faqs, siteConfig } from "@/lib/site";
 
 const organizationSchema = {
@@ -48,17 +51,6 @@ const faqSchema = {
     },
   })),
 };
-
-function StructuredData({ value }: { value: object }) {
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{
-        __html: JSON.stringify(value).replaceAll("<", "\\u003c"),
-      }}
-    />
-  );
-}
 
 export default function HomePage() {
   return (
@@ -279,6 +271,37 @@ export default function HomePage() {
                 </p>
               </article>
             </Reveal>
+          </div>
+        </section>
+
+        <section
+          className="home-journal section shell"
+          aria-labelledby="home-journal-title"
+        >
+          <Reveal className="home-journal__heading">
+            <h2 id="home-journal-title">Research for the next conversation.</h2>
+            <p>
+              Practical methods for candidate momentum, human oversight, and
+              context that survives between conversations.
+            </p>
+          </Reveal>
+          <div className="home-journal__layout">
+            <Reveal>
+              <BlogPostPreview post={blogPosts[0]} />
+            </Reveal>
+            <div className="home-journal__secondary">
+              {blogPosts.slice(1).map((post, index) => (
+                <Reveal key={post.slug} delay={index * 0.05}>
+                  <BlogPostPreview post={post} variant="compact" />
+                </Reveal>
+              ))}
+              <Reveal delay={0.1}>
+                <Link className="text-link" href="/blog">
+                  Browse all research
+                  <ArrowRight aria-hidden="true" size={15} />
+                </Link>
+              </Reveal>
+            </div>
           </div>
         </section>
 
