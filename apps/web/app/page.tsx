@@ -10,7 +10,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { StructuredData } from "@/components/structured-data";
 import { blogPosts } from "@/lib/blog";
-import { faqs, siteConfig } from "@/lib/site";
+import { accessRequestHref, faqs, siteConfig } from "@/lib/site";
 import styles from "./redline-home.module.css";
 
 const organizationSchema = {
@@ -108,12 +108,12 @@ export default function HomePage() {
                   Try one conversation
                   <ArrowRight aria-hidden="true" size={17} />
                 </Link>
-                <Link
+                <a
                   className={`${styles.action} ${styles.actionSecondary}`}
-                  href="/login?callbackUrl=/workspace"
+                  href={accessRequestHref}
                 >
                   Request access
-                </Link>
+                </a>
               </div>
             </div>
           </div>
@@ -323,13 +323,21 @@ export default function HomePage() {
             <h2 id="closing-title">
               Start with the conversation that cannot be lost.
             </h2>
-            <Link
-              className={`${styles.action} ${styles.actionPrimary}`}
-              href="/demo"
-            >
-              Try one conversation
-              <ArrowRight aria-hidden="true" size={17} />
-            </Link>
+            <div className={styles.closingActions}>
+              <Link
+                className={`${styles.action} ${styles.actionPrimary}`}
+                href="/demo"
+              >
+                Try one conversation
+                <ArrowRight aria-hidden="true" size={17} />
+              </Link>
+              <a
+                className={`${styles.action} ${styles.actionSecondary}`}
+                href={accessRequestHref}
+              >
+                Request access
+              </a>
+            </div>
           </div>
         </section>
       </main>

@@ -3,7 +3,7 @@
 import { List, X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
-import { navigation } from "@/lib/site";
+import { accessRequestHref, navigation } from "@/lib/site";
 import { BrandMark } from "./brand-mark";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -64,12 +64,18 @@ export function SiteHeader() {
             </Link>
           ))}
           <Link
-            className="button"
             href="/login?callbackUrl=/workspace"
             onClick={() => setMenuOpen(false)}
           >
             Sign in
           </Link>
+          <a
+            className="button"
+            href={accessRequestHref}
+            onClick={() => setMenuOpen(false)}
+          >
+            Request access
+          </a>
         </nav>
       )}
     </header>

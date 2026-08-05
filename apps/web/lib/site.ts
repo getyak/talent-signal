@@ -7,6 +7,9 @@ export const siteConfig = {
   email: "hello@talentsignal.ai",
 } as const;
 
+export const accessRequestHref =
+  `mailto:${siteConfig.email}?subject=Talent%20Signal%20access%20request`;
+
 export const navigation = [
   { href: "/#product", label: "Product" },
   { href: "/#method", label: "Method" },

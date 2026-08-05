@@ -794,6 +794,14 @@
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.closingActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .closing h2 {
   max-width: 970px;
 }
@@ -903,6 +911,10 @@
 
   .closingInner {
     align-items: start;
+  }
+
+  .closingActions {
+    justify-content: flex-start;
   }
 
   .researchStories {
@@ -1034,6 +1046,16 @@
 
   .closingInner {
     gap: 34px;
+  }
+
+  .closingActions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .closingActions .action {
+    width: 100%;
   }
 }
 
