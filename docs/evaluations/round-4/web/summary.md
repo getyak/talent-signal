@@ -87,8 +87,8 @@ Lint, 38 Web tests, direct typecheck, production build, core evaluation,
 documentation/architecture checks, all specialist review contracts, the panel
 contract, JSON parsing, and `git diff --check` pass. The first all-test run
 timed out in the unchanged scrypt test under heavy machine load; the transparent
-rerun passed, and the final suite passed all 34 tests after adding exact-packet
-retry coverage.
+rerun passed, and the final suite passed all 38 tests after adding exact-packet
+retry and capability-versus-approval presentation coverage.
 
 The local Web server and isolated Docker project are stopped. The disposable
 synthetic PostgreSQL volume was removed. The raw browser trace was also removed
