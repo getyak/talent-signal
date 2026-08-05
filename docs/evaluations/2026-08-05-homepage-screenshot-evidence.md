@@ -209,6 +209,29 @@ Evidence removal also remounts only the current-dependency callout with a
 causal state change, and the existing reduced-motion media query keeps it
 static when reduced motion is preferred.
 
+## 2026-08-06 conversion-integrity pass
+
+This pass tested whether the public calls to action described their actual
+destination and whether mobile visitors could distinguish account access from
+a new access request.
+
+Before the change, the hero's `Request access` control led to the workspace
+sign-in route, and the open mobile menu offered `Sign in` as its only primary
+action. The after screenshots preserve sign-in as an ordinary account action
+and add a separate vermilion `Request access` action. Every access-request link
+now opens a pre-addressed email draft to `hello@talentsignal.ai`; it does not
+send a message or perform an external write automatically.
+
+The closing section now keeps the two intentions explicit at both desktop and
+mobile widths: `Try one conversation` opens the reversible synthetic demo, and
+`Request access` opens the email draft. The mobile controls stack to full width
+while the desktop controls remain adjacent.
+
+Source and production-build inspection confirm that every `Request access`
+instance resolves to the same mail link while `Sign in` remains
+`/login?callbackUrl=/workspace`. The final Vercel preview deployment completed
+successfully.
+
 ## Functional gate
 
 The visual direction is not proof of functional quality. Current independent
