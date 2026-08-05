@@ -115,6 +115,7 @@ export function RedlineWorkbench() {
             className={styles.evidenceClause}
             data-active={selected.has("competing-offer")}
             aria-pressed={selected.has("competing-offer")}
+            aria-describedby="source-interaction-instruction"
             onClick={() => toggleEvidence("competing-offer")}
           >
             another offer
@@ -125,6 +126,7 @@ export function RedlineWorkbench() {
             className={styles.evidenceClause}
             data-active={selected.has("deadline")}
             aria-pressed={selected.has("deadline")}
+            aria-describedby="source-interaction-instruction"
             onClick={() => toggleEvidence("deadline")}
           >
             by Wednesday
@@ -135,6 +137,7 @@ export function RedlineWorkbench() {
             className={styles.evidenceClause}
             data-active={selected.has("availability")}
             aria-pressed={selected.has("availability")}
+            aria-describedby="source-interaction-instruction"
             onClick={() => toggleEvidence("availability")}
           >
             Tuesday afternoon
@@ -145,15 +148,20 @@ export function RedlineWorkbench() {
             className={styles.evidenceClause}
             data-active={selected.has("preference")}
             aria-pressed={selected.has("preference")}
+            aria-describedby="source-interaction-instruction"
             onClick={() => toggleEvidence("preference")}
           >
             remote flexibility is important
           </button>
-          .”
+          <span className={styles.quoteClose}>.”</span>
         </blockquote>
 
-        <p className={styles.sourceInstruction}>
-          Turn a clause off. Unsupported changes and actions retract with it.
+        <p
+          id="source-interaction-instruction"
+          className={styles.sourceInstruction}
+        >
+          Select an underlined phrase. Unsupported changes and actions retract
+          with it.
         </p>
       </section>
 
@@ -182,7 +190,11 @@ export function RedlineWorkbench() {
           ))}
         </dl>
 
-        <div className={styles.dependency} aria-live="polite">
+        <div
+          key={`${insight.verdict}-${visibleEvidence.length}`}
+          className={styles.dependency}
+          aria-live="polite"
+        >
           <div>
             <span>Current dependency</span>
             <strong>{getDependencyTitle(insight.verdict)}</strong>

@@ -50,27 +50,27 @@ const faqSchema = {
 const relationshipHistory = [
   {
     state: "Observed",
-    detail: "Exact words, speaker, source, and time enter the record.",
+    detail: "Leila says another offer requires a decision by Wednesday.",
   },
   {
     state: "Proposed",
-    detail: "The system drafts an atomic change without promoting it to truth.",
+    detail: "The record drafts a Wednesday window and competing-offer pressure.",
   },
   {
     state: "Corrected",
-    detail: "The recruiter edits identity, meaning, scope, or timing.",
+    detail: "Remote flexibility stays unresolved, not a confirmed preference.",
   },
   {
     state: "Confirmed",
-    detail: "Accepted state keeps its source and the earlier value.",
+    detail: "The recruiter accepts only the facts supported by the source.",
   },
   {
     state: "Approved",
-    detail: "A separate decision authorizes one exact external effect.",
+    detail: "A separate review authorizes one policy-clarification request.",
   },
   {
     state: "Observed again",
-    detail: "The outcome returns as evidence, not a claim of success.",
+    detail: "A client reply would return as evidence. Success is not assumed.",
   },
 ] as const;
 
@@ -130,10 +130,10 @@ export default function HomePage() {
         >
           <div className="shell">
             <div className={styles.sectionHeading}>
-              <h2 id="history-title">A relationship is a versioned decision.</h2>
+              <h2 id="history-title">One conversation. Every change inspectable.</h2>
               <p>
-                Current state stays calm. Every correction, approval, and
-                outcome remains inspectable behind it.
+                This synthetic scenario follows Leila&apos;s exact words
+                through proposed state, human decisions, and new evidence.
               </p>
             </div>
 
