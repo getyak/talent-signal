@@ -23,6 +23,8 @@ import { useMemo, useRef, useState } from "react";
 
 import {
   areRequiredAssertionsConfirmed,
+  capabilityNoticeAnnouncement,
+  deriveIntegrationAuthorityPresentation,
   deriveIntegrationAuthorityState,
   integrationStateAnnouncement,
   presentedAssertionValue,
@@ -158,10 +160,11 @@ export function IntegratedWorkspaceApp({
     approval,
     effect: workspace?.latest_effect ?? null,
   });
-  const presentedAuthorityState =
-    capabilityRevoked && authorityState === "approved"
-      ? "revoked"
-      : authorityState;
+  const authorityPresentation = deriveIntegrationAuthorityPresentation({
+    approvalStatus: approval?.status ?? null,
+    authorityState,
+    capabilityRevoked,
+  });
   const verified = authorityState === "verified";
   const approvalComplete =
     approval?.status === "active" || approval?.status === "consumed";
@@ -236,6 +239,9 @@ export function IntegratedWorkspaceApp({
           : "code" in caughtError && typeof caughtError.code === "string"
             ? caughtError.code
             : "backend_unavailable";
+      if (code === "CAPABILITY_NOT_AUTHORIZED") {
+        setCapabilityRevoked(true);
+      }
       setError({
         code,
         message: cancelled
@@ -1044,9 +1050,9 @@ export function IntegratedWorkspaceApp({
 
                       <div
                         className="integration-authority"
-                        data-state={presentedAuthorityState}
+                        data-state={authorityPresentation.presentationState}
                       >
-                        {presentedAuthorityState === "review_required" ? (
+                        {authorityState === "review_required" ? (
                           <div className="authority-note">
                             <Clock
                               size={20}
@@ -1061,15 +1067,12 @@ export function IntegratedWorkspaceApp({
                           </div>
                         ) : null}
 
-                        {presentedAuthorityState === "ready_for_approval" ||
-                        presentedAuthorityState === "stale" ||
-                        presentedAuthorityState === "failed" ? (
+                        {authorityPresentation.showApprovalCta ? (
                           <>
-                            {presentedAuthorityState !==
-                            "ready_for_approval" ? (
+                            {authorityState !== "ready_for_approval" ? (
                               <div
                                 className="authority-note"
-                                data-state={presentedAuthorityState}
+                                data-state={authorityState}
                               >
                                 <Warning
                                   size={21}
@@ -1078,7 +1081,7 @@ export function IntegratedWorkspaceApp({
                                 />
                                 <p>
                                   {integrationStateAnnouncement(
-                                    presentedAuthorityState,
+                                    authorityState,
                                   )}
                                 </p>
                               </div>
@@ -1108,16 +1111,16 @@ export function IntegratedWorkspaceApp({
                               ) : (
                                 <ShieldCheck size={18} aria-hidden="true" />
                               )}
-                              {presentedAuthorityState === "stale"
+                              {authorityState === "stale"
                                 ? "Approve revised exact effect"
-                                : presentedAuthorityState === "failed"
+                                : authorityState === "failed"
                                   ? "Approve one safe retry"
                                   : "Approve exact local effect"}
                             </button>
                           </>
                         ) : null}
 
-                        {presentedAuthorityState === "approved" ? (
+                        {authorityPresentation.showActiveApproval ? (
                           <>
                             <div
                               className="authority-note"
@@ -1134,22 +1137,25 @@ export function IntegratedWorkspaceApp({
                               </p>
                             </div>
                             <div className="integration-authority__actions">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  requestWorkspace(
-                                    `/api/local-integration/actions/${action.id}/execution`,
-                                    { method: "POST" },
-                                    "Executing and reading back the local effect",
-                                    action.id,
-                                  )
-                                }
-                                disabled={mutation?.target === action.id}
-                              >
-                                <Database size={18} aria-hidden="true" />
-                                Execute and verify readback
-                              </button>
-                              {approval ? (
+                              {authorityPresentation.showExecutionCta ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    requestWorkspace(
+                                      `/api/local-integration/actions/${action.id}/execution`,
+                                      { method: "POST" },
+                                      "Executing and reading back the local effect",
+                                      action.id,
+                                    )
+                                  }
+                                  disabled={mutation?.target === action.id}
+                                >
+                                  <Database size={18} aria-hidden="true" />
+                                  Execute and verify readback
+                                </button>
+                              ) : null}
+                              {authorityPresentation.showRevokeApproval &&
+                              approval ? (
                                 <button
                                   className="quiet-button"
                                   type="button"
@@ -1173,7 +1179,7 @@ export function IntegratedWorkspaceApp({
                           </>
                         ) : null}
 
-                        {presentedAuthorityState === "revoked" ? (
+                        {authorityPresentation.capabilityNotice ? (
                           <div className="authority-note" data-state="revoked">
                             <Prohibit
                               size={21}
@@ -1181,14 +1187,26 @@ export function IntegratedWorkspaceApp({
                               aria-hidden="true"
                             />
                             <p>
-                              {capabilityRevoked
-                                ? "Execution permission was revoked at the local capability boundary. The approved proposal cannot run, and no destination result is claimed."
-                                : integrationStateAnnouncement("revoked")}
+                              {capabilityNoticeAnnouncement(
+                                authorityPresentation.capabilityNotice,
+                              )}
                             </p>
                           </div>
                         ) : null}
 
-                        {presentedAuthorityState ===
+                        {authorityState === "revoked" &&
+                        !capabilityRevoked ? (
+                          <div className="authority-note" data-state="revoked">
+                            <Prohibit
+                              size={21}
+                              weight="duotone"
+                              aria-hidden="true"
+                            />
+                            <p>{integrationStateAnnouncement("revoked")}</p>
+                          </div>
+                        ) : null}
+
+                        {authorityState ===
                         "reconciliation_required" ? (
                           <>
                             <div className="authority-note" data-state="unknown">
@@ -1225,7 +1243,7 @@ export function IntegratedWorkspaceApp({
                           </>
                         ) : null}
 
-                        {presentedAuthorityState === "verified" ? (
+                        {authorityState === "verified" ? (
                           <div className="verified-result" role="status">
                             <CheckCircle
                               size={28}
@@ -1279,6 +1297,8 @@ export function IntegratedWorkspaceApp({
                     {action &&
                     allRequiredFactsConfirmed &&
                     !approvalComplete &&
+                    authorityPresentation
+                      .showCapabilityDependentRevisionControls &&
                     action.exact_preview.simulation_behavior !==
                       "timeout_after_write" ? (
                       <button
@@ -1293,7 +1313,10 @@ export function IntegratedWorkspaceApp({
                         Use unknown-result recovery preview
                       </button>
                     ) : null}
-                    {action && approval?.status === "active" ? (
+                    {action &&
+                    approval?.status === "active" &&
+                    authorityPresentation
+                      .showCapabilityDependentRevisionControls ? (
                       <button
                         className="quiet-button"
                         type="button"

@@ -174,6 +174,7 @@
       "strengths": [
         "Evidence crop returns a truthful source-access receipt and deadline.",
         "Same-key replay leaves capture, approval, effect, and audit state unchanged.",
+        "Capability revocation blocks execution without rewriting or hiding an existing active approval.",
         "No off-localhost request or external write was observed."
       ],
       "missing_evidence": [
@@ -220,6 +221,7 @@
       "The Web slice is quiet, product-specific, evidence-first, and directly usable with long content at 390px.",
       "Source, proposed interpretation, confirmed state, approval, effect attempt, and observed readback remain distinct.",
       "Dismissed requirement, stale approval, unknown result, cancellation, offline retry, and restart recovery avoid false authority or false success.",
+      "Capability revocation remains distinct from approval: it suppresses approval and execution paths while preserving independent revocation of an existing active approval.",
       "Evidence crop and same-key replay preserve exact source, account scope, retention truth, and idempotency.",
       "No candidate contact or external write occurred."
     ],
@@ -250,7 +252,7 @@
         "evidence": "docs/evaluations/round-4/web/browser/network-boundary.json"
       }
     ],
-    "rationale": "Round 4 directly closes five Web defects and adds retained-source, exact same-key replay, long mixed-content, source focus, cancellation, repeated retry, restart recovery, stable theme, and reduced-motion proof. Only evidence proximity and interaction motion move to 98. Narrative, typography, responsive composition, and keyboard accessibility remain unchanged because uncoached comprehension, native 200% Chrome zoom, and manual screen-reader traversal were not completed. XS-CAPTURE-01 remains active and blocks the independent integrated journey."
+    "rationale": "Round 4 directly closes six Web defects and adds retained-source, exact same-key replay, long mixed-content, source focus, capability-versus-approval separation, cancellation, repeated retry, restart recovery, stable theme, and reduced-motion proof. Only evidence proximity and interaction motion move to 98. Narrative, typography, responsive composition, and keyboard accessibility remain unchanged because uncoached comprehension, native 200% Chrome zoom, and manual screen-reader traversal were not completed. XS-CAPTURE-01 remains active and blocks the independent integrated journey."
   },
   "next_tests": [
     {

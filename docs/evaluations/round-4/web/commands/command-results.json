@@ -50,7 +50,7 @@
     {
       "command": "pnpm --filter @talent-signal/web test",
       "result": "pass",
-      "detail": "10 files, 34 tests."
+      "detail": "10 files, 38 tests, including capability-versus-approval presentation and exact-packet retry coverage."
     },
     {
       "command": "pnpm --filter @talent-signal/web exec tsc --noEmit",
@@ -97,7 +97,7 @@
       "first_result": "failed",
       "cause": "The unchanged scrypt test exceeded its 5-second timeout while the machine was heavily loaded.",
       "final_result": "pass",
-      "final_detail": "The unchanged 33-test suite passed after stopping the now-unneeded local runtime; the final 34-test suite also passed after adding exact-packet retry coverage."
+      "final_detail": "The unchanged 33-test suite passed after stopping the now-unneeded local runtime; the final 38-test suite passed after adding exact-packet retry and capability-versus-approval presentation coverage."
     },
     {
       "stage": "Docker startup",

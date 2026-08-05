@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   areRequiredAssertionsConfirmed,
+  capabilityNoticeAnnouncement,
+  deriveIntegrationAuthorityPresentation,
   deriveIntegrationAuthorityState,
   integrationStateAnnouncement,
   presentedAssertionValue,
@@ -58,6 +60,81 @@ describe("authenticated integration authority state", () => {
         ],
       ),
     ).toBe(true);
+  });
+
+  it("suppresses approval and execution paths after capability revocation without an approval", () => {
+    const presentation = deriveIntegrationAuthorityPresentation({
+      approvalStatus: null,
+      authorityState: "ready_for_approval",
+      capabilityRevoked: true,
+    });
+
+    expect(presentation).toEqual({
+      capabilityNotice: "unapproved_execution_blocked",
+      presentationState: "revoked",
+      showActiveApproval: false,
+      showApprovalCta: false,
+      showCapabilityDependentRevisionControls: false,
+      showExecutionCta: false,
+      showRevokeApproval: false,
+    });
+    expect(capabilityNoticeAnnouncement(presentation.capabilityNotice!)).toBe(
+      "This proposal remains unapproved. Execution capability is revoked, so it cannot receive execution authority or run.",
+    );
+  });
+
+  it("preserves an active approval while capability revocation blocks execution", () => {
+    const presentation = deriveIntegrationAuthorityPresentation({
+      approvalStatus: "active",
+      authorityState: "approved",
+      capabilityRevoked: true,
+    });
+
+    expect(presentation).toEqual({
+      capabilityNotice: "approved_execution_blocked",
+      presentationState: "revoked",
+      showActiveApproval: true,
+      showApprovalCta: false,
+      showCapabilityDependentRevisionControls: false,
+      showExecutionCta: false,
+      showRevokeApproval: true,
+    });
+    expect(capabilityNoticeAnnouncement(presentation.capabilityNotice!)).toBe(
+      "Execution capability is revoked. The active approval remains recorded and can still be revoked, but it cannot run and no destination result is claimed.",
+    );
+  });
+
+  it("offers execution only while both approval and capability are active", () => {
+    expect(
+      deriveIntegrationAuthorityPresentation({
+        approvalStatus: "active",
+        authorityState: "approved",
+        capabilityRevoked: false,
+      }),
+    ).toEqual({
+      capabilityNotice: null,
+      presentationState: "approved",
+      showActiveApproval: true,
+      showApprovalCta: false,
+      showCapabilityDependentRevisionControls: true,
+      showExecutionCta: true,
+      showRevokeApproval: true,
+    });
+  });
+
+  it("does not describe a revoked approval as still unapproved", () => {
+    const presentation = deriveIntegrationAuthorityPresentation({
+      approvalStatus: "revoked",
+      authorityState: "revoked",
+      capabilityRevoked: true,
+    });
+
+    expect(presentation.capabilityNotice).toBe(
+      "no_current_approval_execution_blocked",
+    );
+    expect(capabilityNoticeAnnouncement(presentation.capabilityNotice!)).toBe(
+      "No current approval remains. Execution capability is revoked, so the proposal cannot receive execution authority or run.",
+    );
   });
 
   it("rejects expired and version-mismatched approval as stale", () => {

@@ -3,7 +3,7 @@
 ## Outcome
 
 The backend-owned Web slice is materially stronger and directly proven on
-frozen synthetic TS-CORE-01 evidence. Five production defects were found and
+frozen synthetic TS-CORE-01 evidence. Six production defects were found and
 fixed:
 
 1. The capture handoff omitted the HTTP `Idempotency-Key` header.
@@ -15,11 +15,16 @@ fixed:
    although the backend correctly required confirmation.
 5. Repeated links to the same source message did not reliably reopen and focus
    an already-active hash target.
+6. Capability revocation rewrote an active approval as revoked, hid approval
+   revocation, and could still offer approval before an approval existed.
 
 The repaired implementation now binds the handoff packet and header, requests
 `evidence_crop`, preserves the reviewed selected text under
 `source-retention.v2`, wraps decision text, gates authority against the action's
 exact `required_assertion_ids`, and reopens/focuses exact source figures.
+Capability presentation now keeps the approval decision distinct from the
+execution capability: revocation blocks approval and execution controls, while
+an already-active approval remains visible and independently revocable.
 
 ## Direct proof
 
@@ -39,6 +44,9 @@ exact `required_assertion_ids`, and reopens/focuses exact source figures.
 - Stable light and dark axe scans reported zero WCAG A/AA violations. Keyboard
   focus order, exact-source focus, visible focus, and reduced motion were
   directly exercised.
+- Pure state regressions prove capability revocation suppresses approval,
+  execution, and capability-dependent revision controls; an existing active
+  approval remains visible with its revoke control and no result claim.
 - Browser-visible requests stayed on localhost. No candidate contact or
   external write occurred.
 
@@ -75,7 +83,7 @@ is made.
 
 ## Gates and cleanup
 
-Lint, 34 Web tests, direct typecheck, production build, core evaluation,
+Lint, 38 Web tests, direct typecheck, production build, core evaluation,
 documentation/architecture checks, all specialist review contracts, the panel
 contract, JSON parsing, and `git diff --check` pass. The first all-test run
 timed out in the unchanged scrypt test under heavy machine load; the transparent

@@ -29,6 +29,7 @@
     "Evidence crop returns a truthful reviewed_selected_text receipt, source-access state, and 2026-09-04 retention deadline.",
     "Exact same-key retry returns the original capture and leaves capture, approval, effect, and audit counts unchanged.",
     "A dismissed required fact blocks authority, stale preview invalidates approval, and unknown result blocks repeat execution.",
+    "Capability revocation blocks approval and execution without rewriting an existing active approval; approval revocation remains available and no result is claimed.",
     "No off-localhost request or external write was observed."
   ],
   "missing_evidence": [

@@ -51,6 +51,14 @@
       "repair": "Every fact and action evidence link now reopens and focuses the exact source figure.",
       "regression": "integrationEvidenceNavigation.test.ts",
       "status": "fixed"
+    },
+    {
+      "id": "WEB-R4-06",
+      "severity": "high",
+      "finding": "Capability revocation rewrote an active approval as revoked, hid the approval-revocation control, and could still expose approval before an approval existed.",
+      "repair": "A pure authority-presentation state now keeps approval and execution capability distinct: revocation suppresses approval, execution, and capability-dependent revision controls; an existing active approval remains visible and independently revocable.",
+      "regression": "integrationState.test.ts",
+      "status": "fixed"
     }
   ],
   "unresolved_proof_gaps": [
