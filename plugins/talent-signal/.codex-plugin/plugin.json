@@ -1,0 +1,24 @@
+{
+  "name": "talent-signal",
+  "version": "0.1.0",
+  "description": "Read supplied candidate conversations and return evidence-backed, proposal-only momentum packets.",
+  "author": {
+    "name": "Talent Signal"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Talent Signal",
+    "shortDescription": "Review candidate evidence without executing actions.",
+    "longDescription": "Analyze synthetic or user-authorized candidate conversation content, preserve exact evidence and ambiguity, and propose one recruiter-owned next step or no action. The plugin cannot confirm state or perform external writes.",
+    "developerName": "Talent Signal",
+    "category": "Productivity",
+    "capabilities": [
+      "Read supplied content",
+      "Create proposal-only artifacts"
+    ],
+    "defaultPrompt": [
+      "Review this authorized candidate conversation and propose one safe next step.",
+      "Check this synthetic conversation for ambiguity and return no action when appropriate."
+    ]
+  }
+}

@@ -51,6 +51,17 @@
                ReferencedContainer = "container:TalentSignal.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "DF0FB815C41430500ED5DB07"
+               BuildableName = "TalentSignalUITests.xctest"
+               BlueprintName = "TalentSignalUITests"
+               ReferencedContainer = "container:TalentSignal.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

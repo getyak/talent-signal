@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Talent Signal Capture</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to review</a>
+    <div
+      id="assistive-status"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
+
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i><i></i>
+        </span>
+        <span>
+          <strong>Talent Signal</strong>
+          <small>Capture review</small>
+        </span>
+      </div>
+      <label class="mode-control">
+        <span>Source</span>
+        <select id="mode-select" aria-label="Capture source mode">
+          <option value="live">Current tab</option>
+          <option value="fixture">Synthetic fixtures</option>
+        </select>
+      </label>
+    </header>
+
+    <main id="main">
+      <section id="capture-view" class="view capture-view">
+        <div class="eyebrow-row">
+          <p class="eyebrow" id="capture-eyebrow">Intentional capture</p>
+          <span class="state-chip state-chip--observed">Nothing collected</span>
+        </div>
+        <h1 id="capture-title" tabindex="-1">
+          Bring only what matters into review.
+        </h1>
+        <p class="lede" id="capture-lede">
+          Choose the visible page or text you selected. Talent Signal will show
+          the exact payload before anything leaves this panel.
+        </p>
+
+        <div id="live-capture-controls" class="capture-actions">
+          <button id="capture-visible" class="primary-button" type="button">
+            Capture visible page
+          </button>
+          <button id="capture-selection" class="secondary-button" type="button">
+            Use selected text
+          </button>
+        </div>
+
+        <div id="fixture-controls" class="fixture-controls" hidden>
+          <label>
+            <span>Evaluation case</span>
+            <select id="fixture-case"></select>
+          </label>
+          <label>
+            <span>Receipt behavior</span>
+            <select id="fixture-scenario">
+              <option value="received">Received</option>
+              <option value="offline">Offline, then retry</option>
+              <option value="duplicate">Duplicate-safe receipt</option>
+              <option value="stale_session">Stale local session</option>
+              <option value="unknown_then_received">Unknown, then reconciled</option>
+            </select>
+          </label>
+          <button id="load-fixture" class="primary-button" type="button">
+            Open synthetic case
+          </button>
+          <p class="fixture-note">
+            Fixture mode is local and synthetic. It never captures the current
+            tab or claims a backend effect.
+          </p>
+        </div>
+
+        <div
+          id="capture-alert"
+          class="alert"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          hidden
+        >
+          <strong id="capture-alert-title"></strong>
+          <p id="capture-alert-copy"></p>
+        </div>
+
+        <section class="boundary-note" aria-labelledby="boundary-title">
+          <p class="eyebrow" id="boundary-title">Before capture</p>
+          <dl>
+            <div>
+              <dt>Access</dt>
+              <dd>Temporary, only after your toolbar click</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>Visible pixels or your explicit selection</dd>
+            </div>
+            <div>
+              <dt>Retention</dt>
+              <dd>In this panel until removed or handed off</dd>
+            </div>
+          </dl>
+          <p>
+            This extension never watches tabs, messages, history, or cookies.
+          </p>
+        </section>
+      </section>
+
+      <section id="review-view" class="view review-view" hidden>
+        <div class="review-toolbar">
+          <button id="back-button" class="text-button" type="button">
+            ← New capture
+          </button>
+          <button id="remove-button" class="text-button text-button--danger" type="button">
+            Remove
+          </button>
+        </div>
+
+        <div class="eyebrow-row">
+          <p class="eyebrow">Observed source</p>
+          <span id="capture-kind-chip" class="state-chip state-chip--observed"></span>
+        </div>
+        <h1 id="review-heading" tabindex="-1">
+          Review the evidence, then decide.
+        </h1>
+        <p class="lede">
+          Source context and the final pixels or text stay visible at the
+          consequence boundary.
+        </p>
+
+        <ol class="review-steps" aria-label="Review progress">
+          <li data-state="current">
+            <span aria-hidden="true">1</span>
+            <strong>Inspect evidence</strong>
+            <small id="step-evidence">Current</small>
+          </li>
+          <li data-state="upcoming">
+            <span aria-hidden="true">2</span>
+            <strong>Check local session</strong>
+            <small id="step-session">Not checked</small>
+          </li>
+          <li data-state="upcoming">
+            <span aria-hidden="true">3</span>
+            <strong>Submit explicitly</strong>
+            <small id="step-submit">Not approved</small>
+          </li>
+        </ol>
+
+        <section class="source-block" aria-labelledby="source-title">
+          <h2 id="source-title">Source context</h2>
+          <dl>
+            <div>
+              <dt>Title</dt>
+              <dd id="source-page-title"></dd>
+            </div>
+            <div>
+              <dt>URL</dt>
+              <dd id="source-url" class="source-url"></dd>
+            </div>
+            <div>
+              <dt>Captured</dt>
+              <dd id="source-time"></dd>
+            </div>
+          </dl>
+        </section>
+
+        <section id="screenshot-review" class="asset-review" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Exact reviewed pixels</p>
+              <h2>What will be submitted</h2>
+            </div>
+            <span id="image-summary" class="asset-summary"></span>
+          </div>
+
+          <div class="canvas-frame">
+            <canvas
+              id="review-canvas"
+              role="img"
+              aria-label="Reviewed screenshot preview. Pointer users can drag to redact. Keyboard users can use the crop and redaction controls after the image."
+            ></canvas>
+            <span class="canvas-hint">Drag to redact</span>
+          </div>
+
+          <details class="editor-controls">
+            <summary>Crop and redaction controls</summary>
+            <fieldset>
+              <legend>Crop inward by percent</legend>
+              <div class="field-grid">
+                <label>
+                  <span>Left</span>
+                  <input id="crop-left" type="number" min="0" max="80" value="0" />
+                </label>
+                <label>
+                  <span>Top</span>
+                  <input id="crop-top" type="number" min="0" max="80" value="0" />
+                </label>
+                <label>
+                  <span>Right</span>
+                  <input id="crop-right" type="number" min="0" max="80" value="0" />
+                </label>
+                <label>
+                  <span>Bottom</span>
+                  <input id="crop-bottom" type="number" min="0" max="80" value="0" />
+                </label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Redactions</legend>
+              <div class="inline-actions">
+                <button id="add-redaction" class="secondary-button compact" type="button">
+                  Add centered box
+                </button>
+                <button id="undo-redaction" class="text-button" type="button">
+                  Undo last
+                </button>
+              </div>
+              <ol id="redaction-list" class="redaction-list"></ol>
+            </fieldset>
+            <button id="reset-image-edits" class="text-button" type="button">
+              Reset image edits
+            </button>
+          </details>
+        </section>
+
+        <section id="text-review" class="asset-review" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Exact reviewed text</p>
+              <h2>What will be submitted</h2>
+            </div>
+            <span id="text-summary" class="asset-summary"></span>
+          </div>
+          <label class="text-editor">
+            <span>Edit or remove unrelated text</span>
+            <textarea id="reviewed-text" rows="9"></textarea>
+          </label>
+          <p class="edit-note">
+            If edited, only this reviewed text is sent; the original selection
+            is not included in the handoff.
+          </p>
+        </section>
+
+        <section
+          id="fixture-review"
+          class="asset-review fixture-review"
+          aria-labelledby="fixture-title"
+          hidden
+        >
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Synthetic evidence</p>
+              <h2 id="fixture-title"></h2>
+            </div>
+            <span id="fixture-id" class="asset-summary"></span>
+          </div>
+          <p class="fixture-banner">
+            Evaluation fixture — proposed interpretation, never confirmed
+            candidate state.
+          </p>
+          <div id="fixture-context" class="fixture-context"></div>
+          <div>
+            <h3 id="fixture-messages-title">Observed messages</h3>
+            <ol id="fixture-messages" class="message-list"></ol>
+          </div>
+          <div>
+            <h3>Fixture contract · proposed understanding</h3>
+            <p
+              id="fixture-disposition"
+              class="disposition"
+              aria-live="off"
+            ></p>
+            <div id="fixture-assertions" class="assertion-list"></div>
+          </div>
+          <div id="fixture-action-block">
+            <h3>One action proposal</h3>
+            <p id="fixture-action"></p>
+          </div>
+          <div>
+            <h3>Hard boundaries</h3>
+            <ul id="fixture-boundaries" class="boundary-list"></ul>
+          </div>
+        </section>
+
+        <section
+          id="local-cleared"
+          class="asset-review local-cleared"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          hidden
+        >
+          <div class="eyebrow-row">
+            <p class="eyebrow">Private asset lifecycle</p>
+            <span class="state-chip state-chip--deleted">Deleted locally</span>
+          </div>
+          <h2>The reviewed private payload is no longer held in this panel.</h2>
+          <p>
+            Source metadata and the receipt remain visible. Backend retention
+            or derivative deletion is still unverified and requires separate
+            service evidence.
+          </p>
+        </section>
+
+        <section class="connection-block" aria-labelledby="connection-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Local session</p>
+              <h2 id="connection-title">Browser-managed handoff</h2>
+            </div>
+            <span id="session-state" class="state-chip state-chip--unknown">
+              Not checked
+            </span>
+          </div>
+          <p id="session-copy">
+            The extension never reads or shows a password, cookie, or bearer
+            token.
+          </p>
+          <label id="origin-field" class="origin-field">
+            <span>Local service</span>
+            <input id="local-origin" type="url" value="http://localhost:3000" />
+          </label>
+          <div class="inline-actions">
+            <button id="open-sign-in" class="secondary-button compact" type="button">
+              Open local sign-in
+            </button>
+            <button id="check-session" class="text-button" type="button">
+              Check session
+            </button>
+          </div>
+        </section>
+
+        <section class="submit-block" aria-labelledby="submit-title">
+          <p class="eyebrow">Independent decision</p>
+          <h2 id="submit-title">Submit this reviewed capture?</h2>
+          <dl class="handoff-preview">
+            <div>
+              <dt>Target</dt>
+              <dd id="handoff-target"></dd>
+            </div>
+            <div>
+              <dt>Effect</dt>
+              <dd>Upload one reviewed capture for backend review only</dd>
+            </div>
+          </dl>
+          <label class="retention-field">
+            <span>Requested source retention</span>
+            <select id="retention-mode">
+              <option value="ephemeral">Ephemeral source</option>
+              <option value="evidence_crop" selected>Keep reviewed evidence (default)</option>
+              <option value="full_source">Keep full reviewed source</option>
+            </select>
+          </label>
+          <p id="retention-copy" class="retention-copy">
+            Keep only the final reviewed selection for Web evidence review.
+            The receipt will show the enforced deadline.
+          </p>
+          <label class="approval-check">
+            <input id="approval-check" type="checkbox" />
+            <span>
+              I reviewed the source context and the exact payload shown above.
+            </span>
+          </label>
+
+          <div
+            id="submission-status"
+            class="submission-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            hidden
+          >
+            <span id="submission-state-label"></span>
+            <strong id="submission-title"></strong>
+            <p id="submission-copy"></p>
+            <code id="receipt-id" hidden></code>
+          </div>
+
+          <div class="submit-actions">
+            <button id="submit-button" class="primary-button" type="button" disabled>
+              Submit reviewed capture
+            </button>
+            <button id="check-receipt" class="secondary-button" type="button" hidden>
+              Check receipt
+            </button>
+          </div>
+          <p class="submit-note">
+            Submission is a capture handoff only. It does not confirm facts,
+            contact anyone, create a meeting, or update an ATS.
+          </p>
+        </section>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>Evidence stays a proposal until reviewed in Talent Signal.</span>
+      <span>Development build · localhost only</span>
+    </footer>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

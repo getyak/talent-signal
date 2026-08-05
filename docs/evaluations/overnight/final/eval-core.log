@@ -1,0 +1,2 @@
+$ node scripts/evals/validate-candidate-momentum.mjs
+Overnight evaluation validation passed: 8 frozen core cases 6 review objects 9 cross-surface assertions 12 independent craft dimensions 2 JSON schemas 4 contract examples

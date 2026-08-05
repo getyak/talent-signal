@@ -9,7 +9,9 @@ candidate-data backend.
 
 - `/`: product narrative, interactive Card/List candidate library, privacy boundaries, and FAQ.
 - `/login`: Google, Apple, configured email/password, and optional default-account sign-in.
-- `/workspace`: authenticated sample candidate library and source-linked candidate Wiki.
+- `/workspace`: authenticated eight-case evidence-review workspace with
+  identity/time resolution, atomic fact decisions, separate action approval,
+  and truthful fixture outcome states.
 - `/demo`: deterministic local evidence extraction plus an optional,
   explicitly selected server-side AI review route, with loading, empty,
   ambiguity, error, edit, confirm, dismiss, and restore states.
@@ -68,6 +70,12 @@ Local mode is deterministic and browser-side. It does not upload or persist the
 conversation text. When configured, private AI mode must be selected explicitly,
 uses a server-side key, requests zero-data-retention routing, and does not
 persist the note in Talent Signal.
+
+The authenticated workspace can read a shared local development backend by
+setting `TALENT_SIGNAL_BACKEND_URL` to a localhost origin. It requests
+`/v1/candidate-momentum/cases` and accepts only the complete frozen suite with
+an explicit `data_mode` of `fixture` or `synchronized`. Missing, invalid, or
+unavailable responses visibly fall back to the bundled synthetic fixtures.
 
 Copy `.env.example` to `.env.local` to configure the optional route. Production
 keeps the public AI route disabled unless the explicit production gate is set;

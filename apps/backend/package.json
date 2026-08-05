@@ -1,0 +1,39 @@
+{
+  "name": "@talent-signal/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "pnpm --filter @talent-signal/contracts build && tsc6 -p tsconfig.json",
+    "typecheck": "pnpm --filter @talent-signal/contracts build && tsc6 -p tsconfig.json --noEmit",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "migrate": "tsx src/database/migrate.ts",
+    "migrate:built": "node dist/database/migrate.js",
+    "seed": "tsx src/database/seed.ts",
+    "seed:built": "node dist/database/seed.js",
+    "test": "vitest run",
+    "test:integration": "tsx src/evaluation/runEvaluation.ts",
+    "test:retention": "tsx src/evaluation/runRetentionEvaluation.ts",
+    "test:integration:built": "node dist/evaluation/runEvaluation.js",
+    "ci": "./scripts/ci.sh",
+    "check:local": "./scripts/local-check.sh"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/swagger": "^9.5.2",
+    "@sinclair/typebox": "^0.34.41",
+    "@talent-signal/contracts": "workspace:*",
+    "fastify": "^5.5.0",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.20.5",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^4.0.0"
+  }
+}

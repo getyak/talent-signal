@@ -1,0 +1,76 @@
+{
+  "case_id": "TS-CORE-01",
+  "surface": "versioned localhost HTTP API",
+  "limitation": "The effect adapter and destination are deterministic simulations.",
+  "steps": [
+    {
+      "step": 1,
+      "actor": "evaluation-client-a",
+      "transition": "intentional capture",
+      "capture_id": "9b202b21-52be-40c2-b351-4b254bb4f519",
+      "identity_status": "bound",
+      "evidence_count": 1
+    },
+    {
+      "step": 2,
+      "actor": "fixture compiler",
+      "transition": "proposal without authority",
+      "disposition": "propose_action",
+      "assertion_statuses": [
+        "pending",
+        "pending",
+        "pending",
+        "pending"
+      ],
+      "action_status": "proposed"
+    },
+    {
+      "step": 3,
+      "actor": "evaluation-client-a",
+      "transition": "independent fact decisions",
+      "confirmed_state_ids": [
+        "2c582c65-defd-4dad-9b6e-395fd5dd31ad",
+        "7a6feca6-eb05-4237-9533-86bb34ce3ccb",
+        "e3023fbb-2f55-4e74-8819-f280d8a2e800",
+        "1fb19fbb-28ea-48bd-b54e-06106f8e0be1"
+      ],
+      "confirmation_count": 4
+    },
+    {
+      "step": 4,
+      "actor": "evaluation-client-b",
+      "transition": "shared-authority synchronization",
+      "observed_event_types": [
+        "capture.submitted",
+        "analysis.proposed",
+        "assertion.confirm",
+        "state.confirmed",
+        "assertion.confirm",
+        "state.confirmed",
+        "assertion.confirm",
+        "state.confirmed",
+        "assertion.confirm",
+        "state.confirmed"
+      ],
+      "next_cursor": 10
+    },
+    {
+      "step": 5,
+      "actor": "evaluation-client-b",
+      "transition": "exact version-bound action approval",
+      "approval_id": "548b470e-6a68-46ba-8555-e7a4b7406116",
+      "action_version": 1,
+      "preview_digest": "df28476e7c4a55b2b4fd517ba2935f8e76e1aaaa10152a087dccceb94aa9dd04"
+    },
+    {
+      "step": 6,
+      "actor": "local deterministic adapter",
+      "transition": "simulated effect and destination readback",
+      "attempt_id": "08e0e0f5-f6ac-4883-8509-693c83e3c0e6",
+      "attempt_status": "verified",
+      "simulated": true,
+      "destination_match": "matched",
+      "outcome_status": "verified"
+    }
+  ]
+}

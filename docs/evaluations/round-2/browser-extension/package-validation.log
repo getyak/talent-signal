@@ -1,0 +1,3 @@
+$ /Users/xiongxinwei/.nvm/versions/node/v22.22.0/bin/node apps/browser-extension/scripts/validate-package.mjs
+
+Validated load-unpacked package: 10 required files, 7 local scripts.

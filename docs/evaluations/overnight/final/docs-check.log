@@ -1,0 +1,6 @@
+$ node scripts/check-docs.mjs && node scripts/wiki.mjs check && pnpm architecture:check
+Documentation check passed: 11 canonical documents and 123 Markdown files.
+Wiki check passed: 1 published page(s).
+$ node scripts/check-architecture-diagrams.mjs
+product architecture: PASS · 79 elements · 47 texts · 76 solid · 3 dashed · 2562x1439
+system architecture: PASS · 123 elements · 64 texts · 118 solid · 5 dashed · 2574x1732

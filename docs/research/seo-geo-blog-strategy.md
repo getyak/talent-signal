@@ -38,7 +38,7 @@ Primary references:
 - [Google: sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)
 - [Bing Webmaster Guidelines](https://www.bing.com/webmasters/help/bing-webmaster-guidelines-30fba23a)
 - [Bing: IndexNow](https://www.bing.com/webmasters/help/indexnow-0z209wby)
-- [OpenAI: ChatGPT search](https://help.openai.com/en/articles/9237897-chatgpt-search)
+- [OpenAI: ChatGPT search](https://openai.com/index/introducing-chatgpt-search/)
 - [Schema.org: BlogPosting](https://schema.org/BlogPosting)
 
 ## Search demand model

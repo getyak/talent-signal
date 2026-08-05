@@ -31,6 +31,7 @@ targets:
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
+        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Talent Signal imports only the conversation screenshot you choose.
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
@@ -56,6 +57,7 @@ targets:
       gatherCoverageData: true
       testTargets:
         - TalentSignalTests
+        - TalentSignalUITests
 
   TalentSignalTests:
     type: bundle.unit-test
@@ -69,3 +71,17 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.app.tests
+
+  TalentSignalUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: TalentSignal
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.app.uitests
+        TEST_TARGET_NAME: TalentSignal
