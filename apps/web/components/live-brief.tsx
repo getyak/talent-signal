@@ -39,7 +39,7 @@ export function LiveBrief() {
       <div className="live-brief__candidate">
         <div>
           <p className="metadata">Candidate brief</p>
-          <h3>Leila Hartmann</h3>
+          <h2>Leila Hartmann</h2>
           <p>VP Product candidate</p>
         </div>
         <span className="source-lock">
