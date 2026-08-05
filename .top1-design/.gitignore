@@ -1,0 +1,5 @@
+runs/
+tmp/
+references/**/capture-*.png
+references/**/capture-*.jpg
+references/**/capture-*.jpeg

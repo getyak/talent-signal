@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "id": "source-scope",
+  "source_url": "https://example.com/",
+  "captured_at": "2026-01-01T00:00:00Z",
+  "role": "positive-reference",
+  "scope": ["page", "region"],
+  "quality_branches": ["comprehension", "perception"],
+  "observed": [],
+  "interpretation": [],
+  "transfer": [],
+  "avoid_copy": [],
+  "fails_when": [],
+  "rights": "link-only"
+}

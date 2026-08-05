@@ -10,8 +10,8 @@ import Link from "next/link";
 import { BlogPostPreview } from "@/components/blog-post-preview";
 import { CandidateLibraryPreview } from "@/components/candidate-library-preview";
 import { FaqList } from "@/components/faq-list";
+import { LiveBrief } from "@/components/live-brief";
 import { Reveal } from "@/components/reveal";
-import { SignalSceneShell } from "@/components/signal-scene-shell";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { StructuredData } from "@/components/structured-data";
@@ -64,11 +64,12 @@ export default function HomePage() {
         <section className="hero shell" aria-labelledby="hero-title">
           <div className="hero__copy">
             <div>
-              <p className="eyebrow">Relational intelligence for search</p>
-              <h1 id="hero-title">Know who needs you now.</h1>
+              <p className="eyebrow">Evidence-first relationship intelligence</p>
+              <h1 id="hero-title">Never lose a strong candidate between conversations.</h1>
               <p className="hero__lede">
-                Turn candidate conversations into a living, source-linked brief
-                with one clear next move.
+                Talent Signal turns one meaningful conversation into a
+                source-linked brief: what changed, what remains open, and the
+                smallest safe next step.
               </p>
               <div className="hero__actions">
                 <Link
@@ -78,28 +79,23 @@ export default function HomePage() {
                   Enter workspace
                   <ArrowRight aria-hidden="true" size={17} />
                 </Link>
-                <Link className="button button--secondary" href="/#product">
-                  See the product
+                <Link className="button button--secondary" href="/demo">
+                  Try one conversation
                 </Link>
               </div>
+              <p className="hero__boundary">
+                Review first. Correct anything. Nothing sends without you.
+              </p>
             </div>
           </div>
 
           <div className="hero__visual">
-            <div className="signal-frame">
+            <div className="hero-proof">
               <div className="signal-frame__topline">
-                <span>Relationship context</span>
-                <span>One-hop view</span>
+                <span>Living candidate brief</span>
+                <span>Interactive proof</span>
               </div>
-              <SignalSceneShell />
-              <div className="signal-frame__outcome">
-                <span>
-                  <strong>4</strong> confirmed facts
-                </span>
-                <span>
-                  <strong>1</strong> next action
-                </span>
-              </div>
+              <LiveBrief />
             </div>
           </div>
         </section>
