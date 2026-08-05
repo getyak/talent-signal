@@ -217,6 +217,7 @@ struct ReviewedFact: Identifiable, Equatable {
 struct ActionPreview: Equatable {
     let action: FixtureAction
     let reviewRevision: Int
+    var cards: [ReviewedLoopAction]
 
     var exactEffect: String {
         "Prepare a recruiter-owned question for a local handoff. No message, meeting, contact, ATS record, or reminder will be created."
@@ -259,6 +260,24 @@ struct ReviewSession: Equatable {
         return preview.reviewRevision == revision
     }
 
+    var allActionCardsReviewed: Bool {
+        guard let preview, !preview.cards.isEmpty else { return false }
+        return preview.cards.allSatisfy { $0.decision != .pending }
+    }
+
+    var approvedActionCards: [ReviewedLoopAction] {
+        preview?.cards.filter { $0.decision == .approved } ?? []
+    }
+
+    var momentumInsight: MomentumInsight? {
+        guard allActionCardsReviewed else { return nil }
+        return CandidateMomentumLoopEngine.insight(
+            fixture: fixture,
+            acceptedFacts: acceptedFacts,
+            approvedActions: approvedActionCards
+        )
+    }
+
     mutating func confirm(factID: String) -> Bool {
         guard let index = facts.firstIndex(where: { $0.id == factID }) else {
             return false
@@ -298,9 +317,38 @@ struct ReviewSession: Equatable {
         guard canPreviewAction, let action = fixture.expected.action else {
             return nil
         }
-        let newPreview = ActionPreview(action: action, reviewRevision: revision)
+        let newPreview = ActionPreview(
+            action: action,
+            reviewRevision: revision,
+            cards: CandidateMomentumLoopEngine.actionCards(
+                fixture: fixture,
+                acceptedFacts: acceptedFacts
+            )
+        )
         preview = newPreview
         return newPreview
+    }
+
+    mutating func approveAction(cardID: String) -> Bool {
+        guard var preview,
+              preview.reviewRevision == revision,
+              let index = preview.cards.firstIndex(where: { $0.id == cardID }) else {
+            return false
+        }
+        preview.cards[index].decision = .approved
+        self.preview = preview
+        return true
+    }
+
+    mutating func dismissAction(cardID: String) -> Bool {
+        guard var preview,
+              preview.reviewRevision == revision,
+              let index = preview.cards.firstIndex(where: { $0.id == cardID }) else {
+            return false
+        }
+        preview.cards[index].decision = .dismissed
+        self.preview = preview
+        return true
     }
 
     mutating func invalidatePreviewForTesting() {

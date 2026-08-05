@@ -75,7 +75,7 @@ Lychee checks committed Markdown. HTTP 202 is accepted because EUR-Lex uses it
 for reachable legal-document pages, and HTTP 429 is retried/accepted to avoid
 turning rate limiting into a false documentation failure. CAC URLs are excluded
 because that host is not reachable from GitHub-hosted runners; their sources
-remain in the documents and should be manually reviewed when edited. Two exact
+remain in the documents and should be manually reviewed when edited. Three exact
 OpenAI documentation URLs are also excluded because their anti-automation layer
 returns HTTP 403 to GitHub-hosted runners; the rest of those domains are still
 checked.

@@ -153,7 +153,15 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Localhost fixture provenance")
     }
 
-    func testBackendCanonicalStateReadsConfirmedFactsFromLocalhost() {
+    @MainActor
+    func testBackendCanonicalStateReadsConfirmedFactsFromLocalhost() async throws {
+        let endpoint = URL(string: "http://127.0.0.1:4317/health/ready")!
+        guard let (_, response) = try? await URLSession.shared.data(from: endpoint),
+              let response = response as? HTTPURLResponse,
+              response.statusCode == 200 else {
+            throw XCTSkip("Run with the authorized local Talent Signal backend.")
+        }
+
         app.launchArguments = [
             "--backend-url", "http://127.0.0.1:4317"
         ]

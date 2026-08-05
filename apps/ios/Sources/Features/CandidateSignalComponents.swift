@@ -41,6 +41,56 @@ struct SourceNotice: View {
     }
 }
 
+struct HeroConversationPreview: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 7) {
+                Image(systemName: "photo.on.rectangle.angled")
+                Text("Synthetic conversation image")
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.tsMutedInk)
+
+            HStack {
+                Spacer(minLength: 30)
+                Text("I have another offer and need to decide Friday. Remote is important to me.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                    .background(
+                        Color.tsSurface,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+            }
+
+            HStack {
+                Spacer(minLength: 30)
+                Text("Thursday at 3:00 PM Singapore time works—please send a 30-minute video invite.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                    .background(
+                        Color.tsSurface,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+            }
+        }
+        .padding(14)
+        .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "Synthetic conversation image. Candidate says: I have another offer and need to decide Friday. Remote is important to me. Thursday at 3 PM Singapore time works. Please send a 30-minute video invite."
+        )
+        .accessibilityIdentifier("hero-conversation-preview")
+    }
+}
+
 struct FixtureReviewView: View {
     let session: ReviewSession
     let sourceNotice: String
@@ -386,6 +436,8 @@ struct ActionPreviewView: View {
     let session: ReviewSession
     let sourceNotice: String
     let dynamicTypeSize: DynamicTypeSize
+    let onApproveAction: (String) -> Void
+    let onDismissAction: (String) -> Void
     let onReturnToReview: () -> Void
     let onCompleteHandoff: () -> Void
 
@@ -396,47 +448,10 @@ struct ActionPreviewView: View {
             )
 
             if let preview = session.preview, session.isPreviewCurrent {
-                VStack(alignment: .leading, spacing: 18) {
-                    SectionLabel(text: "Separate action decision")
-                    Text("Prepare one question—locally")
-                        .font(.system(.title, design: .rounded).weight(.bold))
-                        .foregroundStyle(Color.tsInk)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    PreviewField(label: "Target", value: preview.action.target)
-                    PreviewField(label: "Owner", value: preview.action.owner)
-                    PreviewField(label: "Due", value: preview.action.due)
-                    PreviewField(label: "Reason", value: preview.action.reason)
-                    PreviewField(label: "Exact effect", value: preview.exactEffect)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Supporting evidence")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.tsMutedInk)
-                        ForEach(preview.action.evidenceMessageIDs, id: \.self) { messageID in
-                            if let message = session.fixture.messages.first(where: { $0.id == messageID }) {
-                                Text("“\(message.text)”")
-                                    .font(.body)
-                                    .foregroundStyle(Color.tsInk)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-                    .padding(12)
-                    .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 12))
-                }
-                .tsCard()
-
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 10) {
-                        completeButton
-                        backButton
-                    }
+                if preview.cards.isEmpty {
+                    legacyActionPreview(preview)
                 } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        completeButton
-                        backButton
-                    }
+                    loopActionReview(preview)
                 }
             } else {
                 StateMessage(
@@ -453,17 +468,304 @@ struct ActionPreviewView: View {
         }
     }
 
+    @ViewBuilder
+    private func legacyActionPreview(_ preview: ActionPreview) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SectionLabel(text: "Separate action decision")
+            Text("Prepare one question—locally")
+                .font(.system(.title, design: .rounded).weight(.bold))
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+
+            PreviewField(label: "Target", value: preview.action.target)
+            PreviewField(label: "Owner", value: preview.action.owner)
+            PreviewField(label: "Due", value: preview.action.due)
+            PreviewField(label: "Reason", value: preview.action.reason)
+            PreviewField(label: "Exact effect", value: preview.exactEffect)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Supporting evidence")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsMutedInk)
+                ForEach(preview.action.evidenceMessageIDs, id: \.self) { messageID in
+                    if let message = session.fixture.messages.first(where: { $0.id == messageID }) {
+                        Text("“\(message.text)”")
+                            .font(.body)
+                            .foregroundStyle(Color.tsInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .tsCard()
+
+        VStack(alignment: .leading, spacing: 10) {
+            completeButton
+            backButton
+        }
+    }
+
+    @ViewBuilder
+    private func loopActionReview(_ preview: ActionPreview) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel(text: "Action cards")
+            Text("Decide the changes. Then see what matters.")
+                .font(.system(.title, design: .rounded).weight(.bold))
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Each card is derived only from facts you kept. Nothing is executed by this demo.")
+                .font(.body)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        ForEach(preview.cards) { action in
+            LoopActionCardView(
+                action: action,
+                dynamicTypeSize: dynamicTypeSize,
+                onApprove: { onApproveAction(action.id) },
+                onDismiss: { onDismissAction(action.id) }
+            )
+        }
+
+        if let insight = session.momentumInsight {
+            MomentumInsightView(
+                insight: insight,
+                eyebrow: "Insight after confirmation"
+            )
+            .accessibilityIdentifier("hero-insight")
+
+            VStack(alignment: .leading, spacing: 10) {
+                completeButton
+                backButton
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(
+                    "Review every action card to reveal the momentum insight.",
+                    systemImage: "eye.slash"
+                )
+                .font(.headline)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("insight-locked")
+
+                backButton
+            }
+            .tsCard()
+        }
+    }
+
     private var completeButton: some View {
-        Button("Keep as local handoff", action: onCompleteHandoff)
+        Button(
+            session.preview?.cards.isEmpty == false
+                ? "Finish this loop"
+                : "Keep as local handoff",
+            action: onCompleteHandoff
+        )
             .buttonStyle(TSPrimaryButtonStyle())
             .accessibilityIdentifier("complete-handoff")
-            .accessibilityHint("Records only a local demo outcome. It does not perform an external action.")
+            .accessibilityHint(
+                "Records only a local demo outcome. It does not perform an external action."
+            )
     }
 
     private var backButton: some View {
         Button("Back to fact review", action: onReturnToReview)
             .buttonStyle(TSSecondaryButtonStyle())
             .accessibilityIdentifier("back-to-review")
+    }
+}
+
+struct LoopActionCardView: View {
+    let action: ReviewedLoopAction
+    let dynamicTypeSize: DynamicTypeSize
+    let onApprove: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: action.card.type.systemImage)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.tsVermilion)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    SectionLabel(text: action.card.type.title)
+                    Text(action.card.target)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Text(action.card.reason)
+                .font(.body)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(action.card.fields) { field in
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(field.label.uppercased())
+                            .font(.caption.weight(.bold))
+                            .tracking(0.7)
+                            .foregroundStyle(Color.tsMutedInk)
+                        if let before = field.before {
+                            Text("\(before) → \(field.after)")
+                                .font(.body)
+                                .foregroundStyle(Color.tsInk)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text(field.after)
+                                .font(.body)
+                                .foregroundStyle(Color.tsInk)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .padding(14)
+            .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 14))
+
+            PreviewField(label: "Exact effect", value: action.card.exactEffect)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("SUPPORTING EVIDENCE")
+                    .font(.caption.weight(.bold))
+                    .tracking(0.7)
+                    .foregroundStyle(Color.tsMutedInk)
+                ForEach(action.card.evidenceQuotes, id: \.self) { quote in
+                    Text("“\(quote)”")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tsInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Label(
+                action.decision.title,
+                systemImage: action.decision == .approved
+                    ? "checkmark.circle"
+                    : action.decision == .dismissed
+                        ? "minus.circle"
+                        : "circle.dashed"
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(
+                action.decision == .approved ? Color.tsConfirmed : Color.tsMutedInk
+            )
+            .accessibilityIdentifier("action-decision-\(action.id)")
+
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 10) {
+                    approveButton
+                    dismissButton
+                }
+            } else {
+                HStack(spacing: 10) {
+                    approveButton
+                    dismissButton
+                }
+            }
+        }
+        .tsCard()
+        .accessibilityIdentifier("action-card-\(action.id)")
+    }
+
+    private var approveButton: some View {
+        Button(
+            action.decision == .approved ? "Approved" : "Approve card",
+            action: onApprove
+        )
+        .buttonStyle(TSPrimaryButtonStyle())
+        .accessibilityIdentifier("action-approve-\(action.id)")
+    }
+
+    private var dismissButton: some View {
+        Button("Dismiss card", role: .destructive, action: onDismiss)
+            .buttonStyle(TSSecondaryButtonStyle())
+            .accessibilityIdentifier("action-dismiss-\(action.id)")
+    }
+}
+
+struct MomentumInsightView: View {
+    let insight: MomentumInsight
+    let eyebrow: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline) {
+                SectionLabel(text: eyebrow)
+                Spacer()
+                Text(insight.verdict.title.uppercased())
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.tsVermilion)
+            }
+
+            Text(insight.nextStep)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 12) {
+                InsightField(label: "Why now", value: insight.whyNow)
+                InsightField(
+                    label: "Relationship context",
+                    value: insight.relationshipContext
+                )
+                InsightField(label: "Timeframe", value: insight.timeframe)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("EVIDENCE USED")
+                    .font(.caption.weight(.bold))
+                    .tracking(0.7)
+                    .foregroundStyle(Color.tsMutedInk)
+                ForEach(insight.evidenceQuotes, id: \.self) { quote in
+                    Text("“\(quote)”")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tsInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(20)
+        .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 22))
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.tsVermilion)
+                .frame(width: 4)
+                .padding(.vertical, 18)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 22)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+    }
+}
+
+private struct InsightField: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label.uppercased())
+                .font(.caption.weight(.bold))
+                .tracking(0.7)
+                .foregroundStyle(Color.tsMutedInk)
+            Text(value)
+                .font(.body)
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

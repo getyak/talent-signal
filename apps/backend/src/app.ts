@@ -39,6 +39,7 @@ import {
   type SubmitAnalysisProposalRequest,
 } from "@talent-signal/contracts";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import Fastify, { type FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
@@ -146,6 +147,11 @@ export async function buildApp(
       callback(null, false);
     },
   });
+  await app.register(rateLimit, {
+    global: false,
+    max: 60,
+    timeWindow: "1 minute",
+  });
   await app.register(swagger, {
     openapi: {
       info: {
@@ -174,6 +180,16 @@ export async function buildApp(
           message: error.message,
           request_id: request.id,
           ...(error.details === undefined ? {} : { details: error.details }),
+        },
+      });
+      return;
+    }
+    if ((error as { statusCode?: number }).statusCode === 429) {
+      void reply.status(429).send({
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many readiness probes. Retry after the current window.",
+          request_id: request.id,
         },
       });
       return;
@@ -207,28 +223,39 @@ export async function buildApp(
     status: "ok",
     service: "talent-signal-backend",
   }));
-  app.get("/health/ready", async (_request, reply) => {
-    try {
-      const result = await pool.query<{ version: string }>(
-        `SELECT version
-         FROM schema_migrations
-         WHERE version = '002_source_retention'`,
-      );
-      if (!result.rows[0]) {
-        throw new Error("migration unavailable");
+  app.get(
+    "/health/ready",
+    {
+      config: {
+        rateLimit: {
+          max: 60,
+          timeWindow: "1 minute",
+        },
+      },
+    },
+    async (_request, reply) => {
+      try {
+        const result = await pool.query<{ version: string }>(
+          `SELECT version
+           FROM schema_migrations
+           WHERE version = '002_source_retention'`,
+        );
+        if (!result.rows[0]) {
+          throw new Error("migration unavailable");
+        }
+        return {
+          status: "ready",
+          database: "ready",
+          migration: result.rows[0].version,
+        };
+      } catch {
+        return reply.status(503).send({
+          status: "not_ready",
+          database: "unavailable",
+        });
       }
-      return {
-        status: "ready",
-        database: "ready",
-        migration: result.rows[0].version,
-      };
-    } catch {
-      return reply.status(503).send({
-        status: "not_ready",
-        database: "unavailable",
-      });
-    }
-  });
+    },
+  );
   app.get("/v1/meta", async () => ({
     contract_version: CONTRACT_VERSION,
     authority: "account_scoped_backend",
