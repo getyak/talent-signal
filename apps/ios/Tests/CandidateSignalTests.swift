@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import TalentSignal
 
@@ -151,6 +152,16 @@ final class CandidateSignalTests: XCTestCase {
         XCTAssertFalse(URLFixtureLoader.isLoopback(URL(string: "file:///tmp/fixtures.json")!))
     }
 
+    func testEvidencePaletteHasEnhancedDarkContrast() {
+        let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
+        let ink = UIColor(Color.tsInk).resolvedColor(with: darkTraits)
+        let mutedInk = UIColor(Color.tsMutedInk).resolvedColor(with: darkTraits)
+        let evidence = UIColor(Color.tsEvidence).resolvedColor(with: darkTraits)
+
+        XCTAssertGreaterThanOrEqual(contrastRatio(ink, evidence), 7)
+        XCTAssertGreaterThanOrEqual(contrastRatio(mutedInk, evidence), 7)
+    }
+
     func testLaunchScenariosAreDeterministic() {
         XCTAssertEqual(
             AppLaunchConfiguration.parse(
@@ -213,5 +224,31 @@ final class CandidateSignalTests: XCTestCase {
 
         XCTAssertEqual(store.stage, .importCancelled(.fixture("TS-CORE-01")))
         XCTAssertNil(store.session)
+    }
+
+    private func contrastRatio(_ first: UIColor, _ second: UIColor) -> CGFloat {
+        let firstLuminance = relativeLuminance(first)
+        let secondLuminance = relativeLuminance(second)
+        let lighter = max(firstLuminance, secondLuminance)
+        let darker = min(firstLuminance, secondLuminance)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    private func relativeLuminance(_ color: UIColor) -> CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        XCTAssertTrue(color.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+
+        return 0.2126 * linearized(red)
+            + 0.7152 * linearized(green)
+            + 0.0722 * linearized(blue)
+    }
+
+    private func linearized(_ component: CGFloat) -> CGFloat {
+        component <= 0.04045
+            ? component / 12.92
+            : pow((component + 0.055) / 1.055, 2.4)
     }
 }

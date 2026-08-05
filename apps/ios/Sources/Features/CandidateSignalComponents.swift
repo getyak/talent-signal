@@ -193,6 +193,7 @@ struct FixtureReviewView: View {
                 .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("proposal-review-instruction")
 
             ForEach(Array(session.facts.enumerated()), id: \.element.id) { index, fact in
                 FactReviewCard(
@@ -307,6 +308,7 @@ struct FactReviewCard: View {
             .padding(12)
             .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 12))
             .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("fact-evidence-\(fact.id)")
 
             if fact.assertion.status == .ambiguous {
                 Label(

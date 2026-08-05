@@ -21,43 +21,52 @@ struct CandidateSignalView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 24) {
-                        BrandHeader()
-                            .id("screen-top")
+            ZStack {
+                Color.tsCanvas.ignoresSafeArea()
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 24) {
+                            BrandHeader()
+                                .id("screen-top")
 
-                        switch store.stage {
-                        case .idle:
-                            idleContent
-                        case let .importing(kind):
-                            importingContent(kind)
-                        case let .importCancelled(kind):
-                            cancelledContent(kind)
-                        case let .importFailed(failure):
-                            failedContent(failure)
-                        case .reviewingUnboundImage:
-                            unboundImageContent
-                        case .reviewingFixture:
-                            fixtureReviewContent
-                        case .actionPreview:
-                            actionPreviewContent
-                        case let .outcome(outcome):
-                            outcomeContent(outcome)
+                            switch store.stage {
+                            case .idle:
+                                idleContent
+                            case let .importing(kind):
+                                importingContent(kind)
+                            case let .importCancelled(kind):
+                                cancelledContent(kind)
+                            case let .importFailed(failure):
+                                failedContent(failure)
+                            case .reviewingUnboundImage:
+                                unboundImageContent
+                            case .reviewingFixture:
+                                fixtureReviewContent
+                            case .actionPreview:
+                                actionPreviewContent
+                            case let .outcome(outcome):
+                                outcomeContent(outcome)
+                            }
+
+                            PrivacyBoundaryNote()
                         }
-
-                        PrivacyBoundaryNote()
+                        .padding(.horizontal, 20)
+                        .padding(.top, 14)
+                        .padding(.bottom, 40)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 14)
-                    .padding(.bottom, 40)
-                }
-                .background(Color.tsCanvas.ignoresSafeArea())
-                .onChange(of: store.stage) { _ in
-                    Task { @MainActor in
-                        proxy.scrollTo("screen-top", anchor: .top)
+                    .clipped()
+                    .onChange(of: store.stage) { _ in
+                        Task { @MainActor in
+                            proxy.scrollTo("screen-top", anchor: .top)
+                        }
                     }
                 }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.tsCanvas
+                    .frame(height: 1)
+                    .background(Color.tsCanvas.ignoresSafeArea(edges: .top))
+                    .accessibilityHidden(true)
             }
             .toolbar(.hidden, for: .navigationBar)
         }
