@@ -1050,7 +1050,7 @@ extension Color {
     static let tsMutedInk = Color(
         uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.72, green: 0.70, blue: 0.65, alpha: 1)
+                ? UIColor(red: 0.82, green: 0.80, blue: 0.75, alpha: 1)
                 : UIColor(red: 0.36, green: 0.35, blue: 0.32, alpha: 1)
         }
     )

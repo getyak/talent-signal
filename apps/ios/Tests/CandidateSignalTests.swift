@@ -157,9 +157,13 @@ final class CandidateSignalTests: XCTestCase {
         let ink = UIColor(Color.tsInk).resolvedColor(with: darkTraits)
         let mutedInk = UIColor(Color.tsMutedInk).resolvedColor(with: darkTraits)
         let evidence = UIColor(Color.tsEvidence).resolvedColor(with: darkTraits)
+        let surface = UIColor(Color.tsSurface).resolvedColor(with: darkTraits)
+        let canvas = UIColor(Color.tsCanvas).resolvedColor(with: darkTraits)
 
         XCTAssertGreaterThanOrEqual(contrastRatio(ink, evidence), 7)
         XCTAssertGreaterThanOrEqual(contrastRatio(mutedInk, evidence), 7)
+        XCTAssertGreaterThanOrEqual(contrastRatio(mutedInk, surface), 7)
+        XCTAssertGreaterThanOrEqual(contrastRatio(mutedInk, canvas), 7)
     }
 
     func testLaunchScenariosAreDeterministic() {

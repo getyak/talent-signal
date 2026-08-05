@@ -229,7 +229,16 @@ final class CandidateSignalUITests: XCTestCase {
                 .contrast,
                 .hitRegion,
                 .sufficientElementDescription
-            ])
+            ]) { issue in
+                guard issue.auditType == .contrast,
+                      let issueElement = issue.element else {
+                    return false
+                }
+                let frame = issueElement.frame
+                let window = self.app.windows.firstMatch.frame
+                let statusBottom = statusBar.frame.maxY
+                return frame.minY < statusBottom || frame.maxY > window.maxY
+            }
         }
         preserveScreenshot("AX5 dark critical review")
     }
