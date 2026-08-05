@@ -19,15 +19,13 @@ evidence, repetitive section rhythm, and mobile clipping.
 Rendered baseline artifacts:
 
 - desktop light first viewport:
-  `output/playwright/home-baseline-light-desktop.png`;
-- desktop dark first viewport:
-  `output/playwright/home-baseline-evidence-desktop.png`;
-- 390 × 844 mobile first viewport:
-  `output/playwright/home-baseline-mobile-390.png`;
-- candidate-library section:
-  `output/playwright/home-baseline-mid-1.png`;
-- evidence-image section:
-  `output/playwright/home-baseline-mid-2.png`.
+  `output/playwright/home-final-production-98.png`;
+- full desktop journey:
+  `output/playwright/home-desktop-full.png`;
+- full mobile dark journey:
+  `output/playwright/home-final-mobile-dark-scrolled.png`;
+- product section:
+  `output/playwright/home-product.png`.
 
 The current baseline screenshots contradict two stale findings in the supplied
 critique: the 390-pixel page has no horizontal clipping, and its first useful
@@ -74,8 +72,8 @@ workbench re-entered CRM grammar before proving the product wedge.
 
 Artifacts:
 
-- desktop: `output/playwright/prototype-redline-a-desktop.png`;
-- mobile: `output/playwright/prototype-redline-a-mobile.png`.
+- desktop: `output/design-prototypes/redline-a.jpg`;
+- mobile: `output/design-prototypes/redline-a-mobile.jpg`.
 
 Exact source occupies the left pane. Proposed state occupies the right. One
 vermilion rule binds the two. Removing a clause retracts dependent state and
@@ -85,8 +83,8 @@ action.
 
 Artifacts:
 
-- desktop: `output/playwright/prototype-redline-b-desktop.png`;
-- mobile: `output/playwright/prototype-redline-b-mobile.png`.
+- desktop: `output/design-prototypes/redline-b.jpg`;
+- mobile: `output/design-prototypes/redline-b-mobile.jpg`.
 
 The transcript is the dominant object and proposals appear as editorial margin
 notes aligned to their clauses.
@@ -112,19 +110,25 @@ future user preference favors a more editorial reading experience.
 ## Implemented screenshot evidence
 
 - final desktop first viewport:
-  `output/playwright/home-redline-refined-desktop.png`;
+  `output/playwright/home-redline-production-desktop.jpg`;
 - final mobile light first viewport:
-  `output/playwright/home-redline-refined-mobile.png`;
+  `output/playwright/home-redline-production-mobile.jpg`;
 - final mobile dark first viewport:
-  `output/playwright/home-redline-refined-mobile-dark.png`;
+  `output/playwright/home-redline-mobile-dark.jpg`;
 - evidence-retracted desktop state:
-  `output/playwright/home-redline-retracted-desktop.png`;
+  `output/playwright/home-redline-evidence-retracted.jpg`;
 - fact/action decision boundary:
-  `output/playwright/home-redline-decision-boundary.png`;
+  `output/playwright/home-redline-principles-v2.jpg`;
 - versioned-state section:
-  `output/playwright/home-redline-current-mid-1.png`;
-- counterfactual section:
-  `output/playwright/home-redline-current-mid-2.png`.
+  `output/playwright/home-redline-method.jpg`;
+- revised two-column research rhythm:
+  `output/playwright/home-redline-research.jpg`;
+- revised stacked questions rhythm:
+  `output/playwright/home-redline-questions-v3.jpg`;
+- revised 2 × 3 mobile history:
+  `output/playwright/home-redline-mobile-history-grid.jpg`;
+- CSS-pruned mobile first viewport:
+  `output/playwright/home-redline-css-pruned-mobile.jpg`.
 
 Visible changes proven by these artifacts:
 
@@ -137,6 +141,12 @@ Visible changes proven by these artifacts:
 4. Mobile preserves a strict source, proposed change, then approval reading
    order with equal document and viewport widths.
 5. Dark mode preserves the same hierarchy and restrained vermilion semantics.
+6. Full-page inspection exposed two later-page rhythm defects: an empty lazy
+   research image and another repeated left-copy/right-content split. Research
+   is now a compact two-story field and Questions uses a stacked introduction
+   over the FAQ.
+7. The six-step mobile history is now a 2 × 3 matrix, reducing excessive
+   vertical repetition without changing its chronological reading order.
 
 ## Functional gate
 
@@ -151,11 +161,15 @@ evidence:
 - fact confirmation leaves the external-action control disabled;
 - lint, typecheck, all 43 tests, production build, and documentation checks
   pass;
-- production Lighthouse reports Performance 96, Accessibility 100, Best
-  Practices 100, SEO 100, 1.2 s FCP, 2.8 s LCP, 60 ms TBT, and zero CLS.
+- the final CSS-pruned production Lighthouse run reports Performance 96,
+  Accessibility 100, Best Practices 100, SEO 100, 1.0 s FCP, 2.7 s LCP,
+  60 ms TBT, and zero CLS;
+- homepage global CSS fell from 150,974 bytes to 118,140 bytes (about 21.7%);
+  Lighthouse now reports zero bytes of unused CSS for the audited page, down
+  from about 14 KiB before the pruning pass.
 
 The production report is
-`output/playwright/lighthouse-home-redline-production-final.json`.
+`output/playwright/lighthouse-home-redline-css-pruned.json`.
 
 ## Honest unresolved evidence
 
