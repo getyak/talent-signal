@@ -148,6 +148,42 @@ Visible changes proven by these artifacts:
 7. The six-step mobile history is now a 2 × 3 matrix, reducing excessive
    vertical repetition without changing its chronological reading order.
 
+## 2026-08-06 rhythm and depth pass
+
+This pass began from new rendered artifacts rather than the earlier design
+judgment:
+
+- final desktop first viewport:
+  `output/playwright/home-refined-2026-08-06-desktop.jpg`;
+- final stacked Questions section with one visible answer:
+  `output/playwright/home-refined-2026-08-06-questions.jpg`;
+- current mobile first viewport:
+  `output/playwright/home-redline-css-pruned-mobile.jpg`;
+- current dark mobile first viewport:
+  `output/playwright/home-redline-mobile-dark.jpg`;
+- evidence-retracted state:
+  `output/playwright/home-redline-evidence-retracted.jpg`.
+
+Full-page inspection showed a desktop-only rhythm problem that was not visible
+in the fixed first viewport. History, Research, and Questions consumed more
+vertical space than their content justified, making the later page feel like a
+sequence of equally sparse canvases.
+
+The after screenshot provides three relative improvements:
+
+1. Desktop section spacing is tighter without compressing the 390-pixel
+   layout.
+2. Questions keeps the stacked introduction that breaks the page's repeated
+   left-copy/right-content rhythm. The first answer is visible by default, so
+   the section shows an actual trust boundary rather than four closed prompts.
+3. The interactive workbench and decision ledger gain a restrained,
+   background-tinted depth treatment on desktop. Mobile removes the shadow so
+   the narrow layout remains crisp and avoids unnecessary paint.
+
+The 390-pixel after capture reports equal document and viewport widths. Dark
+mode preserves the same hierarchy, and retracting the remote-work clause still
+changes the dependency to clarification before the decision deadline.
+
 ## Functional gate
 
 The visual direction is not proof of functional quality. Current independent
@@ -166,10 +202,13 @@ evidence:
   60 ms TBT, and zero CLS;
 - homepage global CSS fell from 150,974 bytes to 118,140 bytes (about 21.7%);
   Lighthouse now reports zero bytes of unused CSS for the audited page, down
-  from about 14 KiB before the pruning pass.
+  from about 14 KiB before the pruning pass;
+- the 2026-08-06 production run reports Performance 97, Accessibility 100,
+  Best Practices 100, SEO 100, 0.9 s FCP, 2.5 s LCP, 10 ms TBT, zero CLS,
+  and zero bytes of unused CSS.
 
-The production report is
-`output/playwright/lighthouse-home-redline-css-pruned.json`.
+The latest production report is
+`output/playwright/lighthouse-home-refined-2026-08-06.json`.
 
 ## Honest unresolved evidence
 
