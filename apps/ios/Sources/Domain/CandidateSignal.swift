@@ -247,12 +247,21 @@ struct ReviewSession: Equatable {
         fixture.context.candidate == nil
     }
 
+    var hasReviewableNewContactIdentity: Bool {
+        guard fixture.id.hasPrefix("TS-HERO-") else {
+            return false
+        }
+        let acceptedFields = Set(acceptedFacts.map(\.assertion.field))
+        return acceptedFields.contains("contact_name")
+            && !acceptedFields.isDisjoint(with: ["email", "phone"])
+    }
+
     var canPreviewAction: Bool {
         fixture.expected.disposition == .proposeAction &&
             fixture.expected.action != nil &&
             allFactsReviewed &&
             !acceptedFacts.isEmpty &&
-            !hasUnresolvedIdentity
+            (!hasUnresolvedIdentity || hasReviewableNewContactIdentity)
     }
 
     var isPreviewCurrent: Bool {
