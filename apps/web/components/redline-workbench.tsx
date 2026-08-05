@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  ArrowRight,
-  Check,
-  ShieldCheck,
-} from "@phosphor-icons/react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -109,7 +104,6 @@ export function RedlineWorkbench() {
             <span>VP Product candidate</span>
           </div>
           <span className={styles.sourceAttached}>
-            <ShieldCheck aria-hidden="true" size={17} />
             Source attached
           </span>
         </div>
@@ -209,10 +203,7 @@ export function RedlineWorkbench() {
               onClick={() => setConfirmed(true)}
             >
               {confirmed ? (
-                <>
-                  <Check aria-hidden="true" size={16} />
-                  Facts confirmed
-                </>
+                "Facts confirmed"
               ) : (
                 "Confirm facts"
               )}
@@ -233,7 +224,7 @@ export function RedlineWorkbench() {
 
         <Link className={styles.workbenchLink} href="/demo">
           Open full evidence review
-          <ArrowRight aria-hidden="true" size={17} />
+          <span aria-hidden="true">→</span>
         </Link>
       </section>
     </div>
