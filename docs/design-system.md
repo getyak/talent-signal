@@ -16,6 +16,22 @@ The design helps the recruiter move through:
 
 without making the system feel more important than the relationship.
 
+## Ownable causal grammar
+
+The product should make its governing relationship visible, not merely describe
+it. On a public proof surface, exact source evidence and the proposed
+relationship change belong in one composition, joined by a clear causal seam.
+Removing or contesting source evidence must retract the interpretation and any
+dependent action.
+
+The vermilion redline is that seam. It marks a consequential, reviewable change
+between what was said and what may become current understanding. It is not a
+decorative progress indicator, generic brand stripe, or confidence signal.
+
+Prefer product behavior as trust evidence. Photography, abstract diagrams, and
+polished containers cannot substitute for showing provenance, correction,
+separate fact confirmation, separate action approval, and observed outcome.
+
 ## Experience principles
 
 ### Evidence before interpretation
@@ -192,5 +208,12 @@ review into a chat reply.
 - Can the user correct, decline, recover, and delete?
 - Does the design preserve human dignity and avoid person-scoring?
 - Does the surface feel specific to trusted recruiting work?
+
+Functional audits gate release but do not establish design quality. Responsive,
+accessibility, performance, and test results cannot prove that a direction is
+distinctive or preferred. For a consequential visual change, compare at least
+two rendered structural directions against product truth, logo-off ownability,
+five-second clarity, and accessibility risk before spending effort on
+micro-detail.
 
 See [Product](product.md) and [Capture to action](capture-to-action.md).

@@ -1,11 +1,14 @@
 export const siteConfig = {
   name: "Talent Signal",
-  title: "Talent Signal | Candidate momentum, made legible",
+  title: "Talent Signal | Every relationship has a redline",
   description:
-    "Turn candidate conversations into living, source-linked briefs and one clear next move before momentum slips.",
+    "Turn one recruiter-controlled conversation into a source-linked relationship change and one separately approved next action.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://gettalentsignal.com",
   email: "hello@talentsignal.ai",
 } as const;
+
+export const accessRequestHref =
+  `mailto:${siteConfig.email}?subject=Talent%20Signal%20access%20request`;
 
 export const navigation = [
   { href: "/#product", label: "Product" },
