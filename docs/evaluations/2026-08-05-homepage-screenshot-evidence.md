@@ -184,6 +184,31 @@ The 390-pixel after capture reports equal document and viewport widths. Dark
 mode preserves the same hierarchy, and retracting the remote-work clause still
 changes the dependency to clarification before the decision deadline.
 
+## 2026-08-06 interaction and story-proof pass
+
+This pass tested whether the live product mechanism was discoverable and
+whether the section immediately after it continued the same scenario instead
+of returning to abstract principles.
+
+The before state underlined source clauses but placed the instruction at the
+bottom of a tall source pane. In the after screenshot, the instruction sits
+directly below the source quote and says that an underlined phrase is
+selectable. Each native clause button also references that instruction through
+`aria-describedby`.
+
+The earlier history section described six generic governance states. The after
+screenshots keep the same compact desktop row and 2 × 3 mobile matrix but make
+every entry part of the same clearly labeled synthetic Leila scenario:
+observed deadline, proposed pressure, unresolved preference, recruiter
+confirmation, separate policy request, and a possible reply returning as new
+evidence. This improves product-mechanic visibility without presenting
+synthetic content as customer proof.
+
+Evidence removal also remounts only the current-dependency callout with a
+240 ms opacity and 4-pixel vertical transition. The motion communicates a
+causal state change, and the existing reduced-motion media query keeps it
+static when reduced motion is preferred.
+
 ## Functional gate
 
 The visual direction is not proof of functional quality. Current independent
