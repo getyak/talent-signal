@@ -1,0 +1,139 @@
+{
+  "panel_id": "TS-round-4-ios-voiceover-2026-08-05",
+  "artifact": {
+    "id": "ios-ts-core-01-accessibility-proof",
+    "type": "frozen iOS Simulator build and accessibility evidence",
+    "version": "0439e58e97c8f308c4a31019c2f50814c7848e3a+release.0adff2b4e117a471344a7f29b792cd642e83f587e60c2f2b673d06909a9cc9a9"
+  },
+  "scenario": "On an iPhone 17 Simulator, review synthetic TS-CORE-01 from identity and exact evidence through fact decisions, separate action preview, local no-external-write outcome, cancellation, failure, and recovery, while attempting a truthful direct VoiceOver proof.",
+  "frozen_evidence": [
+    "commit 0439e58e97c8f308c4a31019c2f50814c7848e3a",
+    "Release executable sha256 0adff2b4e117a471344a7f29b792cd642e83f587e60c2f2b673d06909a9cc9a9",
+    "docs/evaluations/round-4/ios/accessibility-trace.json",
+    "docs/evaluations/round-4/ios/command-results.json",
+    "docs/evaluations/round-4/ios/01-core-review.png",
+    "docs/evaluations/round-4/ios/02-ax5-contrast-failure-app.png",
+    "docs/evaluations/round-4/ios/03-ax5-contrast-failure-element.png",
+    "docs/evaluations/round-4/ios/04-action-preview.png",
+    "docs/evaluations/round-4/ios/05-no-external-write-outcome.png"
+  ],
+  "review_plan": [
+    {
+      "reviewer": "mobile-ux-reviewer",
+      "status": "selected",
+      "reason": "This bounded retest owns iOS accessibility behavior, Dynamic Type, dark mode, focus, control exposure, and recovery proof."
+    },
+    {
+      "reviewer": "evidence-safety-reviewer",
+      "status": "omitted",
+      "reason": "No evidence model, identity binding, retention behavior, permission boundary, or external-write authority changed; the frozen Round 3 safety decision remains authoritative."
+    },
+    {
+      "reviewer": "recruiter-workflow-reviewer",
+      "status": "omitted",
+      "reason": "Core touch task completion was rerun only to support the accessibility proof; no new uncoached recruiter evidence was collected."
+    },
+    {
+      "reviewer": "candidate-experience-guardrail",
+      "status": "omitted",
+      "reason": "No candidate-facing content, automation, communication, or consent behavior changed."
+    },
+    {
+      "reviewer": "selection-science-auditor",
+      "status": "omitted",
+      "reason": "The artifact contains no candidate assessment, score, ranking, fit, personality, protected-trait, or acceptance claim."
+    }
+  ],
+  "reviews": [
+    {
+      "reviewer": "mobile-ux-reviewer",
+      "lens": "mobile task completion, visual hierarchy, accessibility, and recovery",
+      "verdict": "pass_with_changes",
+      "score": 2,
+      "confidence": "direct",
+      "findings": [
+        {
+          "severity": "high",
+          "criterion": "Accessibility",
+          "observation": "The initial current-source AX5 dark-mode audit reported insufficient contrast for the muted proposal-review instruction. A targeted retest timed out while synthesizing a scroll before reaching the audit, so it did not clear the failure.",
+          "evidence": "iPhone 17 / iOS 26.1; commit 0439e58; initial ui.xcresult 10/12; docs/evaluations/round-4/ios/02-ax5-contrast-failure-app.png and 03-ax5-contrast-failure-element.png; targeted ui-ax5.xcresult 0/1 with a scroll-synthesis timeout.",
+          "user_impact": "At an accessibility text size in dark mode, a low-vision recruiter may not reliably read the instruction that proposals must be inspected before confirming, editing, or dismissing.",
+          "recommendation": "In a separate source-fix worktree, increase the muted instructional text contrast without flattening state hierarchy.",
+          "verification": "The focused AX5 dark audit and the full 12-test UI suite pass against a materialized isolated backend, with the instruction fully visible and no new contrast, hit-region, description, or Dynamic Type failure."
+        },
+        {
+          "severity": "medium",
+          "criterion": "Assistive-technology proof",
+          "observation": "The iOS 26.1 Simulator image exposed no VoiceOver setting in Accessibility and no VoiceOver option through simctl, so this run observed neither spoken output nor a VoiceOver focus ring or gesture traversal.",
+          "evidence": "docs/evaluations/round-4/ios/accessibility-trace.json records the direct Settings and simctl availability checks, the one Computer Use accessibility-tree order, and every VoiceOver behavior that remains unproven.",
+          "user_impact": "Accessible element order and touch behavior are supported, but a VoiceOver user may still encounter unclear repeated control labels, lost focus after state transitions, or incomplete exact-effect and recovery announcements.",
+          "recommendation": "Run the same frozen journey on a real iPhone or an environment that exposes VoiceOver, without substituting an accessibility tree transcript.",
+          "verification": "VoiceOver directly announces identity, provenance, evidence, proposal status, contextual confirm/edit/dismiss controls, exact-effect preview, no-external-write outcome, cancellation, failure, and retry in logical order; focus remains contained and returns predictably after every transition."
+        }
+      ],
+      "strengths": [
+        "The current-source unit suite passed 13/13 and the isolated Release simulator build succeeded.",
+        "The frozen TS-CORE-01 UI test passed evidence review, four confirmations, a separate exact-effect action preview, and a local no-external-write outcome.",
+        "The initial full suite passed evidence-before-decision order, cancellation, failure recovery, background interruption, stale-preview blocking, scoring refusal, localhost sync, and unrelated-image isolation.",
+        "The canonical-backend targeted test passed 1/1 after the isolated synthetic state was correctly materialized.",
+        "Computer Use directly exposed candidate identity, source, time, exact observed evidence, each proposal and evidence quote, confirm/edit/dismiss controls, decision state, and cancellation in evidence-first order."
+      ],
+      "missing_evidence": [
+        "A successful focused and full-suite AX5 dark contrast retest after correction.",
+        "A true VoiceOver transcript and visible focus trace for confirm, edit, dismiss, action preview, outcome, cancellation, failure, and retry.",
+        "Assistive-technology user evidence and the smallest-supported-iPhone layout run."
+      ],
+      "vetoes": [],
+      "open_questions": [
+        "Will repeated generic Confirm, Edit, Dismiss, Proposed, and Awaiting review announcements provide enough context when heard linearly?",
+        "Where does VoiceOver focus land after confirming a fact, saving or cancelling an edit, dismissing a fact, entering action preview, returning to review, and recovering from failure?"
+      ]
+    }
+  ],
+  "adjudication": {
+    "verdict": "pass_with_changes",
+    "release_gate": "needs_evidence",
+    "top_findings": [
+      {
+        "reviewer": "mobile-ux-reviewer",
+        "criterion": "AX5 dark contrast",
+        "severity": "high",
+        "reason": "A direct current-source audit reported insufficient contrast for decision-guidance text, and the targeted retest did not reach the audit.",
+        "next_step": "Correct the contrast in a separate source-fix worktree.",
+        "verification": "Focused AX5 audit and the full 12-test UI suite pass against the prepared isolated backend."
+      },
+      {
+        "reviewer": "mobile-ux-reviewer",
+        "criterion": "VoiceOver proof",
+        "severity": "medium",
+        "reason": "The authorized Simulator environment exposed no VoiceOver setting or simctl control, so tree order cannot be promoted to spoken assistive-technology evidence.",
+        "next_step": "Run the frozen journey on a real iPhone or another environment that actually exposes VoiceOver.",
+        "verification": "One direct trace proves spoken labels, values, hints, swipe order, contextual actions, focus containment, transition focus, exact effect, no-external-write outcome, cancellation, failure, and retry."
+      }
+    ],
+    "agreements": [
+      "The current Release binary matches the frozen source and preserves the evidence-first touch journey.",
+      "Backend canonical-state failure was resolved by materializing the expected governed synthetic state; it is not an iOS binary defect.",
+      "An accessibility tree is supporting evidence and is not a substitute for VoiceOver speech, focus, or gesture proof.",
+      "The initial contrast failure remains unresolved because the targeted rerun never reached the audit.",
+      "No candidate data or external contact, calendar, message, ATS, CRM, or other write was used."
+    ],
+    "disagreements": [],
+    "veto_resolution": [],
+    "rationale": "This bounded retest directly proves current-source unit, Release, core touch, recovery, accessible order, and prepared-backend behavior. It cannot approve accessibility release readiness because true VoiceOver was unavailable and the initial AX5 dark contrast failure remains uncleared. The result is therefore pass_with_changes with release_gate=needs_evidence, not a resolution of the prior medium VoiceOver finding."
+  },
+  "next_tests": [
+    {
+      "owner": "iOS source-fix worktree",
+      "test": "Correct the muted proposal-review instruction contrast and rerun the affected gates.",
+      "evidence_required": "Source diff, focused AX5 dark audit, full 12-test UI summary against materialized isolated backend, and updated screenshots.",
+      "pass_condition": "Zero Dynamic Type, contrast, hit-region, or sufficient-description failures; 12/12 UI tests pass with zero skips."
+    },
+    {
+      "owner": "Mobile accessibility",
+      "test": "Traverse the frozen TS-CORE-01 journey with real VoiceOver.",
+      "evidence_required": "Spoken transcript or recording plus visible focus trace for identity, source, evidence, proposals, confirm, edit, dismiss, action preview, outcome, cancellation, failure, and retry.",
+      "pass_condition": "Each state and control is announced once in evidence-first order, repeated controls are contextually clear, focus remains contained and returns predictably, and no external-effect language is ambiguous."
+    }
+  ]
+}

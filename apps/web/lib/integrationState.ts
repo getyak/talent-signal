@@ -34,11 +34,94 @@ type EffectSnapshot = {
 
 export type IntegrationAuthorityInput = {
   action: ActionSnapshot;
-  allFactsReviewed: boolean;
+  allRequiredFactsConfirmed: boolean;
   approval: ApprovalSnapshot;
   effect: EffectSnapshot;
   now?: Date;
 };
+
+export type CapabilityNotice =
+  | "approved_execution_blocked"
+  | "no_current_approval_execution_blocked"
+  | "unapproved_execution_blocked"
+  | null;
+
+export type IntegrationAuthorityPresentation = {
+  capabilityNotice: CapabilityNotice;
+  presentationState: IntegrationAuthorityState;
+  showActiveApproval: boolean;
+  showApprovalCta: boolean;
+  showCapabilityDependentRevisionControls: boolean;
+  showExecutionCta: boolean;
+  showRevokeApproval: boolean;
+};
+
+export function capabilityNoticeAnnouncement(
+  notice: Exclude<CapabilityNotice, null>,
+): string {
+  const announcements: Record<Exclude<CapabilityNotice, null>, string> = {
+    approved_execution_blocked:
+      "Execution capability is revoked. The active approval remains recorded and can still be revoked, but it cannot run and no destination result is claimed.",
+    no_current_approval_execution_blocked:
+      "No current approval remains. Execution capability is revoked, so the proposal cannot receive execution authority or run.",
+    unapproved_execution_blocked:
+      "This proposal remains unapproved. Execution capability is revoked, so it cannot receive execution authority or run.",
+  };
+  return announcements[notice];
+}
+
+export function deriveIntegrationAuthorityPresentation({
+  approvalStatus,
+  authorityState,
+  capabilityRevoked,
+}: {
+  approvalStatus: NonNullable<ApprovalSnapshot>["status"] | null;
+  authorityState: IntegrationAuthorityState;
+  capabilityRevoked: boolean;
+}): IntegrationAuthorityPresentation {
+  const hasActiveApproval =
+    authorityState === "approved" && approvalStatus === "active";
+  const approvalDecisionAvailable = [
+    "failed",
+    "ready_for_approval",
+    "stale",
+  ].includes(authorityState);
+
+  return {
+    capabilityNotice: capabilityRevoked
+      ? hasActiveApproval
+        ? "approved_execution_blocked"
+        : approvalStatus === null
+          ? "unapproved_execution_blocked"
+          : "no_current_approval_execution_blocked"
+      : null,
+    presentationState: capabilityRevoked ? "revoked" : authorityState,
+    showActiveApproval: hasActiveApproval,
+    showApprovalCta:
+      !capabilityRevoked && approvalDecisionAvailable,
+    showCapabilityDependentRevisionControls: !capabilityRevoked,
+    showExecutionCta:
+      !capabilityRevoked &&
+      hasActiveApproval,
+    showRevokeApproval: hasActiveApproval,
+  };
+}
+
+export function areRequiredAssertionsConfirmed(
+  requiredAssertionIds: string[],
+  assertions: Array<{ id: string; review_status: string }>,
+): boolean {
+  return (
+    requiredAssertionIds.length > 0 &&
+    requiredAssertionIds.every((assertionId) =>
+      assertions.some(
+        (assertion) =>
+          assertion.id === assertionId &&
+          assertion.review_status === "confirmed",
+      ),
+    )
+  );
+}
 
 export function presentedAssertionValue(
   assertionId: string,
@@ -57,7 +140,7 @@ export function presentedAssertionValue(
 
 export function deriveIntegrationAuthorityState({
   action,
-  allFactsReviewed,
+  allRequiredFactsConfirmed,
   approval,
   effect,
   now = new Date(),
@@ -66,7 +149,7 @@ export function deriveIntegrationAuthorityState({
     return "no_action";
   }
 
-  if (!allFactsReviewed) {
+  if (!allRequiredFactsConfirmed) {
     return "review_required";
   }
 

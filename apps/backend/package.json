@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
+    "@fastify/rate-limit": "^11.2.0",
     "@fastify/swagger": "^9.5.2",
     "@sinclair/typebox": "^0.34.41",
     "@talent-signal/contracts": "workspace:*",

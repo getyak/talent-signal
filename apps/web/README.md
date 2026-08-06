@@ -7,7 +7,8 @@ candidate-data backend.
 
 ## Routes
 
-- `/`: product narrative, interactive Card/List candidate library, privacy boundaries, and FAQ.
+- `/`: product narrative, interactive source-to-state redline, decision
+  boundaries, research, and FAQ.
 - `/login`: Google, Apple, configured email/password, and optional default-account sign-in.
 - `/workspace`: authenticated eight-case evidence-review workspace with
   identity/time resolution, atomic fact decisions, separate action approval,
@@ -22,8 +23,8 @@ candidate-data backend.
 
 - Next.js App Router and React
 - Tailwind CSS v4 as the CSS build foundation
-- Browser-native reveals for the marketing surface and Motion for demo state transitions
-- Three.js as a pointer-activated desktop enhancement for the hero evidence field
+- Native CSS interaction feedback for the marketing surface and Motion for
+  demo state transitions
 - Phosphor Icons
 
 ## Local development

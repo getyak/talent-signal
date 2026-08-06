@@ -9,6 +9,7 @@ exclude_loopback = true
 exclude = [
   '^https://www\.cac\.gov\.cn/',
   '^https://openai\.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/?$',
+  '^https://openai\.com/index/introducing-chatgpt-search/?$',
   '^https://platform\.openai\.com/docs/api-reference/responses-streaming/response/web_search_call$',
 ]
 exclude_path = [

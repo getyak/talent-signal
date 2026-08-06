@@ -8,6 +8,7 @@ struct CandidateSignalView: View {
     @State private var importedImage: UIImage?
     @State private var photoImportTask: Task<Void, Never>?
     @State private var localhostExpanded = false
+    @State private var recruiterContext = HeroLoopCatalog.defaultRecruiterContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init() {
@@ -20,45 +21,59 @@ struct CandidateSignalView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 24) {
-                        BrandHeader()
-                            .id("screen-top")
+            ZStack {
+                Color.tsCanvas.ignoresSafeArea()
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 24) {
+                            BrandHeader()
+                                .id("screen-top")
 
-                        switch store.stage {
-                        case .idle:
-                            idleContent
-                        case let .importing(kind):
-                            importingContent(kind)
-                        case let .importCancelled(kind):
-                            cancelledContent(kind)
-                        case let .importFailed(failure):
-                            failedContent(failure)
-                        case .reviewingUnboundImage:
-                            unboundImageContent
-                        case .reviewingFixture:
-                            fixtureReviewContent
-                        case .actionPreview:
-                            actionPreviewContent
-                        case let .outcome(outcome):
-                            outcomeContent(outcome)
+                            switch store.stage {
+                            case .idle:
+                                idleContent
+                            case let .importing(kind):
+                                importingContent(kind)
+                            case let .importCancelled(kind):
+                                cancelledContent(kind)
+                            case let .importFailed(failure):
+                                failedContent(failure)
+                            case .reviewingUnboundImage:
+                                unboundImageContent
+                            case .reviewingFixture:
+                                fixtureReviewContent
+                            case .actionPreview:
+                                actionPreviewContent
+                            case let .outcome(outcome):
+                                outcomeContent(outcome)
+                            }
+
+                            PrivacyBoundaryNote()
                         }
-
-                        PrivacyBoundaryNote()
+                        .padding(.horizontal, 20)
+                        .padding(.top, 14)
+                        .padding(.bottom, 40)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 14)
-                    .padding(.bottom, 40)
-                }
-                .background(Color.tsCanvas.ignoresSafeArea())
-                .onChange(of: store.stage) { _ in
-                    Task { @MainActor in
-                        proxy.scrollTo("screen-top", anchor: .top)
+                    .clipped()
+                    .onChange(of: store.stage) { _ in
+                        Task { @MainActor in
+                            proxy.scrollTo("screen-top", anchor: .top)
+                        }
                     }
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.tsCanvas
+                    .frame(height: 1)
+                    .background(Color.tsCanvas.ignoresSafeArea(edges: .top))
+                    .accessibilityHidden(true)
+            }
             .toolbar(.hidden, for: .navigationBar)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.tsCanvas
+                .frame(height: 8)
+                .accessibilityHidden(true)
         }
         .tint(.tsVermilion)
         .onChange(of: selectedPhoto) { item in
@@ -74,7 +89,56 @@ struct CandidateSignalView: View {
             SourceNotice(text: store.sourceNotice)
 
             VStack(alignment: .leading, spacing: 16) {
-                SectionLabel(text: "Selected image")
+                SectionLabel(text: "90-second product loop")
+
+                Text("See the value after confirmation")
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("A synthetic conversation becomes exact facts, two reviewable action cards, and one relationship-aware insight.")
+                    .font(.body)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HeroConversationPreview()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Optional recruiter context")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tsMutedInk)
+
+                    TextEditor(text: $recruiterContext)
+                        .font(.body)
+                        .foregroundStyle(Color.tsInk)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 92)
+                        .padding(10)
+                        .background(
+                            Color.tsSurfaceMuted,
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                        .accessibilityLabel("Optional recruiter context")
+                        .accessibilityIdentifier("hero-recruiter-context")
+                }
+
+                Button {
+                    store.beginHeroLoop(recruiterContext: recruiterContext)
+                } label: {
+                    Label("Run screenshot → action → insight", systemImage: "arrow.right.circle.fill")
+                }
+                .buttonStyle(TSPrimaryButtonStyle())
+                .accessibilityIdentifier("open-hero-loop")
+
+                Text("Synthetic evidence only · arbitrary-image OCR and external writes remain explicitly out of scope.")
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .tsCard()
+
+            VStack(alignment: .leading, spacing: 16) {
+                SectionLabel(text: "Try your own image")
 
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
                     Label {
@@ -82,7 +146,7 @@ struct CandidateSignalView: View {
                             Text("Choose one conversation image")
                                 .font(.headline)
                                 .foregroundStyle(Color.tsInk)
-                            Text("An arbitrary image stays unbound and never receives fixture facts.")
+                            Text("The current prototype imports it safely but keeps it unbound until OCR and identity review are implemented.")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.tsMutedInk)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -299,6 +363,8 @@ struct CandidateSignalView: View {
                 session: session,
                 sourceNotice: store.sourceNotice,
                 dynamicTypeSize: dynamicTypeSize,
+                onApproveAction: { _ = store.approveAction(id: $0) },
+                onDismissAction: { _ = store.dismissAction(id: $0) },
                 onReturnToReview: store.returnToReview,
                 onCompleteHandoff: store.completeLocalHandoff
             )
@@ -307,6 +373,13 @@ struct CandidateSignalView: View {
 
     private func outcomeContent(_ outcome: ReviewOutcome) -> some View {
         VStack(alignment: .leading, spacing: 20) {
+            if let insight = store.session?.momentumInsight {
+                MomentumInsightView(
+                    insight: insight,
+                    eyebrow: "Confirmed-context insight"
+                )
+            }
+
             StateMessage(
                 eyebrow: "Outcome",
                 icon: outcome.kind == .refused ? "hand.raised" : "checkmark.circle",

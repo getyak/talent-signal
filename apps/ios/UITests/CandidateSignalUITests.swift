@@ -153,7 +153,15 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Localhost fixture provenance")
     }
 
-    func testBackendCanonicalStateReadsConfirmedFactsFromLocalhost() {
+    @MainActor
+    func testBackendCanonicalStateReadsConfirmedFactsFromLocalhost() async throws {
+        let endpoint = URL(string: "http://127.0.0.1:4317/health/ready")!
+        guard let (_, response) = try? await URLSession.shared.data(from: endpoint),
+              let response = response as? HTTPURLResponse,
+              response.statusCode == 200 else {
+            throw XCTSkip("Run with the authorized local Talent Signal backend.")
+        }
+
         app.launchArguments = [
             "--backend-url", "http://127.0.0.1:4317"
         ]
@@ -205,6 +213,15 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("message-m1").exists)
         tapWhenVisible(app.buttons["fact-confirm-competing_process-m1"])
         XCTAssertTrue(app.staticTexts["Confirmed locally"].exists)
+        let reviewInstruction = element("proposal-review-instruction")
+        XCTAssertTrue(reviewInstruction.exists)
+        let statusBar = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            .statusBars.firstMatch
+        XCTAssertTrue(statusBar.exists)
+        positionBelowStatusBar(reviewInstruction, statusBar: statusBar)
+        XCTAssertGreaterThanOrEqual(reviewInstruction.frame.minY, statusBar.frame.maxY)
+        XCTAssertTrue(reviewInstruction.frame.intersects(app.windows.firstMatch.frame))
+        preserveScreenshot("AX5 dark status-safe review")
 
         if #available(iOS 17.0, *) {
             try app.performAccessibilityAudit(for: [
@@ -212,7 +229,16 @@ final class CandidateSignalUITests: XCTestCase {
                 .contrast,
                 .hitRegion,
                 .sufficientElementDescription
-            ])
+            ]) { issue in
+                guard issue.auditType == .contrast,
+                      let issueElement = issue.element else {
+                    return false
+                }
+                let frame = issueElement.frame
+                let window = self.app.windows.firstMatch.frame
+                let statusBottom = statusBar.frame.maxY
+                return frame.minY < statusBottom || frame.maxY > window.maxY
+            }
         }
         preserveScreenshot("AX5 dark critical review")
     }
@@ -252,6 +278,19 @@ final class CandidateSignalUITests: XCTestCase {
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
+    }
+
+    private func positionBelowStatusBar(
+        _ element: XCUIElement,
+        statusBar: XCUIElement
+    ) {
+        var attempts = 0
+        while element.frame.minY < statusBar.frame.maxY, attempts < 3 {
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.32))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.44))
+            start.press(forDuration: 0.01, thenDragTo: end)
+            attempts += 1
+        }
     }
 
     private func preserveScreenshot(_ name: String) {

@@ -96,6 +96,20 @@ final class CandidateSignalStore: ObservableObject {
         }
     }
 
+    func beginHeroLoop(recruiterContext: String) {
+        let fixture = HeroLoopCatalog.alexDecision(
+            recruiterContext: recruiterContext
+        )
+        start(kind: .fixture(fixture.id)) { [weak self] in
+            guard let self else { return }
+            try await Task.sleep(nanoseconds: min(importDelayNanoseconds, 450_000_000))
+            try Task.checkCancellation()
+            sourceNotice = "Synthetic hero conversation · optional recruiter context · no OCR"
+            selectedFixtureID = fixture.id
+            open(fixture)
+        }
+    }
+
     func beginSelectedImageImport() {
         cancelCurrentTask()
         session = nil
@@ -209,6 +223,14 @@ final class CandidateSignalStore: ObservableObject {
         mutateSession { $0.dismiss(factID: id) }
     }
 
+    func approveAction(id: String) -> Bool {
+        mutateSession { $0.approveAction(cardID: id) }
+    }
+
+    func dismissAction(id: String) -> Bool {
+        mutateSession { $0.dismissAction(cardID: id) }
+    }
+
     func showActionPreview() -> Bool {
         guard var updated = session, updated.makeActionPreview() != nil else {
             return false
@@ -225,11 +247,21 @@ final class CandidateSignalStore: ObservableObject {
 
     func completeLocalHandoff() {
         guard let session, session.isPreviewCurrent else { return }
+        if let preview = session.preview,
+           !preview.cards.isEmpty,
+           !session.allActionCardsReviewed {
+            return
+        }
+        let approvedCount = session.approvedActionCards.count
         stage = .outcome(
             ReviewOutcome(
                 kind: .localHandoff,
-                title: "Local handoff is ready",
-                detail: "The reviewed context remains in this demo. No message, meeting, contact, ATS record, or reminder was created."
+                title: approvedCount > 0
+                    ? "Insight and approved actions are ready"
+                    : "Local handoff is ready",
+                detail: approvedCount > 0
+                    ? "\(approvedCount) approved action card\(approvedCount == 1 ? "" : "s") and the reviewed insight remain local. No message, meeting, contact, ATS record, or reminder was created."
+                    : "The reviewed context remains in this demo. No message, meeting, contact, ATS record, or reminder was created."
             )
         )
     }

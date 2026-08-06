@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "scope_tree": {
+    "id": "experience",
+    "label": "End-to-end experience",
+    "depth": 0,
+    "required": true,
+    "children": []
+  },
+  "quality_tree": {
+    "id": "quality",
+    "children": [
+      {
+        "id": "value",
+        "children": [
+          {
+            "id": "comprehension",
+            "children": ["goal_fit", "hierarchy", "copy"]
+          },
+          {
+            "id": "credibility",
+            "children": ["specificity", "truth", "proof"]
+          }
+        ]
+      },
+      {
+        "id": "experience-quality",
+        "children": [
+          {
+            "id": "perception",
+            "children": [
+              "typography",
+              "layout",
+              "color_material"
+            ]
+          },
+          {
+            "id": "operation",
+            "children": [
+              "interaction_states",
+              "motion",
+              "accessibility_resilience_performance"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

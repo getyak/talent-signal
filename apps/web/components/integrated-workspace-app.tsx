@@ -18,13 +18,22 @@ import {
   X,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 
 import {
+  areRequiredAssertionsConfirmed,
+  capabilityNoticeAnnouncement,
+  deriveIntegrationAuthorityPresentation,
   deriveIntegrationAuthorityState,
   integrationStateAnnouncement,
   presentedAssertionValue,
 } from "@/lib/integrationState";
+import {
+  createSyntheticBrowserHandoff,
+  FROZEN_SYNTHETIC_SOURCE,
+  reuseSyntheticBrowserHandoff,
+} from "@/lib/browserHandoff";
 
 import { ThemeToggle } from "./theme-toggle";
 
@@ -64,9 +73,6 @@ type DeletionState = {
     }>;
   };
 } | null;
-
-const FROZEN_SYNTHETIC_SOURCE =
-  "I have another offer and need to decide Wednesday. I can speak Tuesday afternoon, but remote matters a lot.";
 
 function reviewLabel(status: string) {
   switch (status) {
@@ -127,6 +133,9 @@ export function IntegratedWorkspaceApp({
   const [deleteConfirmation, setDeleteConfirmation] = useState(false);
   const [capabilityRevoked, setCapabilityRevoked] = useState(false);
   const abortController = useRef<AbortController | null>(null);
+  const syntheticHandoff = useRef<ReturnType<
+    typeof createSyntheticBrowserHandoff
+  > | null>(null);
 
   const assertions = workspace?.analysis.assertions ?? [];
   const allFactsReviewed =
@@ -138,17 +147,24 @@ export function IntegratedWorkspaceApp({
     (assertion) => assertion.review_status === "confirmed",
   ).length;
   const action = workspace?.analysis.action ?? null;
+  const allRequiredFactsConfirmed =
+    action !== null &&
+    areRequiredAssertionsConfirmed(
+      action.required_assertion_ids,
+      assertions,
+    );
   const approval = workspace?.latest_approval ?? null;
   const authorityState = deriveIntegrationAuthorityState({
     action,
-    allFactsReviewed,
+    allRequiredFactsConfirmed,
     approval,
     effect: workspace?.latest_effect ?? null,
   });
-  const presentedAuthorityState =
-    capabilityRevoked && authorityState === "approved"
-      ? "revoked"
-      : authorityState;
+  const authorityPresentation = deriveIntegrationAuthorityPresentation({
+    approvalStatus: approval?.status ?? null,
+    authorityState,
+    capabilityRevoked,
+  });
   const verified = authorityState === "verified";
   const approvalComplete =
     approval?.status === "active" || approval?.status === "consumed";
@@ -223,6 +239,9 @@ export function IntegratedWorkspaceApp({
           : "code" in caughtError && typeof caughtError.code === "string"
             ? caughtError.code
             : "backend_unavailable";
+      if (code === "CAPABILITY_NOT_AUTHORIZED") {
+        setCapabilityRevoked(true);
+      }
       setError({
         code,
         message: cancelled
@@ -252,40 +271,19 @@ export function IntegratedWorkspaceApp({
     setError(null);
     setAnnouncement("Submitting the reviewed synthetic source.");
     try {
-      const requestId = `round2-web-${crypto.randomUUID()}`;
+      const request = reuseSyntheticBrowserHandoff(
+        syntheticHandoff.current,
+        {
+          approvedAt: new Date().toISOString(),
+          origin: window.location.origin,
+          requestId: `web-local-${crypto.randomUUID()}`,
+        },
+      );
+      syntheticHandoff.current = request;
       const response = await fetch("/api/browser-extension/captures", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          schema_version: "browser-capture-handoff.v1",
-          request_id: requestId,
-          idempotency_key: "round2-web-ts-core-01",
-          purpose: "candidate_conversation_evidence_review",
-          retention_mode: "ephemeral",
-          handoff_target:
-            "http://127.0.0.1:3300/api/browser-extension/captures",
-          session: {
-            version: null,
-            credential_transport: "browser_managed",
-          },
-          source: {
-            capture_kind: "selected_text",
-            title: "Synthetic TS-CORE-01",
-            url: "http://127.0.0.1:3300/",
-            captured_at: "2026-08-03T02:00:00.000Z",
-          },
-          review: {
-            type: "reviewed_text",
-            text: FROZEN_SYNTHETIC_SOURCE,
-            edited_from_selection: false,
-          },
-          authorization: {
-            decision: "submit_reviewed_capture",
-            approved_at: new Date().toISOString(),
-            statement:
-              "Submit this reviewed synthetic capture to the localhost backend.",
-          },
-        }),
+        headers: request.headers,
+        body: JSON.stringify(request.body),
       });
       const payload = (await response.json()) as {
         code?: string;
@@ -335,6 +333,25 @@ export function IntegratedWorkspaceApp({
     } finally {
       setMutation(null);
     }
+  }
+
+  function openExactEvidence(
+    event: MouseEvent<HTMLAnchorElement>,
+    evidenceId: string,
+  ) {
+    const targetId = `source-evidence-${evidenceId}`;
+    const target = document.getElementById(targetId);
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+    window.history.replaceState(null, "", `#${targetId}`);
+    target.scrollIntoView({ block: "center" });
+    target.focus({ preventScroll: true });
+    setAnnouncement(
+      "Exact source opened. Speaker, time, and scope remain visible.",
+    );
   }
 
   function cancelMutation() {
@@ -853,6 +870,12 @@ export function IntegratedWorkspaceApp({
                           <a
                             className="integration-evidence"
                             href={`#source-evidence-${assertion.evidence_id}`}
+                            onClick={(event) =>
+                              openExactEvidence(
+                                event,
+                                assertion.evidence_id,
+                              )
+                            }
                           >
                             <LinkSimple size={16} aria-hidden="true" />
                             <span>
@@ -1012,6 +1035,12 @@ export function IntegratedWorkspaceApp({
                           <a
                             className="integration-action__evidence"
                             href={`#source-evidence-${action.evidence_ids[0]}`}
+                            onClick={(event) =>
+                              openExactEvidence(
+                                event,
+                                action.evidence_ids[0],
+                              )
+                            }
                           >
                             <LinkSimple size={16} aria-hidden="true" />
                             Open the exact source for this action
@@ -1021,9 +1050,9 @@ export function IntegratedWorkspaceApp({
 
                       <div
                         className="integration-authority"
-                        data-state={presentedAuthorityState}
+                        data-state={authorityPresentation.presentationState}
                       >
-                        {presentedAuthorityState === "review_required" ? (
+                        {authorityState === "review_required" ? (
                           <div className="authority-note">
                             <Clock
                               size={20}
@@ -1031,22 +1060,19 @@ export function IntegratedWorkspaceApp({
                               aria-hidden="true"
                             />
                             <p>
-                              Review every fact first. Confirmation creates
-                              zero effects and grants no authority to this
-                              proposal.
+                              {allFactsReviewed
+                                ? "This proposal cannot receive authority because a required fact was dismissed. The evidence record remains reviewable and no action runs."
+                                : "Review every required fact first. Confirmation creates zero effects and grants no authority to this proposal."}
                             </p>
                           </div>
                         ) : null}
 
-                        {presentedAuthorityState === "ready_for_approval" ||
-                        presentedAuthorityState === "stale" ||
-                        presentedAuthorityState === "failed" ? (
+                        {authorityPresentation.showApprovalCta ? (
                           <>
-                            {presentedAuthorityState !==
-                            "ready_for_approval" ? (
+                            {authorityState !== "ready_for_approval" ? (
                               <div
                                 className="authority-note"
-                                data-state={presentedAuthorityState}
+                                data-state={authorityState}
                               >
                                 <Warning
                                   size={21}
@@ -1055,7 +1081,7 @@ export function IntegratedWorkspaceApp({
                                 />
                                 <p>
                                   {integrationStateAnnouncement(
-                                    presentedAuthorityState,
+                                    authorityState,
                                   )}
                                 </p>
                               </div>
@@ -1085,16 +1111,16 @@ export function IntegratedWorkspaceApp({
                               ) : (
                                 <ShieldCheck size={18} aria-hidden="true" />
                               )}
-                              {presentedAuthorityState === "stale"
+                              {authorityState === "stale"
                                 ? "Approve revised exact effect"
-                                : presentedAuthorityState === "failed"
+                                : authorityState === "failed"
                                   ? "Approve one safe retry"
                                   : "Approve exact local effect"}
                             </button>
                           </>
                         ) : null}
 
-                        {presentedAuthorityState === "approved" ? (
+                        {authorityPresentation.showActiveApproval ? (
                           <>
                             <div
                               className="authority-note"
@@ -1111,22 +1137,25 @@ export function IntegratedWorkspaceApp({
                               </p>
                             </div>
                             <div className="integration-authority__actions">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  requestWorkspace(
-                                    `/api/local-integration/actions/${action.id}/execution`,
-                                    { method: "POST" },
-                                    "Executing and reading back the local effect",
-                                    action.id,
-                                  )
-                                }
-                                disabled={mutation?.target === action.id}
-                              >
-                                <Database size={18} aria-hidden="true" />
-                                Execute and verify readback
-                              </button>
-                              {approval ? (
+                              {authorityPresentation.showExecutionCta ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    requestWorkspace(
+                                      `/api/local-integration/actions/${action.id}/execution`,
+                                      { method: "POST" },
+                                      "Executing and reading back the local effect",
+                                      action.id,
+                                    )
+                                  }
+                                  disabled={mutation?.target === action.id}
+                                >
+                                  <Database size={18} aria-hidden="true" />
+                                  Execute and verify readback
+                                </button>
+                              ) : null}
+                              {authorityPresentation.showRevokeApproval &&
+                              approval ? (
                                 <button
                                   className="quiet-button"
                                   type="button"
@@ -1150,7 +1179,7 @@ export function IntegratedWorkspaceApp({
                           </>
                         ) : null}
 
-                        {presentedAuthorityState === "revoked" ? (
+                        {authorityPresentation.capabilityNotice ? (
                           <div className="authority-note" data-state="revoked">
                             <Prohibit
                               size={21}
@@ -1158,14 +1187,26 @@ export function IntegratedWorkspaceApp({
                               aria-hidden="true"
                             />
                             <p>
-                              {capabilityRevoked
-                                ? "Execution permission was revoked at the local capability boundary. The approved proposal cannot run, and no destination result is claimed."
-                                : integrationStateAnnouncement("revoked")}
+                              {capabilityNoticeAnnouncement(
+                                authorityPresentation.capabilityNotice,
+                              )}
                             </p>
                           </div>
                         ) : null}
 
-                        {presentedAuthorityState ===
+                        {authorityState === "revoked" &&
+                        !capabilityRevoked ? (
+                          <div className="authority-note" data-state="revoked">
+                            <Prohibit
+                              size={21}
+                              weight="duotone"
+                              aria-hidden="true"
+                            />
+                            <p>{integrationStateAnnouncement("revoked")}</p>
+                          </div>
+                        ) : null}
+
+                        {authorityState ===
                         "reconciliation_required" ? (
                           <>
                             <div className="authority-note" data-state="unknown">
@@ -1202,7 +1243,7 @@ export function IntegratedWorkspaceApp({
                           </>
                         ) : null}
 
-                        {presentedAuthorityState === "verified" ? (
+                        {authorityState === "verified" ? (
                           <div className="verified-result" role="status">
                             <CheckCircle
                               size={28}
@@ -1254,8 +1295,10 @@ export function IntegratedWorkspaceApp({
                       external system.
                     </p>
                     {action &&
-                    allFactsReviewed &&
+                    allRequiredFactsConfirmed &&
                     !approvalComplete &&
+                    authorityPresentation
+                      .showCapabilityDependentRevisionControls &&
                     action.exact_preview.simulation_behavior !==
                       "timeout_after_write" ? (
                       <button
@@ -1270,7 +1313,10 @@ export function IntegratedWorkspaceApp({
                         Use unknown-result recovery preview
                       </button>
                     ) : null}
-                    {action && approval?.status === "active" ? (
+                    {action &&
+                    approval?.status === "active" &&
+                    authorityPresentation
+                      .showCapabilityDependentRevisionControls ? (
                       <button
                         className="quiet-button"
                         type="button"

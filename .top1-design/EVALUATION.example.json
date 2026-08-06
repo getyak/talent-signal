@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "run_id": "replace-me",
+  "target": "http://localhost:3000/",
+  "mode": "persuade",
+  "rubric_version": "1.0",
+  "threshold": 95,
+  "required_depth": 3,
+  "required_hard_gates": [
+    "functional",
+    "truth",
+    "accessibility",
+    "responsive",
+    "states",
+    "motion_safety",
+    "performance"
+  ],
+  "nodes": [
+    {
+      "id": "home",
+      "parent_id": null,
+      "scope": "homepage",
+      "depth": 2,
+      "required": true,
+      "confidence": 0.5,
+      "scores": {
+        "goal_fit": 85,
+        "specificity": 78,
+        "hierarchy": 88,
+        "typography": 84,
+        "layout": 82,
+        "color_material": 80,
+        "interaction_states": 72,
+        "motion": 70,
+        "copy": 83
+      },
+      "hard_gates": {
+        "functional": true,
+        "truth": true,
+        "accessibility": false,
+        "responsive": true,
+        "states": false,
+        "motion_safety": true,
+        "performance": true
+      },
+      "evidence": [
+        ".top1-design/runs/replace-me/evidence/home-desktop.png"
+      ]
+    }
+  ]
+}

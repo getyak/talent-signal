@@ -1,0 +1,2 @@
+{"a":"direction-a","b":"direction-b","winner":"direction-a","confidence":0.8,"criterion":"overall","evidence":["a-desktop.png","b-desktop.png"]}
+{"a":"direction-b","b":"direction-a","winner":"direction-a","confidence":0.7,"criterion":"overall","evidence":["b-mobile.png","a-mobile.png"]}
