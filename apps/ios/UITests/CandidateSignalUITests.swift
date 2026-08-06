@@ -236,10 +236,14 @@ final class CandidateSignalUITests: XCTestCase {
                 }
                 let frame = issueElement.frame
                 let window = self.app.windows.firstMatch.frame
+                let scrollView = self.app.scrollViews.firstMatch
+                let viewportBottom = scrollView.exists
+                    ? scrollView.frame.maxY
+                    : window.maxY
                 let statusBottom = statusBar.frame.maxY
                 let edgeTolerance: CGFloat = 1
                 return frame.minY <= statusBottom + edgeTolerance
-                    || frame.maxY >= window.maxY - edgeTolerance
+                    || frame.maxY >= viewportBottom - edgeTolerance
             }
         }
         preserveScreenshot("AX5 dark critical review")
