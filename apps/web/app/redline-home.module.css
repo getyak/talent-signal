@@ -214,6 +214,9 @@
 }
 
 .evidenceClause {
+  --evidence-drag-rotate: 0deg;
+  --evidence-drag-scale: 1;
+  --evidence-drag-x: 0px;
   background:
     linear-gradient(
       transparent 72%,
@@ -233,13 +236,20 @@
   position: relative;
   text-align: left;
   touch-action: pan-y;
+  transform:
+    translate3d(var(--evidence-drag-x), 0, 0)
+    rotate(var(--evidence-drag-rotate))
+    scale(var(--evidence-drag-scale));
+  transform-origin: center;
   transition:
     background-color 180ms ease,
     box-shadow 180ms ease,
     color 180ms ease,
     opacity 180ms ease,
-    text-decoration-color 180ms ease;
+    text-decoration-color 180ms ease,
+    transform 520ms cubic-bezier(0.16, 1.18, 0.3, 1);
   user-select: none;
+  will-change: transform;
   z-index: 1;
 }
 
@@ -259,6 +269,7 @@
     0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent),
     0 14px 28px color-mix(in srgb, var(--ink) 14%, transparent);
   cursor: grabbing;
+  transition-duration: 0ms;
   z-index: 4;
 }
 
