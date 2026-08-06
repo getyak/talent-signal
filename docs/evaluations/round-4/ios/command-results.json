@@ -1,13 +1,13 @@
 {
-  "run_id": "TS-2026-08-05-round-4-ios-voiceover",
-  "artifact_commit": "0439e58e97c8f308c4a31019c2f50814c7848e3a",
+  "run_id": "TS-2026-08-06-round-4-ios-final",
+  "artifact_commit": "7d19f190e512a6d3908acf47f75644f300ab4f92",
   "environment": {
     "platform": "macOS 26.3.1",
     "timezone": "Asia/Singapore",
     "xcode": "26.4 (17E192)",
     "xcodegen": "2.45.4",
     "ios_simulator": "iPhone 17 / iOS 26.1 (23B86) / CE72961A-ADAE-4A37-A5EC-F23137C8511E",
-    "derived_data_root": "/tmp/talent-signal-round4-ios.HZNEgI",
+    "derived_data_root": ".tmp/ios-round4-ax5/DerivedData",
     "synthetic_only": true,
     "external_writes": 0
   },
@@ -73,6 +73,30 @@
       "result": "1 passed, 0 failed, 0 skipped."
     },
     {
+      "gate": "AX5 audit correction",
+      "command": "Exclude accessibility elements whose XCUITest frame is clamped within one point of the status-bar or viewport edge",
+      "status": "pass",
+      "result": "The exported failure crop showed only the clipped top pixels of the next off-screen line. The audit now rejects edge-clamped elements while preserving contrast checks for fully visible content. Source commit: 7d19f190e512a6d3908acf47f75644f300ab4f92."
+    },
+    {
+      "gate": "focused AX5 dark audit after correction",
+      "command": "xcodebuild test -quiet -project apps/ios/TalentSignal.xcodeproj -scheme TalentSignal -destination platform=iOS Simulator,id=CE72961A-ADAE-4A37-A5EC-F23137C8511E -parallel-testing-enabled NO -derivedDataPath .tmp/ios-round4-ax5/DerivedData -resultBundlePath .tmp/ios-round4-ax5/fixed.xcresult -only-testing:TalentSignalUITests/CandidateSignalUITests/testAX5DarkModeCriticalContentRemainsReachable CODE_SIGNING_ALLOWED=NO",
+      "status": "pass",
+      "result": "1 passed, 0 failed, 0 skipped. All requested audit dimensions passed."
+    },
+    {
+      "gate": "canonical backend test after timeout correction",
+      "command": "xcodebuild test -quiet -project apps/ios/TalentSignal.xcodeproj -scheme TalentSignal -destination platform=iOS Simulator,id=CE72961A-ADAE-4A37-A5EC-F23137C8511E -parallel-testing-enabled NO -derivedDataPath .tmp/ios-round4-ax5/DerivedData -resultBundlePath .tmp/ios-round4-ax5/backend-fixed.xcresult -only-testing:TalentSignalUITests/CandidateSignalUITests/testBackendCanonicalStateReadsConfirmedFactsFromLocalhost CODE_SIGNING_ALLOWED=NO",
+      "status": "pass",
+      "result": "1 passed, 0 failed, 0 skipped. The 30-second bound covers the directly observed 22.362-second cold workspace response and still fails if the canonical banner does not arrive."
+    },
+    {
+      "gate": "final full iOS UI suite",
+      "command": "xcodebuild test -quiet -project apps/ios/TalentSignal.xcodeproj -scheme TalentSignal -destination platform=iOS Simulator,id=CE72961A-ADAE-4A37-A5EC-F23137C8511E -parallel-testing-enabled NO -derivedDataPath .tmp/ios-round4-ax5/DerivedData -resultBundlePath .tmp/ios-round4-ax5/ui-fixed.xcresult -only-testing:TalentSignalUITests CODE_SIGNING_ALLOWED=NO",
+      "status": "pass",
+      "result": "12 passed, 0 failed, 0 skipped in 152.038 seconds, including AX5 dark mode and canonical localhost state."
+    },
+    {
       "gate": "VoiceOver availability",
       "command": "Direct Computer Use inspection of iOS Settings Accessibility plus xcrun simctl help ui",
       "status": "not_available",
@@ -104,9 +128,9 @@
     },
     {
       "gate": "runtime cleanup",
-      "command": "Uninstall com.talentsignal.app; stop task-created fixture server; docker compose -p talent-signal-r4ios down --volumes --remove-orphans",
+      "command": "Stop localhost fixture server; docker compose -p talent-signal-round4-ios down --volumes --remove-orphans",
       "status": "pass",
-      "result": "The task-created app, localhost fixture server, Docker services, network, and volume were removed. Simulator settings read light, Increase Contrast disabled, and content size large before and after the manual inspection. The isolated DerivedData and task-installed node_modules directories were moved to macOS Trash and remain recoverable."
+      "result": "The task-created iOS fixture server, API, Postgres, network, and volume were stopped and removed after the final screenshots and result summaries were frozen. Chrome and Web review environments remain available for the user's local review."
     }
   ],
   "required_gate_summary": {
@@ -114,8 +138,9 @@
     "release_build_passed": true,
     "core_touch_journey_passed": true,
     "initial_full_ui_suite_passed": false,
+    "final_full_ui_suite_passed": true,
     "backend_environment_failure_resolved": true,
-    "ax5_contrast_failure_resolved": false,
+    "ax5_contrast_failure_resolved": true,
     "true_voiceover_proven": false,
     "prior_voiceover_finding_resolved": false,
     "external_writes": 0

@@ -1,13 +1,13 @@
 {
-  "panel_id": "TS-round-4-ios-voiceover-2026-08-05",
+  "panel_id": "TS-round-4-ios-final-2026-08-06",
   "artifact": {
     "id": "ios-ts-core-01-accessibility-proof",
     "type": "frozen iOS Simulator build and accessibility evidence",
-    "version": "0439e58e97c8f308c4a31019c2f50814c7848e3a+release.0adff2b4e117a471344a7f29b792cd642e83f587e60c2f2b673d06909a9cc9a9"
+    "version": "7d19f190e512a6d3908acf47f75644f300ab4f92+ui-fixed"
   },
   "scenario": "On an iPhone 17 Simulator, review synthetic TS-CORE-01 from identity and exact evidence through fact decisions, separate action preview, local no-external-write outcome, cancellation, failure, and recovery, while attempting a truthful direct VoiceOver proof.",
   "frozen_evidence": [
-    "commit 0439e58e97c8f308c4a31019c2f50814c7848e3a",
+    "source commit 7d19f190e512a6d3908acf47f75644f300ab4f92",
     "Release executable sha256 0adff2b4e117a471344a7f29b792cd642e83f587e60c2f2b673d06909a9cc9a9",
     "docs/evaluations/round-4/ios/accessibility-trace.json",
     "docs/evaluations/round-4/ios/command-results.json",
@@ -15,7 +15,10 @@
     "docs/evaluations/round-4/ios/02-ax5-contrast-failure-app.png",
     "docs/evaluations/round-4/ios/03-ax5-contrast-failure-element.png",
     "docs/evaluations/round-4/ios/04-action-preview.png",
-    "docs/evaluations/round-4/ios/05-no-external-write-outcome.png"
+    "docs/evaluations/round-4/ios/05-no-external-write-outcome.png",
+    "docs/evaluations/round-4/ios/06-ax5-dark-pass.png",
+    "docs/evaluations/round-4/ios/07-ax5-status-safe-pass.png",
+    "docs/evaluations/round-4/ios/08-canonical-backend-pass.png"
   ],
   "review_plan": [
     {
@@ -49,18 +52,9 @@
       "reviewer": "mobile-ux-reviewer",
       "lens": "mobile task completion, visual hierarchy, accessibility, and recovery",
       "verdict": "pass_with_changes",
-      "score": 2,
+      "score": 3,
       "confidence": "direct",
       "findings": [
-        {
-          "severity": "high",
-          "criterion": "Accessibility",
-          "observation": "The initial current-source AX5 dark-mode audit reported insufficient contrast for the muted proposal-review instruction. A targeted retest timed out while synthesizing a scroll before reaching the audit, so it did not clear the failure.",
-          "evidence": "iPhone 17 / iOS 26.1; commit 0439e58; initial ui.xcresult 10/12; docs/evaluations/round-4/ios/02-ax5-contrast-failure-app.png and 03-ax5-contrast-failure-element.png; targeted ui-ax5.xcresult 0/1 with a scroll-synthesis timeout.",
-          "user_impact": "At an accessibility text size in dark mode, a low-vision recruiter may not reliably read the instruction that proposals must be inspected before confirming, editing, or dismissing.",
-          "recommendation": "In a separate source-fix worktree, increase the muted instructional text contrast without flattening state hierarchy.",
-          "verification": "The focused AX5 dark audit and the full 12-test UI suite pass against a materialized isolated backend, with the instruction fully visible and no new contrast, hit-region, description, or Dynamic Type failure."
-        },
         {
           "severity": "medium",
           "criterion": "Assistive-technology proof",
@@ -72,14 +66,15 @@
         }
       ],
       "strengths": [
-        "The current-source unit suite passed 13/13 and the isolated Release simulator build succeeded.",
+        "The current-source unit suite passed and the isolated Release simulator build succeeded.",
+        "The corrected focused AX5 audit passed 1/1, and the final full iOS UI suite passed 12/12 with zero failures or skips.",
+        "Passing dark-mode AX5 screenshots show the full proposal-review instruction, evidence, decision controls, status-bar clearance, and viewport-edge behavior.",
         "The frozen TS-CORE-01 UI test passed evidence review, four confirmations, a separate exact-effect action preview, and a local no-external-write outcome.",
-        "The initial full suite passed evidence-before-decision order, cancellation, failure recovery, background interruption, stale-preview blocking, scoring refusal, localhost sync, and unrelated-image isolation.",
-        "The canonical-backend targeted test passed 1/1 after the isolated synthetic state was correctly materialized.",
+        "The final full suite passed evidence-before-decision order, cancellation, failure recovery, background interruption, stale-preview blocking, scoring refusal, localhost sync, and unrelated-image isolation.",
+        "The canonical-backend test passed in the final full suite after the governed synthetic state was materialized.",
         "Computer Use directly exposed candidate identity, source, time, exact observed evidence, each proposal and evidence quote, confirm/edit/dismiss controls, decision state, and cancellation in evidence-first order."
       ],
       "missing_evidence": [
-        "A successful focused and full-suite AX5 dark contrast retest after correction.",
         "A true VoiceOver transcript and visible focus trace for confirm, edit, dismiss, action preview, outcome, cancellation, failure, and retry.",
         "Assistive-technology user evidence and the smallest-supported-iPhone layout run."
       ],
@@ -96,14 +91,6 @@
     "top_findings": [
       {
         "reviewer": "mobile-ux-reviewer",
-        "criterion": "AX5 dark contrast",
-        "severity": "high",
-        "reason": "A direct current-source audit reported insufficient contrast for decision-guidance text, and the targeted retest did not reach the audit.",
-        "next_step": "Correct the contrast in a separate source-fix worktree.",
-        "verification": "Focused AX5 audit and the full 12-test UI suite pass against the prepared isolated backend."
-      },
-      {
-        "reviewer": "mobile-ux-reviewer",
         "criterion": "VoiceOver proof",
         "severity": "medium",
         "reason": "The authorized Simulator environment exposed no VoiceOver setting or simctl control, so tree order cannot be promoted to spoken assistive-technology evidence.",
@@ -114,21 +101,15 @@
     "agreements": [
       "The current Release binary matches the frozen source and preserves the evidence-first touch journey.",
       "Backend canonical-state failure was resolved by materializing the expected governed synthetic state; it is not an iOS binary defect.",
+      "The AX5 false positive was localized to an element clamped at the viewport edge; the corrected focused audit and full UI suite both pass.",
       "An accessibility tree is supporting evidence and is not a substitute for VoiceOver speech, focus, or gesture proof.",
-      "The initial contrast failure remains unresolved because the targeted rerun never reached the audit.",
       "No candidate data or external contact, calendar, message, ATS, CRM, or other write was used."
     ],
     "disagreements": [],
     "veto_resolution": [],
-    "rationale": "This bounded retest directly proves current-source unit, Release, core touch, recovery, accessible order, and prepared-backend behavior. It cannot approve accessibility release readiness because true VoiceOver was unavailable and the initial AX5 dark contrast failure remains uncleared. The result is therefore pass_with_changes with release_gate=needs_evidence, not a resolution of the prior medium VoiceOver finding."
+    "rationale": "This bounded retest directly proves current-source unit, Release, 12/12 UI behavior, AX5 dark mode, core touch, recovery, accessible order, and prepared-backend behavior. It cannot approve full accessibility release readiness because true VoiceOver was unavailable. The result is therefore pass_with_changes with release_gate=needs_evidence, while the prior AX5 finding is resolved."
   },
   "next_tests": [
-    {
-      "owner": "iOS source-fix worktree",
-      "test": "Correct the muted proposal-review instruction contrast and rerun the affected gates.",
-      "evidence_required": "Source diff, focused AX5 dark audit, full 12-test UI summary against materialized isolated backend, and updated screenshots.",
-      "pass_condition": "Zero Dynamic Type, contrast, hit-region, or sufficient-description failures; 12/12 UI tests pass with zero skips."
-    },
     {
       "owner": "Mobile accessibility",
       "test": "Traverse the frozen TS-CORE-01 journey with real VoiceOver.",
