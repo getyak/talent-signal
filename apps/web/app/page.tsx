@@ -90,15 +90,15 @@ export default function HomePage() {
         >
           <div className={`shell ${styles.heroIntro}`}>
             <div className={styles.heroThesis}>
-              <p>Candidate momentum for executive search</p>
+              <p>Relationship intelligence for executive search</p>
               <h1 id="hero-title">
-                Every relationship has a <span>redline.</span>
+                Know what <span>changed.</span> Move the relationship.
               </h1>
             </div>
             <div className={styles.heroAside}>
               <p>
-                Turn one candidate conversation into a source-linked change
-                you can review, correct, and act on.
+                Turn one candidate conversation into verified context and the
+                smallest safe next move.
               </p>
               <div className={styles.heroActions}>
                 <Link
@@ -130,10 +130,12 @@ export default function HomePage() {
         >
           <div className="shell">
             <div className={styles.sectionHeading}>
-              <h2 id="history-title">One conversation. Every change inspectable.</h2>
+              <h2 id="history-title">
+                From exact words to the next right move.
+              </h2>
               <p>
-                This synthetic scenario follows Leila&apos;s exact words
-                through proposed state, human decisions, and new evidence.
+                This synthetic case keeps the deadline, open question, and
+                every human decision in one reviewable history.
               </p>
             </div>
 
@@ -155,11 +157,11 @@ export default function HomePage() {
           <div className={`shell ${styles.counterfactualInner}`}>
             <div>
               <h2 id="counterfactual-title">
-                Remove the clause. Retract the action.
+                Change the evidence. Change the move.
               </h2>
               <p>
-                A recommendation survives only while its supporting evidence
-                remains in scope.
+                A next step survives only while its supporting evidence remains
+                in scope.
               </p>
             </div>
 
@@ -283,10 +285,12 @@ export default function HomePage() {
         >
           <div className={`shell ${styles.researchGrid}`}>
             <div className={styles.researchIntro}>
-              <h2 id="research-title">The method behind the product.</h2>
+              <h2 id="research-title">
+                Research for relationship-led search.
+              </h2>
               <p>
-                Practical research on candidate momentum, evidence, and human
-                decision authority.
+                Practical work on candidate momentum, evidence integrity, and
+                human decision authority.
               </p>
               <Link className={styles.textLink} href="/blog">
                 Browse all research
@@ -311,12 +315,11 @@ export default function HomePage() {
               <div className={styles.questionsIntro}>
                 <span>Relationship authority</span>
                 <h2 id="questions-title">
-                  The system can hold context. It cannot hold authority.
+                  The system remembers context. The recruiter keeps authority.
                 </h2>
                 <p>
-                  Talent Signal reconstructs what changed without deciding
-                  what is true, which work needs attention, or what should
-                  happen outside the workspace.
+                  Talent Signal reconstructs what changed. You decide what is
+                  true, what deserves attention, and what happens next.
                 </p>
               </div>
 
@@ -359,7 +362,7 @@ export default function HomePage() {
         <section className={styles.closing} aria-labelledby="closing-title">
           <div className={`shell ${styles.closingInner}`}>
             <div className={styles.closingCopy}>
-              <h2 id="closing-title">Every promise needs a source.</h2>
+              <h2 id="closing-title">Every claim needs a source.</h2>
               <p>
                 Inspect what this page demonstrates, what it does not claim,
                 and what you can verify next.

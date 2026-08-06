@@ -13,7 +13,7 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import {
   analyzeConversation,
@@ -22,6 +22,7 @@ import {
   type Evidence,
   type ProposedAction,
 } from "@/lib/signals";
+import { useReducedMotionPreference } from "@/lib/use-reduced-motion";
 
 type Phase = "error" | "idle" | "loading" | "ready";
 type ActionStatus = "confirmed" | "dismissed" | "pending";
@@ -120,7 +121,7 @@ export function DemoWorkbench({
   );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRef = useRef<AbortController | null>(null);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReducedMotionPreference();
 
   useEffect(() => {
     return () => {

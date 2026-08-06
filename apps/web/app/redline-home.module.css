@@ -9,12 +9,12 @@
 .heroIntro {
   align-items: end;
   display: grid;
-  gap: clamp(44px, 6vw, 92px);
-  grid-template-columns: minmax(0, 1.18fr) minmax(340px, 0.82fr);
+  gap: clamp(44px, 5.2vw, 78px);
+  grid-template-columns: minmax(0, 1.28fr) minmax(330px, 0.72fr);
 }
 
 .heroIntro h1 {
-  font-size: clamp(4rem, 5.65vw, 5.15rem);
+  font-size: clamp(3.9rem, 4.8vw, 4.55rem);
   font-weight: 625;
   letter-spacing: -0.074em;
   line-height: 0.93;
@@ -223,19 +223,24 @@
   border-bottom: 3px solid var(--accent-strong);
   border-radius: 0;
   color: inherit;
-  cursor: pointer;
-  display: inline;
+  cursor: grab;
+  display: inline-block;
   font-weight: inherit;
   letter-spacing: inherit;
   line-height: inherit;
   margin: 0;
   padding: 0 0 0.04em;
+  position: relative;
   text-align: left;
+  touch-action: pan-y;
   transition:
     background-color 180ms ease,
+    box-shadow 180ms ease,
     color 180ms ease,
     opacity 180ms ease,
     text-decoration-color 180ms ease;
+  user-select: none;
+  z-index: 1;
 }
 
 .quoteClose {
@@ -246,6 +251,15 @@
 
 .evidenceClause:hover {
   background-color: var(--accent-soft);
+}
+
+.evidenceClause[data-dragging="true"] {
+  background: var(--accent-soft);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent),
+    0 14px 28px color-mix(in srgb, var(--ink) 14%, transparent);
+  cursor: grabbing;
+  z-index: 4;
 }
 
 .evidenceClause[data-active="false"] {
@@ -276,6 +290,27 @@
 .sourceInstruction span {
   font-size: 0.7rem;
   line-height: 1.45;
+}
+
+.sourceInstruction .dragHint {
+  align-items: center;
+  color: var(--accent-strong);
+  display: inline-flex;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.59rem;
+  font-weight: 680;
+  gap: 7px;
+  letter-spacing: 0.045em;
+  margin-top: 5px;
+  text-transform: uppercase;
+}
+
+.dragHint svg {
+  flex: 0 0 auto;
+}
+
+.sourceInstruction .reducedMotionOnly {
+  display: none;
 }
 
 .sourceScope {
@@ -2153,6 +2188,18 @@
   .action,
   .evidenceClause {
     transition: none;
+  }
+
+  .evidenceClause {
+    cursor: pointer;
+  }
+
+  .sourceInstruction .motionOnly {
+    display: none;
+  }
+
+  .sourceInstruction .reducedMotionOnly {
+    display: inline;
   }
 
   .action:hover,

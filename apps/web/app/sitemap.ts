@@ -2,45 +2,38 @@ import type { MetadataRoute } from "next";
 import { blogPosts, getLatestBlogUpdate } from "@/lib/blog";
 import { siteConfig } from "@/lib/site";
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const stableSiteUpdate = new Date("2026-08-05T09:30:00+08:00");
+const publicPageLastModified = {
+  home: "2026-08-06T16:20:00+08:00",
+  demo: "2026-08-05T09:30:00+08:00",
+  editorialMethod: "2026-08-05T09:30:00+08:00",
+  privacy: "2026-08-05T09:30:00+08:00",
+} as const;
 
+export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
       url: siteConfig.url,
-      lastModified: stableSiteUpdate,
-      changeFrequency: "weekly",
-      priority: 1,
-    },
-    {
-      url: `${siteConfig.url}/blog`,
-      lastModified: new Date(getLatestBlogUpdate()),
-      changeFrequency: "weekly",
-      priority: 0.9,
-    },
-    ...blogPosts.map((post) => ({
-      url: `${siteConfig.url}/blog/${post.slug}`,
-      lastModified: new Date(post.updatedAt),
-      changeFrequency: "monthly" as const,
-      priority: 0.8,
-    })),
-    {
-      url: `${siteConfig.url}/blog/about`,
-      lastModified: stableSiteUpdate,
-      changeFrequency: "monthly",
-      priority: 0.5,
+      lastModified: publicPageLastModified.home,
     },
     {
       url: `${siteConfig.url}/demo`,
-      lastModified: stableSiteUpdate,
-      changeFrequency: "monthly",
-      priority: 0.8,
+      lastModified: publicPageLastModified.demo,
+    },
+    {
+      url: `${siteConfig.url}/blog`,
+      lastModified: getLatestBlogUpdate(),
+    },
+    ...blogPosts.map((post) => ({
+      url: `${siteConfig.url}/blog/${post.slug}`,
+      lastModified: post.updatedAt,
+    })),
+    {
+      url: `${siteConfig.url}/blog/about`,
+      lastModified: publicPageLastModified.editorialMethod,
     },
     {
       url: `${siteConfig.url}/privacy`,
-      lastModified: stableSiteUpdate,
-      changeFrequency: "monthly",
-      priority: 0.6,
+      lastModified: publicPageLastModified.privacy,
     },
   ];
 }

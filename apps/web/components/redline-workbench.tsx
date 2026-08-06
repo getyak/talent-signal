@@ -1,14 +1,22 @@
 "use client";
 
-import { CheckCircle } from "@phosphor-icons/react";
+import { ArrowsHorizontal, CheckCircle } from "@phosphor-icons/react";
+import { motion } from "motion/react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   analyzeConversation,
   deriveInsight,
   sampleConversation,
   type EvidenceKind,
 } from "@/lib/signals";
+import { useReducedMotionPreference } from "@/lib/use-reduced-motion";
 import styles from "@/app/redline-home.module.css";
 
 const sample = analyzeConversation(sampleConversation);
@@ -22,6 +30,101 @@ type ChangeRow = {
   evidenceId: EvidenceKind;
   supported: boolean;
 };
+
+type EvidenceClauseProps = {
+  active: boolean;
+  children: ReactNode;
+  id: EvidenceKind;
+  onToggle: (id: EvidenceKind) => void;
+};
+
+const dragThreshold = 46;
+const dragVelocityThreshold = 520;
+
+function EvidenceClause({
+  active,
+  children,
+  id,
+  onToggle,
+}: EvidenceClauseProps) {
+  const reduceMotion = useReducedMotionPreference();
+  const ignoreClickRef = useRef(false);
+  const resetClickTimerRef = useRef<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(
+    () => () => {
+      if (resetClickTimerRef.current !== null) {
+        window.clearTimeout(resetClickTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  function resetIgnoredClick() {
+    if (resetClickTimerRef.current !== null) {
+      window.clearTimeout(resetClickTimerRef.current);
+    }
+    resetClickTimerRef.current = window.setTimeout(() => {
+      ignoreClickRef.current = false;
+      resetClickTimerRef.current = null;
+    }, 0);
+  }
+
+  return (
+    <motion.button
+      type="button"
+      className={styles.evidenceClause}
+      data-active={active}
+      data-dragging={dragging}
+      aria-pressed={active}
+      aria-describedby="source-interaction-instruction"
+      aria-controls={controlledChangeIds}
+      drag={reduceMotion ? false : "x"}
+      dragConstraints={{ left: -74, right: 74 }}
+      dragElastic={0.16}
+      dragMomentum={false}
+      dragSnapToOrigin
+      whileDrag={
+        reduceMotion
+          ? undefined
+          : {
+              scale: 1.045,
+              rotate: active ? -1.1 : 1.1,
+            }
+      }
+      transition={{
+        type: "spring",
+        stiffness: 520,
+        damping: 34,
+        mass: 0.72,
+      }}
+      onDragStart={() => {
+        ignoreClickRef.current = true;
+        setDragging(true);
+      }}
+      onDragEnd={(_event, info) => {
+        const movedBeyondThreshold =
+          Math.abs(info.offset.x) >= dragThreshold ||
+          Math.abs(info.velocity.x) >= dragVelocityThreshold;
+
+        setDragging(false);
+        if (movedBeyondThreshold) {
+          onToggle(id);
+        }
+        resetIgnoredClick();
+      }}
+      onClick={() => {
+        if (ignoreClickRef.current) {
+          return;
+        }
+        onToggle(id);
+      }}
+    >
+      {children}
+    </motion.button>
+  );
+}
 
 function buildChangeRows(selected: Set<EvidenceKind>): ChangeRow[] {
   return [
@@ -127,59 +230,58 @@ export function RedlineWorkbench() {
           id="source-interaction-instruction"
           className={styles.sourceInstruction}
         >
-          <strong>Remove one underlined phrase</strong>
-          <span>Dependent state and action retract with it.</span>
+          <strong>
+            <span className={styles.motionOnly}>Move one marked phrase aside</span>
+            <span className={styles.reducedMotionOnly}>
+              Select one marked phrase
+            </span>
+          </strong>
+          <span>
+            <span className={styles.motionOnly}>Or select it. </span>
+            Dependent state and action retract together.
+          </span>
+          <span
+            className={`${styles.dragHint} ${styles.motionOnly}`}
+            aria-hidden="true"
+          >
+            <ArrowsHorizontal size={14} weight="bold" />
+            Drag to change evidence scope
+          </span>
         </p>
 
         <blockquote className={styles.sourceQuote}>
           “I have{" "}
-          <button
-            type="button"
-            className={styles.evidenceClause}
-            data-active={selected.has("competing-offer")}
-            aria-pressed={selected.has("competing-offer")}
-            aria-describedby="source-interaction-instruction"
-            aria-controls={controlledChangeIds}
-            onClick={() => toggleEvidence("competing-offer")}
+          <EvidenceClause
+            id="competing-offer"
+            active={selected.has("competing-offer")}
+            onToggle={toggleEvidence}
           >
             another offer
-          </button>{" "}
+          </EvidenceClause>{" "}
           and need to decide{" "}
-          <button
-            type="button"
-            className={styles.evidenceClause}
-            data-active={selected.has("deadline")}
-            aria-pressed={selected.has("deadline")}
-            aria-describedby="source-interaction-instruction"
-            aria-controls={controlledChangeIds}
-            onClick={() => toggleEvidence("deadline")}
+          <EvidenceClause
+            id="deadline"
+            active={selected.has("deadline")}
+            onToggle={toggleEvidence}
           >
             by Wednesday
-          </button>
+          </EvidenceClause>
           . I can speak{" "}
-          <button
-            type="button"
-            className={styles.evidenceClause}
-            data-active={selected.has("availability")}
-            aria-pressed={selected.has("availability")}
-            aria-describedby="source-interaction-instruction"
-            aria-controls={controlledChangeIds}
-            onClick={() => toggleEvidence("availability")}
+          <EvidenceClause
+            id="availability"
+            active={selected.has("availability")}
+            onToggle={toggleEvidence}
           >
             Tuesday afternoon
-          </button>
+          </EvidenceClause>
           , but{" "}
-          <button
-            type="button"
-            className={styles.evidenceClause}
-            data-active={selected.has("preference")}
-            aria-pressed={selected.has("preference")}
-            aria-describedby="source-interaction-instruction"
-            aria-controls={controlledChangeIds}
-            onClick={() => toggleEvidence("preference")}
+          <EvidenceClause
+            id="preference"
+            active={selected.has("preference")}
+            onToggle={toggleEvidence}
           >
             remote flexibility is important
-          </button>
+          </EvidenceClause>
           <span className={styles.quoteClose}>.”</span>
         </blockquote>
 
