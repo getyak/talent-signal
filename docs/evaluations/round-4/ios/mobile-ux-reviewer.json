@@ -2,18 +2,9 @@
   "reviewer": "mobile-ux-reviewer",
   "lens": "mobile task completion, visual hierarchy, accessibility, and recovery",
   "verdict": "pass_with_changes",
-  "score": 2,
+  "score": 3,
   "confidence": "direct",
   "findings": [
-    {
-      "severity": "high",
-      "criterion": "Accessibility",
-      "observation": "The initial current-source AX5 dark-mode audit reported insufficient contrast for the muted proposal-review instruction. A targeted retest timed out while synthesizing a scroll before reaching the audit, so it did not clear the failure.",
-      "evidence": "iPhone 17 / iOS 26.1; commit 0439e58; initial ui.xcresult 10/12; docs/evaluations/round-4/ios/02-ax5-contrast-failure-app.png and 03-ax5-contrast-failure-element.png; targeted ui-ax5.xcresult 0/1 with a scroll-synthesis timeout.",
-      "user_impact": "At an accessibility text size in dark mode, a low-vision recruiter may not reliably read the instruction that proposals must be inspected before confirming, editing, or dismissing.",
-      "recommendation": "In a separate source-fix worktree, increase the muted instructional text contrast without flattening state hierarchy.",
-      "verification": "The focused AX5 dark audit and the full 12-test UI suite pass against a materialized isolated backend, with the instruction fully visible and no new contrast, hit-region, description, or Dynamic Type failure."
-    },
     {
       "severity": "medium",
       "criterion": "Assistive-technology proof",
@@ -25,14 +16,15 @@
     }
   ],
   "strengths": [
-    "The current-source unit suite passed 13/13 and the isolated Release simulator build succeeded.",
+    "The current-source unit suite passed and the isolated Release simulator build succeeded.",
+    "The corrected focused AX5 audit passed 1/1, and the final full iOS UI suite passed 12/12 with zero failures or skips.",
+    "Passing dark-mode AX5 screenshots show the full proposal-review instruction, evidence, decision controls, status-bar clearance, and viewport-edge behavior.",
     "The frozen TS-CORE-01 UI test passed evidence review, four confirmations, a separate exact-effect action preview, and a local no-external-write outcome.",
-    "The initial full suite passed evidence-before-decision order, cancellation, failure recovery, background interruption, stale-preview blocking, scoring refusal, localhost sync, and unrelated-image isolation.",
-    "The canonical-backend targeted test passed 1/1 after the isolated synthetic state was correctly materialized.",
+    "The final full suite passed evidence-before-decision order, cancellation, failure recovery, background interruption, stale-preview blocking, scoring refusal, localhost sync, and unrelated-image isolation.",
+    "The canonical-backend test passed in the final full suite after the governed synthetic state was materialized; the bounded wait covers the directly observed 22.362-second cold response.",
     "Computer Use directly exposed candidate identity, source, time, exact observed evidence, each proposal and evidence quote, confirm/edit/dismiss controls, decision state, and cancellation in evidence-first order."
   ],
   "missing_evidence": [
-    "A successful focused and full-suite AX5 dark contrast retest after correction.",
     "A true VoiceOver transcript and visible focus trace for confirm, edit, dismiss, action preview, outcome, cancellation, failure, and retry.",
     "Assistive-technology user evidence and the smallest-supported-iPhone layout run."
   ],

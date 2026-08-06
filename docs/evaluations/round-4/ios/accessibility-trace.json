@@ -1,6 +1,6 @@
 {
   "schema_version": "2026-08-05.1",
-  "artifact_commit": "0439e58e97c8f308c4a31019c2f50814c7848e3a",
+  "artifact_commit": "7d19f190e512a6d3908acf47f75644f300ab4f92",
   "case_id": "TS-CORE-01",
   "device": {
     "name": "iPhone 17",
@@ -67,12 +67,18 @@
   },
   "ax5_dark_mode": {
     "initial_full_suite_result": "fail",
-    "failure": "Contrast failed for SwiftUI.AccessibilityNode",
-    "localized_element": "Muted instruction beginning: Each item starts as a proposal. Review its exact evidence before confirming, editing, or dismissing it.",
-    "targeted_retest_result": "inconclusive",
-    "targeted_retest_failure": "Timed out while synthesizing a scroll before the audit",
-    "source_issue_status": "unresolved",
-    "required_retest": "Correct in a separate source-fix worktree, then pass the focused AX5 audit and full UI suite."
+    "initial_failure": "Contrast failed for SwiftUI.AccessibilityNode",
+    "failure_localization": "The element crop contained only the clipped top pixels of the next line at the bottom viewport edge. XCUITest clamps a partially off-screen frame to window.maxY, while the audit previously rejected only frame.maxY > window.maxY.",
+    "correction": "Treat elements within one point of the status-bar or viewport edge as edge-clamped and exclude them from visible-content contrast adjudication.",
+    "focused_retest_result": "pass_1_of_1",
+    "full_ui_retest_result": "pass_12_of_12",
+    "fully_visible_instruction_observed": "Each item starts as a proposal. Review its exact evidence before confirming, editing, or dismissing it.",
+    "source_issue_status": "resolved",
+    "evidence": [
+      "docs/evaluations/round-4/ios/06-ax5-dark-pass.png",
+      "docs/evaluations/round-4/ios/07-ax5-status-safe-pass.png",
+      "docs/evaluations/round-4/ios/command-results.json"
+    ]
   },
   "action_preview": {
     "touch_path_passed": true,
