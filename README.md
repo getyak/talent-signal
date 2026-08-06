@@ -13,8 +13,18 @@ next action. Carry verified context forward.
 [Architecture](#system-architecture) ·
 [Contributing](#contributing)
 
+[Open the live demo](https://gettalentsignal.com/demo) ·
+[Explore the product](https://gettalentsignal.com) ·
+[Read the trust contract](#trust-is-product-behavior)
+
 [![CI](https://github.com/getyak/talent-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/getyak/talent-signal/actions/workflows/ci.yml)
 [![Security](https://github.com/getyak/talent-signal/actions/workflows/security.yml/badge.svg)](https://github.com/getyak/talent-signal/actions/workflows/security.yml)
+[![Vercel deployment](https://img.shields.io/github/deployments/getyak/talent-signal/Production?logo=vercel&label=Vercel)](https://github.com/getyak/talent-signal/deployments/Production)
+
+[![Synthetic Talent Signal workspace showing exact source evidence beside reviewable proposed facts](docs/evaluations/overnight/web/artifacts/workspace-desktop-light.png)](https://gettalentsignal.com/demo)
+
+<sub>Real product surface · synthetic fixture · no private candidate data ·
+fact review grants no external execution authority</sub>
 
 </div>
 
@@ -43,6 +53,26 @@ replacing relationship judgment.
 > repository demonstrates the product language, review states, safety
 > boundaries, and a cross-platform evidence-to-action loop using synthetic
 > fixtures.
+
+### From buried context to a governed decision
+
+> **Before:** “I think she mentioned a deadline and another offer somewhere in
+> our last conversation.”
+>
+> **After:** “Decision window: Wednesday · Current pressure: competing offer” —
+> proposed from exact source evidence, reviewed one fact at a time, and still
+> unable to authorize an external action.
+
+### See the trust boundary in 60 seconds
+
+1. [Open the deterministic evidence review](https://gettalentsignal.com/demo).
+2. Use the included synthetic conversation—no account or candidate data is
+   required.
+3. Inspect the exact source attached to each proposed fact.
+4. Confirm, edit, or dismiss facts independently.
+5. Verify that fact confirmation still does not approve an external action.
+6. Change the note to produce insufficient evidence or `no_action`, then reset
+   the demo without persisting the text.
 
 ## The product loop
 
@@ -110,6 +140,16 @@ Read the canonical [product principles](docs/principles.md),
 | Domain | A platform-neutral contract boundary; shared code waits until the iOS and API shapes are stable. |
 | Agent system | Provider-neutral boundaries for scoped reads, artifacts, proposals, checkpoints, and governed capabilities. |
 | Project Wiki | A checked raw-to-published knowledge workflow with portable links, backlinks, drift detection, and pre-push enforcement. |
+
+### What you can verify today
+
+| Claim | Observable proof |
+| --- | --- |
+| Proposed facts stay attached to exact evidence | Open any fact in the [synthetic review](https://gettalentsignal.com/demo) and inspect its source text. |
+| Understanding and execution authority are separate | Complete fact review; the exact external effect still requires its own decision. |
+| Uncertainty is a supported result | Run the public demo with insufficient evidence, then inspect the deterministic [`no_action`](apps/web/lib/candidateMomentum.test.ts) and [ambiguity](apps/web/lib/ai-evidence.test.ts) contracts. |
+| Failure does not masquerade as success | Inspect the executable [stale, retry, and outcome-state contract](apps/web/lib/integrationState.test.ts) and its screenshot evidence under [`docs/evaluations/`](docs/evaluations/). |
+| The same contract crosses surfaces | Compare the deterministic [Web tests](apps/web/lib/) with the native [iOS capture and review tests](apps/ios/Tests/). |
 
 See [Delivery](docs/delivery.md) for the evidence-gated sequence from the current
 foundation to a production relationship system.
@@ -196,6 +236,9 @@ The full rationale is in [Architecture](docs/architecture.md) and
 | --- | --- |
 | [`apps/web/`](apps/web/) | Next.js narrative, sample workspace, and evidence-review demo |
 | [`apps/ios/`](apps/ios/) | Native SwiftUI capture, review, and timely briefing |
+| [`apps/backend/`](apps/backend/) | Deterministic local API boundary and candidate-momentum fixture contract |
+| [`apps/browser-extension/`](apps/browser-extension/) | Governed browser capture, review, retry, and receipt flow |
+| [`apps/chrome-extension/`](apps/chrome-extension/) | Chrome extension packaging and browser-specific integration surface |
 | [`packages/domain/`](packages/domain/) | Platform-neutral vocabulary and the future shared-contract boundary |
 | [`docs/`](docs/README.md) | Canonical product, architecture, design, delivery, and operating knowledge |
 | [`_index/`](_index/README.md) | Raw sources, notes, drafts, and editable Wiki pages |
