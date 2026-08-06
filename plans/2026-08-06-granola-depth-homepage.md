@@ -89,112 +89,112 @@ Talent Signal translation:
 
 ### Recruiter workflow reviewer
 
-- [ ] Replace the metaphor-first hero copy with a recruiter job and result that
+- [x] Replace the metaphor-first hero copy with a recruiter job and result that
   can be understood in five seconds.
-- [ ] Keep one complete `conversation -> reviewed change -> next move` loop
+- [x] Keep one complete `conversation -> reviewed change -> next move` loop
   visible before broad principles.
-- [ ] Make the direct manipulation instructional text explicit but brief.
-- [ ] Keep `no_action` as a legitimate output and avoid manufactured urgency.
-- [ ] Keep the access request, live demo, and returning-user sign-in as three
+- [x] Make the direct manipulation instructional text explicit but brief.
+- [x] Keep `no_action` as a legitimate output and avoid manufactured urgency.
+- [x] Keep the access request, live demo, and returning-user sign-in as three
   distinct intents.
 
 ### Evidence safety reviewer
 
-- [ ] Never move or copy a clause in a way that implies provenance was severed.
-- [ ] Treat drag as a proposal-scope change, not fact confirmation or execution
+- [x] Never move or copy a clause in a way that implies provenance was severed.
+- [x] Treat drag as a proposal-scope change, not fact confirmation or execution
   authority.
-- [ ] Preserve source, speaker, time, assignment context, uncertainty, before
+- [x] Preserve source, speaker, time, assignment context, uncertainty, before
   and after state, and separate action approval.
-- [ ] Keep all generated examples explicitly synthetic.
-- [ ] Keep privacy and deletion claims within what the repository supports.
+- [x] Keep all generated examples explicitly synthetic.
+- [x] Keep privacy and deletion claims within what the repository supports.
 
 ### Mobile UX reviewer
 
-- [ ] Preserve the strict source-before-interpretation reading order.
-- [ ] Keep vertical touch scrolling while horizontal clause drag is available.
-- [ ] Provide click, keyboard, focus, pressed-state, and textual status
+- [x] Preserve the strict source-before-interpretation reading order.
+- [x] Keep vertical touch scrolling while horizontal clause drag is available.
+- [x] Provide click, keyboard, focus, pressed-state, and textual status
   equivalents.
-- [ ] Verify 320, 390, 820, 821, 900, 1024, and 1440-pixel layouts as relevant.
-- [ ] Verify light, dark, reduced motion, long text, and zero horizontal
+- [x] Verify 320, 390, 820, 821, 900, 1024, and 1440-pixel layouts as relevant.
+- [x] Verify light, dark, reduced motion, long text, and zero horizontal
   overflow.
 
 ### Candidate experience guardrail
 
-- [ ] Describe the product as protecting attentive follow-through rather than
+- [x] Describe the product as protecting attentive follow-through rather than
   increasing outreach volume.
-- [ ] Keep candidate silence and ambiguity as unknown, not disengagement.
-- [ ] Keep client-owned delay visible instead of pushing the candidate again.
-- [ ] Avoid faux empathy, automated pressure, or hidden personalization claims.
+- [x] Keep candidate silence and ambiguity as unknown, not disengagement.
+- [x] Keep client-owned delay visible instead of pushing the candidate again.
+- [x] Avoid faux empathy, automated pressure, or hidden personalization claims.
 
 ### Selection science auditor
 
-- [ ] Keep attention priority separate from candidate quality.
-- [ ] Remove or reject any fit, potential, personality, culture, acceptance, or
+- [x] Keep attention priority separate from candidate quality.
+- [x] Remove or reject any fit, potential, personality, culture, acceptance, or
   engagement score.
-- [ ] Keep the marketing claim at the operational fact/action level.
-- [ ] Add deterministic sitemap and interaction-contract checks rather than a
+- [x] Keep the marketing claim at the operational fact/action level.
+- [x] Add deterministic sitemap and interaction-contract checks rather than a
   decorative overall score.
 
 ### Inclusive sourcing recall
 
-- [ ] Record sourcing as out of scope for this homepage loop.
-- [ ] Ensure site search/SEO language does not imply candidate matching,
+- [x] Record sourcing as out of scope for this homepage loop.
+- [x] Ensure site search/SEO language does not imply candidate matching,
   ranking, or profile completeness as quality.
-- [ ] Keep a future sourcing expansion separate from candidate momentum.
+- [x] Keep a future sourcing expansion separate from candidate momentum.
 
 ### Recruiting trend radar
 
-- [ ] Use current sources for competitive and platform assumptions.
-- [ ] Treat Granola's tactile website and bot-free positioning as mechanism
+- [x] Use current sources for competitive and platform assumptions.
+- [x] Treat Granola's tactile website and bot-free positioning as mechanism
   signals, not product-market proof for Talent Signal.
-- [ ] Prefer a falsifiable recruiter field test over copying trend language.
+- [x] Prefer a falsifiable recruiter field test over copying trend language.
 
 ### Performance outcome fit
 
-- [ ] Do not imply the sample candidate is a strong performance fit.
-- [ ] Frame the next action as resolving one decision uncertainty, not merely
+- [x] Do not imply the sample candidate is a strong performance fit.
+- [x] Frame the next action as resolving one decision uncertainty, not merely
   advancing a stage.
-- [ ] Keep role outcomes marked unknown unless direct evidence exists.
+- [x] Keep role outcomes marked unknown unless direct evidence exists.
 
 ### Executive potential evidence
 
-- [ ] Explicitly abstain from person-level potential judgment in the
+- [x] Explicitly abstain from person-level potential judgment in the
   single-conversation demonstration.
-- [ ] Preserve the distinction between current facts, readiness, and potential.
-- [ ] Do not infer traits from writing style, urgency, or the sample name.
+- [x] Preserve the distinction between current facts, readiness, and potential.
+- [x] Do not infer traits from writing style, urgency, or the sample name.
 
 ### Candidate decision motivation
 
-- [ ] Treat remote flexibility and decision timing as candidate-owned,
+- [x] Treat remote flexibility and decision timing as candidate-owned,
   revisable evidence.
-- [ ] Show unknowns and contradictions rather than a close-probability model.
-- [ ] Direct the next action to the owner who can resolve the condition.
+- [x] Show unknowns and contradictions rather than a close-probability model.
+- [x] Direct the next action to the owner who can resolve the condition.
 
 ## Implementation TODO
 
-- [ ] Rework hero copy around the recruiter's immediate question while keeping
+- [x] Rework hero copy around the recruiter's immediate question while keeping
   the redline as the visual causal seam.
-- [ ] Add thresholded spring drag to exact evidence clauses with no continuous
+- [x] Add thresholded spring drag to exact evidence clauses with no continuous
   React state updates.
-- [ ] Add visible grab/drag affordance and an equally clear non-drag path.
-- [ ] Recompose dependent rows and action feedback without layout-jank motion.
-- [ ] Redesign desktop navigation as one calm, single-line instrument with
+- [x] Add visible grab/drag affordance and an equally clear non-drag path.
+- [x] Recompose dependent rows and action feedback without layout-jank motion.
+- [x] Redesign desktop navigation as one calm, single-line instrument with
   direct links to Live demo, Method, Research, and Trust.
-- [ ] Redesign mobile navigation with destination descriptions, a distinct
+- [x] Redesign mobile navigation with destination descriptions, a distinct
   access request, and focus/escape/inert recovery.
-- [ ] Update footer paths and labels to match the public information
+- [x] Update footer paths and labels to match the public information
   architecture.
-- [ ] Rewrite high-leverage homepage copy for category clarity, human control,
+- [x] Rewrite high-leverage homepage copy for category clarity, human control,
   candidate dignity, and recruiter usefulness.
-- [ ] Remove sitemap priority and change-frequency decoration, centralize
+- [x] Remove sitemap priority and change-frequency decoration, centralize
   canonical public routes, and use truthful content update dates.
-- [ ] Add sitemap tests for unique canonical URLs, public-only coverage, valid
+- [x] Add sitemap tests for unique canonical URLs, public-only coverage, valid
   dates, and deterministic order.
-- [ ] Produce before/after desktop, mobile, dark, drag, click, keyboard, and
+- [x] Produce before/after desktop, mobile, dark, drag, click, keyboard, and
   reduced-motion evidence.
-- [ ] Run lint, typecheck, focused tests, production build, docs check, and
+- [x] Run lint, typecheck, focused tests, production build, docs check, and
   Lighthouse or the narrowest available performance proof.
-- [ ] Save specialist packets, validate them, resolve vetoes, and publish a
+- [x] Save specialist packets, validate them, resolve vetoes, and publish a
   final adjudicated panel.
 
 ## Completion evidence
