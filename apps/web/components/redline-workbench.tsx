@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -11,11 +12,14 @@ import {
 import styles from "@/app/redline-home.module.css";
 
 const sample = analyzeConversation(sampleConversation);
+const controlledChangeIds =
+  "proposed-change-list current-dependency approval-boundary";
 
 type ChangeRow = {
   label: string;
   before: string;
   after: string;
+  evidenceId: EvidenceKind;
   supported: boolean;
 };
 
@@ -27,6 +31,7 @@ function buildChangeRows(selected: Set<EvidenceKind>): ChangeRow[] {
       after: selected.has("deadline")
         ? "Wednesday, candidate controlled"
         : "No supported change",
+      evidenceId: "deadline",
       supported: selected.has("deadline"),
     },
     {
@@ -35,6 +40,7 @@ function buildChangeRows(selected: Set<EvidenceKind>): ChangeRow[] {
       after: selected.has("competing-offer")
         ? "Competing offer in hand"
         : "No supported change",
+      evidenceId: "competing-offer",
       supported: selected.has("competing-offer"),
     },
     {
@@ -43,6 +49,7 @@ function buildChangeRows(selected: Set<EvidenceKind>): ChangeRow[] {
       after: selected.has("preference")
         ? "Remote flexibility is unresolved"
         : "No supported change",
+      evidenceId: "preference",
       supported: selected.has("preference"),
     },
   ];
@@ -66,6 +73,10 @@ export function RedlineWorkbench() {
     () => new Set(sample.evidence.map((item) => item.id)),
   );
   const [confirmed, setConfirmed] = useState(false);
+  const [lastChange, setLastChange] = useState<{
+    id: EvidenceKind;
+    version: number;
+  } | null>(null);
 
   const visibleEvidence = useMemo(
     () => sample.evidence.filter((item) => selected.has(item.id)),
@@ -75,6 +86,10 @@ export function RedlineWorkbench() {
   const changeRows = buildChangeRows(selected);
 
   function toggleEvidence(id: EvidenceKind) {
+    setLastChange((current) => ({
+      id,
+      version: (current?.version ?? 0) + 1,
+    }));
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(id)) {
@@ -108,6 +123,14 @@ export function RedlineWorkbench() {
           </span>
         </div>
 
+        <p
+          id="source-interaction-instruction"
+          className={styles.sourceInstruction}
+        >
+          <strong>Remove one underlined phrase</strong>
+          <span>Dependent state and action retract with it.</span>
+        </p>
+
         <blockquote className={styles.sourceQuote}>
           “I have{" "}
           <button
@@ -116,6 +139,7 @@ export function RedlineWorkbench() {
             data-active={selected.has("competing-offer")}
             aria-pressed={selected.has("competing-offer")}
             aria-describedby="source-interaction-instruction"
+            aria-controls={controlledChangeIds}
             onClick={() => toggleEvidence("competing-offer")}
           >
             another offer
@@ -127,6 +151,7 @@ export function RedlineWorkbench() {
             data-active={selected.has("deadline")}
             aria-pressed={selected.has("deadline")}
             aria-describedby="source-interaction-instruction"
+            aria-controls={controlledChangeIds}
             onClick={() => toggleEvidence("deadline")}
           >
             by Wednesday
@@ -138,6 +163,7 @@ export function RedlineWorkbench() {
             data-active={selected.has("availability")}
             aria-pressed={selected.has("availability")}
             aria-describedby="source-interaction-instruction"
+            aria-controls={controlledChangeIds}
             onClick={() => toggleEvidence("availability")}
           >
             Tuesday afternoon
@@ -149,6 +175,7 @@ export function RedlineWorkbench() {
             data-active={selected.has("preference")}
             aria-pressed={selected.has("preference")}
             aria-describedby="source-interaction-instruction"
+            aria-controls={controlledChangeIds}
             onClick={() => toggleEvidence("preference")}
           >
             remote flexibility is important
@@ -156,12 +183,10 @@ export function RedlineWorkbench() {
           <span className={styles.quoteClose}>.”</span>
         </blockquote>
 
-        <p
-          id="source-interaction-instruction"
-          className={styles.sourceInstruction}
-        >
-          Select an underlined phrase. Unsupported changes and actions retract
-          with it.
+        <p className={styles.sourceScope} aria-live="polite">
+          {visibleEvidence.length === sample.evidence.length
+            ? `All ${sample.evidence.length} evidence clauses are in scope.`
+            : `${visibleEvidence.length} of ${sample.evidence.length} evidence clauses remain in scope. Dependent state recalculated.`}
         </p>
       </section>
 
@@ -178,9 +203,17 @@ export function RedlineWorkbench() {
 
         <h2>What the record would change</h2>
 
-        <dl className={styles.changeList}>
+        <dl id="proposed-change-list" className={styles.changeList}>
           {changeRows.map((row) => (
-            <div key={row.label} data-supported={row.supported}>
+            <div
+              key={`${row.label}-${
+                lastChange?.id === row.evidenceId
+                  ? lastChange.version
+                  : "stable"
+              }`}
+              data-changed={lastChange?.id === row.evidenceId}
+              data-supported={row.supported}
+            >
               <dt>{row.label}</dt>
               <dd>
                 <del>{row.before}</del>
@@ -191,6 +224,7 @@ export function RedlineWorkbench() {
         </dl>
 
         <div
+          id="current-dependency"
           key={`${insight.verdict}-${visibleEvidence.length}`}
           className={styles.dependency}
           aria-live="polite"
@@ -205,20 +239,20 @@ export function RedlineWorkbench() {
           </span>
         </div>
 
-        <div className={styles.approvalRow}>
+        <div id="approval-boundary" className={styles.approvalRow}>
           <div>
             <span>Relationship state</span>
             <button
               type="button"
               className={styles.confirmButton}
+              data-confirmed={confirmed}
               disabled={visibleEvidence.length === 0}
               onClick={() => setConfirmed(true)}
             >
-              {confirmed ? (
-                "Facts confirmed"
-              ) : (
-                "Confirm facts"
+              {confirmed && (
+                <CheckCircle aria-hidden="true" size={17} weight="bold" />
               )}
+              <span>{confirmed ? "Facts confirmed" : "Confirm facts"}</span>
             </button>
           </div>
           <div>
@@ -231,6 +265,9 @@ export function RedlineWorkbench() {
             >
               Approve separately
             </button>
+            <small className={styles.approvalNote}>
+              Separate review required
+            </small>
           </div>
         </div>
 
