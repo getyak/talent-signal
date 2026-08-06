@@ -307,22 +307,104 @@ export default function HomePage() {
           aria-labelledby="questions-title"
         >
           <div className={`shell ${styles.questionsGrid}`}>
-            <div className={styles.questionsIntro}>
-              <h2 id="questions-title">Trust starts with boundaries.</h2>
-              <p>
-                Know what the product remembers, what it proposes, and what it
-                will never decide for you.
-              </p>
+            <div className={styles.trustBoundaryGrid}>
+              <div className={styles.questionsIntro}>
+                <span>Relationship authority</span>
+                <h2 id="questions-title">
+                  The system can hold context. It cannot hold authority.
+                </h2>
+                <p>
+                  Talent Signal reconstructs what changed without deciding
+                  what is true, which work needs attention, or what should
+                  happen outside the workspace.
+                </p>
+              </div>
+
+              <div
+                className={styles.trustBoundary}
+                role="group"
+                aria-label="Talent Signal relationship authority boundary"
+              >
+                <div className={styles.systemScope}>
+                  <article>
+                    <span>Remember</span>
+                    <h3>Evidence with provenance</h3>
+                    <p>Exact words · speaker · time · assignment</p>
+                  </article>
+                  <article>
+                    <span>Propose</span>
+                    <h3>A reviewable change</h3>
+                    <p>Dependency · smallest next step · no action</p>
+                  </article>
+                </div>
+                <div className={styles.decisionBoundary}>
+                  <span>Decision boundary</span>
+                  <strong>Confirmation grants no execution authority</strong>
+                </div>
+                <article className={styles.humanScope}>
+                  <span>Decide</span>
+                  <h3>The recruiter keeps authority</h3>
+                  <p>Fact confirmation · work attention · exact external effect</p>
+                </article>
+              </div>
             </div>
-            <FaqList />
+
+            <div className={styles.trustQuestions}>
+              <span>Practical questions</span>
+              <FaqList />
+            </div>
           </div>
         </section>
 
         <section className={styles.closing} aria-labelledby="closing-title">
           <div className={`shell ${styles.closingInner}`}>
-            <h2 id="closing-title">
-              Start with the conversation that cannot be lost.
-            </h2>
+            <div className={styles.closingCopy}>
+              <h2 id="closing-title">Every promise needs a source.</h2>
+              <p>
+                Inspect what this page demonstrates, what it does not claim,
+                and what you can verify next.
+              </p>
+            </div>
+
+            <div className={styles.closingStatus}>
+              <span>Current status</span>
+              <strong>Working prototype</strong>
+              <p>Synthetic evidence. No customer outcomes asserted.</p>
+            </div>
+
+            <div className={styles.proofRegister}>
+              <article>
+                <span>Demonstrated</span>
+                <h3>
+                  Removing evidence retracts its dependent state and action.
+                </h3>
+                <p>Inspectable above</p>
+              </article>
+              <article>
+                <span>Demonstrated</span>
+                <h3>
+                  Confirming facts grants no authority to act externally.
+                </h3>
+                <p>Inspectable above</p>
+              </article>
+              <article data-claim="withheld">
+                <span>Not claimed</span>
+                <h3>
+                  Customer outcomes, production adoption, or autonomous
+                  execution.
+                </h3>
+                <p>Not asserted</p>
+              </article>
+              <article>
+                <span>Verify next</span>
+                <h3>Run the synthetic evidence review yourself.</h3>
+                <Link href="/demo">
+                  Open demo
+                  <ArrowRight aria-hidden="true" size={15} />
+                </Link>
+              </article>
+            </div>
+
             <div className={styles.closingActions}>
               <Link
                 className={`${styles.action} ${styles.actionPrimary}`}
