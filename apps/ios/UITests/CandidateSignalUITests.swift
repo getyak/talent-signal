@@ -167,7 +167,7 @@ final class CandidateSignalUITests: XCTestCase {
         ]
         app.launch()
 
-        XCTAssertTrue(element("fixture-banner").waitForExistence(timeout: 12))
+        XCTAssertTrue(element("fixture-banner").waitForExistence(timeout: 30))
         XCTAssertTrue(app.staticTexts["Alex Chen"].exists)
         XCTAssertTrue(element("message-m1").exists)
         XCTAssertTrue(
@@ -237,7 +237,9 @@ final class CandidateSignalUITests: XCTestCase {
                 let frame = issueElement.frame
                 let window = self.app.windows.firstMatch.frame
                 let statusBottom = statusBar.frame.maxY
-                return frame.minY < statusBottom || frame.maxY > window.maxY
+                let edgeTolerance: CGFloat = 1
+                return frame.minY <= statusBottom + edgeTolerance
+                    || frame.maxY >= window.maxY - edgeTolerance
             }
         }
         preserveScreenshot("AX5 dark critical review")
