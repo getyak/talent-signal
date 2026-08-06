@@ -8,7 +8,7 @@ export function SiteFooter() {
         <div className="site-footer__brand">
           <BrandMark />
           <p>
-            Candidate momentum for relationship-led search.
+            Relationship intelligence for high-value, relationship-led search.
           </p>
         </div>
 
@@ -16,14 +16,14 @@ export function SiteFooter() {
           <div>
             <p className="footer-heading">Explore</p>
             <Link href="/#product">Product</Link>
+            <Link href="/demo">Live demo</Link>
             <Link href="/#method">Method</Link>
-            <Link href="/demo">Evidence review</Link>
-            <Link href="/blog">Blog</Link>
+            <Link href="/blog">Research</Link>
             <Link href="/login?callbackUrl=/workspace">Workspace</Link>
           </div>
           <div>
             <p className="footer-heading">Trust</p>
-            <Link href="/#principles">Principles</Link>
+            <Link href="/#principles">Decision boundary</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/blog/about">Editorial method</Link>
             <Link href="/#questions">Questions</Link>
