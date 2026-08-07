@@ -3,7 +3,7 @@ packages:
   - "packages/*"
 
 overrides:
-  "argparse@1.0.3>lodash": "4.17.21"
+  "argparse@1.0.3>lodash": "4.18.0"
 
 allowBuilds:
   esbuild: true
