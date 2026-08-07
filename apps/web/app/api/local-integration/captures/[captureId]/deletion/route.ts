@@ -35,7 +35,13 @@ export async function POST(
       );
     }
     return NextResponse.json(
-      { code: "deletion_failed" },
+      {
+        code: "deletion_failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "The governed source could not be deleted.",
+      },
       { status: 503 },
     );
   }

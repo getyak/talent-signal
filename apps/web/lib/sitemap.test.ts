@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import sitemap from "@/app/sitemap";
-import { blogPosts, getLatestBlogUpdate } from "@/lib/blog";
-import { siteConfig } from "@/lib/site";
+import sitemap from "../app/sitemap";
+import { blogPosts, getLatestBlogUpdate } from "./blog";
+import { siteConfig } from "./site";
 
 describe("public sitemap", () => {
   const entries = sitemap();

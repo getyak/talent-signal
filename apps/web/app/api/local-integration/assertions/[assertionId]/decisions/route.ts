@@ -8,6 +8,7 @@ import {
 } from "@/lib/server/localBackend";
 
 type DecisionBody = {
+  capture_id?: string;
   decision?: "confirm" | "dismiss" | "leave_unresolved";
   corrected_value?: string;
   expected_assertion_version?: number;
@@ -31,6 +32,8 @@ export async function POST(
   const body = (await request.json()) as DecisionBody;
   if (
     !/^[0-9a-f-]{36}$/i.test(assertionId) ||
+    (body.capture_id !== undefined &&
+      !/^[0-9a-f-]{36}$/i.test(body.capture_id)) ||
     !body.decision ||
     !Number.isInteger(body.expected_assertion_version) ||
     (body.corrected_value !== undefined &&
@@ -51,7 +54,7 @@ export async function POST(
         ...(body.corrected_value === undefined
           ? {}
           : { corrected_value: body.corrected_value.trim() }),
-      }),
+      }, body.capture_id),
     );
   } catch (error) {
     if (error instanceof TalentSignalHttpError) {

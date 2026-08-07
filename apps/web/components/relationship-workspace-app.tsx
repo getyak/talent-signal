@@ -1,0 +1,7824 @@
+"use client";
+
+import {
+  CONTRACT_VERSION,
+  maskIdentityHandle,
+  parseIdentityHandleQuery,
+  type ChatTaskResponse,
+  type IdentityHandleType,
+  type IdentityResolutionCase,
+  type IdentityResolutionDecisionResponse,
+  type KnowledgeSnapshot,
+  type PersonDirectoryItem,
+  type PersonMergePreview,
+  type PersonMergeResponse,
+  type PersonMergeReversalPreview,
+  type PublicResearchResponse,
+  type RelationshipAgentHistory,
+  type RelationshipResourceDetail,
+  type RelationshipResourceListItem,
+  type RelationshipScope,
+  type ResourceCaptureResponse,
+  type SourceAuthorizationDecisionResponse,
+  type WorkspaceReviewResponse,
+} from "@talent-signal/contracts";
+import {
+  AddressBook,
+  ArrowRight,
+  ChatCircleDots,
+  Check,
+  CheckCircle,
+  CircleNotch,
+  Clock,
+  FileImage,
+  House,
+  LinkSimple,
+  PencilSimple,
+  Plus,
+  Prohibit,
+  Quotes,
+  ShieldCheck,
+  Sparkle,
+  Trash,
+  UploadSimple,
+  UserPlus,
+  Warning,
+  X,
+} from "@phosphor-icons/react";
+import Link from "next/link";
+import {
+  type ChangeEvent,
+  type DragEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  type AgentPersonTarget,
+  agentPersonOutcome,
+  agentPersonScopeFields,
+  agentRelationshipContexts,
+  canSelectPersonForIdentityClue,
+  canCreateDistinctPerson,
+  confirmedHandlePersonMatches,
+  exactPersonNameMatches,
+  expiredHandlePersonMatches,
+  mergePersonDirectoryMatches,
+  personIdentityTemporalRole,
+} from "@/lib/agent-person-resolution";
+import { resolveAgentUiCommand } from "@/lib/agent-ui-command";
+import type { ScreenshotCaptureDraft } from "@/lib/screenshot-capture";
+
+import { ThemeToggle } from "./theme-toggle";
+
+type Props = {
+  initialAgentHistory: RelationshipAgentHistory | null;
+  initialIdentityResolutionCase: IdentityResolutionCase | null;
+  initialWorkspace: WorkspaceReviewResponse | null;
+  initialRelationshipScope: RelationshipScope | null;
+  initialError: string | null;
+  user: {
+    email?: string | null;
+    name?: string | null;
+  };
+};
+
+type CaptureAnalysis = {
+  draft: ScreenshotCaptureDraft;
+  meta: {
+    provider: "Volcano Ark";
+    model: string;
+    request_id?: string;
+    raw_image_stored_by_talent_signal: false;
+  };
+};
+
+type CapturePhase = "select" | "analyzing" | "review" | "committing";
+type ResourceMode = "note" | "document" | "url";
+type IdentityWorkflowResponse = {
+  decision: IdentityResolutionDecisionResponse;
+  identity_case: IdentityResolutionCase;
+  compilation: KnowledgeSnapshot | null;
+  compilation_error: string | null;
+};
+
+type PersonMergeWorkflowResponse = PersonMergeResponse & {
+  compilations: Array<{
+    relationship_context_id: string;
+    person_id: string;
+    status: KnowledgeSnapshot["status"] | "failed";
+    knowledge_snapshot_id: string | null;
+    error: string | null;
+  }>;
+};
+
+const fieldLabels: Record<string, string> = {
+  availability: "Availability",
+  competing_process: "Competing process",
+  current_employer: "Current company",
+  current_role: "Current role",
+  decision_deadline: "Decision deadline",
+  location: "Location",
+  notice_period: "Notice period",
+  relocation_requirement: "Relocation requirement",
+  work_mode_constraint: "Work mode constraint",
+  work_mode_preference: "Work mode preference",
+};
+
+function fieldLabel(field: string) {
+  if (field.startsWith("professional_history.")) {
+    return "Professional history";
+  }
+  return fieldLabels[field] ?? field.replaceAll("_", " ");
+}
+
+function reviewLabel(status: string) {
+  switch (status) {
+    case "confirmed":
+      return "Confirmed";
+    case "dismissed":
+      return "Dismissed";
+    case "unresolved":
+      return "Needs clarification";
+    default:
+      return "Proposed";
+  }
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+  }).format(new Date(value));
+}
+
+function initials(value: string) {
+  const segments = value.trim().split(/\s+/);
+  if (segments.length === 1) {
+    return value.slice(0, 2).toUpperCase();
+  }
+  return segments
+    .map((segment) => segment[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function identityHandleLabel(type: IdentityHandleType) {
+  switch (type) {
+    case "email":
+      return "Email";
+    case "phone":
+      return "Phone";
+    case "wechat":
+      return "WeChat";
+    case "linkedin_url":
+      return "LinkedIn";
+    case "public_profile_url":
+      return "Public profile";
+    case "source_native_id":
+      return "Source ID";
+  }
+}
+
+function sourceKindLabel(kind: string) {
+  switch (kind) {
+    case "screenshot_metadata":
+      return "WeChat screenshot";
+    case "transcript":
+      return "Reviewed conversation";
+    case "fixture":
+      return "Synthetic capture";
+    default:
+      return "Imported evidence";
+  }
+}
+
+function sourceScopeLabel(scope: string) {
+  switch (scope) {
+    case "reviewed_extracted_text":
+      return "Reviewed text only";
+    case "reviewed_selected_text":
+      return "Reviewed selection";
+    case "reviewed_evidence_crop":
+      return "Evidence crop retained";
+    case "full_reviewed_source":
+      return "Full source retained";
+    case "legacy_unknown":
+      return "Legacy scope unverified";
+    default:
+      return scope.replaceAll("_", " ");
+  }
+}
+
+function scrollWorkspaceTo(id: string) {
+  document.getElementById(id)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+}
+
+function CapturePanel({
+  onClose,
+  onCommitted,
+}: {
+  onClose: () => void;
+  onCommitted: (workspace: WorkspaceReviewResponse) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const commitRequestIdRef = useRef<string | null>(null);
+  const [phase, setPhase] = useState<CapturePhase>("select");
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [contactName, setContactName] = useState("");
+  const [assignmentLabel, setAssignmentLabel] = useState("");
+  const [people, setPeople] = useState<PersonDirectoryItem[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(true);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [createNewPerson, setCreateNewPerson] = useState(false);
+  const [analysis, setAnalysis] = useState<CaptureAnalysis | null>(null);
+  const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/local-integration/people", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as
+          | { people: PersonDirectoryItem[] }
+          | { message?: string };
+        if (!response.ok || !("people" in payload)) {
+          throw new Error(
+            "message" in payload && payload.message
+              ? payload.message
+              : "Existing people could not be loaded.",
+          );
+        }
+        setPeople(payload.people);
+      })
+      .catch((caught: unknown) => {
+        if (
+          caught instanceof DOMException &&
+          caught.name === "AbortError"
+        ) {
+          return;
+        }
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Existing people could not be loaded.",
+        );
+      })
+      .finally(() => setPeopleLoading(false));
+    return () => controller.abort();
+  }, []);
+
+  const matchingPeople = useMemo(() => {
+    const query = contactName.normalize("NFKC").trim().toLowerCase();
+    if (!query) {
+      return people.slice(0, 4);
+    }
+    return people
+      .filter((person) =>
+        person.display_label.normalize("NFKC").toLowerCase().includes(query),
+      )
+      .slice(0, 4);
+  }, [contactName, people]);
+  const selectedPerson =
+    people.find((person) => person.id === selectedPersonId) ?? null;
+  const identityDecided = selectedPerson !== null || createNewPerson;
+
+  function chooseFile(nextFile: File | null) {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setFile(nextFile);
+    setPreviewUrl(nextFile ? URL.createObjectURL(nextFile) : null);
+    setAnalysis(null);
+    setPhase("select");
+    setError("");
+  }
+
+  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+    chooseFile(event.target.files?.[0] ?? null);
+  }
+
+  function onDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragging(false);
+    chooseFile(event.dataTransfer.files?.[0] ?? null);
+  }
+
+  async function analyze() {
+    if (
+      !file ||
+      !contactName.trim() ||
+      !assignmentLabel.trim() ||
+      !identityDecided
+    ) {
+      setError(
+        "Choose an existing person or explicitly confirm a new person, then add the relationship context and screenshot.",
+      );
+      return;
+    }
+    setPhase("analyzing");
+    setError("");
+    const formData = new FormData();
+    formData.set("image", file);
+    formData.set("contactName", contactName.trim());
+    formData.set("assignmentLabel", assignmentLabel.trim());
+    try {
+      const response = await fetch("/api/captures/screenshot-analysis", {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as
+        | CaptureAnalysis
+        | { error?: string };
+      if (!response.ok || !("draft" in payload)) {
+        throw new Error(
+          "error" in payload && payload.error
+            ? payload.error
+            : "The screenshot could not be analyzed.",
+        );
+      }
+      setAnalysis(payload);
+      setPhase("review");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The screenshot could not be analyzed.",
+      );
+      setPhase("select");
+    }
+  }
+
+  async function commit() {
+    if (!analysis) {
+      return;
+    }
+    setPhase("committing");
+    setError("");
+    try {
+      commitRequestIdRef.current ??= crypto.randomUUID();
+      const response = await fetch("/api/local-integration/captures", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          request_id: commitRequestIdRef.current,
+          person_id: selectedPersonId,
+          contact_name: contactName.trim(),
+          assignment_label: assignmentLabel.trim(),
+          draft: analysis.draft,
+        }),
+      });
+      const payload = (await response.json()) as
+        | WorkspaceReviewResponse
+        | { code?: string; message?: string };
+      if (!response.ok || !("capture" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The reviewed capture could not be committed.",
+        );
+      }
+      onCommitted(payload);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The reviewed capture could not be committed.",
+      );
+      setPhase("review");
+    }
+  }
+
+  const draft = analysis?.draft ?? null;
+
+  return (
+    <div
+      className="context-capture-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target && phase !== "committing") {
+          onClose();
+        }
+      }}
+    >
+      <section
+        aria-labelledby="capture-title"
+        aria-modal="true"
+        className="context-capture"
+        role="dialog"
+      >
+        <header className="context-capture__header">
+          <div>
+            <p className="eyebrow">NEW EVIDENCE</p>
+            <h2 id="capture-title">
+              {phase === "review" || phase === "committing"
+                ? "Review what the screenshot supports"
+                : "Import a WeChat screenshot"}
+            </h2>
+            <p>
+              The image is sent to the configured cloud provider for analysis
+              and held in browser memory for this review. Talent Signal stores
+              only the extracted text you commit.
+            </p>
+          </div>
+          <button
+            aria-label="Close capture"
+            className="context-icon-button"
+            disabled={phase === "committing"}
+            onClick={onClose}
+            type="button"
+          >
+            <X aria-hidden="true" size={20} />
+          </button>
+        </header>
+
+        {error ? (
+          <div className="context-inline-alert" role="alert">
+            <Warning aria-hidden="true" size={20} weight="duotone" />
+            <p>{error}</p>
+          </div>
+        ) : null}
+
+        {phase === "select" || phase === "analyzing" ? (
+          <div className="context-capture__select">
+            <div className="context-capture__identity">
+              <label>
+                <span>Contact</span>
+                <input
+                  autoComplete="off"
+                  maxLength={160}
+                  onChange={(event) => {
+                    setContactName(event.target.value);
+                    setSelectedPersonId(null);
+                    setCreateNewPerson(false);
+                  }}
+                  placeholder="e.g. 林晓 / Maya Chen"
+                  value={contactName}
+                />
+                <small>
+                  You bind the identity. The model does not create a person
+                  record from a guessed name.
+                </small>
+              </label>
+              <label>
+                <span>Relationship context</span>
+                <input
+                  autoComplete="off"
+                  maxLength={200}
+                  onChange={(event) => setAssignmentLabel(event.target.value)}
+                  placeholder="e.g. VP Product · Northstar search"
+                  value={assignmentLabel}
+                />
+                <small>
+                  Facts remain scoped to this search or relationship.
+                </small>
+              </label>
+              <div
+                aria-live="polite"
+                className="context-identity-resolution"
+              >
+                {selectedPerson ? (
+                  <div
+                    className="context-identity-decision"
+                    data-state="selected"
+                  >
+                    <span>
+                      <CheckCircle aria-hidden="true" size={18} weight="fill" />
+                    </span>
+                    <p>
+                      <strong>Use existing person · {selectedPerson.display_label}</strong>
+                      <small>
+                        {selectedPerson.context_count} relationship{" "}
+                        {selectedPerson.context_count === 1
+                          ? "context"
+                          : "contexts"}{" "}
+                        · {selectedPerson.capture_count} captures
+                      </small>
+                    </p>
+                    <button
+                      className="context-text-button"
+                      onClick={() => setSelectedPersonId(null)}
+                      type="button"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : createNewPerson ? (
+                  <div
+                    className="context-identity-decision"
+                    data-state="new"
+                  >
+                    <span>
+                      <Plus aria-hidden="true" size={18} />
+                    </span>
+                    <p>
+                      <strong>Create “{contactName.trim()}” as a new person</strong>
+                      <small>
+                        This will not merge with anyone who has the same name.
+                      </small>
+                    </p>
+                    <button
+                      className="context-text-button"
+                      onClick={() => setCreateNewPerson(false)}
+                      type="button"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : contactName.trim() ? (
+                  <>
+                    <div className="context-identity-resolution__heading">
+                      <span>Resolve the person</span>
+                      <small>
+                        {peopleLoading
+                          ? "Checking existing people…"
+                          : "Names are suggestions only. You make the binding."}
+                      </small>
+                    </div>
+                    {!peopleLoading && matchingPeople.length > 0 ? (
+                      <div className="context-identity-options">
+                        {matchingPeople.map((person) => (
+                          <button
+                            key={person.id}
+                            onClick={() => {
+                              setContactName(person.display_label);
+                              setSelectedPersonId(person.id);
+                              setCreateNewPerson(false);
+                            }}
+                            type="button"
+                          >
+                            <span>{initials(person.display_label)}</span>
+                            <p>
+                              <strong>{person.display_label}</strong>
+                              <small>
+                                {person.context_count} relationship{" "}
+                                {person.context_count === 1
+                                  ? "context"
+                                  : "contexts"}{" "}
+                                · {person.capture_count} captures
+                              </small>
+                            </p>
+                            <ArrowRight aria-hidden="true" size={16} />
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {!peopleLoading ? (
+                      <button
+                        className="context-create-person"
+                        onClick={() => {
+                          setSelectedPersonId(null);
+                          setCreateNewPerson(true);
+                        }}
+                        type="button"
+                      >
+                        <Plus aria-hidden="true" size={16} />
+                        Create a new person named “{contactName.trim()}”
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="context-identity-resolution__empty">
+                    Enter a name, then choose an existing person or confirm a
+                    new one.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div
+              className="context-dropzone"
+              data-dragging={dragging}
+              data-selected={Boolean(file)}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={onDrop}
+            >
+              <input
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={onFileChange}
+                ref={inputRef}
+                type="file"
+              />
+              {previewUrl ? (
+                <div className="context-dropzone__preview">
+                  {/* Blob URLs are intentionally browser-local and cannot use next/image. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt="Selected WeChat conversation screenshot"
+                    src={previewUrl}
+                  />
+                  <div>
+                    <FileImage aria-hidden="true" size={20} />
+                    <p>
+                      <strong>{file?.name}</strong>
+                      <span>
+                        {file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : ""}
+                      </span>
+                    </p>
+                    <button
+                      className="context-text-button"
+                      onClick={() => inputRef.current?.click()}
+                      type="button"
+                    >
+                      Replace
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <span className="context-dropzone__icon">
+                    <UploadSimple aria-hidden="true" size={24} />
+                  </span>
+                  <div>
+                    <strong>Drop one conversation screenshot</strong>
+                    <p>JPEG, PNG, or WebP · up to 8 MB</p>
+                  </div>
+                  <button
+                    className="context-secondary-button"
+                    onClick={() => inputRef.current?.click()}
+                    type="button"
+                  >
+                    Choose screenshot
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="context-capture__privacy">
+              <ShieldCheck aria-hidden="true" size={19} weight="duotone" />
+              <p>
+                <strong>Before you continue</strong>
+                Only upload a conversation you are authorized to process.
+                Review every extracted fact before it becomes contact context.
+              </p>
+            </div>
+
+            <footer className="context-capture__footer">
+              <button
+                className="context-secondary-button"
+                onClick={onClose}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="context-primary-button"
+                disabled={
+                  phase === "analyzing" ||
+                  !file ||
+                  !contactName.trim() ||
+                  !assignmentLabel.trim() ||
+                  !identityDecided
+                }
+                onClick={analyze}
+                type="button"
+              >
+                {phase === "analyzing" ? (
+                  <CircleNotch
+                    aria-hidden="true"
+                    className="spin"
+                    size={18}
+                  />
+                ) : (
+                  <Sparkle aria-hidden="true" size={18} weight="fill" />
+                )}
+                {phase === "analyzing"
+                  ? "Reading screenshot"
+                  : "Extract review draft"}
+              </button>
+            </footer>
+          </div>
+        ) : null}
+
+        {(phase === "review" || phase === "committing") && draft ? (
+          <div className="context-capture__review">
+            <div className="context-review-source">
+              <div className="context-review-source__image">
+                {previewUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    alt="WeChat screenshot being reviewed"
+                    src={previewUrl}
+                  />
+                ) : null}
+              </div>
+              <div className="context-review-source__meta">
+                <span>
+                  <ShieldCheck aria-hidden="true" size={15} />
+                  Original not stored by Talent Signal
+                </span>
+                <span>{analysis?.meta.model}</span>
+              </div>
+            </div>
+
+            <div className="context-review-draft">
+              <div className="context-review-binding">
+                <span>{initials(contactName)}</span>
+                <div>
+                  <strong>{contactName}</strong>
+                  <small>{assignmentLabel}</small>
+                </div>
+                <p>
+                  {selectedPersonId
+                    ? "Existing person selected by you"
+                    : "New person confirmed by you"}
+                </p>
+              </div>
+
+              {draft.transcription_notes.length > 0 ? (
+                <div className="context-transcription-notes">
+                  <Warning aria-hidden="true" size={18} />
+                  <div>
+                    <strong>Visible limits</strong>
+                    {draft.transcription_notes.map((note) => (
+                      <p key={note}>{note}</p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <section aria-labelledby="transcription-title">
+                <div className="context-review-heading">
+                  <h3 id="transcription-title">Transcription</h3>
+                  <span>{draft.messages.length} messages</span>
+                </div>
+                <div className="context-transcript">
+                  {draft.messages.map((message) => (
+                    <div
+                      data-speaker={message.speaker}
+                      key={message.source_message_id}
+                    >
+                      <span>{message.speaker}</span>
+                      <p>{message.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section aria-labelledby="draft-facts-title">
+                <div className="context-review-heading">
+                  <h3 id="draft-facts-title">Proposed facts</h3>
+                  <span>{draft.assertions.length}</span>
+                </div>
+                {draft.assertions.length > 0 ? (
+                  <div className="context-draft-facts">
+                    {draft.assertions.map((assertion) => (
+                      <article
+                        data-state={assertion.status}
+                        key={`${assertion.field}:${assertion.evidence_message_id}`}
+                      >
+                        <div>
+                          <span>{fieldLabel(assertion.field)}</span>
+                          <strong>{assertion.value}</strong>
+                        </div>
+                        <blockquote>“{assertion.evidence_quote}”</blockquote>
+                        {assertion.ambiguity ? (
+                          <p>
+                            <Warning aria-hidden="true" size={15} />
+                            {assertion.ambiguity}
+                          </p>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="context-no-signal">
+                    <CheckCircle aria-hidden="true" size={22} />
+                    <p>
+                      <strong>No operational update found</strong>
+                      The screenshot can still be retained as reviewed context
+                      without creating a fact or next move.
+                    </p>
+                  </div>
+                )}
+              </section>
+
+              {draft.action ? (
+                <div className="context-draft-action">
+                  <Sparkle aria-hidden="true" size={19} weight="duotone" />
+                  <p>
+                    <span>Suggested internal next move</span>
+                    <strong>{draft.action.target}</strong>
+                    <small>{draft.action.reason}</small>
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            <footer className="context-capture__footer context-capture__footer--review">
+              <p>
+                Committing creates proposals only. You will still confirm or
+                dismiss each fact on the contact page.
+              </p>
+              <button
+                className="context-secondary-button"
+                disabled={phase === "committing"}
+                onClick={() => {
+                  setAnalysis(null);
+                  setPhase("select");
+                }}
+                type="button"
+              >
+                Back
+              </button>
+              <button
+                className="context-primary-button"
+                disabled={phase === "committing"}
+                onClick={commit}
+                type="button"
+              >
+                {phase === "committing" ? (
+                  <CircleNotch
+                    aria-hidden="true"
+                    className="spin"
+                    size={18}
+                  />
+                ) : (
+                  <ArrowRight aria-hidden="true" size={18} />
+                )}
+                {phase === "committing"
+                  ? "Creating review"
+                  : "Commit to evidence review"}
+              </button>
+            </footer>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function StartRelationshipPanel({
+  onCommitted,
+  onScreenshot,
+}: {
+  onCommitted: (
+    scope: RelationshipScope,
+    receipts: ResourceCaptureResponse[],
+    outcome:
+      | "created_person"
+      | "created_relationship_context"
+      | "reused_relationship",
+  ) => void;
+  onScreenshot: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const requestIdRef = useRef<string | null>(null);
+  const [people, setPeople] = useState<PersonDirectoryItem[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(true);
+  const [mode, setMode] = useState<ResourceMode>("note");
+  const [contactName, setContactName] = useState("");
+  const [contextLabel, setContextLabel] = useState("");
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(
+    null,
+  );
+  const [selectedContextId, setSelectedContextId] = useState<string | null>(
+    null,
+  );
+  const [createNewPerson, setCreateNewPerson] = useState(false);
+  const [createNewContext, setCreateNewContext] = useState(false);
+  const [title, setTitle] = useState("");
+  const [value, setValue] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [documentKind, setDocumentKind] = useState<
+    "resume" | "document"
+  >("resume");
+  const [saveDiscoveredLinks, setSaveDiscoveredLinks] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/local-integration/people", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as
+          | { people: PersonDirectoryItem[] }
+          | { message?: string };
+        if (!response.ok || !("people" in payload)) {
+          throw new Error(
+            "message" in payload && payload.message
+              ? payload.message
+              : "Existing people could not be loaded.",
+          );
+        }
+        setPeople(payload.people);
+      })
+      .catch((caught: unknown) => {
+        if (
+          caught instanceof DOMException &&
+          caught.name === "AbortError"
+        ) {
+          return;
+        }
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Existing people could not be loaded.",
+        );
+      })
+      .finally(() => setPeopleLoading(false));
+    return () => controller.abort();
+  }, []);
+
+  const selectedPerson =
+    people.find((person) => person.id === selectedPersonId) ?? null;
+  const selectedContext =
+    selectedPerson?.contexts.find(
+      (context) => context.id === selectedContextId,
+    ) ?? null;
+  const matchingPeople = useMemo(() => {
+    const query = contactName.normalize("NFKC").trim().toLowerCase();
+    if (!query) {
+      return people.slice(0, 4);
+    }
+    return people
+      .filter((person) =>
+        person.display_label.normalize("NFKC").toLowerCase().includes(query),
+      )
+      .slice(0, 4);
+  }, [contactName, people]);
+  const identityReady =
+    (createNewPerson && contactName.trim() && contextLabel.trim()) ||
+    (selectedPerson &&
+      (selectedContext || (createNewContext && contextLabel.trim())));
+  const sourceReady =
+    mode === "document" ? file !== null : value.trim().length > 0;
+
+  function resetRequest() {
+    requestIdRef.current = null;
+    setError("");
+  }
+
+  async function submit() {
+    if (!identityReady || !sourceReady) {
+      setError(
+        "Choose an existing person and context, or explicitly create a new person, then add one source.",
+      );
+      return;
+    }
+    requestIdRef.current ??= crypto.randomUUID();
+    const requestId = requestIdRef.current;
+    const scopeMode = createNewPerson
+      ? "new_person"
+      : createNewContext
+        ? "existing_person_new_context"
+        : "existing";
+    setBusy(true);
+    setError("");
+    try {
+      let response: Response;
+      if (mode === "document" && file) {
+        const form = new FormData();
+        form.set("request_id", requestId);
+        form.set("scope_mode", scopeMode);
+        form.set("contact_name", contactName.trim());
+        form.set("relationship_context_label", contextLabel.trim());
+        if (selectedPersonId) {
+          form.set("person_id", selectedPersonId);
+        }
+        if (selectedContextId) {
+          form.set("relationship_context_id", selectedContextId);
+        }
+        form.set("document_kind", documentKind);
+        form.set(
+          "save_discovered_links",
+          saveDiscoveredLinks ? "true" : "false",
+        );
+        form.set("file", file);
+        response = await fetch("/api/local-integration/resources", {
+          method: "POST",
+          body: form,
+          cache: "no-store",
+        });
+      } else {
+        response = await fetch("/api/local-integration/resources", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId,
+            scope_mode: scopeMode,
+            contact_name: contactName.trim(),
+            relationship_context_label: contextLabel.trim(),
+            person_id: selectedPersonId ?? undefined,
+            relationship_context_id: selectedContextId ?? undefined,
+            type: mode,
+            title: title.trim() || undefined,
+            value: value.trim(),
+          }),
+        });
+      }
+      const payload = (await response.json()) as
+        | { receipts: ResourceCaptureResponse[] }
+        | { message?: string };
+      if (!response.ok || !("receipts" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The first source could not be committed.",
+        );
+      }
+      const first = payload.receipts[0];
+      const personId = first?.identity.person_id;
+      const relationshipContextId =
+        first?.identity.relationship_context_id;
+      if (!first || !personId || !relationshipContextId) {
+        throw new Error(
+          "The first source is waiting for identity review and cannot open a person page yet.",
+        );
+      }
+      onCommitted(
+        {
+          contract_version: first.contract_version,
+          person: {
+            id: personId,
+            display_label:
+              selectedPerson?.display_label ?? contactName.trim(),
+          },
+          relationship_context: {
+            id: relationshipContextId,
+            display_label:
+              selectedContext?.display_label ?? contextLabel.trim(),
+          },
+        },
+        payload.receipts,
+        !selectedPerson
+          ? "created_person"
+          : selectedContext
+            ? "reused_relationship"
+            : "created_relationship_context",
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The first source could not be committed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="context-start">
+      <div className="context-start__intro">
+        <p className="eyebrow">FIRST GOVERNED SOURCE</p>
+        <h2>Choose the person, relationship, and source.</h2>
+        <p>
+          Identity is your decision. Extraction and source claims remain
+          separate review states.
+        </p>
+      </div>
+
+      <div className="context-start__identity">
+        <label>
+          <span>Person</span>
+          <input
+            autoComplete="off"
+            maxLength={200}
+            onChange={(event) => {
+              setContactName(event.target.value);
+              setSelectedPersonId(null);
+              setSelectedContextId(null);
+              setCreateNewPerson(false);
+              setCreateNewContext(false);
+              resetRequest();
+            }}
+            placeholder="Search or name a person"
+            value={contactName}
+          />
+        </label>
+        <div className="context-start__choices">
+          {peopleLoading ? (
+            <span>Loading people…</span>
+          ) : (
+            matchingPeople.map((person) => (
+              <button
+                data-selected={selectedPersonId === person.id}
+                key={person.id}
+                onClick={() => {
+                  setSelectedPersonId(person.id);
+                  setContactName(person.display_label);
+                  setCreateNewPerson(false);
+                  setCreateNewContext(false);
+                  setSelectedContextId(null);
+                  setContextLabel("");
+                  resetRequest();
+                }}
+                type="button"
+              >
+                <span>{initials(person.display_label)}</span>
+                <p>
+                  <strong>{person.display_label}</strong>
+                  <small>{person.context_count} relationship contexts</small>
+                </p>
+              </button>
+            ))
+          )}
+          {contactName.trim() ? (
+            <button
+              data-selected={createNewPerson}
+              onClick={() => {
+                setCreateNewPerson(true);
+                setSelectedPersonId(null);
+                setSelectedContextId(null);
+                setCreateNewContext(false);
+                resetRequest();
+              }}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={17} />
+              <p>
+                <strong>Create “{contactName.trim()}”</strong>
+                <small>This is an explicit new-person decision.</small>
+              </p>
+            </button>
+          ) : null}
+        </div>
+
+        {selectedPerson ? (
+          <div className="context-start__contexts">
+            <span>Choose the relationship context</span>
+            {selectedPerson.contexts.map((context) => (
+              <button
+                data-selected={selectedContextId === context.id}
+                key={context.id}
+                onClick={() => {
+                  setSelectedContextId(context.id);
+                  setContextLabel(context.display_label);
+                  setCreateNewContext(false);
+                  resetRequest();
+                }}
+                type="button"
+              >
+                {context.display_label}
+              </button>
+            ))}
+            <button
+              data-selected={createNewContext}
+              onClick={() => {
+                setSelectedContextId(null);
+                setCreateNewContext(true);
+                setContextLabel("");
+                resetRequest();
+              }}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={15} />
+              New relationship context
+            </button>
+          </div>
+        ) : null}
+        {createNewPerson || createNewContext ? (
+          <label>
+            <span>Relationship context</span>
+            <input
+              maxLength={200}
+              onChange={(event) => {
+                setContextLabel(event.target.value);
+                resetRequest();
+              }}
+              placeholder="e.g. VP Product · Northstar search"
+              value={contextLabel}
+            />
+          </label>
+        ) : null}
+      </div>
+
+      <div className="context-start__source">
+        <div aria-label="First source type" role="tablist">
+          {(["note", "document", "url"] as const).map((sourceMode) => (
+            <button
+              aria-selected={mode === sourceMode}
+              key={sourceMode}
+              onClick={() => {
+                setMode(sourceMode);
+                resetRequest();
+              }}
+              role="tab"
+              type="button"
+            >
+              {sourceMode === "note" ? (
+                <PencilSimple aria-hidden="true" size={16} />
+              ) : sourceMode === "document" ? (
+                <UploadSimple aria-hidden="true" size={16} />
+              ) : (
+                <LinkSimple aria-hidden="true" size={16} />
+              )}
+              {sourceMode === "document" ? "File" : sourceMode}
+            </button>
+          ))}
+          <button onClick={onScreenshot} type="button">
+            <FileImage aria-hidden="true" size={16} />
+            Screenshot
+          </button>
+        </div>
+
+        {mode === "document" ? (
+          <div className="context-resource-composer__document">
+            <input
+              accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+              className="sr-only"
+              onChange={(event) => {
+                setFile(event.target.files?.[0] ?? null);
+                resetRequest();
+              }}
+              ref={fileInputRef}
+              type="file"
+            />
+            <button
+              className="context-resource-file"
+              onClick={() => fileInputRef.current?.click()}
+              type="button"
+            >
+              <UploadSimple aria-hidden="true" size={20} />
+              <span>
+                <strong>{file?.name ?? "Choose resume or document"}</strong>
+                <small>Raw file is parsed transiently and not retained.</small>
+              </span>
+            </button>
+            <label>
+              <span>Document meaning</span>
+              <select
+                onChange={(event) =>
+                  setDocumentKind(
+                    event.target.value as "resume" | "document",
+                  )
+                }
+                value={documentKind}
+              >
+                <option value="resume">Resume</option>
+                <option value="document">Supporting document</option>
+              </select>
+            </label>
+            <label className="context-resource-checkbox">
+              <input
+                checked={saveDiscoveredLinks}
+                onChange={(event) =>
+                  setSaveDiscoveredLinks(event.target.checked)
+                }
+                type="checkbox"
+              />
+              <span>
+                Save visible URLs as research seeds
+                <small>No page is fetched and no research is authorized.</small>
+              </span>
+            </label>
+          </div>
+        ) : (
+          <div className="context-resource-composer__text">
+            <label>
+              <span>{mode === "note" ? "Note title" : "Link label"}</span>
+              <input
+                maxLength={240}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={
+                  mode === "note"
+                    ? "e.g. First-call context"
+                    : "e.g. Public profile"
+                }
+                value={title}
+              />
+            </label>
+            <label>
+              <span>{mode === "note" ? "Your note" : "Public URL"}</span>
+              {mode === "note" ? (
+                <textarea
+                  maxLength={40_000}
+                  onChange={(event) => {
+                    setValue(event.target.value);
+                    resetRequest();
+                  }}
+                  rows={4}
+                  value={value}
+                />
+              ) : (
+                <input
+                  maxLength={2_000}
+                  onChange={(event) => {
+                    setValue(event.target.value);
+                    resetRequest();
+                  }}
+                  placeholder="https://"
+                  type="url"
+                  value={value}
+                />
+              )}
+            </label>
+          </div>
+        )}
+      </div>
+
+      {error ? (
+        <p className="context-resource-composer__error" role="alert">
+          <Warning aria-hidden="true" size={16} />
+          {error}
+        </p>
+      ) : null}
+      <footer>
+        <p>
+          The source stays separate from confirmed facts. Files remain
+          proposed until you review the extraction.
+        </p>
+        <button
+          className="context-primary-button"
+          disabled={busy || !identityReady || !sourceReady}
+          onClick={() => void submit()}
+          type="button"
+        >
+          {busy ? (
+            <CircleNotch aria-hidden="true" className="spin" size={17} />
+          ) : (
+            <ArrowRight aria-hidden="true" size={17} />
+          )}
+          {busy ? "Creating person page" : "Open living person page"}
+        </button>
+      </footer>
+    </section>
+  );
+}
+
+function RelationshipResourceComposer({
+  personId,
+  relationshipContextId,
+  scopeLabel,
+  onCommitted,
+  onEvidenceChanged,
+  onScreenshot,
+}: {
+  personId: string;
+  relationshipContextId: string;
+  scopeLabel: string;
+  onCommitted: (receipts: ResourceCaptureResponse[]) => void;
+  onEvidenceChanged: (announcement?: string) => void;
+  onScreenshot: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const requestIdRef = useRef<string | null>(null);
+  const [mode, setMode] = useState<ResourceMode>("note");
+  const [title, setTitle] = useState("");
+  const [value, setValue] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [documentKind, setDocumentKind] = useState<
+    "resume" | "document"
+  >("resume");
+  const [saveDiscoveredLinks, setSaveDiscoveredLinks] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [receipt, setReceipt] = useState<{
+    resources: number;
+    linksFound: number;
+    warnings: number;
+  } | null>(null);
+  const [resources, setResources] = useState<
+    RelationshipResourceListItem[]
+  >([]);
+  const [selectedResource, setSelectedResource] =
+    useState<RelationshipResourceDetail | null>(null);
+  const [claimEdits, setClaimEdits] = useState<Record<string, string>>({});
+  const [resourceLoading, setResourceLoading] = useState(true);
+  const [deleteResourceConfirm, setDeleteResourceConfirm] =
+    useState(false);
+  const [researchApproval, setResearchApproval] = useState(false);
+  const [researchPageCount, setResearchPageCount] = useState(1);
+  const [researchLinkDepth, setResearchLinkDepth] = useState(0);
+  const [researchResult, setResearchResult] =
+    useState<PublicResearchResponse | null>(null);
+  const identityCorrectionRequestRef = useRef<string | null>(null);
+  const [identityCorrectionOpen, setIdentityCorrectionOpen] =
+    useState(false);
+  const [identityPeople, setIdentityPeople] = useState<
+    PersonDirectoryItem[]
+  >([]);
+  const [identityPeopleLoading, setIdentityPeopleLoading] =
+    useState(false);
+  const [identityTargetMode, setIdentityTargetMode] = useState<
+    "existing" | "new"
+  >("existing");
+  const [identityTargetPersonId, setIdentityTargetPersonId] =
+    useState("");
+  const [identityTargetContextId, setIdentityTargetContextId] =
+    useState("");
+  const [identityNewPersonLabel, setIdentityNewPersonLabel] =
+    useState("");
+  const [identityNewContextLabel, setIdentityNewContextLabel] =
+    useState("");
+  const [identityCorrectionReason, setIdentityCorrectionReason] =
+    useState("");
+  const sourceAuthorizationRequestRef = useRef<string | null>(null);
+  const [sourceAuthorizationOpen, setSourceAuthorizationOpen] =
+    useState(false);
+  const [sourceAuthorizationReason, setSourceAuthorizationReason] =
+    useState("");
+  const [
+    sourceAuthorizationExpiresAt,
+    setSourceAuthorizationExpiresAt,
+  ] = useState("");
+
+  const identityTargetPerson =
+    identityPeople.find(
+      (person) => person.id === identityTargetPersonId,
+    ) ?? null;
+
+  function resetIdentityCorrectionRequest() {
+    identityCorrectionRequestRef.current = null;
+  }
+
+  function resetSourceAuthorizationDecision() {
+    sourceAuthorizationRequestRef.current = null;
+    setSourceAuthorizationReason("");
+    setSourceAuthorizationExpiresAt("");
+  }
+
+  async function beginIdentityCorrection() {
+    setDeleteResourceConfirm(false);
+    setSourceAuthorizationOpen(false);
+    resetSourceAuthorizationDecision();
+    setIdentityCorrectionOpen(true);
+    setIdentityPeopleLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/local-integration/people", {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as
+        | { people: PersonDirectoryItem[] }
+        | { message?: string };
+      if (!response.ok || !("people" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "Existing people could not be loaded.",
+        );
+      }
+      const alternatives = payload.people.filter(
+        (person) => person.id !== personId,
+      );
+      setIdentityPeople(alternatives);
+      setIdentityTargetPersonId("");
+      setIdentityTargetContextId("");
+      setIdentityTargetMode(
+        alternatives.length > 0 ? "existing" : "new",
+      );
+      resetIdentityCorrectionRequest();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Existing people could not be loaded.",
+      );
+    } finally {
+      setIdentityPeopleLoading(false);
+    }
+  }
+
+  async function correctSelectedResourceIdentity() {
+    if (!selectedResource || !identityCorrectionReason.trim()) {
+      return;
+    }
+    const existingContext =
+      identityTargetMode === "existing" &&
+      identityTargetPerson?.contexts.find(
+        (context) => context.id === identityTargetContextId,
+      );
+    const createsContext =
+      identityTargetMode === "existing" &&
+      identityTargetContextId === "__new__";
+    const target =
+      identityTargetMode === "existing" && identityTargetPerson
+        ? {
+            status: "existing_person" as const,
+            person_id: identityTargetPerson.id,
+            relationship_context: existingContext
+              ? {
+                  status: "existing" as const,
+                  relationship_context_id: existingContext.id,
+                }
+              : {
+                  status: "proposed" as const,
+                  label: identityNewContextLabel.trim(),
+                  purpose:
+                    "Correct a governed source into the recruiter-selected relationship context",
+                },
+          }
+        : {
+            status: "new_person" as const,
+            display_label: identityNewPersonLabel.trim(),
+            relationship_context: {
+              status: "proposed" as const,
+              label: identityNewContextLabel.trim(),
+              purpose:
+                "Correct a governed source into a newly created person and relationship context",
+            },
+          };
+    const targetReady =
+      target.status === "existing_person"
+        ? Boolean(
+            identityTargetPerson &&
+              (existingContext ||
+                (createsContext && identityNewContextLabel.trim())),
+          )
+        : Boolean(
+            identityNewPersonLabel.trim() &&
+              identityNewContextLabel.trim(),
+          );
+    if (!targetReady) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    identityCorrectionRequestRef.current ??= crypto.randomUUID();
+    try {
+      const response = await fetch(
+        `/api/local-integration/captures/${selectedResource.resource.capture_id}/identity-corrections`,
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idempotency_key: identityCorrectionRequestRef.current,
+            expected_capture_version:
+              selectedResource.resource.capture_version,
+            expected_person_id: personId,
+            expected_relationship_context_id:
+              relationshipContextId,
+            reason: identityCorrectionReason.trim(),
+            binding_basis:
+              "The recruiter inspected this governed source and explicitly selected the corrected person and relationship context.",
+            target,
+          }),
+        },
+      );
+      const payload = (await response.json()) as
+        | {
+            capture_ids_rebound: string[];
+            claims_reopened: number;
+            person_id: string;
+            relationship_context_id: string;
+          }
+        | { message?: string };
+      if (!response.ok || !("person_id" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The source identity could not be corrected.",
+        );
+      }
+      onEvidenceChanged();
+      setSelectedResource(null);
+      setIdentityCorrectionOpen(false);
+      await loadResources();
+      window.location.assign(
+        `/workspace?person=${encodeURIComponent(
+          payload.person_id,
+        )}&context=${encodeURIComponent(
+          payload.relationship_context_id,
+        )}&identity_corrected=${encodeURIComponent(
+          String(payload.capture_ids_rebound.length),
+        )}`,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The source identity could not be corrected.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadResources() {
+    setResourceLoading(true);
+    try {
+      const query = new URLSearchParams({
+        person_id: personId,
+        relationship_context_id: relationshipContextId,
+      });
+      const response = await fetch(
+        `/api/local-integration/resources?${query}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | { resources: RelationshipResourceListItem[] }
+        | { message?: string };
+      if (!response.ok || !("resources" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "Relationship resources could not be loaded.",
+        );
+      }
+      setResources(payload.resources);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Relationship resources could not be loaded.",
+      );
+    } finally {
+      setResourceLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    const query = new URLSearchParams({
+      person_id: personId,
+      relationship_context_id: relationshipContextId,
+    });
+    void fetch(`/api/local-integration/resources?${query}`, {
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as
+          | { resources: RelationshipResourceListItem[] }
+          | { message?: string };
+        if (!response.ok || !("resources" in payload)) {
+          throw new Error(
+            "message" in payload && payload.message
+              ? payload.message
+              : "Relationship resources could not be loaded.",
+          );
+        }
+        if (active) {
+          setResources(payload.resources);
+        }
+      })
+      .catch((caught: unknown) => {
+        if (active) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Relationship resources could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setResourceLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [personId, relationshipContextId]);
+
+  async function openResource(resourceId: string) {
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/resources?resource_id=${encodeURIComponent(
+          resourceId,
+        )}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | RelationshipResourceDetail
+        | { message?: string };
+      if (!response.ok || !("fragments" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The source evidence could not be opened.",
+        );
+      }
+      setSelectedResource(payload);
+      setClaimEdits(
+        Object.fromEntries(
+          payload.claim_proposals.map((claim) => [
+            claim.id,
+            claim.proposed_value ?? "",
+          ]),
+        ),
+      );
+      setResearchApproval(false);
+      setResearchResult(null);
+      setIdentityCorrectionOpen(false);
+      setIdentityCorrectionReason("");
+      resetIdentityCorrectionRequest();
+      setSourceAuthorizationOpen(false);
+      resetSourceAuthorizationDecision();
+      if (
+        payload.resource.kind === "public_url" &&
+        payload.resource.input_channel !== "api_connector" &&
+        payload.resource.source_locator
+      ) {
+        try {
+          await refreshResearchStatus(payload.resource.id);
+        } catch (caught) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "The source opened, but its prior research status could not be restored.",
+          );
+        }
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The source evidence could not be opened.",
+      );
+    }
+  }
+
+  async function loadLatestResearch(
+    seedResourceId: string,
+  ): Promise<PublicResearchResponse | null> {
+    const query = new URLSearchParams({
+      seed_resource_id: seedResourceId,
+    });
+    const response = await fetch(
+      `/api/local-integration/research?${query}`,
+      { cache: "no-store" },
+    );
+    const payload = (await response.json()) as
+      | PublicResearchResponse
+      | null
+      | { message?: string };
+    if (!response.ok) {
+      throw new Error(
+        payload &&
+          "message" in payload &&
+          typeof payload.message === "string"
+          ? payload.message
+          : "The prior public research status could not be restored.",
+      );
+    }
+    if (payload === null || "task_id" in payload) {
+      return payload;
+    }
+    throw new Error(
+      "The prior public research status could not be restored.",
+    );
+  }
+
+  async function refreshResearchStatus(seedResourceId?: string) {
+    const resourceId =
+      seedResourceId ?? selectedResource?.resource.id;
+    if (!resourceId) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      setResearchResult(await loadLatestResearch(resourceId));
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The prior public research status could not be restored.",
+      );
+      throw caught;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function researchSelectedResource() {
+    if (
+      !selectedResource ||
+      selectedResource.resource.kind !== "public_url" ||
+      !selectedResource.resource.source_locator
+    ) {
+      return;
+    }
+    let domain: string;
+    try {
+      domain = new URL(
+        selectedResource.resource.source_locator,
+      ).hostname.toLowerCase();
+    } catch {
+      setError("The saved public URL is invalid.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setResearchResult(null);
+    try {
+      const response = await fetch("/api/local-integration/research", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: crypto.randomUUID(),
+          person_id: personId,
+          relationship_context_id: relationshipContextId,
+          seed_resource_id: selectedResource.resource.id,
+          expected_seed_url:
+            selectedResource.resource.source_locator,
+          allowed_domain: domain,
+          maximum_page_count: researchPageCount,
+          maximum_link_depth: researchLinkDepth,
+        }),
+      });
+      const payload = (await response.json()) as
+        | PublicResearchResponse
+        | { message?: string };
+      if (!response.ok || !("task_id" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The bounded public research could not be completed.",
+        );
+      }
+      setResearchResult(payload);
+      setResearchApproval(false);
+      await loadResources();
+      onEvidenceChanged();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The bounded public research could not be completed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decideFragment(
+    fragmentId: string,
+    currentStatus: "proposed" | "reviewed" | "rejected",
+    decision: "reviewed" | "rejected",
+  ) {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/evidence-fragments/${fragmentId}/reviews`,
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idempotency_key: crypto.randomUUID(),
+            expected_review_status: currentStatus,
+            decision,
+            reason:
+              decision === "reviewed"
+                ? "The recruiter compared this extraction with the visible source."
+                : "The recruiter rejected this extraction as unreliable.",
+          }),
+        },
+      );
+      const payload = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(
+          payload.message ?? "The evidence review could not be saved.",
+        );
+      }
+      if (selectedResource) {
+        await openResource(selectedResource.resource.id);
+      }
+      await loadResources();
+      onEvidenceChanged();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The evidence review could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decideClaim(
+    claim: RelationshipResourceDetail["claim_proposals"][number],
+    decision: "confirm" | "dismiss" | "leave_unresolved",
+  ) {
+    if (!selectedResource) {
+      return;
+    }
+    const correctedValue = claimEdits[claim.id]?.trim() ?? "";
+    if (decision === "confirm" && !correctedValue) {
+      setError("Add the value you intend to confirm.");
+      return;
+    }
+    const resourceId = selectedResource.resource.id;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/resource-claims/${claim.id}/decisions`,
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idempotency_key: crypto.randomUUID(),
+            expected_assertion_version: claim.version,
+            decision,
+            ...(decision === "confirm"
+              ? { corrected_value: correctedValue }
+              : {}),
+          }),
+        },
+      );
+      const payload = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(
+          payload.message ?? "The fact decision could not be saved.",
+        );
+      }
+      await openResource(resourceId);
+      await loadResources();
+      onEvidenceChanged();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The fact decision could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteSelectedResource() {
+    if (!selectedResource) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/captures/${selectedResource.resource.capture_id}/deletion`,
+        {
+          method: "POST",
+          cache: "no-store",
+        },
+      );
+      const payload = (await response.json()) as {
+        message?: string;
+        compilation?: { status?: string } | null;
+        compilation_error?: string | null;
+      };
+      if (!response.ok) {
+        throw new Error(
+          payload.message ?? "The governed source could not be deleted.",
+        );
+      }
+      setSelectedResource(null);
+      setDeleteResourceConfirm(false);
+      await loadResources();
+      onEvidenceChanged(
+        payload.compilation?.status === "published"
+          ? "Source lineage deleted. The relationship Wiki was rebuilt from the governed sources that remain."
+          : payload.compilation_error
+            ? `Source lineage deleted. Wiki recompilation needs attention: ${payload.compilation_error}`
+            : "Source lineage deleted. No active relationship remained to recompile.",
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The governed source could not be deleted.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decideSelectedSourceAuthorization() {
+    if (!selectedResource || !sourceAuthorizationReason.trim()) {
+      return;
+    }
+    const decision =
+      selectedResource.resource.source_authorization_state ===
+      "authorized"
+        ? "revoke"
+        : "restore";
+    let authorizationExpiresAt: string | undefined;
+    if (decision === "restore" && sourceAuthorizationExpiresAt) {
+      const parsedExpiry = new Date(sourceAuthorizationExpiresAt);
+      if (
+        !Number.isFinite(parsedExpiry.getTime()) ||
+        parsedExpiry <= new Date()
+      ) {
+        setError(
+          "Choose a source-authorization deadline in the future.",
+        );
+        return;
+      }
+      authorizationExpiresAt = parsedExpiry.toISOString();
+    }
+    const resourceId = selectedResource.resource.id;
+    setBusy(true);
+    setError("");
+    sourceAuthorizationRequestRef.current ??= crypto.randomUUID();
+    try {
+      const response = await fetch(
+        `/api/local-integration/captures/${selectedResource.resource.capture_id}/source-authorization`,
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idempotency_key:
+              sourceAuthorizationRequestRef.current,
+            expected_capture_version:
+              selectedResource.resource.capture_version,
+            decision,
+            reason: sourceAuthorizationReason.trim(),
+            ...(authorizationExpiresAt
+              ? {
+                  authorization_expires_at:
+                    authorizationExpiresAt,
+                }
+              : {}),
+          }),
+        },
+      );
+      const payload = (await response.json()) as
+        | SourceAuthorizationDecisionResponse
+        | { message?: string };
+      if (!response.ok || !("authorization_state" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The source authorization could not be changed.",
+        );
+      }
+      await openResource(resourceId);
+      await loadResources();
+      setSourceAuthorizationOpen(false);
+      resetSourceAuthorizationDecision();
+      const externalEffectFollowUp =
+        payload.external_effects_requiring_follow_up > 0
+          ? ` ${payload.external_effects_requiring_follow_up} ${
+              payload.external_effects_requiring_follow_up === 1
+                ? "external effect still requires"
+                : "external effects still require"
+            } recruiter follow-up; nothing already completed was represented as undone.`
+          : "";
+      const authorizationMessage =
+        payload.decision === "revoke"
+          ? payload.compilation
+            ? `Source access revoked. ${payload.states_retracted} confirmed ${
+                payload.states_retracted === 1 ? "state was" : "states were"
+              } withdrawn, and the relationship Wiki was rebuilt from authorized sources that remain.`
+            : `Source access revoked. Wiki recompilation needs attention: ${
+                payload.compilation_error ??
+                "no authorized relationship memory was publishable"
+              }`
+          : payload.compilation
+            ? `Source access restored for review. ${payload.claims_reopened} ${
+                payload.claims_reopened === 1 ? "claim is" : "claims are"
+              } pending; no prior conclusion or action was restored automatically.`
+            : `Source access restored for review. Wiki recompilation needs attention: ${
+                payload.compilation_error ??
+                "the restored evidence still requires review"
+              }`;
+      onEvidenceChanged(
+        `${authorizationMessage}${externalEffectFollowUp}`,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The source authorization could not be changed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function resetRequest() {
+    requestIdRef.current = null;
+    setReceipt(null);
+    setError("");
+  }
+
+  async function submit() {
+    if (
+      (mode === "document" && !file) ||
+      (mode !== "document" && !value.trim())
+    ) {
+      setError(
+        mode === "document"
+          ? "Choose one resume or document."
+          : "Add the context you want to preserve.",
+      );
+      return;
+    }
+    requestIdRef.current ??= crypto.randomUUID();
+    setBusy(true);
+    setError("");
+    try {
+      let response: Response;
+      if (mode === "document" && file) {
+        const form = new FormData();
+        form.set("request_id", requestIdRef.current);
+        form.set("person_id", personId);
+        form.set("relationship_context_id", relationshipContextId);
+        form.set("document_kind", documentKind);
+        form.set(
+          "save_discovered_links",
+          saveDiscoveredLinks ? "true" : "false",
+        );
+        form.set("file", file);
+        response = await fetch("/api/local-integration/resources", {
+          method: "POST",
+          body: form,
+          cache: "no-store",
+        });
+      } else {
+        response = await fetch("/api/local-integration/resources", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestIdRef.current,
+            person_id: personId,
+            relationship_context_id: relationshipContextId,
+            type: mode,
+            title: title.trim() || undefined,
+            value: value.trim(),
+          }),
+        });
+      }
+      const payload = (await response.json()) as
+        | {
+            receipts: ResourceCaptureResponse[];
+            discovered_links: string[];
+            parser_warnings: string[];
+          }
+        | { message?: string };
+      if (!response.ok || !("receipts" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The context could not be attached.",
+        );
+      }
+      setReceipt({
+        resources: payload.receipts.length,
+        linksFound: payload.discovered_links.length,
+        warnings: payload.parser_warnings.length,
+      });
+      setTitle("");
+      setValue("");
+      setFile(null);
+      onCommitted(payload.receipts);
+      await loadResources();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The context could not be attached.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby="add-context-title"
+      className="context-resource-composer"
+      id="relationship-resources"
+    >
+      <div className="context-resource-composer__heading">
+        <div>
+          <p className="eyebrow">ADD CONTEXT</p>
+          <h2 id="add-context-title">One person, more than one source.</h2>
+          <p>
+            Attach to {scopeLabel}. Each source keeps its own authority,
+            evidence location, and deletion path.
+          </p>
+        </div>
+        <div aria-label="Context source type" role="tablist">
+          <button
+            aria-selected={mode === "note"}
+            onClick={() => {
+              setMode("note");
+              resetRequest();
+            }}
+            role="tab"
+            type="button"
+          >
+            <PencilSimple aria-hidden="true" size={16} />
+            Note
+          </button>
+          <button
+            aria-selected={mode === "document"}
+            onClick={() => {
+              setMode("document");
+              resetRequest();
+            }}
+            role="tab"
+            type="button"
+          >
+            <UploadSimple aria-hidden="true" size={16} />
+            File
+          </button>
+          <button
+            aria-selected={mode === "url"}
+            onClick={() => {
+              setMode("url");
+              resetRequest();
+            }}
+            role="tab"
+            type="button"
+          >
+            <LinkSimple aria-hidden="true" size={16} />
+            Link
+          </button>
+          <button onClick={onScreenshot} type="button">
+            <FileImage aria-hidden="true" size={16} />
+            Screenshot
+          </button>
+        </div>
+      </div>
+
+      {mode === "document" ? (
+        <div className="context-resource-composer__document">
+          <input
+            accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+            className="sr-only"
+            onChange={(event) => {
+              setFile(event.target.files?.[0] ?? null);
+              resetRequest();
+            }}
+            ref={fileInputRef}
+            type="file"
+          />
+          <button
+            className="context-resource-file"
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            <UploadSimple aria-hidden="true" size={20} />
+            <span>
+              <strong>{file?.name ?? "Choose PDF, DOCX, TXT, or Markdown"}</strong>
+              <small>
+                {file
+                  ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+                  : "Raw file is parsed transiently and is not retained."}
+              </small>
+            </span>
+          </button>
+          <label>
+            <span>Document meaning</span>
+            <select
+              onChange={(event) => {
+                setDocumentKind(
+                  event.target.value as "resume" | "document",
+                );
+                resetRequest();
+              }}
+              value={documentKind}
+            >
+              <option value="resume">Resume</option>
+              <option value="document">Supporting document</option>
+            </select>
+          </label>
+          <label className="context-resource-checkbox">
+            <input
+              checked={saveDiscoveredLinks}
+              onChange={(event) => {
+                setSaveDiscoveredLinks(event.target.checked);
+                resetRequest();
+              }}
+              type="checkbox"
+            />
+            <span>
+              Save visible URLs as research seeds
+              <small>
+                This does not fetch pages or authorize deep research.
+              </small>
+            </span>
+          </label>
+        </div>
+      ) : (
+        <div className="context-resource-composer__text">
+          <label>
+            <span>{mode === "note" ? "Note title" : "Link label"}</span>
+            <input
+              maxLength={240}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                resetRequest();
+              }}
+              placeholder={
+                mode === "note"
+                  ? "e.g. Prep for Thursday call"
+                  : "e.g. Portfolio or public profile"
+              }
+              value={title}
+            />
+          </label>
+          <label>
+            <span>{mode === "note" ? "Your note" : "Public URL"}</span>
+            {mode === "note" ? (
+              <textarea
+                maxLength={40_000}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  resetRequest();
+                }}
+                placeholder="What do you want your future self to remember? This remains a recruiter-authored note, not candidate testimony."
+                rows={3}
+                value={value}
+              />
+            ) : (
+              <input
+                maxLength={2_000}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  resetRequest();
+                }}
+                placeholder="https://"
+                type="url"
+                value={value}
+              />
+            )}
+          </label>
+        </div>
+      )}
+
+      {error ? (
+        <p className="context-resource-composer__error" role="alert">
+          <Warning aria-hidden="true" size={16} />
+          {error}
+        </p>
+      ) : null}
+      {receipt ? (
+        <p className="context-resource-composer__receipt" role="status">
+          <CheckCircle aria-hidden="true" size={17} weight="fill" />
+          {receipt.resources} governed{" "}
+          {receipt.resources === 1 ? "resource" : "resources"} attached
+          {receipt.linksFound > 0
+            ? ` · ${receipt.linksFound} visible links found`
+            : ""}
+          {receipt.warnings > 0
+            ? ` · ${receipt.warnings} parser warnings retained`
+            : ""}
+        </p>
+      ) : null}
+      <footer>
+        <p>
+          Files become proposed evidence until reviewed. Saving a URL is not
+          permission to crawl it.
+        </p>
+        <button
+          className="context-primary-button context-primary-button--compact"
+          disabled={
+            busy ||
+            (mode === "document" ? !file : !value.trim())
+          }
+          onClick={() => void submit()}
+          type="button"
+        >
+          {busy ? (
+            <CircleNotch aria-hidden="true" className="spin" size={17} />
+          ) : (
+            <Plus aria-hidden="true" size={17} />
+          )}
+          {busy ? "Attaching source" : "Attach to person"}
+        </button>
+      </footer>
+
+      <div className="context-resource-ledger">
+        <div>
+          <h3>Sources on this relationship</h3>
+          <span>
+            {resourceLoading
+              ? "Loading…"
+              : `${resources.length} governed ${
+                  resources.length === 1 ? "source" : "sources"
+                }`}
+          </span>
+        </div>
+        {resources.length > 0 ? (
+          <div className="context-resource-ledger__list">
+            {resources.map((resource) => (
+              <button
+                data-state={resource.processing_state}
+                key={resource.id}
+                onClick={() => void openResource(resource.id)}
+                type="button"
+              >
+                <span>
+                  {resource.kind === "personal_note" ? (
+                    <PencilSimple aria-hidden="true" size={17} />
+                  ) : resource.kind === "public_url" ? (
+                    <LinkSimple aria-hidden="true" size={17} />
+                  ) : (
+                    <UploadSimple aria-hidden="true" size={17} />
+                  )}
+                </span>
+                <p>
+                  <strong>{resource.display_name}</strong>
+                  <small>
+                    {resource.kind.replaceAll("_", " ")} ·{" "}
+                    {resource.source_authorization_state === "revoked"
+                      ? "Access revoked · evidence excluded from memory"
+                      : resource.source_authorization_state === "expired"
+                        ? "Authorization expired · evidence excluded from memory"
+                      : resource.proposed_fragment_count > 0
+                      ? `${resource.proposed_fragment_count} excerpts need review`
+                      : resource.pending_claim_count > 0
+                        ? `${resource.pending_claim_count} facts need review${
+                            resource.conflicted_claim_count > 0
+                              ? ` · ${resource.conflicted_claim_count} conflicting`
+                              : ""
+                          }`
+                      : "Evidence reviewed"}
+                    {resource.duplicate_of_resource_id
+                      ? " · duplicate retained"
+                      : ""}
+                    {resource.source_authorization_state ===
+                      "authorized" &&
+                    resource.source_authorization_expires_at
+                      ? ` · authorized until ${formatDate(
+                          resource.source_authorization_expires_at,
+                        )}`
+                      : ""}
+                  </small>
+                </p>
+                <i>
+                  {resource.source_authorization_state !== "authorized"
+                    ? resource.source_authorization_state
+                    : resource.processing_state.replaceAll("_", " ")}
+                </i>
+              </button>
+            ))}
+          </div>
+        ) : resourceLoading ? null : (
+          <p className="context-resource-ledger__empty">
+            No additional note, file, or link is attached yet.
+          </p>
+        )}
+      </div>
+
+      {selectedResource ? (
+        <div className="context-resource-review">
+          <header>
+            <div>
+              <p className="eyebrow">EVIDENCE REVIEW</p>
+              <h3>{selectedResource.resource.display_name}</h3>
+              <span>
+                {selectedResource.resource.kind.replaceAll("_", " ")} ·{" "}
+                {selectedResource.resource.source_authorization_state !==
+                "authorized"
+                  ? selectedResource.resource.source_authorization_state ===
+                    "expired"
+                    ? "authorization expired"
+                    : "access revoked"
+                  : `${selectedResource.fragments.length} addressable ${
+                      selectedResource.fragments.length === 1
+                        ? "fragment"
+                        : "fragments"
+                    }`}
+              </span>
+            </div>
+            <div className="context-resource-review__actions">
+              <button
+                aria-expanded={identityCorrectionOpen}
+                className="context-text-button"
+                onClick={() => {
+                  if (identityCorrectionOpen) {
+                    setIdentityCorrectionOpen(false);
+                  } else {
+                    void beginIdentityCorrection();
+                  }
+                }}
+                type="button"
+              >
+                <PencilSimple aria-hidden="true" size={15} />
+                Wrong person?
+              </button>
+              <button
+                aria-expanded={sourceAuthorizationOpen}
+                className="context-text-button"
+                onClick={() => {
+                  setDeleteResourceConfirm(false);
+                  setIdentityCorrectionOpen(false);
+                  if (sourceAuthorizationOpen) {
+                    setSourceAuthorizationOpen(false);
+                    resetSourceAuthorizationDecision();
+                  } else {
+                    setSourceAuthorizationOpen(true);
+                  }
+                }}
+                type="button"
+              >
+                {selectedResource.resource
+                  .source_authorization_state === "authorized" ? (
+                  <Prohibit aria-hidden="true" size={15} />
+                ) : (
+                  <ShieldCheck aria-hidden="true" size={15} />
+                )}
+                {selectedResource.resource
+                  .source_authorization_state === "authorized"
+                  ? "Revoke access"
+                  : selectedResource.resource
+                        .source_authorization_state === "expired"
+                    ? "Renew access"
+                    : "Restore access"}
+              </button>
+              <button
+                className="context-text-button"
+                onClick={() => {
+                  setSourceAuthorizationOpen(false);
+                  resetSourceAuthorizationDecision();
+                  setDeleteResourceConfirm((current) => !current);
+                }}
+                type="button"
+              >
+                <Trash aria-hidden="true" size={15} />
+                Delete source
+              </button>
+              <button
+                aria-label="Close evidence review"
+                className="context-icon-button"
+                onClick={() => {
+                  setSelectedResource(null);
+                  setClaimEdits({});
+                  setDeleteResourceConfirm(false);
+                  setResearchApproval(false);
+                  setResearchResult(null);
+                  setIdentityCorrectionOpen(false);
+                  setIdentityCorrectionReason("");
+                  resetIdentityCorrectionRequest();
+                  setSourceAuthorizationOpen(false);
+                  resetSourceAuthorizationDecision();
+                }}
+                type="button"
+              >
+                <X aria-hidden="true" size={17} />
+              </button>
+            </div>
+          </header>
+          {sourceAuthorizationOpen ? (
+            <section className="context-identity-correction">
+              <header>
+                <div>
+                  <p className="eyebrow">SOURCE AUTHORIZATION</p>
+                  <h4>
+                    {selectedResource.resource
+                      .source_authorization_state === "authorized"
+                      ? "Remove this source from relationship memory."
+                      : selectedResource.resource
+                            .source_authorization_state === "expired"
+                        ? "Renew this source as reviewable evidence."
+                        : "Return this source as reviewable evidence."}
+                  </h4>
+                </div>
+                {selectedResource.resource
+                  .source_authorization_state === "authorized" ? (
+                  <Prohibit aria-hidden="true" size={19} />
+                ) : (
+                  <ShieldCheck aria-hidden="true" size={19} />
+                )}
+              </header>
+              <p>
+                {selectedResource.resource
+                  .source_authorization_state === "authorized"
+                  ? "Revoking access hides the evidence, withdraws dependent facts and pending actions, and rebuilds the Wiki from authorized sources that remain. It does not delete the governed source, so access can be restored later."
+                  : selectedResource.resource
+                        .source_authorization_state === "expired"
+                    ? "Renewing authorization reveals the governed evidence again, but every source-derived claim returns to recruiter review. Prior facts, approvals, and actions stay withdrawn."
+                    : "Restoring access reveals the governed evidence again, but every source-derived claim returns to recruiter review. Prior facts, approvals, and actions stay withdrawn."}
+              </p>
+              <label className="context-identity-correction__reason">
+                <span>Why is this authorization changing?</span>
+                <textarea
+                  maxLength={500}
+                  onChange={(event) => {
+                    setSourceAuthorizationReason(
+                      event.currentTarget.value,
+                    );
+                    sourceAuthorizationRequestRef.current = null;
+                  }}
+                  placeholder={
+                    selectedResource.resource
+                      .source_authorization_state === "authorized"
+                      ? "For example: the candidate withdrew permission to use this conversation."
+                      : "For example: the recruiter confirmed renewed permission for this purpose."
+                  }
+                  rows={3}
+                  value={sourceAuthorizationReason}
+                />
+              </label>
+              {selectedResource.resource
+                .source_authorization_state !== "authorized" ? (
+                <label className="context-identity-correction__reason">
+                  <span>
+                    New authorization deadline
+                    {selectedResource.resource
+                      .source_authorization_state === "expired"
+                      ? " (recommended)"
+                      : " (optional)"}
+                  </span>
+                  <input
+                    onChange={(event) => {
+                      setSourceAuthorizationExpiresAt(
+                        event.currentTarget.value,
+                      );
+                      sourceAuthorizationRequestRef.current = null;
+                    }}
+                    type="datetime-local"
+                    value={sourceAuthorizationExpiresAt}
+                  />
+                  <small>
+                    This governs use of the evidence, independently
+                    from how long the original file is retained.
+                  </small>
+                </label>
+              ) : null}
+              <footer>
+                <button
+                  className="context-secondary-button"
+                  onClick={() => {
+                    setSourceAuthorizationOpen(false);
+                    resetSourceAuthorizationDecision();
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className={
+                    selectedResource.resource
+                      .source_authorization_state === "authorized"
+                      ? "context-danger-button"
+                      : "context-primary-button context-primary-button--compact"
+                  }
+                  disabled={
+                    busy || !sourceAuthorizationReason.trim()
+                  }
+                  onClick={() =>
+                    void decideSelectedSourceAuthorization()
+                  }
+                  type="button"
+                >
+                  {busy ? (
+                    <CircleNotch
+                      aria-hidden="true"
+                      className="spin"
+                      size={16}
+                    />
+                  ) : null}
+                  {selectedResource.resource
+                    .source_authorization_state === "authorized"
+                    ? "Revoke and rebuild Wiki"
+                    : selectedResource.resource
+                          .source_authorization_state === "expired"
+                      ? "Renew for review"
+                      : "Restore for review"}
+                </button>
+              </footer>
+            </section>
+          ) : null}
+          {deleteResourceConfirm ? (
+            <div className="context-resource-review__delete">
+              <p>
+                This retracts this source, sources discovered from it, and
+                every dependent Wiki or Chat snapshot.
+              </p>
+              <button
+                className="context-secondary-button"
+                onClick={() => setDeleteResourceConfirm(false)}
+                type="button"
+              >
+                Keep source
+              </button>
+              <button
+                className="context-danger-button"
+                disabled={busy}
+                onClick={() => void deleteSelectedResource()}
+                type="button"
+              >
+                Delete governed lineage
+              </button>
+            </div>
+          ) : null}
+          {identityCorrectionOpen ? (
+            <section className="context-identity-correction">
+              <header>
+                <div>
+                  <p className="eyebrow">IDENTITY CORRECTION</p>
+                  <h4>Move this governed source to the right person.</h4>
+                </div>
+                <Warning aria-hidden="true" size={19} />
+              </header>
+              <p>
+                This source and anything discovered from it move together.
+                Facts confirmed under {scopeLabel} are withdrawn; the new
+                relationship receives reviewable proposals, never automatic
+                truth.
+              </p>
+              <div
+                aria-label="Identity correction target type"
+                className="context-identity-correction__mode"
+                role="group"
+              >
+                <button
+                  aria-pressed={identityTargetMode === "existing"}
+                  disabled={identityPeople.length === 0}
+                  onClick={() => {
+                    setIdentityTargetMode("existing");
+                    resetIdentityCorrectionRequest();
+                  }}
+                  type="button"
+                >
+                  Existing person
+                </button>
+                <button
+                  aria-pressed={identityTargetMode === "new"}
+                  onClick={() => {
+                    setIdentityTargetMode("new");
+                    resetIdentityCorrectionRequest();
+                  }}
+                  type="button"
+                >
+                  New person
+                </button>
+              </div>
+              {identityPeopleLoading ? (
+                <p className="context-identity-correction__loading">
+                  <CircleNotch
+                    aria-hidden="true"
+                    className="spin"
+                    size={16}
+                  />
+                  Loading governed people…
+                </p>
+              ) : identityTargetMode === "existing" ? (
+                <div className="context-identity-correction__fields">
+                  <label>
+                    <span>Correct person</span>
+                    <select
+                      disabled={busy}
+                      onChange={(event) => {
+                        setIdentityTargetPersonId(event.target.value);
+                        setIdentityTargetContextId("");
+                        setIdentityNewContextLabel("");
+                        resetIdentityCorrectionRequest();
+                      }}
+                      value={identityTargetPersonId}
+                    >
+                      <option disabled value="">
+                        Choose the correct person…
+                      </option>
+                      {identityPeople.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.display_label} · {person.capture_count}{" "}
+                          sources
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Relationship context</span>
+                    <select
+                      disabled={busy}
+                      onChange={(event) => {
+                        setIdentityTargetContextId(event.target.value);
+                        resetIdentityCorrectionRequest();
+                      }}
+                      value={identityTargetContextId}
+                    >
+                      <option disabled value="">
+                        Choose the relationship context…
+                      </option>
+                      {identityTargetPerson?.contexts.map((context) => (
+                        <option key={context.id} value={context.id}>
+                          {context.display_label}
+                        </option>
+                      ))}
+                      <option value="__new__">
+                        Create a separate context…
+                      </option>
+                    </select>
+                  </label>
+                  {identityTargetContextId === "__new__" ? (
+                    <label>
+                      <span>New context label</span>
+                      <input
+                        disabled={busy}
+                        maxLength={200}
+                        onChange={(event) => {
+                          setIdentityNewContextLabel(event.target.value);
+                          resetIdentityCorrectionRequest();
+                        }}
+                        placeholder="e.g. VP Product · Northstar search"
+                        value={identityNewContextLabel}
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="context-identity-correction__fields">
+                  <label>
+                    <span>New person name</span>
+                    <input
+                      disabled={busy}
+                      maxLength={200}
+                      onChange={(event) => {
+                        setIdentityNewPersonLabel(event.target.value);
+                        resetIdentityCorrectionRequest();
+                      }}
+                      placeholder="e.g. Maya Chen"
+                      value={identityNewPersonLabel}
+                    />
+                  </label>
+                  <label>
+                    <span>Relationship context</span>
+                    <input
+                      disabled={busy}
+                      maxLength={200}
+                      onChange={(event) => {
+                        setIdentityNewContextLabel(event.target.value);
+                        resetIdentityCorrectionRequest();
+                      }}
+                      placeholder="e.g. VP Product · Northstar search"
+                      value={identityNewContextLabel}
+                    />
+                  </label>
+                </div>
+              )}
+              <label className="context-identity-correction__reason">
+                <span>Why is this the right identity?</span>
+                <textarea
+                  disabled={busy}
+                  maxLength={500}
+                  onChange={(event) => {
+                    setIdentityCorrectionReason(event.target.value);
+                    resetIdentityCorrectionRequest();
+                  }}
+                  placeholder="e.g. The email address and employment history match the existing contact."
+                  rows={2}
+                  value={identityCorrectionReason}
+                />
+              </label>
+              <footer>
+                <p>
+                  Pending actions are revoked. In-flight effects must be
+                  reconciled before the move can proceed.
+                </p>
+                <div>
+                  <button
+                    className="context-text-button"
+                    disabled={busy}
+                    onClick={() => setIdentityCorrectionOpen(false)}
+                    type="button"
+                  >
+                    Keep current identity
+                  </button>
+                  <button
+                    className="context-primary-button context-primary-button--compact"
+                    disabled={
+                      busy ||
+                      !identityCorrectionReason.trim() ||
+                      (identityTargetMode === "existing"
+                        ? !identityTargetPerson ||
+                          !identityTargetContextId ||
+                          (identityTargetContextId === "__new__" &&
+                            !identityNewContextLabel.trim())
+                        : !identityNewPersonLabel.trim() ||
+                          !identityNewContextLabel.trim())
+                    }
+                    onClick={() =>
+                      void correctSelectedResourceIdentity()
+                    }
+                    type="button"
+                  >
+                    {busy ? (
+                      <CircleNotch
+                        aria-hidden="true"
+                        className="spin"
+                        size={16}
+                      />
+                    ) : (
+                      <ArrowRight aria-hidden="true" size={16} />
+                    )}
+                    Move source lineage
+                  </button>
+                </div>
+              </footer>
+            </section>
+          ) : null}
+          {selectedResource.resource.kind === "public_url" &&
+          selectedResource.resource.input_channel !== "api_connector" &&
+          selectedResource.resource.source_locator ? (
+            <section className="context-research-approval">
+              <div>
+                <p className="eyebrow">PUBLIC RESEARCH</p>
+                <h4>Choose the boundary before AI reads beyond the seed.</h4>
+                <p>
+                  Approved domain:{" "}
+                  <strong>
+                    {
+                      new URL(
+                        selectedResource.resource.source_locator,
+                      ).hostname
+                    }
+                  </strong>
+                  . Every retrieved page returns as proposed evidence with
+                  its URL, retrieval time, freshness, and deletion lineage.
+                </p>
+              </div>
+              <div className="context-research-approval__scope">
+                <label>
+                  <span>Maximum pages</span>
+                  <select
+                    disabled={busy}
+                    onChange={(event) =>
+                      setResearchPageCount(Number(event.target.value))
+                    }
+                    value={researchPageCount}
+                  >
+                    <option value={1}>1 page</option>
+                    <option value={3}>Up to 3 pages</option>
+                    <option value={5}>Up to 5 pages</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Follow links</span>
+                  <select
+                    disabled={busy}
+                    onChange={(event) =>
+                      setResearchLinkDepth(Number(event.target.value))
+                    }
+                    value={researchLinkDepth}
+                  >
+                    <option value={0}>Seed page only</option>
+                    <option value={1}>One same-domain layer</option>
+                  </select>
+                </label>
+              </div>
+              <label className="context-resource-checkbox">
+                <input
+                  checked={researchApproval}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setResearchApproval(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                <span>
+                  I approve this bounded public research
+                  <small>
+                    HTTPS only. Private networks and cross-domain redirects
+                    are blocked.
+                  </small>
+                </span>
+              </label>
+              {researchResult ? (
+                <div
+                  className={`context-research-status context-research-status--${researchResult.status}`}
+                  role="status"
+                >
+                  <div className="context-research-status__summary">
+                    {researchResult.status === "running" ? (
+                      <CircleNotch
+                        aria-hidden="true"
+                        className="spin"
+                        size={17}
+                      />
+                    ) : researchResult.status === "completed" ? (
+                      <CheckCircle
+                        aria-hidden="true"
+                        size={17}
+                        weight="fill"
+                      />
+                    ) : (
+                      <Warning
+                        aria-hidden="true"
+                        size={17}
+                        weight="fill"
+                      />
+                    )}
+                    <span>
+                      {researchResult.status === "running"
+                        ? "Research is still running. Its durable task can be checked after a refresh or interruption."
+                        : `${researchResult.pages.length} public ${
+                            researchResult.pages.length === 1
+                              ? "page"
+                              : "pages"
+                          } returned as proposed evidence · ${
+                            researchResult.status
+                          }`}
+                    </span>
+                  </div>
+                  {researchResult.warnings.length > 0 ? (
+                    <div className="context-research-status__warnings">
+                      <strong>
+                        {researchResult.warnings.length} page-level{" "}
+                        {researchResult.warnings.length === 1
+                          ? "warning"
+                          : "warnings"}
+                      </strong>
+                      <ul>
+                        {researchResult.warnings
+                          .slice(0, 5)
+                          .map((warning, index) => (
+                            <li key={`${researchResult.task_id}:${index}`}>
+                              {warning}
+                            </li>
+                          ))}
+                      </ul>
+                      <small>
+                        Retrieval warnings are operational evidence, not
+                        claims about this person.
+                      </small>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <footer>
+                <p>
+                  Research never confirms a person fact and never contacts
+                  anyone.
+                </p>
+                <button
+                  className="context-primary-button context-primary-button--compact"
+                  disabled={
+                    researchResult?.status === "running"
+                      ? busy
+                      : !researchApproval || busy
+                  }
+                  onClick={() =>
+                    void (researchResult?.status === "running"
+                      ? refreshResearchStatus()
+                      : researchSelectedResource())
+                  }
+                  type="button"
+                >
+                  {busy ? (
+                    <CircleNotch
+                      aria-hidden="true"
+                      className="spin"
+                      size={17}
+                    />
+                  ) : (
+                    <Sparkle aria-hidden="true" size={17} />
+                  )}
+                  {busy
+                    ? researchResult?.status === "running"
+                      ? "Checking durable task"
+                      : "Researching public pages"
+                    : researchResult?.status === "running"
+                      ? "Check research status"
+                      : "Run public research"}
+                </button>
+              </footer>
+            </section>
+          ) : null}
+          {selectedResource.claim_proposals.length > 0 ? (
+            <section className="context-claim-review">
+              <header>
+                <div>
+                  <p className="eyebrow">PROPOSED PERSON UPDATES</p>
+                  <h4>Decide what becomes part of this relationship.</h4>
+                </div>
+                <span>
+                  {
+                    selectedResource.claim_proposals.filter((claim) =>
+                      ["pending", "unresolved"].includes(
+                        claim.review_status,
+                      ),
+                    ).length
+                  }{" "}
+                  open
+                </span>
+              </header>
+              <p>
+                Each update keeps the exact source fragment. Conflicting
+                claims stay separate until you choose the current value.
+              </p>
+              <div className="context-claim-review__list">
+                {selectedResource.claim_proposals.map((claim) => {
+                  const open = ["pending", "unresolved"].includes(
+                    claim.review_status,
+                  );
+                  const conflicting =
+                    claim.proposal_status === "ambiguous" ||
+                    claim.temporal_relation === "supersedes";
+                  return (
+                    <article
+                      data-conflict={conflicting}
+                      data-state={claim.review_status}
+                      key={claim.id}
+                    >
+                      <header>
+                        <div>
+                          <strong>{fieldLabel(claim.field)}</strong>
+                          <span>
+                            {claim.review_status === "confirmed"
+                              ? "Confirmed for this relationship"
+                              : claim.review_status === "dismissed"
+                                ? "Dismissed by recruiter"
+                                : claim.temporal_relation === "supersedes"
+                                  ? "Review before replacing current value"
+                                  : claim.temporal_relation === "reinforces"
+                                    ? "Reinforces current value"
+                                    : "New proposed fact"}
+                          </span>
+                        </div>
+                        <i>{reviewLabel(claim.review_status)}</i>
+                      </header>
+                      {claim.prior_confirmed_value ? (
+                        <div
+                          aria-label="Proposed fact change"
+                          className="context-claim-review__diff"
+                        >
+                          <span>
+                            <small>Before</small>
+                            <del>{claim.prior_confirmed_value}</del>
+                          </span>
+                          <ArrowRight aria-hidden="true" size={15} />
+                          <span>
+                            <small>Proposed</small>
+                            <ins>{claimEdits[claim.id] ?? ""}</ins>
+                          </span>
+                        </div>
+                      ) : null}
+                      <label>
+                        <span>Value to confirm</span>
+                        <input
+                          disabled={!open || busy}
+                          maxLength={2_000}
+                          onChange={(event) =>
+                            setClaimEdits((current) => ({
+                              ...current,
+                              [claim.id]: event.target.value,
+                            }))
+                          }
+                          value={claimEdits[claim.id] ?? ""}
+                        />
+                      </label>
+                      <blockquote>
+                        <Quotes aria-hidden="true" size={15} />
+                        <span>
+                          {claim.evidence_quote ??
+                            "No exact source quote is available."}
+                        </span>
+                      </blockquote>
+                      <p>
+                        {claim.producer.name} {claim.producer.version} ·
+                        source fragment {claim.evidence_fragment_id.slice(0, 8)}
+                      </p>
+                      {open ? (
+                        <footer>
+                          <button
+                            className="context-text-button"
+                            disabled={busy}
+                            onClick={() =>
+                              void decideClaim(claim, "dismiss")
+                            }
+                            type="button"
+                          >
+                            Dismiss
+                          </button>
+                          <button
+                            className="context-secondary-button"
+                            disabled={busy}
+                            onClick={() =>
+                              void decideClaim(
+                                claim,
+                                "leave_unresolved",
+                              )
+                            }
+                            type="button"
+                          >
+                            Leave unresolved
+                          </button>
+                          <button
+                            className="context-primary-button"
+                            disabled={
+                              busy ||
+                              !(claimEdits[claim.id] ?? "").trim()
+                            }
+                            onClick={() =>
+                              void decideClaim(claim, "confirm")
+                            }
+                            type="button"
+                          >
+                            <Check aria-hidden="true" size={16} />
+                            Confirm for this relationship
+                          </button>
+                        </footer>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+          <div>
+            {selectedResource.fragments.map((fragment) => (
+              <article
+                data-state={fragment.review_status}
+                key={fragment.id}
+              >
+                <header>
+                  <span>
+                    {fragment.locator.kind.replaceAll("_", " ")} ·{" "}
+                    {fragment.sequence + 1}
+                  </span>
+                  <i>{fragment.review_status}</i>
+                </header>
+                <pre>{fragment.text}</pre>
+                <p>
+                  {fragment.attribution.actor_kind.replaceAll("_", " ")} ·{" "}
+                  attribution {fragment.attribution.status} ·{" "}
+                  {fragment.parser.name} {fragment.parser.version}
+                </p>
+                {fragment.review_status === "proposed" ? (
+                  <footer>
+                    <button
+                      className="context-secondary-button"
+                      disabled={busy}
+                      onClick={() =>
+                        void decideFragment(
+                          fragment.id,
+                          fragment.review_status,
+                          "rejected",
+                        )
+                      }
+                      type="button"
+                    >
+                      Reject extraction
+                    </button>
+                    <button
+                      className="context-primary-button"
+                      disabled={busy}
+                      onClick={() =>
+                        void decideFragment(
+                          fragment.id,
+                          fragment.review_status,
+                          "reviewed",
+                        )
+                      }
+                      type="button"
+                    >
+                      <Check aria-hidden="true" size={16} />
+                      Extraction matches source
+                    </button>
+                  </footer>
+                ) : null}
+              </article>
+            ))}
+          </div>
+          <p>
+            Reviewing confirms transcription accuracy only. It does not make
+            the document&apos;s claims current facts about the person.
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function AgentIdentityReviewCard({
+  identityCase,
+  onCaseUpdated,
+  onResolved,
+}: {
+  identityCase: IdentityResolutionCase;
+  onCaseUpdated: (nextCase: IdentityResolutionCase) => void;
+  onResolved: (
+    scope: RelationshipScope,
+    compilation: KnowledgeSnapshot | null,
+    compilationError: string | null,
+  ) => void;
+}) {
+  const requestIdRef = useRef<string | null>(null);
+  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [selectedContextId, setSelectedContextId] = useState("");
+  const [newContextLabel, setNewContextLabel] = useState(
+    identityCase.relationship_context?.status === "proposed"
+      ? identityCase.relationship_context.label
+      : "",
+  );
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const selectedCandidate = identityCase.candidates.find(
+    (candidate) => candidate.person_id === selectedPersonId,
+  );
+  const selectedExistingContext =
+    selectedCandidate?.relationship_contexts.find(
+      (context) => context.id === selectedContextId,
+    ) ?? null;
+  const usingNewContext = selectedContextId === "__new__";
+  const bindReady =
+    selectedCandidate !== undefined &&
+    reason.trim().length > 0 &&
+    ((usingNewContext && newContextLabel.trim().length > 0) ||
+      selectedExistingContext !== null);
+
+  function resetRequest() {
+    requestIdRef.current = null;
+  }
+
+  async function decideIdentity(
+    decision: "bind_existing" | "leave_unresolved",
+  ) {
+    if (
+      !reason.trim() ||
+      (decision === "bind_existing" && !bindReady)
+    ) {
+      setError(
+        decision === "leave_unresolved"
+          ? "Say what evidence is still missing before saving this for later."
+          : "Choose one person, one relationship context, and explain the identity decision.",
+      );
+      return;
+    }
+    requestIdRef.current ??= crypto.randomUUID();
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/identity-resolution-cases/${identityCase.id}/decisions`,
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idempotency_key: requestIdRef.current,
+            expected_case_version: identityCase.version,
+            decision,
+            reason: reason.trim(),
+            ...(decision === "bind_existing" && selectedCandidate
+              ? {
+                  selected_person_id: selectedCandidate.person_id,
+                  relationship_context:
+                    usingNewContext
+                      ? {
+                          status: "proposed",
+                          label: newContextLabel.trim(),
+                          purpose:
+                            "Recruiter-defined relationship context after identity review",
+                        }
+                      : {
+                          status: "existing",
+                          relationship_context_id:
+                            selectedExistingContext?.id,
+                        },
+                }
+              : {}),
+          }),
+        },
+      );
+      const payload = (await response.json()) as
+        | IdentityWorkflowResponse
+        | { message?: string };
+      if (!response.ok || !("decision" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The identity decision could not be saved.",
+        );
+      }
+      if (
+        payload.decision.identity_status === "unresolved" ||
+        !payload.decision.person_id ||
+        !payload.decision.relationship_context_id ||
+        !selectedCandidate
+      ) {
+        resetRequest();
+        setReason("");
+        onCaseUpdated(payload.identity_case);
+        return;
+      }
+      onResolved(
+        {
+          contract_version: CONTRACT_VERSION,
+          person: {
+            id: payload.decision.person_id,
+            display_label: selectedCandidate.display_label,
+          },
+          relationship_context: {
+            id: payload.decision.relationship_context_id,
+            display_label: usingNewContext
+              ? newContextLabel.trim()
+              : selectedExistingContext?.display_label ??
+                "Selected relationship",
+          },
+        },
+        payload.compilation,
+        payload.compilation_error,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The identity decision could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby="agent-identity-review-title"
+      className="context-agent-identity-review"
+    >
+      <header>
+        <span>
+          <Warning aria-hidden="true" size={16} weight="fill" />
+        </span>
+        <div>
+          <strong id="agent-identity-review-title">
+            Identity still needs your decision
+          </strong>
+          <p>
+            The source is saved, but it is not part of either person&apos;s
+            Wiki yet.
+          </p>
+        </div>
+        <i>Unresolved</i>
+      </header>
+
+      {identityCase.latest_decision?.decision === "leave_unresolved" ? (
+        <div className="context-agent-identity-review__resume">
+          <strong>Previously left unresolved</strong>
+          <p>{identityCase.latest_decision.reason}</p>
+          <small>
+            Saved {formatDate(identityCase.latest_decision.decided_at)}
+          </small>
+        </div>
+      ) : null}
+
+      <article className="context-agent-identity-review__source">
+        <header>
+          <span>Governed source</span>
+          <i>{identityCase.source.display_name}</i>
+        </header>
+        <blockquote>{identityCase.source.excerpt}</blockquote>
+        <footer>
+          <span>{identityCase.source.kind.replaceAll("_", " ")}</span>
+          <span>
+            {identityCase.source.fragment_count}{" "}
+            {identityCase.source.fragment_count === 1
+              ? "fragment"
+              : "fragments"}
+          </span>
+          <span>{formatDate(identityCase.source.observed_at)}</span>
+        </footer>
+      </article>
+
+      <div className="context-agent-identity-review__candidates">
+        <p>
+          Compare only source-backed identity clues and relationship context.
+          Choosing a person does not confirm the source&apos;s claims.
+        </p>
+        {identityCase.candidates.map((candidate) => (
+          <article
+            data-selected={selectedPersonId === candidate.person_id}
+            key={candidate.person_id}
+          >
+            <button
+              aria-pressed={selectedPersonId === candidate.person_id}
+              onClick={() => {
+                setSelectedPersonId(candidate.person_id);
+                setSelectedContextId("");
+                resetRequest();
+              }}
+              type="button"
+            >
+              <span>{initials(candidate.display_label)}</span>
+              <p>
+                <strong>{candidate.display_label}</strong>
+                <small>
+                  {candidate.context_count}{" "}
+                  {candidate.context_count === 1
+                    ? "relationship"
+                    : "relationships"}{" "}
+                  · {candidate.capture_count} sources
+                </small>
+              </p>
+              <CheckCircle aria-hidden="true" size={17} />
+            </button>
+            <ul aria-label={`Why ${candidate.display_label} is possible`}>
+              {candidate.match_reasons.map((matchReason) => (
+                <li key={matchReason}>{matchReason}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+
+      {selectedCandidate ? (
+        <fieldset className="context-agent-identity-review__contexts">
+          <legend>Relationship context</legend>
+          <p>
+            Identity is shared; evidence remains inside the selected
+            relationship.
+          </p>
+          <div>
+            {selectedCandidate.relationship_contexts.map((context) => (
+              <button
+                aria-pressed={selectedContextId === context.id}
+                key={context.id}
+                onClick={() => {
+                  setSelectedContextId(context.id);
+                  resetRequest();
+                }}
+                type="button"
+              >
+                <CheckCircle aria-hidden="true" size={13} />
+                {context.display_label}
+              </button>
+            ))}
+            <button
+              aria-pressed={usingNewContext}
+              onClick={() => {
+                setSelectedContextId("__new__");
+                resetRequest();
+              }}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={13} />
+              New relationship
+            </button>
+          </div>
+          {usingNewContext ? (
+            <label>
+              <span>New relationship label</span>
+              <input
+                maxLength={200}
+                onChange={(event) => {
+                  setNewContextLabel(event.target.value);
+                  resetRequest();
+                }}
+                placeholder="e.g. VP Product search"
+                value={newContextLabel}
+              />
+            </label>
+          ) : null}
+        </fieldset>
+      ) : null}
+
+      <label className="context-agent-identity-review__reason">
+        <span>
+          Decision note <small>Required</small>
+        </span>
+        <textarea
+          maxLength={500}
+          onChange={(event) => {
+            setReason(event.target.value);
+            resetRequest();
+          }}
+          placeholder="What distinguishes the right person, or what evidence is still missing?"
+          rows={2}
+          value={reason}
+        />
+      </label>
+      {error ? (
+        <p className="context-agent-create__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <footer>
+        <button
+          className="context-secondary-button"
+          disabled={busy || !reason.trim()}
+          onClick={() => void decideIdentity("leave_unresolved")}
+          type="button"
+        >
+          Leave unresolved
+        </button>
+        <button
+          className="context-primary-button context-primary-button--compact"
+          disabled={busy || !bindReady}
+          onClick={() => void decideIdentity("bind_existing")}
+          type="button"
+        >
+          {busy ? (
+            <CircleNotch aria-hidden="true" className="spin" size={16} />
+          ) : (
+            <Check aria-hidden="true" size={16} />
+          )}
+          Confirm identity
+        </button>
+      </footer>
+    </section>
+  );
+}
+
+function AgentCreatePersonCard({
+  onCancel,
+  onCommitted,
+  onDeferred,
+}: {
+  onCancel: () => void;
+  onCommitted: (
+    scope: RelationshipScope,
+    receipts: ResourceCaptureResponse[],
+    outcome:
+      | "created_person"
+      | "created_relationship_context"
+      | "reused_relationship",
+  ) => void;
+  onDeferred: (caseId: string) => void;
+}) {
+  const requestIdRef = useRef<string | null>(null);
+  const handleRequestIdRef = useRef<string | null>(null);
+  const [name, setName] = useState("");
+  const [identityClue, setIdentityClue] = useState("");
+  const [identityClueConfirmed, setIdentityClueConfirmed] =
+    useState(false);
+  const [contextLabel, setContextLabel] = useState("");
+  const [firstNote, setFirstNote] = useState("");
+  const [matches, setMatches] = useState<PersonDirectoryItem[]>([]);
+  const [lookupState, setLookupState] = useState<
+    "error" | "idle" | "loading" | "ready"
+  >("idle");
+  const [lookupRevision, setLookupRevision] = useState(0);
+  const [target, setTarget] = useState<AgentPersonTarget>({
+    mode: "new_person",
+  });
+  const [differentPersonConfirmed, setDifferentPersonConfirmed] =
+    useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const parsedIdentityClue = useMemo(
+    () => parseIdentityHandleQuery(identityClue),
+    [identityClue],
+  );
+  const maskedIdentityClue = parsedIdentityClue
+    ? maskIdentityHandle(
+        parsedIdentityClue.type,
+        parsedIdentityClue.value,
+      )
+    : null;
+  const exactMatches = exactPersonNameMatches(name, matches);
+  const confirmedHandleMatches =
+    confirmedHandlePersonMatches(matches);
+  const expiredHandleMatches = expiredHandlePersonMatches(matches);
+  const newPersonAllowed = canCreateDistinctPerson({
+    differentPersonConfirmed,
+    lookupState,
+    matches,
+    name,
+  });
+  const targetHasContext =
+    target.mode === "existing_context" ||
+    contextLabel.trim().length > 0;
+  const targetSelectable =
+    target.mode === "new_person" ||
+    canSelectPersonForIdentityClue(target.person, matches);
+  const identityChoiceNeedsReview =
+    lookupState === "ready" &&
+    matches.length > 0 &&
+    target.mode === "new_person" &&
+    (matches.length > 1 || confirmedHandleMatches.length > 0);
+  const ready =
+    name.trim().length > 0 &&
+    (identityClue.trim().length === 0 ||
+      parsedIdentityClue !== null) &&
+    targetHasContext &&
+    targetSelectable &&
+    firstNote.trim().length > 0 &&
+    (target.mode !== "new_person" || newPersonAllowed);
+  const reviewReady =
+    identityChoiceNeedsReview &&
+    name.trim().length > 0 &&
+    contextLabel.trim().length > 0 &&
+    firstNote.trim().length > 0;
+
+  useEffect(() => {
+    const nameQuery = name.normalize("NFKC").trim();
+    const clueQuery = parsedIdentityClue
+      ? identityClue.normalize("NFKC").trim()
+      : "";
+    const queries = [...new Set([nameQuery, clueQuery].filter(Boolean))];
+    if (queries.length === 0) {
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void Promise.all(
+        queries.map(async (query) => {
+          const response = await fetch(
+            "/api/local-integration/people/search",
+            {
+              method: "POST",
+              cache: "no-store",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ query }),
+              signal: controller.signal,
+            },
+          );
+          const payload = (await response.json()) as
+            | { people: PersonDirectoryItem[] }
+            | { message?: string };
+          if (!response.ok || !("people" in payload)) {
+            throw new Error(
+              "message" in payload && payload.message
+                ? payload.message
+                : "Existing people could not be checked.",
+            );
+          }
+          return payload.people;
+        }),
+      )
+        .then((groups) => {
+          setMatches(mergePersonDirectoryMatches(groups));
+          setLookupState("ready");
+        })
+        .catch((caught: unknown) => {
+          if (
+            caught instanceof DOMException &&
+            caught.name === "AbortError"
+          ) {
+            return;
+          }
+          setLookupState("error");
+        });
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [
+    identityClue,
+    lookupRevision,
+    name,
+    parsedIdentityClue,
+  ]);
+
+  async function commitPersonSource() {
+    if (!ready) {
+      setError(
+        lookupState === "error"
+          ? "Check existing people before creating a new identity."
+          : "Choose the person, relationship context, and first source.",
+      );
+      return;
+    }
+    requestIdRef.current ??= crypto.randomUUID();
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/local-integration/resources", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: requestIdRef.current,
+          ...agentPersonScopeFields(target, name, contextLabel),
+          type: "note",
+          title:
+            target.mode === "new_person"
+              ? "First recruiter-provided context"
+              : "Agent-attached recruiter context",
+          value: firstNote.trim(),
+        }),
+      });
+      const payload = (await response.json()) as
+        | { receipts: ResourceCaptureResponse[] }
+        | { message?: string };
+      if (!response.ok || !("receipts" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The relationship source could not be saved.",
+        );
+      }
+      const first = payload.receipts[0];
+      if (
+        !first?.identity.person_id ||
+        !first.identity.relationship_context_id
+      ) {
+        throw new Error(
+          "The source still needs identity review before a person page can open.",
+        );
+      }
+      const receipts = [...payload.receipts];
+      if (identityClueConfirmed && parsedIdentityClue) {
+        handleRequestIdRef.current ??= crypto.randomUUID();
+        const handleResponse = await fetch(
+          "/api/local-integration/resources",
+          {
+            method: "POST",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              request_id: handleRequestIdRef.current,
+              scope_mode: "existing",
+              person_id: first.identity.person_id,
+              relationship_context_id:
+                first.identity.relationship_context_id,
+              type: "contact",
+              value: identityClue.trim(),
+              identity_clue_confirmed: true,
+            }),
+          },
+        );
+        const handlePayload = (await handleResponse.json()) as
+          | { receipts: ResourceCaptureResponse[] }
+          | { message?: string };
+        if (
+          !handleResponse.ok ||
+          !("receipts" in handlePayload)
+        ) {
+          throw new Error(
+            "The relationship source was saved, but the confirmed identity clue was not. Review the clue and retry to finish.",
+          );
+        }
+        receipts.push(...handlePayload.receipts);
+      }
+      const personLabel =
+        target.mode === "new_person"
+          ? name.trim()
+          : target.person.display_label;
+      const savedContextLabel =
+        target.mode === "existing_context"
+          ? target.relationshipContext.display_label
+          : contextLabel.trim();
+      onCommitted(
+        {
+          contract_version: first.contract_version,
+          person: {
+            id: first.identity.person_id,
+            display_label: personLabel,
+          },
+          relationship_context: {
+            id: first.identity.relationship_context_id,
+            display_label: savedContextLabel,
+          },
+        },
+        receipts,
+        agentPersonOutcome(target),
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The relationship source could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deferIdentityReview() {
+    if (!reviewReady) {
+      setError(
+        "Add the intended relationship context and first source before saving this identity review.",
+      );
+      return;
+    }
+    requestIdRef.current ??= crypto.randomUUID();
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/local-integration/resources", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: requestIdRef.current,
+          scope_mode: "identity_candidates",
+          candidate_person_ids: matches.map((person) => person.id),
+          contact_name: name.trim(),
+          relationship_context_label: contextLabel.trim(),
+          type: "note",
+          title: "Recruiter source awaiting identity",
+          value: firstNote.trim(),
+        }),
+      });
+      const payload = (await response.json()) as
+        | { receipts: ResourceCaptureResponse[] }
+        | { message?: string };
+      if (!response.ok || !("receipts" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The unresolved source could not be saved.",
+        );
+      }
+      const caseId =
+        payload.receipts[0]?.identity.resolution_case_id ?? null;
+      if (!caseId) {
+        throw new Error(
+          "The source was saved without a resumable identity review case.",
+        );
+      }
+      onDeferred(caseId);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The unresolved source could not be saved.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section
+      aria-labelledby="agent-create-title"
+      className="context-agent-create"
+    >
+      <header>
+        <span>
+          <UserPlus aria-hidden="true" size={16} />
+        </span>
+        <div>
+          <strong id="agent-create-title">
+            Resolve the person before creating
+          </strong>
+          <p>
+            Find an existing identity first, then bind one relationship and
+            source.
+          </p>
+        </div>
+        <button
+          aria-label="Cancel person draft"
+          className="context-icon-button"
+          disabled={busy}
+          onClick={onCancel}
+          type="button"
+        >
+          <X aria-hidden="true" size={15} />
+        </button>
+      </header>
+      {error ? <p className="context-agent-create__error">{error}</p> : null}
+      <label>
+        <span>Person</span>
+        <input
+          autoComplete="off"
+          maxLength={200}
+          onChange={(event) => {
+            const nextName = event.target.value;
+            setName(nextName);
+            setIdentityClueConfirmed(false);
+            setMatches([]);
+            setLookupState(
+              nextName.normalize("NFKC").trim() ||
+                identityClue.normalize("NFKC").trim()
+                ? "loading"
+                : "idle",
+            );
+            setTarget({ mode: "new_person" });
+            setDifferentPersonConfirmed(false);
+            requestIdRef.current = null;
+            handleRequestIdRef.current = null;
+          }}
+          placeholder="e.g. 陈雅宁"
+          value={name}
+        />
+      </label>
+      <label>
+        <span>
+          Known identity clue <small>Optional</small>
+        </span>
+        <input
+          autoComplete="off"
+          maxLength={500}
+          onChange={(event) => {
+            const nextClue = event.target.value;
+            setIdentityClue(nextClue);
+            setIdentityClueConfirmed(false);
+            setMatches([]);
+            setLookupState(
+              name.normalize("NFKC").trim() ||
+                nextClue.normalize("NFKC").trim()
+                ? "loading"
+                : "idle",
+            );
+            setTarget({ mode: "new_person" });
+            setDifferentPersonConfirmed(false);
+            requestIdRef.current = null;
+            handleRequestIdRef.current = null;
+          }}
+          placeholder="Email, phone, LinkedIn URL, or wechat:ID"
+          value={identityClue}
+        />
+        <small>
+          Used only for account-scoped lookup. Raw values are not returned in
+          results.
+        </small>
+      </label>
+      {identityClue.trim() && !parsedIdentityClue ? (
+        <p className="context-agent-create__error">
+          Use an email, phone, public profile URL, or an explicit
+          “wechat:ID”.
+        </p>
+      ) : null}
+      <div
+        className="context-agent-identity-check"
+        data-state={lookupState}
+      >
+        <header>
+          <span>Identity check</span>
+          <i>
+            {lookupState === "loading"
+              ? "Checking"
+              : lookupState === "ready"
+                ? `${matches.length} possible`
+                : lookupState === "error"
+                  ? "Unavailable"
+                  : "Required"}
+          </i>
+        </header>
+        {lookupState === "idle" ? (
+          <p>
+            Enter a name or known identity clue before choosing new or
+            existing.
+          </p>
+        ) : lookupState === "loading" ? (
+          <p>
+            <CircleNotch aria-hidden="true" className="spin" size={13} />
+            Looking only inside this recruiter account.
+          </p>
+        ) : lookupState === "error" ? (
+          <div className="context-agent-identity-error">
+            <p>
+              Existing people could not be checked. New identity creation is
+              paused.
+            </p>
+            <button
+              className="context-secondary-button"
+              onClick={() => {
+                setLookupState("loading");
+                setLookupRevision((value) => value + 1);
+              }}
+              type="button"
+            >
+              Retry identity check
+            </button>
+          </div>
+        ) : matches.length > 0 ? (
+          <div className="context-agent-person-matches">
+            <p>
+              Confirmed handles are current identity evidence. Expired handles
+              remain review clues only; you still make the binding.
+            </p>
+            {matches.map((person) => {
+              const temporalRole =
+                personIdentityTemporalRole(person);
+              const selectable =
+                canSelectPersonForIdentityClue(person, matches);
+              return (
+                <article
+                  data-selectable={selectable}
+                  data-selected={
+                    target.mode !== "new_person" &&
+                    target.person.id === person.id
+                  }
+                  data-temporal-role={temporalRole}
+                  key={person.id}
+                >
+                <header>
+                  <span>{initials(person.display_label)}</span>
+                  <p>
+                    <strong>{person.display_label}</strong>
+                    <small>
+                      {person.context_count}{" "}
+                      {person.context_count === 1
+                        ? "relationship"
+                        : "relationships"}{" "}
+                      · {person.capture_count} sources
+                    </small>
+                  </p>
+                  <i className="context-agent-temporal-status">
+                    {temporalRole === "current" ? (
+                      <>
+                        <ShieldCheck aria-hidden="true" size={12} />
+                        Current clue
+                      </>
+                    ) : temporalRole === "historical" ? (
+                      <>
+                        <Clock aria-hidden="true" size={12} />
+                        Historical clue
+                      </>
+                    ) : (
+                      "Name only"
+                    )}
+                  </i>
+                </header>
+                <ul
+                  aria-label={`Why ${person.display_label} matched`}
+                  className="context-agent-match-reasons"
+                >
+                  {person.identity_matches.map((match) => (
+                    <li
+                      data-kind={match.kind}
+                      key={
+                        match.kind === "name"
+                          ? "name"
+                          : `${match.handle_type}:${match.display_hint}`
+                      }
+                    >
+                      {match.kind === "name" ? (
+                        <>Name match only</>
+                      ) : match.kind === "expired_handle" ? (
+                        <>
+                          <Clock aria-hidden="true" size={12} />
+                          Expired{" "}
+                          {identityHandleLabel(match.handle_type)} ·{" "}
+                          {match.display_hint} · needs a fresh source
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck
+                            aria-hidden="true"
+                            size={12}
+                          />
+                          Confirmed{" "}
+                          {identityHandleLabel(match.handle_type)} ·{" "}
+                          {match.display_hint}
+                          {match.source_resource_id
+                            ? " · source-linked"
+                            : ""}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {temporalRole !== "name_only" ? (
+                  <p className="context-agent-temporal-note">
+                    {selectable
+                      ? temporalRole === "current"
+                        ? "Current source-linked authority. A new source can attach here after your explicit choice."
+                        : "No current owner exists. This historical clue may be reconfirmed only from the fresh source and your explicit choice."
+                      : "Visible for comparison only. It cannot receive this source while another person holds current authority."}
+                  </p>
+                ) : null}
+                <div>
+                  {agentRelationshipContexts(person).map((context) => (
+                    <button
+                      data-active={
+                        target.mode === "existing_context" &&
+                        target.relationshipContext.id === context.id
+                      }
+                      disabled={!selectable}
+                      key={context.id}
+                      onClick={() => {
+                        setTarget({
+                          mode: "existing_context",
+                          person,
+                          relationshipContext: context,
+                        });
+                        setName(person.display_label);
+                        setContextLabel(context.display_label);
+                        setDifferentPersonConfirmed(false);
+                        requestIdRef.current = null;
+                        handleRequestIdRef.current = null;
+                      }}
+                      type="button"
+                    >
+                      <CheckCircle aria-hidden="true" size={13} />
+                      {context.display_label}
+                    </button>
+                  ))}
+                  <button
+                    data-active={
+                      target.mode === "existing_person_new_context" &&
+                      target.person.id === person.id
+                    }
+                    disabled={!selectable}
+                    onClick={() => {
+                      setTarget({
+                        mode: "existing_person_new_context",
+                        person,
+                      });
+                      setName(person.display_label);
+                      setDifferentPersonConfirmed(false);
+                      requestIdRef.current = null;
+                      handleRequestIdRef.current = null;
+                    }}
+                    type="button"
+                  >
+                    <Plus aria-hidden="true" size={13} />
+                    New relationship
+                  </button>
+                </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p>
+            No existing person matched the supplied name or confirmed identity
+            clue. Creating a new identity is available.
+          </p>
+        )}
+        {lookupState === "ready" &&
+        (exactMatches.length > 0 || expiredHandleMatches.length > 0) &&
+        confirmedHandleMatches.length === 0 &&
+        target.mode === "new_person" ? (
+          <label className="context-agent-distinct-person">
+            <input
+              checked={differentPersonConfirmed}
+              onChange={(event) => {
+                setDifferentPersonConfirmed(event.target.checked);
+                requestIdRef.current = null;
+                handleRequestIdRef.current = null;
+              }}
+              type="checkbox"
+            />
+            <span>
+              This is a different person from the existing identity clue
+              <small>
+                {expiredHandleMatches.length > 0
+                  ? "Required because this clue had a prior owner but is no longer current."
+                  : "Required because an exact account-scoped name already exists."}
+              </small>
+            </span>
+          </label>
+        ) : null}
+        {lookupState === "ready" &&
+        confirmedHandleMatches.length > 0 &&
+        target.mode === "new_person" ? (
+          <div
+            className="context-agent-handle-owner"
+            role="note"
+          >
+            <ShieldCheck aria-hidden="true" size={15} />
+            <p>
+              <strong>
+                Current owner:{" "}
+                {confirmedHandleMatches
+                  .map((person) => person.display_label)
+                  .join(", ")}
+              </strong>
+              <small>
+                Choose the current person, remove the clue, or keep this
+                source unresolved. Historical owners stay visible for
+                comparison but cannot receive the source.
+              </small>
+            </p>
+          </div>
+        ) : null}
+        {lookupState === "ready" &&
+        matches.length > 0 &&
+        confirmedHandleMatches.length === 0 &&
+        target.mode !== "new_person" ? (
+          <button
+            className="context-agent-create-distinct"
+            onClick={() => {
+              setTarget({ mode: "new_person" });
+              setContextLabel("");
+              setDifferentPersonConfirmed(false);
+              requestIdRef.current = null;
+              handleRequestIdRef.current = null;
+            }}
+            type="button"
+          >
+            Create a different person instead
+          </button>
+        ) : null}
+      </div>
+      {parsedIdentityClue && maskedIdentityClue ? (
+        <label className="context-agent-distinct-person">
+          <input
+            checked={identityClueConfirmed}
+            disabled={
+              lookupState !== "ready" || identityChoiceNeedsReview
+            }
+            onChange={(event) => {
+              setIdentityClueConfirmed(event.target.checked);
+              handleRequestIdRef.current = null;
+            }}
+            type="checkbox"
+          />
+          <span>
+            Save {maskedIdentityClue} as a confirmed{" "}
+            {identityHandleLabel(parsedIdentityClue.type)} clue
+            <small>
+              {identityChoiceNeedsReview
+                ? "Choose the identity before confirming this clue."
+                : "Stores a hash, masked hint, governed source, and review deadline—not the raw value. Email, phone, and WeChat clues are reviewed annually."}
+            </small>
+          </span>
+        </label>
+      ) : null}
+      <label>
+        <span>Relationship context</span>
+        <input
+          autoComplete="off"
+          disabled={target.mode === "existing_context"}
+          maxLength={200}
+          onChange={(event) => {
+            setContextLabel(event.target.value);
+            requestIdRef.current = null;
+            handleRequestIdRef.current = null;
+          }}
+          placeholder="e.g. VP Product search"
+          value={contextLabel}
+        />
+      </label>
+      <label>
+        <span>First source</span>
+        <textarea
+          maxLength={8_000}
+          onChange={(event) => {
+            setFirstNote(event.target.value);
+            requestIdRef.current = null;
+          }}
+          placeholder="Paste the recruiter-owned note that justifies creating this relationship."
+          rows={3}
+          value={firstNote}
+        />
+      </label>
+      <footer>
+        <p>
+          {target.mode === "existing_context"
+            ? "This attaches the note to the selected existing relationship."
+            : target.mode === "existing_person_new_context"
+              ? "This keeps the existing person and creates only a separate relationship context."
+              : "This creates a distinct person only after the account-scoped identity check."}{" "}
+          It never merges or contacts anyone.
+        </p>
+        <div className="context-agent-create__footer-actions">
+          {reviewReady ? (
+            <button
+              className="context-secondary-button"
+              disabled={busy}
+              onClick={() => void deferIdentityReview()}
+              type="button"
+            >
+              Save for identity review
+            </button>
+          ) : null}
+          <button
+            className="context-primary-button context-primary-button--compact"
+            disabled={!ready || busy}
+            onClick={() => void commitPersonSource()}
+            type="button"
+          >
+            {busy ? (
+              <CircleNotch aria-hidden="true" className="spin" size={16} />
+            ) : (
+              <ArrowRight aria-hidden="true" size={16} />
+            )}
+            {busy
+              ? "Saving"
+              : target.mode === "existing_context"
+                ? "Attach source"
+                : target.mode === "existing_person_new_context"
+                  ? "Add relationship"
+                  : "Create new person"}
+          </button>
+        </div>
+      </footer>
+    </section>
+  );
+}
+
+function ExternalEffectReview({
+  history,
+}: {
+  history: RelationshipAgentHistory | null;
+}) {
+  const followUps = history?.external_effect_follow_ups ?? [];
+  if (followUps.length === 0) {
+    return null;
+  }
+  const unresolvedCount = followUps.filter(
+    (followUp) =>
+      followUp.action_status === "unknown" ||
+      followUp.action_status === "executing",
+  ).length;
+  return (
+    <section
+      aria-labelledby="external-effect-review-title"
+      className="context-effect-review"
+      id="external-effect-review"
+    >
+      <header className="context-effect-review__heading">
+        <div>
+          <p className="eyebrow">EXTERNAL EFFECT REVIEW</p>
+          <h2 id="external-effect-review-title">
+            Check what happened outside Talent Signal.
+          </h2>
+          <p>
+            Source authorization ended after these effects were attempted.
+            The records remain visible because authorization loss cannot undo
+            something that may already exist elsewhere.
+          </p>
+        </div>
+        <span data-has-unresolved={unresolvedCount > 0}>
+          <Warning aria-hidden="true" size={16} />
+          {unresolvedCount > 0
+            ? `${unresolvedCount} ${
+                unresolvedCount === 1 ? "result" : "results"
+              } unresolved`
+            : "Review complete"}
+        </span>
+      </header>
+      <div className="context-effect-review__list">
+        {followUps.map((followUp) => {
+          const unresolved =
+            followUp.action_status === "unknown" ||
+            followUp.action_status === "executing";
+          const resultLabel = unresolved
+            ? followUp.action_status === "unknown"
+              ? "Result unknown"
+              : "Still executing"
+            : followUp.outcome?.status === "verified"
+              ? "Completed · verified"
+              : "Completed · result recorded";
+          const latestEvidence = followUp.outcome
+            ? followUp.outcome.summary
+            : followUp.observation
+              ? `Destination observation was ${followUp.observation.match_status}.`
+              : followUp.attempt
+                ? `Latest attempt remains ${followUp.attempt.status}.`
+                : "No external observation is recorded.";
+          return (
+            <article
+              data-state={unresolved ? "unresolved" : "completed"}
+              key={followUp.action_id}
+            >
+              <header>
+                <span>{resultLabel}</span>
+                <time dateTime={followUp.authorization.changed_at}>
+                  Authorization {followUp.authorization.state}{" "}
+                  {formatDate(followUp.authorization.changed_at)}
+                </time>
+              </header>
+              <h3>
+                {followUp.target ??
+                  followUp.action_type.replaceAll("_", " ")}
+              </h3>
+              {followUp.reason ? <p>{followUp.reason}</p> : null}
+              <div className="context-effect-review__decision">
+                {unresolved ? (
+                  <Warning aria-hidden="true" size={17} />
+                ) : (
+                  <CheckCircle aria-hidden="true" size={17} />
+                )}
+                <p>
+                  <strong>
+                    {unresolved
+                      ? "Reconcile before retrying."
+                      : "Recorded, not represented as undone."}
+                  </strong>
+                  <span>
+                    {unresolved
+                      ? "Check the real destination first. No observation means the system cannot safely call this failed or completed."
+                      : "The external result remains part of history even though its source can no longer authorize future work."}
+                  </span>
+                </p>
+              </div>
+              <dl>
+                <div>
+                  <dt>Destination</dt>
+                  <dd>
+                    {followUp.destination_key ??
+                      "No destination recorded"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Latest evidence</dt>
+                  <dd>{latestEvidence}</dd>
+                </div>
+                <div>
+                  <dt>Attempt</dt>
+                  <dd>
+                    {followUp.attempt
+                      ? `${followUp.attempt.status} · ${formatDate(
+                          followUp.attempt.started_at,
+                        )}`
+                      : "No attempt record"}
+                  </dd>
+                </div>
+              </dl>
+              <footer>
+                <ShieldCheck aria-hidden="true" size={14} />
+                Nothing will contact the person or change the destination
+                without a new recruiter decision.
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function AgentHistory({
+  history,
+  onReviewMerge,
+}: {
+  history: RelationshipAgentHistory | null;
+  onReviewMerge: (operationId: string) => void;
+}) {
+  const followUps = history?.external_effect_follow_ups ?? [];
+  if (
+    !history ||
+    (history.operations.length === 0 && followUps.length === 0)
+  ) {
+    return null;
+  }
+  const latest = history.operations[0];
+  return (
+    <details className="context-agent-history">
+      <summary>
+        {followUps.length > 0 ? (
+          <Warning aria-hidden="true" size={15} />
+        ) : (
+          <Clock aria-hidden="true" size={15} />
+        )}
+        <span>
+          <strong>Relationship history</strong>
+          <small>
+            {followUps.length > 0
+              ? `${followUps.length} preserved external ${
+                  followUps.length === 1 ? "effect needs" : "effects need"
+                } your review`
+              : latest
+                ? `${latest.title} · ${formatDate(latest.occurred_at)}`
+                : "Governed operations"}
+          </small>
+        </span>
+        <i>{history.operations.length + followUps.length}</i>
+      </summary>
+      {followUps.length > 0 ? (
+        <a
+          className="context-agent-follow-up-link"
+          href="#external-effect-review"
+        >
+          <span>
+            <Warning aria-hidden="true" size={15} />
+          </span>
+          <p>
+            <strong>Review preserved external effects</strong>
+            <small>
+              Compare destination evidence on the living person page.
+            </small>
+          </p>
+          <ArrowRight aria-hidden="true" size={15} />
+        </a>
+      ) : null}
+      <ol>
+        {history.operations.slice(0, 12).map((operation) => (
+          <li data-status={operation.status} key={operation.id}>
+            <span aria-hidden="true" />
+            <article>
+              <header>
+                <strong>{operation.title}</strong>
+                <time dateTime={operation.occurred_at}>
+                  {formatDate(operation.occurred_at)}
+                </time>
+              </header>
+              <p>{operation.detail}</p>
+              <footer>
+                <span>{operation.status.replaceAll("_", " ")}</span>
+                <span>
+                  {operation.actor_kind === "recruiter"
+                    ? "Recruiter decision"
+                    : "System projection"}
+                </span>
+                {operation.references.knowledge_snapshot_id ? (
+                  <span>
+                    Snapshot{" "}
+                    {operation.references.knowledge_snapshot_id.slice(
+                      0,
+                      8,
+                    )}
+                  </span>
+                ) : null}
+                {operation.kind === "identity_merge" &&
+                operation.status === "completed" &&
+                operation.provenance.event_type ===
+                  "identity.people_merged" &&
+                operation.references.person_merge_operation_id ? (
+                  <button
+                    onClick={() =>
+                      onReviewMerge(
+                        operation.references
+                          .person_merge_operation_id as string,
+                      )
+                    }
+                    type="button"
+                  >
+                    Review reversal
+                    <ArrowRight aria-hidden="true" size={13} />
+                  </button>
+                ) : null}
+              </footer>
+            </article>
+          </li>
+        ))}
+      </ol>
+      {history.operations.length > 12 ? (
+        <p>
+          Showing the latest 12 of {history.operations.length} governed
+          operations.
+        </p>
+      ) : null}
+    </details>
+  );
+}
+
+function PersonMergeReview({
+  currentPerson,
+  forceOpen,
+  onCloseRequest,
+  onMutation,
+  reversalPreview,
+}: {
+  currentPerson: RelationshipScope["person"];
+  forceOpen: boolean;
+  onCloseRequest: () => void;
+  onMutation: (
+    response: PersonMergeWorkflowResponse,
+    sourceLabel: string,
+  ) => void;
+  reversalPreview: PersonMergeReversalPreview | null;
+}) {
+  const mergeRequestRef = useRef<string | null>(null);
+  const reversalRequestRef = useRef<string | null>(null);
+  const searchControllerRef = useRef<AbortController | null>(null);
+  const [open, setOpen] = useState(false);
+  const [people, setPeople] = useState<PersonDirectoryItem[]>([]);
+  const [query, setQuery] = useState("");
+  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [preview, setPreview] = useState<PersonMergePreview | null>(null);
+  const [result, setResult] =
+    useState<PersonMergeWorkflowResponse | null>(null);
+  const [reason, setReason] = useState("");
+  const [reviewed, setReviewed] = useState(false);
+  const [reversalReason, setReversalReason] = useState("");
+  const [reversalReviewed, setReversalReviewed] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const visible = open || forceOpen;
+
+  useEffect(() => {
+    if (!visible || reversalPreview || people.length > 0) {
+      return;
+    }
+    const controller = new AbortController();
+    void fetch("/api/local-integration/people", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as
+          | { people: PersonDirectoryItem[] }
+          | { message?: string };
+        if (!response.ok || !("people" in payload)) {
+          throw new Error(
+            "message" in payload && payload.message
+              ? payload.message
+              : "People could not be loaded for duplicate review.",
+          );
+        }
+        setPeople(
+          payload.people.filter(
+            (person) => person.id !== currentPerson.id,
+          ),
+        );
+      })
+      .catch((caught: unknown) => {
+        if (
+          caught instanceof DOMException &&
+          caught.name === "AbortError"
+        ) {
+          return;
+        }
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "People could not be loaded for duplicate review.",
+        );
+      });
+    return () => controller.abort();
+  }, [currentPerson.id, people.length, reversalPreview, visible]);
+
+  const matchingPeople = useMemo(() => {
+    const normalized = query.normalize("NFKC").trim().toLowerCase();
+    return people
+      .filter(
+        (person) =>
+          !normalized ||
+          person.display_label
+            .normalize("NFKC")
+            .toLowerCase()
+            .includes(normalized) ||
+          person.contexts.some((context) =>
+            context.display_label
+              .normalize("NFKC")
+              .toLowerCase()
+              .includes(normalized),
+          ),
+      )
+      .slice(0, 8);
+  }, [people, query]);
+  const selectedPerson =
+    people.find((person) => person.id === selectedPersonId) ?? null;
+  const compilationFailures =
+    result?.compilations.filter(
+      (compilation) => compilation.status === "failed",
+    ) ?? [];
+
+  async function searchPeople(value: string) {
+    setQuery(value);
+    const normalized = value.normalize("NFKC").trim();
+    if (normalized.length < 2) {
+      return;
+    }
+    searchControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
+    try {
+      const response = await fetch(
+        "/api/local-integration/people/search",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: normalized }),
+          signal: controller.signal,
+        },
+      );
+      const payload = (await response.json()) as
+        | { people: PersonDirectoryItem[] }
+        | { message?: string };
+      if (!response.ok || !("people" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The people directory search could not be completed.",
+        );
+      }
+      setPeople(
+        payload.people.filter(
+          (person) => person.id !== currentPerson.id,
+        ),
+      );
+    } catch (caught) {
+      if (
+        caught instanceof DOMException &&
+        caught.name === "AbortError"
+      ) {
+        return;
+      }
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The people directory search could not be completed.",
+      );
+    }
+  }
+
+  async function choosePerson(person: PersonDirectoryItem) {
+    setSelectedPersonId(person.id);
+    setPreview(null);
+    setResult(null);
+    setReason("");
+    setReviewed(false);
+    setError("");
+    mergeRequestRef.current = null;
+    setBusy("Comparing evidence");
+    try {
+      const parameters = new URLSearchParams({
+        source_person_id: person.id,
+        target_person_id: currentPerson.id,
+      });
+      const response = await fetch(
+        `/api/local-integration/person-merges?${parameters.toString()}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | PersonMergePreview
+        | { message?: string };
+      if (!response.ok || !("preview_digest" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The duplicate review could not be prepared.",
+        );
+      }
+      setPreview(payload);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The duplicate review could not be prepared.",
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function applyMerge() {
+    if (
+      !preview ||
+      !selectedPerson ||
+      preview.blockers.length > 0 ||
+      !reviewed ||
+      !reason.trim()
+    ) {
+      setError(
+        "Review the evidence differences and record why these pages represent one person.",
+      );
+      return;
+    }
+    mergeRequestRef.current ??= crypto.randomUUID();
+    setBusy("Merging people");
+    setError("");
+    try {
+      const response = await fetch(
+        "/api/local-integration/person-merges",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idempotency_key: mergeRequestRef.current,
+            source_person_id: preview.source_person.id,
+            target_person_id: preview.target_person.id,
+            expected_source_version: preview.source_person.version,
+            expected_target_version: preview.target_person.version,
+            expected_preview_digest: preview.preview_digest,
+            decision: "merge_people",
+            reason: reason.trim(),
+          }),
+        },
+      );
+      const payload = (await response.json()) as
+        | PersonMergeWorkflowResponse
+        | { message?: string };
+      if (!response.ok || !("operation_id" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The person merge was not applied.",
+        );
+      }
+      setResult(payload);
+      onMutation(payload, selectedPerson.display_label);
+    } catch (caught) {
+      mergeRequestRef.current = null;
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The person merge was not applied.",
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function reverseMerge() {
+    const operationId =
+      result?.status === "applied"
+        ? result.operation_id
+        : reversalPreview?.reversal_available
+          ? reversalPreview.operation_id
+          : null;
+    if (
+      !operationId ||
+      !reversalReviewed ||
+      !reversalReason.trim()
+    ) {
+      setError(
+        "Confirm the relationship split and record why the merge should be reversed.",
+      );
+      return;
+    }
+    reversalRequestRef.current ??= crypto.randomUUID();
+    setBusy("Reversing merge");
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/person-merges/${operationId}/reversal`,
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idempotency_key: reversalRequestRef.current,
+            decision: "reverse_person_merge",
+            reason: reversalReason.trim(),
+          }),
+        },
+      );
+      const payload = (await response.json()) as
+        | PersonMergeWorkflowResponse
+        | { message?: string };
+      if (!response.ok || !("operation_id" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The person merge could not be reversed.",
+        );
+      }
+      setResult(payload);
+      onMutation(
+        payload,
+        selectedPerson?.display_label ??
+          preview?.source_person.display_label ??
+          reversalPreview?.source_person.display_label ??
+          "The prior person",
+      );
+    } catch (caught) {
+      reversalRequestRef.current = null;
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The person merge could not be reversed.",
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function closeReview() {
+    setOpen(false);
+    onCloseRequest();
+    searchControllerRef.current?.abort();
+    setQuery("");
+    setSelectedPersonId("");
+    setPreview(null);
+    setResult(null);
+    setReason("");
+    setReviewed(false);
+    setReversalReason("");
+    setReversalReviewed(false);
+    setError("");
+    mergeRequestRef.current = null;
+    reversalRequestRef.current = null;
+  }
+
+  if (!visible) {
+    return (
+      <section className="context-person-merge context-person-merge--closed">
+        <span>
+          <UserPlus aria-hidden="true" size={17} />
+        </span>
+        <p>
+          <strong>Possible duplicate?</strong>
+          <small>
+            Compare identity evidence before combining relationship memory.
+          </small>
+        </p>
+        <button
+          className="context-secondary-button"
+          onClick={() => setOpen(true)}
+          type="button"
+        >
+          Review duplicate
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      aria-labelledby="person-merge-title"
+      className="context-person-merge"
+      id="person-merge-review"
+    >
+      <header className="context-person-merge__heading">
+        <div>
+          <p className="eyebrow">
+            {reversalPreview
+              ? "IDENTITY RECOVERY"
+              : "IDENTITY MAINTENANCE"}
+          </p>
+          <h2 id="person-merge-title">
+            {reversalPreview
+              ? "Review a prior person merge"
+              : "Review a possible duplicate"}
+          </h2>
+          {reversalPreview ? (
+            <p>
+              Recheck the current relationship state before restoring{" "}
+              {reversalPreview.source_person.display_label} as a separate
+              person. History alone never authorizes the split.
+            </p>
+          ) : (
+            <p>
+              Keep {currentPerson.display_label} as the stable page. The
+              selected page, its relationship contexts, and governed sources
+              move here only after your confirmation.
+            </p>
+          )}
+        </div>
+        <button
+          aria-label="Close duplicate review"
+          className="context-icon-button"
+          disabled={Boolean(busy)}
+          onClick={closeReview}
+          type="button"
+        >
+          <X aria-hidden="true" size={17} />
+        </button>
+      </header>
+
+      {!result ? reversalPreview ? (
+        <div className="context-person-merge__preview context-person-merge__reversal">
+          <div className="context-person-merge__direction">
+            <article data-target="true">
+              <span>Current retained page</span>
+              <strong>
+                {reversalPreview.target_person.display_label}
+              </strong>
+              <small>Current person and old-link destination</small>
+            </article>
+            <ArrowRight aria-hidden="true" size={19} />
+            <article>
+              <span>Restore separately</span>
+              <strong>
+                {reversalPreview.source_person.display_label}
+              </strong>
+              <small>
+                {reversalPreview.contexts_to_restore.length} relationship{" "}
+                {reversalPreview.contexts_to_restore.length === 1
+                  ? "context"
+                  : "contexts"}
+              </small>
+            </article>
+          </div>
+
+          <div className="context-person-merge__inventory">
+            <article>
+              <span>Relationship ownership to restore</span>
+              <ul>
+                {reversalPreview.contexts_to_restore.map((context) => (
+                  <li key={context.id}>
+                    <span>{context.display_label}</span>
+                    <small>
+                      {context.active_capture_count}{" "}
+                      {context.active_capture_count === 1
+                        ? "source"
+                        : "sources"}{" "}
+                      · {context.active_fact_count} confirmed facts
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            </article>
+            <article>
+              <span>Original recruiter decision</span>
+              <strong>
+                Merged {formatDate(reversalPreview.decided_at)}
+              </strong>
+              <p>{reversalPreview.original_reason}</p>
+              <p>
+                Operation {reversalPreview.operation_id.slice(0, 8)} ·{" "}
+                current status {reversalPreview.status}
+              </p>
+            </article>
+          </div>
+
+          {reversalPreview.blockers.length > 0 ? (
+            <div
+              className="context-person-merge__blockers"
+              role="alert"
+            >
+              <Warning aria-hidden="true" size={18} />
+              <div>
+                <strong>Automatic reversal paused</strong>
+                {reversalPreview.blockers.map((blocker) => (
+                  <p key={blocker.code}>
+                    {blocker.message} ({blocker.count})
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="context-person-merge__decision">
+              <label htmlFor="person-merge-history-reversal-reason">
+                Why should these people be separate now?
+              </label>
+              <textarea
+                id="person-merge-history-reversal-reason"
+                onChange={(event) => {
+                  setReversalReason(event.target.value);
+                  reversalRequestRef.current = null;
+                }}
+                placeholder="Record the recruiter-observed correction basis."
+                rows={3}
+                value={reversalReason}
+              />
+              <label className="context-person-merge__check">
+                <input
+                  checked={reversalReviewed}
+                  onChange={(event) =>
+                    setReversalReviewed(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                <span>
+                  I reviewed the current relationship ownership and the
+                  original merge basis. Restore{" "}
+                  {reversalPreview.source_person.display_label} only as the
+                  separate person recorded by this operation.
+                </span>
+              </label>
+              <button
+                className="context-secondary-button"
+                disabled={
+                  Boolean(busy) ||
+                  !reversalReviewed ||
+                  !reversalReason.trim()
+                }
+                onClick={() => void reverseMerge()}
+                type="button"
+              >
+                {busy === "Reversing merge" ? (
+                  <CircleNotch
+                    aria-hidden="true"
+                    className="context-spin"
+                    size={17}
+                  />
+                ) : (
+                  <Prohibit aria-hidden="true" size={17} />
+                )}
+                Restore separate pages
+              </button>
+              <small>
+                This rechecks canonical state at execution time and performs no
+                external write.
+              </small>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="context-person-merge__picker">
+            <label htmlFor="person-merge-query">
+              Find the page that may be a duplicate
+            </label>
+            <input
+              autoComplete="off"
+              id="person-merge-query"
+              onChange={(event) =>
+                void searchPeople(event.target.value)
+              }
+              placeholder="Name or relationship context"
+              type="search"
+              value={query}
+            />
+            <div className="context-person-merge__people">
+              {matchingPeople.map((person) => (
+                <button
+                  aria-pressed={selectedPersonId === person.id}
+                  data-selected={selectedPersonId === person.id}
+                  disabled={Boolean(busy)}
+                  key={person.id}
+                  onClick={() => void choosePerson(person)}
+                  type="button"
+                >
+                  <span aria-hidden="true">
+                    {person.display_label.trim().slice(0, 1).toUpperCase()}
+                  </span>
+                  <p>
+                    <strong>{person.display_label}</strong>
+                    <small>
+                      {person.context_count} relationship{" "}
+                      {person.context_count === 1 ? "context" : "contexts"} ·{" "}
+                      {person.capture_count} governed{" "}
+                      {person.capture_count === 1 ? "source" : "sources"}
+                    </small>
+                  </p>
+                  <ArrowRight aria-hidden="true" size={15} />
+                </button>
+              ))}
+              {!busy && matchingPeople.length === 0 ? (
+                <p>No other active person pages match this search.</p>
+              ) : null}
+            </div>
+          </div>
+
+          {preview ? (
+            <div className="context-person-merge__preview">
+              <div className="context-person-merge__direction">
+                <article>
+                  <span>Fold in</span>
+                  <strong>{preview.source_person.display_label}</strong>
+                  <small>
+                    {preview.contexts_to_move.length} relationship{" "}
+                    {preview.contexts_to_move.length === 1
+                      ? "context"
+                      : "contexts"}
+                  </small>
+                </article>
+                <ArrowRight aria-hidden="true" size={19} />
+                <article data-target="true">
+                  <span>Retain</span>
+                  <strong>{preview.target_person.display_label}</strong>
+                  <small>URL and person identity stay stable</small>
+                </article>
+              </div>
+
+              <div className="context-person-merge__inventory">
+                <article>
+                  <span>Relationship memory moving</span>
+                  <strong>
+                    {preview.active_capture_count} governed sources ·{" "}
+                    {preview.active_identity_handle_count} identity clues
+                  </strong>
+                  <ul>
+                    {preview.contexts_to_move.map((context) => (
+                      <li key={context.id}>
+                        <span>{context.display_label}</span>
+                        <small>
+                          {context.active_capture_count}{" "}
+                          {context.active_capture_count === 1
+                            ? "source"
+                            : "sources"}{" "}
+                          ·{" "}
+                          {context.active_fact_count} confirmed facts
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+                <article>
+                  <span>Differences to review</span>
+                  {preview.review_items.length > 0 ? (
+                    <ul>
+                      {preview.review_items.map((item, index) => (
+                        <li key={`${item.kind}:${index}`}>
+                          <span>{item.title}</span>
+                          <small>
+                            {item.detail} · {item.evidence_ids.length} evidence{" "}
+                            {item.evidence_ids.length === 1
+                              ? "reference"
+                              : "references"}
+                          </small>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>
+                      No conflicting labels, contextual facts, or confirmed
+                      identity clues were found.
+                    </p>
+                  )}
+                </article>
+              </div>
+
+              {preview.blockers.length > 0 ? (
+                <div
+                  className="context-person-merge__blockers"
+                  role="alert"
+                >
+                  <Warning aria-hidden="true" size={18} />
+                  <div>
+                    <strong>Merge paused</strong>
+                    {preview.blockers.map((blocker) => (
+                      <p key={blocker.code}>
+                        {blocker.message} ({blocker.count})
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="context-person-merge__decision">
+                  <label htmlFor="person-merge-reason">
+                    Why do these pages represent one person?
+                  </label>
+                  <textarea
+                    id="person-merge-reason"
+                    onChange={(event) => {
+                      setReason(event.target.value);
+                      mergeRequestRef.current = null;
+                    }}
+                    placeholder="Record the recruiter-observed identity basis."
+                    rows={3}
+                    value={reason}
+                  />
+                  <label className="context-person-merge__check">
+                    <input
+                      checked={reviewed}
+                      onChange={(event) =>
+                        setReviewed(event.target.checked)
+                      }
+                      type="checkbox"
+                    />
+                    <span>
+                      I reviewed the labels, relationship contexts, source
+                      counts, and identity differences above. Keep{" "}
+                      {currentPerson.display_label} as the stable page.
+                    </span>
+                  </label>
+                  <button
+                    className="context-primary-button"
+                    disabled={
+                      Boolean(busy) || !reviewed || !reason.trim()
+                    }
+                    onClick={() => void applyMerge()}
+                    type="button"
+                  >
+                    {busy === "Merging people" ? (
+                      <CircleNotch
+                        aria-hidden="true"
+                        className="context-spin"
+                        size={17}
+                      />
+                    ) : (
+                      <UserPlus aria-hidden="true" size={17} />
+                    )}
+                    Merge into {currentPerson.display_label}
+                  </button>
+                  <small>
+                    This changes internal identity and Wiki memory only. It
+                    sends no message and performs no external write.
+                  </small>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div className="context-person-merge__receipt">
+          <div data-status={result.status}>
+            {result.status === "applied" ? (
+              <CheckCircle aria-hidden="true" size={22} weight="fill" />
+            ) : (
+              <AddressBook aria-hidden="true" size={22} />
+            )}
+            <p>
+              <strong>
+                {result.status === "applied"
+                  ? "One living person page retained"
+                  : "Separate person pages restored"}
+              </strong>
+              <small>
+                Operation {result.operation_id.slice(0, 8)} ·{" "}
+                {result.affected_relationship_context_ids.length} contexts ·{" "}
+                {result.captures_rebound} governed sources
+              </small>
+            </p>
+          </div>
+          <p>
+            {result.compilations.length - compilationFailures.length} of{" "}
+            {result.compilations.length} relationship Wikis recompiled
+            successfully.
+            {compilationFailures.length > 0
+              ? ` ${compilationFailures.length} need a safe retry; source ownership is already preserved.`
+              : ""}
+          </p>
+
+          {result.status === "applied" && result.reversal_available ? (
+            <details>
+              <summary>Undo this merge</summary>
+              <p>
+                Reversal restores the prior person and relationship ownership.
+                It stops if new evidence now depends on a moved context.
+              </p>
+              <label htmlFor="person-merge-reversal-reason">
+                Why should these people be separate?
+              </label>
+              <textarea
+                id="person-merge-reversal-reason"
+                onChange={(event) => {
+                  setReversalReason(event.target.value);
+                  reversalRequestRef.current = null;
+                }}
+                rows={3}
+                value={reversalReason}
+              />
+              <label className="context-person-merge__check">
+                <input
+                  checked={reversalReviewed}
+                  onChange={(event) =>
+                    setReversalReviewed(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                <span>
+                  I reviewed the split and understand that the earlier person
+                  page and its relationship contexts will return.
+                </span>
+              </label>
+              <button
+                className="context-secondary-button"
+                disabled={
+                  Boolean(busy) ||
+                  !reversalReviewed ||
+                  !reversalReason.trim()
+                }
+                onClick={() => void reverseMerge()}
+                type="button"
+              >
+                {busy === "Reversing merge" ? (
+                  <CircleNotch
+                    aria-hidden="true"
+                    className="context-spin"
+                    size={17}
+                  />
+                ) : (
+                  <Prohibit aria-hidden="true" size={17} />
+                )}
+                Restore separate pages
+              </button>
+            </details>
+          ) : (
+            <button
+              className="context-secondary-button"
+              onClick={closeReview}
+              type="button"
+            >
+              Done
+            </button>
+          )}
+        </div>
+      )}
+
+      {busy && busy !== "Merging people" && busy !== "Reversing merge" ? (
+        <p className="context-person-merge__progress" role="status">
+          <CircleNotch
+            aria-hidden="true"
+            className="context-spin"
+            size={15}
+          />
+          {busy}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="context-person-merge__error" role="alert">
+          <Warning aria-hidden="true" size={15} />
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+export function RelationshipWorkspaceApp({
+  initialAgentHistory,
+  initialIdentityResolutionCase,
+  initialWorkspace,
+  initialRelationshipScope,
+  initialError,
+  user,
+}: Props) {
+  const [agentHistory, setAgentHistory] = useState(initialAgentHistory);
+  const [workspace, setWorkspace] = useState(initialWorkspace);
+  const [relationshipScope, setRelationshipScope] = useState(
+    initialRelationshipScope,
+  );
+  const [identityResolutionCase, setIdentityResolutionCase] = useState(
+    initialIdentityResolutionCase,
+  );
+  const [error, setError] = useState(initialError ?? "");
+  const [busy, setBusy] = useState("");
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [agentCreateOpen, setAgentCreateOpen] = useState(false);
+  const [personMergeRequested, setPersonMergeRequested] = useState(false);
+  const [personMergeReversalPreview, setPersonMergeReversalPreview] =
+    useState<PersonMergeReversalPreview | null>(null);
+  const [resourceComposerOpen, setResourceComposerOpen] = useState(false);
+  const chatRequestRef = useRef<{
+    objective: string;
+    requestId: string;
+  } | null>(null);
+  const [chatObjective, setChatObjective] = useState(
+    "What should I remember and do before the next conversation?",
+  );
+  const [submittedChatObjective, setSubmittedChatObjective] = useState("");
+  const [chatResponse, setChatResponse] = useState<ChatTaskResponse | null>(
+    null,
+  );
+  const [agentOperation, setAgentOperation] = useState<{
+    detail: string;
+    status: "completed" | "no_change" | "staged";
+    title: string;
+  } | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deletionSummary, setDeletionSummary] = useState<{
+    derivatives: number;
+    lineage: number;
+  } | null>(null);
+  const [announcement, setAnnouncement] = useState(
+    initialIdentityResolutionCase
+      ? "Identity review resumed."
+      : initialWorkspace || initialRelationshipScope
+      ? "Contact context loaded."
+      : "No contact context is open.",
+  );
+  const activeScope = workspace
+    ? {
+        person: {
+          id: workspace.subject.id,
+          display_label: workspace.subject.display_label,
+        },
+        relationship_context: {
+          id: workspace.assignment.id,
+          display_label: workspace.assignment.display_label,
+        },
+      }
+    : relationshipScope;
+
+  const assertions = workspace?.analysis.assertions ?? [];
+  const pendingCount = assertions.filter(
+    (assertion) => assertion.review_status === "pending",
+  ).length;
+  const confirmedCount = assertions.filter(
+    (assertion) => assertion.review_status === "confirmed",
+  ).length;
+  const reviewedCount = assertions.filter((assertion) =>
+    ["confirmed", "dismissed", "unresolved"].includes(
+      assertion.review_status,
+    ),
+  ).length;
+  const action = workspace?.analysis.action ?? null;
+  const requiredFactsConfirmed =
+    action !== null &&
+    action.required_assertion_ids.every((id) =>
+      assertions.some(
+        (assertion) =>
+          assertion.id === id && assertion.review_status === "confirmed",
+      ),
+    );
+  const approval = workspace?.latest_approval ?? null;
+  const effect = workspace?.latest_effect ?? null;
+
+  const evidenceById = useMemo(
+    () =>
+      new Map(
+        (workspace?.capture.messages ?? []).map((message) => [
+          message.id,
+          message,
+        ]),
+      ),
+    [workspace],
+  );
+
+  const timeline = useMemo(() => {
+    if (!workspace) {
+      return [];
+    }
+    const items = [
+      {
+        id: "capture",
+        label: "Evidence captured",
+        detail: `${workspace.capture.messages.length} reviewed messages`,
+        time: workspace.capture.created_at,
+        state: "source",
+      },
+      ...workspace.confirmed_state.assertions.map((state) => ({
+        id: state.id,
+        label: `${fieldLabel(state.field)} confirmed`,
+        detail: state.value,
+        time: workspace.analysis.created_at,
+        state: "confirmed",
+      })),
+    ];
+    if (approval) {
+      items.push({
+        id: approval.id,
+        label:
+          approval.status === "active"
+            ? "Next move approved"
+            : `Approval ${approval.status}`,
+        detail: `Action version ${approval.action_version}`,
+        time: approval.granted_at,
+        state: "approval",
+      });
+    }
+    if (effect?.outcome) {
+      items.push({
+        id: effect.outcome.id,
+        label:
+          effect.outcome.status === "verified"
+            ? "Outcome verified"
+            : `Outcome ${effect.outcome.status}`,
+        detail: effect.outcome.summary,
+        time: effect.outcome.created_at,
+        state: effect.outcome.status,
+      });
+    }
+    return items.sort(
+      (left, right) =>
+        new Date(right.time).getTime() - new Date(left.time).getTime(),
+    );
+  }, [approval, effect, workspace]);
+
+  async function refreshAgentHistory(
+    personId = activeScope?.person.id,
+    relationshipContextId =
+      activeScope?.relationship_context.id,
+  ) {
+    if (!personId || !relationshipContextId) {
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/local-integration/people/${encodeURIComponent(
+          personId,
+        )}/contexts/${encodeURIComponent(
+          relationshipContextId,
+        )}/agent-history`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | RelationshipAgentHistory
+        | { message?: string };
+      if (response.ok && "operations" in payload) {
+        setAgentHistory(payload);
+      }
+    } catch {
+      // A refresh failure never replaces previously verified history.
+    }
+  }
+
+  async function mutate(
+    path: string,
+    options: RequestInit,
+    label: string,
+  ) {
+    setBusy(label);
+    setError("");
+    setAnnouncement(`${label}.`);
+    try {
+      const response = await fetch(path, {
+        cache: "no-store",
+        ...options,
+        headers: {
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...options.headers,
+        },
+      });
+      const payload = (await response.json()) as
+        | WorkspaceReviewResponse
+        | {
+            workspace?: WorkspaceReviewResponse;
+            code?: string;
+            message?: string;
+          };
+      if (!response.ok) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "Canonical state could not be updated.",
+        );
+      }
+      const next =
+        "workspace" in payload && payload.workspace
+          ? payload.workspace
+          : (payload as WorkspaceReviewResponse);
+      setWorkspace(next);
+      setChatResponse(null);
+      chatRequestRef.current = null;
+      setAnnouncement("Contact context updated.");
+      return next;
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Canonical state could not be updated.",
+      );
+      setAnnouncement("The update failed. Prior state remains visible.");
+      return null;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function decide(
+    assertionId: string,
+    version: number,
+    decision: "confirm" | "dismiss" | "leave_unresolved",
+    correctedValue?: string,
+  ) {
+    if (!workspace) {
+      return;
+    }
+    const next = await mutate(
+      `/api/local-integration/assertions/${assertionId}/decisions`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          capture_id: workspace.capture.id,
+          decision,
+          expected_assertion_version: version,
+          ...(correctedValue?.trim()
+            ? { corrected_value: correctedValue.trim() }
+            : {}),
+        }),
+      },
+      "Saving fact decision",
+    );
+    if (next) {
+      setEditing(null);
+    }
+  }
+
+  async function deleteCapture() {
+    if (!workspace) {
+      return;
+    }
+    setBusy("Deleting governed source");
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/captures/${workspace.capture.id}/deletion`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as {
+        deletion?: { derivatives_deleted: number };
+        lineage?: { lineage: unknown[] };
+        message?: string;
+      };
+      if (!response.ok || !payload.deletion || !payload.lineage) {
+        throw new Error(
+          payload.message ?? "The governed source could not be deleted.",
+        );
+      }
+      setDeletionSummary({
+        derivatives: payload.deletion.derivatives_deleted,
+        lineage: payload.lineage.lineage.length,
+      });
+      setWorkspace(null);
+      setChatResponse(null);
+      chatRequestRef.current = null;
+      setDeleteConfirm(false);
+      setAnnouncement("Source and registered derivatives deleted.");
+      window.history.replaceState(null, "", "/workspace");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The governed source could not be deleted.",
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function handleCommitted(next: WorkspaceReviewResponse) {
+    setWorkspace(next);
+    setRelationshipScope(null);
+    setChatResponse(null);
+    chatRequestRef.current = null;
+    setDeletionSummary(null);
+    setCaptureOpen(false);
+    setError("");
+    setAnnouncement("New evidence is ready for fact review.");
+    window.history.replaceState(
+      null,
+      "",
+      `/workspace?capture=${encodeURIComponent(next.capture.id)}`,
+    );
+    void refreshAgentHistory(
+      next.subject.id,
+      next.assignment.id,
+    );
+  }
+
+  function handleInitialResourcesCommitted(
+    scope: RelationshipScope,
+    receipts: ResourceCaptureResponse[],
+    outcome:
+      | "created_person"
+      | "created_relationship_context"
+      | "reused_relationship",
+  ) {
+    const identityClueSaved = receipts.some(
+      (receipt) => receipt.resource.kind === "contact_record",
+    );
+    const identityClueDetail = identityClueSaved
+      ? " One confirmed identity clue is stored as a source-linked masked handle."
+      : "";
+    setRelationshipScope(scope);
+    setWorkspace(null);
+    setAgentHistory(null);
+    setAgentCreateOpen(false);
+    setResourceComposerOpen(false);
+    setAgentOperation({
+      detail:
+        outcome === "created_person"
+          ? `The explicit identity, relationship context, and first governed source now share one living page.${identityClueDetail}`
+          : outcome === "created_relationship_context"
+            ? `The existing person was preserved and the source opened one separate relationship context.${identityClueDetail}`
+            : `The source was attached to the selected existing person and relationship. No duplicate identity or context was created.${identityClueDetail}`,
+      status: "completed",
+      title:
+        outcome === "created_person"
+          ? "Living person page created"
+          : outcome === "created_relationship_context"
+            ? "Relationship context added"
+            : "Source attached to existing relationship",
+    });
+    handleResourcesCommitted(receipts);
+    setAnnouncement(
+      outcome === "created_person"
+        ? "Living person page created from the first governed source."
+        : outcome === "created_relationship_context"
+          ? "A new relationship context was added to the existing person."
+          : "The source was attached to the existing relationship.",
+    );
+    window.history.replaceState(
+      null,
+      "",
+      `/workspace?person=${encodeURIComponent(
+        scope.person.id,
+      )}&context=${encodeURIComponent(scope.relationship_context.id)}`,
+    );
+    void refreshAgentHistory(
+      scope.person.id,
+      scope.relationship_context.id,
+    );
+  }
+
+  function replaceIdentityReviewUrl(
+    caseId: string | null,
+    scope: RelationshipScope | null = activeScope
+      ? {
+          contract_version: CONTRACT_VERSION,
+          person: activeScope.person,
+          relationship_context: activeScope.relationship_context,
+        }
+      : null,
+  ) {
+    const parameters = new URLSearchParams();
+    if (scope) {
+      parameters.set("person", scope.person.id);
+      parameters.set("context", scope.relationship_context.id);
+    }
+    if (caseId) {
+      parameters.set("identity_case", caseId);
+    }
+    window.history.replaceState(
+      null,
+      "",
+      parameters.size > 0
+        ? `/workspace?${parameters.toString()}`
+        : "/workspace",
+    );
+  }
+
+  async function handleIdentityReviewCreated(caseId: string) {
+    setBusy("Opening identity review");
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/identity-resolution-cases/${caseId}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | IdentityResolutionCase
+        | { message?: string };
+      if (!response.ok || !("candidates" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The saved identity review could not be opened.",
+        );
+      }
+      setIdentityResolutionCase(payload);
+      setAgentCreateOpen(false);
+      setAgentOperation({
+        title: "Identity review saved",
+        detail:
+          "The governed source remains outside every person Wiki until you resolve the identity.",
+        status: "staged",
+      });
+      setAnnouncement(
+        "Identity review saved. No person or relationship was changed.",
+      );
+      replaceIdentityReviewUrl(caseId);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The saved identity review could not be opened.",
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function handleIdentityCaseUpdated(nextCase: IdentityResolutionCase) {
+    setIdentityResolutionCase(nextCase);
+    setAgentOperation({
+      title: "Identity left unresolved",
+      detail:
+        "The source and your decision note are saved. Neither candidate page nor Wiki changed.",
+      status: "staged",
+    });
+    setAnnouncement(
+      "Identity remains unresolved and can be resumed later.",
+    );
+    replaceIdentityReviewUrl(nextCase.id);
+  }
+
+  function handleIdentityCaseResolved(
+    scope: RelationshipScope,
+    compilation: KnowledgeSnapshot | null,
+    compilationError: string | null,
+  ) {
+    setIdentityResolutionCase(null);
+    setRelationshipScope(scope);
+    setWorkspace(null);
+    setAgentHistory(null);
+    setAgentCreateOpen(false);
+    setChatResponse(null);
+    chatRequestRef.current = null;
+    setAgentOperation({
+      title: compilation
+        ? "Identity resolved and Wiki recompiled"
+        : "Identity resolved; Wiki needs retry",
+      detail: compilation
+        ? `The governed source is now bound to ${scope.person.display_label} inside ${scope.relationship_context.display_label}. A new source-linked Wiki snapshot was published.`
+        : compilationError ??
+          "The source is bound, but the derived Wiki has not been recompiled.",
+      status: compilation ? "completed" : "staged",
+    });
+    setAnnouncement(
+      compilation
+        ? "Identity resolved and a new Wiki snapshot was published."
+        : "Identity resolved. Wiki compilation needs retry.",
+    );
+    replaceIdentityReviewUrl(null, scope);
+    void refreshAgentHistory(
+      scope.person.id,
+      scope.relationship_context.id,
+    );
+  }
+
+  function cancelAgentCreate() {
+    setAgentCreateOpen(false);
+    setAgentOperation({
+      detail: "No person, relationship context, or source was created.",
+      status: "no_change",
+      title: "Contact draft canceled",
+    });
+    setAnnouncement("Contact draft canceled. Nothing was created.");
+  }
+
+  function handleResourcesCommitted(
+    receipts: ResourceCaptureResponse[],
+  ) {
+    setChatResponse(null);
+    chatRequestRef.current = null;
+    setError("");
+    setAnnouncement(
+      `${receipts.length} governed ${
+        receipts.length === 1 ? "resource is" : "resources are"
+      } attached. Compile a new brief to include them.`,
+    );
+    const firstReceipt = receipts[0];
+    if (
+      firstReceipt?.identity.person_id &&
+      firstReceipt.identity.relationship_context_id
+    ) {
+      void refreshAgentHistory(
+        firstReceipt.identity.person_id,
+        firstReceipt.identity.relationship_context_id,
+      );
+    }
+  }
+
+  function handlePersonMergeMutation(
+    response: PersonMergeWorkflowResponse,
+    sourceLabel: string,
+  ) {
+    const failedCompilations = response.compilations.filter(
+      (compilation) => compilation.status === "failed",
+    ).length;
+    setChatResponse(null);
+    chatRequestRef.current = null;
+    setPersonMergeReversalPreview(null);
+    setError("");
+    setAgentOperation({
+      title:
+        response.status === "applied"
+          ? "Duplicate person page merged"
+          : "Separate person pages restored",
+      detail:
+        response.status === "applied"
+          ? `${sourceLabel} now resolves to this stable person page. ${response.affected_relationship_context_ids.length} relationship contexts and ${response.captures_rebound} governed sources moved with provenance intact.${
+              failedCompilations > 0
+                ? ` ${failedCompilations} Wiki compilations need retry.`
+                : " Every affected relationship Wiki was recompiled."
+            }`
+          : `${sourceLabel} and its prior relationship contexts were restored as a separate person.${
+              failedCompilations > 0
+                ? ` ${failedCompilations} Wiki compilations need retry.`
+                : " Every affected relationship Wiki was recompiled."
+            }`,
+      status: failedCompilations > 0 ? "staged" : "completed",
+    });
+    setAnnouncement(
+      response.status === "applied"
+        ? "Person merge applied with a reversible receipt."
+        : "Person merge reversed and separate relationship memory restored.",
+    );
+    if (!activeScope) {
+      return;
+    }
+    const currentContextRestoredToSource =
+      response.status === "reversed" &&
+      response.affected_relationship_context_ids.includes(
+        activeScope.relationship_context.id,
+      );
+    if (currentContextRestoredToSource) {
+      const restoredScope: RelationshipScope = {
+        contract_version: CONTRACT_VERSION,
+        person: {
+          id: response.source_person_id,
+          display_label: sourceLabel,
+        },
+        relationship_context: activeScope.relationship_context,
+      };
+      setRelationshipScope(restoredScope);
+      setWorkspace(null);
+      setAgentHistory(null);
+      window.history.replaceState(
+        null,
+        "",
+        `/workspace?person=${encodeURIComponent(
+          restoredScope.person.id,
+        )}&context=${encodeURIComponent(
+          restoredScope.relationship_context.id,
+        )}#contact-overview`,
+      );
+      void refreshAgentHistory(
+        restoredScope.person.id,
+        restoredScope.relationship_context.id,
+      );
+      return;
+    }
+    void refreshAgentHistory(
+      activeScope.person.id,
+      activeScope.relationship_context.id,
+    );
+  }
+
+  async function handleReviewPersonMergeReversal(
+    operationId: string,
+  ) {
+    setBusy("Reviewing merge history");
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/local-integration/person-merges/${encodeURIComponent(
+          operationId,
+        )}/reversal`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | PersonMergeReversalPreview
+        | { message?: string };
+      if (!response.ok || !("operation_id" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The prior merge could not be reopened for review.",
+        );
+      }
+      setPersonMergeReversalPreview(payload);
+      setPersonMergeRequested(true);
+      setAgentOperation({
+        title: payload.reversal_available
+          ? "Merge reversal review opened"
+          : "Merge reversal needs attention",
+        detail:
+          payload.blockers.length > 0
+            ? payload.blockers.map((blocker) => blocker.message).join(" ")
+            : `The current ownership of ${payload.contexts_to_restore.length} relationship ${
+                payload.contexts_to_restore.length === 1
+                  ? "context"
+                  : "contexts"
+              } is ready for an explicit reversal decision.`,
+        status: "staged",
+      });
+      setAnnouncement(
+        payload.reversal_available
+          ? "A fresh merge reversal review is ready."
+          : "The prior merge is visible, but automatic reversal is paused.",
+      );
+      window.setTimeout(
+        () => scrollWorkspaceTo("person-merge-review"),
+        0,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The prior merge could not be reopened for review.",
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function openResourceComposer() {
+    setResourceComposerOpen(true);
+    window.setTimeout(() => scrollWorkspaceTo("relationship-resources"), 0);
+  }
+
+  function runAgentUiCommand(objective: string) {
+    const command = resolveAgentUiCommand(objective);
+    const stageOperation = (
+      title: string,
+      detail: string,
+      status: "completed" | "no_change" | "staged",
+    ) => {
+      setSubmittedChatObjective(objective.trim());
+      setChatResponse(null);
+      setAgentOperation({ detail, status, title });
+      chatRequestRef.current = null;
+    };
+
+    if (command === "create_person") {
+      setAgentCreateOpen(true);
+      stageOperation(
+        "Contact creation staged",
+        "Complete the explicit person, relationship context, and first governed source. Nothing is created until you submit that reviewable form.",
+        "staged",
+      );
+      setAnnouncement("Agent opened a governed contact draft.");
+      return true;
+    }
+
+    if (command === "add_source") {
+      openResourceComposer();
+      stageOperation(
+        "Source intake opened",
+        "The source editor is open on this relationship. Its identity, authority, and deletion path remain explicit.",
+        "completed",
+      );
+      setAnnouncement("Agent opened governed source intake.");
+      return true;
+    }
+
+    if (command === "review_changes") {
+      if (pendingCount === 0) {
+        stageOperation(
+          "No page changes waiting",
+          "The current relationship has no staged facts that require review.",
+          "no_change",
+        );
+        setAnnouncement("No proposed page changes are waiting.");
+        return true;
+      }
+      scrollWorkspaceTo("proposed-changes");
+      stageOperation(
+        "Page review opened",
+        `${pendingCount} source-linked ${
+          pendingCount === 1 ? "change is" : "changes are"
+        } waiting on the living page. Agent did not apply them.`,
+        "completed",
+      );
+      setAnnouncement("Agent opened the proposed page changes.");
+      return true;
+    }
+
+    if (command === "review_duplicate") {
+      setPersonMergeRequested(true);
+      window.setTimeout(
+        () => scrollWorkspaceTo("person-merge-review"),
+        0,
+      );
+      stageOperation(
+        "Duplicate review opened",
+        "Choose the other person page to compare. Agent will show relationship ownership, source counts, identity differences, and blockers before any merge is possible.",
+        "staged",
+      );
+      setAnnouncement("Agent opened a reversible duplicate-person review.");
+      return true;
+    }
+
+    if (command === "open_person") {
+      scrollWorkspaceTo("contact-overview");
+      stageOperation(
+        "Person page opened",
+        "The living page remains the structured, reviewable view of this relationship.",
+        "completed",
+      );
+      setAnnouncement("Agent opened the living person page.");
+      return true;
+    }
+
+    if (command === "open_next_move") {
+      scrollWorkspaceTo("next-move");
+      stageOperation(
+        "Next move opened",
+        "The action surface is visible. Any consequential effect still requires separate approval.",
+        "completed",
+      );
+      setAnnouncement("Agent opened the next move.");
+      return true;
+    }
+
+    return false;
+  }
+
+  async function askChat() {
+    if (!activeScope || !chatObjective.trim()) {
+      return;
+    }
+    const objective = chatObjective.trim();
+    if (runAgentUiCommand(objective)) {
+      return;
+    }
+    setAgentOperation(null);
+    setBusy("Compiling a source-linked brief");
+    setError("");
+    if (chatRequestRef.current?.objective !== objective) {
+      chatRequestRef.current = {
+        objective,
+        requestId: crypto.randomUUID(),
+      };
+    }
+    try {
+      const response = await fetch("/api/local-integration/chat", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: chatRequestRef.current.requestId,
+          person_id: activeScope.person.id,
+          relationship_context_id: activeScope.relationship_context.id,
+          objective,
+        }),
+      });
+      const payload = (await response.json()) as
+        | ChatTaskResponse
+        | { message?: string };
+      if (!response.ok || !("blocks" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The source-linked brief could not be compiled.",
+        );
+      }
+      setChatResponse(payload);
+      setSubmittedChatObjective(objective);
+      setAnnouncement(
+        "Chat brief compiled from the visible person and relationship context.",
+      );
+      void refreshAgentHistory(
+        activeScope.person.id,
+        activeScope.relationship_context.id,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The source-linked brief could not be compiled.",
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <>
+      <a className="skip-link" href="#context-main">
+        Skip to contact context
+      </a>
+      <div
+        className="context-workspace"
+        data-has-scope={Boolean(activeScope)}
+      >
+        <p className="sr-only" aria-live="polite" role="status">
+          {announcement}
+        </p>
+        <aside className="context-sidebar">
+          <Link
+            aria-label="Talent Signal home"
+            className="context-brand"
+            href="/"
+          >
+            <span aria-hidden="true">TS</span>
+            <strong>Talent Signal</strong>
+          </Link>
+
+          <nav aria-label="Workspace navigation" className="context-nav">
+            <a aria-label="Relationship Agent" href="#relationship-chat">
+              <House aria-hidden="true" size={19} weight="duotone" />
+              Agent
+            </a>
+            <a aria-label="Open person page" href="#contact-overview">
+              <AddressBook aria-hidden="true" size={19} weight="duotone" />
+              People
+              {activeScope ? <span>1</span> : null}
+            </a>
+            <a aria-label="Open governed sources" href="#relationship-resources">
+              <FileImage aria-hidden="true" size={19} weight="duotone" />
+              Sources
+            </a>
+          </nav>
+
+          <button
+            className="context-new-capture"
+            onClick={() => {
+              if (activeScope) {
+                openResourceComposer();
+                return;
+              }
+              setCaptureOpen(true);
+            }}
+            type="button"
+          >
+            <Plus aria-hidden="true" size={18} />
+            {activeScope ? "Add source" : "New capture"}
+          </button>
+
+          <div className="context-sidebar__section">
+            <div>
+              <span>People in view</span>
+            </div>
+            {activeScope ? (
+              <a
+                className="context-person-row"
+                data-active="true"
+                href="#contact-overview"
+              >
+                <span>{initials(activeScope.person.display_label)}</span>
+                <p>
+                  <strong>{activeScope.person.display_label}</strong>
+                  <small>
+                    {activeScope.relationship_context.display_label}
+                  </small>
+                </p>
+                {workspace && assertions.some(
+                  (assertion) => assertion.review_status === "pending",
+                ) ? (
+                  <i aria-label="Needs review" />
+                ) : null}
+              </a>
+            ) : (
+              <p className="context-sidebar__empty">
+                Add any first source to start a living contact page.
+              </p>
+            )}
+          </div>
+
+          <div className="context-sidebar__account">
+            <span>{initials(user.name ?? user.email ?? "Recruiter")}</span>
+            <p>
+              <strong>{user.name ?? "Recruiter"}</strong>
+              <small>{user.email ?? "Authenticated account"}</small>
+            </p>
+            <ThemeToggle />
+          </div>
+        </aside>
+
+        {!activeScope ? (
+          <aside
+            aria-labelledby="relationship-chat-title"
+            className="context-chat context-chat--standalone"
+            id="relationship-chat"
+          >
+            <div className="context-agent-heading">
+              <span>
+                <ChatCircleDots aria-hidden="true" size={18} weight="duotone" />
+              </span>
+              <div>
+                <p>Relationship Agent</p>
+                <strong id="relationship-chat-title">
+                  Start from the person, not a blank prompt.
+                </strong>
+              </div>
+            </div>
+            <div className="context-agent-actions">
+              <button
+                data-active={agentCreateOpen}
+                onClick={() => setAgentCreateOpen(true)}
+                type="button"
+              >
+                <UserPlus aria-hidden="true" size={15} />
+                Create contact
+              </button>
+              <button
+                onClick={() => setCaptureOpen(true)}
+                type="button"
+              >
+                <FileImage aria-hidden="true" size={15} />
+                Import screenshot
+              </button>
+            </div>
+            <div className="context-agent-thread">
+              {identityResolutionCase ? (
+                <AgentIdentityReviewCard
+                  identityCase={identityResolutionCase}
+                  onCaseUpdated={handleIdentityCaseUpdated}
+                  onResolved={handleIdentityCaseResolved}
+                />
+              ) : agentCreateOpen ? (
+                <AgentCreatePersonCard
+                  onCancel={cancelAgentCreate}
+                  onCommitted={handleInitialResourcesCommitted}
+                  onDeferred={(caseId) =>
+                    void handleIdentityReviewCreated(caseId)
+                  }
+                />
+              ) : (
+                <div className="context-agent-welcome">
+                  <span>
+                    <Sparkle aria-hidden="true" size={16} weight="fill" />
+                  </span>
+                  <div>
+                    <strong>Give me the first governed source.</strong>
+                    <p>
+                      I can stage a new person and relationship page. You
+                      decide the identity, context, and source before anything
+                      is created.
+                    </p>
+                    <button
+                      className="context-primary-button context-primary-button--compact"
+                      onClick={() => setAgentCreateOpen(true)}
+                      type="button"
+                    >
+                      Create with Agent
+                      <ArrowRight aria-hidden="true" size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <footer className="context-agent-disabled-composer">
+              Open or create a relationship to ask questions and operate its
+              page.
+            </footer>
+          </aside>
+        ) : null}
+
+        <main className="context-main" id="context-main" tabIndex={-1}>
+          <header className="context-topbar">
+            <div>
+              <span className="context-secure-state">
+                <ShieldCheck aria-hidden="true" size={16} weight="duotone" />
+                Private workspace
+              </span>
+              {activeScope ? (
+                <span>
+                  {workspace?.data_classification ===
+                  "synthetic_fixture_only"
+                    ? "Synthetic review"
+                    : "Sensitive candidate evidence"}
+                </span>
+              ) : null}
+            </div>
+            <div>
+              <Link href="/workspace/boundaries">Boundary cases</Link>
+              <button
+                className="context-primary-button context-primary-button--compact"
+                onClick={() => setCaptureOpen(true)}
+                type="button"
+              >
+                <Plus aria-hidden="true" size={17} />
+                Import screenshot
+              </button>
+            </div>
+          </header>
+
+          {error ? (
+            <div className="context-page-alert" role="alert">
+              <Warning aria-hidden="true" size={21} weight="duotone" />
+              <div>
+                <strong>The workspace did not claim a new state.</strong>
+                <p>{error}</p>
+              </div>
+              <button
+                aria-label="Dismiss error"
+                className="context-icon-button"
+                onClick={() => setError("")}
+                type="button"
+              >
+                <X aria-hidden="true" size={18} />
+              </button>
+            </div>
+          ) : null}
+
+          {busy ? (
+            <div className="context-busy" role="status">
+              <CircleNotch
+                aria-hidden="true"
+                className="spin"
+                size={18}
+              />
+              {busy}. Prior readable state stays visible.
+            </div>
+          ) : null}
+
+          {!workspace && !relationshipScope ? (
+            <section className="context-onboarding">
+              <div className="context-onboarding__artifact">
+                <div>
+                  <span>01</span>
+                  <p>
+                    <strong>Any first source</strong>
+                    Note · file · link · screenshot
+                  </p>
+                </div>
+                <ArrowRight aria-hidden="true" size={19} />
+                <div>
+                  <span>02</span>
+                  <p>
+                    <strong>One relationship</strong>
+                    Explicit person and context binding
+                  </p>
+                </div>
+                <ArrowRight aria-hidden="true" size={19} />
+                <div>
+                  <span>03</span>
+                  <p>
+                    <strong>Chat + living Wiki</strong>
+                    Task views compiled from governed sources
+                  </p>
+                </div>
+              </div>
+              <div className="context-onboarding__copy">
+                <p className="eyebrow">RELATIONSHIP INTELLIGENCE</p>
+                <h1>Turn scattered context into one person you can understand.</h1>
+                <p>
+                  Begin with the source already in front of you. Each note,
+                  document, link, or conversation remains reviewable and
+                  reversible; nothing contacts the person on your behalf.
+                </p>
+                <StartRelationshipPanel
+                  onCommitted={handleInitialResourcesCommitted}
+                  onScreenshot={() => setCaptureOpen(true)}
+                />
+                {deletionSummary ? (
+                  <div className="context-deletion-receipt">
+                    <Prohibit aria-hidden="true" size={19} />
+                    <p>
+                      <strong>Previous source deleted</strong>
+                      {deletionSummary.derivatives} derivatives removed ·{" "}
+                      {deletionSummary.lineage} audit-safe lineage entries
+                      retained.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : !workspace && relationshipScope ? (
+            <div className="context-page context-page--resource-only">
+              <section
+                aria-labelledby="relationship-chat-title"
+                className="context-chat"
+                id="relationship-chat"
+              >
+                <div className="context-chat__scope">
+                  <span>
+                    {initials(relationshipScope.person.display_label)}
+                  </span>
+                  <p>
+                    <strong>{relationshipScope.person.display_label}</strong>
+                    <small>
+                      {
+                        relationshipScope.relationship_context
+                          .display_label
+                      }
+                    </small>
+                  </p>
+                  <i>
+                    <ShieldCheck
+                      aria-hidden="true"
+                      size={15}
+                      weight="duotone"
+                    />
+                    Scoped
+                  </i>
+                </div>
+                <div className="context-chat__intro">
+                  <p className="eyebrow">RELATIONSHIP AGENT</p>
+                  <h1 id="relationship-chat-title">
+                    Ask, navigate, or change this page.
+                  </h1>
+                  <p>
+                    I am scoped to this person and relationship. Page changes
+                    remain staged until you review them.
+                  </p>
+                </div>
+                <div className="context-agent-actions">
+                  <button
+                    onClick={() => runAgentUiCommand("Add a source")}
+                    type="button"
+                  >
+                    <Plus aria-hidden="true" size={15} />
+                    Add source
+                  </button>
+                  <button
+                    data-active={agentCreateOpen}
+                    onClick={() => runAgentUiCommand("Create a contact")}
+                    type="button"
+                  >
+                    <UserPlus aria-hidden="true" size={15} />
+                    Create contact
+                  </button>
+                  <button
+                    onClick={() =>
+                      runAgentUiCommand("Review a possible duplicate")
+                    }
+                    type="button"
+                  >
+                    <AddressBook aria-hidden="true" size={15} />
+                    Review duplicate
+                  </button>
+                </div>
+                {identityResolutionCase ? (
+                  <AgentIdentityReviewCard
+                    identityCase={identityResolutionCase}
+                    onCaseUpdated={handleIdentityCaseUpdated}
+                    onResolved={handleIdentityCaseResolved}
+                  />
+                ) : agentCreateOpen ? (
+                  <AgentCreatePersonCard
+                    onCancel={cancelAgentCreate}
+                    onCommitted={handleInitialResourcesCommitted}
+                    onDeferred={(caseId) =>
+                      void handleIdentityReviewCreated(caseId)
+                    }
+                  />
+                ) : agentOperation ? (
+                  <div
+                    className="context-agent-operation"
+                    data-status={agentOperation.status}
+                  >
+                    <p className="context-agent-user-message">
+                      {submittedChatObjective}
+                    </p>
+                    <article>
+                      <header>
+                        <span>
+                          {agentOperation.status === "staged"
+                            ? "Staged"
+                            : agentOperation.status === "no_change"
+                              ? "No change"
+                              : "Completed"}
+                        </span>
+                        <i>Page operation</i>
+                      </header>
+                      <strong>{agentOperation.title}</strong>
+                      <p>{agentOperation.detail}</p>
+                    </article>
+                  </div>
+                ) : null}
+                <AgentHistory
+                  history={agentHistory}
+                  onReviewMerge={(operationId) =>
+                    void handleReviewPersonMergeReversal(operationId)
+                  }
+                />
+                <form
+                  className="context-chat__composer"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void askChat();
+                  }}
+                >
+                  <label>
+                    <span className="sr-only">
+                      Ask about this relationship
+                    </span>
+                    <textarea
+                      maxLength={1_000}
+                      onChange={(event) => {
+                        setChatObjective(event.target.value);
+                        chatRequestRef.current = null;
+                      }}
+                      rows={2}
+                      value={chatObjective}
+                    />
+                  </label>
+                  <button
+                    className="context-primary-button"
+                    disabled={!chatObjective.trim() || Boolean(busy)}
+                    type="submit"
+                  >
+                    {busy === "Compiling a source-linked brief" ? (
+                      <CircleNotch
+                        aria-hidden="true"
+                        className="spin"
+                        size={18}
+                      />
+                    ) : (
+                      <Sparkle
+                        aria-hidden="true"
+                        size={18}
+                        weight="fill"
+                      />
+                    )}
+                    Ask Agent
+                  </button>
+                </form>
+                {chatResponse ? (
+                  <div className="context-chat__response">
+                    <p className="context-agent-user-message">
+                      {submittedChatObjective}
+                    </p>
+                    <div className="context-chat__response-meta">
+                      <span>
+                        Snapshot{" "}
+                        {chatResponse.knowledge_snapshot_id.slice(0, 8)}
+                      </span>
+                      <span>
+                        Manifest{" "}
+                        {chatResponse.context_manifest_id.slice(0, 8)}
+                      </span>
+                      <span>
+                        {chatResponse.disposition.replaceAll("_", " ")}
+                      </span>
+                    </div>
+                    {chatResponse.blocks.map((block) => (
+                      <article data-kind={block.kind} key={block.id}>
+                        <header>
+                          <span>{block.kind.replaceAll("_", " ")}</span>
+                          <i>{block.status.replaceAll("_", " ")}</i>
+                        </header>
+                        <h2>{block.title}</h2>
+                        <p>{block.body}</p>
+                        <footer>
+                          <span>
+                            <LinkSimple aria-hidden="true" size={14} />
+                            {block.citation_dependency_ids.length} governed{" "}
+                            references
+                          </span>
+                          {block.requires_user_decision ? (
+                            <a href="#source-evidence">
+                              Review source
+                              <ArrowRight aria-hidden="true" size={14} />
+                            </a>
+                          ) : null}
+                        </footer>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="context-chat__empty">
+                    Ask when you need a brief. The source ledger remains the
+                    stable object; Chat is a task-specific view over it.
+                  </p>
+                )}
+              </section>
+
+              <section
+                className="context-contact-header"
+                id="contact-overview"
+              >
+                <div className="context-contact-header__portrait">
+                  <div
+                    aria-label={`${relationshipScope.person.display_label} initials; no verified contact photo`}
+                    className="context-contact-header__avatar"
+                    role="img"
+                  >
+                    {relationshipScope.person.display_label
+                      .trim()
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </div>
+                  <span>No verified photo</span>
+                </div>
+                <div className="context-contact-header__identity">
+                  <p className="eyebrow">LIVING PERSON PAGE</p>
+                  <h1
+                    data-long={
+                      relationshipScope.person.display_label.length > 22
+                    }
+                  >
+                    {relationshipScope.person.display_label}
+                  </h1>
+                  <p>
+                    {
+                      relationshipScope.relationship_context
+                        .display_label
+                    }
+                  </p>
+                  <div>
+                    <span>
+                      <AddressBook aria-hidden="true" size={14} />
+                      Identity bound by recruiter
+                    </span>
+                    <span>
+                      <ShieldCheck aria-hidden="true" size={14} />
+                      Source claims stay reviewable
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <PersonMergeReview
+                currentPerson={relationshipScope.person}
+                forceOpen={personMergeRequested}
+                onCloseRequest={() => {
+                  setPersonMergeRequested(false);
+                  setPersonMergeReversalPreview(null);
+                }}
+                onMutation={handlePersonMergeMutation}
+                reversalPreview={personMergeReversalPreview}
+              />
+
+              <ExternalEffectReview history={agentHistory} />
+
+              {resourceComposerOpen ? (
+                <RelationshipResourceComposer
+                  onCommitted={handleResourcesCommitted}
+                  onEvidenceChanged={(announcement) => {
+                    setChatResponse(null);
+                    chatRequestRef.current = null;
+                    setAnnouncement(
+                      announcement ??
+                        "Evidence review saved. Compile a new brief to use the updated source state.",
+                    );
+                    void refreshAgentHistory(
+                      relationshipScope.person.id,
+                      relationshipScope.relationship_context.id,
+                    );
+                  }}
+                  onScreenshot={() => setCaptureOpen(true)}
+                  personId={relationshipScope.person.id}
+                  relationshipContextId={
+                    relationshipScope.relationship_context.id
+                  }
+                  scopeLabel={`${relationshipScope.person.display_label} · ${relationshipScope.relationship_context.display_label}`}
+                />
+              ) : (
+                <section
+                  className="context-resource-launcher"
+                  id="relationship-resources"
+                >
+                  <div>
+                    <span>
+                      <Plus aria-hidden="true" size={16} />
+                    </span>
+                    <p>
+                      <strong>Add another governed source</strong>
+                      <small>
+                        Note, file, link, resume, or conversation screenshot
+                      </small>
+                    </p>
+                  </div>
+                  <button
+                    className="context-secondary-button"
+                    onClick={() => setResourceComposerOpen(true)}
+                    type="button"
+                  >
+                    Choose source
+                  </button>
+                </section>
+              )}
+            </div>
+          ) : workspace ? (
+            <div className="context-page">
+              <section
+                aria-labelledby="relationship-chat-title"
+                className="context-chat"
+                id="relationship-chat"
+              >
+                <div className="context-chat__scope">
+                  <span>{initials(workspace.subject.display_label)}</span>
+                  <p>
+                    <strong>{workspace.subject.display_label}</strong>
+                    <small>{workspace.assignment.display_label}</small>
+                  </p>
+                  <i>
+                    <ShieldCheck
+                      aria-hidden="true"
+                      size={15}
+                      weight="duotone"
+                    />
+                    Scoped
+                  </i>
+                </div>
+                <div className="context-chat__intro">
+                  <p className="eyebrow">RELATIONSHIP AGENT</p>
+                  <h1 id="relationship-chat-title">
+                    Ask, navigate, or change this page.
+                  </h1>
+                  <p>
+                    I am scoped to this person and relationship. Every answer
+                    and proposed change keeps its source boundary.
+                  </p>
+                </div>
+                <div className="context-agent-actions">
+                  <button
+                    disabled={pendingCount === 0}
+                    onClick={() =>
+                      runAgentUiCommand("Review pending changes")
+                    }
+                    type="button"
+                  >
+                    <CheckCircle aria-hidden="true" size={15} />
+                    {pendingCount > 0
+                      ? `Review ${pendingCount} ${
+                          pendingCount === 1 ? "change" : "changes"
+                        }`
+                      : "No changes waiting"}
+                  </button>
+                  <button
+                    onClick={() => runAgentUiCommand("Add a source")}
+                    type="button"
+                  >
+                    <Plus aria-hidden="true" size={15} />
+                    Add source
+                  </button>
+                  <button
+                    onClick={() => runAgentUiCommand("Show the next move")}
+                    type="button"
+                  >
+                    <ArrowRight aria-hidden="true" size={15} />
+                    Next move
+                  </button>
+                  <button
+                    data-active={agentCreateOpen}
+                    onClick={() => runAgentUiCommand("Create a contact")}
+                    type="button"
+                  >
+                    <UserPlus aria-hidden="true" size={15} />
+                    Create contact
+                  </button>
+                  <button
+                    onClick={() =>
+                      runAgentUiCommand("Review a possible duplicate")
+                    }
+                    type="button"
+                  >
+                    <AddressBook aria-hidden="true" size={15} />
+                    Review duplicate
+                  </button>
+                </div>
+                {identityResolutionCase ? (
+                  <AgentIdentityReviewCard
+                    identityCase={identityResolutionCase}
+                    onCaseUpdated={handleIdentityCaseUpdated}
+                    onResolved={handleIdentityCaseResolved}
+                  />
+                ) : agentCreateOpen ? (
+                  <AgentCreatePersonCard
+                    onCancel={cancelAgentCreate}
+                    onCommitted={handleInitialResourcesCommitted}
+                    onDeferred={(caseId) =>
+                      void handleIdentityReviewCreated(caseId)
+                    }
+                  />
+                ) : agentOperation ? (
+                  <div
+                    className="context-agent-operation"
+                    data-status={agentOperation.status}
+                  >
+                    <p className="context-agent-user-message">
+                      {submittedChatObjective}
+                    </p>
+                    <article>
+                      <header>
+                        <span>
+                          {agentOperation.status === "staged"
+                            ? "Staged"
+                            : agentOperation.status === "no_change"
+                              ? "No change"
+                              : "Completed"}
+                        </span>
+                        <i>Page operation</i>
+                      </header>
+                      <strong>{agentOperation.title}</strong>
+                      <p>{agentOperation.detail}</p>
+                    </article>
+                  </div>
+                ) : pendingCount > 0 ? (
+                  <div className="context-agent-page-update">
+                    <header>
+                      <span>
+                        <Sparkle aria-hidden="true" size={15} weight="fill" />
+                      </span>
+                      <div>
+                        <strong>Page changes are waiting</strong>
+                        <p>
+                          {pendingCount}{" "}
+                          source-linked facts are staged on the living page.
+                        </p>
+                      </div>
+                      <i>Not applied</i>
+                    </header>
+                    <button
+                      className="context-primary-button context-primary-button--compact"
+                      onClick={() => scrollWorkspaceTo("proposed-changes")}
+                      type="button"
+                    >
+                      Review on page
+                      <ArrowRight aria-hidden="true" size={15} />
+                    </button>
+                  </div>
+                ) : null}
+                <AgentHistory
+                  history={agentHistory}
+                  onReviewMerge={(operationId) =>
+                    void handleReviewPersonMergeReversal(operationId)
+                  }
+                />
+                <form
+                  className="context-chat__composer"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void askChat();
+                  }}
+                >
+                  <label>
+                    <span className="sr-only">Ask about this relationship</span>
+                    <textarea
+                      maxLength={1_000}
+                      onChange={(event) => {
+                        setChatObjective(event.target.value);
+                        chatRequestRef.current = null;
+                      }}
+                      rows={2}
+                      value={chatObjective}
+                    />
+                  </label>
+                  <button
+                    className="context-primary-button"
+                    disabled={!chatObjective.trim() || Boolean(busy)}
+                    type="submit"
+                  >
+                    {busy === "Compiling a source-linked brief" ? (
+                      <CircleNotch
+                        aria-hidden="true"
+                        className="spin"
+                        size={18}
+                      />
+                    ) : (
+                      <Sparkle aria-hidden="true" size={18} weight="fill" />
+                    )}
+                    Ask Agent
+                  </button>
+                </form>
+                {chatResponse ? (
+                  <div className="context-chat__response">
+                    <p className="context-agent-user-message">
+                      {submittedChatObjective}
+                    </p>
+                    <div className="context-chat__response-meta">
+                      <span>
+                        Snapshot {chatResponse.knowledge_snapshot_id.slice(0, 8)}
+                      </span>
+                      <span>
+                        Manifest {chatResponse.context_manifest_id.slice(0, 8)}
+                      </span>
+                      <span>{chatResponse.disposition.replaceAll("_", " ")}</span>
+                    </div>
+                    {chatResponse.blocks.map((block) => (
+                      <article data-kind={block.kind} key={block.id}>
+                        <header>
+                          <span>
+                            {block.kind.replaceAll("_", " ")}
+                          </span>
+                          <i>{block.status.replaceAll("_", " ")}</i>
+                        </header>
+                        <h2>{block.title}</h2>
+                        <p>{block.body}</p>
+                        <footer>
+                          <span>
+                            <LinkSimple aria-hidden="true" size={14} />
+                            {block.citation_dependency_ids.length} governed{" "}
+                            {block.citation_dependency_ids.length === 1
+                              ? "reference"
+                              : "references"}
+                          </span>
+                          {block.requires_user_decision ? (
+                            <a href="#next-move">
+                              Review before acting
+                              <ArrowRight aria-hidden="true" size={14} />
+                            </a>
+                          ) : null}
+                        </footer>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="context-chat__empty">
+                    Nothing is synthesized until you ask. Proposed facts stay
+                    visible as review items; generated actions never execute
+                    from Chat.
+                  </p>
+                )}
+              </section>
+
+              <section className="context-contact-header" id="contact-overview">
+                <div className="context-contact-header__portrait">
+                  <div
+                    aria-label={`${workspace.subject.display_label} initials; no verified contact photo`}
+                    className="context-contact-header__avatar"
+                    role="img"
+                  >
+                    {workspace.subject.display_label
+                      .trim()
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </div>
+                  <span>No verified photo</span>
+                </div>
+                <div className="context-contact-header__identity">
+                  <p className="eyebrow">LIVING CONTACT PAGE</p>
+                  <h1
+                    data-long={workspace.subject.display_label.length > 22}
+                  >
+                    {workspace.subject.display_label}
+                  </h1>
+                  <p>{workspace.assignment.display_label}</p>
+                  <div>
+                    <span>
+                      <AddressBook aria-hidden="true" size={14} />
+                      Identity bound by recruiter
+                    </span>
+                    <span>
+                      <FileImage aria-hidden="true" size={14} />
+                      {sourceKindLabel(workspace.capture.source.kind)}
+                    </span>
+                    <span>
+                      <Clock aria-hidden="true" size={14} />
+                      Updated {formatDate(workspace.analysis.created_at)}
+                    </span>
+                  </div>
+                </div>
+                <div className="context-contact-header__signal">
+                  <span>Relationship pulse</span>
+                  <strong>
+                    {effect?.outcome?.status === "verified"
+                      ? "Next move recorded"
+                      : assertions.some(
+                            (assertion) =>
+                              assertion.review_status === "pending",
+                          )
+                        ? "Evidence needs review"
+                        : confirmedCount > 0
+                          ? "Context is current"
+                          : "No confirmed change"}
+                  </strong>
+                  <small>
+                    Based on review state, never a score of this person.
+                  </small>
+                </div>
+              </section>
+
+              <PersonMergeReview
+                currentPerson={{
+                  id: workspace.subject.id,
+                  display_label: workspace.subject.display_label,
+                }}
+                forceOpen={personMergeRequested}
+                onCloseRequest={() => {
+                  setPersonMergeRequested(false);
+                  setPersonMergeReversalPreview(null);
+                }}
+                onMutation={handlePersonMergeMutation}
+                reversalPreview={personMergeReversalPreview}
+              />
+
+              <ExternalEffectReview history={agentHistory} />
+
+              {resourceComposerOpen ? (
+                <RelationshipResourceComposer
+                  onCommitted={handleResourcesCommitted}
+                  onEvidenceChanged={(announcement) => {
+                    setChatResponse(null);
+                    chatRequestRef.current = null;
+                    setAnnouncement(
+                      announcement ??
+                        "Evidence review saved. Compile a new brief to use the updated source state.",
+                    );
+                    void refreshAgentHistory(
+                      workspace.subject.id,
+                      workspace.assignment.id,
+                    );
+                  }}
+                  onScreenshot={() => setCaptureOpen(true)}
+                  personId={workspace.subject.id}
+                  relationshipContextId={workspace.assignment.id}
+                  scopeLabel={`${workspace.subject.display_label} · ${workspace.assignment.display_label}`}
+                />
+              ) : (
+                <section
+                  className="context-resource-launcher"
+                  id="relationship-resources"
+                >
+                  <div>
+                    <span>
+                      <Plus aria-hidden="true" size={16} />
+                    </span>
+                    <p>
+                      <strong>Add another governed source</strong>
+                      <small>
+                        Note, file, link, resume, or conversation screenshot
+                      </small>
+                    </p>
+                  </div>
+                  <button
+                    className="context-secondary-button"
+                    onClick={() => setResourceComposerOpen(true)}
+                    type="button"
+                  >
+                    Choose source
+                  </button>
+                </section>
+              )}
+
+              <section
+                aria-labelledby="lineage-title"
+                className="context-lineage"
+              >
+                <div className="context-lineage__heading">
+                  <div>
+                    <p className="eyebrow">SOURCE LINEAGE</p>
+                    <h2 id="lineage-title">How this contact came into view</h2>
+                  </div>
+                  <span>
+                    <ShieldCheck aria-hidden="true" size={15} weight="duotone" />
+                    Traceable
+                  </span>
+                </div>
+                <ol>
+                  <li>
+                    <i aria-hidden="true">01</i>
+                    <span>Source</span>
+                    <strong>
+                      {sourceKindLabel(workspace.capture.source.kind)}
+                    </strong>
+                    <small>
+                      {workspace.capture.source.source_timezone
+                        ? `Time zone ${workspace.capture.source.source_timezone}`
+                        : "Conversation date not confirmed"}
+                    </small>
+                  </li>
+                  <li>
+                    <i aria-hidden="true">02</i>
+                    <span>Identity anchor</span>
+                    <strong>{workspace.subject.display_label}</strong>
+                    <small>Bound by the recruiter, not guessed from a face</small>
+                  </li>
+                  <li>
+                    <i aria-hidden="true">03</i>
+                    <span>Relationship scope</span>
+                    <strong>{workspace.assignment.display_label}</strong>
+                    <small>Context stays inside this relationship</small>
+                  </li>
+                  <li>
+                    <i aria-hidden="true">04</i>
+                    <span>Current projection</span>
+                    <strong>Living contact</strong>
+                    <small>
+                      {sourceScopeLabel(
+                        workspace.capture.source.retention.source_scope,
+                      )}
+                    </small>
+                  </li>
+                </ol>
+                <p className="context-lineage__note">
+                  The small chat avatar is source context, not a verified
+                  portrait. Until the recruiter adds a confirmed photo, this
+                  page uses a neutral monogram.
+                </p>
+              </section>
+
+              <div className="context-page-grid">
+                <div className="context-page-primary">
+                  <section
+                    aria-labelledby="changed-title"
+                    className="context-section context-changed"
+                    id="proposed-changes"
+                  >
+                    <div className="context-section__heading">
+                      <div>
+                        <p className="eyebrow">WHAT CHANGED</p>
+                        <h2 id="changed-title">
+                          Evidence waiting for your judgment
+                        </h2>
+                      </div>
+                      <span>
+                        {reviewedCount}/{assertions.length} reviewed
+                      </span>
+                    </div>
+
+                    {assertions.length > 0 ? (
+                      <div className="context-facts">
+                        {assertions.map((assertion) => {
+                          const evidence = evidenceById.get(
+                            assertion.evidence_id,
+                          );
+                          const isEditing = editing === assertion.id;
+                          const edited =
+                            edits[assertion.id] ??
+                            assertion.value ??
+                            "";
+                          const pending =
+                            assertion.review_status === "pending";
+                          return (
+                            <article
+                              data-state={assertion.review_status}
+                              key={assertion.id}
+                            >
+                              <div className="context-fact__main">
+                                <div className="context-fact__label">
+                                  <span>{fieldLabel(assertion.field)}</span>
+                                  <i>
+                                    {reviewLabel(assertion.review_status)}
+                                  </i>
+                                </div>
+                                {isEditing ? (
+                                  <label className="context-fact__edit">
+                                    <span className="sr-only">
+                                      Corrected value
+                                    </span>
+                                    <input
+                                      autoFocus
+                                      maxLength={2_000}
+                                      onChange={(event) =>
+                                        setEdits((current) => ({
+                                          ...current,
+                                          [assertion.id]:
+                                            event.target.value,
+                                        }))
+                                      }
+                                      value={edited}
+                                    />
+                                  </label>
+                                ) : (
+                                  <p className="context-fact__value">
+                                    {assertion.value}
+                                  </p>
+                                )}
+                                <a
+                                  className="context-fact__evidence"
+                                  href={`#source-${assertion.evidence_id}`}
+                                >
+                                  <Quotes
+                                    aria-hidden="true"
+                                    size={16}
+                                    weight="fill"
+                                  />
+                                  <span>
+                                    “{assertion.evidence_quote}”
+                                    {evidence
+                                      ? ` · ${evidence.source_message_id}`
+                                      : ""}
+                                  </span>
+                                </a>
+                              </div>
+
+                              {pending ? (
+                                <div className="context-fact__actions">
+                                  {isEditing ? (
+                                    <>
+                                      <button
+                                        className="context-primary-button context-primary-button--compact"
+                                        disabled={
+                                          Boolean(busy) || !edited.trim()
+                                        }
+                                        onClick={() =>
+                                          decide(
+                                            assertion.id,
+                                            assertion.version,
+                                            "confirm",
+                                            edited,
+                                          )
+                                        }
+                                        type="button"
+                                      >
+                                        <Check
+                                          aria-hidden="true"
+                                          size={16}
+                                        />
+                                        Save and confirm
+                                      </button>
+                                      <button
+                                        className="context-text-button"
+                                        onClick={() => setEditing(null)}
+                                        type="button"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        className="context-primary-button context-primary-button--compact"
+                                        disabled={Boolean(busy)}
+                                        onClick={() =>
+                                          decide(
+                                            assertion.id,
+                                            assertion.version,
+                                            "confirm",
+                                          )
+                                        }
+                                        type="button"
+                                      >
+                                        <Check
+                                          aria-hidden="true"
+                                          size={16}
+                                        />
+                                        Confirm
+                                      </button>
+                                      <button
+                                        aria-label={`Edit ${fieldLabel(assertion.field)}`}
+                                        className="context-icon-button"
+                                        onClick={() => {
+                                          setEditing(assertion.id);
+                                          setEdits((current) => ({
+                                            ...current,
+                                            [assertion.id]:
+                                              assertion.value ?? "",
+                                          }));
+                                        }}
+                                        type="button"
+                                      >
+                                        <PencilSimple
+                                          aria-hidden="true"
+                                          size={17}
+                                        />
+                                      </button>
+                                      <button
+                                        className="context-text-button"
+                                        disabled={Boolean(busy)}
+                                        onClick={() =>
+                                          decide(
+                                            assertion.id,
+                                            assertion.version,
+                                            "leave_unresolved",
+                                          )
+                                        }
+                                        type="button"
+                                      >
+                                        Unsure
+                                      </button>
+                                      <button
+                                        className="context-text-button"
+                                        disabled={Boolean(busy)}
+                                        onClick={() =>
+                                          decide(
+                                            assertion.id,
+                                            assertion.version,
+                                            "dismiss",
+                                          )
+                                        }
+                                        type="button"
+                                      >
+                                        Dismiss
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              ) : null}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="context-no-signal context-no-signal--page">
+                        <CheckCircle aria-hidden="true" size={25} />
+                        <p>
+                          <strong>No operational change was proposed.</strong>
+                          The source remains available as context, but it does
+                          not justify a fact or next move.
+                        </p>
+                      </div>
+                    )}
+                  </section>
+
+                  <section
+                    aria-labelledby="confirmed-title"
+                    className="context-section"
+                  >
+                    <div className="context-section__heading">
+                      <div>
+                        <p className="eyebrow">KNOWN CONTEXT</p>
+                        <h2 id="confirmed-title">Confirmed in this relationship</h2>
+                      </div>
+                      <span>
+                        {workspace.confirmed_state.assertions.length} active
+                      </span>
+                    </div>
+                    {workspace.confirmed_state.assertions.length > 0 ? (
+                      <dl className="context-known">
+                        {workspace.confirmed_state.assertions.map((state) => (
+                          <div key={state.id}>
+                            <dt>{fieldLabel(state.field)}</dt>
+                            <dd>{state.value}</dd>
+                            <a href={`#source-${state.evidence_id}`}>
+                              <LinkSimple aria-hidden="true" size={15} />
+                              Source
+                            </a>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      <p className="context-section__empty">
+                        Confirm a proposed fact to add it here. Model output
+                        alone never becomes remembered context.
+                      </p>
+                    )}
+                  </section>
+
+                  <section
+                    aria-labelledby="source-title"
+                    className="context-section"
+                    id="source-evidence"
+                  >
+                    <div className="context-section__heading">
+                      <div>
+                        <p className="eyebrow">SOURCE</p>
+                        <h2 id="source-title">Reviewed extracted text</h2>
+                      </div>
+                      <span>
+                        {workspace.capture.source.retention.source_access_state}
+                      </span>
+                    </div>
+                    <div className="context-source-list">
+                      {workspace.capture.messages.map((message) => (
+                        <figure
+                          id={`source-${message.id}`}
+                          key={message.id}
+                          tabIndex={-1}
+                        >
+                          <figcaption>
+                            <span>{message.speaker}</span>
+                            <small>{message.source_message_id}</small>
+                          </figcaption>
+                          <blockquote>
+                            {message.text ?? "Source text is no longer retained."}
+                          </blockquote>
+                        </figure>
+                      ))}
+                    </div>
+                    <details className="context-retention">
+                      <summary>Retention and provenance</summary>
+                      <dl>
+                        <div>
+                          <dt>Stored source</dt>
+                          <dd>
+                            {
+                              workspace.capture.source.retention
+                                .source_scope
+                            }
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Raw screenshot</dt>
+                          <dd>Not stored by Talent Signal</dd>
+                        </div>
+                        <div>
+                          <dt>Retention until</dt>
+                          <dd>
+                            {workspace.capture.source.retention
+                              .retention_until
+                              ? formatDate(
+                                  workspace.capture.source.retention
+                                    .retention_until,
+                                )
+                              : "Review completion"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Producer</dt>
+                          <dd>{workspace.analysis.producer.name}</dd>
+                        </div>
+                      </dl>
+                    </details>
+                  </section>
+                </div>
+
+                <aside
+                  aria-label="Next move and relationship history"
+                  className="context-page-aside"
+                >
+                  <section className="context-next-move" id="next-move">
+                    <div className="context-next-move__heading">
+                      <span>
+                        <Sparkle aria-hidden="true" size={17} weight="fill" />
+                      </span>
+                      <div>
+                        <p className="eyebrow">NEXT MOVE</p>
+                        <h2>Smallest supported step</h2>
+                      </div>
+                    </div>
+
+                    {action ? (
+                      <>
+                        <div className="context-next-move__body">
+                          <strong>{action.target}</strong>
+                          <p>{action.reason}</p>
+                          <dl>
+                            <div>
+                              <dt>Owner</dt>
+                              <dd>You</dd>
+                            </div>
+                            <div>
+                              <dt>Due</dt>
+                              <dd>{action.due}</dd>
+                            </div>
+                            <div>
+                              <dt>Destination</dt>
+                              <dd>Internal attention queue</dd>
+                            </div>
+                          </dl>
+                        </div>
+
+                        {!requiredFactsConfirmed ? (
+                          <div className="context-next-move__gate">
+                            <ShieldCheck aria-hidden="true" size={18} />
+                            <p>
+                              Confirm every required fact before this internal
+                              action can be approved.
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {requiredFactsConfirmed && !approval ? (
+                          <button
+                            className="context-primary-button"
+                            disabled={Boolean(busy)}
+                            onClick={() =>
+                              mutate(
+                                `/api/local-integration/actions/${action.id}/approval`,
+                                {
+                                  method: "POST",
+                                  body: JSON.stringify({
+                                    capture_id: workspace.capture.id,
+                                  }),
+                                },
+                                "Approving exact internal action",
+                              )
+                            }
+                            type="button"
+                          >
+                            <ShieldCheck aria-hidden="true" size={18} />
+                            Approve exact internal action
+                          </button>
+                        ) : null}
+
+                        {approval?.status === "active" && !effect ? (
+                          <div className="context-approved-action">
+                            <p>
+                              <CheckCircle
+                                aria-hidden="true"
+                                size={18}
+                                weight="fill"
+                              />
+                              Exact action approved
+                            </p>
+                            <button
+                              className="context-primary-button"
+                              disabled={Boolean(busy)}
+                              onClick={() =>
+                                mutate(
+                                  `/api/local-integration/actions/${action.id}/execution`,
+                                  {
+                                    method: "POST",
+                                    body: JSON.stringify({
+                                      capture_id: workspace.capture.id,
+                                    }),
+                                  },
+                                  "Writing and verifying internal attention",
+                                )
+                              }
+                              type="button"
+                            >
+                              <ArrowRight aria-hidden="true" size={18} />
+                              Add to Today and verify
+                            </button>
+                          </div>
+                        ) : null}
+
+                        {effect?.outcome ? (
+                          <div
+                            className="context-outcome"
+                            data-state={effect.outcome.status}
+                          >
+                            <CheckCircle
+                              aria-hidden="true"
+                              size={25}
+                              weight="fill"
+                            />
+                            <p>
+                              <strong>
+                                {effect.outcome.status === "verified"
+                                  ? "Recorded in Today"
+                                  : `Result ${effect.outcome.status}`}
+                              </strong>
+                              {effect.outcome.summary}
+                            </p>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="context-next-move__empty">
+                        <CheckCircle aria-hidden="true" size={23} />
+                        <p>
+                          <strong>No action is supported yet.</strong>
+                          Keep the context, or capture the next conversation
+                          when something operational changes.
+                        </p>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="context-history">
+                    <div className="context-history__heading">
+                      <div>
+                        <p className="eyebrow">RELATIONSHIP HISTORY</p>
+                        <h2>Evidence to outcome</h2>
+                      </div>
+                      <Clock aria-hidden="true" size={19} />
+                    </div>
+                    <ol>
+                      {timeline.map((item) => (
+                        <li data-state={item.state} key={item.id}>
+                          <i aria-hidden="true" />
+                          <div>
+                            <strong>{item.label}</strong>
+                            <p>{item.detail}</p>
+                            <time dateTime={item.time}>
+                              {formatDate(item.time)}
+                            </time>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+
+                  <section className="context-danger-zone">
+                    <button
+                      className="context-text-button"
+                      onClick={() => setDeleteConfirm((current) => !current)}
+                      type="button"
+                    >
+                      <Trash aria-hidden="true" size={16} />
+                      Delete governed source
+                    </button>
+                    {deleteConfirm ? (
+                      <div>
+                        <p>
+                          This removes source text and registered derivatives.
+                          Audit-safe identifiers remain without conversation
+                          content.
+                        </p>
+                        <button
+                          className="context-secondary-button"
+                          onClick={() => setDeleteConfirm(false)}
+                          type="button"
+                        >
+                          Keep source
+                        </button>
+                        <button
+                          className="context-danger-button"
+                          disabled={Boolean(busy)}
+                          onClick={deleteCapture}
+                          type="button"
+                        >
+                          <Trash aria-hidden="true" size={16} />
+                          Delete now
+                        </button>
+                      </div>
+                    ) : null}
+                  </section>
+                </aside>
+              </div>
+            </div>
+          ) : null}
+        </main>
+      </div>
+
+      {captureOpen ? (
+        <CapturePanel
+          onClose={() => setCaptureOpen(false)}
+          onCommitted={handleCommitted}
+        />
+      ) : null}
+    </>
+  );
+}

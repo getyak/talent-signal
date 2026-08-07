@@ -1,9 +1,9 @@
 "use client";
 
 import { ArrowsHorizontal, CheckCircle } from "@phosphor-icons/react";
-import { motion } from "motion/react";
 import Link from "next/link";
 import {
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useEffect,
   useMemo,
@@ -40,6 +40,18 @@ type EvidenceClauseProps = {
 
 const dragThreshold = 46;
 const dragVelocityThreshold = 520;
+const dragLimit = 74;
+const dragElastic = 0.16;
+
+type DragState = {
+  pointerId: number;
+  startX: number;
+  lastX: number;
+  lastTime: number;
+  offsetX: number;
+  velocityX: number;
+  didDrag: boolean;
+};
 
 function EvidenceClause({
   active,
@@ -50,7 +62,7 @@ function EvidenceClause({
   const reduceMotion = useReducedMotionPreference();
   const ignoreClickRef = useRef(false);
   const resetClickTimerRef = useRef<number | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const dragStateRef = useRef<DragState | null>(null);
 
   useEffect(
     () => () => {
@@ -71,49 +83,109 @@ function EvidenceClause({
     }, 0);
   }
 
+  function resetDragStyle(element: HTMLButtonElement) {
+    element.dataset.dragging = "false";
+    element.style.setProperty("--evidence-drag-x", "0px");
+    element.style.setProperty("--evidence-drag-rotate", "0deg");
+    element.style.setProperty("--evidence-drag-scale", "1");
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (reduceMotion || event.button !== 0) {
+      return;
+    }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      lastX: event.clientX,
+      lastTime: event.timeStamp,
+      offsetX: 0,
+      velocityX: 0,
+      didDrag: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const state = dragStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const rawOffset = event.clientX - state.startX;
+    const boundedOffset = Math.max(-dragLimit, Math.min(dragLimit, rawOffset));
+    const visualOffset =
+      boundedOffset + (rawOffset - boundedOffset) * dragElastic;
+    const elapsed = Math.max(1, event.timeStamp - state.lastTime);
+
+    state.offsetX = rawOffset;
+    state.velocityX = ((event.clientX - state.lastX) / elapsed) * 1000;
+    state.lastX = event.clientX;
+    state.lastTime = event.timeStamp;
+    state.didDrag ||= Math.abs(rawOffset) > 4;
+
+    if (!state.didDrag) {
+      return;
+    }
+
+    const element = event.currentTarget;
+    const direction = active ? -1 : 1;
+    const rotation =
+      direction * Math.min(1.1, (Math.abs(visualOffset) / dragLimit) * 1.1);
+
+    ignoreClickRef.current = true;
+    element.dataset.dragging = "true";
+    element.style.setProperty("--evidence-drag-x", `${visualOffset}px`);
+    element.style.setProperty("--evidence-drag-rotate", `${rotation}deg`);
+    element.style.setProperty("--evidence-drag-scale", "1.045");
+  }
+
+  function finishPointerDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    cancelled = false,
+  ) {
+    const state = dragStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    const element = event.currentTarget;
+    if (element.hasPointerCapture(event.pointerId)) {
+      element.releasePointerCapture(event.pointerId);
+    }
+    resetDragStyle(element);
+
+    if (!state.didDrag) {
+      return;
+    }
+
+    const movedBeyondThreshold =
+      !cancelled &&
+      (Math.abs(state.offsetX) >= dragThreshold ||
+        Math.abs(state.velocityX) >= dragVelocityThreshold);
+
+    if (movedBeyondThreshold) {
+      onToggle(id);
+    }
+    resetIgnoredClick();
+  }
+
   return (
-    <motion.button
+    <button
       type="button"
       className={styles.evidenceClause}
       data-active={active}
-      data-dragging={dragging}
+      data-dragging="false"
       aria-pressed={active}
       aria-describedby="source-interaction-instruction"
       aria-controls={controlledChangeIds}
-      drag={reduceMotion ? false : "x"}
-      dragConstraints={{ left: -74, right: 74 }}
-      dragElastic={0.16}
-      dragMomentum={false}
-      dragSnapToOrigin
-      whileDrag={
-        reduceMotion
-          ? undefined
-          : {
-              scale: 1.045,
-              rotate: active ? -1.1 : 1.1,
-            }
-      }
-      transition={{
-        type: "spring",
-        stiffness: 520,
-        damping: 34,
-        mass: 0.72,
-      }}
-      onDragStart={() => {
-        ignoreClickRef.current = true;
-        setDragging(true);
-      }}
-      onDragEnd={(_event, info) => {
-        const movedBeyondThreshold =
-          Math.abs(info.offset.x) >= dragThreshold ||
-          Math.abs(info.velocity.x) >= dragVelocityThreshold;
-
-        setDragging(false);
-        if (movedBeyondThreshold) {
-          onToggle(id);
-        }
-        resetIgnoredClick();
-      }}
+      draggable={false}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointerDrag}
+      onPointerCancel={(event) => finishPointerDrag(event, true)}
       onClick={() => {
         if (ignoreClickRef.current) {
           return;
@@ -122,7 +194,7 @@ function EvidenceClause({
       }}
     >
       {children}
-    </motion.button>
+    </button>
   );
 }
 

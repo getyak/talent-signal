@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
-import { blogPosts, getLatestBlogUpdate } from "@/lib/blog";
-import { siteConfig } from "@/lib/site";
+import { blogPosts, getLatestBlogUpdate } from "../lib/blog";
+import { siteConfig } from "../lib/site";
 
 const publicPageLastModified = {
   home: "2026-08-06T16:20:00+08:00",
