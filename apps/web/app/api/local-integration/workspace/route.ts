@@ -1,5 +1,5 @@
 import { TalentSignalHttpError } from "@talent-signal/contracts";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import {
@@ -9,7 +9,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   if (!isIntegrationMode()) {
     return NextResponse.json(
       { code: "local_integration_disabled" },
@@ -20,8 +20,14 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ code: "authentication_required" }, { status: 401 });
   }
+  const captureId = request.nextUrl.searchParams.get("capture_id") ?? undefined;
+  if (captureId && !/^[0-9a-f-]{36}$/i.test(captureId)) {
+    return NextResponse.json({ code: "capture_invalid" }, { status: 400 });
+  }
   try {
-    return NextResponse.json(await loadBackendWorkspace());
+    return NextResponse.json(
+      await loadBackendWorkspace("web-workspace", captureId),
+    );
   } catch (error) {
     if (error instanceof TalentSignalHttpError) {
       return NextResponse.json(

@@ -13,6 +13,7 @@ import { getCapture } from "./captures.js";
 
 interface WorkspaceCaptureRow {
   id: string;
+  fixture_case_id: string | null;
   subject_id: string;
   subject_label: string;
   assignment_id: string;
@@ -102,11 +103,20 @@ interface EffectRow {
 export async function getWorkspaceReview(
   pool: Pool,
   auth: AuthContext,
-  fixtureCaseId: string,
+  lookup:
+    | { captureId: string }
+    | { fixtureCaseId: string },
 ): Promise<WorkspaceReviewResponse> {
+  const lookupClause =
+    "captureId" in lookup
+      ? "captures.id = $2"
+      : "captures.fixture_case_id = $2";
+  const lookupValue =
+    "captureId" in lookup ? lookup.captureId : lookup.fixtureCaseId;
   const captureResult = await pool.query<WorkspaceCaptureRow>(
     `SELECT
        captures.id,
+       captures.fixture_case_id,
        captures.subject_id,
        subjects.display_label AS subject_label,
        captures.assignment_id,
@@ -119,12 +129,12 @@ export async function getWorkspaceReview(
        ON assignments.account_id = captures.account_id
       AND assignments.id = captures.assignment_id
      WHERE captures.account_id = $1
-       AND captures.fixture_case_id = $2
+       AND ${lookupClause}
        AND captures.status = 'active'
        AND captures.identity_status = 'bound'
      ORDER BY captures.created_at DESC, captures.id DESC
      LIMIT 1`,
-    [auth.accountId, fixtureCaseId],
+    [auth.accountId, lookupValue],
   );
   const workspaceCapture = captureResult.rows[0];
   if (!workspaceCapture) {
@@ -204,7 +214,9 @@ export async function getWorkspaceReview(
           AND evidence.id = assertions.evidence_id
          WHERE states.account_id = $1
            AND states.assignment_id = $2
-           AND states.status <> 'deleted'
+           AND states.status IN (
+             'active', 'contested', 'expired', 'superseded'
+           )
            AND states.value_text IS NOT NULL
          ORDER BY states.field, states.valid_from, states.id`,
         [auth.accountId, workspaceCapture.assignment_id],
@@ -360,7 +372,9 @@ export async function getWorkspaceReview(
   const auditCursor = Number.parseInt(cursorResult.rows[0]?.cursor ?? "0", 10);
   return {
     contract_version: CONTRACT_VERSION,
-    data_classification: "synthetic_fixture_only",
+    data_classification: workspaceCapture.fixture_case_id
+      ? "synthetic_fixture_only"
+      : "sensitive_candidate_evidence",
     account_id: auth.accountId,
     account_slug: auth.accountSlug,
     subject: {

@@ -18,7 +18,7 @@ export function SiteHeader() {
       ? activeSectionHref
       : pathname.startsWith("/blog")
         ? "/blog"
-        : null;
+        : navigation.find((item) => item.href === pathname)?.href ?? null;
 
   useEffect(() => {
     if (pathname !== "/") {
@@ -52,7 +52,7 @@ export function SiteHeader() {
   }, [pathname]);
 
   useEffect(() => {
-    const desktopQuery = window.matchMedia("(min-width: 821px)");
+    const desktopQuery = window.matchMedia("(min-width: 1041px)");
 
     function closeMenuAtDesktop(event: MediaQueryListEvent) {
       if (event.matches) {
@@ -130,11 +130,17 @@ export function SiteHeader() {
         <div className="site-header__actions">
           <ThemeToggle />
           <Link
-            className="desktop-account-link desktop-cta"
+            className="desktop-account-link desktop-header-action"
             href="/login?callbackUrl=/workspace"
           >
             Sign in
           </Link>
+          <a
+            className="button button--compact desktop-header-action"
+            href={accessRequestHref}
+          >
+            Request access
+          </a>
           <button
             ref={menuButtonRef}
             className="icon-button menu-button"
@@ -169,23 +175,26 @@ export function SiteHeader() {
             return (
               <Link
                 key={item.href}
+                className="mobile-nav__link"
                 href={item.href}
                 aria-current={isCurrent ? "location" : undefined}
                 data-current={isCurrent || undefined}
                 onClick={closeMenu}
               >
-                {item.label}
+                <span>{item.label}</span>
+                <small>{item.description}</small>
               </Link>
             );
           })}
           <Link
+            className="mobile-nav__account"
             href="/login?callbackUrl=/workspace"
             onClick={closeMenu}
           >
             Sign in
           </Link>
           <a
-            className="button"
+            className="button mobile-nav__access"
             href={accessRequestHref}
             onClick={closeMenu}
           >

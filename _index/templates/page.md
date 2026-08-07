@@ -3,6 +3,7 @@ id: concise-page-id
 title: Precise page title
 summary: One sentence explaining the page's durable purpose.
 status: draft
+language: en
 target: docs/path/to-page.md
 ---
 

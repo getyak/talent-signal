@@ -8,7 +8,7 @@ import {
 } from "@/lib/server/localBackend";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ actionId: string }> },
 ) {
   if (!isIntegrationMode()) {
@@ -25,8 +25,19 @@ export async function POST(
   if (!/^[0-9a-f-]{36}$/i.test(actionId)) {
     return NextResponse.json({ code: "action_invalid" }, { status: 400 });
   }
+  const body = (await request.json().catch(() => ({}))) as {
+    capture_id?: string;
+  };
+  if (
+    body.capture_id !== undefined &&
+    !/^[0-9a-f-]{36}$/i.test(body.capture_id)
+  ) {
+    return NextResponse.json({ code: "capture_invalid" }, { status: 400 });
+  }
   try {
-    return NextResponse.json(await approveBackendAction(actionId));
+    return NextResponse.json(
+      await approveBackendAction(actionId, body.capture_id),
+    );
   } catch (error) {
     if (error instanceof TalentSignalHttpError) {
       return NextResponse.json(

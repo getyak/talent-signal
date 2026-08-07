@@ -1,14 +1,22 @@
 "use client";
 
-import { CheckCircle } from "@phosphor-icons/react";
+import { ArrowsHorizontal, CheckCircle } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   analyzeConversation,
   deriveInsight,
   sampleConversation,
   type EvidenceKind,
 } from "@/lib/signals";
+import { useReducedMotionPreference } from "@/lib/use-reduced-motion";
 import styles from "@/app/redline-home.module.css";
 
 const sample = analyzeConversation(sampleConversation);
@@ -22,6 +30,173 @@ type ChangeRow = {
   evidenceId: EvidenceKind;
   supported: boolean;
 };
+
+type EvidenceClauseProps = {
+  active: boolean;
+  children: ReactNode;
+  id: EvidenceKind;
+  onToggle: (id: EvidenceKind) => void;
+};
+
+const dragThreshold = 46;
+const dragVelocityThreshold = 520;
+const dragLimit = 74;
+const dragElastic = 0.16;
+
+type DragState = {
+  pointerId: number;
+  startX: number;
+  lastX: number;
+  lastTime: number;
+  offsetX: number;
+  velocityX: number;
+  didDrag: boolean;
+};
+
+function EvidenceClause({
+  active,
+  children,
+  id,
+  onToggle,
+}: EvidenceClauseProps) {
+  const reduceMotion = useReducedMotionPreference();
+  const ignoreClickRef = useRef(false);
+  const resetClickTimerRef = useRef<number | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+
+  useEffect(
+    () => () => {
+      if (resetClickTimerRef.current !== null) {
+        window.clearTimeout(resetClickTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  function resetIgnoredClick() {
+    if (resetClickTimerRef.current !== null) {
+      window.clearTimeout(resetClickTimerRef.current);
+    }
+    resetClickTimerRef.current = window.setTimeout(() => {
+      ignoreClickRef.current = false;
+      resetClickTimerRef.current = null;
+    }, 0);
+  }
+
+  function resetDragStyle(element: HTMLButtonElement) {
+    element.dataset.dragging = "false";
+    element.style.setProperty("--evidence-drag-x", "0px");
+    element.style.setProperty("--evidence-drag-rotate", "0deg");
+    element.style.setProperty("--evidence-drag-scale", "1");
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (reduceMotion || event.button !== 0) {
+      return;
+    }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      lastX: event.clientX,
+      lastTime: event.timeStamp,
+      offsetX: 0,
+      velocityX: 0,
+      didDrag: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const state = dragStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const rawOffset = event.clientX - state.startX;
+    const boundedOffset = Math.max(-dragLimit, Math.min(dragLimit, rawOffset));
+    const visualOffset =
+      boundedOffset + (rawOffset - boundedOffset) * dragElastic;
+    const elapsed = Math.max(1, event.timeStamp - state.lastTime);
+
+    state.offsetX = rawOffset;
+    state.velocityX = ((event.clientX - state.lastX) / elapsed) * 1000;
+    state.lastX = event.clientX;
+    state.lastTime = event.timeStamp;
+    state.didDrag ||= Math.abs(rawOffset) > 4;
+
+    if (!state.didDrag) {
+      return;
+    }
+
+    const element = event.currentTarget;
+    const direction = active ? -1 : 1;
+    const rotation =
+      direction * Math.min(1.1, (Math.abs(visualOffset) / dragLimit) * 1.1);
+
+    ignoreClickRef.current = true;
+    element.dataset.dragging = "true";
+    element.style.setProperty("--evidence-drag-x", `${visualOffset}px`);
+    element.style.setProperty("--evidence-drag-rotate", `${rotation}deg`);
+    element.style.setProperty("--evidence-drag-scale", "1.045");
+  }
+
+  function finishPointerDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    cancelled = false,
+  ) {
+    const state = dragStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    const element = event.currentTarget;
+    if (element.hasPointerCapture(event.pointerId)) {
+      element.releasePointerCapture(event.pointerId);
+    }
+    resetDragStyle(element);
+
+    if (!state.didDrag) {
+      return;
+    }
+
+    const movedBeyondThreshold =
+      !cancelled &&
+      (Math.abs(state.offsetX) >= dragThreshold ||
+        Math.abs(state.velocityX) >= dragVelocityThreshold);
+
+    if (movedBeyondThreshold) {
+      onToggle(id);
+    }
+    resetIgnoredClick();
+  }
+
+  return (
+    <button
+      type="button"
+      className={styles.evidenceClause}
+      data-active={active}
+      data-dragging="false"
+      aria-pressed={active}
+      aria-describedby="source-interaction-instruction"
+      aria-controls={controlledChangeIds}
+      draggable={false}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointerDrag}
+      onPointerCancel={(event) => finishPointerDrag(event, true)}
+      onClick={() => {
+        if (ignoreClickRef.current) {
+          return;
+        }
+        onToggle(id);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 function buildChangeRows(selected: Set<EvidenceKind>): ChangeRow[] {
   return [
@@ -127,59 +302,58 @@ export function RedlineWorkbench() {
           id="source-interaction-instruction"
           className={styles.sourceInstruction}
         >
-          <strong>Remove one underlined phrase</strong>
-          <span>Dependent state and action retract with it.</span>
+          <strong>
+            <span className={styles.motionOnly}>Move one marked phrase aside</span>
+            <span className={styles.reducedMotionOnly}>
+              Select one marked phrase
+            </span>
+          </strong>
+          <span>
+            <span className={styles.motionOnly}>Or select it. </span>
+            Dependent state and action retract together.
+          </span>
+          <span
+            className={`${styles.dragHint} ${styles.motionOnly}`}
+            aria-hidden="true"
+          >
+            <ArrowsHorizontal size={14} weight="bold" />
+            Drag to change evidence scope
+          </span>
         </p>
 
         <blockquote className={styles.sourceQuote}>
           “I have{" "}
-          <button
-            type="button"
-            className={styles.evidenceClause}
-            data-active={selected.has("competing-offer")}
-            aria-pressed={selected.has("competing-offer")}
-            aria-describedby="source-interaction-instruction"
-            aria-controls={controlledChangeIds}
-            onClick={() => toggleEvidence("competing-offer")}
+          <EvidenceClause
+            id="competing-offer"
+            active={selected.has("competing-offer")}
+            onToggle={toggleEvidence}
           >
             another offer
-          </button>{" "}
+          </EvidenceClause>{" "}
           and need to decide{" "}
-          <button
-            type="button"
-            className={styles.evidenceClause}
-            data-active={selected.has("deadline")}
-            aria-pressed={selected.has("deadline")}
-            aria-describedby="source-interaction-instruction"
-            aria-controls={controlledChangeIds}
-            onClick={() => toggleEvidence("deadline")}
+          <EvidenceClause
+            id="deadline"
+            active={selected.has("deadline")}
+            onToggle={toggleEvidence}
           >
             by Wednesday
-          </button>
+          </EvidenceClause>
           . I can speak{" "}
-          <button
-            type="button"
-            className={styles.evidenceClause}
-            data-active={selected.has("availability")}
-            aria-pressed={selected.has("availability")}
-            aria-describedby="source-interaction-instruction"
-            aria-controls={controlledChangeIds}
-            onClick={() => toggleEvidence("availability")}
+          <EvidenceClause
+            id="availability"
+            active={selected.has("availability")}
+            onToggle={toggleEvidence}
           >
             Tuesday afternoon
-          </button>
+          </EvidenceClause>
           , but{" "}
-          <button
-            type="button"
-            className={styles.evidenceClause}
-            data-active={selected.has("preference")}
-            aria-pressed={selected.has("preference")}
-            aria-describedby="source-interaction-instruction"
-            aria-controls={controlledChangeIds}
-            onClick={() => toggleEvidence("preference")}
+          <EvidenceClause
+            id="preference"
+            active={selected.has("preference")}
+            onToggle={toggleEvidence}
           >
             remote flexibility is important
-          </button>
+          </EvidenceClause>
           <span className={styles.quoteClose}>.”</span>
         </blockquote>
 

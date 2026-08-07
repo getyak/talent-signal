@@ -1,8 +1,8 @@
 export const siteConfig = {
   name: "Talent Signal",
-  title: "Talent Signal | Every relationship has a redline",
+  title: "Talent Signal | Relationship intelligence for executive search",
   description:
-    "Turn one recruiter-controlled conversation into a source-linked relationship change and one separately approved next action.",
+    "Turn one recruiter-controlled conversation into verified context and the smallest safe next move.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://gettalentsignal.com",
   email: "hello@talentsignal.ai",
 } as const;
@@ -11,11 +11,31 @@ export const accessRequestHref =
   `mailto:${siteConfig.email}?subject=Talent%20Signal%20access%20request`;
 
 export const navigation = [
-  { href: "/#product", label: "Product" },
-  { href: "/#method", label: "Method" },
-  { href: "/blog", label: "Blog" },
-  { href: "/#principles", label: "Principles" },
-  { href: "/#questions", label: "Questions" },
+  {
+    href: "/#product",
+    label: "Product",
+    description: "See evidence change the record",
+  },
+  {
+    href: "/demo",
+    label: "Live demo",
+    description: "Review one synthetic conversation",
+  },
+  {
+    href: "/#method",
+    label: "Method",
+    description: "Follow the governed state history",
+  },
+  {
+    href: "/blog",
+    label: "Research",
+    description: "Read the evidence-led product method",
+  },
+  {
+    href: "/#principles",
+    label: "Trust",
+    description: "Inspect the human decision boundary",
+  },
 ] as const;
 
 export const faqs = [
@@ -38,5 +58,10 @@ export const faqs = [
     question: "Who is the product for?",
     answer:
       "Independent recruiters and boutique search teams running high-value, relationship-led searches where timing and trust decide outcomes.",
+  },
+  {
+    question: "Does Talent Signal score or rank candidates?",
+    answer:
+      "No. It can rank recruiter attention around current dependencies, but it does not turn a person into a fit, quality, personality, potential, or acceptance score.",
   },
 ] as const;

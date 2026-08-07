@@ -938,7 +938,7 @@ struct SectionLabel: View {
         Text(text.uppercased())
             .font(.caption.weight(.bold))
             .tracking(1.1)
-            .foregroundStyle(Color.tsMutedInk)
+            .foregroundStyle(Color.tsInk)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

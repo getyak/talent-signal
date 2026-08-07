@@ -5,7 +5,26 @@ import { fileURLToPath } from "node:url";
 import { loadConfig } from "../config.js";
 import { createPool } from "./pool.js";
 
-const MIGRATIONS = ["001_authority", "002_source_retention"] as const;
+const MIGRATIONS = [
+  "001_authority",
+  "002_source_retention",
+  "003_reviewed_extracted_text",
+  "004_relationship_resources",
+  "005_knowledge_dependency_scope",
+  "006_resource_intake_review",
+  "007_evidence_fragment_review",
+  "008_research_seed_lineage",
+  "009_resource_claim_provenance",
+  "010_identity_correction",
+  "011_source_authorization",
+  "012_source_authorization_expiry",
+  "013_source_authorization_compilation_jobs",
+  "014_research_retrieval_jobs",
+  "015_reversible_person_merges",
+  "016_identity_handle_freshness",
+  "017_identity_freshness_policy",
+  "018_identity_freshness_policy_immutability",
+] as const;
 
 async function migrationSql(version: string): Promise<string> {
   const filename = `${version}.sql`;

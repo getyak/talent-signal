@@ -175,11 +175,30 @@ export async function submitAnalysisProposal(
       };
     }
 
-    const captureResult = await client.query<CaptureProposalContext>(
-      `SELECT id, identity_status, subject_id, assignment_id, status
+    const captureResult = await client.query<
+      CaptureProposalContext & {
+        authorization_state: "authorized" | "revoked" | "expired";
+      }
+    >(
+      `SELECT
+         captures.id,
+         captures.identity_status,
+         captures.subject_id,
+         captures.assignment_id,
+         captures.status,
+         CASE
+           WHEN receipts.authorization_state = 'authorized'
+            AND receipts.authorization_expires_at IS NOT NULL
+            AND receipts.authorization_expires_at <= now()
+           THEN 'expired'
+           ELSE receipts.authorization_state
+         END AS authorization_state
        FROM captures
-       WHERE account_id = $1 AND id = $2
-       FOR UPDATE`,
+       JOIN source_retention_receipts receipts
+         ON receipts.account_id = captures.account_id
+        AND receipts.capture_id = captures.id
+       WHERE captures.account_id = $1 AND captures.id = $2
+       FOR UPDATE OF captures, receipts`,
       [auth.accountId, captureId],
     );
     const capture = captureResult.rows[0];
@@ -195,6 +214,13 @@ export async function submitAnalysisProposal(
         410,
         "CAPTURE_DELETED",
         "Deleted evidence cannot receive a proposal.",
+      );
+    }
+    if (capture.authorization_state !== "authorized") {
+      throw new ApiError(
+        409,
+        "CAPTURE_SOURCE_AUTHORIZATION_UNAVAILABLE",
+        "Restore or renew the source authorization before creating analysis proposals.",
       );
     }
     assertSafeProposalShape(capture, request);

@@ -1,9 +1,11 @@
 import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 struct CandidateSignalView: View {
     @StateObject private var store: CandidateSignalStore
+    @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var importedImage: UIImage?
     @State private var photoImportTask: Task<Void, Never>?
@@ -82,11 +84,47 @@ struct CandidateSignalView: View {
         .onDisappear {
             photoImportTask?.cancel()
         }
+        .fullScreenCover(item: $captureHandoff.pendingSeed) { seed in
+            RelationshipCaptureView(
+                seed: seed,
+                backendURL: URL(string: store.backendAddress)
+                    ?? URL(string: "http://127.0.0.1:4317")!,
+                initialDraft: captureHandoff.initialDraft
+            ) { disposition in
+                selectedPhoto = nil
+                switch disposition {
+                case .keepForLater:
+                    captureHandoff.keepForLater()
+                case .discard, .finished:
+                    captureHandoff.clear()
+                }
+            }
+        }
     }
 
     private var idleContent: some View {
         VStack(alignment: .leading, spacing: 20) {
             SourceNotice(text: store.sourceNotice)
+
+            if let savedSeed = captureHandoff.savedSeed,
+               captureHandoff.pendingSeed == nil {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionLabel(text: "Pending review")
+                    Text("Continue \(savedSeed.fileName)")
+                        .font(.headline)
+                        .foregroundStyle(Color.tsInk)
+                    Text("The screenshot and your reviewed draft remain on this device. No person was changed.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Resume capture review") {
+                        captureHandoff.resume()
+                    }
+                    .buttonStyle(TSPrimaryButtonStyle())
+                    .accessibilityIdentifier("resume-capture-review")
+                }
+                .tsCard()
+            }
 
             VStack(alignment: .leading, spacing: 16) {
                 SectionLabel(text: "90-second product loop")
@@ -146,7 +184,7 @@ struct CandidateSignalView: View {
                             Text("Choose one conversation image")
                                 .font(.headline)
                                 .foregroundStyle(Color.tsInk)
-                            Text("The current prototype imports it safely but keeps it unbound until OCR and identity review are implemented.")
+                            Text("Review on-device text, compare identity evidence, then attach it to one relationship Wiki.")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.tsMutedInk)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -160,7 +198,7 @@ struct CandidateSignalView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("choose-image")
-                .accessibilityHint("Opens the system photo picker. The chosen image will remain unbound.")
+                .accessibilityHint("Opens the system photo picker, then starts text and identity review.")
             }
             .tsCard()
 
@@ -410,15 +448,24 @@ struct CandidateSignalView: View {
         photoImportTask = Task {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data) else {
+                      UIImage(data: data) != nil else {
                     store.failSelectedImageImport(
                         message: "The selected item could not be read as an image. No review state changed."
                     )
                     return
                 }
                 try Task.checkCancellation()
-                importedImage = image
-                store.finishSelectedImageImport()
+                let mediaType = item.supportedContentTypes.first?
+                    .preferredMIMEType ?? "image/*"
+                let seed = try await PendingCaptureInbox.shared.stage(
+                    imageData: data,
+                    fileName: "conversation-\(Int(Date().timeIntervalSince1970)).jpg",
+                    mediaType: mediaType,
+                    origin: .photosPicker
+                )
+                try Task.checkCancellation()
+                store.reset()
+                captureHandoff.present(seed)
             } catch is CancellationError {
                 return
             } catch {

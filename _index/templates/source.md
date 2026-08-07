@@ -4,6 +4,7 @@
 - Author or owner:
 - Published:
 - Accessed:
+- Original language:
 - Rights or confidentiality:
 - Related notes:
 - Related pages:

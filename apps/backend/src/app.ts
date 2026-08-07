@@ -7,21 +7,48 @@ import {
   AssertionDecisionRequestSchema,
   AssertionDecisionResponseSchema,
   CaptureResponseSchema,
+  CaptureIdentityCorrectionRequestSchema,
+  CaptureIdentityCorrectionResponseSchema,
+  ChatTaskRequestSchema,
+  ChatTaskResponseSchema,
+  CompileKnowledgeRequestSchema,
   CONTRACT_VERSION,
   CreateCaptureRequestSchema,
   DeleteCaptureRequestSchema,
   DeleteCaptureResponseSchema,
   DeletionLineageResponseSchema,
   EffectResultResponseSchema,
+  EvidenceFragmentReviewRequestSchema,
+  EvidenceFragmentReviewResponseSchema,
+  IdentityResolutionCaseSchema,
+  IdentityResolutionDecisionRequestSchema,
+  IdentityResolutionDecisionResponseSchema,
   ErrorResponseSchema,
   ExecuteActionRequestSchema,
   ReconcileEffectRequestSchema,
+  ResourceCaptureRequestSchema,
+  ResourceCaptureResponseSchema,
+  RelationshipResourceDetailSchema,
+  RelationshipResourceListResponseSchema,
+  RelationshipAgentHistorySchema,
+  RelationshipScopeSchema,
   RevokeApprovalRequestSchema,
   RevokeCapabilityRequestSchema,
+  PersonDirectoryResponseSchema,
+  PersonMergePreviewSchema,
+  PersonMergeRequestSchema,
+  PersonMergeResponseSchema,
+  PersonMergeReversalPreviewSchema,
+  PersonMergeReversalRequestSchema,
+  PublicResearchRequestSchema,
+  PublicResearchResponseSchema,
+  KnowledgeSnapshotSchema,
   ReviseActionRequestSchema,
   SessionResponseSchema,
   SimulatedLoginRequestSchema,
   SourceRetentionReceiptSchema,
+  SourceAuthorizationDecisionRequestSchema,
+  SourceAuthorizationDecisionResponseSchema,
   SubmitAnalysisProposalRequestSchema,
   SyncResponseSchema,
   TemporalStateResponseSchema,
@@ -29,13 +56,23 @@ import {
   type ApproveActionRequest,
   type AssertionDecisionRequest,
   type CreateCaptureRequest,
+  type CaptureIdentityCorrectionRequest,
+  type ChatTaskRequest,
+  type CompileKnowledgeRequest,
   type DeleteCaptureRequest,
   type ExecuteActionRequest,
+  type EvidenceFragmentReviewRequest,
+  type IdentityResolutionDecisionRequest,
+  type PersonMergeRequest,
+  type PersonMergeReversalRequest,
   type ReconcileEffectRequest,
+  type PublicResearchRequest,
+  type ResourceCaptureRequest,
   type RevokeApprovalRequest,
   type RevokeCapabilityRequest,
   type ReviseActionRequest,
   type SimulatedLoginRequest,
+  type SourceAuthorizationDecisionRequest,
   type SubmitAnalysisProposalRequest,
 } from "@talent-signal/contracts";
 import cors from "@fastify/cors";
@@ -48,6 +85,7 @@ import type { Pool } from "pg";
 import type { BackendConfig } from "./config.js";
 import { ApiError } from "./lib/apiError.js";
 import type { AuthContext } from "./modules/auth.js";
+import { getRelationshipAgentHistory } from "./modules/agentHistory.js";
 import {
   approveAction,
   executeAction,
@@ -68,12 +106,47 @@ import {
   getTemporalState,
 } from "./modules/captures.js";
 import { decideAssertion } from "./modules/decisions.js";
+import { createChatTask } from "./modules/chat.js";
+import {
+  decideIdentityResolutionCase,
+  getIdentityResolutionCase,
+} from "./modules/identityCases.js";
+import { correctCaptureIdentity } from "./modules/identityCorrections.js";
+import {
+  mergePeople,
+  previewPersonMerge,
+  previewPersonMergeReversal,
+  reversePersonMerge,
+} from "./modules/personMerges.js";
+import {
+  decideCaptureSourceAuthorization,
+  persistSourceAuthorizationCompilation,
+} from "./modules/sourceAuthorization.js";
+import { runSourceLifecycleSweep } from "./modules/sourceLifecycle.js";
+import {
+  getRelationshipScope,
+  listPeople,
+  searchPeople,
+} from "./modules/people.js";
+import { createResourceCapture } from "./modules/resourceIntake.js";
+import {
+  getLatestPublicResearchTask,
+  runPublicResearch,
+} from "./modules/research.js";
+import {
+  getRelationshipResource,
+  listRelationshipResources,
+  reviewEvidenceFragment,
+} from "./modules/resources.js";
+import {
+  compileRelationshipWiki,
+  getRelationshipWiki,
+} from "./modules/wiki.js";
 import { submitAnalysisProposal } from "./modules/proposals.js";
 import { readSyncEvents } from "./modules/sync.js";
 import {
   getSourceRetentionReceipt,
   getSourceRetentionReceiptByLocator,
-  sweepDueSourceRetention,
 } from "./modules/sourceRetention.js";
 import { getWorkspaceReview } from "./modules/workspace.js";
 
@@ -95,17 +168,46 @@ const StateQuerySchema = Type.Object(
 );
 const WorkspaceReviewQuerySchema = Type.Object(
   {
-    fixture_case_id: Type.String({
-      minLength: 1,
-      maxLength: 80,
-      pattern: "^TS-[A-Z]+-[0-9]{2}$",
-    }),
+    fixture_case_id: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 80,
+        pattern: "^TS-[A-Z]+-[0-9]{2}$",
+      }),
+    ),
+    capture_id: Type.Optional(Type.String({ format: "uuid" })),
   },
   { additionalProperties: false },
 );
 const SourceLocatorQuerySchema = Type.Object(
   {
     source_locator: Type.String({ minLength: 1, maxLength: 500 }),
+  },
+  { additionalProperties: false },
+);
+const PeopleQuerySchema = Type.Object(
+  {
+    query: Type.Optional(Type.String({ maxLength: 160 })),
+  },
+  { additionalProperties: false },
+);
+const PeopleSearchSchema = Type.Object(
+  {
+    query: Type.String({ minLength: 1, maxLength: 500 }),
+  },
+  { additionalProperties: false },
+);
+const PersonMergePreviewQuerySchema = Type.Object(
+  {
+    source_person_id: Type.String({ format: "uuid" }),
+    target_person_id: Type.String({ format: "uuid" }),
+  },
+  { additionalProperties: false },
+);
+const PersonContextParamsSchema = Type.Object(
+  {
+    personId: Type.String({ format: "uuid" }),
+    contextId: Type.String({ format: "uuid" }),
   },
   { additionalProperties: false },
 );
@@ -238,7 +340,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '002_source_retention'`,
+           WHERE version = '018_identity_freshness_policy_immutability'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -311,6 +413,33 @@ export async function buildApp(
     },
   );
 
+  app.post<{ Body: ResourceCaptureRequest }>(
+    "/v1/resource-captures",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["resources"],
+        security,
+        body: ResourceCaptureRequestSchema,
+        response: {
+          201: ResourceCaptureResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createResourceCapture(
+        pool,
+        request.auth,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
   app.get<{ Params: { id: string } }>(
     "/v1/captures/:id",
     {
@@ -326,6 +455,577 @@ export async function buildApp(
       },
     },
     async (request) => getCapture(pool, request.auth, request.params.id),
+  );
+
+  app.get<{ Querystring: { query?: string } }>(
+    "/v1/people",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["people"],
+        security,
+        querystring: PeopleQuerySchema,
+        response: {
+          200: PersonDirectoryResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => listPeople(pool, request.auth, request.query.query),
+  );
+
+  app.post<{ Body: { query: string } }>(
+    "/v1/people/search",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["people"],
+        security,
+        body: PeopleSearchSchema,
+        response: {
+          200: PersonDirectoryResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      searchPeople(pool, request.auth, request.body.query),
+  );
+
+  app.get<{
+    Params: { personId: string; contextId: string };
+  }>(
+    "/v1/people/:personId/contexts/:contextId",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["people"],
+        security,
+        params: PersonContextParamsSchema,
+        response: {
+          200: RelationshipScopeSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getRelationshipScope(
+        pool,
+        request.auth,
+        request.params.personId,
+        request.params.contextId,
+      ),
+  );
+
+  app.get<{
+    Params: { personId: string; contextId: string };
+  }>(
+    "/v1/people/:personId/contexts/:contextId/resources",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["resources"],
+        security,
+        params: PersonContextParamsSchema,
+        response: {
+          200: RelationshipResourceListResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      listRelationshipResources(
+        pool,
+        request.auth,
+        request.params.personId,
+        request.params.contextId,
+      ),
+  );
+
+  app.get<{
+    Params: { personId: string; contextId: string };
+  }>(
+    "/v1/people/:personId/contexts/:contextId/agent-history",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["people", "agents"],
+        security,
+        params: PersonContextParamsSchema,
+        response: {
+          200: RelationshipAgentHistorySchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getRelationshipAgentHistory(
+        pool,
+        request.auth,
+        request.params.personId,
+        request.params.contextId,
+      ),
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/resources/:id",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["resources"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: RelationshipResourceDetailSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getRelationshipResource(pool, request.auth, request.params.id),
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: EvidenceFragmentReviewRequest;
+  }>(
+    "/v1/evidence-fragments/:id/reviews",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["resources"],
+        security,
+        params: IdParamsSchema,
+        body: EvidenceFragmentReviewRequestSchema,
+        response: {
+          201: EvidenceFragmentReviewResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await reviewEvidenceFragment(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/identity-resolution-cases/:id",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["identity"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: IdentityResolutionCaseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getIdentityResolutionCase(
+        pool,
+        request.auth,
+        request.params.id,
+      ),
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: IdentityResolutionDecisionRequest;
+  }>(
+    "/v1/identity-resolution-cases/:id/decisions",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["identity"],
+        security,
+        params: IdParamsSchema,
+        body: IdentityResolutionDecisionRequestSchema,
+        response: {
+          201: IdentityResolutionDecisionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await decideIdentityResolutionCase(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: CaptureIdentityCorrectionRequest;
+  }>(
+    "/v1/captures/:id/identity-corrections",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["identity"],
+        security,
+        params: IdParamsSchema,
+        body: CaptureIdentityCorrectionRequestSchema,
+        response: {
+          201: CaptureIdentityCorrectionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await correctCaptureIdentity(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{
+    Querystring: {
+      source_person_id: string;
+      target_person_id: string;
+    };
+  }>(
+    "/v1/person-merges/preview",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["identity"],
+        security,
+        querystring: PersonMergePreviewQuerySchema,
+        response: {
+          200: PersonMergePreviewSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      previewPersonMerge(
+        pool,
+        request.auth,
+        request.query.source_person_id,
+        request.query.target_person_id,
+      ),
+  );
+
+  app.post<{ Body: PersonMergeRequest }>(
+    "/v1/person-merges",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["identity"],
+        security,
+        body: PersonMergeRequestSchema,
+        response: {
+          201: PersonMergeResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await mergePeople(pool, request.auth, request.body);
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/person-merges/:id/reversal",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["identity"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: PersonMergeReversalPreviewSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      previewPersonMergeReversal(
+        pool,
+        request.auth,
+        request.params.id,
+      ),
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: PersonMergeReversalRequest;
+  }>(
+    "/v1/person-merges/:id/reversal",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["identity"],
+        security,
+        params: IdParamsSchema,
+        body: PersonMergeReversalRequestSchema,
+        response: {
+          201: PersonMergeResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await reversePersonMerge(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: SourceAuthorizationDecisionRequest;
+  }>(
+    "/v1/captures/:id/source-authorization-decisions",
+    {
+      preHandler: authenticate,
+      config: {
+        rateLimit: {
+          max: 12,
+          timeWindow: "1 minute",
+        },
+      },
+      schema: {
+        tags: ["resources"],
+        security,
+        params: IdParamsSchema,
+        body: SourceAuthorizationDecisionRequestSchema,
+        response: {
+          201: SourceAuthorizationDecisionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await decideCaptureSourceAuthorization(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      let body = result.body;
+      if (!body.compilation && !body.compilation_error) {
+        try {
+          const compilation = await compileRelationshipWiki(
+            pool,
+            request.auth,
+            body.person_id,
+            body.relationship_context_id,
+            {
+              idempotency_key:
+                `source-authorization-${body.decision_id}`,
+              objective:
+                body.decision === "revoke"
+                  ? "Rebuild the relationship Wiki without evidence whose source authorization was revoked."
+                  : "Rebuild the relationship Wiki after restoring the source as reviewable evidence without restoring prior conclusions or actions.",
+            },
+          );
+          body = {
+            ...body,
+            compilation: {
+              snapshot_id: compilation.body.id,
+              status: compilation.body.status,
+              verdict: compilation.body.quality.verdict,
+              block_count: compilation.body.blocks.length,
+            },
+          };
+        } catch (error) {
+          body = {
+            ...body,
+            compilation_error:
+              error instanceof Error
+                ? error.message.slice(0, 500)
+                : "Relationship Wiki recompilation failed.",
+          };
+        }
+        await persistSourceAuthorizationCompilation(
+          pool,
+          result.idempotencyRecordId,
+          body,
+        );
+      }
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(body);
+    },
+  );
+
+  app.post<{ Body: PublicResearchRequest }>(
+    "/v1/research-tasks",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["research"],
+        security,
+        body: PublicResearchRequestSchema,
+        response: {
+          201: PublicResearchResponseSchema,
+          202: PublicResearchResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await runPublicResearch(
+        pool,
+        request.auth,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{
+    Querystring: { seed_resource_id: string };
+  }>(
+    "/v1/research-tasks/latest",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["research"],
+        security,
+        querystring: Type.Object(
+          {
+            seed_resource_id: Type.String({ format: "uuid" }),
+          },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Union([
+            PublicResearchResponseSchema,
+            Type.Null(),
+          ]),
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getLatestPublicResearchTask(
+        pool,
+        request.auth,
+        request.query.seed_resource_id,
+      ),
+  );
+
+  app.post<{
+    Params: { personId: string; contextId: string };
+    Body: CompileKnowledgeRequest;
+  }>(
+    "/v1/people/:personId/contexts/:contextId/wiki-compilations",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["wiki"],
+        security,
+        params: PersonContextParamsSchema,
+        body: CompileKnowledgeRequestSchema,
+        response: {
+          201: KnowledgeSnapshotSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await compileRelationshipWiki(
+        pool,
+        request.auth,
+        request.params.personId,
+        request.params.contextId,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{
+    Params: { personId: string; contextId: string };
+  }>(
+    "/v1/people/:personId/contexts/:contextId/wiki",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["wiki"],
+        security,
+        params: PersonContextParamsSchema,
+        response: {
+          200: KnowledgeSnapshotSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getRelationshipWiki(
+        pool,
+        request.auth,
+        request.params.personId,
+        request.params.contextId,
+      ),
+  );
+
+  app.post<{ Body: ChatTaskRequest }>(
+    "/v1/chat/tasks",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["chat"],
+        security,
+        body: ChatTaskRequestSchema,
+        response: {
+          201: ChatTaskResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createChatTask(pool, request.auth, request.body);
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
   );
 
   app.get<{ Params: { id: string } }>(
@@ -386,7 +1086,9 @@ export async function buildApp(
       getTemporalState(pool, request.auth, request.query.assignment_id),
   );
 
-  app.get<{ Querystring: { fixture_case_id: string } }>(
+  app.get<{
+    Querystring: { fixture_case_id?: string; capture_id?: string };
+  }>(
     "/v1/workspace-review",
     {
       preHandler: authenticate,
@@ -400,12 +1102,24 @@ export async function buildApp(
         },
       },
     },
-    async (request) =>
-      getWorkspaceReview(
+    async (request) => {
+      const { capture_id: captureId, fixture_case_id: fixtureCaseId } =
+        request.query;
+      if (Boolean(captureId) === Boolean(fixtureCaseId)) {
+        throw new ApiError(
+          400,
+          "WORKSPACE_LOOKUP_INVALID",
+          "Provide exactly one capture_id or fixture_case_id.",
+        );
+      }
+      return getWorkspaceReview(
         pool,
         request.auth,
-        request.query.fixture_case_id,
-      ),
+        captureId
+          ? { captureId }
+          : { fixtureCaseId: fixtureCaseId as string },
+      );
+    },
   );
 
   app.post<{
@@ -701,8 +1415,11 @@ export async function buildApp(
   );
 
   const retentionSweep = setInterval(() => {
-    void sweepDueSourceRetention(pool).catch((error: unknown) => {
-      app.log.error({ err: error }, "Source-retention sweep failed");
+    void runSourceLifecycleSweep(pool).catch((error: unknown) => {
+      app.log.error(
+        { err: error },
+        "Source lifecycle sweep failed",
+      );
     });
   }, config.retentionSweepIntervalMs);
   retentionSweep.unref();

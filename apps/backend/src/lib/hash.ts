@@ -22,6 +22,10 @@ export function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+export function sha256Bytes(value: Uint8Array): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 export function digestValue(value: unknown): string {
   return sha256(stableStringify(value));
 }

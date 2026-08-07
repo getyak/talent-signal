@@ -35,12 +35,20 @@ function fixture() {
   return root;
 }
 
-function page({ id, title, target, body, status = "published" }) {
+function page({
+  id,
+  title,
+  target,
+  body,
+  status = "published",
+  language = "en",
+}) {
   return `---
 id: ${id}
 title: ${title}
 summary: ${title} has one clear purpose.
 status: ${status}
+language: ${language}
 target: ${target}
 ---
 
@@ -217,4 +225,50 @@ test("malformed wiki links fail instead of leaking into generated docs", () => {
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /contains invalid wiki link syntax/);
+});
+
+test("published pages must use the reviewed English publication layer", () => {
+  const root = fixture();
+  write(
+    root,
+    "_index/pages/alpha.md",
+    page({
+      id: "alpha",
+      title: "Alpha",
+      target: "docs/alpha.md",
+      language: "zh-CN",
+      body: "中文发布草稿。",
+    }),
+  );
+
+  const result = spawnSync(process.execPath, [compiler, "build"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /published wiki page language must be "en"/);
+});
+
+test("English publication metadata cannot hide non-English governing prose", () => {
+  const root = fixture();
+  write(
+    root,
+    "_index/pages/alpha.md",
+    page({
+      id: "alpha",
+      title: "Alpha",
+      target: "docs/alpha.md",
+      body:
+        "这是一段被错误标记为英文的中文发布正文，编译器必须阻止它进入文档。".repeat(
+          8,
+        ),
+    }),
+  );
+
+  const result = spawnSync(process.execPath, [compiler, "build"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /contains substantial Han-script prose/);
 });

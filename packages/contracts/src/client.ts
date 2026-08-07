@@ -21,6 +21,37 @@ import type {
   TemporalStateResponse,
   WorkspaceReviewResponse,
 } from "./schemas.js";
+import type {
+  PersonDirectoryResponse,
+  CaptureIdentityCorrectionRequest,
+  CaptureIdentityCorrectionResponse,
+  EvidenceFragmentReviewRequest,
+  EvidenceFragmentReviewResponse,
+  IdentityResolutionCase,
+  IdentityResolutionDecisionRequest,
+  IdentityResolutionDecisionResponse,
+  PersonMergePreview,
+  PersonMergeRequest,
+  PersonMergeResponse,
+  PersonMergeReversalRequest,
+  PersonMergeReversalPreview,
+  PublicResearchRequest,
+  PublicResearchResponse,
+  RelationshipAgentHistory,
+  RelationshipResourceDetail,
+  RelationshipResourceListResponse,
+  RelationshipScope,
+  ResourceCaptureRequest,
+  ResourceCaptureResponse,
+  SourceAuthorizationDecisionRequest,
+  SourceAuthorizationDecisionResponse,
+} from "./resourceSchemas.js";
+import type {
+  CompileKnowledgeRequest,
+  ChatTaskRequest,
+  ChatTaskResponse,
+  KnowledgeSnapshot,
+} from "./resourceSchemas.js";
 
 export class TalentSignalHttpError extends Error {
   readonly status: number;
@@ -70,8 +101,213 @@ export class TalentSignalClient {
     return this.request("/v1/captures", { method: "POST", body: request });
   }
 
+  createResourceCapture(
+    request: ResourceCaptureRequest,
+  ): Promise<ResourceCaptureResponse> {
+    return this.request("/v1/resource-captures", {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  listRelationshipResources(
+    personId: string,
+    relationshipContextId: string,
+  ): Promise<RelationshipResourceListResponse> {
+    return this.request(
+      `/v1/people/${personId}/contexts/${relationshipContextId}/resources`,
+      { method: "GET" },
+    );
+  }
+
+  getRelationshipResource(
+    resourceId: string,
+  ): Promise<RelationshipResourceDetail> {
+    return this.request(`/v1/resources/${resourceId}`, {
+      method: "GET",
+    });
+  }
+
+  reviewEvidenceFragment(
+    fragmentId: string,
+    request: EvidenceFragmentReviewRequest,
+  ): Promise<EvidenceFragmentReviewResponse> {
+    return this.request(`/v1/evidence-fragments/${fragmentId}/reviews`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  getIdentityResolutionCase(
+    caseId: string,
+  ): Promise<IdentityResolutionCase> {
+    return this.request(`/v1/identity-resolution-cases/${caseId}`, {
+      method: "GET",
+    });
+  }
+
+  decideIdentityResolutionCase(
+    caseId: string,
+    request: IdentityResolutionDecisionRequest,
+  ): Promise<IdentityResolutionDecisionResponse> {
+    return this.request(
+      `/v1/identity-resolution-cases/${caseId}/decisions`,
+      {
+        method: "POST",
+        body: request,
+      },
+    );
+  }
+
+  correctCaptureIdentity(
+    captureId: string,
+    request: CaptureIdentityCorrectionRequest,
+  ): Promise<CaptureIdentityCorrectionResponse> {
+    return this.request(
+      `/v1/captures/${captureId}/identity-corrections`,
+      {
+        method: "POST",
+        body: request,
+      },
+    );
+  }
+
+  previewPersonMerge(
+    sourcePersonId: string,
+    targetPersonId: string,
+  ): Promise<PersonMergePreview> {
+    return this.request(
+      `/v1/person-merges/preview?source_person_id=${encodeURIComponent(
+        sourcePersonId,
+      )}&target_person_id=${encodeURIComponent(targetPersonId)}`,
+      { method: "GET" },
+    );
+  }
+
+  mergePeople(
+    request: PersonMergeRequest,
+  ): Promise<PersonMergeResponse> {
+    return this.request("/v1/person-merges", {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  reversePersonMerge(
+    operationId: string,
+    request: PersonMergeReversalRequest,
+  ): Promise<PersonMergeResponse> {
+    return this.request(`/v1/person-merges/${operationId}/reversal`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  getPersonMergeReversalPreview(
+    operationId: string,
+  ): Promise<PersonMergeReversalPreview> {
+    return this.request(`/v1/person-merges/${operationId}/reversal`, {
+      method: "GET",
+    });
+  }
+
+  decideCaptureSourceAuthorization(
+    captureId: string,
+    request: SourceAuthorizationDecisionRequest,
+  ): Promise<SourceAuthorizationDecisionResponse> {
+    return this.request(
+      `/v1/captures/${captureId}/source-authorization-decisions`,
+      {
+        method: "POST",
+        body: request,
+      },
+    );
+  }
+
+  runPublicResearch(
+    request: PublicResearchRequest,
+  ): Promise<PublicResearchResponse> {
+    return this.request("/v1/research-tasks", {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  getLatestPublicResearchTask(
+    seedResourceId: string,
+  ): Promise<PublicResearchResponse | null> {
+    return this.request(
+      `/v1/research-tasks/latest?seed_resource_id=${encodeURIComponent(
+        seedResourceId,
+      )}`,
+      { method: "GET" },
+    );
+  }
+
   getCapture(captureId: string): Promise<CaptureResponse> {
     return this.request(`/v1/captures/${captureId}`, { method: "GET" });
+  }
+
+  listPeople(query = ""): Promise<PersonDirectoryResponse> {
+    const search = query.trim()
+      ? `?query=${encodeURIComponent(query.trim())}`
+      : "";
+    return this.request(`/v1/people${search}`, { method: "GET" });
+  }
+
+  searchPeople(query: string): Promise<PersonDirectoryResponse> {
+    return this.request("/v1/people/search", {
+      method: "POST",
+      body: { query },
+    });
+  }
+
+  getRelationshipScope(
+    personId: string,
+    relationshipContextId: string,
+  ): Promise<RelationshipScope> {
+    return this.request(
+      `/v1/people/${personId}/contexts/${relationshipContextId}`,
+      { method: "GET" },
+    );
+  }
+
+  getRelationshipAgentHistory(
+    personId: string,
+    relationshipContextId: string,
+  ): Promise<RelationshipAgentHistory> {
+    return this.request(
+      `/v1/people/${personId}/contexts/${relationshipContextId}/agent-history`,
+      { method: "GET" },
+    );
+  }
+
+  compileKnowledge(
+    personId: string,
+    relationshipContextId: string,
+    request: CompileKnowledgeRequest,
+  ): Promise<KnowledgeSnapshot> {
+    return this.request(
+      `/v1/people/${personId}/contexts/${relationshipContextId}/wiki-compilations`,
+      { method: "POST", body: request },
+    );
+  }
+
+  getKnowledge(
+    personId: string,
+    relationshipContextId: string,
+  ): Promise<KnowledgeSnapshot> {
+    return this.request(
+      `/v1/people/${personId}/contexts/${relationshipContextId}/wiki`,
+      { method: "GET" },
+    );
+  }
+
+  createChatTask(request: ChatTaskRequest): Promise<ChatTaskResponse> {
+    return this.request("/v1/chat/tasks", {
+      method: "POST",
+      body: request,
+    });
   }
 
   getSourceRetentionReceipt(
@@ -171,6 +407,15 @@ export class TalentSignalClient {
   getWorkspaceReview(fixtureCaseId: string): Promise<WorkspaceReviewResponse> {
     return this.request(
       `/v1/workspace-review?fixture_case_id=${encodeURIComponent(fixtureCaseId)}`,
+      { method: "GET" },
+    );
+  }
+
+  getWorkspaceReviewByCapture(
+    captureId: string,
+  ): Promise<WorkspaceReviewResponse> {
+    return this.request(
+      `/v1/workspace-review?capture_id=${encodeURIComponent(captureId)}`,
       { method: "GET" },
     );
   }

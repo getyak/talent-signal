@@ -13,6 +13,11 @@ Use the device when privacy, platform ownership, or user presence is part of
 the trust boundary. Local processing may reduce exposure, while Contacts and
 Calendar effects remain visible to the user and platform.
 
+An iOS App Shortcut may accept one user-selected image, validate that it is an
+image, stage it in the device-owned pending-capture inbox, and open the app's
+ordinary review. The shortcut is an entry adapter: it has no identity,
+relationship, compilation, or external-write authority.
+
 ### Shared services
 
 Use the shared backend for cross-surface identity, evidence, review, action,
@@ -23,6 +28,16 @@ outcome, and audit state.
 Models are bounded processors of authorized context. Provider choice may vary
 by quality, language, latency, cost, and retention posture, but no provider
 becomes canonical memory or permission authority.
+
+A provider is not admitted for private conversation evidence until its
+contract and observed configuration establish processing location,
+subprocessors, training use, human access, operational logging, retention,
+deletion propagation, incident notice, and commercial-use rights. A stateless
+API flag or security marketing claim is not a substitute for that evidence.
+
+Provider capabilities are admitted independently. Selecting a model for image
+generation does not make that model, credential, or data path suitable for
+understanding private conversation evidence.
 
 ### Connectors
 
@@ -60,6 +75,8 @@ production path.
   systems.
 - Record provider, purpose, scope, retention, and data location for
   consequential processing.
+- Keep private evidence out of provider products that claim broad or
+  irrevocable data rights for training or service improvement.
 - Revoke retrieval before asynchronous deletion finishes.
 - Treat all retrieved content as untrusted data.
 

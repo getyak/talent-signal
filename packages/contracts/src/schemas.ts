@@ -4,8 +4,10 @@ import {
   ASSERTION_FIELDS,
   CONTRACT_VERSION,
   DISPOSITIONS,
+  INPUT_CHANNELS,
   SIMULATED_ADAPTER,
   SIMULATED_CAPABILITY,
+  SOURCE_RESOURCE_KINDS,
   SOURCE_RETENTION_MODES,
   SOURCE_RETENTION_RECEIPT_MODES,
   SOURCE_RETENTION_RECEIPT_SCOPES,
@@ -82,12 +84,16 @@ export const CaptureSourceInputSchema = Type.Object(
       Type.Literal("transcript"),
       Type.Literal("screenshot_metadata"),
     ]),
+    channel: Type.Optional(
+      Type.Union(INPUT_CHANNELS.map((channel) => Type.Literal(channel))),
+    ),
     captured_at: Timestamp,
     source_timezone: NullableString,
     purpose: Type.String({ minLength: 1, maxLength: 240 }),
     source_locator: Type.Optional(
       Type.String({ minLength: 1, maxLength: 500 }),
     ),
+    authorization_expires_at: Type.Optional(Timestamp),
     retention: SourceRetentionRequestSchema,
   },
   { additionalProperties: false },
@@ -132,7 +138,11 @@ export const CaptureSourceSchema = Type.Object(
       Type.Literal("fixture"),
       Type.Literal("transcript"),
       Type.Literal("screenshot_metadata"),
+      ...SOURCE_RESOURCE_KINDS.map((kind) => Type.Literal(kind)),
     ]),
+    channel: Type.Optional(
+      Type.Union(INPUT_CHANNELS.map((channel) => Type.Literal(channel))),
+    ),
     captured_at: Timestamp,
     source_timezone: NullableString,
     purpose: Type.String({ minLength: 1, maxLength: 240 }),
@@ -149,6 +159,17 @@ const BoundIdentitySchema = Type.Object(
     status: Type.Literal("bound"),
     external_ref: Type.String({ minLength: 1, maxLength: 200 }),
     display_label: Type.String({ minLength: 1, maxLength: 200 }),
+    assignment_ref: Type.String({ minLength: 1, maxLength: 200 }),
+    assignment_label: Type.String({ minLength: 1, maxLength: 200 }),
+    binding_basis: Type.String({ minLength: 1, maxLength: 240 }),
+  },
+  { additionalProperties: false },
+);
+
+const BoundExistingIdentitySchema = Type.Object(
+  {
+    status: Type.Literal("bound_existing"),
+    subject_id: Id,
     assignment_ref: Type.String({ minLength: 1, maxLength: 200 }),
     assignment_label: Type.String({ minLength: 1, maxLength: 200 }),
     binding_basis: Type.String({ minLength: 1, maxLength: 240 }),
@@ -185,6 +206,7 @@ const UnboundIdentitySchema = Type.Object(
 
 export const CaptureIdentitySchema = Type.Union([
   BoundIdentitySchema,
+  BoundExistingIdentitySchema,
   AmbiguousIdentitySchema,
   UnboundIdentitySchema,
 ]);
@@ -616,7 +638,10 @@ export const TemporalStateResponseSchema = Type.Object(
 export const WorkspaceReviewResponseSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
-    data_classification: Type.Literal("synthetic_fixture_only"),
+    data_classification: Type.Union([
+      Type.Literal("synthetic_fixture_only"),
+      Type.Literal("sensitive_candidate_evidence"),
+    ]),
     account_id: Id,
     account_slug: Type.String(),
     subject: Type.Object(
@@ -730,6 +755,7 @@ export const SourceRetentionReceiptSchema = Type.Object(
         retention_until: Type.Union([Timestamp, Type.Null()]),
         review_completion_event: Type.Union([
           Type.Literal("analysis_proposal_committed"),
+          Type.Literal("resource_intake_committed"),
           Type.Null(),
         ]),
       },
@@ -750,6 +776,24 @@ export const SourceRetentionReceiptSchema = Type.Object(
           Type.Literal("manual_deletion"),
           Type.Literal("legacy_unverified"),
         ]),
+      },
+      { additionalProperties: false },
+    ),
+    source_authorization: Type.Object(
+      {
+        state: Type.Union([
+          Type.Literal("authorized"),
+          Type.Literal("revoked"),
+          Type.Literal("expired"),
+        ]),
+        reason: Type.Union([
+          Type.Literal("capture_authorized"),
+          Type.Literal("recruiter_revoked"),
+          Type.Literal("recruiter_restored"),
+          Type.Literal("authorization_expired"),
+        ]),
+        changed_at: Timestamp,
+        expires_at: Type.Union([Timestamp, Type.Null()]),
       },
       { additionalProperties: false },
     ),
@@ -777,6 +821,7 @@ export const SourceRetentionReceiptSchema = Type.Object(
           reason: Type.Union([
             Type.Literal("capture_submitted"),
             Type.Literal("analysis_proposal_committed"),
+            Type.Literal("resource_intake_committed"),
             Type.Literal("review_completed"),
             Type.Literal("retention_deadline_elapsed"),
             Type.Literal("manual_deletion"),

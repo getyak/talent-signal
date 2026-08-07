@@ -35,6 +35,16 @@ The system records source context, purpose, scope, and retention before
 interpretation. Private sources are not collected ambiently, and imported
 content remains untrusted.
 
+The initial product may retain the complete encrypted source by default so the
+recruiter can re-review the extraction. Full-source retention is not permanent
+retention: the purpose, expiry rule, shorter-retention option, and deletion
+effect remain visible.
+
+A capture may instead retain only recruiter-reviewed extracted text while the
+raw source remains transient. The review surface must say which mode applies;
+an excerpt or screenshot-metadata record must never be presented as if the
+complete original were recoverable.
+
 ## Evidence compilation
 
 The system reconstructs inspectable evidence before drafting state.
@@ -50,6 +60,13 @@ It should represent:
 
 The result is a proposal for review, not a generated narrative accepted as
 truth.
+
+Automatic filing reduces organization work without collapsing review. The
+system may place a supported proposal under one contact and context; uncertain
+identity, speaker, role, assignment, or relationship enters the review queue.
+`no_signal` preserves the import receipt while declining to invent useful
+state. Proposed placement cannot widen source access or feed active
+relationship state before the required identity and context review.
 
 ## Recruiter review
 
@@ -128,7 +145,11 @@ living page. Generated views remain rebuildable.
 ### Mobile
 
 Fast intentional capture, lightweight correction, time-sensitive attention,
-and device-owned effects.
+and device-owned effects. Image capture should converge on one resumable
+evidence review: local text extraction, explicit unknown-speaker state,
+identity-clue review, temporal-owner comparison, explicit relationship
+attachment, and a truthful compilation receipt. A system shortcut may shorten
+entry, but it must not shorten the human decision sequence.
 
 ### Web
 
