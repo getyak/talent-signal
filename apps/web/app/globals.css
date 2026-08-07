@@ -6219,6 +6219,16 @@ p {
   margin-top: 2px;
 }
 
+.context-fact__ambiguity {
+  border-left: 2px solid color-mix(in srgb, var(--accent) 48%, var(--line));
+  color: var(--muted-strong);
+  font-size: 0.72rem;
+  line-height: 1.55;
+  margin-top: 2px;
+  max-width: 62ch;
+  padding-left: 10px;
+}
+
 .context-fact__actions {
   align-items: center;
   display: flex;
@@ -6236,6 +6246,14 @@ p {
   min-height: 42px;
   padding: 8px 11px;
   width: 100%;
+}
+
+.context-fact__edit small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  margin-top: 6px;
 }
 
 .context-known {
@@ -6739,6 +6757,57 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.context-capture__owner {
+  border: 0;
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.context-capture__owner legend {
+  font-size: 0.73rem;
+  font-weight: 740;
+  margin-bottom: 7px;
+}
+
+.context-capture__owner > div {
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: grid;
+  gap: 3px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 3px;
+  width: min(100%, 390px);
+}
+
+.context-capture__owner button {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--muted-strong);
+  font-size: 0.69rem;
+  font-weight: 720;
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+.context-capture__owner button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+  border-color: color-mix(in srgb, var(--line-strong) 75%, transparent);
+  box-shadow:
+    0 7px 18px color-mix(in srgb, var(--ink) 7%, transparent),
+    inset 0 1px color-mix(in srgb, white 58%, transparent);
+  color: var(--ink);
+}
+
+.context-capture__owner button:focus-visible {
+  outline: 3px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
 .context-capture__identity label {
   display: grid;
   gap: 7px;
@@ -7140,6 +7209,60 @@ p {
   font-size: 0.61rem;
 }
 
+.context-review-heading__actions {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.context-review-heading__actions button {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted-strong);
+  font-size: 0.61rem;
+  font-weight: 720;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.context-review-heading__actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.context-review-heading__actions button:disabled {
+  opacity: 0.45;
+}
+
+.context-human-edit-note {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning) 27%, var(--line));
+  border-radius: 9px;
+  color: var(--warning);
+  display: flex;
+  gap: 9px;
+  margin-bottom: 10px;
+  padding: 10px 11px;
+}
+
+.context-human-edit-note > svg {
+  flex: 0 0 auto;
+}
+
+.context-human-edit-note p {
+  color: var(--muted-strong);
+  display: grid;
+  font-size: 0.65rem;
+  gap: 3px;
+  line-height: 1.45;
+}
+
+.context-human-edit-note strong {
+  color: var(--ink);
+}
+
 .context-transcript {
   display: grid;
   gap: 7px;
@@ -7168,6 +7291,41 @@ p {
 .context-transcript p {
   font-size: 0.75rem;
   line-height: 1.55;
+}
+
+.context-transcript label {
+  justify-self: start;
+}
+
+.context-transcript select,
+.context-transcript textarea {
+  background: var(--background);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  outline: 0;
+}
+
+.context-transcript select {
+  font-size: 0.63rem;
+  font-weight: 720;
+  min-height: 32px;
+  padding: 0 9px;
+}
+
+.context-transcript textarea {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  min-height: 76px;
+  padding: 9px 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.context-transcript select:focus,
+.context-transcript textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .context-draft-facts {
@@ -7406,6 +7564,107 @@ p {
   .context-capture__footer--review {
     position: sticky;
     width: 100%;
+  }
+}
+
+/* Mobile workspace dock: one translucent navigation object, not a tool strip. */
+@media (max-width: 760px) {
+  .context-workspace {
+    padding-bottom: 92px;
+  }
+
+  .context-sidebar {
+    align-items: center;
+    backdrop-filter: blur(24px) saturate(145%);
+    -webkit-backdrop-filter: blur(24px) saturate(145%);
+    background: color-mix(in srgb, var(--surface) 78%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    bottom: 12px;
+    box-shadow: inset 0 1px 0 var(--edge-highlight), var(--shadow-focus);
+    display: grid;
+    gap: 7px;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    height: 66px;
+    left: 12px;
+    padding: 8px;
+    right: 12px;
+    top: auto;
+    width: auto;
+    z-index: 60;
+  }
+
+  .context-brand {
+    display: flex;
+    padding: 0;
+  }
+
+  .context-brand > span {
+    border-radius: 13px;
+    height: 48px;
+    width: 48px;
+  }
+
+  .context-brand strong,
+  .context-sidebar__section,
+  .context-sidebar__account > span,
+  .context-sidebar__account > p {
+    display: none;
+  }
+
+  .context-nav {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+  }
+
+  .context-nav a {
+    border-radius: 14px;
+    display: flex;
+    font-size: 0;
+    height: 48px;
+    min-height: 48px;
+    padding: 0;
+    width: 48px;
+  }
+
+  .context-nav a > span {
+    display: none;
+  }
+
+  .context-new-capture {
+    border-radius: 14px;
+    display: flex;
+    font-size: 0;
+    height: 48px;
+    margin: 0;
+    min-height: 48px;
+    padding: 0;
+    width: 48px;
+  }
+
+  .context-sidebar__account {
+    border: 0;
+    display: flex;
+    margin: 0;
+    padding: 0;
+  }
+
+  .context-sidebar__account .theme-toggle {
+    background: color-mix(in srgb, var(--surface) 64%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    height: 48px;
+    width: 48px;
+  }
+
+  .context-main {
+    margin-left: 0;
+    padding-top: 0;
+  }
+
+  .context-chat {
+    height: min(720px, calc(100dvh - 164px));
   }
 }
 
