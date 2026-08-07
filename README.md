@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="brand/svg/talent-signal-readme-mark.svg" width="64" alt="Talent Signal Held Interval mark">
+
 # Talent Signal
 
 **Evidence-first relationship intelligence for independent recruiters.**
@@ -15,6 +17,7 @@ next action. Carry verified context forward.
 
 [Open the live demo](https://gettalentsignal.com/demo) ·
 [Explore the product](https://gettalentsignal.com) ·
+[Brand system](brand/README.md) ·
 [Read the trust contract](#trust-is-product-behavior)
 
 [![CI](https://github.com/getyak/talent-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/getyak/talent-signal/actions/workflows/ci.yml)
@@ -239,6 +242,7 @@ The full rationale is in [Architecture](docs/architecture.md) and
 | [`apps/browser-extension/`](apps/browser-extension/) | Governed browser capture, review, retry, and receipt flow |
 | [`apps/chrome-extension/`](apps/chrome-extension/) | Chrome extension packaging and browser-specific integration surface |
 | [`packages/domain/`](packages/domain/) | Platform-neutral vocabulary and the future shared-contract boundary |
+| [`brand/`](brand/README.md) | Canonical brand mark, controlled exports, and usage guidance |
 | [`docs/`](docs/README.md) | Canonical product, architecture, design, delivery, and operating knowledge |
 | [`_index/`](_index/README.md) | Raw sources, notes, drafts, and editable Wiki pages |
 | [`.agents/skills/`](.agents/skills/) | Reusable product, safety, design, review, and project methods |

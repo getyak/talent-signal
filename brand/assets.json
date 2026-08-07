@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "Talent Signal Held Interval",
+  "colors": {
+    "ink": "#171715",
+    "paper": "#f4f1e9",
+    "signal": "#d5533d",
+    "reverse": "#f7f5ef"
+  },
+  "svg": [
+    "svg/talent-signal-symbol-color.svg",
+    "svg/talent-signal-symbol-ink.svg",
+    "svg/talent-signal-symbol-reverse.svg",
+    "svg/talent-signal-app-icon.svg",
+    "svg/talent-signal-readme-mark.svg"
+  ],
+  "png": [
+    { "file": "png/symbol-color-16.png", "width": 16, "height": 16 },
+    { "file": "png/symbol-color-32.png", "width": 32, "height": 32 },
+    { "file": "png/symbol-color-64.png", "width": 64, "height": 64 },
+    { "file": "png/symbol-color-128.png", "width": 128, "height": 128 },
+    { "file": "png/symbol-color-256.png", "width": 256, "height": 256 },
+    { "file": "png/symbol-color-512.png", "width": 512, "height": 512 },
+    { "file": "png/symbol-ink-32.png", "width": 32, "height": 32 },
+    { "file": "png/symbol-ink-64.png", "width": 64, "height": 64 },
+    { "file": "png/symbol-ink-128.png", "width": 128, "height": 128 },
+    { "file": "png/symbol-ink-256.png", "width": 256, "height": 256 },
+    { "file": "png/symbol-reverse-32.png", "width": 32, "height": 32 },
+    { "file": "png/symbol-reverse-64.png", "width": 64, "height": 64 },
+    { "file": "png/symbol-reverse-128.png", "width": 128, "height": 128 },
+    { "file": "png/symbol-reverse-256.png", "width": 256, "height": 256 },
+    { "file": "png/app-icon-128.png", "width": 128, "height": 128 },
+    { "file": "png/app-icon-256.png", "width": 256, "height": 256 },
+    { "file": "png/app-icon-512.png", "width": 512, "height": 512 },
+    { "file": "png/app-icon-1024.png", "width": 1024, "height": 1024 },
+    { "file": "png/readme-mark-64.png", "width": 64, "height": 64 },
+    { "file": "png/readme-mark-128.png", "width": 128, "height": 128 }
+  ]
+}

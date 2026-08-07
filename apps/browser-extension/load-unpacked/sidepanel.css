@@ -202,31 +202,29 @@ h3 {
 }
 
 .brand-mark {
-  align-items: flex-end;
-  display: inline-flex;
-  gap: 2px;
+  color: var(--ink);
+  display: block;
+  flex: none;
   height: 25px;
   width: 25px;
 }
 
-.brand-mark i {
-  background: var(--ink);
-  border-radius: 999px;
+.brand-mark svg {
   display: block;
-  width: 5px;
+  height: 100%;
+  overflow: visible;
+  width: 100%;
 }
 
-.brand-mark i:nth-child(1) {
-  height: 13px;
+.brand-mark path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 5.5;
 }
 
-.brand-mark i:nth-child(2) {
-  height: 22px;
-}
-
-.brand-mark i:nth-child(3) {
-  background: var(--accent);
-  height: 17px;
+.brand-mark .brand-signal {
+  color: var(--accent);
 }
 
 .mode-control {
