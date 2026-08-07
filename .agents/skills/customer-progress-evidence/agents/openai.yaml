@@ -1,0 +1,4 @@
+interface:
+  display_name: "Customer Progress Evidence"
+  short_description: "Trace customer progress, switching forces, and tradeoffs."
+  default_prompt: "Use $customer-progress-evidence to trace what changed in this customer relationship and what evidence supports it."

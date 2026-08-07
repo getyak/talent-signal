@@ -1,0 +1,4 @@
+interface:
+  display_name: "Customer Discovery Advance"
+  short_description: "Review discovery evidence and meaningful customer advances."
+  default_prompt: "Use $customer-discovery-advance to review whether this customer conversation discovered a material need and produced a meaningful advance."

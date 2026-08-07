@@ -1,0 +1,4 @@
+interface:
+  display_name: "Recurring Customer Impact"
+  short_description: "Review customer impact from discovery through renewal."
+  default_prompt: "Use $recurring-customer-impact to review whether customer impact is supported, current, and carried through the revenue lifecycle."

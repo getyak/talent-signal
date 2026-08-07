@@ -1,0 +1,4 @@
+interface:
+  display_name: "Buying Group Consensus"
+  short_description: "Review stakeholder alignment, disagreement, and consensus gaps."
+  default_prompt: "Use $buying-group-consensus to review this buying group’s stakeholder evidence, disagreements, and next consensus dependency."
