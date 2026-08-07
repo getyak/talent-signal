@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560">
+  <defs>
+    <style>
+      .canvas { fill: #f2f0ea; }
+      .paper { fill: #faf9f5; stroke: #d9d5ca; }
+      .night { fill: #171715; }
+      .title { fill: #171715; font: 600 34px "Helvetica Neue", Arial, sans-serif; letter-spacing: -1px; }
+      .label { fill: #77736b; font: 500 13px "Helvetica Neue", Arial, sans-serif; letter-spacing: 2px; }
+      .label-reverse { fill: #c9c5bc; font: 500 13px "Helvetica Neue", Arial, sans-serif; letter-spacing: 2px; }
+    </style>
+    <symbol id="color" viewBox="0 0 64 64">
+      <path d="M38 10.5c-4.3-2.1-9.2-2.8-14-1.6C12.1 11.8 5.7 24.2 9.9 35.6c3.8 10.2 14.8 15.8 25.2 12.9"
+        fill="none" stroke="#171715" stroke-linecap="round" stroke-width="5.5"/>
+      <path d="M43.8 15.6c7.4 6.1 8.6 17 2.7 24.5"
+        fill="none" stroke="#d5533d" stroke-linecap="round" stroke-width="5.5"/>
+    </symbol>
+    <symbol id="ink" viewBox="0 0 64 64">
+      <path d="M38 10.5c-4.3-2.1-9.2-2.8-14-1.6C12.1 11.8 5.7 24.2 9.9 35.6c3.8 10.2 14.8 15.8 25.2 12.9"
+        fill="none" stroke="#171715" stroke-linecap="round" stroke-width="5.5"/>
+      <path d="M43.8 15.6c7.4 6.1 8.6 17 2.7 24.5"
+        fill="none" stroke="#171715" stroke-linecap="round" stroke-width="5.5"/>
+    </symbol>
+    <symbol id="reverse" viewBox="0 0 64 64">
+      <path d="M38 10.5c-4.3-2.1-9.2-2.8-14-1.6C12.1 11.8 5.7 24.2 9.9 35.6c3.8 10.2 14.8 15.8 25.2 12.9"
+        fill="none" stroke="#f7f5ef" stroke-linecap="round" stroke-width="5.5"/>
+      <path d="M43.8 15.6c7.4 6.1 8.6 17 2.7 24.5"
+        fill="none" stroke="#f7f5ef" stroke-linecap="round" stroke-width="5.5"/>
+    </symbol>
+  </defs>
+
+  <rect class="canvas" width="1200" height="560"/>
+  <text class="title" x="64" y="70">Held Interval · one geometry, controlled materials</text>
+
+  <g transform="translate(64 112)">
+    <rect class="paper" width="300" height="320" rx="28"/>
+    <use href="#color" x="78" y="55" width="144" height="144"/>
+    <text class="label" x="96" y="262">PRIMARY COLOR</text>
+  </g>
+
+  <g transform="translate(388 112)">
+    <rect class="paper" width="220" height="320" rx="28"/>
+    <use href="#ink" x="58" y="75" width="104" height="104"/>
+    <text class="label" x="68" y="262">INK ONLY</text>
+  </g>
+
+  <g transform="translate(632 112)">
+    <rect class="night" width="220" height="320" rx="28"/>
+    <use href="#reverse" x="58" y="75" width="104" height="104"/>
+    <text class="label-reverse" x="72" y="262">REVERSE</text>
+  </g>
+
+  <g transform="translate(876 112)">
+    <rect class="paper" width="260" height="320" rx="28"/>
+    <rect x="54" y="32" width="152" height="152" rx="36" fill="#f4f1e9"/>
+    <use href="#color" x="78" y="56" width="104" height="104"/>
+    <text class="label" x="82" y="262">APP FIELD</text>
+  </g>
+
+  <g transform="translate(64 480)">
+    <use href="#color" width="16" height="16"/>
+    <use href="#color" x="48" y="-6" width="28" height="28"/>
+    <use href="#color" x="112" y="-8" width="32" height="32"/>
+    <use href="#color" x="184" y="-24" width="64" height="64"/>
+    <text class="label" x="288" y="14">16 · 28 · 32 · 64 PX</text>
+  </g>
+</svg>

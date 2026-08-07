@@ -278,4 +278,8 @@ two rendered structural directions against product truth, logo-off ownability,
 five-second clarity, and accessibility risk before spending effort on
 micro-detail.
 
+Approved mark geometry, controlled material variants, practical exports, and
+usage constraints live in the repository
+[brand system](../brand/README.md).
+
 See [Product](product.md) and [Capture to action](capture-to-action.md).

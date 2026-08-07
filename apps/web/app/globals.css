@@ -429,46 +429,27 @@ p {
 .brand {
   align-items: center;
   display: inline-flex;
-  gap: 10px;
+  gap: 9px;
   width: fit-content;
 }
 
 .brand__mark {
-  align-items: flex-end;
-  background: var(--ink);
-  border-radius: 8px;
-  display: inline-flex;
-  gap: 3px;
-  height: 30px;
-  justify-content: center;
-  padding: 7px;
-  width: 30px;
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--background) 10%, transparent),
-    0 5px 14px color-mix(in srgb, var(--ink) 12%, transparent);
-}
-
-.brand__mark span {
-  background: var(--background);
-  border-radius: 4px;
+  color: var(--ink);
   display: block;
-  height: 7px;
-  width: 3px;
+  flex: none;
+  height: 31px;
+  overflow: visible;
+  width: 31px;
 }
 
-.brand__mark span:nth-child(2) {
-  height: 15px;
-}
-
-.brand__mark span:nth-child(3) {
-  background: var(--accent);
-  height: 11px;
+.brand__signal {
+  color: var(--accent);
 }
 
 .brand__name {
   font-size: 0.92rem;
-  font-weight: 790;
-  letter-spacing: -0.025em;
+  font-weight: 730;
+  letter-spacing: -0.03em;
 }
 
 .desktop-nav {
@@ -1425,7 +1406,6 @@ p {
   }
 
   .brand__mark {
-    border-radius: 7px;
     height: 28px;
     width: 28px;
   }
@@ -2846,15 +2826,11 @@ p {
 }
 
 .auth-story .brand__mark {
-  background: #f4f0e8;
+  color: #f4f0e8;
 }
 
-.auth-story .brand__mark span {
-  background: #1c1a17;
-}
-
-.auth-story .brand__mark span:nth-child(3) {
-  background: #d84a35;
+.auth-story .brand__signal {
+  color: #e35a43;
 }
 
 .auth-story__header > a:last-child {
