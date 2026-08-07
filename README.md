@@ -19,7 +19,6 @@ next action. Carry verified context forward.
 
 [![CI](https://github.com/getyak/talent-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/getyak/talent-signal/actions/workflows/ci.yml)
 [![Security](https://github.com/getyak/talent-signal/actions/workflows/security.yml/badge.svg)](https://github.com/getyak/talent-signal/actions/workflows/security.yml)
-[![Vercel deployment](https://img.shields.io/github/deployments/getyak/talent-signal/Production?logo=vercel&label=Vercel)](https://github.com/getyak/talent-signal/deployments/Production)
 
 [![Synthetic Talent Signal workspace showing exact source evidence beside reviewable proposed facts](docs/evaluations/overnight/web/artifacts/workspace-desktop-light.png)](https://gettalentsignal.com/demo)
 

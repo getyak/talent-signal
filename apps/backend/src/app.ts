@@ -815,6 +815,12 @@ export async function buildApp(
     "/v1/captures/:id/source-authorization-decisions",
     {
       preHandler: authenticate,
+      config: {
+        rateLimit: {
+          max: 12,
+          timeWindow: "1 minute",
+        },
+      },
       schema: {
         tags: ["resources"],
         security,

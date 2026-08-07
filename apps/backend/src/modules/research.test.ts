@@ -71,6 +71,29 @@ describe("bounded public research content handling", () => {
     ]);
   });
 
+  it("decodes entities once and removes active-content tags with spaced closers", () => {
+    const html = new TextEncoder().encode(`
+      <main>
+        <p>&amp;lt;reviewed evidence&amp;gt;</p>
+        <script>hidden script content</script >
+        <style>hidden style content</style >
+        <noscript>hidden fallback content</noscript >
+      </main>
+    `);
+    const extracted = extractResearchPage(
+      new URL("https://profile.example/person"),
+      "text/html",
+      html,
+      "profile.example",
+    );
+
+    expect(extracted.text).toContain(
+      "&lt;reviewed evidence&gt;",
+    );
+    expect(extracted.text).not.toContain("<reviewed evidence>");
+    expect(extracted.text).not.toContain("hidden");
+  });
+
   it("preserves useful partial results when one bounded same-domain page fails", async () => {
     const request: PublicResearchRequest = {
       idempotency_key: "research-partial-test",

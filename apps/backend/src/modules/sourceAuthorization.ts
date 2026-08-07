@@ -770,27 +770,29 @@ export async function decideCaptureSourceAuthorization(
   rootCaptureId: string,
   request: SourceAuthorizationDecisionRequest,
 ): Promise<SourceAuthorizationMutationResult> {
-  let effectiveRequest = request;
-  if (request.decision === "restore") {
-    const expired =
-      await expireCaptureSourceAuthorizationIfDue(
-        pool,
-        auth,
-        rootCaptureId,
-        request.expected_capture_version,
-      );
-    if (expired) {
-      effectiveRequest = {
-        ...request,
-        expected_capture_version: expired.root_capture_version,
-      };
-    }
+  const expired = await expireCaptureSourceAuthorizationIfDue(
+    pool,
+    auth,
+    rootCaptureId,
+    request.expected_capture_version,
+  );
+  if (expired && request.decision !== "restore") {
+    throw new ApiError(
+      409,
+      "SOURCE_AUTHORIZATION_ALREADY_EXPIRED",
+      "The source authorization expired before this decision. Reload the current source state.",
+    );
   }
   return transitionCaptureSourceAuthorization(
     pool,
     auth,
     rootCaptureId,
-    effectiveRequest,
+    expired
+      ? {
+          ...request,
+          expected_capture_version: expired.root_capture_version,
+        }
+      : request,
   );
 }
 

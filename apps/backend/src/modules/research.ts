@@ -319,16 +319,33 @@ async function assertRobotsAllowed(
 }
 
 function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_match, code: string) =>
-      String.fromCodePoint(Number(code)),
-    );
+  return value.replace(
+    /&(?:nbsp|amp|lt|gt|quot|apos|#39|#\d+);/gi,
+    (entity) => {
+      const normalized = entity.toLowerCase();
+      if (normalized === "&nbsp;") {
+        return " ";
+      }
+      if (normalized === "&amp;") {
+        return "&";
+      }
+      if (normalized === "&lt;") {
+        return "<";
+      }
+      if (normalized === "&gt;") {
+        return ">";
+      }
+      if (normalized === "&quot;") {
+        return '"';
+      }
+      if (normalized === "&apos;" || normalized === "&#39;") {
+        return "'";
+      }
+      return String.fromCodePoint(
+        Number(normalized.slice(2, -1)),
+      );
+    },
+  );
 }
 
 export function extractResearchPage(
@@ -370,9 +387,9 @@ export function extractResearchPage(
   }
   const text = decodeHtmlEntities(
     decoded
-      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
-      .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, " ")
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, " ")
+      .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi, " ")
       .replace(/<[^>]+>/g, "\n"),
   )
     .normalize("NFKC")
