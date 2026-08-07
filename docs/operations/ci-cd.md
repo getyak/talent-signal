@@ -11,6 +11,7 @@ pull request / push
         +--> CI required
         |      docs + workflow policy
         |      web lint/typecheck/test/build
+        |      backend typecheck/test/build
         |      iOS build/test when relevant
         |
         +--> Security required

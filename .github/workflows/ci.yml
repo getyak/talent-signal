@@ -131,6 +131,31 @@ jobs:
       - name: Build
         run: pnpm build
 
+  backend:
+    name: Backend quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.18.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck, test, and build
+        run: pnpm backend:ci
+
   ios:
     name: iOS build and test
     needs: changes
@@ -157,7 +182,7 @@ jobs:
 
   required:
     name: CI required
-    needs: [changes, repository, web, ios]
+    needs: [changes, repository, web, backend, ios]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -165,6 +190,7 @@ jobs:
       CHANGES_RESULT: ${{ needs.changes.result }}
       REPOSITORY_RESULT: ${{ needs.repository.result }}
       WEB_RESULT: ${{ needs.web.result }}
+      BACKEND_RESULT: ${{ needs.backend.result }}
       IOS_RESULT: ${{ needs.ios.result }}
     steps:
       - name: Enforce required job results
@@ -172,4 +198,5 @@ jobs:
           test "$CHANGES_RESULT" = "success"
           test "$REPOSITORY_RESULT" = "success"
           test "$WEB_RESULT" = "success"
+          test "$BACKEND_RESULT" = "success"
           test "$IOS_RESULT" = "success" || test "$IOS_RESULT" = "skipped"
