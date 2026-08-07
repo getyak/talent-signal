@@ -1,0 +1,4 @@
+interface:
+  display_name: "Customer Trust Continuity"
+  short_description: "Review trust-building behavior, commitments, and repair."
+  default_prompt: "Use $customer-trust-continuity to review trust-relevant behavior, commitments, and repair needs in this customer relationship."
