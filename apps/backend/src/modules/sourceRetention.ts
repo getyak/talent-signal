@@ -46,6 +46,16 @@ interface RetentionRow {
   retention_until: Date | null;
   source_access_state: SourceAccessState;
   source_access_reason: SourceAccessReason;
+  authorization_state:
+    SourceRetentionReceipt["source_authorization"]["state"];
+  authorization_reason:
+    SourceRetentionReceipt["source_authorization"]["reason"];
+  authorization_changed_at: Date;
+  authorization_expires_at: Date | null;
+  review_completion_event:
+    | "analysis_proposal_committed"
+    | "resource_intake_committed"
+    | null;
   review_completed_at: Date | null;
   source_purged_at: Date | null;
   deleted_at: Date | null;
@@ -71,6 +81,15 @@ export function validateSourceRetentionPayload(
     invalidPolicy(
       "SOURCE_SCOPE_PAYLOAD_MISMATCH",
       "Reviewed selected text requires one atomic transcript message.",
+    );
+  }
+  if (
+    retention.source_scope === "reviewed_extracted_text" &&
+    kind !== "screenshot_metadata"
+  ) {
+    invalidPolicy(
+      "SOURCE_SCOPE_PAYLOAD_MISMATCH",
+      "Reviewed extracted text requires screenshot-derived source metadata.",
     );
   }
   if (
@@ -202,18 +221,45 @@ export async function createSourceRetentionRecord(
     sourceLocator: string | null;
     policy: ResolvedSourceRetentionPolicy;
     submittedAt: Date;
+    authorizationExpiresAt?: string | null;
+    reviewCompletionEvent?:
+      | "analysis_proposal_committed"
+      | "resource_intake_committed";
   },
 ): Promise<void> {
-  const { accountId, captureId, sourceLocator, policy, submittedAt } = input;
+  const {
+    accountId,
+    captureId,
+    sourceLocator,
+    policy,
+    submittedAt,
+    authorizationExpiresAt: authorizationExpiresAtInput = null,
+    reviewCompletionEvent = "analysis_proposal_committed",
+  } = input;
+  const authorizationExpiresAt = authorizationExpiresAtInput
+    ? new Date(authorizationExpiresAtInput)
+    : null;
+  if (
+    authorizationExpiresAt &&
+    (!Number.isFinite(authorizationExpiresAt.getTime()) ||
+      authorizationExpiresAt <= submittedAt)
+  ) {
+    invalidPolicy(
+      "SOURCE_AUTHORIZATION_EXPIRY_INVALID",
+      "A source-authorization deadline must be a valid future timestamp.",
+    );
+  }
   await client.query(
     `INSERT INTO source_retention_receipts(
        receipt_id, account_id, capture_id, policy_version, requested_mode,
        effective_mode, source_scope, source_locator,
        requested_retention_until, retention_until, source_access_state,
-       source_access_reason, created_at, updated_at
+       source_access_reason, review_completion_event,
+       authorization_expires_at, created_at, updated_at
      )
      VALUES (
-       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'available', $11, $12, $12
+       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'available', $11, $12,
+       $13, $14, $14
      )`,
     [
       captureId,
@@ -227,6 +273,8 @@ export async function createSourceRetentionRecord(
       policy.requestedRetentionUntil,
       policy.retentionUntil,
       policy.sourceAccessReason,
+      reviewCompletionEvent,
+      authorizationExpiresAt,
       submittedAt,
     ],
   );
@@ -254,6 +302,9 @@ async function retentionRow(
        receipt_id, account_id, capture_id, policy_version, requested_mode,
        effective_mode, source_scope, requested_retention_until,
        retention_until, source_access_state, source_access_reason,
+       authorization_state, authorization_reason,
+       authorization_changed_at, authorization_expires_at,
+       review_completion_event,
        review_completed_at, source_purged_at, deleted_at, created_at
      FROM source_retention_receipts
      WHERE account_id = $1 AND capture_id = $2
@@ -383,21 +434,26 @@ export async function completeSourceReview(
   auth: AuthContext,
   captureId: string,
   completedAt = new Date(),
+  completionEvent:
+    | "analysis_proposal_committed"
+    | "resource_intake_committed" = "analysis_proposal_committed",
 ): Promise<boolean> {
   const row = await retentionRow(client, auth.accountId, captureId, true);
   if (!row.review_completed_at) {
     await client.query(
       `UPDATE source_retention_receipts
-       SET review_completed_at = $3, updated_at = $3
+       SET review_completed_at = $3,
+           review_completion_event = $4,
+           updated_at = $3
        WHERE account_id = $1 AND capture_id = $2`,
-      [auth.accountId, captureId, completedAt],
+      [auth.accountId, captureId, completedAt, completionEvent],
     );
     row.review_completed_at = completedAt;
     await appendRetentionEvent(
       client,
       row,
       "review_completed",
-      "analysis_proposal_committed",
+      completionEvent,
       completedAt,
     );
     await appendAudit(
@@ -406,7 +462,7 @@ export async function completeSourceReview(
       "capture.source_review_completed",
       "capture",
       captureId,
-      { completion_event: "analysis_proposal_committed" },
+      { completion_event: completionEvent },
     );
   }
   if (row.effective_mode === "ephemeral") {
@@ -448,6 +504,7 @@ async function loadSourceRetentionReceipt(
   client: PoolClient,
   accountId: string,
   captureId: string,
+  now = new Date(),
 ): Promise<SourceRetentionReceipt> {
   const row = await retentionRow(client, accountId, captureId);
   const [events, deletion] = await Promise.all([
@@ -496,13 +553,35 @@ async function loadSourceRetentionReceipt(
       source_scope: row.source_scope,
       retention_until: row.retention_until?.toISOString() ?? null,
       review_completion_event:
-        row.effective_mode === "legacy_unknown"
-          ? null
-          : "analysis_proposal_committed",
+        row.review_completion_event,
     },
     source_access: {
       state: row.source_access_state,
       reason: row.source_access_reason,
+    },
+    source_authorization: {
+      state:
+        row.authorization_state === "authorized" &&
+        row.authorization_expires_at &&
+        row.authorization_expires_at <= now
+          ? "expired"
+          : row.authorization_state,
+      reason:
+        row.authorization_state === "authorized" &&
+        row.authorization_expires_at &&
+        row.authorization_expires_at <= now
+          ? "authorization_expired"
+          : row.authorization_reason,
+      changed_at:
+        (
+          row.authorization_state === "authorized" &&
+          row.authorization_expires_at &&
+          row.authorization_expires_at <= now
+            ? row.authorization_expires_at
+            : row.authorization_changed_at
+        ).toISOString(),
+      expires_at:
+        row.authorization_expires_at?.toISOString() ?? null,
     },
     lifecycle: {
       submitted_at: row.created_at.toISOString(),
@@ -534,7 +613,12 @@ export async function getSourceRetentionReceipt(
       captureId,
       now,
     );
-    return loadSourceRetentionReceipt(client, auth.accountId, captureId);
+    return loadSourceRetentionReceipt(
+      client,
+      auth.accountId,
+      captureId,
+      now,
+    );
   });
 }
 
@@ -567,7 +651,12 @@ export async function getSourceRetentionReceiptByLocator(
       captureId,
       now,
     );
-    return loadSourceRetentionReceipt(client, auth.accountId, captureId);
+    return loadSourceRetentionReceipt(
+      client,
+      auth.accountId,
+      captureId,
+      now,
+    );
   });
 }
 

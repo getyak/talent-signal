@@ -167,6 +167,21 @@ describe("source-retention policy", () => {
     );
   });
 
+  it("binds reviewed extracted text to screenshot metadata", () => {
+    expect(() =>
+      validateSourceRetentionPayload(
+        payloadRequest(
+          "reviewed_extracted_text",
+          "screenshot_metadata",
+          3,
+        ),
+      ),
+    ).not.toThrow();
+    expectPayloadMismatch(
+      payloadRequest("reviewed_extracted_text", "transcript"),
+    );
+  });
+
   it("rejects evidence-crop scope until an actual crop asset is governed", () => {
     expectPayloadMismatch(
       payloadRequest("reviewed_evidence_crop", "screenshot_metadata"),

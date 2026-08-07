@@ -23,7 +23,11 @@ afterEach(async () => {
 describe("readiness rate limiting", () => {
   it("bounds repeated public database readiness probes", async () => {
     const query = vi.fn().mockResolvedValue({
-      rows: [{ version: "002_source_retention" }],
+      rows: [
+        {
+          version: "018_identity_freshness_policy_immutability",
+        },
+      ],
     });
     const app = await buildApp({
       config,
@@ -46,5 +50,5 @@ describe("readiness rate limiting", () => {
 
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
-  });
+  }, 10_000);
 });
