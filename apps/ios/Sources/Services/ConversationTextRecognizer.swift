@@ -1,0 +1,143 @@
+import Foundation
+import UIKit
+@preconcurrency import Vision
+
+protocol ConversationTextRecognizing {
+    func recognizeText(in imageData: Data) async throws -> String
+}
+
+struct VisionConversationTextRecognizer: ConversationTextRecognizing {
+    func recognizeText(in imageData: Data) async throws -> String {
+        guard let image = UIImage(data: imageData),
+              let cgImage = image.cgImage else {
+            throw ConversationRecognitionError.unreadableImage
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let request = VNRecognizeTextRequest { request, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
+                let ordered = observations.sorted { left, right in
+                    let rowDifference = abs(left.boundingBox.midY - right.boundingBox.midY)
+                    if rowDifference > 0.025 {
+                        return left.boundingBox.midY > right.boundingBox.midY
+                    }
+                    return left.boundingBox.minX < right.boundingBox.minX
+                }
+                let text = ordered.compactMap { $0.topCandidates(1).first?.string }
+                    .joined(separator: "\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard !text.isEmpty else {
+                    continuation.resume(throwing: ConversationRecognitionError.noText)
+                    return
+                }
+                continuation.resume(returning: text)
+            }
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            request.recognitionLanguages = ["zh-Hans", "en-US"]
+
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try VNImageRequestHandler(cgImage: cgImage).perform([request])
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+}
+
+enum ConversationRecognitionError: LocalizedError, Equatable {
+    case unreadableImage
+    case noText
+
+    var errorDescription: String? {
+        switch self {
+        case .unreadableImage:
+            return "The selected file is not a readable image."
+        case .noText:
+            return "No readable conversation text was found. Try a clearer screenshot."
+        }
+    }
+}
+
+struct CaptureDraftBuilder {
+    static func makeDraft(from text: String) -> RecognizedCaptureDraft {
+        var draft = RecognizedCaptureDraft.empty
+        draft.reviewedText = text
+
+        if let email = firstMatch(
+            pattern: #"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#,
+            in: text,
+            options: [.caseInsensitive]
+        ) {
+            draft.handleType = .email
+            draft.handleValue = email
+            return draft
+        }
+
+        if let phone = firstMatch(
+            pattern: #"(?<!\d)(?:\+?\d[\d\s\-()]{6,}\d)(?!\d)"#,
+            in: text
+        ) {
+            draft.handleType = .phone
+            draft.handleValue = normalizedPhone(phone)
+            return draft
+        }
+
+        if let wechat = firstCapturedGroup(
+            pattern: #"(?:微信|WeChat|微信号)\s*[:：]?\s*([A-Za-z][A-Za-z0-9_-]{5,19})"#,
+            in: text,
+            options: [.caseInsensitive]
+        ) {
+            draft.handleType = .wechat
+            draft.handleValue = wechat
+        }
+        return draft
+    }
+
+    private static func normalizedPhone(_ value: String) -> String {
+        let hasPlus = value.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("+")
+        let digits = value.filter(\.isNumber)
+        return hasPlus ? "+\(digits)" : digits
+    }
+
+    private static func firstMatch(
+        pattern: String,
+        in text: String,
+        options: NSRegularExpression.Options = []
+    ) -> String? {
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: options) else {
+            return nil
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = expression.firstMatch(in: text, range: range),
+              let swiftRange = Range(match.range, in: text) else {
+            return nil
+        }
+        return String(text[swiftRange])
+    }
+
+    private static func firstCapturedGroup(
+        pattern: String,
+        in text: String,
+        options: NSRegularExpression.Options = []
+    ) -> String? {
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: options) else {
+            return nil
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = expression.firstMatch(in: text, range: range),
+              match.numberOfRanges > 1,
+              let swiftRange = Range(match.range(at: 1), in: text) else {
+            return nil
+        }
+        return String(text[swiftRange])
+    }
+}

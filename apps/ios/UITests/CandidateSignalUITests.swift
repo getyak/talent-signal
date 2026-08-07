@@ -186,6 +186,71 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("TS-CORE-01 canonical backend state")
     }
 
+    @MainActor
+    func testRelationshipCaptureRequiresCurrentOwnerAndCompilesGoldWiki() async throws {
+        let endpoint = URL(string: "http://127.0.0.1:4317/health/ready")!
+        guard let (_, response) = try? await URLSession.shared.data(from: endpoint),
+              let response = response as? HTTPURLResponse,
+              response.statusCode == 200 else {
+            throw XCTSkip("Run with the authorized local Talent Signal backend.")
+        }
+
+        app.launchArguments = [
+            "--scenario", "relationship-capture",
+            "--backend-url", "http://127.0.0.1:4317",
+            "--capture-seed", "B2B2B2B2-B2B2-42B2-82B2-B2B2B2B2B2B2",
+            "--capture-handle", "+6580805531",
+            "--capture-name", "Current owner 080e5531"
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 10))
+        XCTAssertTrue(element("unknown-speaker-boundary").exists)
+        tapWhenVisible(app.buttons["submit-reviewed-capture"])
+
+        let currentID =
+            "identity-candidate-054d4f41-ebe2-4c2f-9c55-3e83b680f725"
+        let historicalID =
+            "identity-candidate-e01fd3e7-3058-4d04-a40a-f91cf577185b"
+        let current = app.buttons[currentID]
+        let historical = app.buttons[historicalID]
+        if !current.waitForExistence(timeout: 30) {
+            let retry = app.buttons["retry-capture-step"]
+            XCTAssertTrue(
+                retry.waitForExistence(timeout: 5),
+                "Identity review should load or expose a safe retry."
+            )
+            retry.tap()
+        }
+        XCTAssertTrue(current.waitForExistence(timeout: 30))
+        XCTAssertTrue(historical.exists)
+        XCTAssertFalse(current.isSelected)
+        XCTAssertTrue(current.isEnabled)
+        XCTAssertFalse(historical.isEnabled)
+        XCTAssertTrue(element("identity-no-preselection").exists)
+        XCTAssertTrue(element("historical-candidate-protected").exists)
+        preserveScreenshot("Current and historical identity comparison")
+
+        tapWhenVisible(current)
+        XCTAssertTrue(current.isSelected)
+        tapWhenVisible(app.buttons["bind-selected-person"])
+
+        let verdict = element("wiki-quality-verdict")
+        if !verdict.waitForExistence(timeout: 30) {
+            let retry = app.buttons["retry-capture-step"]
+            XCTAssertTrue(
+                retry.waitForExistence(timeout: 5),
+                "Wiki compilation should finish or expose a safe retry."
+            )
+            retry.tap()
+        }
+        XCTAssertTrue(verdict.waitForExistence(timeout: 30))
+        XCTAssertEqual(verdict.label, "WIKI · GOLD")
+        XCTAssertTrue(app.buttons["return-to-person"].exists)
+        XCTAssertTrue(element("capture-completion-receipt").exists)
+        preserveScreenshot("iOS relationship Wiki Gold receipt")
+    }
+
     func testBackgroundInterruptionPreservesReviewDecision() {
         launch(fixtureID: "TS-CORE-01")
 

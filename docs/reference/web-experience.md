@@ -56,6 +56,12 @@ The page should make clear that:
 - a recommendation may correctly become `no_action`;
 - the living page is a governed view, not an AI-authored truth store.
 
+For the authenticated workspace, the strongest identity proof is an inline
+two-owner case: Chat and Agent controls remain beside the living person page;
+the current source-linked owner is actionable; the expired owner remains
+visible but disabled; no person is preselected; and the recruiter can preserve
+the new source for later identity review without creating a duplicate.
+
 ## Quality boundary
 
 The experience is ready when it remains coherent across desktop and mobile,

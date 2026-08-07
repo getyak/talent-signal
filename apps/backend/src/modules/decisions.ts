@@ -15,6 +15,7 @@ import {
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
 import type { MutationResult } from "./captures.js";
+import { invalidateKnowledgeForFragment } from "./resources.js";
 
 interface AssertionContext {
   id: string;
@@ -30,10 +31,12 @@ interface AssertionContext {
   proposed_value: string | null;
   temporal_relation: "new" | "reinforces" | "supersedes";
   supersedes_state_id: string | null;
+  evidence_fragment_id: string | null;
   version: number;
   capture_status: "active" | "deleted";
   subject_id: string | null;
   assignment_id: string | null;
+  authorization_state: "authorized" | "revoked" | "expired";
 }
 
 export async function decideAssertion(
@@ -68,14 +71,25 @@ export async function decideAssertion(
          assertions.proposed_value,
          assertions.temporal_relation,
          assertions.supersedes_state_id,
+         assertions.evidence_fragment_id,
          assertions.version,
          captures.status AS capture_status,
          captures.subject_id,
-         captures.assignment_id
+         captures.assignment_id,
+         CASE
+           WHEN receipts.authorization_state = 'authorized'
+            AND receipts.authorization_expires_at IS NOT NULL
+            AND receipts.authorization_expires_at <= now()
+           THEN 'expired'
+           ELSE receipts.authorization_state
+         END AS authorization_state
        FROM proposed_assertions assertions
        JOIN captures
          ON captures.account_id = assertions.account_id
         AND captures.id = assertions.capture_id
+       JOIN source_retention_receipts receipts
+         ON receipts.account_id = captures.account_id
+        AND receipts.capture_id = captures.id
        WHERE assertions.account_id = $1 AND assertions.id = $2
        FOR UPDATE OF assertions`,
       [auth.accountId, assertionId],
@@ -96,6 +110,13 @@ export async function decideAssertion(
         410,
         "ASSERTION_DELETED",
         "Deleted evidence cannot receive a fact decision.",
+      );
+    }
+    if (assertion.authorization_state !== "authorized") {
+      throw new ApiError(
+        409,
+        "ASSERTION_SOURCE_AUTHORIZATION_UNAVAILABLE",
+        "Restore or renew and then review the source before deciding this claim.",
       );
     }
     if (assertion.version !== request.expected_assertion_version) {
@@ -265,6 +286,75 @@ export async function decideAssertion(
        WHERE account_id = $1 AND id = $2`,
       [auth.accountId, assertionId, reviewStatus],
     );
+    let invalidatedSnapshotIds: string[] = [];
+    if (assertion.evidence_fragment_id) {
+      invalidatedSnapshotIds = await invalidateKnowledgeForFragment(
+        client,
+        auth.accountId,
+        assertion.evidence_fragment_id,
+      );
+      const resourceState = await client.query<{
+        resource_id: string;
+        pending_claim_count: number;
+        proposed_fragment_count: number;
+        reviewed_fragment_count: number;
+      }>(
+        `SELECT
+           fragments.resource_id,
+           (
+             SELECT COUNT(*)::integer
+             FROM proposed_assertions claims
+             JOIN evidence_fragments claim_fragments
+               ON claim_fragments.account_id = claims.account_id
+              AND claim_fragments.id = claims.evidence_fragment_id
+             WHERE claims.account_id = $1
+               AND claim_fragments.resource_id = fragments.resource_id
+               AND claims.review_status IN ('pending', 'unresolved')
+           ) AS pending_claim_count,
+           (
+             SELECT COUNT(*)::integer
+             FROM evidence_fragments source_fragments
+             WHERE source_fragments.account_id = $1
+               AND source_fragments.resource_id = fragments.resource_id
+               AND source_fragments.status = 'active'
+               AND source_fragments.review_status = 'proposed'
+           ) AS proposed_fragment_count,
+           (
+             SELECT COUNT(*)::integer
+             FROM evidence_fragments source_fragments
+             WHERE source_fragments.account_id = $1
+               AND source_fragments.resource_id = fragments.resource_id
+               AND source_fragments.status = 'active'
+               AND source_fragments.review_status = 'reviewed'
+           ) AS reviewed_fragment_count
+         FROM evidence_fragments fragments
+         WHERE fragments.account_id = $1
+           AND fragments.id = $2`,
+        [auth.accountId, assertion.evidence_fragment_id],
+      );
+      const resource = resourceState.rows[0];
+      if (resource) {
+        const processingState =
+          resource.pending_claim_count > 0 ||
+          resource.proposed_fragment_count > 0
+            ? "needs_fact_review"
+            : resource.reviewed_fragment_count > 0
+              ? "ready"
+              : "failed";
+        await client.query(
+          `UPDATE source_resources
+           SET processing_state = $3,
+               updated_at = $4
+           WHERE account_id = $1 AND id = $2`,
+          [
+            auth.accountId,
+            resource.resource_id,
+            processingState,
+            decidedAt,
+          ],
+        );
+      }
+    }
     await appendAudit(
       client,
       { accountId: auth.accountId, actorUserId: auth.userId },
@@ -275,6 +365,8 @@ export async function decideAssertion(
         corrected: request.corrected_value !== undefined,
         field: assertion.field,
         temporal_relation: assertion.temporal_relation,
+        evidence_fragment_id: assertion.evidence_fragment_id,
+        invalidated_snapshot_ids: invalidatedSnapshotIds,
       },
     );
     if (confirmedStateId) {

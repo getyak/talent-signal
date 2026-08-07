@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { createPool } from "./database/pool.js";
+import { runSourceLifecycleSweep } from "./modules/sourceLifecycle.js";
 
 const config = loadConfig();
 const pool = createPool(config);
@@ -21,6 +22,12 @@ process.once("SIGTERM", () => {
 
 try {
   await app.listen({ host: config.host, port: config.port });
+  void runSourceLifecycleSweep(pool).catch((error: unknown) => {
+    app.log.error(
+      { err: error },
+      "Startup source lifecycle recovery failed",
+    );
+  });
 } catch (error) {
   app.log.error({ err: error }, "Local control plane failed to start");
   await pool.end();

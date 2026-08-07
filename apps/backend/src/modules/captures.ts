@@ -70,24 +70,48 @@ export interface MutationResult<T> {
 async function resolveBoundIdentity(
   client: PoolClient,
   accountId: string,
-  identity: Extract<CreateCaptureRequest["identity"], { status: "bound" }>,
+  identity:
+    | Extract<CreateCaptureRequest["identity"], { status: "bound" }>
+    | Extract<
+        CreateCaptureRequest["identity"],
+        { status: "bound_existing" }
+      >,
 ): Promise<{ subjectId: string; assignmentId: string }> {
-  const subjectResult = await client.query<{ id: string }>(
-    `INSERT INTO subjects(
-       id, account_id, external_ref, display_label, status, deleted_at
-     )
-     VALUES ($1, $2, $3, $4, 'active', NULL)
-     ON CONFLICT (account_id, external_ref) DO UPDATE SET
-       display_label = EXCLUDED.display_label
-     RETURNING id`,
-    [randomUUID(), accountId, identity.external_ref, identity.display_label],
-  );
+  const subjectResult =
+    identity.status === "bound_existing"
+      ? await client.query<{ id: string }>(
+          `SELECT id
+           FROM subjects
+           WHERE account_id = $1
+             AND id = $2
+             AND status = 'active'`,
+          [accountId, identity.subject_id],
+        )
+      : await client.query<{ id: string }>(
+          `INSERT INTO subjects(
+             id, account_id, external_ref, display_label, status, deleted_at
+           )
+           VALUES ($1, $2, $3, $4, 'active', NULL)
+           ON CONFLICT (account_id, external_ref) DO UPDATE SET
+             display_label = EXCLUDED.display_label
+           RETURNING id`,
+          [
+            randomUUID(),
+            accountId,
+            identity.external_ref,
+            identity.display_label,
+          ],
+        );
   const subjectId = subjectResult.rows[0]?.id;
   if (!subjectId) {
     throw new ApiError(
-      409,
-      "IDENTITY_BINDING_CONFLICT",
-      "The subject identity could not be bound.",
+      identity.status === "bound_existing" ? 404 : 409,
+      identity.status === "bound_existing"
+        ? "PERSON_NOT_FOUND"
+        : "IDENTITY_BINDING_CONFLICT",
+      identity.status === "bound_existing"
+        ? "The selected person is unavailable in this account."
+        : "The subject identity could not be bound.",
     );
   }
 
@@ -245,10 +269,25 @@ export async function createCapture(
       };
     }
 
-    const identity =
-      request.identity.status === "bound"
-        ? await resolveBoundIdentity(client, auth.accountId, request.identity)
-        : { subjectId: null, assignmentId: null };
+    let identity: {
+      subjectId: string | null;
+      assignmentId: string | null;
+    };
+    let identityStatus: "bound" | "ambiguous" | "unbound";
+    if (
+      request.identity.status === "bound" ||
+      request.identity.status === "bound_existing"
+    ) {
+      identity = await resolveBoundIdentity(
+        client,
+        auth.accountId,
+        request.identity,
+      );
+      identityStatus = "bound";
+    } else {
+      identity = { subjectId: null, assignmentId: null };
+      identityStatus = request.identity.status;
+    }
     const captureId = randomUUID();
     const submittedAt = new Date();
     const retentionPolicy = resolveSourceRetentionPolicy(
@@ -258,6 +297,9 @@ export async function createCapture(
     );
     const sourceMetadata: Omit<CaptureSourceInput, "retention"> = {
       kind: request.source.kind,
+      ...(request.source.channel
+        ? { channel: request.source.channel }
+        : {}),
       captured_at: request.source.captured_at,
       source_timezone: request.source.source_timezone,
       purpose: request.source.purpose,
@@ -284,22 +326,92 @@ export async function createCapture(
         request.fixture_case_id ?? null,
         request.source.kind,
         sourceMetadata,
-        request.identity.status,
+        identityStatus,
         request.identity,
         request.source.purpose,
         retentionPolicy.retentionUntil,
         submittedAt,
       ],
     );
+    if (identity.subjectId) {
+      const touchedPerson = await client.query(
+        `UPDATE subjects
+         SET version = version + 1
+         WHERE account_id = $1
+           AND id = $2
+           AND status = 'active'
+         RETURNING id`,
+        [auth.accountId, identity.subjectId],
+      );
+      if (touchedPerson.rowCount !== 1) {
+        throw new ApiError(
+          409,
+          "PERSON_IDENTITY_CHANGED_DURING_CAPTURE",
+          "The selected person changed while this capture was being attached.",
+        );
+      }
+    }
     await createSourceRetentionRecord(client, {
       accountId: auth.accountId,
       captureId,
       sourceLocator: request.source.source_locator ?? null,
       policy: retentionPolicy,
       submittedAt,
+      authorizationExpiresAt:
+        request.source.authorization_expires_at ?? null,
     });
 
+    const resourceId = randomUUID();
+    const resourceKind =
+      request.source.kind === "screenshot_metadata"
+        ? "conversation_screenshot"
+        : "conversation_transcript";
+    const inputChannel =
+      request.source.channel ??
+      (request.source.kind === "screenshot_metadata"
+        ? "web_upload"
+        : "api_connector");
+    await client.query(
+      `INSERT INTO source_resources(
+         id, account_id, capture_id, created_by_user_id, client_resource_id,
+         resource_kind, input_channel, display_name, media_type, content_hash,
+         source_locator, observed_at, source_timezone, retention_scope,
+         retention_until, processing_state, sensitivity
+       )
+       VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $8, 'text/plain', $9, $10, $11,
+         $12, $13, $14, 'needs_fact_review', 'restricted'
+       )`,
+      [
+        resourceId,
+        auth.accountId,
+        captureId,
+        auth.userId,
+        `capture:${captureId}:primary`,
+        resourceKind,
+        inputChannel,
+        request.source.kind === "screenshot_metadata"
+          ? "Reviewed conversation screenshot"
+          : "Reviewed conversation transcript",
+        sha256(
+          JSON.stringify(
+            request.messages.map((message) => ({
+              sequence: message.sequence,
+              speaker: message.speaker,
+              text: message.text,
+            })),
+          ),
+        ),
+        request.source.source_locator ?? null,
+        request.source.captured_at,
+        request.source.source_timezone,
+        retentionPolicy.sourceScope,
+        retentionPolicy.retentionUntil,
+      ],
+    );
+
     for (const message of request.messages) {
+      const contentHash = sha256(message.text);
       await client.query(
         `INSERT INTO evidence_items(
            id, account_id, capture_id, source_message_id, sequence, speaker,
@@ -314,7 +426,37 @@ export async function createCapture(
           message.sequence,
           message.speaker,
           message.text,
-          sha256(message.text),
+          contentHash,
+        ],
+      );
+      await client.query(
+        `INSERT INTO evidence_fragments(
+           id, account_id, capture_id, resource_id, fragment_kind, sequence,
+           text_content, content_hash, locator, attributed_actor,
+           attribution_status, parser_name, parser_version
+         )
+         VALUES (
+           $1, $2, $3, $4, 'message', $5, $6, $7, $8, $9, $10,
+           'reviewed-message-adapter', '1.0.0'
+         )`,
+        [
+          randomUUID(),
+          auth.accountId,
+          captureId,
+          resourceId,
+          message.sequence,
+          message.text,
+          contentHash,
+          {
+            kind: "message",
+            source_message_id: message.source_message_id,
+            sequence: message.sequence,
+            speaker_side: "unknown",
+          },
+          message.speaker === "hiring_manager"
+            ? "client"
+            : message.speaker,
+          message.speaker === "unknown" ? "unknown" : "confirmed",
         ],
       );
     }
@@ -327,7 +469,7 @@ export async function createCapture(
       captureId,
       {
         fixture_case_id: request.fixture_case_id ?? null,
-        identity_status: request.identity.status,
+        identity_status: identityStatus,
         message_count: request.messages.length,
         source_kind: request.source.kind,
         requested_retention_mode: retentionPolicy.requestedMode,
@@ -535,6 +677,43 @@ export async function deleteCapture(
       );
     }
 
+    const governedCaptureIdsResult = await client.query<{ id: string }>(
+      `WITH RECURSIVE resource_tree AS (
+         SELECT resources.id, resources.capture_id
+         FROM source_resources resources
+         WHERE resources.account_id = $1
+           AND resources.capture_id = $2
+           AND resources.processing_state <> 'deleted'
+         UNION ALL
+         SELECT children.id, children.capture_id
+         FROM source_resources children
+         JOIN resource_tree parents
+           ON children.account_id = $1
+          AND children.discovered_from_resource_id = parents.id
+         WHERE children.processing_state <> 'deleted'
+       )
+       SELECT $2::uuid AS id
+       UNION
+       SELECT capture_id AS id FROM resource_tree`,
+      [auth.accountId, captureId],
+    );
+    const governedCaptureIds = governedCaptureIdsResult.rows.map(
+      (row) => row.id,
+    );
+    const governedCaptures = await client.query<{
+      id: string;
+      subject_id: string | null;
+      assignment_id: string | null;
+    }>(
+      `SELECT id, subject_id, assignment_id
+       FROM captures
+       WHERE account_id = $1
+         AND id = ANY($2::uuid[])
+         AND status = 'active'
+       FOR UPDATE`,
+      [auth.accountId, governedCaptureIds],
+    );
+
     const deletionId = randomUUID();
     await client.query(
       `INSERT INTO deletion_requests(
@@ -550,47 +729,114 @@ export async function deleteCapture(
     }>(
       `SELECT 'evidence' AS entity_type, id AS entity_id
          FROM evidence_items
-         WHERE account_id = $1 AND capture_id = $2
+         WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
+       UNION ALL
+       SELECT 'source_resource', id
+         FROM source_resources
+         WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
+       UNION ALL
+       SELECT 'evidence_fragment', id
+         FROM evidence_fragments
+         WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
+       UNION ALL
+       SELECT 'evidence_fragment_review', reviews.id
+         FROM evidence_fragment_reviews reviews
+         JOIN evidence_fragments fragments
+           ON fragments.account_id = reviews.account_id
+          AND fragments.id = reviews.fragment_id
+         WHERE fragments.account_id = $1
+           AND fragments.capture_id = ANY($2::uuid[])
+       UNION ALL
+       SELECT 'identity_handle', handles.id
+         FROM identity_handles handles
+         WHERE handles.account_id = $1
+           AND handles.source_resource_id IN (
+             SELECT id
+             FROM source_resources
+             WHERE account_id = $1
+               AND capture_id = ANY($2::uuid[])
+           )
+       UNION ALL
+       SELECT 'identity_resolution_case', cases.id
+         FROM identity_resolution_cases cases
+         WHERE cases.account_id = $1
+           AND cases.capture_id = ANY($2::uuid[])
+       UNION ALL
+       SELECT 'identity_resolution_candidate', candidates.id
+         FROM identity_resolution_candidates candidates
+         JOIN identity_resolution_cases cases
+           ON cases.account_id = candidates.account_id
+          AND cases.id = candidates.case_id
+         WHERE cases.account_id = $1
+           AND cases.capture_id = ANY($2::uuid[])
+       UNION ALL
+       SELECT 'identity_resolution_decision', decisions.id
+         FROM identity_resolution_decisions decisions
+         JOIN identity_resolution_cases cases
+           ON cases.account_id = decisions.account_id
+          AND cases.id = decisions.case_id
+         WHERE cases.account_id = $1
+           AND cases.capture_id = ANY($2::uuid[])
+       UNION ALL
+       SELECT 'research_snapshot', snapshots.id
+         FROM research_snapshots snapshots
+         JOIN source_resources resources
+           ON resources.account_id = snapshots.account_id
+          AND resources.id = snapshots.resource_id
+         WHERE resources.account_id = $1
+           AND resources.capture_id = ANY($2::uuid[])
+       UNION ALL
+       SELECT 'research_task', tasks.id
+         FROM research_tasks tasks
+         JOIN source_resources seeds
+           ON seeds.account_id = tasks.account_id
+          AND seeds.id = tasks.seed_resource_id
+         WHERE seeds.account_id = $1
+           AND seeds.capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'analysis_proposal', id
          FROM analysis_proposals
-         WHERE account_id = $1 AND capture_id = $2
+         WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'assertion_proposal', id
          FROM proposed_assertions
-         WHERE account_id = $1 AND capture_id = $2
+         WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'fact_decision', decisions.id
          FROM fact_decisions decisions
          JOIN proposed_assertions assertions
            ON assertions.account_id = decisions.account_id
           AND assertions.id = decisions.assertion_id
-         WHERE assertions.account_id = $1 AND assertions.capture_id = $2
+         WHERE assertions.account_id = $1
+           AND assertions.capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'confirmed_state', states.id
          FROM confirmed_states states
          JOIN proposed_assertions assertions
            ON assertions.account_id = states.account_id
           AND assertions.id = states.source_assertion_id
-         WHERE assertions.account_id = $1 AND assertions.capture_id = $2
+         WHERE assertions.account_id = $1
+           AND assertions.capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'action_proposal', id
          FROM action_proposals
-         WHERE account_id = $1 AND capture_id = $2
+         WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'action_approval', approvals.id
          FROM action_approvals approvals
          JOIN action_proposals actions
            ON actions.account_id = approvals.account_id
           AND actions.id = approvals.action_id
-         WHERE actions.account_id = $1 AND actions.capture_id = $2
+         WHERE actions.account_id = $1
+           AND actions.capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'effect_attempt', attempts.id
          FROM effect_attempts attempts
          JOIN action_proposals actions
            ON actions.account_id = attempts.account_id
           AND actions.id = attempts.action_id
-         WHERE actions.account_id = $1 AND actions.capture_id = $2
+         WHERE actions.account_id = $1
+           AND actions.capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'outcome', outcomes.id
          FROM outcomes
@@ -600,7 +846,8 @@ export async function deleteCapture(
          JOIN action_proposals actions
            ON actions.account_id = attempts.account_id
           AND actions.id = attempts.action_id
-         WHERE actions.account_id = $1 AND actions.capture_id = $2
+         WHERE actions.account_id = $1
+           AND actions.capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT 'effect_observation', observations.id
          FROM effect_observations observations
@@ -610,7 +857,8 @@ export async function deleteCapture(
          JOIN action_proposals actions
            ON actions.account_id = attempts.account_id
           AND actions.id = attempts.action_id
-         WHERE actions.account_id = $1 AND actions.capture_id = $2
+         WHERE actions.account_id = $1
+           AND actions.capture_id = ANY($2::uuid[])
        UNION ALL
        SELECT DISTINCT 'simulated_destination', destinations.id
          FROM simulated_destinations destinations
@@ -618,17 +866,92 @@ export async function deleteCapture(
            ON actions.account_id = destinations.account_id
           AND actions.exact_preview->'target'->>'destination_key'
               = destinations.destination_key
-         WHERE actions.account_id = $1 AND actions.capture_id = $2`,
-      [auth.accountId, captureId],
+         WHERE actions.account_id = $1
+           AND actions.capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
     );
+
+    const affectedKnowledge = await client.query<{
+      entity_type: string;
+      entity_id: string;
+    }>(
+      `WITH affected_snapshots AS (
+         SELECT DISTINCT blocks.snapshot_id
+         FROM knowledge_dependencies dependencies
+         JOIN knowledge_blocks blocks
+           ON blocks.account_id = dependencies.account_id
+          AND blocks.id = dependencies.block_id
+         WHERE dependencies.account_id = $1
+           AND (
+             (
+               dependencies.dependency_type = 'evidence_fragment'
+               AND dependencies.dependency_id IN (
+                 SELECT id
+                 FROM evidence_fragments
+                 WHERE account_id = $1
+                   AND capture_id = ANY($2::uuid[])
+               )
+             )
+             OR (
+               dependencies.dependency_type = 'source_resource'
+               AND dependencies.dependency_id IN (
+                 SELECT id
+                 FROM source_resources
+                 WHERE account_id = $1
+                   AND capture_id = ANY($2::uuid[])
+               )
+             )
+           )
+       )
+       SELECT 'knowledge_snapshot' AS entity_type, snapshot_id AS entity_id
+         FROM affected_snapshots
+       UNION ALL
+       SELECT 'knowledge_block', blocks.id
+         FROM knowledge_blocks blocks
+         WHERE blocks.account_id = $1
+           AND blocks.snapshot_id IN (SELECT snapshot_id FROM affected_snapshots)
+       UNION ALL
+       SELECT 'context_manifest', manifests.id
+         FROM context_manifests manifests
+         WHERE manifests.account_id = $1
+           AND manifests.knowledge_snapshot_id IN (
+             SELECT snapshot_id FROM affected_snapshots
+           )
+       UNION ALL
+       SELECT 'idempotency_record', records.id
+         FROM idempotency_records records
+         WHERE records.account_id = $1
+           AND (
+             (
+               records.operation_scope = 'compile_relationship_wiki'
+               AND records.response_body->>'snapshot_id' IN (
+                 SELECT snapshot_id::text FROM affected_snapshots
+               )
+             )
+             OR (
+               records.operation_scope = 'create_chat_task'
+               AND records.response_body->>'knowledge_snapshot_id' IN (
+                 SELECT snapshot_id::text FROM affected_snapshots
+               )
+             )
+           )`,
+      [auth.accountId, governedCaptureIds],
+    );
+    entities.rows.push(...affectedKnowledge.rows);
+    const affectedSnapshotIds = affectedKnowledge.rows
+      .filter((item) => item.entity_type === "knowledge_snapshot")
+      .map((item) => item.entity_id);
+    const affectedResearchTaskIds = entities.rows
+      .filter((item) => item.entity_type === "research_task")
+      .map((item) => item.entity_id);
 
     const destinationKeys = await client.query<{ destination_key: string }>(
       `SELECT DISTINCT exact_preview->'target'->>'destination_key' AS destination_key
        FROM action_proposals
        WHERE account_id = $1
-         AND capture_id = $2
+         AND capture_id = ANY($2::uuid[])
          AND exact_preview->'target'->>'destination_key' IS NOT NULL`,
-      [auth.accountId, captureId],
+      [auth.accountId, governedCaptureIds],
     );
 
     await client.query(
@@ -638,11 +961,11 @@ export async function deleteCapture(
            revocation_reason = 'source_deleted'
        FROM action_proposals actions
        WHERE actions.account_id = $1
-         AND actions.capture_id = $2
+         AND actions.capture_id = ANY($2::uuid[])
          AND approvals.account_id = actions.account_id
          AND approvals.action_id = actions.id
          AND approvals.status = 'active'`,
-      [auth.accountId, captureId],
+      [auth.accountId, governedCaptureIds],
     );
     await client.query(
       `UPDATE outcomes
@@ -654,9 +977,10 @@ export async function deleteCapture(
            JOIN action_proposals actions
              ON actions.account_id = attempts.account_id
             AND actions.id = attempts.action_id
-           WHERE actions.account_id = $1 AND actions.capture_id = $2
+           WHERE actions.account_id = $1
+             AND actions.capture_id = ANY($2::uuid[])
          )`,
-      [auth.accountId, captureId],
+      [auth.accountId, governedCaptureIds],
     );
     await client.query(
       `UPDATE effect_observations
@@ -669,9 +993,10 @@ export async function deleteCapture(
            JOIN action_proposals actions
              ON actions.account_id = attempts.account_id
             AND actions.id = attempts.action_id
-           WHERE actions.account_id = $1 AND actions.capture_id = $2
+           WHERE actions.account_id = $1
+             AND actions.capture_id = ANY($2::uuid[])
          )`,
-      [auth.accountId, captureId],
+      [auth.accountId, governedCaptureIds],
     );
     for (const { destination_key: destinationKey } of destinationKeys.rows) {
       await client.query(
@@ -680,6 +1005,69 @@ export async function deleteCapture(
         [auth.accountId, destinationKey],
       );
     }
+    const priorStatesNeedingReview = await client.query<{
+      retracted_state_id: string;
+      prior_state_id: string;
+    }>(
+      `WITH RECURSIVE state_chain AS (
+         SELECT
+           states.id AS retracted_state_id,
+           states.supersedes_state_id AS candidate_state_id,
+           1 AS depth
+         FROM confirmed_states states
+         JOIN proposed_assertions assertions
+           ON assertions.account_id = states.account_id
+          AND assertions.id = states.source_assertion_id
+         WHERE states.account_id = $1
+           AND assertions.capture_id = ANY($2::uuid[])
+           AND states.status = 'active'
+           AND states.supersedes_state_id IS NOT NULL
+         UNION ALL
+         SELECT
+           chain.retracted_state_id,
+           candidate.supersedes_state_id,
+           chain.depth + 1
+         FROM state_chain chain
+         JOIN confirmed_states candidate
+           ON candidate.account_id = $1
+          AND candidate.id = chain.candidate_state_id
+         JOIN proposed_assertions candidate_assertion
+           ON candidate_assertion.account_id = candidate.account_id
+          AND candidate_assertion.id = candidate.source_assertion_id
+         WHERE candidate_assertion.capture_id = ANY($2::uuid[])
+           AND candidate.supersedes_state_id IS NOT NULL
+           AND chain.depth < 100
+       ),
+       surviving_prior AS (
+         SELECT
+           chain.retracted_state_id,
+           candidate.id AS prior_state_id,
+           row_number() OVER (
+             PARTITION BY chain.retracted_state_id
+             ORDER BY chain.depth
+           ) AS candidate_rank
+         FROM state_chain chain
+         JOIN confirmed_states candidate
+           ON candidate.account_id = $1
+          AND candidate.id = chain.candidate_state_id
+         JOIN proposed_assertions candidate_assertion
+           ON candidate_assertion.account_id = candidate.account_id
+          AND candidate_assertion.id = candidate.source_assertion_id
+         JOIN captures candidate_capture
+           ON candidate_capture.account_id = candidate_assertion.account_id
+          AND candidate_capture.id = candidate_assertion.capture_id
+         WHERE NOT (
+             candidate_assertion.capture_id = ANY($2::uuid[])
+           )
+           AND candidate_capture.status = 'active'
+           AND candidate.status = 'superseded'
+           AND candidate.value_text IS NOT NULL
+       )
+       SELECT retracted_state_id, prior_state_id
+       FROM surviving_prior
+       WHERE candidate_rank = 1`,
+      [auth.accountId, governedCaptureIds],
+    );
     await client.query(
       `UPDATE action_proposals
        SET status = 'deleted',
@@ -690,28 +1078,41 @@ export async function deleteCapture(
            exact_preview_digest = 'deleted',
            deleted_at = now(),
            updated_at = now()
-       WHERE account_id = $1 AND capture_id = $2`,
-      [auth.accountId, captureId],
+       WHERE account_id = $1 AND capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
     );
+    const priorStateIds = priorStatesNeedingReview.rows.map(
+      (state) => state.prior_state_id,
+    );
+    if (priorStateIds.length > 0) {
+      await client.query(
+        `UPDATE confirmed_states
+         SET status = 'contested'
+         WHERE account_id = $1
+           AND id = ANY($2::uuid[])
+           AND status = 'superseded'`,
+        [auth.accountId, priorStateIds],
+      );
+    }
     await client.query(
       `UPDATE confirmed_states states
        SET status = 'deleted', value_text = NULL, deleted_at = now()
        FROM proposed_assertions assertions
        WHERE assertions.account_id = $1
-         AND assertions.capture_id = $2
+         AND assertions.capture_id = ANY($2::uuid[])
          AND states.account_id = assertions.account_id
          AND states.source_assertion_id = assertions.id`,
-      [auth.accountId, captureId],
+      [auth.accountId, governedCaptureIds],
     );
     await client.query(
       `UPDATE fact_decisions decisions
        SET proposed_value_at_decision = NULL, corrected_value = NULL
        FROM proposed_assertions assertions
        WHERE assertions.account_id = $1
-         AND assertions.capture_id = $2
+         AND assertions.capture_id = ANY($2::uuid[])
          AND decisions.account_id = assertions.account_id
          AND decisions.assertion_id = assertions.id`,
-      [auth.accountId, captureId],
+      [auth.accountId, governedCaptureIds],
     );
     await client.query(
       `UPDATE proposed_assertions
@@ -719,14 +1120,276 @@ export async function deleteCapture(
            proposed_value = NULL,
            evidence_quote = NULL,
            deleted_at = now()
-       WHERE account_id = $1 AND capture_id = $2`,
-      [auth.accountId, captureId],
+       WHERE account_id = $1 AND capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
     );
     await client.query(
       `UPDATE analysis_proposals
        SET status = 'deleted', deleted_at = now()
-       WHERE account_id = $1 AND capture_id = $2`,
-      [auth.accountId, captureId],
+       WHERE account_id = $1 AND capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
+      `UPDATE context_manifests
+       SET status = 'deleted',
+           objective = '[deleted]',
+           authorization_scope = '[deleted]',
+           deleted_at = now()
+       WHERE account_id = $1
+         AND knowledge_snapshot_id = ANY($2::uuid[])`,
+      [auth.accountId, affectedSnapshotIds],
+    );
+    await client.query(
+      `UPDATE context_manifest_blocks
+       SET inclusion_reason = '[deleted]'
+       WHERE account_id = $1
+         AND manifest_id IN (
+           SELECT id
+           FROM context_manifests
+           WHERE account_id = $1
+             AND knowledge_snapshot_id = ANY($2::uuid[])
+         )`,
+      [auth.accountId, affectedSnapshotIds],
+    );
+    await client.query(
+      `UPDATE context_manifest_evidence
+       SET inclusion_reason = '[deleted]'
+       WHERE account_id = $1
+         AND manifest_id IN (
+           SELECT id
+           FROM context_manifests
+           WHERE account_id = $1
+             AND knowledge_snapshot_id = ANY($2::uuid[])
+         )`,
+      [auth.accountId, affectedSnapshotIds],
+    );
+    await client.query(
+      `UPDATE knowledge_dependencies
+       SET inclusion_reason = '[deleted]'
+       WHERE account_id = $1
+         AND block_id IN (
+           SELECT id
+           FROM knowledge_blocks
+           WHERE account_id = $1
+             AND snapshot_id = ANY($2::uuid[])
+         )`,
+      [auth.accountId, affectedSnapshotIds],
+    );
+    await client.query(
+      `UPDATE knowledge_blocks
+       SET status = 'deleted',
+           structured_content = '{"headline":"[deleted]","items":[]}'::jsonb,
+           semantic_hash = 'deleted',
+           deleted_at = now()
+       WHERE account_id = $1
+         AND snapshot_id = ANY($2::uuid[])`,
+      [auth.accountId, affectedSnapshotIds],
+    );
+    await client.query(
+      `UPDATE knowledge_snapshots
+       SET status = 'deleted',
+           quality = '{
+             "verdict":"abstain",
+             "gates":{
+               "identity_binding":"pass",
+               "provenance":"fail",
+               "scope_authorization":"pass",
+               "temporal_integrity":"fail",
+               "prohibited_inference":"pass",
+               "deletion_lineage":"pass"
+             },
+             "measures":{
+               "task_relevance":0,
+               "compression":0,
+               "conflict_visibility":0,
+               "recruiter_reviewability":0
+             },
+             "reasons":["The source was deleted and this snapshot was retracted."]
+           }'::jsonb,
+           deleted_at = now()
+       WHERE account_id = $1
+         AND id = ANY($2::uuid[])`,
+      [auth.accountId, affectedSnapshotIds],
+    );
+    await client.query(
+      `UPDATE idempotency_records
+       SET response_body = '{"deleted":true}'::jsonb
+       WHERE account_id = $1
+         AND (
+           (
+             operation_scope = 'compile_relationship_wiki'
+             AND response_body->>'snapshot_id' = ANY($2::text[])
+           )
+           OR (
+             operation_scope = 'create_chat_task'
+             AND response_body->>'knowledge_snapshot_id' = ANY($2::text[])
+           )
+         )`,
+      [auth.accountId, affectedSnapshotIds],
+    );
+    const resourceIdempotency = await client.query<{ id: string }>(
+      `SELECT id
+       FROM idempotency_records
+       WHERE account_id = $1
+         AND (
+           (
+             (
+               operation_scope IN (
+                 'create_resource_capture',
+                 'create_capture'
+               )
+               OR operation_scope LIKE 'resolve_identity_case:%'
+             )
+             AND COALESCE(
+               response_body->>'capture_id',
+               response_body->>'id'
+             ) = ANY($2::text[])
+           )
+           OR (
+             operation_scope = 'review_evidence_fragment'
+             AND response_body->>'fragment_id' IN (
+               SELECT id::text
+             FROM evidence_fragments
+             WHERE account_id = $1
+               AND capture_id = ANY($2::uuid[])
+             )
+           )
+           OR (
+             operation_scope = 'run_public_research'
+             AND response_body->>'task_id' = ANY($3::text[])
+           )
+         )`,
+      [
+        auth.accountId,
+        governedCaptureIds,
+        affectedResearchTaskIds,
+      ],
+    );
+    entities.rows.push(
+      ...resourceIdempotency.rows.map((record) => ({
+        entity_type: "idempotency_record",
+        entity_id: record.id,
+      })),
+    );
+    await client.query(
+      `UPDATE idempotency_records
+       SET response_body = '{"deleted":true}'::jsonb
+       WHERE account_id = $1
+         AND id = ANY($2::uuid[])`,
+      [
+        auth.accountId,
+        resourceIdempotency.rows.map((record) => record.id),
+      ],
+    );
+    await client.query(
+      `UPDATE evidence_fragment_reviews reviews
+       SET reason = '[source deleted]'
+       FROM evidence_fragments fragments
+       WHERE fragments.account_id = $1
+         AND fragments.capture_id = ANY($2::uuid[])
+         AND reviews.account_id = fragments.account_id
+         AND reviews.fragment_id = fragments.id`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
+      `UPDATE identity_resolution_candidates candidates
+       SET match_reasons = '[]'::jsonb
+       FROM identity_resolution_cases cases
+       WHERE cases.account_id = $1
+         AND cases.capture_id = ANY($2::uuid[])
+         AND candidates.account_id = cases.account_id
+         AND candidates.case_id = cases.id`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
+      `UPDATE identity_resolution_decisions decisions
+       SET selected_subject_id = NULL,
+           selected_assignment_id = NULL,
+           reason = '[source deleted]'
+       FROM identity_resolution_cases cases
+       WHERE cases.account_id = $1
+         AND cases.capture_id = ANY($2::uuid[])
+         AND decisions.account_id = cases.account_id
+         AND decisions.case_id = cases.id`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
+      `UPDATE identity_resolution_cases
+       SET status = 'deleted',
+           reason = '[source deleted]',
+           resolved_subject_id = NULL,
+           resolved_assignment_id = NULL,
+           deleted_at = now(),
+           updated_at = now()
+       WHERE account_id = $1
+         AND capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
+      `UPDATE identity_handles
+       SET normalized_value_hash = 'deleted:' || id::text,
+           display_hint = NULL,
+           status = 'deleted',
+           valid_until = now(),
+           deleted_at = now(),
+           updated_at = now()
+       WHERE account_id = $1
+         AND source_resource_id IN (
+           SELECT id
+           FROM source_resources
+           WHERE account_id = $1
+             AND capture_id = ANY($2::uuid[])
+         )`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
+      `UPDATE research_snapshots snapshots
+       SET canonical_url = '[deleted]',
+           content_hash = 'deleted:' || snapshots.id::text,
+           status = 'deleted',
+           deleted_at = now()
+       FROM source_resources resources
+       WHERE resources.account_id = $1
+         AND resources.capture_id = ANY($2::uuid[])
+         AND snapshots.account_id = resources.account_id
+         AND snapshots.resource_id = resources.id`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
+      `UPDATE research_tasks
+       SET seed_resource_id = NULL,
+           purpose = '[deleted]',
+           seed_urls = '[]'::jsonb,
+           allowed_domains = '[]'::jsonb,
+           authorization_scope = '[deleted]',
+           status = 'deleted',
+           deleted_at = now(),
+           updated_at = now()
+       WHERE account_id = $1
+         AND id = ANY($2::uuid[])`,
+      [auth.accountId, affectedResearchTaskIds],
+    );
+    await client.query(
+      `UPDATE evidence_fragments
+       SET status = 'deleted',
+           text_content = NULL,
+           content_hash = 'deleted',
+           locator = '{"deleted":true}'::jsonb,
+           deleted_at = now()
+       WHERE account_id = $1 AND capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
+      `UPDATE source_resources
+       SET processing_state = 'deleted',
+           display_name = '[deleted]',
+           content_hash = NULL,
+           source_locator = NULL,
+           payload_ref = NULL,
+           deleted_at = now(),
+           updated_at = now()
+       WHERE account_id = $1 AND capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
     );
     await client.query(
       `UPDATE evidence_items
@@ -734,8 +1397,8 @@ export async function deleteCapture(
            redacted_text = NULL,
            content_hash = 'deleted',
            deleted_at = now()
-       WHERE account_id = $1 AND capture_id = $2`,
-      [auth.accountId, captureId],
+       WHERE account_id = $1 AND capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
     );
     await client.query(
       `UPDATE captures
@@ -747,13 +1410,26 @@ export async function deleteCapture(
            version = version + 1,
            deleted_at = now(),
            updated_at = now()
-       WHERE account_id = $1 AND id = $2`,
-      [auth.accountId, captureId],
+       WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
     );
     const sourceDeletedAt = new Date();
-    await markSourceDeleted(client, auth, captureId, sourceDeletedAt);
-    const captureIdentity = capture.rows[0];
-    if (captureIdentity.assignment_id) {
+    for (const governedCaptureId of governedCaptureIds) {
+      await markSourceDeleted(
+        client,
+        auth,
+        governedCaptureId,
+        sourceDeletedAt,
+      );
+    }
+    const assignmentIds = [
+      ...new Set(
+        governedCaptures.rows.flatMap((row) =>
+          row.assignment_id ? [row.assignment_id] : [],
+        ),
+      ),
+    ];
+    for (const assignmentId of assignmentIds) {
       const assignmentStillUsed = await client.query<{ used: boolean }>(
         `SELECT EXISTS(
            SELECT 1
@@ -762,7 +1438,7 @@ export async function deleteCapture(
              AND assignment_id = $2
              AND status = 'active'
          ) AS used`,
-        [auth.accountId, captureIdentity.assignment_id],
+        [auth.accountId, assignmentId],
       );
       if (!assignmentStillUsed.rows[0]?.used) {
         await client.query(
@@ -772,15 +1448,22 @@ export async function deleteCapture(
                display_label = '[deleted]',
                deleted_at = now()
            WHERE account_id = $1 AND id = $2`,
-          [auth.accountId, captureIdentity.assignment_id],
+          [auth.accountId, assignmentId],
         );
         entities.rows.push({
           entity_type: "assignment",
-          entity_id: captureIdentity.assignment_id,
+          entity_id: assignmentId,
         });
       }
     }
-    if (captureIdentity.subject_id) {
+    const subjectIds = [
+      ...new Set(
+        governedCaptures.rows.flatMap((row) =>
+          row.subject_id ? [row.subject_id] : [],
+        ),
+      ),
+    ];
+    for (const subjectId of subjectIds) {
       const subjectStillUsed = await client.query<{ used: boolean }>(
         `SELECT EXISTS(
            SELECT 1
@@ -789,7 +1472,7 @@ export async function deleteCapture(
              AND subject_id = $2
              AND status = 'active'
          ) AS used`,
-        [auth.accountId, captureIdentity.subject_id],
+        [auth.accountId, subjectId],
       );
       if (!subjectStillUsed.rows[0]?.used) {
         await client.query(
@@ -799,11 +1482,11 @@ export async function deleteCapture(
                display_label = '[deleted]',
                deleted_at = now()
            WHERE account_id = $1 AND id = $2`,
-          [auth.accountId, captureIdentity.subject_id],
+          [auth.accountId, subjectId],
         );
         entities.rows.push({
           entity_type: "subject",
-          entity_id: captureIdentity.subject_id,
+          entity_id: subjectId,
         });
       }
     }
@@ -830,8 +1513,11 @@ export async function deleteCapture(
       `INSERT INTO deletion_lineage(
          id, account_id, deletion_id, entity_type, entity_id, disposition
        )
-       VALUES ($1, $2, $3, 'capture', $4, 'access_revoked')`,
-      [randomUUID(), auth.accountId, deletionId, captureId],
+       SELECT
+         gen_random_uuid(), $1, $2, 'capture', ids.capture_id,
+         'access_revoked'
+       FROM unnest($3::uuid[]) AS ids(capture_id)`,
+      [auth.accountId, deletionId, governedCaptureIds],
     );
     await client.query(
       `UPDATE deletion_requests SET completed_at = now()
@@ -847,6 +1533,8 @@ export async function deleteCapture(
       {
         deletion_id: deletionId,
         derivatives_deleted: entities.rows.length,
+        governed_capture_ids: governedCaptureIds,
+        prior_state_ids_reopened_for_review: priorStateIds,
       },
     );
     const now = sourceDeletedAt.toISOString();

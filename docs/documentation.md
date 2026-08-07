@@ -80,6 +80,28 @@ knowledge map remains human-maintained so task routing expresses judgment
 rather than a filesystem inventory. See the
 [Wiki authoring workflow](wiki-workflow.md) for the operational method.
 
+### Language lifecycle
+
+Language follows the authority boundary instead of being normalized at intake:
+
+- `_index/sources/` preserves the source language and wording whenever rights,
+  privacy, and repository safety allow. A translation is labeled and never
+  replaces the source record.
+- `_index/notes/` and `_index/inbox/` use the language that best preserves the
+  author's thinking. Mixed-language working material is acceptable.
+- `_index/pages/` is the reviewed publication layer. A page may remain a draft
+  in another language, but it must declare `language: en` and have an English
+  body before its status becomes `published`.
+- Wiki-generated pages in `docs/` are English. Non-English source titles may be
+  named when necessary, but the governing prose remains English.
+
+Translation is an editorial step before publication, not a compiler side
+effect. The reviewer compares the English page with its source-language
+material, preserves claim scope, uncertainty, citations, and authority, and
+records any meaning that cannot be translated safely. `pnpm wiki:build` remains
+deterministic: it validates and projects reviewed pages but never calls a model
+or silently translates content.
+
 ### Executable truth
 
 Code, types, schemas, tests, fixtures, generated references, and automated
