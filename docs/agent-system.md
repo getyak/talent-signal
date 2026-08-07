@@ -221,6 +221,17 @@ procedural learning requires review. Accepted changes update governed state
 before compiling a new Wiki version; temporary scratchpads and hypotheses
 expire unless preserved as reviewable artifacts.
 
+Identity retrieval applies both source authorization and identity-handle
+freshness at use time. An expired handle may supply a masked, account-scoped
+candidate for structured human review, but it cannot act as confirmed identity
+context for an Agent run. Reconfirmation requires a fresh governed source and a
+human binding decision; an Agent may open and explain that review but cannot
+extend the deadline or promote the clue itself.
+
+For a handle with current and expired historical owners, the Agent preserves
+the service's temporal order and reasons; it may explain and open review but
+cannot preselect, collapse records, bind to history, or retry after failure.
+
 ## External agents and channels
 
 Codex, Claude, Cursor, Manus, OpenClaw, and future runtimes should connect

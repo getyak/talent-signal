@@ -84,6 +84,53 @@ The primary surfaces answer different questions:
 
 These are views, not competing records.
 
+## Agent-operated relationship workspace
+
+On desktop, the default working composition pairs a persistent, relationship-
+scoped Agent surface with the living person page. The Agent owns intent and
+coordination; the person page owns structured understanding and review. Neither
+may obscure the other at the moment of a material decision.
+
+Agent operations follow a visible consequence ladder:
+
+- navigation and scoped reading may happen directly;
+- compilation produces cited, snapshot-bound artifacts;
+- internal relationship changes are staged on the affected object and remain
+  reviewable and reversible;
+- device or external writes require a separate exact-effect approval and
+  verified result.
+
+The interface should show the affected object and a compact operation receipt,
+not hidden DOM automation or theatrical chains of thought. On small screens,
+Chat may occupy the first viewport, while explicit navigation preserves direct
+access to the person page, sources, and review state.
+
+The rationale and rejected workspace structures are recorded in
+[ADR 0005](decisions/0005-agent-operated-relationship-workspace.md).
+
+### Inline identity comparison
+
+Identity resolution is an Agent operation on the living relationship, not a
+separate contact-management destination. When one clue yields several temporal
+owners, use one compact comparison inside the Agent rail:
+
+- order current source-linked authority before historical evidence;
+- label the reason as `Current clue` or `Historical clue`, never as a person
+  score or confidence ranking;
+- do not preselect a person;
+- keep historical evidence visible, but disable relationship and source
+  attachment while another person is current;
+- offer `Save for identity review` as a normal outcome when the recruiter
+  cannot decide;
+- keep `Create new person` unavailable while a current owner conflict exists;
+- after explicit selection, change the staged operation and consequence copy
+  before enabling submission.
+
+On narrow screens, both temporal roles and their consequences should remain
+visible without horizontal scrolling. State must use text and iconography in
+addition to color. Wider comparison belongs in progressive disclosure only
+when the compact decision lacks enough governed distinguishing evidence.
+
 ## Attention hierarchy
 
 Within a page, prioritize:
@@ -180,6 +227,21 @@ or turn weak associations into authoritative relationships.
 
 Optimize for capture, one-thumb review, Today, interruption, and device-owned
 action.
+
+Treat screenshot intake as one progressive decision, not a miniature contact
+form or a success toast:
+
+1. show the device-owned source and editable recognized text;
+2. mark unsupported speaker attribution explicitly;
+3. collect a minimal identity clue and relationship purpose;
+4. compare current and historical owners without preselection;
+5. enable only a temporally valid binding or an unresolved outcome;
+6. finish with the actual Wiki quality, affected identifiers, and a direct
+   return to the person.
+
+At accessibility text sizes, preserve this order in a vertical scroll rather
+than compressing evidence, identity, and consequence into columns. The primary
+action belongs after the information it commits.
 
 ### Desktop
 
