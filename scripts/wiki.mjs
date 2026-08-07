@@ -197,6 +197,16 @@ function headingAnchors(markdown) {
   return anchors;
 }
 
+function hanCharacterCount(markdown) {
+  let count = 0;
+  processOutsideCode(markdown, (segment) => {
+    const matches = segment.match(/\p{Script=Han}/gu);
+    count += matches?.length ?? 0;
+    return segment;
+  });
+  return count;
+}
+
 function loadPages() {
   if (!existsSync(pagesDirectory)) {
     fail("_index/pages/ does not exist");
@@ -206,7 +216,7 @@ function loadPages() {
     (sourcePath) => {
       const raw = readFileSync(sourcePath, "utf8");
       const { metadata, body } = parseFrontMatter(sourcePath, raw);
-      const requiredKeys = ["id", "title", "summary", "status"];
+      const requiredKeys = ["id", "title", "summary", "status", "language"];
       for (const key of requiredKeys) {
         if (!metadata[key]) {
           fail(`${repositoryPath(sourcePath)} requires front matter key "${key}"`);
@@ -221,6 +231,25 @@ function loadPages() {
       if (!allowedStatuses.has(metadata.status)) {
         fail(
           `${repositoryPath(sourcePath)} status must be draft, published, or archived`,
+        );
+      }
+      if (!/^[a-z]{2}(?:-[A-Za-z0-9]+)*$/.test(metadata.language)) {
+        fail(
+          `${repositoryPath(sourcePath)} language must be a BCP-47-style tag such as en or zh-CN`,
+        );
+      }
+      if (metadata.status === "published" && metadata.language !== "en") {
+        fail(
+          `${repositoryPath(sourcePath)} published wiki page language must be "en"`,
+        );
+      }
+      if (
+        metadata.status === "published" &&
+        metadata.language === "en" &&
+        hanCharacterCount(body) > 80
+      ) {
+        fail(
+          `${repositoryPath(sourcePath)} contains substantial Han-script prose; published English pages may name non-English sources but must use English governing prose`,
         );
       }
       if (!metadata.summary.endsWith(".")) {
@@ -246,6 +275,7 @@ function loadPages() {
         title: metadata.title,
         summary: metadata.summary,
         status: metadata.status,
+        language: metadata.language,
         target,
         sourcePath,
         sourceRepositoryPath: repositoryPath(sourcePath),

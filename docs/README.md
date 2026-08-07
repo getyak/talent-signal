@@ -48,6 +48,13 @@ comparisons. Research may be detailed because it is loaded selectively. It
 does not override canonical project decisions until those decisions are
 updated.
 
+- [Cloud screenshot processing privacy](research/cloud-screenshot-processing-privacy.md):
+  China-first cloud-model, recruiter-data, retention, deletion, and hiring-AI
+  release boundaries.
+- [Recruiter discovery and relationship-continuity wedge validation](research/recruiter-discovery-and-wedge-validation.md):
+  separates concept feedback from field evidence and defines the bilateral
+  recruiter interview and concierge-test protocol.
+
 ## Operations and evaluation
 
 - [`operations/`](operations/) contains recurring operational expectations.
