@@ -11,7 +11,7 @@ summary or an external action.
 
 In scope:
 
-- one explicit Capture sheet from the existing bottom rail;
+- one explicit Quick add popover anchored to the existing bottom rail;
 - one to eight screenshots from one conversation, with ordering and removal;
 - optional voice-note and typed-note states that remain recruiter context;
 - an evidence-first preview with ambiguity and `no_action` as valid results;
@@ -36,13 +36,15 @@ Out of scope:
 
 ## Chosen approach
 
-Use one full-height in-device Capture sheet with a progressive sequence:
+Use one compact, in-device Quick add popover that preserves the current
+relationship surface behind it and expands only for the chosen input:
 
-1. review an ordered source tray and optional recruiter context;
-2. prepare one review handoff;
-3. show either a proposed change, an ambiguity-first organizing result, or a
+1. choose screenshots, voice, or text from one centralized insert tray;
+2. expose only the selected input and preserve an ordered source strip;
+3. prepare one review handoff in the same progressively sized popover;
+4. show either a proposed change, an ambiguity-first organizing result, or a
    quiet no-signal result;
-4. keep final fact confirmation and every external effect outside this slice.
+5. keep final fact confirmation and every external effect outside this slice.
 
 Do not ask the user to choose an AI output type before capture. Do not merge
 multiple people or conversations into one relationship. Do not present voice
@@ -80,5 +82,8 @@ or typed context as source evidence.
   receipt.
 - Escape and the close action restored focus to the capture launcher; Tab and
   Shift-Tab remained inside the open dialog.
+- The corrected Quick add structure rendered as a small rail-anchored popover;
+  text expanded inline, screenshot selection added only a horizontal filmstrip,
+  and the review state became shorter instead of replacing the current page.
 - `pnpm --filter @talent-signal/web lint`, typecheck, tests, build, and
   `pnpm docs:check` passed on 2026-08-09.

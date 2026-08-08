@@ -2158,6 +2158,379 @@
   opacity: 0.34;
 }
 
+/* Quick add stays attached to the current relationship instead of becoming a page. */
+.captureScrim {
+  position: absolute;
+  z-index: 74;
+  inset: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  animation: capture-scrim-in 180ms ease-out both;
+}
+
+@keyframes capture-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.captureSheet {
+  inset: auto 14px 86px;
+  max-height: min(560px, calc(100% - 142px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 1px solid color-mix(in srgb, var(--glass-edge) 76%, var(--hairline));
+  border-radius: 27px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 64%, transparent),
+    0 24px 64px color-mix(in srgb, var(--ink) 16%, transparent),
+    0 3px 12px color-mix(in srgb, var(--ink) 8%, transparent);
+  -webkit-backdrop-filter: blur(34px) saturate(135%);
+  backdrop-filter: blur(34px) saturate(135%);
+  transform-origin: calc(100% - 30px) 100%;
+  animation: capture-pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes capture-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.captureSheet > header {
+  min-height: 66px;
+  align-items: center;
+  padding: 13px 13px 9px 18px;
+}
+
+.captureSheet > header span {
+  margin-bottom: 3px;
+  font-size: 0.48rem;
+  letter-spacing: 0.08em;
+}
+
+.captureSheet > header h2 {
+  font-size: 1.17rem;
+  line-height: 1.05;
+}
+
+.captureSheet > header button {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.captureBody {
+  padding: 14px 17px 16px;
+}
+
+.captureContextScope {
+  display: grid;
+  min-height: 32px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  margin: 0 0 13px;
+  padding: 0 0 12px;
+  border-top: 0;
+  gap: 8px;
+}
+
+.captureContextScope > span,
+.captureContextScope > small {
+  color: var(--muted);
+  font-size: 0.52rem;
+}
+
+.captureContextScope > strong {
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.captureContextScope > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.captureContextScope > button {
+  min-width: 44px;
+  min-height: 32px;
+  padding: 0;
+  color: var(--accent);
+}
+
+.captureInsertTray {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.captureInsertTray > button {
+  display: flex;
+  min-width: 0;
+  min-height: 88px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-direction: column;
+  padding: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  color: var(--ink);
+  gap: 3px;
+  text-align: left;
+}
+
+.captureInsertTray > button > span {
+  display: inline-flex;
+  width: 31px;
+  height: 31px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--muted-strong);
+}
+
+.captureInsertTray strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.captureInsertTray small {
+  color: var(--muted);
+  font-size: 0.49rem;
+  line-height: 1.25;
+}
+
+.captureInsertTray > button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--hairline));
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface));
+}
+
+.captureInsertTray > button[aria-pressed="true"] > span {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.captureSources {
+  margin-top: 13px;
+}
+
+.captureFilmstrip {
+  margin-right: -17px;
+  padding: 1px 17px 7px 1px;
+  gap: 7px;
+}
+
+.captureFilmstrip > button {
+  width: 57px;
+  height: 76px;
+  border-radius: 11px;
+}
+
+.captureFilmstrip > button > span {
+  right: 3px;
+  bottom: 3px;
+  min-width: 17px;
+  height: 17px;
+  font-size: 0.46rem;
+}
+
+.captureFilmstrip > button.captureAddTile {
+  gap: 3px;
+}
+
+.captureAssetControl {
+  min-height: 44px;
+  margin: 2px 0 0;
+}
+
+.captureAssetControl > span {
+  font-size: 0.54rem;
+}
+
+.captureAssetControl button {
+  width: 44px;
+  height: 44px;
+}
+
+.captureTextNote {
+  display: block;
+  margin-top: 12px;
+  padding: 11px 12px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.captureTextNote > span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.51rem;
+  font-weight: 700;
+}
+
+.captureTextNote textarea {
+  width: 100%;
+  min-height: 48px;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.captureSampleLink {
+  min-height: 38px;
+  font-size: 0.56rem;
+}
+
+.capturePrivacyNote,
+.captureReviewBoundary,
+.captureReceiptNote {
+  grid-template-columns: 18px 1fr;
+  margin-top: 10px;
+  padding: 9px 0 0;
+  border-bottom: 0;
+  gap: 6px;
+}
+
+.capturePrivacyNote p,
+.captureReviewBoundary p,
+.captureReceiptNote p {
+  font-size: 0.51rem;
+  line-height: 1.4;
+}
+
+.captureReview h3,
+.captureReceipt h3 {
+  font-size: 1.14rem;
+}
+
+.captureReview > span,
+.captureReceipt > span {
+  margin-bottom: 9px;
+  font-size: 0.48rem;
+}
+
+.captureReview > svg,
+.captureReceipt > svg {
+  margin-bottom: 9px;
+}
+
+.captureReview > p,
+.captureReceipt > p {
+  margin-top: 7px;
+  font-size: 0.59rem;
+  line-height: 1.48;
+}
+
+.captureReview > blockquote {
+  margin: 13px 0 7px;
+  padding: 10px 0 10px 11px;
+  font-size: 0.72rem;
+}
+
+.captureGroups {
+  margin-top: 13px;
+}
+
+.captureGroups > div {
+  min-height: 45px;
+}
+
+.captureGroups strong {
+  font-size: 0.62rem;
+}
+
+.captureGroups small {
+  font-size: 0.49rem;
+}
+
+.capturePerspective {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.capturePerspective button {
+  min-height: 44px;
+  padding: 0 6px;
+  border-right: 1px solid var(--hairline);
+  border-bottom: 0;
+  font-size: 0.53rem;
+  text-align: center;
+}
+
+.capturePerspective button:last-child {
+  border-right: 0;
+}
+
+.captureReceipt dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 15px 0 0;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.captureReceipt dl > div {
+  display: flex;
+  min-height: 58px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-direction: column;
+  padding-left: 9px;
+  border-right: 1px solid var(--hairline);
+  border-bottom: 0;
+  gap: 3px;
+}
+
+.captureReceipt dl > div:last-child {
+  border-right: 0;
+}
+
+.captureReceipt dt {
+  font-size: 0.49rem;
+}
+
+.captureReceipt dd {
+  font-size: 0.68rem;
+}
+
+.captureFooter {
+  grid-template-columns: 76px 1fr;
+  padding: 7px 9px 9px;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.captureFooter > button {
+  min-height: 44px;
+  border-radius: 14px;
+  font-size: 0.58rem;
+}
+
+.captureFooter .capturePrimaryAction {
+  border-color: var(--ink);
+}
+
+@media (max-width: 360px) {
+  .captureContextScope > small {
+    display: none;
+  }
+}
+
 .guideSheet {
   position: absolute;
   z-index: 70;
@@ -3038,6 +3411,7 @@
   .reviewNav,
   .agentRail,
   .agentRail > button,
+  .captureSheet,
   .captureFooter,
   .conciergeBoundary,
   .contextMenu,

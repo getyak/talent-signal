@@ -12,10 +12,8 @@ import {
   Copy,
   Compass,
   DotsThree,
-  DotsSixVertical,
   Export,
   Gear,
-  ImageSquare,
   Images,
   Lifebuoy,
   ListDashes,
@@ -1370,6 +1368,7 @@ function CaptureSheet({
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [noteOpen, setNoteOpen] = useState(draft.note.trim().length > 0);
   const selectedAsset =
     draft.assets.find((asset) => asset.id === draft.selectedAssetId) ??
     draft.assets[0] ??
@@ -1378,6 +1377,10 @@ function CaptureSheet({
     draft.assets.length > 0 ||
     draft.note.trim().length > 0 ||
     draft.voiceState === "ready";
+  const contextItemCount =
+    (draft.note.trim().length > 0 ? 1 : 0) +
+    (draft.voiceState === "ready" ? 1 : 0);
+  const itemCount = draft.assets.length + contextItemCount;
   const hasLocalSources = draft.assets.some((asset) => asset.kind === "local");
   const resultKind = hasLocalSources
     ? "local"
@@ -1492,161 +1495,149 @@ function CaptureSheet({
     }));
   };
 
+  const cycleVoiceState = () => {
+    setDraft((current) => ({
+      ...current,
+      voiceState:
+        current.voiceState === "empty"
+          ? "recording"
+          : current.voiceState === "recording"
+            ? "ready"
+            : "empty",
+    }));
+  };
+
   return (
-    <section
-      aria-labelledby="capture-title"
-      aria-modal="true"
-      className={styles.captureSheet}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          onClose();
-          return;
-        }
-
-        if (event.key === "Tab") {
-          const focusable = Array.from(
-            event.currentTarget.querySelectorAll<HTMLElement>(
-              'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-            ),
-          ).filter((element) => element.offsetParent !== null);
-          const first = focusable[0];
-          const last = focusable.at(-1);
-
-          if (!first || !last) {
+    <>
+      <button
+        aria-label="Close quick add"
+        className={styles.captureScrim}
+        onClick={onClose}
+        tabIndex={-1}
+        type="button"
+      />
+      <section
+        aria-labelledby="capture-title"
+        aria-modal="true"
+        className={styles.captureSheet}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            onClose();
             return;
           }
 
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
+          if (event.key === "Tab") {
+            const focusable = Array.from(
+              event.currentTarget.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+              ),
+            ).filter((element) => element.offsetParent !== null);
+            const first = focusable[0];
+            const last = focusable.at(-1);
+
+            if (!first || !last) {
+              return;
+            }
+
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
           }
-        }
-      }}
-      role="dialog"
-    >
-      <header>
-        <div>
-          <span>Intentional capture / Draft only</span>
-          <h2 id="capture-title">
-            {draft.phase === "collect"
-              ? "Capture"
-              : draft.phase === "review"
-                ? "Review"
-                : "Held for review"}
-          </h2>
-        </div>
-        <button
-          aria-label="Close capture"
-          onClick={onClose}
-          ref={closeRef}
-          type="button"
-        >
-          <X size={20} />
-        </button>
-      </header>
+        }}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <span>Draft only</span>
+            <h2 id="capture-title">
+              {draft.phase === "collect"
+                ? "Quick add"
+                : draft.phase === "review"
+                  ? "Review"
+                  : "Saved for review"}
+            </h2>
+          </div>
+          <button
+            aria-label="Close quick add"
+            onClick={onClose}
+            ref={closeRef}
+            type="button"
+          >
+            <X size={18} />
+          </button>
+        </header>
 
-      <div className={styles.captureBody}>
-        {draft.phase === "collect" ? (
-          <>
-            <section className={styles.captureIntro}>
-              <h3>Add one conversation.</h3>
-              <p>
-                Choose up to eight ordered screenshots. Voice and text stay
-                separate as your context.
-              </p>
-            </section>
-
-            <div className={styles.captureContextScope}>
-              <div>
-                <span>Relationship</span>
+        <div className={styles.captureBody}>
+          {draft.phase === "collect" ? (
+            <>
+              <div className={styles.captureContextScope}>
+                <span>{contextSuggestion ? "Suggested relationship" : "Relationship"}</span>
+                <strong>{contextSuggestion?.name ?? "Unassigned"}</strong>
                 {contextSuggestion ? (
-                  <>
-                    <strong>{contextSuggestion.name}</strong>
-                    <small>{contextSuggestion.relationship} / Suggested only</small>
-                  </>
+                  <button onClick={onClearContext} type="button">
+                    Clear
+                  </button>
                 ) : (
-                  <>
-                    <strong>Unassigned</strong>
-                    <small>Identity is reviewed after the source.</small>
-                  </>
+                  <small>Choose after the source is reviewed.</small>
                 )}
               </div>
-              {contextSuggestion ? (
-                <button onClick={onClearContext} type="button">
-                  Clear
-                </button>
-              ) : null}
-            </div>
 
-            <section className={styles.captureSources} aria-labelledby="sources-title">
-              <div className={styles.captureSectionHeading}>
-                <span id="sources-title">Screenshots</span>
-                <span>{draft.assets.length} / 8</span>
-              </div>
-
-              {draft.assets.length > 0 ? (
-                <div className={styles.captureFilmstrip}>
-                  {draft.assets.map((asset, index) => (
-                    <button
-                      aria-label={`Source ${index + 1}, ${asset.channel}`}
-                      aria-pressed={selectedAsset?.id === asset.id}
-                      className={
-                        selectedAsset?.id === asset.id
-                          ? styles.captureAssetSelected
-                          : undefined
-                      }
-                      key={asset.id}
-                      onClick={() =>
-                        setDraft((current) => ({
-                          ...current,
-                          selectedAssetId: asset.id,
-                        }))
-                      }
-                      type="button"
-                    >
-                      {asset.preview ? (
-                        <Image
-                          alt=""
-                          fill
-                          sizes="92px"
-                          src={asset.preview}
-                          unoptimized={asset.kind === "local"}
-                        />
-                      ) : (
-                        <ImageSquare aria-hidden="true" size={25} />
-                      )}
-                      <span>{index + 1}</span>
-                    </button>
-                  ))}
-                  {draft.assets.length < 8 ? (
-                    <button
-                      aria-label="Add more screenshots"
-                      className={styles.captureAddTile}
-                      onClick={() => fileInputRef.current?.click()}
-                      type="button"
-                    >
-                      <Plus size={22} />
-                      <span>Add</span>
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
+              <div aria-label="Add context" className={styles.captureInsertTray}>
                 <button
-                  className={styles.captureEmptySource}
+                  aria-label={`Add screenshots, ${draft.assets.length} of 8 selected`}
+                  aria-pressed={draft.assets.length > 0}
                   onClick={() => fileInputRef.current?.click()}
                   type="button"
                 >
-                  <Images size={25} weight="duotone" />
-                  <span>
-                    <strong>Add screenshots</strong>
-                    <small>1–8 images from one conversation</small>
-                  </span>
-                  <Plus size={18} />
+                  <span><Images size={20} weight="duotone" /></span>
+                  <strong>Images</strong>
+                  <small>{draft.assets.length > 0 ? `${draft.assets.length} / 8` : "Add up to 8"}</small>
                 </button>
-              )}
+                <button
+                  aria-label={
+                    draft.voiceState === "empty"
+                      ? "Add voice note"
+                      : draft.voiceState === "recording"
+                        ? "Stop voice note preview"
+                        : "Remove staged voice note"
+                  }
+                  aria-pressed={draft.voiceState !== "empty"}
+                  onClick={cycleVoiceState}
+                  type="button"
+                >
+                  <span>
+                    {draft.voiceState === "recording" ? (
+                      <Waveform size={20} weight="fill" />
+                    ) : (
+                      <Microphone size={20} />
+                    )}
+                  </span>
+                  <strong>
+                    {draft.voiceState === "empty"
+                      ? "Voice"
+                      : draft.voiceState === "recording"
+                        ? "Stop"
+                        : "Voice ready"}
+                  </strong>
+                  <small>
+                    {draft.voiceState === "recording" ? "Preview state" : "Your context"}
+                  </small>
+                </button>
+                <button
+                  aria-label={noteOpen ? "Hide text note" : "Add text note"}
+                  aria-pressed={noteOpen || draft.note.trim().length > 0}
+                  onClick={() => setNoteOpen((current) => !current)}
+                  type="button"
+                >
+                  <span><TextT size={20} /></span>
+                  <strong>Text</strong>
+                  <small>{draft.note.trim() ? "Note added" : "Add a note"}</small>
+                </button>
+              </div>
 
               <input
                 accept="image/jpeg,image/png,image/webp"
@@ -1661,328 +1652,298 @@ function CaptureSheet({
                 type="file"
               />
 
-              {selectedAsset ? (
-                <div className={styles.captureAssetControl}>
-                  <span>
-                    <DotsSixVertical aria-hidden="true" size={17} />
-                    {selectedAsset.channel}
-                  </span>
-                  <div>
-                    <button
-                      aria-label="Move selected source earlier"
-                      disabled={draft.assets[0]?.id === selectedAsset.id}
-                      onClick={() => moveSelectedAsset(-1)}
-                      type="button"
-                    >
-                      <ArrowLeft size={17} />
-                    </button>
-                    <button
-                      aria-label="Move selected source later"
-                      disabled={draft.assets.at(-1)?.id === selectedAsset.id}
-                      onClick={() => moveSelectedAsset(1)}
-                      type="button"
-                    >
-                      <ArrowRight size={17} />
-                    </button>
-                    <button
-                      aria-label="Remove selected source"
-                      onClick={removeSelectedAsset}
-                      type="button"
-                    >
-                      <Trash size={17} />
-                    </button>
+              {draft.assets.length > 0 ? (
+                <section className={styles.captureSources} aria-label="Selected screenshots">
+                  <div className={styles.captureFilmstrip}>
+                    {draft.assets.map((asset, index) => (
+                      <button
+                        aria-label={`Source ${index + 1}, ${asset.channel}`}
+                        aria-pressed={selectedAsset?.id === asset.id}
+                        className={
+                          selectedAsset?.id === asset.id
+                            ? styles.captureAssetSelected
+                            : undefined
+                        }
+                        key={asset.id}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            selectedAssetId: asset.id,
+                          }))
+                        }
+                        type="button"
+                      >
+                        <Image
+                          alt=""
+                          fill
+                          sizes="64px"
+                          src={asset.preview}
+                          unoptimized={asset.kind === "local"}
+                        />
+                        <span>{index + 1}</span>
+                      </button>
+                    ))}
+                    {draft.assets.length < 8 ? (
+                      <button
+                        aria-label="Add more screenshots"
+                        className={styles.captureAddTile}
+                        onClick={() => fileInputRef.current?.click()}
+                        type="button"
+                      >
+                        <Plus size={19} />
+                        <span>Add</span>
+                      </button>
+                    ) : null}
                   </div>
-                </div>
-              ) : (
+                  {selectedAsset ? (
+                    <div className={styles.captureAssetControl}>
+                      <span>{selectedAsset.channel}</span>
+                      <div>
+                        <button
+                          aria-label="Move selected source earlier"
+                          disabled={draft.assets[0]?.id === selectedAsset.id}
+                          onClick={() => moveSelectedAsset(-1)}
+                          type="button"
+                        >
+                          <ArrowLeft size={16} />
+                        </button>
+                        <button
+                          aria-label="Move selected source later"
+                          disabled={draft.assets.at(-1)?.id === selectedAsset.id}
+                          onClick={() => moveSelectedAsset(1)}
+                          type="button"
+                        >
+                          <ArrowRight size={16} />
+                        </button>
+                        <button
+                          aria-label="Remove selected source"
+                          onClick={removeSelectedAsset}
+                          type="button"
+                        >
+                          <Trash size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
+              {noteOpen ? (
+                <label className={styles.captureTextNote}>
+                  <span>Recruiter note</span>
+                  <textarea
+                    autoFocus
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        note: event.target.value,
+                      }))
+                    }
+                    placeholder="What should not be lost?"
+                    rows={2}
+                    value={draft.note}
+                  />
+                </label>
+              ) : null}
+
+              {!canPrepare ? (
                 <button
                   className={styles.captureSampleLink}
                   onClick={loadSyntheticExample}
                   type="button"
                 >
-                  Use three synthetic channel examples
-                  <ArrowRight size={15} />
+                  Use example set
+                  <ArrowRight size={14} />
                 </button>
-              )}
-            </section>
+              ) : null}
 
-            <section className={styles.captureContextInput}>
-              <div className={styles.captureSectionHeading}>
-                <span>Your context</span>
-                <span>Optional</span>
+              <div className={styles.capturePrivacyNote}>
+                <ShieldCheck size={15} weight="fill" />
+                <p>Context stays separate from evidence. This preview sends nothing.</p>
               </div>
-              <div className={styles.captureVoiceRow}>
-                <button
-                  aria-pressed={draft.voiceState !== "empty"}
-                  className={
-                    draft.voiceState === "recording"
-                      ? styles.captureVoiceRecording
-                      : undefined
-                  }
-                  onClick={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      voiceState:
-                        current.voiceState === "empty"
-                          ? "recording"
-                          : current.voiceState === "recording"
-                            ? "ready"
-                            : "empty",
-                    }))
-                  }
-                  type="button"
-                >
-                  {draft.voiceState === "recording" ? (
-                    <Waveform size={21} weight="fill" />
-                  ) : (
-                    <Microphone size={21} />
-                  )}
-                  <span>
-                    <strong>
-                      {draft.voiceState === "empty"
-                        ? "Add a voice note"
-                        : draft.voiceState === "recording"
-                          ? "Stop recording"
-                          : "Voice note ready"}
-                    </strong>
-                    <small>Your words, never conversation evidence.</small>
-                  </span>
-                </button>
-              </div>
-              <label className={styles.captureTextNote}>
-                <TextT aria-hidden="true" size={19} />
-                <span>Recruiter note</span>
-                <textarea
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      note: event.target.value,
-                    }))
-                  }
-                  placeholder="What should not be lost?"
-                  rows={3}
-                  value={draft.note}
-                />
-              </label>
-            </section>
+            </>
+          ) : null}
 
-            <div className={styles.capturePrivacyNote}>
-              <ShieldCheck size={18} weight="fill" />
-              <p>
-                Only selected sources enter review. Remove unrelated people
-                first. This preview never records audio, changes a
-                relationship, or sends private content anywhere.
-              </p>
-            </div>
+          {draft.phase === "review" ? (
+            <section className={styles.captureReview} aria-labelledby="capture-review-title">
+              <span>
+                {draft.assets.length > 0
+                  ? `${draft.assets.length} source${draft.assets.length === 1 ? "" : "s"}`
+                  : "Recruiter context only"}
+                {contextItemCount > 0 && draft.assets.length > 0
+                  ? " / context separate"
+                  : ""}
+              </span>
 
-          </>
-        ) : null}
-
-        {draft.phase === "review" ? (
-          <section className={styles.captureReview} aria-labelledby="capture-review-title">
-            <span>
-              {draft.assets.length} source{draft.assets.length === 1 ? "" : "s"}
-              {draft.voiceState === "ready" || draft.note.trim()
-                ? " / Recruiter context separate"
-                : ""}
-            </span>
-
-            {resultKind === "organize" ? (
-              <>
-                <StackSimple size={28} weight="duotone" />
-                <h3 id="capture-review-title">Three conversations found.</h3>
-                <p>
-                  They should not become one relationship. The sources stay
-                  separate before any identity or fact review.
-                </p>
-                <div className={styles.captureGroups}>
-                  {draft.assets.map((asset, index) => (
-                    <div key={asset.id}>
-                      <span>{index + 1}</span>
-                      <div>
-                        <strong>{asset.channel}</strong>
-                        <small>Separate identity review / No person selected</small>
+              {resultKind === "organize" ? (
+                <>
+                  <StackSimple size={24} weight="duotone" />
+                  <h3 id="capture-review-title">Keep these conversations separate.</h3>
+                  <p>Each source gets its own identity review before anything changes.</p>
+                  <div className={styles.captureGroups}>
+                    {draft.assets.map((asset, index) => (
+                      <div key={asset.id}>
+                        <span>{index + 1}</span>
+                        <div>
+                          <strong>{asset.channel}</strong>
+                          <small>Unassigned</small>
+                        </div>
+                        <WarningCircle size={16} />
                       </div>
-                      <WarningCircle size={18} />
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </>
+              ) : null}
+
+              {resultKind === "identity" ? (
+                <>
+                  <WarningCircle size={24} weight="duotone" />
+                  <h3 id="capture-review-title">Who owned this phone?</h3>
+                  <p>Bubble sides can reverse who spoke. Choose only if you know.</p>
+                  <blockquote>
+                    “I have another offer. I need to decide by Wednesday.”
+                  </blockquote>
+                  <div className={styles.capturePerspective}>
+                    {(
+                      [
+                        ["candidate", "Candidate"],
+                        ["recruiter", "Recruiter"],
+                        ["unknown", "Keep unresolved"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        aria-pressed={draft.speakerPerspective === value}
+                        key={value}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            speakerPerspective: value,
+                          }))
+                        }
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+
+              {resultKind === "local" ? (
+                <>
+                  <ShieldCheck size={24} weight="duotone" />
+                  <h3 id="capture-review-title">Local files are staged.</h3>
+                  <p>
+                    This public preview does not upload or analyze them. A real
+                    review would verify order, speaker, identity, and evidence.
+                  </p>
+                </>
+              ) : null}
+
+              {resultKind === "note" ? (
+                <>
+                  <TextT size={24} weight="duotone" />
+                  <h3 id="capture-review-title">Your note stays your note.</h3>
+                  <p>It can guide review, but cannot become candidate testimony.</p>
+                  <blockquote>
+                    {draft.note.trim() || "Voice note ready for transcript review."}
+                  </blockquote>
+                </>
+              ) : null}
+
+              <div className={styles.captureReviewBoundary}>
+                <ShieldCheck size={15} weight="fill" />
+                <p>AI may organize. Identity, facts, and actions still need review.</p>
+              </div>
+            </section>
+          ) : null}
+
+          {draft.phase === "receipt" ? (
+            <section className={styles.captureReceipt} aria-labelledby="capture-receipt-title">
+              <ShieldCheck size={28} weight="fill" />
+              <span>Reviewable draft</span>
+              <h3 id="capture-receipt-title">Saved without acting.</h3>
+              <p>The source bundle remains available for later evidence review.</p>
+              <dl>
+                <div>
+                  <dt>Items</dt>
+                  <dd>{itemCount}</dd>
                 </div>
-              </>
-            ) : null}
-
-            {resultKind === "identity" ? (
-              <>
-                <WarningCircle size={28} weight="duotone" />
-                <h3 id="capture-review-title">One identity question comes first.</h3>
-                <p>
-                  Bubble sides can reverse who spoke. Choose only if you know
-                  whose phone created this screenshot.
-                </p>
-                <blockquote>
-                  “I have another offer. I need to decide by Wednesday, and
-                  remote from Singapore is still unresolved.”
-                </blockquote>
-                <small>Source 1 / Exact text / Speaker unresolved</small>
-                <div className={styles.capturePerspective}>
-                  {(
-                    [
-                      ["candidate", "Candidate's phone"],
-                      ["recruiter", "Recruiter's phone"],
-                      ["unknown", "Keep unresolved"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      aria-pressed={draft.speakerPerspective === value}
-                      key={value}
-                      onClick={() =>
-                        setDraft((current) => ({
-                          ...current,
-                          speakerPerspective: value,
-                        }))
-                      }
-                      type="button"
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div>
+                  <dt>Confirmed</dt>
+                  <dd>0</dd>
                 </div>
-              </>
-            ) : null}
-
-            {resultKind === "local" ? (
-              <>
-                <ShieldCheck size={28} weight="duotone" />
-                <h3 id="capture-review-title">Local sources are staged.</h3>
-                <p>
-                  This public preview does not upload or analyze private files.
-                  A product review would next verify source order, speakers,
-                  identity, and exact evidence.
-                </p>
-              </>
-            ) : null}
-
-            {resultKind === "note" ? (
-              <>
-                <TextT size={28} weight="duotone" />
-                <h3 id="capture-review-title">Your note stays your note.</h3>
-                <p>
-                  It can help a later review, but it cannot become candidate or
-                  client testimony.
-                </p>
-                <blockquote>
-                  {draft.note.trim() || "Voice note ready for transcript review."}
-                </blockquote>
-                <small>Recruiter-authored context / Unassigned</small>
-              </>
-            ) : null}
-
-            <div className={styles.captureReviewBoundary}>
-              <ShieldCheck size={18} weight="fill" />
-              <p>
-                AI may organize and propose. Identity, facts, and every next
-                action still require separate review.
-              </p>
-            </div>
-          </section>
-        ) : null}
-
-        {draft.phase === "receipt" ? (
-          <section className={styles.captureReceipt} aria-labelledby="capture-receipt-title">
-            <ShieldCheck size={35} weight="fill" />
-            <span>Reviewable draft</span>
-            <h3 id="capture-receipt-title">Capture held without acting.</h3>
-            <p>
-              The source bundle remains available for evidence and identity
-              review. No relationship fact was confirmed.
-            </p>
-            <dl>
-              <div>
-                <dt>Sources</dt>
-                <dd>{draft.assets.length || "Recruiter note"}</dd>
+                <div>
+                  <dt>External</dt>
+                  <dd>0</dd>
+                </div>
+              </dl>
+              <div className={styles.captureReceiptNote}>
+                <Check size={16} weight="bold" />
+                <p>No message, meeting, contact, or CRM record changed.</p>
               </div>
-              <div>
-                <dt>Confirmed changes</dt>
-                <dd>0</dd>
-              </div>
-              <div>
-                <dt>External actions</dt>
-                <dd>0</dd>
-              </div>
-            </dl>
-            <div className={styles.captureReceiptNote}>
-              <Check size={18} weight="bold" />
-              <p>No message, contact, meeting, or CRM record was changed.</p>
-            </div>
-            <button
-              className={styles.captureSecondaryAction}
-              onClick={() =>
-                setDraft((current) => ({ ...current, phase: "review" }))
-              }
-              type="button"
-            >
-              Review the sources again
-            </button>
-          </section>
-        ) : null}
-      </div>
+            </section>
+          ) : null}
+        </div>
 
-      <footer className={styles.captureFooter}>
-        {draft.phase === "collect" ? (
-          <>
-            <button
-              className={styles.captureDeleteAction}
-              disabled={!canPrepare}
-              onClick={onDelete}
-              type="button"
-            >
-              Discard
-            </button>
-            <button
-              className={styles.capturePrimaryAction}
-              disabled={!canPrepare}
-              onClick={() =>
-                setDraft((current) => ({ ...current, phase: "review" }))
-              }
-              type="button"
-            >
-              Prepare review
-              <ArrowRight size={17} />
-            </button>
-          </>
-        ) : draft.phase === "review" ? (
-          <>
-            <button
-              className={styles.captureDeleteAction}
-              onClick={() =>
-                setDraft((current) => ({ ...current, phase: "collect" }))
-              }
-              type="button"
-            >
-              Back
-            </button>
-            <button
-              className={styles.capturePrimaryAction}
-              onClick={() =>
-                setDraft((current) => ({ ...current, phase: "receipt" }))
-              }
-              type="button"
-            >
-              Keep for review
-              <ArrowRight size={17} />
-            </button>
-          </>
-        ) : (
-          <>
-            <button className={styles.captureDeleteAction} onClick={onDelete} type="button">
-              Delete draft
-            </button>
-            <button className={styles.capturePrimaryAction} onClick={onClose} type="button">
-              Return to Today
-              <ArrowRight size={17} />
-            </button>
-          </>
-        )}
-      </footer>
-    </section>
+        <footer className={styles.captureFooter}>
+          {draft.phase === "collect" ? (
+            <>
+              <button
+                className={styles.captureDeleteAction}
+                onClick={canPrepare ? onDelete : onClose}
+                type="button"
+              >
+                {canPrepare ? "Discard" : "Close"}
+              </button>
+              <button
+                className={styles.capturePrimaryAction}
+                disabled={!canPrepare}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, phase: "review" }))
+                }
+                type="button"
+              >
+                Review{itemCount > 0 ? ` ${itemCount}` : ""}
+                <ArrowRight size={16} />
+              </button>
+            </>
+          ) : draft.phase === "review" ? (
+            <>
+              <button
+                className={styles.captureDeleteAction}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, phase: "collect" }))
+                }
+                type="button"
+              >
+                Back
+              </button>
+              <button
+                className={styles.capturePrimaryAction}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, phase: "receipt" }))
+                }
+                type="button"
+              >
+                Keep draft
+                <ArrowRight size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button className={styles.captureDeleteAction} onClick={onDelete} type="button">
+                Delete
+              </button>
+              <button className={styles.capturePrimaryAction} onClick={onClose} type="button">
+                Done
+                <Check size={16} weight="bold" />
+              </button>
+            </>
+          )}
+        </footer>
+      </section>
+    </>
   );
 }
 
