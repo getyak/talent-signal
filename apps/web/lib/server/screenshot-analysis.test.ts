@@ -64,6 +64,12 @@ describe("private screenshot analysis provider", () => {
       assignmentLabel: "Synthetic search",
       screenshotOwner: "unknown",
       sourceSha256,
+      preProviderMinimization: {
+        crop_bottom_percent: 90,
+        crop_top_percent: 10,
+        prepared_in_browser: true,
+        redaction_count: 2,
+      },
       fetchImpl: fetchImpl as typeof fetch,
     });
 
@@ -74,6 +80,12 @@ describe("private screenshot analysis provider", () => {
       provider: "OpenRouter",
       model: "openai/gpt-5.4-mini",
       request_id: "generation-test-1",
+      pre_provider_minimization: {
+        crop_bottom_percent: 90,
+        crop_top_percent: 10,
+        prepared_in_browser: true,
+        redaction_count: 2,
+      },
       source_sha256: sourceSha256,
     });
     expect(fetchImpl).toHaveBeenCalledOnce();
@@ -88,7 +100,7 @@ describe("private screenshot analysis provider", () => {
         zdr: true,
       },
       response_format: {
-        type: "json_schema",
+        type: "json_object",
       },
     });
   });

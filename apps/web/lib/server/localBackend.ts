@@ -576,6 +576,8 @@ export async function commitRelationshipResource(
         ? "Preserve a recruiter-authored note in the selected relationship context"
         : input.kind === "public_url"
           ? "Save a recruiter-selected public URL as an unexecuted research seed"
+          : input.kind === "conversation_transcript"
+            ? "Attach a recruiter-reviewed conversation transcript for evidence and fact review"
           : "Attach extracted document evidence to the selected relationship context",
     captured_at: capturedAt,
     source_timezone: timezone,
@@ -783,6 +785,16 @@ export async function loadRelationshipAgentHistory(
     personId,
     relationshipContextId,
   );
+}
+
+export async function loadRelationshipWiki(
+  personId: string,
+  relationshipContextId: string,
+): Promise<KnowledgeSnapshot> {
+  const { client } = await authenticatedClient(
+    "web-relationship-wiki",
+  );
+  return client.getKnowledge(personId, relationshipContextId);
 }
 
 export async function loadRelationshipResources(
@@ -1164,6 +1176,7 @@ export async function reviseBackendActionForEvaluation(
 export type CommitScreenshotCaptureInput = {
   request_id: string;
   person_id?: string | null;
+  relationship_context_id?: string | null;
   contact_name: string;
   assignment_label: string;
   draft: ScreenshotCaptureDraft;
@@ -1210,6 +1223,8 @@ export async function commitScreenshotCapture(
   const contactName = input.contact_name.trim();
   const assignmentLabel = input.assignment_label.trim();
   const personId = input.person_id?.trim() || null;
+  const relationshipContextId =
+    input.relationship_context_id?.trim() || null;
   if (
     personId !== null &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -1217,6 +1232,15 @@ export async function commitScreenshotCapture(
     )
   ) {
     throw new Error("The selected person identity is invalid.");
+  }
+  if (
+    relationshipContextId !== null &&
+    (!personId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        relationshipContextId,
+      ))
+  ) {
+    throw new Error("The selected relationship context is invalid.");
   }
   const newPersonRef = `web-person:${stableRef(`new\n${input.request_id}`)}`;
   const personBindingRef = personId ?? newPersonRef;
@@ -1237,6 +1261,12 @@ export async function commitScreenshotCapture(
         `sha256:${analysisMeta.source_sha256}`,
         `provider:${analysisMeta.provider}`,
         `request:${analysisMeta.request_id ?? "not-returned"}`,
+        ...(analysisMeta.pre_provider_minimization
+          ? [
+              `browser-crop:${analysisMeta.pre_provider_minimization.crop_top_percent}-${analysisMeta.pre_provider_minimization.crop_bottom_percent}`,
+              `browser-redactions:${analysisMeta.pre_provider_minimization.redaction_count}`,
+            ]
+          : []),
       ].join(";"),
       retention: {
         requested_mode: "evidence_crop",
@@ -1247,6 +1277,9 @@ export async function commitScreenshotCapture(
       ? {
           status: "bound_existing",
           subject_id: personId,
+          ...(relationshipContextId
+            ? { assignment_id: relationshipContextId }
+            : {}),
           assignment_ref: `web-assignment:${assignmentKey}`,
           assignment_label: assignmentLabel,
           binding_basis:

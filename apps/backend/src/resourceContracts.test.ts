@@ -133,6 +133,7 @@ describe("multichannel relationship-resource contracts", () => {
       identity: {
         status: "bound_existing",
         subject_id: personId,
+        assignment_id: contextId,
         assignment_ref: `web-assignment:${personId}:vp-product`,
         assignment_label: "VP Product · Northstar search",
         binding_basis:

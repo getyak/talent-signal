@@ -10,6 +10,7 @@ import {
   loadIdentityResolutionCase,
   loadRelationshipAgentHistory,
   loadRelationshipScope,
+  loadRelationshipWiki,
 } from "@/lib/server/localBackend";
 import { loadCandidateWorkspace } from "@/lib/server/candidateWorkspace";
 import WorkspaceLoading from "./loading";
@@ -93,6 +94,9 @@ export default async function WorkspacePage({
     let agentHistory: Awaited<
       ReturnType<typeof loadRelationshipAgentHistory>
     > | null = null;
+    let knowledgeSnapshot: Awaited<
+      ReturnType<typeof loadRelationshipWiki>
+    > | null = null;
     let integrationError: string | null = null;
     try {
       if (requestedPerson && requestedContext && !requestedCapture) {
@@ -170,11 +174,26 @@ export default async function WorkspacePage({
         integrationError ??=
           "The contact loaded, but its durable Agent history is temporarily unavailable.";
       }
+      try {
+        knowledgeSnapshot = await loadRelationshipWiki(
+          historyScope.personId,
+          historyScope.relationshipContextId,
+        );
+      } catch (caught) {
+        if (
+          !(caught instanceof TalentSignalHttpError) ||
+          caught.status !== 404
+        ) {
+          integrationError ??=
+            "The contact loaded, but its latest relationship Wiki is temporarily unavailable.";
+        }
+      }
     }
     return (
       <RelationshipWorkspaceApp
         initialAgentHistory={agentHistory}
         initialIdentityResolutionCase={identityResolutionCase}
+        initialKnowledgeSnapshot={knowledgeSnapshot}
         initialRelationshipScope={relationshipScope}
         initialWorkspace={workspace}
         initialError={integrationError}
