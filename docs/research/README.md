@@ -15,6 +15,9 @@ automatically override, canonical project decisions.
   or product-shape quality.
 - [Agent systems](agent-systems.md): cross-system synthesis of current Agent
   products and durable orchestration patterns.
+- [Talent Signal Agent module blueprint](talent-signal-agent-module-blueprint.md):
+  implementation-gap analysis for one proposal-centric control plane with a
+  deterministic continuity workflow and a bounded open-ended task runner.
 
 When research changes a product decision, update the relevant canonical
 document and, when consequential, record an ADR. Do not ask future agents to

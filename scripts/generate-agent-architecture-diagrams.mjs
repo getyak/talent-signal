@@ -1054,6 +1054,507 @@ function buildRuntimeFlow(api) {
   );
 }
 
+function buildModuleBlueprint(api) {
+  const { rectangle, text, arrow, node, badge, lane } = api;
+
+  rectangle("canvas-bg", 20, 20, 2820, 1520, {
+    strokeColor: "transparent",
+    backgroundColor: colors.surface,
+    strokeWidth: 0,
+    locked: true,
+  });
+  text(
+    "title",
+    75,
+    50,
+    1900,
+    54,
+    "Talent Signal Agent module · two runtimes, one authority boundary",
+    37,
+    { align: "left", weight: 700 },
+  );
+  text(
+    "subtitle",
+    78,
+    108,
+    1900,
+    34,
+    "Deterministic continuity stays in control. Open-ended agents produce artifacts and proposals, never relationship truth.",
+    19,
+    { align: "left", color: colors.muted },
+  );
+  arrow("legend-v1", [[2280, 75], [2350, 75]], {
+    endArrowhead: null,
+    strokeWidth: 3,
+  });
+  text("legend-v1-text", 2365, 59, 160, 32, "V1 contract", 15, {
+    align: "left",
+  });
+  arrow("legend-later", [[2280, 118], [2350, 118]], {
+    endArrowhead: null,
+    strokeColor: colors.future,
+    strokeWidth: 3,
+    phase: "later",
+  });
+  text("legend-later-text", 2365, 102, 240, 32, "Later / evidence-gated", 15, {
+    align: "left",
+    color: colors.future,
+    phase: "later",
+  });
+
+  lane(
+    "surface-lane",
+    70,
+    180,
+    430,
+    1170,
+    "1 · Product surface",
+    "intent · review · receipts",
+    { backgroundColor: colors.futureFill },
+  );
+  node(
+    "agent-panel",
+    105,
+    260,
+    360,
+    140,
+    "Relationship Agent panel",
+    "Person + relationship scoped\nintent, progress, operation receipt",
+    { backgroundColor: colors.surface, strokeColor: colors.ink },
+  );
+  node(
+    "living-page",
+    105,
+    435,
+    360,
+    140,
+    "Living person page",
+    "Structured fact, identity and action review\npage owns decisions; chat does not",
+    { backgroundColor: colors.surface, strokeColor: colors.ink },
+  );
+  node(
+    "capture-processor",
+    105,
+    610,
+    360,
+    155,
+    "Ephemeral capture processor",
+    "OCR / VLM → typed draft\nraw image is not Agent memory\ncommit remains a separate decision",
+    { backgroundColor: colors.surface, strokeColor: colors.blue },
+  );
+  rectangle("surface-rule-box", 105, 825, 360, 180, {
+    strokeColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+    strokeWidth: 2,
+  });
+  text("surface-rule-title", 128, 845, 315, 32, "Product rule", 19, {
+    align: "left",
+    color: colors.ink,
+    weight: 700,
+  });
+  text(
+    "surface-rule-body",
+    128,
+    892,
+    315,
+    92,
+    "Chat may ask, navigate and stage.\nReviewable objects make decisions.\nEvery mutation returns a durable receipt.",
+    16,
+    {
+      align: "left",
+      verticalAlign: "top",
+      color: colors.inkSoft,
+      lineHeight: 1.42,
+    },
+  );
+  node(
+    "external-surfaces",
+    105,
+    1065,
+    360,
+    145,
+    "External agents / channels",
+    "Codex · Claude · Manus · OpenClaw\nscoped read, capture, artifact, proposal",
+    {
+      backgroundColor: colors.surface,
+      strokeColor: colors.future,
+      titleColor: colors.future,
+      phase: "later",
+    },
+  );
+
+  lane(
+    "control-lane",
+    550,
+    180,
+    1500,
+    1170,
+    "2 · Agent module",
+    "method · lifecycle · context · policy",
+    { backgroundColor: colors.blueSoft, strokeColor: colors.blue },
+  );
+  node(
+    "intent-router",
+    600,
+    255,
+    300,
+    140,
+    "Intent Router",
+    "navigate · compile · investigate\npropose · clarify · refuse",
+    { backgroundColor: colors.surface, strokeColor: colors.blue },
+  );
+  node(
+    "definition-registry",
+    935,
+    255,
+    300,
+    140,
+    "Definition Registry",
+    "versioned method + output\ncapabilities · model policy · stop",
+    { backgroundColor: colors.surface, strokeColor: colors.violet },
+  );
+  node(
+    "task-run",
+    1270,
+    255,
+    330,
+    140,
+    "Task & Run service",
+    "immutable objective + scope\nrun state · lease · budget · cancel",
+    { backgroundColor: colors.surface, strokeColor: colors.blue },
+  );
+  node(
+    "context-compiler",
+    1635,
+    255,
+    330,
+    140,
+    "Context Compiler",
+    "gold Wiki snapshot + exact evidence\nmanifest · authorization · freshness",
+    { backgroundColor: colors.surface, strokeColor: colors.blue },
+  );
+  arrow("surface-intent", [[465, 330], [600, 330]], {
+    strokeColor: colors.blue,
+    strokeWidth: 3,
+  });
+  arrow("intent-task", [[900, 325], [915, 325], [915, 420], [1435, 420], [1435, 395]], {
+    strokeColor: colors.blue,
+    strokeWidth: 3,
+  });
+  arrow("definition-task", [[1235, 325], [1270, 325]], {
+    strokeColor: colors.violet,
+    strokeWidth: 3,
+  });
+  arrow("task-context", [[1600, 325], [1635, 325]], {
+    strokeColor: colors.blue,
+    strokeWidth: 3,
+  });
+
+  rectangle("workflow-lane-box", 600, 455, 650, 280, {
+    strokeColor: colors.success,
+    backgroundColor: colors.successSoft,
+    strokeWidth: 2,
+  });
+  text("workflow-lane-title", 625, 475, 590, 32, "A · Governed continuity workflow", 20, {
+    align: "left",
+    color: colors.success,
+    weight: 700,
+  });
+  text(
+    "workflow-lane-note",
+    625,
+    515,
+    590,
+    28,
+    "Use when stages, gates and recovery semantics are known.",
+    14,
+    { align: "left", color: colors.muted },
+  );
+  node(
+    "workflow-engine",
+    625,
+    560,
+    280,
+    140,
+    "Workflow engine",
+    "capture → identity → fact review\nWiki → action → effect reconcile",
+    { backgroundColor: colors.surface, strokeColor: colors.success },
+  );
+  node(
+    "bounded-processor",
+    940,
+    560,
+    280,
+    140,
+    "Bounded processors",
+    "OCR · extraction · comparison\nstrict schema; no lifecycle authority",
+    { backgroundColor: colors.surface, strokeColor: colors.violet },
+  );
+  arrow("workflow-processor", [[905, 630], [940, 630]], {
+    strokeColor: colors.success,
+  });
+
+  rectangle("agent-lane-box", 1315, 455, 650, 280, {
+    strokeColor: colors.violet,
+    backgroundColor: colors.violetSoft,
+    strokeWidth: 2,
+  });
+  text("agent-lane-title", 1340, 475, 590, 32, "B · Open-ended task runner", 20, {
+    align: "left",
+    color: colors.violet,
+    weight: 700,
+  });
+  text(
+    "agent-lane-note",
+    1340,
+    515,
+    590,
+    28,
+    "Use only when the number or order of read steps is unknown.",
+    14,
+    { align: "left", color: colors.muted },
+  );
+  node(
+    "run-reducer",
+    1340,
+    560,
+    280,
+    140,
+    "Run reducer",
+    "plan → next intent → observation\nappend event → checkpoint → stop",
+    { backgroundColor: colors.surface, strokeColor: colors.violet },
+  );
+  node(
+    "capability-loop",
+    1655,
+    560,
+    280,
+    140,
+    "Capability loop",
+    "scoped reads · artifact write\nclarification · proposal · abstain",
+    { backgroundColor: colors.surface, strokeColor: colors.violet },
+  );
+  arrow("run-capability", [[1620, 630], [1655, 630]], {
+    strokeColor: colors.violet,
+  });
+  arrow(
+    "parallel-workers",
+    [[1795, 700], [1795, 730], [1915, 730], [1915, 700]],
+    {
+      strokeColor: colors.future,
+      phase: "later",
+    },
+  );
+  text(
+    "parallel-workers-text",
+    1530,
+    704,
+    250,
+    28,
+    "Later: independent read-only fan-out",
+    14,
+    { align: "left", color: colors.future, phase: "later" },
+  );
+  arrow("context-workflow", [[1800, 395], [1800, 430], [925, 430], [925, 455]], {
+    strokeColor: colors.blue,
+  });
+  arrow("context-agent", [[1800, 395], [1800, 430], [1640, 430], [1640, 455]], {
+    strokeColor: colors.blue,
+  });
+
+  rectangle("proposal-boundary-box", 600, 805, 1365, 210, {
+    strokeColor: colors.accent,
+    backgroundColor: colors.surface,
+    strokeWidth: 3,
+  });
+  text(
+    "proposal-boundary-title",
+    630,
+    825,
+    780,
+    34,
+    "Proposal Gateway + Capability Broker · Agent freedom ends here",
+    21,
+    { align: "left", color: colors.accentStrong, weight: 700 },
+  );
+  text(
+    "proposal-boundary-body",
+    630,
+    870,
+    1285,
+    56,
+    "Validate identity, source scope, evidence support, current versions and risk. Artifacts may pass; truth and effects require independent decisions.",
+    16,
+    {
+      align: "left",
+      verticalAlign: "top",
+      lineHeight: 1.4,
+    },
+  );
+  badge("fact-gate", 630, 950, 275, "FACT CONFIRMATION", {
+    backgroundColor: colors.ink,
+    strokeColor: colors.ink,
+  });
+  badge("action-gate", 925, 950, 275, "ACTION APPROVAL", {
+    backgroundColor: colors.accentStrong,
+    strokeColor: colors.accentStrong,
+  });
+  badge("outcome-gate", 1220, 950, 310, "DESTINATION VERIFICATION", {
+    backgroundColor: colors.success,
+    strokeColor: colors.success,
+  });
+  badge("learning-gate", 1550, 950, 375, "LEARNING REVIEW · LATER", {
+    backgroundColor: colors.future,
+    strokeColor: colors.future,
+    phase: "later",
+  });
+  arrow("workflow-proposal", [[925, 735], [925, 805]], {
+    strokeColor: colors.accent,
+    strokeWidth: 3,
+  });
+  arrow("agent-proposal", [[1640, 735], [1640, 805]], {
+    strokeColor: colors.accent,
+    strokeWidth: 3,
+  });
+
+  node(
+    "event-store",
+    600,
+    1075,
+    410,
+    155,
+    "Run event store",
+    "typed append-only events\nmodel-visible ≠ audit-only\nstatus projection updated transactionally",
+    { backgroundColor: colors.surface, strokeColor: colors.blue },
+  );
+  node(
+    "artifact-store",
+    1040,
+    1075,
+    410,
+    155,
+    "Checkpoint & Artifact store",
+    "restorable cursor + unresolved decisions\ncontent hash · retention · dependencies",
+    { backgroundColor: colors.surface, strokeColor: colors.violet },
+  );
+  node(
+    "evaluation",
+    1480,
+    1075,
+    485,
+    155,
+    "Evaluation & operations",
+    "trajectory + outcome · abstention · cost\ncrash replay · dead letters · privacy deletion",
+    { backgroundColor: colors.surface, strokeColor: colors.ink },
+  );
+  arrow("task-event", [[1270, 360], [1255, 360], [1255, 420], [575, 420], [575, 1152], [600, 1152]], {
+    strokeColor: colors.blue,
+  });
+  arrow("event-artifact", [[1010, 1152], [1040, 1152]], {
+    strokeColor: colors.violet,
+  });
+  arrow("artifact-eval", [[1450, 1152], [1480, 1152]], {
+    strokeColor: colors.ink,
+  });
+
+  lane(
+    "truth-lane",
+    2110,
+    180,
+    660,
+    1170,
+    "3 · Governed domain",
+    "truth · memory · effects",
+    { backgroundColor: colors.successSoft, strokeColor: colors.success },
+  );
+  node(
+    "domain-state",
+    2155,
+    260,
+    570,
+    155,
+    "Canonical relationship state",
+    "evidence · identity · fact decisions · temporal state\nsource authorization, freshness and deletion lineage",
+    { backgroundColor: colors.surface, strokeColor: colors.success },
+  );
+  node(
+    "wiki",
+    2155,
+    475,
+    570,
+    145,
+    "Derived Wiki + Context Manifest",
+    "immutable snapshot · addressable blocks · exact dependencies\nrebuildable after correction, expiry, revocation or deletion",
+    { backgroundColor: colors.surface, strokeColor: colors.success },
+  );
+  node(
+    "effects",
+    2155,
+    805,
+    570,
+    170,
+    "Existing effect service",
+    "exact preview → approval token → execution attempt\nread-back observation → verified / failed / unknown",
+    {
+      backgroundColor: colors.surface,
+      strokeColor: colors.accent,
+      titleColor: colors.accentStrong,
+    },
+  );
+  node(
+    "outcomes",
+    2155,
+    1075,
+    570,
+    155,
+    "Outcome + audit projections",
+    "observed outcome · operation receipt · Agent history\nrecruiter follow-up for unresolved effects",
+    { backgroundColor: colors.surface, strokeColor: colors.success },
+  );
+  arrow("domain-wiki", [[2440, 415], [2440, 475]], {
+    strokeColor: colors.success,
+    strokeWidth: 3,
+  });
+  arrow("wiki-context", [[2155, 545], [2075, 545], [2075, 325], [1965, 325]], {
+    strokeColor: colors.success,
+    strokeWidth: 3,
+  });
+  arrow("proposal-domain", [[1965, 875], [2075, 875], [2075, 337], [2155, 337]], {
+    strokeColor: colors.accent,
+    strokeWidth: 3,
+  });
+  arrow("proposal-effects", [[1965, 930], [2110, 930], [2110, 890], [2155, 890]], {
+    strokeColor: colors.accent,
+    strokeWidth: 3,
+  });
+  arrow("effects-outcomes", [[2440, 975], [2440, 1075]], {
+    strokeColor: colors.success,
+    strokeWidth: 3,
+  });
+  arrow("outcomes-evaluation", [[2155, 1152], [2025, 1152], [1965, 1152]], {
+    strokeColor: colors.success,
+  });
+  arrow("capture-proposal", [[465, 687], [520, 687], [520, 900], [600, 900]], {
+    strokeColor: colors.accent,
+  });
+
+  rectangle("status-strip-box", 105, 1390, 2620, 90, {
+    strokeColor: colors.line,
+    backgroundColor: colors.surfaceMuted,
+    strokeWidth: 1,
+  });
+  text(
+    "status-strip-text",
+    135,
+    1402,
+    2560,
+    66,
+    "REUSE NOW  proposals · Wiki/manifests · research leases · effects · audit     |     ADD NEXT  definition · task/run · event/checkpoint · capability registry     |     DEFER  external agents · parallel workers · automatic learning",
+    15,
+    { align: "center", color: colors.inkSoft, weight: 700 },
+  );
+}
+
 const scenes = [
   {
     filename: "talent-signal-agent-control-plane.excalidraw",
@@ -1062,6 +1563,10 @@ const scenes = [
   {
     filename: "talent-signal-agent-runtime-flow.excalidraw",
     scene: createScene("agent-runtime", 2780, 1470, buildRuntimeFlow),
+  },
+  {
+    filename: "talent-signal-agent-module-blueprint.excalidraw",
+    scene: createScene("agent-module", 2860, 1560, buildModuleBlueprint),
   },
 ];
 
