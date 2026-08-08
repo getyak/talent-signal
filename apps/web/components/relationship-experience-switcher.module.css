@@ -1,0 +1,135 @@
+.controlRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.controlLabel {
+  color: #68675f;
+  font-size: 0.69rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.segmentedControl {
+  display: inline-flex;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid rgba(34, 34, 30, 0.1);
+  border-radius: 999px;
+  background: rgba(249, 248, 243, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 8px 24px rgba(39, 38, 34, 0.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: blur(18px) saturate(1.15);
+}
+
+.segmentedControl button {
+  display: inline-flex;
+  min-width: 112px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #77766e;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 690;
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease,
+    transform 140ms ease;
+}
+
+.segmentedControl button:hover {
+  color: #22221e;
+}
+
+.segmentedControl button:active {
+  transform: translateY(1px);
+}
+
+.segmentedControl button:focus-visible {
+  outline: 2px solid #b54832;
+  outline-offset: 2px;
+}
+
+.segmentedControl button.active {
+  background: rgba(255, 255, 252, 0.96);
+  box-shadow:
+    0 1px 1px rgba(34, 34, 30, 0.08),
+    0 5px 14px rgba(34, 34, 30, 0.08);
+  color: #22221e;
+}
+
+.segmentedControl button.active svg {
+  color: #b54832;
+}
+
+.liveStatus {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.desktopView,
+.iphoneView {
+  padding-bottom: clamp(52px, 7vw, 92px);
+}
+
+.iphoneView {
+  display: none;
+}
+
+.preview[data-view="iphone"] .desktopView {
+  display: none;
+}
+
+.preview[data-view="iphone"] .iphoneView {
+  display: block;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .segmentedControl {
+    background: #f6f4ed;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmentedControl button {
+    transition: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .controlRow {
+    display: none;
+  }
+
+  .desktopView,
+  .preview[data-view="desktop"] .desktopView {
+    display: none;
+  }
+
+  .iphoneView,
+  .preview[data-view="desktop"] .iphoneView {
+    display: block;
+  }
+}

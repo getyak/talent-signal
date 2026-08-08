@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { ArrowRight, ShieldCheck } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 
-import { RelationshipDesktopConcept } from "@/components/relationship-desktop-concept";
-import { RelationshipMobileConcept } from "@/components/relationship-mobile-concept";
+import { RelationshipExperienceSwitcher } from "@/components/relationship-experience-switcher";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { accessRequestHref } from "@/lib/site";
@@ -88,12 +87,7 @@ export default function RelationshipsPage() {
               message, changes no calendar, and assigns no score to a person.
             </p>
           </div>
-          <div className={styles.desktopProduct}>
-            <RelationshipDesktopConcept />
-          </div>
-          <div className={styles.mobileProduct}>
-            <RelationshipMobileConcept presentation="product" />
-          </div>
+          <RelationshipExperienceSwitcher />
         </section>
 
         <section className={styles.agentBoundary} aria-labelledby="agent-title">

@@ -123,7 +123,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.62fr);
   gap: clamp(42px, 8vw, 116px);
   align-items: end;
-  margin-bottom: clamp(62px, 8vw, 104px);
+  margin-bottom: clamp(30px, 4vw, 52px);
 }
 
 .experienceHeading h2,
@@ -143,14 +143,6 @@
   color: #68675f;
   font-size: 0.75rem;
   line-height: 1.7;
-}
-
-.desktopProduct {
-  padding-bottom: clamp(52px, 7vw, 92px);
-}
-
-.mobileProduct {
-  display: none;
 }
 
 .agentBoundary {
@@ -248,14 +240,6 @@
 
   .principles li + li {
     border-top: 1px solid var(--line-soft);
-  }
-
-  .desktopProduct {
-    display: none;
-  }
-
-  .mobileProduct {
-    display: block;
   }
 }
 
