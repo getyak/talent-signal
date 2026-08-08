@@ -84,6 +84,18 @@ The primary surfaces answer different questions:
 
 These are views, not competing records.
 
+On mobile, Today is the default return surface when evidence supports a
+relationship dependency that deserves judgment. People remains the stable
+retrieval destination and Library preserves assignment rooms and reviewed
+sources. Today stays sparse: show only a few supported dependencies and make
+an explicit no-action state feel complete.
+
+The Agent is a contextual threshold across those surfaces, not a competing
+destination. It may find, explain, or stage a memory after explicit intent.
+Capture is likewise a capability, not top-level navigation: preserve the
+recruiter's raw words through a contextual Remember action, share surface, or
+voice entry before proposing structure.
+
 ## Agent-operated relationship workspace
 
 On desktop, the default working composition pairs a persistent, relationship-
@@ -102,8 +114,9 @@ Agent operations follow a visible consequence ladder:
 
 The interface should show the affected object and a compact operation receipt,
 not hidden DOM automation or theatrical chains of thought. On small screens,
-Chat may occupy the first viewport, while explicit navigation preserves direct
-access to the person page, sources, and review state.
+the Agent may expand into a focused temporary surface after explicit intent,
+while stable navigation preserves direct access to Today, People, Library,
+sources, and review state.
 
 The rationale and rejected workspace structures are recorded in
 [ADR 0005](decisions/0005-agent-operated-relationship-workspace.md).
@@ -281,5 +294,11 @@ micro-detail.
 Approved mark geometry, controlled material variants, practical exports, and
 usage constraints live in the repository
 [brand system](../brand/README.md).
+
+External products worth studying, with one-line judgments and borrowing
+boundaries, live in the
+[Design reference catalog](research/design-reference-catalog.md). The detailed
+mobile comparison and rejected directions remain in the
+[iOS relationship library benchmark](research/ios-relationship-library-design-benchmark.md).
 
 See [Product](product.md) and [Capture to action](capture-to-action.md).
