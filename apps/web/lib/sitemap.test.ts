@@ -9,6 +9,7 @@ describe("public sitemap", () => {
   it("lists every canonical public page once in deterministic order", () => {
     const expectedUrls = [
       siteConfig.url,
+      `${siteConfig.url}/relationships`,
       `${siteConfig.url}/demo`,
       `${siteConfig.url}/blog`,
       ...blogPosts.map((post) => `${siteConfig.url}/blog/${post.slug}`),

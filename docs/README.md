@@ -54,6 +54,9 @@ updated.
 - [Recruiter discovery and relationship-continuity wedge validation](research/recruiter-discovery-and-wedge-validation.md):
   separates concept feedback from field evidence and defines the bilateral
   recruiter interview and concierge-test protocol.
+- [Talent Signal Agent module blueprint](research/talent-signal-agent-module-blueprint.md):
+  maps the current executable control plane to the smallest durable Agent
+  runtime proposal without granting models domain or effect authority.
 
 ## Operations and evaluation
 

@@ -1,11 +1,47 @@
 import { ASSERTION_FIELDS } from "@talent-signal/contracts";
 import { z } from "zod";
 
+export const SCREENSHOT_PLATFORMS = [
+  "wechat",
+  "whatsapp",
+  "line",
+  "boss_zhipin",
+  "xiaohongshu",
+  "unknown",
+] as const;
+
+export const SCREENSHOT_OWNER_ROLES = [
+  "recruiter",
+  "candidate",
+  "unknown",
+] as const;
+
+export type ScreenshotPlatform = (typeof SCREENSHOT_PLATFORMS)[number];
+export type ScreenshotOwnerRole = (typeof SCREENSHOT_OWNER_ROLES)[number];
+
+export type ScreenshotAnalysisMeta = {
+  provider: "Volcano Ark" | "OpenRouter";
+  model: string;
+  request_id?: string;
+  prompt_version: string;
+  source_sha256: string;
+  raw_image_stored_by_talent_signal: false;
+};
+
+const screenshotAnalysisMetaSchema = z.object({
+  provider: z.enum(["Volcano Ark", "OpenRouter"]),
+  model: z.string().min(1).max(120),
+  request_id: z.string().min(1).max(180).optional(),
+  prompt_version: z.string().min(1).max(80),
+  source_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  raw_image_stored_by_talent_signal: z.literal(false),
+});
+
 const assertionFieldSchema = z.enum(ASSERTION_FIELDS);
 const speakerSchema = z.enum(["candidate", "recruiter", "unknown"]);
 
 const rawScreenshotDraftSchema = z.object({
-  platform: z.enum(["wechat", "unknown"]),
+  platform: z.enum(SCREENSHOT_PLATFORMS),
   captured_at: z.string().max(80).nullable(),
   transcription_notes: z.array(z.string().min(1).max(180)).max(6),
   messages: z
@@ -49,7 +85,7 @@ const rawScreenshotDraftSchema = z.object({
 
 export type ScreenshotCaptureDraft = {
   schema_version: "screenshot-capture.v1";
-  platform: "wechat" | "unknown";
+  platform: ScreenshotPlatform;
   captured_at: string | null;
   transcription_notes: string[];
   messages: Array<{
@@ -84,6 +120,34 @@ function decodeJsonObject(content: string): unknown {
   return JSON.parse(content.slice(start, end + 1));
 }
 
+function containsRelativeTimeReference(value: string) {
+  return /(?:today|tomorrow|yesterday|this\s+(?:week|month)|next\s+(?:week|month)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|今天|明天|昨天|本周|这周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|今日|明日|今週|来週|月曜|火曜|水曜|木曜|金曜|土曜|日曜)/iu.test(
+    value,
+  );
+}
+
+function verifiedCapturedAt(value: string | null) {
+  if (
+    value === null ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(
+      value,
+    ) ||
+    !Number.isFinite(Date.parse(value))
+  ) {
+    return null;
+  }
+  return value;
+}
+
+function containsConcreteTimeReference(value: string) {
+  return (
+    containsRelativeTimeReference(value) ||
+    /(?:\b\d{1,2}:\d{2}\b|\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b|\b\d{1,2}[-/]\d{1,2}\b|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}月\d{1,2}日|月底|月末)/iu.test(
+      value,
+    )
+  );
+}
+
 export function parseScreenshotCaptureDraft(
   content: string,
 ): ScreenshotCaptureDraft {
@@ -99,14 +163,29 @@ export function parseScreenshotCaptureDraft(
   if (messagesById.size !== messages.length) {
     throw new Error("The transcription contains duplicate message IDs.");
   }
+  const capturedAt = verifiedCapturedAt(parsed.captured_at);
 
   const assertions = parsed.assertions.map((assertion) => {
     const message = messagesById.get(assertion.evidence_message_id);
     if (!message || !message.text.includes(assertion.evidence_quote)) {
       throw new Error("A proposed fact does not contain an exact source quote.");
     }
+    const temporalReferenceIsUnresolved =
+      capturedAt === null &&
+      (assertion.field === "availability" ||
+        assertion.field === "decision_deadline") &&
+      containsRelativeTimeReference(
+        `${assertion.value}\n${assertion.evidence_quote}`,
+      );
+    const deadlineHasNoConcreteTime =
+      assertion.field === "decision_deadline" &&
+      !containsConcreteTimeReference(assertion.evidence_quote);
+    const status =
+      temporalReferenceIsUnresolved || deadlineHasNoConcreteTime
+      ? ("ambiguous" as const)
+      : assertion.status;
     if (
-      assertion.status === "proposed" &&
+      status === "proposed" &&
       message.speaker !== "candidate"
     ) {
       throw new Error(
@@ -115,9 +194,16 @@ export function parseScreenshotCaptureDraft(
     }
     return {
       ...assertion,
+      status,
       value: assertion.value.trim(),
       evidence_quote: assertion.evidence_quote.trim(),
-      ambiguity: assertion.ambiguity?.trim() ?? null,
+      ambiguity: temporalReferenceIsUnresolved
+        ? (assertion.ambiguity?.trim() ??
+          "The source uses a relative date, but the screenshot capture time is not verified.")
+        : deadlineHasNoConcreteTime
+          ? (assertion.ambiguity?.trim() ??
+            "The source asks to clarify timing but does not state a concrete decision deadline.")
+        : (assertion.ambiguity?.trim() ?? null),
     };
   });
 
@@ -145,10 +231,15 @@ export function parseScreenshotCaptureDraft(
   return {
     schema_version: "screenshot-capture.v1",
     platform: parsed.platform,
-    captured_at: parsed.captured_at,
-    transcription_notes: parsed.transcription_notes.map((note) =>
-      note.trim(),
-    ),
+    captured_at: capturedAt,
+    transcription_notes: [
+      ...parsed.transcription_notes.map((note) => note.trim()),
+      ...(parsed.captured_at !== null && capturedAt === null
+        ? [
+            "A visible date was not retained as capture time because the screenshot does not verify a full timestamp and time zone.",
+          ]
+        : []),
+    ],
     messages,
     assertions,
     disposition,
@@ -160,4 +251,59 @@ export function validateScreenshotCaptureDraft(
   value: unknown,
 ): ScreenshotCaptureDraft {
   return parseScreenshotCaptureDraft(JSON.stringify(value));
+}
+
+export function validateReviewedScreenshotEdit(
+  originalValue: unknown,
+  reviewedValue: unknown,
+): ScreenshotCaptureDraft {
+  const original = validateScreenshotCaptureDraft(originalValue);
+  const reviewed = validateScreenshotCaptureDraft(reviewedValue);
+  if (
+    original.schema_version !== reviewed.schema_version ||
+    original.platform !== reviewed.platform ||
+    original.captured_at !== reviewed.captured_at ||
+    original.messages.length !== reviewed.messages.length ||
+    JSON.stringify(original.transcription_notes) !==
+      JSON.stringify(reviewed.transcription_notes)
+  ) {
+    throw new Error(
+      "A reviewed transcription edit cannot change source metadata or message inventory.",
+    );
+  }
+  let messageChanged = false;
+  for (const [index, message] of reviewed.messages.entries()) {
+    const source = original.messages[index];
+    if (
+      !source ||
+      source.source_message_id !== message.source_message_id ||
+      source.sequence !== message.sequence
+    ) {
+      throw new Error(
+        "A reviewed transcription edit cannot add, remove, or reorder source messages.",
+      );
+    }
+    if (source.text !== message.text || source.speaker !== message.speaker) {
+      messageChanged = true;
+    }
+  }
+  if (!messageChanged) {
+    throw new Error("The reviewed transcription contains no human edit.");
+  }
+  if (
+    reviewed.assertions.length > 0 ||
+    reviewed.action !== null ||
+    reviewed.disposition !== "no_action"
+  ) {
+    throw new Error(
+      "Human-edited transcription must remove model-derived facts and actions before commit.",
+    );
+  }
+  return reviewed;
+}
+
+export function validateScreenshotAnalysisMeta(
+  value: unknown,
+): ScreenshotAnalysisMeta {
+  return screenshotAnalysisMetaSchema.parse(value);
 }

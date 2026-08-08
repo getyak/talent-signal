@@ -513,6 +513,10 @@ Evidence: “remote 对我很重要”
 
 ## 四、产品审美好的公司：值得借鉴什么
 
+快速检索这些案例及后续新增参照时，使用
+[Design reference catalog](design-reference-catalog.md)；本节保留详细证据与
+取舍，不承担目录职责。
+
 ### 1. Granola：AI 不替代判断，而是放大用户已经指出的重要性
 
 #### 方法

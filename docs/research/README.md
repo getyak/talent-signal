@@ -7,8 +7,17 @@ automatically override, canonical project decisions.
   relationship-led executive search.
 - [Candidate momentum loop](candidate-momentum-loop.md): deep research on the
   evidence-to-action opportunity, adjacent systems, safety, and evaluation.
+- [iOS relationship library design benchmark](ios-relationship-library-design-benchmark.md):
+  current-surface diagnosis, adjacent-product comparison, the selected mobile
+  architecture, and explicit keep, add, reframe, remove, or defer decisions.
+- [Design reference catalog](design-reference-catalog.md): one-line,
+  source-linked judgments on products worth studying for visual, interaction,
+  or product-shape quality.
 - [Agent systems](agent-systems.md): cross-system synthesis of current Agent
   products and durable orchestration patterns.
+- [Talent Signal Agent module blueprint](talent-signal-agent-module-blueprint.md):
+  implementation-gap analysis for one proposal-centric control plane with a
+  deterministic continuity workflow and a bounded open-ended task runner.
 
 When research changes a product decision, update the relevant canonical
 document and, when consequential, record an ADR. Do not ask future agents to

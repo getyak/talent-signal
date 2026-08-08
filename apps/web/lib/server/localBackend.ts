@@ -48,10 +48,13 @@ import {
   type CandidateMomentumCase,
 } from "../candidateMomentum";
 import {
+  validateScreenshotAnalysisMeta,
   validateScreenshotCaptureDraft,
+  validateReviewedScreenshotEdit,
+  type ScreenshotAnalysisMeta,
   type ScreenshotCaptureDraft,
 } from "../screenshot-capture";
-import { getArkAvailability } from "./ark";
+import { verifyScreenshotAnalysisReceipt } from "./screenshot-analysis-receipt";
 
 const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
 const UUID =
@@ -1164,6 +1167,9 @@ export type CommitScreenshotCaptureInput = {
   contact_name: string;
   assignment_label: string;
   draft: ScreenshotCaptureDraft;
+  original_draft?: ScreenshotCaptureDraft;
+  analysis_meta: ScreenshotAnalysisMeta;
+  analysis_receipt: string;
 };
 
 export async function commitScreenshotCapture(
@@ -1180,7 +1186,27 @@ export async function commitScreenshotCapture(
   ) {
     throw new Error("The reviewed screenshot capture is incomplete.");
   }
-  const draft = validateScreenshotCaptureDraft(input.draft);
+  const submittedDraft = validateScreenshotCaptureDraft(input.draft);
+  const receiptDraft = input.original_draft
+    ? validateScreenshotCaptureDraft(input.original_draft)
+    : submittedDraft;
+  const analysisMeta = validateScreenshotAnalysisMeta(input.analysis_meta);
+  if (
+    typeof input.analysis_receipt !== "string" ||
+    input.analysis_receipt.length > 2_000 ||
+    !verifyScreenshotAnalysisReceipt(input.analysis_receipt, {
+      draft: receiptDraft,
+      meta: analysisMeta,
+    })
+  ) {
+    throw new Error(
+      "The screenshot analysis receipt is missing, expired, or does not match this draft.",
+    );
+  }
+  const humanEdited = Boolean(input.original_draft);
+  const draft = humanEdited
+    ? validateReviewedScreenshotEdit(receiptDraft, submittedDraft)
+    : submittedDraft;
   const contactName = input.contact_name.trim();
   const assignmentLabel = input.assignment_label.trim();
   const personId = input.person_id?.trim() || null;
@@ -1197,7 +1223,6 @@ export async function commitScreenshotCapture(
   const assignmentKey = stableRef(
     `${personBindingRef}\n${assignmentLabel.normalize("NFKC").toLowerCase()}`,
   );
-  const screenshotModel = getArkAvailability().screenshot_model;
   const { client } = await authenticatedClient("web-screenshot-capture");
   const capture = await client.createCapture({
     idempotency_key: `web-screenshot:${input.request_id}`,
@@ -1207,8 +1232,12 @@ export async function commitScreenshotCapture(
       captured_at: new Date().toISOString(),
       source_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       purpose:
-        "Recruiter-reviewed WeChat screenshot transcription for relationship context",
-      source_locator: `web-screenshot:${input.request_id}`,
+        `${humanEdited ? "Recruiter-edited" : "Recruiter-reviewed"} ${draft.platform} conversation screenshot transcription for relationship context`,
+      source_locator: [
+        `sha256:${analysisMeta.source_sha256}`,
+        `provider:${analysisMeta.provider}`,
+        `request:${analysisMeta.request_id ?? "not-returned"}`,
+      ].join(";"),
       retention: {
         requested_mode: "evidence_crop",
         source_scope: "reviewed_extracted_text",
@@ -1240,9 +1269,21 @@ export async function commitScreenshotCapture(
   await client.submitAnalysis(capture.id, {
     idempotency_key: `web-screenshot-analysis:${input.request_id}`,
     producer: {
-      kind: "model",
-      name: screenshotModel,
-      version: draft.schema_version,
+      kind: humanEdited ? "human_draft" : "model",
+      name: humanEdited
+        ? `Recruiter-reviewed transcription · ${analysisMeta.provider}`.slice(
+            0,
+            120,
+          )
+        : `${analysisMeta.provider} · ${analysisMeta.model}`.slice(0, 120),
+      version: [
+        draft.schema_version,
+        analysisMeta.prompt_version,
+        humanEdited ? "human-transcription-edit" : "model-draft",
+        analysisMeta.request_id ?? "request-id-not-returned",
+      ]
+        .join(":")
+        .slice(0, 120),
     },
     disposition: draft.disposition,
     assertions: draft.assertions.map((assertion) => ({

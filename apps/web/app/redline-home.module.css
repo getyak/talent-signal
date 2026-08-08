@@ -3,25 +3,27 @@
 }
 
 .hero {
-  padding-block: clamp(46px, 5.4vw, 78px) clamp(88px, 9vw, 136px);
+  min-height: calc(100svh - 72px);
+  padding-block: clamp(38px, 5vh, 64px) clamp(66px, 8vh, 92px);
 }
 
 .heroIntro {
-  align-items: end;
+  align-items: center;
   display: grid;
-  gap: clamp(44px, 5.2vw, 78px);
-  grid-template-columns: minmax(0, 1.28fr) minmax(330px, 0.72fr);
+  gap: clamp(42px, 5vw, 78px);
+  grid-template-columns: minmax(0, 0.94fr) minmax(440px, 0.76fr);
+  min-height: calc(100svh - 176px);
 }
 
 .heroIntro h1 {
-  font-size: clamp(3.9rem, 4.8vw, 4.55rem);
-  font-weight: 625;
-  letter-spacing: -0.074em;
-  line-height: 0.93;
-  max-width: 900px;
+  font-size: clamp(3.9rem, 5.7vw, 6.55rem);
+  font-weight: 560;
+  letter-spacing: -0.078em;
+  line-height: 0.9;
+  max-width: 810px;
 }
 
-.heroThesis > p {
+.heroEyebrow {
   color: var(--accent-strong);
   font-family: var(--font-mono), monospace;
   font-size: 0.66rem;
@@ -35,16 +37,22 @@
   color: var(--accent-strong);
 }
 
-.heroAside {
-  padding-bottom: 0.55rem;
+.heroPromise {
+  color: var(--muted-strong);
+  font-size: clamp(0.98rem, 1.12vw, 1.08rem);
+  letter-spacing: -0.015em;
+  line-height: 1.55;
+  margin-top: 28px;
+  max-width: 510px;
 }
 
-.heroAside > p {
-  color: var(--muted-strong);
-  font-size: clamp(1rem, 1.35vw, 1.18rem);
-  letter-spacing: -0.015em;
-  line-height: 1.58;
-  max-width: 430px;
+.heroProof {
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.57rem;
+  letter-spacing: 0.045em;
+  margin-top: 18px;
+  text-transform: uppercase;
 }
 
 .heroActions {
@@ -52,7 +60,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 26px;
+  margin-top: 25px;
+}
+
+.heroVisual {
+  min-width: 0;
 }
 
 .action {
@@ -103,10 +115,6 @@
 
 .actionSecondary:hover {
   border-color: var(--ink);
-}
-
-.workbenchWrap {
-  margin-top: clamp(42px, 5vw, 70px);
 }
 
 .workbench {
@@ -1531,8 +1539,21 @@
 }
 
 @media (max-width: 1080px) {
+  .heroIntro {
+    gap: 48px;
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
   .heroIntro h1 {
     font-size: clamp(3.7rem, 7vw, 5rem);
+    max-width: 820px;
+  }
+
+  .heroVisual {
+    justify-self: center;
+    max-width: 760px;
+    width: 100%;
   }
 
   .workbench {
@@ -1649,9 +1670,8 @@
   }
 
   .heroIntro {
-    align-items: end;
-    gap: 34px;
-    grid-template-columns: 1fr;
+    align-items: center;
+    gap: 42px;
   }
 
   .heroIntro h1 {
@@ -1659,16 +1679,8 @@
     max-width: 820px;
   }
 
-  .heroAside {
-    align-items: end;
-    display: grid;
-    gap: 30px;
-    grid-template-columns: minmax(0, 1fr) auto;
-    padding-bottom: 0;
-  }
-
   .heroActions {
-    margin-top: 0;
+    margin-top: 26px;
   }
 }
 
@@ -1729,20 +1741,12 @@
   .heroIntro {
     align-items: start;
     gap: 26px;
+    min-height: calc(100svh - 176px);
   }
 
   .heroIntro h1 {
     font-size: clamp(3.25rem, 12.5vw, 5rem);
     max-width: 720px;
-  }
-
-  .heroAside {
-    padding-bottom: 0;
-  }
-
-  .heroAside > p {
-    font-size: 1rem;
-    max-width: 38ch;
   }
 
   .workbench {

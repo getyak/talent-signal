@@ -283,6 +283,44 @@ results.push(
     renderPhrases: ["Talent Signal System Architecture", "Human Approval Checkpoint"],
   }),
 );
+results.push(
+  await checkScene({
+    name: "Agent module blueprint",
+    prefix: "agent-module",
+    excalidraw: "docs/talent-signal-agent-module-blueprint.excalidraw",
+    svg: "docs/talent-signal-agent-module-blueprint.svg",
+    png: "docs/talent-signal-agent-module-blueprint.png",
+    minimumElements: 110,
+    minimumFontSize: 14,
+    requiredPhrases: [
+      "two runtimes, one authority boundary",
+      "Governed continuity workflow",
+      "Open-ended task runner",
+      "Agent freedom ends here",
+      "FACT CONFIRMATION",
+      "ACTION APPROVAL",
+      "DESTINATION VERIFICATION",
+      "Canonical relationship state",
+    ],
+    requiredElementSuffixes: [
+      "surface-intent",
+      "workflow-proposal",
+      "agent-proposal",
+      "proposal-domain",
+      "proposal-effects",
+      "effects-outcomes",
+      "outcomes-evaluation",
+    ],
+    dashedElementSuffixes: [
+      "external-surfaces-box",
+      "parallel-workers",
+    ],
+    renderPhrases: [
+      "Talent Signal Agent module",
+      "Agent freedom ends here",
+    ],
+  }),
+);
 
 for (const result of results) {
   console.log(

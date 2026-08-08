@@ -17,9 +17,9 @@ export const navigation = [
     description: "See evidence change the record",
   },
   {
-    href: "/demo",
-    label: "Live demo",
-    description: "Review one synthetic conversation",
+    href: "/relationships",
+    label: "Relationships",
+    description: "Explore the editorial relationship workspace",
   },
   {
     href: "/#method",

@@ -1,10 +1,13 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import {
-  analyzeScreenshotWithArk,
-  getArkAvailability,
-} from "@/lib/server/ark";
+  analyzeScreenshot,
+  getScreenshotAnalysisAvailability,
+} from "@/lib/server/screenshot-analysis";
+import { issueScreenshotAnalysisReceipt } from "@/lib/server/screenshot-analysis-receipt";
+import { SCREENSHOT_OWNER_ROLES } from "@/lib/screenshot-capture";
 import { isAllowedMutationOrigin } from "@/lib/request-origin";
 
 export const runtime = "nodejs";
@@ -107,7 +110,7 @@ export async function POST(request: NextRequest) {
       },
     );
   }
-  if (!getArkAvailability().enabled) {
+  if (!getScreenshotAnalysisAvailability().enabled) {
     return NextResponse.json(
       {
         error:
@@ -129,15 +132,19 @@ export async function POST(request: NextRequest) {
   }
 
   const image = formData.get("image");
-  const contactName = boundedFormText(formData.get("contactName"), 160);
-  const assignmentLabel = boundedFormText(
-    formData.get("assignmentLabel"),
-    200,
+  const contactName =
+    boundedFormText(formData.get("contactName"), 160) ??
+    "Unbound person — recruiter will bind after review";
+  const assignmentLabel =
+    boundedFormText(formData.get("assignmentLabel"), 200) ??
+    "Unbound relationship — recruiter will bind after review";
+  const requestedOwner = boundedFormText(formData.get("screenshotOwner"), 20);
+  const screenshotOwner = SCREENSHOT_OWNER_ROLES.find(
+    (role) => role === requestedOwner,
   );
   if (
     !(image instanceof File) ||
-    !contactName ||
-    !assignmentLabel ||
+    !screenshotOwner ||
     !ACCEPTED_IMAGE_TYPES.has(image.type) ||
     image.size <= 0 ||
     image.size > MAX_IMAGE_BYTES
@@ -145,20 +152,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Choose a JPEG, PNG, or WebP screenshot under 8 MB and add the contact and relationship context.",
+          "Choose a JPEG, PNG, or WebP screenshot under 8 MB and identify whose screen it came from.",
       },
       { status: 400, headers: noStoreHeaders() },
     );
   }
 
   try {
-    const analysis = await analyzeScreenshotWithArk({
-      bytes: new Uint8Array(await image.arrayBuffer()),
+    const bytes = new Uint8Array(await image.arrayBuffer());
+    const analysis = await analyzeScreenshot({
+      bytes,
       mimeType: image.type as "image/jpeg" | "image/png" | "image/webp",
       contactName,
       assignmentLabel,
+      screenshotOwner,
+      sourceSha256: createHash("sha256").update(bytes).digest("hex"),
     });
-    return NextResponse.json(analysis, { headers: noStoreHeaders() });
+    return NextResponse.json(
+      {
+        ...analysis,
+        receipt: issueScreenshotAnalysisReceipt(analysis),
+      },
+      { headers: noStoreHeaders() },
+    );
   } catch {
     return NextResponse.json(
       {

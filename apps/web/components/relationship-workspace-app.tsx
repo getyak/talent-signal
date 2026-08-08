@@ -69,7 +69,11 @@ import {
   personIdentityTemporalRole,
 } from "@/lib/agent-person-resolution";
 import { resolveAgentUiCommand } from "@/lib/agent-ui-command";
-import type { ScreenshotCaptureDraft } from "@/lib/screenshot-capture";
+import type {
+  ScreenshotAnalysisMeta,
+  ScreenshotCaptureDraft,
+  ScreenshotOwnerRole,
+} from "@/lib/screenshot-capture";
 
 import { ThemeToggle } from "./theme-toggle";
 
@@ -87,15 +91,16 @@ type Props = {
 
 type CaptureAnalysis = {
   draft: ScreenshotCaptureDraft;
-  meta: {
-    provider: "Volcano Ark";
-    model: string;
-    request_id?: string;
-    raw_image_stored_by_talent_signal: false;
-  };
+  meta: ScreenshotAnalysisMeta;
+  receipt: string;
 };
 
-type CapturePhase = "select" | "analyzing" | "review" | "committing";
+type CapturePhase =
+  | "select"
+  | "analyzing"
+  | "binding"
+  | "review"
+  | "committing";
 type ResourceMode = "note" | "document" | "url";
 type IdentityWorkflowResponse = {
   decision: IdentityResolutionDecisionResponse;
@@ -156,6 +161,18 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function isCompleteCalendarDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) {
+    return false;
+  }
+  const date = new Date(`${value.trim()}T00:00:00.000Z`);
+  return (
+    Number.isFinite(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value.trim()
+  );
+}
+
 function initials(value: string) {
   const segments = value.trim().split(/\s+/);
   if (segments.length === 1) {
@@ -188,7 +205,7 @@ function identityHandleLabel(type: IdentityHandleType) {
 function sourceKindLabel(kind: string) {
   switch (kind) {
     case "screenshot_metadata":
-      return "WeChat screenshot";
+      return "Conversation screenshot";
     case "transcript":
       return "Reviewed conversation";
     case "fixture":
@@ -236,11 +253,16 @@ function CapturePanel({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [contactName, setContactName] = useState("");
   const [assignmentLabel, setAssignmentLabel] = useState("");
+  const [screenshotOwner, setScreenshotOwner] =
+    useState<ScreenshotOwnerRole>("unknown");
   const [people, setPeople] = useState<PersonDirectoryItem[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(true);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [createNewPerson, setCreateNewPerson] = useState(false);
   const [analysis, setAnalysis] = useState<CaptureAnalysis | null>(null);
+  const [reviewedDraft, setReviewedDraft] =
+    useState<ScreenshotCaptureDraft | null>(null);
+  const [transcriptEditing, setTranscriptEditing] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
 
@@ -310,6 +332,8 @@ function CapturePanel({
     setFile(nextFile);
     setPreviewUrl(nextFile ? URL.createObjectURL(nextFile) : null);
     setAnalysis(null);
+    setReviewedDraft(null);
+    setTranscriptEditing(false);
     setPhase("select");
     setError("");
   }
@@ -325,23 +349,15 @@ function CapturePanel({
   }
 
   async function analyze() {
-    if (
-      !file ||
-      !contactName.trim() ||
-      !assignmentLabel.trim() ||
-      !identityDecided
-    ) {
-      setError(
-        "Choose an existing person or explicitly confirm a new person, then add the relationship context and screenshot.",
-      );
+    if (!file) {
+      setError("Choose one conversation screenshot before starting analysis.");
       return;
     }
     setPhase("analyzing");
     setError("");
     const formData = new FormData();
     formData.set("image", file);
-    formData.set("contactName", contactName.trim());
-    formData.set("assignmentLabel", assignmentLabel.trim());
+    formData.set("screenshotOwner", screenshotOwner);
     try {
       const response = await fetch("/api/captures/screenshot-analysis", {
         method: "POST",
@@ -359,7 +375,8 @@ function CapturePanel({
         );
       }
       setAnalysis(payload);
-      setPhase("review");
+      setReviewedDraft(payload.draft);
+      setPhase("binding");
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -374,6 +391,26 @@ function CapturePanel({
     if (!analysis) {
       return;
     }
+    if (
+      !contactName.trim() ||
+      !assignmentLabel.trim() ||
+      !identityDecided
+    ) {
+      setError(
+        "Bind the reviewed source to an existing person or explicitly confirm a new one before committing.",
+      );
+      setPhase("binding");
+      return;
+    }
+    const draftToCommit = reviewedDraft ?? analysis.draft;
+    if (draftToCommit.messages.some((message) => !message.text.trim())) {
+      setError("Every reviewed message needs visible source text before commit.");
+      setPhase("review");
+      return;
+    }
+    const transcriptEdited =
+      JSON.stringify(draftToCommit.messages) !==
+      JSON.stringify(analysis.draft.messages);
     setPhase("committing");
     setError("");
     try {
@@ -388,7 +425,12 @@ function CapturePanel({
           person_id: selectedPersonId,
           contact_name: contactName.trim(),
           assignment_label: assignmentLabel.trim(),
-          draft: analysis.draft,
+          draft: draftToCommit,
+          ...(transcriptEdited
+            ? { original_draft: analysis.draft }
+            : {}),
+          analysis_meta: analysis.meta,
+          analysis_receipt: analysis.receipt,
         }),
       });
       const payload = (await response.json()) as
@@ -412,7 +454,35 @@ function CapturePanel({
     }
   }
 
-  const draft = analysis?.draft ?? null;
+  const draft = reviewedDraft ?? analysis?.draft ?? null;
+  const transcriptEdited = Boolean(
+    analysis &&
+      draft &&
+      JSON.stringify(draft.messages) !==
+        JSON.stringify(analysis.draft.messages),
+  );
+
+  function updateReviewedMessage(
+    messageId: string,
+    change: { speaker?: "candidate" | "recruiter" | "unknown"; text?: string },
+  ) {
+    setReviewedDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        messages: current.messages.map((message) =>
+          message.source_message_id === messageId
+            ? { ...message, ...change }
+            : message,
+        ),
+        assertions: [],
+        disposition: "no_action",
+        action: null,
+      };
+    });
+  }
 
   return (
     <div
@@ -436,12 +506,15 @@ function CapturePanel({
             <h2 id="capture-title">
               {phase === "review" || phase === "committing"
                 ? "Review what the screenshot supports"
-                : "Import a WeChat screenshot"}
+                : phase === "binding"
+                  ? "Bind the source to one relationship"
+                  : "Import a conversation screenshot"}
             </h2>
             <p>
               The image is sent to the configured cloud provider for analysis
-              and held in browser memory for this review. Talent Signal stores
-              only the extracted text you commit.
+              and held in browser memory for this review. The original image is
+              not stored. Reviewed text and evidence quotes are kept for up to
+              30 days so you can verify proposals, and can be deleted sooner.
             </p>
           </div>
           <button
@@ -462,9 +535,38 @@ function CapturePanel({
           </div>
         ) : null}
 
-        {phase === "select" || phase === "analyzing" ? (
+        {phase === "select" ||
+        phase === "analyzing" ||
+        phase === "binding" ? (
           <div className="context-capture__select">
             <div className="context-capture__identity">
+              {phase !== "binding" ? (
+                <fieldset className="context-capture__owner">
+                  <legend>Whose screen is this?</legend>
+                  <div>
+                    {([
+                      ["recruiter", "Mine"],
+                      ["candidate", "Candidate's"],
+                      ["unknown", "Not sure"],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        aria-pressed={screenshotOwner === value}
+                        key={value}
+                        onClick={() => setScreenshotOwner(value)}
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <small>
+                    This determines how bubble position may be interpreted. When
+                    unsure, speakers stay unassigned until review.
+                  </small>
+                </fieldset>
+              ) : null}
+              {phase === "binding" ? (
+                <>
               <label>
                 <span>Contact</span>
                 <input
@@ -607,6 +709,8 @@ function CapturePanel({
                   </p>
                 )}
               </div>
+                </>
+              ) : null}
             </div>
 
             <div
@@ -633,7 +737,7 @@ function CapturePanel({
                   {/* Blob URLs are intentionally browser-local and cannot use next/image. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    alt="Selected WeChat conversation screenshot"
+                    alt="Selected conversation screenshot"
                     src={previewUrl}
                   />
                   <div>
@@ -676,30 +780,49 @@ function CapturePanel({
             <div className="context-capture__privacy">
               <ShieldCheck aria-hidden="true" size={19} weight="duotone" />
               <p>
-                <strong>Before you continue</strong>
-                Only upload a conversation you are authorized to process.
-                Review every extracted fact before it becomes contact context.
+                <strong>
+                  {phase === "binding"
+                    ? "Source read · identity still yours"
+                    : "Before you continue"}
+                </strong>
+                {phase === "binding"
+                  ? "The model did not create a person. Choose an existing person or explicitly create a new one, then name the relationship context."
+                  : "Only upload a conversation you are authorized to process. Review every extracted fact before it becomes contact context."}
               </p>
             </div>
 
             <footer className="context-capture__footer">
               <button
                 className="context-secondary-button"
-                onClick={onClose}
+                onClick={() => {
+                  if (phase === "binding") {
+                    setPhase("select");
+                    return;
+                  }
+                  onClose();
+                }}
                 type="button"
               >
-                Cancel
+                {phase === "binding" ? "Back to source" : "Cancel"}
               </button>
               <button
                 className="context-primary-button"
                 disabled={
                   phase === "analyzing" ||
                   !file ||
-                  !contactName.trim() ||
-                  !assignmentLabel.trim() ||
-                  !identityDecided
+                  (phase === "binding" &&
+                    (!contactName.trim() ||
+                      !assignmentLabel.trim() ||
+                      !identityDecided))
                 }
-                onClick={analyze}
+                onClick={() => {
+                  if (phase === "binding") {
+                    setError("");
+                    setPhase("review");
+                    return;
+                  }
+                  void analyze();
+                }}
                 type="button"
               >
                 {phase === "analyzing" ? (
@@ -713,7 +836,9 @@ function CapturePanel({
                 )}
                 {phase === "analyzing"
                   ? "Reading screenshot"
-                  : "Extract review draft"}
+                  : phase === "binding"
+                    ? "Continue to evidence review"
+                    : "Read source"}
               </button>
             </footer>
           </div>
@@ -726,7 +851,7 @@ function CapturePanel({
                 {previewUrl ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
-                    alt="WeChat screenshot being reviewed"
+                    alt="Conversation screenshot being reviewed"
                     src={previewUrl}
                   />
                 ) : null}
@@ -734,9 +859,11 @@ function CapturePanel({
               <div className="context-review-source__meta">
                 <span>
                   <ShieldCheck aria-hidden="true" size={15} />
-                  Original not stored by Talent Signal
+                  Original not stored · reviewed text retained up to 30 days
                 </span>
-                <span>{analysis?.meta.model}</span>
+                <span>
+                  {analysis?.meta.provider} · {analysis?.meta.model} · {draft.platform}
+                </span>
               </div>
             </div>
 
@@ -769,16 +896,99 @@ function CapturePanel({
               <section aria-labelledby="transcription-title">
                 <div className="context-review-heading">
                   <h3 id="transcription-title">Transcription</h3>
-                  <span>{draft.messages.length} messages</span>
+                  <div className="context-review-heading__actions">
+                    <span>{draft.messages.length} messages</span>
+                    {transcriptEditing ? (
+                      <>
+                        <button
+                          disabled={!transcriptEdited}
+                          onClick={() => setTranscriptEditing(false)}
+                          type="button"
+                        >
+                          Done
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (analysis) {
+                              setReviewedDraft(analysis.draft);
+                            }
+                            setTranscriptEditing(false);
+                          }}
+                          type="button"
+                        >
+                          Reset
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setTranscriptEditing(true)}
+                        type="button"
+                      >
+                        Edit transcription
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {transcriptEdited ? (
+                  <div className="context-human-edit-note" role="status">
+                    <PencilSimple aria-hidden="true" size={17} />
+                    <p>
+                      <strong>Recruiter-edited transcription</strong>
+                      Model-derived facts and actions were removed. This source
+                      will enter review as human-drafted text with no automatic
+                      operational claim.
+                    </p>
+                  </div>
+                ) : null}
                 <div className="context-transcript">
                   {draft.messages.map((message) => (
                     <div
                       data-speaker={message.speaker}
                       key={message.source_message_id}
                     >
-                      <span>{message.speaker}</span>
-                      <p>{message.text}</p>
+                      {transcriptEditing ? (
+                        <>
+                          <label>
+                            <span className="sr-only">Speaker</span>
+                            <select
+                              aria-label={`Speaker for message ${message.sequence + 1}`}
+                              onChange={(event) =>
+                                updateReviewedMessage(
+                                  message.source_message_id,
+                                  {
+                                    speaker: event.target.value as
+                                      | "candidate"
+                                      | "recruiter"
+                                      | "unknown",
+                                  },
+                                )
+                              }
+                              value={message.speaker}
+                            >
+                              <option value="candidate">Candidate</option>
+                              <option value="recruiter">Recruiter</option>
+                              <option value="unknown">Not sure</option>
+                            </select>
+                          </label>
+                          <textarea
+                            aria-label={`Text for message ${message.sequence + 1}`}
+                            maxLength={4_000}
+                            onChange={(event) =>
+                              updateReviewedMessage(
+                                message.source_message_id,
+                                { text: event.target.value },
+                              )
+                            }
+                            rows={3}
+                            value={message.text}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <span>{message.speaker}</span>
+                          <p>{message.text}</p>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -843,8 +1053,7 @@ function CapturePanel({
                 className="context-secondary-button"
                 disabled={phase === "committing"}
                 onClick={() => {
-                  setAnalysis(null);
-                  setPhase("select");
+                  setPhase("binding");
                 }}
                 type="button"
               >
@@ -852,7 +1061,11 @@ function CapturePanel({
               </button>
               <button
                 className="context-primary-button"
-                disabled={phase === "committing"}
+                disabled={
+                  phase === "committing" ||
+                  transcriptEditing ||
+                  draft.messages.some((message) => !message.text.trim())
+                }
                 onClick={commit}
                 type="button"
               >
@@ -6333,11 +6546,11 @@ export function RelationshipWorkspaceApp({
               <House aria-hidden="true" size={19} weight="duotone" />
               Agent
             </a>
-            <a aria-label="Open person page" href="#contact-overview">
+            <Link aria-label="Open people directory" href="/workspace/people">
               <AddressBook aria-hidden="true" size={19} weight="duotone" />
               People
               {activeScope ? <span>1</span> : null}
-            </a>
+            </Link>
             <a aria-label="Open governed sources" href="#relationship-resources">
               <FileImage aria-hidden="true" size={19} weight="duotone" />
               Sources
@@ -7338,6 +7551,15 @@ export function RelationshipWorkspaceApp({
                             "";
                           const pending =
                             assertion.review_status === "pending";
+                          const ambiguous =
+                            pending && assertion.status === "ambiguous";
+                          const needsCalendarDate =
+                            ambiguous &&
+                            assertion.field === "decision_deadline";
+                          const editedValueIsValid =
+                            edited.trim().length > 0 &&
+                            (!needsCalendarDate ||
+                              isCompleteCalendarDate(edited));
                           return (
                             <article
                               data-state={assertion.review_status}
@@ -7347,7 +7569,9 @@ export function RelationshipWorkspaceApp({
                                 <div className="context-fact__label">
                                   <span>{fieldLabel(assertion.field)}</span>
                                   <i>
-                                    {reviewLabel(assertion.review_status)}
+                                    {ambiguous
+                                      ? "Needs clarification"
+                                      : reviewLabel(assertion.review_status)}
                                   </i>
                                 </div>
                                 {isEditing ? (
@@ -7365,8 +7589,20 @@ export function RelationshipWorkspaceApp({
                                             event.target.value,
                                         }))
                                       }
+                                      placeholder={
+                                        needsCalendarDate
+                                          ? "YYYY-MM-DD"
+                                          : undefined
+                                      }
                                       value={edited}
                                     />
+                                    {needsCalendarDate ? (
+                                      <small>
+                                        Add a complete calendar date. The
+                                        screenshot did not provide a verified
+                                        timestamp for “{assertion.value}”.
+                                      </small>
+                                    ) : null}
                                   </label>
                                 ) : (
                                   <p className="context-fact__value">
@@ -7389,6 +7625,13 @@ export function RelationshipWorkspaceApp({
                                       : ""}
                                   </span>
                                 </a>
+                                {ambiguous && !isEditing ? (
+                                  <p className="context-fact__ambiguity">
+                                    This extracted value is not anchored well
+                                    enough to remember as-is. Correct it, keep
+                                    it unresolved, or dismiss it.
+                                  </p>
+                                ) : null}
                               </div>
 
                               {pending ? (
@@ -7397,9 +7640,7 @@ export function RelationshipWorkspaceApp({
                                     <>
                                       <button
                                         className="context-primary-button context-primary-button--compact"
-                                        disabled={
-                                          Boolean(busy) || !edited.trim()
-                                        }
+                                        disabled={Boolean(busy) || !editedValueIsValid}
                                         onClick={() =>
                                           decide(
                                             assertion.id,
@@ -7426,42 +7667,67 @@ export function RelationshipWorkspaceApp({
                                     </>
                                   ) : (
                                     <>
-                                      <button
-                                        className="context-primary-button context-primary-button--compact"
-                                        disabled={Boolean(busy)}
-                                        onClick={() =>
-                                          decide(
-                                            assertion.id,
-                                            assertion.version,
-                                            "confirm",
-                                          )
-                                        }
-                                        type="button"
-                                      >
-                                        <Check
-                                          aria-hidden="true"
-                                          size={16}
-                                        />
-                                        Confirm
-                                      </button>
-                                      <button
-                                        aria-label={`Edit ${fieldLabel(assertion.field)}`}
-                                        className="context-icon-button"
-                                        onClick={() => {
-                                          setEditing(assertion.id);
-                                          setEdits((current) => ({
-                                            ...current,
-                                            [assertion.id]:
-                                              assertion.value ?? "",
-                                          }));
-                                        }}
-                                        type="button"
-                                      >
-                                        <PencilSimple
-                                          aria-hidden="true"
-                                          size={17}
-                                        />
-                                      </button>
+                                      {ambiguous ? (
+                                        <button
+                                          className="context-primary-button context-primary-button--compact"
+                                          disabled={Boolean(busy)}
+                                          onClick={() => {
+                                            setEditing(assertion.id);
+                                            setEdits((current) => ({
+                                              ...current,
+                                              [assertion.id]: "",
+                                            }));
+                                          }}
+                                          type="button"
+                                        >
+                                          <PencilSimple
+                                            aria-hidden="true"
+                                            size={16}
+                                          />
+                                          {needsCalendarDate
+                                            ? "Add full date"
+                                            : "Resolve"}
+                                        </button>
+                                      ) : (
+                                        <>
+                                          <button
+                                            className="context-primary-button context-primary-button--compact"
+                                            disabled={Boolean(busy)}
+                                            onClick={() =>
+                                              decide(
+                                                assertion.id,
+                                                assertion.version,
+                                                "confirm",
+                                              )
+                                            }
+                                            type="button"
+                                          >
+                                            <Check
+                                              aria-hidden="true"
+                                              size={16}
+                                            />
+                                            Confirm
+                                          </button>
+                                          <button
+                                            aria-label={`Edit ${fieldLabel(assertion.field)}`}
+                                            className="context-icon-button"
+                                            onClick={() => {
+                                              setEditing(assertion.id);
+                                              setEdits((current) => ({
+                                                ...current,
+                                                [assertion.id]:
+                                                  assertion.value ?? "",
+                                              }));
+                                            }}
+                                            type="button"
+                                          >
+                                            <PencilSimple
+                                              aria-hidden="true"
+                                              size={17}
+                                            />
+                                          </button>
+                                        </>
+                                      )}
                                       <button
                                         className="context-text-button"
                                         disabled={Boolean(busy)}
