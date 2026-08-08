@@ -1,0 +1,276 @@
+.page {
+  overflow: hidden;
+  background: var(--background);
+}
+
+.hero {
+  padding: clamp(92px, 12vw, 176px) 0 clamp(82px, 10vw, 144px);
+}
+
+.eyebrow {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.69rem;
+  font-weight: 760;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.42fr) minmax(280px, 0.58fr);
+  gap: clamp(44px, 8vw, 118px);
+  align-items: end;
+  margin-top: 23px;
+}
+
+.hero h1 {
+  max-width: 900px;
+  margin: 0;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: clamp(3.45rem, 6.4vw, 6.1rem);
+  font-weight: 400;
+  letter-spacing: -0.064em;
+  line-height: 0.94;
+}
+
+.heroAside > p {
+  max-width: 430px;
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.91rem;
+  line-height: 1.72;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 26px;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.heroActions a,
+.closingActions a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid var(--ink);
+  font-size: 0.79rem;
+  font-weight: 720;
+}
+
+.heroActions a:last-child,
+.closingActions a:last-child {
+  border-bottom-color: transparent;
+  color: var(--muted-strong);
+}
+
+.principles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: clamp(82px, 10vw, 144px) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+}
+
+.principles li {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 16px;
+  min-height: 138px;
+  padding: 27px 32px 26px 0;
+}
+
+.principles li + li {
+  padding-left: 32px;
+  border-left: 1px solid var(--line-soft);
+}
+
+.principles li > span {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+}
+
+.principles strong {
+  display: block;
+  margin-bottom: 8px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.principles p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.58;
+}
+
+.experience {
+  padding-top: clamp(80px, 10vw, 140px);
+  background: #eeece5;
+  color: #22221e;
+}
+
+.experienceHeading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.62fr);
+  gap: clamp(42px, 8vw, 116px);
+  align-items: end;
+  margin-bottom: clamp(62px, 8vw, 104px);
+}
+
+.experienceHeading h2,
+.agentBoundary h2 {
+  max-width: 720px;
+  margin: 13px 0 0;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: clamp(2.65rem, 4.8vw, 4.7rem);
+  font-weight: 400;
+  letter-spacing: -0.058em;
+  line-height: 0.98;
+}
+
+.experienceHeading > p {
+  max-width: 460px;
+  margin: 0;
+  color: #68675f;
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+
+.agentBoundary {
+  padding: clamp(104px, 13vw, 190px) 0 clamp(92px, 11vw, 154px);
+}
+
+.agentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+  gap: clamp(60px, 10vw, 150px);
+}
+
+.agentGrid > div:first-child > p:last-child {
+  max-width: 600px;
+  margin: 27px 0 0;
+  color: var(--muted-strong);
+  font-size: 0.84rem;
+  line-height: 1.72;
+}
+
+.agentJobs {
+  border-top: 1px solid var(--line);
+}
+
+.agentJobs > div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 22px;
+  min-height: 88px;
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.agentJobs span {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 720;
+  text-transform: uppercase;
+}
+
+.agentJobs p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.boundaryNote {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 11px;
+  padding: 25px 0;
+  color: var(--muted) !important;
+  font-size: 0.69rem !important;
+}
+
+.boundaryNote svg {
+  color: var(--accent-strong);
+}
+
+.closingActions {
+  display: flex;
+  gap: 28px;
+  margin-top: clamp(72px, 9vw, 124px);
+  padding-top: 30px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 860px) {
+  .heroGrid,
+  .experienceHeading,
+  .agentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero h1 {
+    max-width: 760px;
+  }
+
+  .heroAside > p {
+    max-width: 620px;
+  }
+
+  .principles {
+    grid-template-columns: 1fr;
+  }
+
+  .principles li,
+  .principles li + li {
+    min-height: 0;
+    padding: 24px 0;
+    border-left: 0;
+  }
+
+  .principles li + li {
+    border-top: 1px solid var(--line-soft);
+  }
+}
+
+@media (max-width: 520px) {
+  .hero {
+    padding-top: 74px;
+  }
+
+  .hero h1 {
+    font-size: clamp(3rem, 14vw, 4.25rem);
+  }
+
+  .experienceHeading {
+    margin-bottom: 52px;
+  }
+
+  .agentJobs > div {
+    grid-template-columns: 72px 1fr;
+  }
+
+  .closingActions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+:global([data-theme="dark"]) .experience {
+  background: #181814;
+  color: #efede5;
+}
+
+:global([data-theme="dark"]) .experienceHeading > p {
+  color: #aaa79c;
+}

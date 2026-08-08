@@ -103,9 +103,9 @@ export default function HomePage() {
               <div className={styles.heroActions}>
                 <Link
                   className={`${styles.action} ${styles.actionPrimary}`}
-                  href="/demo"
+                  href="/relationships"
                 >
-                  Try one conversation
+                  Explore relationships
                   <ArrowRight aria-hidden="true" size={17} />
                 </Link>
                 <a
@@ -400,9 +400,9 @@ export default function HomePage() {
               </article>
               <article>
                 <span>Verify next</span>
-                <h3>Run the synthetic evidence review yourself.</h3>
-                <Link href="/demo">
-                  Open demo
+                <h3>Explore how relationship judgment returns on mobile.</h3>
+                <Link href="/relationships">
+                  Open relationship view
                   <ArrowRight aria-hidden="true" size={15} />
                 </Link>
               </article>
@@ -411,9 +411,9 @@ export default function HomePage() {
             <div className={styles.closingActions}>
               <Link
                 className={`${styles.action} ${styles.actionPrimary}`}
-                href="/demo"
+                href="/relationships"
               >
-                Try one conversation
+                Explore relationships
                 <ArrowRight aria-hidden="true" size={17} />
               </Link>
               <a
