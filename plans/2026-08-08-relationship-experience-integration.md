@@ -43,6 +43,7 @@ durable design rationale.
 4. Record the relationship design decisions and reference judgments.
 5. Document the Agent authority architecture with an editable diagram.
 6. Cover the relationship route in the sitemap contract.
+7. Integrate the verified Signal Journey into the official homepage.
 
 ## Verification notes
 
@@ -54,6 +55,9 @@ durable design rationale.
   proposed/future paths visually distinct.
 - The production build generated `/relationships`, the legacy redirect at
   `/concepts/relationships`, and the authenticated `/workspace/people` route.
+- The homepage now carries the synthetic source-to-relationship walkthrough as
+  its primary product proof and keeps `/relationships` as the durable product
+  entry from the hero, navigation, proof register, and closing action.
 - Playwright review covered the relationship experience at 1440 x 1000 and
   390 x 844 in light mode, plus the product surface in dark mode. Today, People,
   and the contextual Agent guide were exercised without horizontal overflow,

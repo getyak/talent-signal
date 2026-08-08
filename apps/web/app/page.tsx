@@ -5,7 +5,8 @@ import {
 import Link from "next/link";
 import { BlogPostPreview } from "@/components/blog-post-preview";
 import { FaqList } from "@/components/faq-list";
-import { RedlineWorkbench } from "@/components/redline-workbench";
+import { HeroSignalPreview } from "@/components/hero-signal-preview";
+import { SignalJourney } from "@/components/signal-journey";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { StructuredData } from "@/components/structured-data";
@@ -50,23 +51,23 @@ const faqSchema = {
 const relationshipHistory = [
   {
     state: "Observed",
-    detail: "Leila says another offer requires a decision by Wednesday.",
+    detail: "The candidate says, “I need to decide by Wednesday.”",
   },
   {
     state: "Proposed",
-    detail: "The record drafts a Wednesday window and competing-offer pressure.",
+    detail: "Another offer is staged; the relative date stays ambiguous.",
   },
   {
-    state: "Corrected",
-    detail: "Remote flexibility stays unresolved, not a confirmed preference.",
+    state: "Bound",
+    detail: "The recruiter chooses the person and relationship context.",
   },
   {
-    state: "Confirmed",
-    detail: "The recruiter accepts only the facts supported by the source.",
+    state: "Reviewed",
+    detail: "The exact quote remains attached while the date needs clarification.",
   },
   {
-    state: "Approved",
-    detail: "A separate review authorizes one policy-clarification request.",
+    state: "No action",
+    detail: "Nothing is scheduled or sent while the timing is unresolved.",
   },
   {
     state: "Observed again",
@@ -90,15 +91,16 @@ export default function HomePage() {
         >
           <div className={`shell ${styles.heroIntro}`}>
             <div className={styles.heroThesis}>
-              <p>Relationship intelligence for executive search</p>
+              <p className={styles.heroEyebrow}>
+                Evidence first relationship intelligence
+              </p>
               <h1 id="hero-title">
-                Know what <span>changed.</span> Move the relationship.
+                Turn one screenshot into a living{" "}
+                <span>relationship.</span>
               </h1>
-            </div>
-            <div className={styles.heroAside}>
-              <p>
-                Turn one candidate conversation into verified context and the
-                smallest safe next move.
+              <p className={styles.heroPromise}>
+                Exact words in. Reviewable context out. Nothing changes until
+                you decide.
               </p>
               <div className={styles.heroActions}>
                 <Link
@@ -110,18 +112,22 @@ export default function HomePage() {
                 </Link>
                 <a
                   className={`${styles.action} ${styles.actionSecondary}`}
-                  href={accessRequestHref}
+                  href="#signal-journey"
                 >
-                  Request access
+                  Watch one signal move
                 </a>
               </div>
+              <p className={styles.heroProof}>
+                Private by design · source-linked · human governed
+              </p>
+            </div>
+            <div className={styles.heroVisual}>
+              <HeroSignalPreview />
             </div>
           </div>
-
-          <div className={`shell ${styles.workbenchWrap}`}>
-            <RedlineWorkbench />
-          </div>
         </section>
+
+        <SignalJourney />
 
         <section
           id="method"
@@ -131,11 +137,11 @@ export default function HomePage() {
           <div className="shell">
             <div className={styles.sectionHeading}>
               <h2 id="history-title">
-                From exact words to the next right move.
+                From exact words to an honest open question.
               </h2>
               <p>
-                This synthetic case keeps the deadline, open question, and
-                every human decision in one reviewable history.
+                This verified synthetic case keeps the relative date, open
+                question, and every human decision in one reviewable history.
               </p>
             </div>
 
@@ -168,7 +174,7 @@ export default function HomePage() {
             <div className={styles.retractionRail}>
               <div>
                 <span>Source removed</span>
-                <strong>“Remote flexibility is important.”</strong>
+                <strong>“Remote from Singapore is still unresolved.”</strong>
               </div>
               <ArrowRight aria-hidden="true" size={24} />
               <div>
@@ -178,7 +184,7 @@ export default function HomePage() {
               <ArrowRight aria-hidden="true" size={24} />
               <div>
                 <span>Action revised</span>
-                <strong>Ask what must be true before the deadline.</strong>
+                <strong>No action remains without supporting evidence.</strong>
               </div>
             </div>
           </div>
@@ -192,7 +198,7 @@ export default function HomePage() {
           <div className={`shell ${styles.judgmentGrid}`}>
             <figure className={styles.judgmentLedger}>
               <div className={styles.judgmentLedgerHeader}>
-                <span>Decision boundary · Leila Hartmann</span>
+                <span>Decision boundary · synthetic candidate</span>
                 <span>Two human decisions</span>
               </div>
               <div className={styles.judgmentLedgerStage}>
@@ -203,7 +209,7 @@ export default function HomePage() {
                 <dl>
                   <div>
                     <dt>Decision window</dt>
-                    <dd>Wednesday</dd>
+                    <dd>Needs full date</dd>
                   </div>
                   <div>
                     <dt>Current pressure</dt>
@@ -222,23 +228,23 @@ export default function HomePage() {
               <div className={styles.judgmentLedgerStage}>
                 <div>
                   <span>External action</span>
-                  <strong>Approve one exact effect</strong>
+                  <strong>No action supported yet</strong>
                 </div>
                 <dl>
                   <div>
-                    <dt>Target</dt>
-                    <dd>Client stakeholder</dd>
+                    <dt>Missing</dt>
+                    <dd>Anchored date</dd>
                   </div>
                   <div>
-                    <dt>Effect</dt>
-                    <dd>Request policy clarification</dd>
+                    <dt>Authority</dt>
+                    <dd>Not granted</dd>
                   </div>
                   <div>
-                    <dt>Timing</dt>
-                    <dd>Before Wednesday</dd>
+                    <dt>Next</dt>
+                    <dd>Recruiter decides</dd>
                   </div>
                 </dl>
-                <p data-locked="true">Separate approval required</p>
+                <p data-locked="true">No approval available</p>
               </div>
               <figcaption>
                 The same source can support a fact without authorizing an
@@ -250,7 +256,8 @@ export default function HomePage() {
               <h2 id="judgment-title">Two decisions. Never one permission.</h2>
               <p>
                 Confirming what changed does not authorize a message, calendar
-                event, or record mutation.
+                event, or record mutation. When an effect is supported, it
+                still receives a separate approval.
               </p>
 
               <div className={styles.decisionPair}>
