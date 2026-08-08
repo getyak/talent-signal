@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseScreenshotCaptureDraft,
+  validateScreenshotAnalysisMeta,
   validateReviewedScreenshotEdit,
 } from "./screenshot-capture";
 
@@ -219,5 +220,46 @@ describe("screenshot capture proposal", () => {
     expect(() => validateReviewedScreenshotEdit(original, reviewed)).toThrow(
       /message inventory/i,
     );
+  });
+
+  it("retains a bounded, browser-local minimization receipt", () => {
+    const meta = validateScreenshotAnalysisMeta({
+      provider: "OpenRouter",
+      model: "google/gemini-3.5-flash-lite",
+      prompt_version: "screenshot-evidence.v1",
+      pre_provider_minimization: {
+        crop_bottom_percent: 90,
+        crop_top_percent: 10,
+        prepared_in_browser: true,
+        redaction_count: 2,
+      },
+      raw_image_stored_by_talent_signal: false,
+      source_sha256: "a".repeat(64),
+    });
+
+    expect(meta.pre_provider_minimization).toEqual({
+      crop_bottom_percent: 90,
+      crop_top_percent: 10,
+      prepared_in_browser: true,
+      redaction_count: 2,
+    });
+  });
+
+  it("rejects a minimization receipt whose crop is too narrow", () => {
+    expect(() =>
+      validateScreenshotAnalysisMeta({
+        provider: "OpenRouter",
+        model: "google/gemini-3.5-flash-lite",
+        prompt_version: "screenshot-evidence.v1",
+        pre_provider_minimization: {
+          crop_bottom_percent: 50,
+          crop_top_percent: 45,
+          prepared_in_browser: true,
+          redaction_count: 1,
+        },
+        raw_image_stored_by_talent_signal: false,
+        source_sha256: "a".repeat(64),
+      }),
+    ).toThrow();
   });
 });

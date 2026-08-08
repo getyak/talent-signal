@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
@@ -40,6 +40,20 @@ function boundedFormText(
   const normalized = value.trim();
   return normalized.length > 0 && normalized.length <= maximum
     ? normalized
+    : null;
+}
+
+function boundedFormInteger(
+  value: FormDataEntryValue | null,
+  minimum: number,
+  maximum: number,
+) {
+  if (typeof value !== "string" || !/^\d{1,3}$/.test(value)) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum
+    ? parsed
     : null;
 }
 
@@ -142,9 +156,35 @@ export async function POST(request: NextRequest) {
   const screenshotOwner = SCREENSHOT_OWNER_ROLES.find(
     (role) => role === requestedOwner,
   );
+  const minimizationSupplied = [
+    "cropTopPercent",
+    "cropBottomPercent",
+    "redactionCount",
+  ].some((field) => formData.has(field));
+  const cropTopPercent = boundedFormInteger(
+    formData.get("cropTopPercent"),
+    0,
+    90,
+  );
+  const cropBottomPercent = boundedFormInteger(
+    formData.get("cropBottomPercent"),
+    10,
+    100,
+  );
+  const redactionCount = boundedFormInteger(
+    formData.get("redactionCount"),
+    0,
+    100,
+  );
+  const minimizationIsValid =
+    cropTopPercent !== null &&
+    cropBottomPercent !== null &&
+    redactionCount !== null &&
+    cropBottomPercent - cropTopPercent >= 10;
   if (
     !(image instanceof File) ||
     !screenshotOwner ||
+    (minimizationSupplied && !minimizationIsValid) ||
     !ACCEPTED_IMAGE_TYPES.has(image.type) ||
     image.size <= 0 ||
     image.size > MAX_IMAGE_BYTES
@@ -167,6 +207,16 @@ export async function POST(request: NextRequest) {
       assignmentLabel,
       screenshotOwner,
       sourceSha256: createHash("sha256").update(bytes).digest("hex"),
+      ...(minimizationIsValid
+        ? {
+            preProviderMinimization: {
+              crop_bottom_percent: cropBottomPercent,
+              crop_top_percent: cropTopPercent,
+              prepared_in_browser: true as const,
+              redaction_count: redactionCount,
+            },
+          }
+        : {}),
     });
     return NextResponse.json(
       {
@@ -175,12 +225,23 @@ export async function POST(request: NextRequest) {
       },
       { headers: noStoreHeaders() },
     );
-  } catch {
+  } catch (error) {
+    const requestId = randomUUID();
+    const reason =
+      error instanceof Error
+        ? error.message.replace(/\s+/g, " ").trim().slice(0, 500)
+        : "Unknown screenshot analysis failure.";
+    console.error("Screenshot analysis failed.", {
+      requestId,
+      model: getScreenshotAnalysisAvailability().screenshot_model,
+      reason,
+    });
     return NextResponse.json(
       {
         error:
           "The private screenshot analysis could not complete. The source was not saved by Talent Signal.",
         code: "analysis_failed",
+        request_id: requestId,
       },
       { status: 502, headers: noStoreHeaders() },
     );

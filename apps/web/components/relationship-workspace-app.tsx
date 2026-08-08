@@ -45,10 +45,14 @@ import {
   Warning,
   X,
 } from "@phosphor-icons/react";
+import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
 import {
+  type CSSProperties,
   type ChangeEvent,
   type DragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
@@ -69,6 +73,19 @@ import {
   personIdentityTemporalRole,
 } from "@/lib/agent-person-resolution";
 import { resolveAgentUiCommand } from "@/lib/agent-ui-command";
+import {
+  createNormalizedRedaction,
+  normalizedImagePoint,
+  redactionInPreparedImage,
+  type NormalizedImagePoint,
+  type NormalizedImageRedaction,
+} from "@/lib/image-minimization";
+import {
+  CONVERSATION_SPEAKERS,
+  parseConversationTranscript,
+  type ConversationSpeaker,
+  type ConversationTranscriptMessage,
+} from "@/lib/conversation-transcript";
 import type {
   ScreenshotAnalysisMeta,
   ScreenshotCaptureDraft,
@@ -80,6 +97,7 @@ import { ThemeToggle } from "./theme-toggle";
 type Props = {
   initialAgentHistory: RelationshipAgentHistory | null;
   initialIdentityResolutionCase: IdentityResolutionCase | null;
+  initialKnowledgeSnapshot: KnowledgeSnapshot | null;
   initialWorkspace: WorkspaceReviewResponse | null;
   initialRelationshipScope: RelationshipScope | null;
   initialError: string | null;
@@ -95,13 +113,27 @@ type CaptureAnalysis = {
   receipt: string;
 };
 
+type RelationshipWikiBlock = {
+  body: string;
+  citationDependencyIds: string[];
+  id: string;
+  kind: "action_proposal" | "fact_review" | "no_action" | "person_brief";
+  status: "confirmed" | "needs_review" | "proposed";
+  title: string;
+};
+
+type RelationshipWikiView = {
+  blocks: RelationshipWikiBlock[];
+  snapshotId: string;
+};
+
 type CapturePhase =
   | "select"
   | "analyzing"
   | "binding"
   | "review"
   | "committing";
-type ResourceMode = "note" | "document" | "url";
+type ResourceMode = "conversation" | "note" | "document" | "url";
 type IdentityWorkflowResponse = {
   decision: IdentityResolutionDecisionResponse;
   identity_case: IdentityResolutionCase;
@@ -239,6 +271,501 @@ function scrollWorkspaceTo(id: string) {
   });
 }
 
+function uniqueWikiDependencies(
+  blocks: KnowledgeSnapshot["blocks"],
+): string[] {
+  return [
+    ...new Set(
+      blocks.flatMap((block) =>
+        block.dependencies.map((dependency) => dependency.id),
+      ),
+    ),
+  ];
+}
+
+function knowledgeSnapshotWikiView(
+  snapshot: KnowledgeSnapshot | null,
+): RelationshipWikiView | null {
+  if (!snapshot || snapshot.status !== "published") {
+    return null;
+  }
+  const identity = snapshot.blocks.find(
+    (block) => block.type === "identity_context",
+  );
+  if (!identity) {
+    return null;
+  }
+  const contextBlocks = snapshot.blocks.filter(
+    (block) =>
+      !["identity_context", "next_action", "no_action"].includes(
+        block.type,
+      ),
+  );
+  const reviewBlocks = contextBlocks.filter(
+    (block) =>
+      block.type === "conflict" ||
+      block.type === "open_question" ||
+      block.block_key.startsWith("resource.resume.") ||
+      block.block_key.startsWith("resource.document.") ||
+      block.block_key.startsWith("resource.contact-record."),
+  );
+  const nextMove = snapshot.blocks.find(
+    (block) => block.type === "next_action" || block.type === "no_action",
+  );
+  const blocks: RelationshipWikiBlock[] = [
+    {
+      body:
+        contextBlocks.map((block) => block.content.headline).join("\n") ||
+        "No additional reviewed relationship state is ready yet.",
+      citationDependencyIds: uniqueWikiDependencies([
+        identity,
+        ...contextBlocks,
+      ]),
+      id: `${identity.id}:brief`,
+      kind: "person_brief",
+      status: contextBlocks.some((block) =>
+        ["proposed", "contested"].includes(block.status),
+      )
+        ? "needs_review"
+        : "confirmed",
+      title: identity.content.headline,
+    },
+  ];
+  if (reviewBlocks.length > 0) {
+    const hasConflict = reviewBlocks.some(
+      (block) => block.type === "conflict",
+    );
+    blocks.push({
+      body: reviewBlocks.map((block) => block.content.headline).join("\n"),
+      citationDependencyIds: uniqueWikiDependencies(reviewBlocks),
+      id: `${reviewBlocks[0].id}:review`,
+      kind: "fact_review",
+      status: "needs_review",
+      title: hasConflict
+        ? "Resolve conflicting evidence before relying on it"
+        : "Review proposed facts before relying on them",
+    });
+  }
+  if (nextMove) {
+    blocks.push({
+      body:
+        nextMove.type === "next_action"
+          ? [
+              nextMove.content.headline,
+              nextMove.content.summary,
+              ...nextMove.content.items,
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : nextMove.content.headline,
+      citationDependencyIds: uniqueWikiDependencies([nextMove]),
+      id: `${nextMove.id}:next`,
+      kind:
+        nextMove.type === "next_action" ? "action_proposal" : "no_action",
+      status: nextMove.type === "next_action" ? "proposed" : "confirmed",
+      title: nextMove.type === "next_action" ? "Proposed next move" : "No action",
+    });
+  }
+  return { blocks, snapshotId: snapshot.id };
+}
+
+function RelationshipWikiPanel({
+  busy,
+  onCompile,
+  onReviewSources,
+  response,
+  snapshot,
+}: {
+  busy: boolean;
+  onCompile: () => void;
+  onReviewSources: () => void;
+  response: ChatTaskResponse | null;
+  snapshot: KnowledgeSnapshot | null;
+}) {
+  const view: RelationshipWikiView | null = response
+    ? {
+        blocks: response.blocks
+          .filter((block) =>
+            [
+              "action_proposal",
+              "fact_review",
+              "no_action",
+              "person_brief",
+            ].includes(block.kind),
+          )
+          .map((block) => ({
+            body: block.body,
+            citationDependencyIds: block.citation_dependency_ids,
+            id: block.id,
+            kind: block.kind as RelationshipWikiBlock["kind"],
+            status:
+              block.status === "proposed"
+                ? "proposed"
+                : block.status === "needs_review"
+                  ? "needs_review"
+                  : "confirmed",
+            title: block.title,
+          })),
+        snapshotId: response.knowledge_snapshot_id,
+      }
+    : knowledgeSnapshotWikiView(snapshot);
+  const brief = view?.blocks.find((block) => block.kind === "person_brief");
+  const review = view?.blocks.find((block) => block.kind === "fact_review");
+  const nextMove = view?.blocks.find(
+    (block) => block.kind === "action_proposal" || block.kind === "no_action",
+  );
+  const citationCount = view
+    ? new Set(
+        view.blocks.flatMap((block) => block.citationDependencyIds),
+      ).size
+    : 0;
+
+  return (
+    <section
+      aria-labelledby="relationship-wiki-title"
+      className="context-relationship-wiki"
+    >
+      <header>
+        <div>
+          <p className="eyebrow">RELATIONSHIP WIKI</p>
+          <h2 id="relationship-wiki-title">
+            What this relationship currently supports.
+          </h2>
+        </div>
+        {view ? (
+          <span>
+            <ShieldCheck aria-hidden="true" size={15} weight="duotone" />
+            {citationCount} governed references
+          </span>
+        ) : null}
+      </header>
+
+      {view && brief ? (
+        <div className="context-relationship-wiki__grid">
+          <article className="context-relationship-wiki__brief">
+            <div>
+              <span>{brief.kind.replaceAll("_", " ")}</span>
+              <i>{brief.status.replaceAll("_", " ")}</i>
+            </div>
+            <h3>{brief.title}</h3>
+            <p>{brief.body}</p>
+            <footer>
+              Snapshot {view.snapshotId.slice(0, 8)} · compiled
+              from the current authorized source set
+            </footer>
+          </article>
+          <aside>
+            {review ? (
+              <article data-state="review">
+                <span>Needs judgment</span>
+                <h3>{review.title}</h3>
+                <p>{review.body}</p>
+                <button onClick={onReviewSources} type="button">
+                  Review source
+                  <ArrowRight aria-hidden="true" size={14} />
+                </button>
+              </article>
+            ) : null}
+            {nextMove ? (
+              <article data-state="quiet">
+                <span>Next move</span>
+                <h3>{nextMove.title}</h3>
+                <p>{nextMove.body}</p>
+              </article>
+            ) : null}
+          </aside>
+        </div>
+      ) : (
+        <div className="context-relationship-wiki__empty">
+          <Quotes aria-hidden="true" size={26} weight="duotone" />
+          <div>
+            <strong>Compile a source-linked view when you need it.</strong>
+            <p>
+              Confirmed facts, unresolved evidence, sources, and the smallest
+              supported next move will stay visibly separate.
+            </p>
+          </div>
+          <button
+            className="context-secondary-button"
+            disabled={busy}
+            onClick={onCompile}
+            type="button"
+          >
+            {busy ? (
+              <CircleNotch aria-hidden="true" className="spin" size={17} />
+            ) : (
+              <Sparkle aria-hidden="true" size={17} weight="fill" />
+            )}
+            Compile Wiki
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ImageRedactionEditor({
+  disabled,
+  enabled,
+  onAdd,
+  onKeyboardAdjust,
+  onKeyboardUndo,
+  previewUrl,
+  redactions,
+}: {
+  disabled: boolean;
+  enabled: boolean;
+  onAdd: (redaction: NormalizedImageRedaction) => void;
+  onKeyboardAdjust: (
+    direction: "down" | "left" | "right" | "up",
+    resize: boolean,
+  ) => void;
+  onKeyboardUndo: () => void;
+  previewUrl: string;
+  redactions: NormalizedImageRedaction[];
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [imageRevision, setImageRevision] = useState(0);
+  const [draft, setDraft] = useState<{
+    end: NormalizedImagePoint;
+    pointerId: number;
+    start: NormalizedImagePoint;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      if (cancelled) {
+        return;
+      }
+      imageRef.current = image;
+      const canvas = canvasRef.current;
+      if (canvas) {
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+      }
+      setImageRevision((current) => current + 1);
+    };
+    image.src = previewUrl;
+    return () => {
+      cancelled = true;
+      if (imageRef.current === image) {
+        imageRef.current = null;
+      }
+    };
+  }, [previewUrl]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const image = imageRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !image || !context || imageRevision === 0) {
+      return;
+    }
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const visibleRedactions = [
+      ...redactions,
+      ...(draft
+        ? [
+            createNormalizedRedaction(
+              draft.start,
+              draft.end,
+              "redaction-preview",
+            ),
+          ].filter(
+            (item): item is NormalizedImageRedaction => item !== null,
+          )
+        : []),
+    ];
+    context.fillStyle = "#11100f";
+    for (const redaction of visibleRedactions) {
+      context.fillRect(
+        redaction.x * canvas.width,
+        redaction.y * canvas.height,
+        redaction.width * canvas.width,
+        redaction.height * canvas.height,
+      );
+    }
+  }, [draft, imageRevision, redactions]);
+
+  function point(event: ReactPointerEvent<HTMLCanvasElement>) {
+    return normalizedImagePoint(
+      event.clientX,
+      event.clientY,
+      event.currentTarget.getBoundingClientRect(),
+    );
+  }
+
+  function finish(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (!draft || draft.pointerId !== event.pointerId) {
+      return;
+    }
+    const redaction = createNormalizedRedaction(
+      draft.start,
+      point(event),
+      crypto.randomUUID(),
+    );
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDraft(null);
+    if (redaction) {
+      onAdd(redaction);
+    }
+  }
+
+  function onKeyDown(event: ReactKeyboardEvent<HTMLCanvasElement>) {
+    if (disabled || !enabled) {
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onAdd({
+        height: 0.08,
+        id: crypto.randomUUID(),
+        width: 0.6,
+        x: 0.2,
+        y: 0.46,
+      });
+      return;
+    }
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      onKeyboardUndo();
+      return;
+    }
+    const direction = {
+      ArrowDown: "down",
+      ArrowLeft: "left",
+      ArrowRight: "right",
+      ArrowUp: "up",
+    }[event.key] as "down" | "left" | "right" | "up" | undefined;
+    if (direction) {
+      event.preventDefault();
+      onKeyboardAdjust(direction, event.shiftKey);
+    }
+  }
+
+  return (
+    <canvas
+      aria-describedby="capture-redaction-help capture-redaction-status"
+      aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight Delete"
+      aria-label={
+        enabled
+          ? "Conversation screenshot redaction editor. Drag to mask, or use the documented keyboard controls."
+          : "Selected conversation screenshot with local redactions previewed."
+      }
+      aria-roledescription="image redaction editor"
+      data-redacting={enabled}
+      onKeyDown={onKeyDown}
+      onPointerCancel={() => setDraft(null)}
+      onPointerDown={(event) => {
+        if (disabled || !enabled) {
+          return;
+        }
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const start = point(event);
+        setDraft({ end: start, pointerId: event.pointerId, start });
+      }}
+      onPointerMove={(event) => {
+        if (!draft || draft.pointerId !== event.pointerId) {
+          return;
+        }
+        event.preventDefault();
+        const nextPoint = point(event);
+        setDraft((current) =>
+          current ? { ...current, end: nextPoint } : current,
+        );
+      }}
+      onPointerUp={finish}
+      ref={canvasRef}
+      role="img"
+      tabIndex={enabled && !disabled ? 0 : -1}
+    />
+  );
+}
+
+async function prepareConversationImage(
+  source: File,
+  topPercent: number,
+  bottomPercent: number,
+  redactions: NormalizedImageRedaction[],
+): Promise<File> {
+  if (
+    topPercent === 0 &&
+    bottomPercent === 100 &&
+    redactions.length === 0
+  ) {
+    return source;
+  }
+  const bitmap = await createImageBitmap(source);
+  try {
+    const top = Math.round((bitmap.height * topPercent) / 100);
+    const bottom = Math.round((bitmap.height * bottomPercent) / 100);
+    const height = Math.max(1, bottom - top);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("The browser could not prepare the selected crop.");
+    }
+    context.drawImage(
+      bitmap,
+      0,
+      top,
+      bitmap.width,
+      height,
+      0,
+      0,
+      bitmap.width,
+      height,
+    );
+    context.fillStyle = "#11100f";
+    for (const redaction of redactions) {
+      const pixels = redactionInPreparedImage(
+        redaction,
+        bitmap.width,
+        bitmap.height,
+        topPercent,
+        bottomPercent,
+      );
+      if (!pixels) {
+        continue;
+      }
+      const x = Math.floor(pixels.x);
+      const y = Math.floor(pixels.y);
+      const right = Math.ceil(pixels.x + pixels.width);
+      const bottom = Math.ceil(pixels.y + pixels.height);
+      context.fillRect(x, y, right - x, bottom - y);
+    }
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => {
+          if (result) {
+            resolve(result);
+          } else {
+            reject(new Error("The browser could not encode the selected crop."));
+          }
+        },
+        source.type,
+        source.type === "image/png" ? undefined : 0.92,
+      );
+    });
+    return new File([blob], source.name, {
+      lastModified: source.lastModified,
+      type: blob.type || source.type,
+    });
+  } finally {
+    bitmap.close();
+  }
+}
+
 function CapturePanel({
   onClose,
   onCommitted,
@@ -247,10 +774,25 @@ function CapturePanel({
   onCommitted: (workspace: WorkspaceReviewResponse) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
   const commitRequestIdRef = useRef<string | null>(null);
+  const committedRef = useRef(false);
+  const returnFocusRef = useRef<HTMLElement | null>(
+    typeof document !== "undefined" &&
+      document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
   const [phase, setPhase] = useState<CapturePhase>("select");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [analysisPreviewUrl, setAnalysisPreviewUrl] = useState<string | null>(
+    null,
+  );
+  const [cropTopPercent, setCropTopPercent] = useState(0);
+  const [cropBottomPercent, setCropBottomPercent] = useState(100);
+  const [redactions, setRedactions] = useState<NormalizedImageRedaction[]>([]);
+  const [redactionMode, setRedactionMode] = useState(false);
   const [contactName, setContactName] = useState("");
   const [assignmentLabel, setAssignmentLabel] = useState("");
   const [screenshotOwner, setScreenshotOwner] =
@@ -258,7 +800,11 @@ function CapturePanel({
   const [people, setPeople] = useState<PersonDirectoryItem[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(true);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [selectedContextId, setSelectedContextId] = useState<string | null>(
+    null,
+  );
   const [createNewPerson, setCreateNewPerson] = useState(false);
+  const [createNewContext, setCreateNewContext] = useState(false);
   const [analysis, setAnalysis] = useState<CaptureAnalysis | null>(null);
   const [reviewedDraft, setReviewedDraft] =
     useState<ScreenshotCaptureDraft | null>(null);
@@ -267,12 +813,39 @@ function CapturePanel({
   const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
+    const returnTarget = returnFocusRef.current;
+    return () => {
+      if (committedRef.current) {
+        return;
+      }
+      if (
+        !returnTarget ||
+        returnTarget === document.body ||
+        !returnTarget.isConnected
+      ) {
+        return;
+      }
+      window.requestAnimationFrame(() => {
+        returnTarget.focus({ preventScroll: true });
+      });
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
       }
     };
   }, [previewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (analysisPreviewUrl) {
+        URL.revokeObjectURL(analysisPreviewUrl);
+      }
+    };
+  }, [analysisPreviewUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -323,14 +896,33 @@ function CapturePanel({
   }, [contactName, people]);
   const selectedPerson =
     people.find((person) => person.id === selectedPersonId) ?? null;
+  const selectedContext =
+    selectedPerson?.contexts.find(
+      (context) => context.id === selectedContextId,
+    ) ?? null;
   const identityDecided = selectedPerson !== null || createNewPerson;
+  const relationshipDecided = createNewPerson
+    ? Boolean(assignmentLabel.trim())
+    : Boolean(
+        selectedPerson &&
+          (selectedContext ||
+            (createNewContext && assignmentLabel.trim())),
+      );
 
   function chooseFile(nextFile: File | null) {
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
+    if (analysisPreviewUrl) {
+      URL.revokeObjectURL(analysisPreviewUrl);
+    }
     setFile(nextFile);
     setPreviewUrl(nextFile ? URL.createObjectURL(nextFile) : null);
+    setAnalysisPreviewUrl(null);
+    setCropTopPercent(0);
+    setCropBottomPercent(100);
+    setRedactions([]);
+    setRedactionMode(false);
     setAnalysis(null);
     setReviewedDraft(null);
     setTranscriptEditing(false);
@@ -355,10 +947,25 @@ function CapturePanel({
     }
     setPhase("analyzing");
     setError("");
-    const formData = new FormData();
-    formData.set("image", file);
-    formData.set("screenshotOwner", screenshotOwner);
     try {
+      const preparedFile = await prepareConversationImage(
+        file,
+        cropTopPercent,
+        cropBottomPercent,
+        redactions,
+      );
+      if (analysisPreviewUrl) {
+        URL.revokeObjectURL(analysisPreviewUrl);
+      }
+      setAnalysisPreviewUrl(
+        preparedFile === file ? null : URL.createObjectURL(preparedFile),
+      );
+      const formData = new FormData();
+      formData.set("image", preparedFile);
+      formData.set("screenshotOwner", screenshotOwner);
+      formData.set("cropTopPercent", String(cropTopPercent));
+      formData.set("cropBottomPercent", String(cropBottomPercent));
+      formData.set("redactionCount", String(redactions.length));
       const response = await fetch("/api/captures/screenshot-analysis", {
         method: "POST",
         body: formData,
@@ -394,7 +1001,8 @@ function CapturePanel({
     if (
       !contactName.trim() ||
       !assignmentLabel.trim() ||
-      !identityDecided
+      !identityDecided ||
+      !relationshipDecided
     ) {
       setError(
         "Bind the reviewed source to an existing person or explicitly confirm a new one before committing.",
@@ -423,6 +1031,7 @@ function CapturePanel({
         body: JSON.stringify({
           request_id: commitRequestIdRef.current,
           person_id: selectedPersonId,
+          relationship_context_id: selectedContextId,
           contact_name: contactName.trim(),
           assignment_label: assignmentLabel.trim(),
           draft: draftToCommit,
@@ -443,6 +1052,7 @@ function CapturePanel({
             : "The reviewed capture could not be committed.",
         );
       }
+      committedRef.current = true;
       onCommitted(payload);
     } catch (caught) {
       setError(
@@ -484,48 +1094,105 @@ function CapturePanel({
     });
   }
 
+  function adjustLatestRedaction(
+    direction: "down" | "left" | "right" | "up",
+    resize: boolean,
+  ) {
+    setRedactions((current) => {
+      const latest = current.at(-1);
+      if (!latest) {
+        return current;
+      }
+      const step = 0.01;
+      const next = { ...latest };
+      if (resize) {
+        if (direction === "left") {
+          next.width = Math.max(0.008, next.width - step);
+        } else if (direction === "right") {
+          next.width = Math.min(1 - next.x, next.width + step);
+        } else if (direction === "up") {
+          next.height = Math.max(0.008, next.height - step);
+        } else {
+          next.height = Math.min(1 - next.y, next.height + step);
+        }
+      } else if (direction === "left") {
+        next.x = Math.max(0, next.x - step);
+      } else if (direction === "right") {
+        next.x = Math.min(1 - next.width, next.x + step);
+      } else if (direction === "up") {
+        next.y = Math.max(0, next.y - step);
+      } else {
+        next.y = Math.min(1 - next.height, next.y + step);
+      }
+      return [...current.slice(0, -1), next];
+    });
+  }
+
   return (
-    <div
-      className="context-capture-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.currentTarget === event.target && phase !== "committing") {
+    <Dialog.Root
+      onOpenChange={(open) => {
+        if (!open && phase !== "committing") {
           onClose();
         }
       }}
+      open
     >
-      <section
-        aria-labelledby="capture-title"
-        aria-modal="true"
-        className="context-capture"
-        role="dialog"
-      >
+      <Dialog.Portal>
+        <Dialog.Overlay asChild>
+          <div className="context-capture-backdrop">
+            <Dialog.Content
+              asChild
+              onEscapeKeyDown={(event) => {
+                if (phase === "committing") {
+                  event.preventDefault();
+                }
+              }}
+              onOpenAutoFocus={(event) => {
+                event.preventDefault();
+                dialogRef.current?.focus({ preventScroll: true });
+              }}
+              onPointerDownOutside={(event) => {
+                if (phase === "committing") {
+                  event.preventDefault();
+                }
+              }}
+            >
+              <section
+                className="context-capture"
+                ref={dialogRef}
+                tabIndex={-1}
+              >
         <header className="context-capture__header">
           <div>
             <p className="eyebrow">NEW EVIDENCE</p>
-            <h2 id="capture-title">
-              {phase === "review" || phase === "committing"
-                ? "Review what the screenshot supports"
-                : phase === "binding"
-                  ? "Bind the source to one relationship"
-                  : "Import a conversation screenshot"}
-            </h2>
-            <p>
-              The image is sent to the configured cloud provider for analysis
-              and held in browser memory for this review. The original image is
-              not stored. Reviewed text and evidence quotes are kept for up to
-              30 days so you can verify proposals, and can be deleted sooner.
-            </p>
+            <Dialog.Title asChild>
+              <h2 id="capture-title">
+                {phase === "review" || phase === "committing"
+                  ? "Review what the screenshot supports"
+                  : phase === "binding"
+                    ? "Bind the source to one relationship"
+                    : "Import a conversation screenshot"}
+              </h2>
+            </Dialog.Title>
+            <Dialog.Description asChild>
+              <p>
+                Only the image region you keep is sent to the configured cloud
+                provider for analysis. The original stays in browser memory for
+                this review and is not stored. Reviewed text and evidence quotes
+                are kept for up to 30 days, and can be deleted sooner.
+              </p>
+            </Dialog.Description>
           </div>
-          <button
-            aria-label="Close capture"
-            className="context-icon-button"
-            disabled={phase === "committing"}
-            onClick={onClose}
-            type="button"
-          >
-            <X aria-hidden="true" size={20} />
-          </button>
+          <Dialog.Close asChild>
+            <button
+              aria-label="Close capture"
+              className="context-icon-button"
+              disabled={phase === "committing"}
+              type="button"
+            >
+              <X aria-hidden="true" size={20} />
+            </button>
+          </Dialog.Close>
         </header>
 
         {error ? (
@@ -538,8 +1205,9 @@ function CapturePanel({
         {phase === "select" ||
         phase === "analyzing" ||
         phase === "binding" ? (
-          <div className="context-capture__select">
-            <div className="context-capture__identity">
+          <>
+            <div className="context-capture__select">
+              <div className="context-capture__identity">
               {phase !== "binding" ? (
                 <fieldset className="context-capture__owner">
                   <legend>Whose screen is this?</legend>
@@ -575,7 +1243,10 @@ function CapturePanel({
                   onChange={(event) => {
                     setContactName(event.target.value);
                     setSelectedPersonId(null);
+                    setSelectedContextId(null);
                     setCreateNewPerson(false);
+                    setCreateNewContext(false);
+                    setAssignmentLabel("");
                   }}
                   placeholder="e.g. 林晓 / Maya Chen"
                   value={contactName}
@@ -583,19 +1254,6 @@ function CapturePanel({
                 <small>
                   You bind the identity. The model does not create a person
                   record from a guessed name.
-                </small>
-              </label>
-              <label>
-                <span>Relationship context</span>
-                <input
-                  autoComplete="off"
-                  maxLength={200}
-                  onChange={(event) => setAssignmentLabel(event.target.value)}
-                  placeholder="e.g. VP Product · Northstar search"
-                  value={assignmentLabel}
-                />
-                <small>
-                  Facts remain scoped to this search or relationship.
                 </small>
               </label>
               <div
@@ -622,7 +1280,12 @@ function CapturePanel({
                     </p>
                     <button
                       className="context-text-button"
-                      onClick={() => setSelectedPersonId(null)}
+                      onClick={() => {
+                        setSelectedPersonId(null);
+                        setSelectedContextId(null);
+                        setCreateNewContext(false);
+                        setAssignmentLabel("");
+                      }}
                       type="button"
                     >
                       Change
@@ -668,7 +1331,10 @@ function CapturePanel({
                             onClick={() => {
                               setContactName(person.display_label);
                               setSelectedPersonId(person.id);
+                              setSelectedContextId(null);
                               setCreateNewPerson(false);
+                              setCreateNewContext(false);
+                              setAssignmentLabel("");
                             }}
                             type="button"
                           >
@@ -693,7 +1359,10 @@ function CapturePanel({
                         className="context-create-person"
                         onClick={() => {
                           setSelectedPersonId(null);
+                          setSelectedContextId(null);
                           setCreateNewPerson(true);
+                          setCreateNewContext(false);
+                          setAssignmentLabel("");
                         }}
                         type="button"
                       >
@@ -709,12 +1378,60 @@ function CapturePanel({
                   </p>
                 )}
               </div>
+              {selectedPerson ? (
+                <div className="context-start__contexts context-capture__contexts">
+                  <span>Choose the relationship context</span>
+                  {selectedPerson.contexts.map((context) => (
+                    <button
+                      data-selected={selectedContextId === context.id}
+                      key={context.id}
+                      onClick={() => {
+                        setSelectedContextId(context.id);
+                        setAssignmentLabel(context.display_label);
+                        setCreateNewContext(false);
+                      }}
+                      type="button"
+                    >
+                      {context.display_label}
+                    </button>
+                  ))}
+                  <button
+                    data-selected={createNewContext}
+                    onClick={() => {
+                      setSelectedContextId(null);
+                      setCreateNewContext(true);
+                      setAssignmentLabel("");
+                    }}
+                    type="button"
+                  >
+                    <Plus aria-hidden="true" size={15} />
+                    New relationship context
+                  </button>
+                </div>
+              ) : null}
+              {createNewPerson || createNewContext ? (
+                <label>
+                  <span>Relationship context</span>
+                  <input
+                    autoComplete="off"
+                    maxLength={200}
+                    onChange={(event) =>
+                      setAssignmentLabel(event.target.value)
+                    }
+                    placeholder="e.g. VP Product · Northstar search"
+                    value={assignmentLabel}
+                  />
+                  <small>
+                    Facts remain scoped to this search or relationship.
+                  </small>
+                </label>
+              ) : null}
                 </>
               ) : null}
-            </div>
+              </div>
 
-            <div
-              className="context-dropzone"
+              <div
+                className="context-dropzone"
               data-dragging={dragging}
               data-selected={Boolean(file)}
               onDragEnter={(event) => {
@@ -730,16 +1447,36 @@ function CapturePanel({
                 className="sr-only"
                 onChange={onFileChange}
                 ref={inputRef}
+                tabIndex={-1}
                 type="file"
               />
               {previewUrl ? (
                 <div className="context-dropzone__preview">
-                  {/* Blob URLs are intentionally browser-local and cannot use next/image. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    alt="Selected conversation screenshot"
-                    src={previewUrl}
-                  />
+                  <div
+                    className="context-dropzone__crop-image"
+                    style={
+                      {
+                        "--crop-bottom": `${100 - cropBottomPercent}%`,
+                        "--crop-top": `${cropTopPercent}%`,
+                      } as CSSProperties
+                    }
+                  >
+                    <ImageRedactionEditor
+                      disabled={phase !== "select"}
+                      enabled={redactionMode}
+                      onAdd={(redaction) =>
+                        setRedactions((current) => [...current, redaction])
+                      }
+                      onKeyboardAdjust={adjustLatestRedaction}
+                      onKeyboardUndo={() =>
+                        setRedactions((current) => current.slice(0, -1))
+                      }
+                      previewUrl={previewUrl}
+                      redactions={redactions}
+                    />
+                    <i aria-hidden="true" data-edge="top" />
+                    <i aria-hidden="true" data-edge="bottom" />
+                  </div>
                   <div>
                     <FileImage aria-hidden="true" size={20} />
                     <p>
@@ -755,6 +1492,93 @@ function CapturePanel({
                     >
                       Replace
                     </button>
+                    <fieldset className="context-crop-controls">
+                      <legend>Minimize before cloud analysis</legend>
+                      <label>
+                        <span>Keep from {cropTopPercent}%</span>
+                        <input
+                          disabled={phase !== "select"}
+                          max={cropBottomPercent - 10}
+                          min="0"
+                          onChange={(event) =>
+                            setCropTopPercent(Number(event.target.value))
+                          }
+                          type="range"
+                          value={cropTopPercent}
+                        />
+                      </label>
+                      <label>
+                        <span>Keep through {cropBottomPercent}%</span>
+                        <input
+                          disabled={phase !== "select"}
+                          max="100"
+                          min={cropTopPercent + 10}
+                          onChange={(event) =>
+                            setCropBottomPercent(Number(event.target.value))
+                          }
+                          type="range"
+                          value={cropBottomPercent}
+                        />
+                      </label>
+                      <small>
+                        Shaded crop pixels never leave this browser.
+                      </small>
+                    </fieldset>
+                    <div className="context-redaction-controls">
+                      <button
+                        aria-pressed={redactionMode}
+                        className="context-redaction-toggle"
+                        disabled={phase !== "select"}
+                        onClick={() => setRedactionMode((current) => !current)}
+                        type="button"
+                      >
+                        <PencilSimple aria-hidden="true" size={15} />
+                        {redactionMode ? "Finish masking" : "Mask private details"}
+                      </button>
+                      <span
+                        aria-live="polite"
+                        className="sr-only"
+                        id="capture-redaction-status"
+                      >
+                        {redactions.length === 0
+                          ? "No local masks added."
+                          : `${redactions.length} local ${
+                              redactions.length === 1 ? "mask" : "masks"
+                            } added.`}
+                      </span>
+                      {redactions.length > 0 ? (
+                        <div>
+                          <span>
+                            {redactions.length} local mask
+                            {redactions.length === 1 ? "" : "s"}
+                          </span>
+                          <button
+                            disabled={phase !== "select"}
+                            onClick={() =>
+                              setRedactions((current) => current.slice(0, -1))
+                            }
+                            type="button"
+                          >
+                            Undo
+                          </button>
+                          <button
+                            disabled={phase !== "select"}
+                            onClick={() => setRedactions([])}
+                            type="button"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      ) : null}
+                      <small id="capture-redaction-help">
+                        Turn masking on, then drag over names, phone numbers, or
+                        unrelated messages. Masks are flattened into the image
+                        before any upload and cannot be recovered by the model.
+                        Keyboard: focus the image, press Enter to add a mask,
+                        arrows to move, Shift + arrows to resize, and Delete to
+                        undo.
+                      </small>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -775,20 +1599,21 @@ function CapturePanel({
                   </button>
                 </>
               )}
-            </div>
+              </div>
 
-            <div className="context-capture__privacy">
-              <ShieldCheck aria-hidden="true" size={19} weight="duotone" />
-              <p>
-                <strong>
+              <div className="context-capture__privacy">
+                <ShieldCheck aria-hidden="true" size={19} weight="duotone" />
+                <p>
+                  <strong>
+                    {phase === "binding"
+                      ? "Source read · identity still yours"
+                      : "Before you continue"}
+                  </strong>
                   {phase === "binding"
-                    ? "Source read · identity still yours"
-                    : "Before you continue"}
-                </strong>
-                {phase === "binding"
-                  ? "The model did not create a person. Choose an existing person or explicitly create a new one, then name the relationship context."
-                  : "Only upload a conversation you are authorized to process. Review every extracted fact before it becomes contact context."}
-              </p>
+                    ? "The model did not create a person. Choose an existing person or explicitly create a new one, then name the relationship context."
+                    : "Only upload a conversation you are authorized to process. Review every extracted fact before it becomes contact context."}
+                </p>
+              </div>
             </div>
 
             <footer className="context-capture__footer">
@@ -813,7 +1638,8 @@ function CapturePanel({
                   (phase === "binding" &&
                     (!contactName.trim() ||
                       !assignmentLabel.trim() ||
-                      !identityDecided))
+                      !identityDecided ||
+                      !relationshipDecided))
                 }
                 onClick={() => {
                   if (phase === "binding") {
@@ -841,25 +1667,27 @@ function CapturePanel({
                     : "Read source"}
               </button>
             </footer>
-          </div>
+          </>
         ) : null}
 
         {(phase === "review" || phase === "committing") && draft ? (
           <div className="context-capture__review">
             <div className="context-review-source">
               <div className="context-review-source__image">
-                {previewUrl ? (
+                {analysisPreviewUrl ?? previewUrl ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
-                    alt="Conversation screenshot being reviewed"
-                    src={previewUrl}
+                    alt="Exact conversation screenshot region analyzed and being reviewed"
+                    src={analysisPreviewUrl ?? previewUrl ?? undefined}
                   />
                 ) : null}
               </div>
               <div className="context-review-source__meta">
                 <span>
                   <ShieldCheck aria-hidden="true" size={15} />
-                  Original not stored · reviewed text retained up to 30 days
+                  Original not stored · {redactions.length} local mask
+                  {redactions.length === 1 ? "" : "s"} flattened · reviewed text
+                  retained up to 30 days
                 </span>
                 <span>
                   {analysis?.meta.provider} · {analysis?.meta.model} · {draft.platform}
@@ -1085,7 +1913,252 @@ function CapturePanel({
             </footer>
           </div>
         ) : null}
-      </section>
+              </section>
+            </Dialog.Content>
+          </div>
+        </Dialog.Overlay>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function ConversationTranscriptComposer({
+  title,
+  value,
+  messages,
+  attributionReviewed,
+  onTitleChange,
+  onValueChange,
+  onMessagesChange,
+  onAttributionReviewedChange,
+}: {
+  title: string;
+  value: string;
+  messages: ConversationTranscriptMessage[];
+  attributionReviewed: boolean;
+  onTitleChange: (value: string) => void;
+  onValueChange: (value: string) => void;
+  onMessagesChange: (messages: ConversationTranscriptMessage[]) => void;
+  onAttributionReviewedChange: (reviewed: boolean) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [unlabeledSpeaker, setUnlabeledSpeaker] =
+    useState<ConversationSpeaker>("unknown");
+  const [fileName, setFileName] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
+  const [analysisSummary, setAnalysisSummary] = useState<{
+    labeled: number;
+    unknown: number;
+  } | null>(null);
+
+  function invalidateAnalysis() {
+    onMessagesChange([]);
+    onAttributionReviewedChange(false);
+    setAnalysisSummary(null);
+    setAnalysisError("");
+  }
+
+  function analyzeTranscript() {
+    try {
+      const analysis = parseConversationTranscript(value, unlabeledSpeaker);
+      onMessagesChange(analysis.messages);
+      onAttributionReviewedChange(false);
+      setAnalysisSummary({
+        labeled: analysis.explicitly_labeled_count,
+        unknown: analysis.unknown_count,
+      });
+      setAnalysisError("");
+    } catch (caught) {
+      onMessagesChange([]);
+      onAttributionReviewedChange(false);
+      setAnalysisSummary(null);
+      setAnalysisError(
+        caught instanceof Error
+          ? caught.message
+          : "The transcript could not be analyzed.",
+      );
+    }
+  }
+
+  async function readTextFile(nextFile: File | null) {
+    if (!nextFile) {
+      return;
+    }
+    if (nextFile.size <= 0 || nextFile.size > 256 * 1024) {
+      setAnalysisError("Choose one non-empty TXT or Markdown file up to 256 KB.");
+      return;
+    }
+    try {
+      const text = await nextFile.text();
+      setFileName(nextFile.name);
+      onTitleChange(title.trim() ? title : nextFile.name);
+      onValueChange(text);
+      onMessagesChange([]);
+      onAttributionReviewedChange(false);
+      setAnalysisSummary(null);
+      setAnalysisError("");
+    } catch {
+      setAnalysisError("The selected text file could not be read in the browser.");
+    }
+  }
+
+  function updateSpeaker(sequence: number, speaker: ConversationSpeaker) {
+    onMessagesChange(
+      messages.map((message) =>
+        message.sequence === sequence ? { ...message, speaker } : message,
+      ),
+    );
+    onAttributionReviewedChange(false);
+  }
+
+  return (
+    <div className="context-transcript-import">
+      <div className="context-transcript-import__source">
+        <label>
+          <span>Conversation label</span>
+          <input
+            maxLength={240}
+            onChange={(event) => onTitleChange(event.target.value)}
+            placeholder="e.g. Aug 9 follow-up transcript"
+            value={title}
+          />
+        </label>
+        <input
+          accept=".txt,.md,text/plain,text/markdown"
+          className="sr-only"
+          onChange={(event) => void readTextFile(event.target.files?.[0] ?? null)}
+          ref={fileInputRef}
+          type="file"
+        />
+        <button
+          className="context-resource-file context-resource-file--transcript"
+          onClick={() => fileInputRef.current?.click()}
+          type="button"
+        >
+          <ChatCircleDots aria-hidden="true" size={20} />
+          <span>
+            <strong>{fileName || "Choose TXT or Markdown"}</strong>
+            <small>Read locally, then review the exact text below.</small>
+          </span>
+        </button>
+        <label>
+          <span>Conversation text</span>
+          <textarea
+            maxLength={40_000}
+            onChange={(event) => {
+              onValueChange(event.target.value);
+              invalidateAnalysis();
+            }}
+            placeholder={
+              "Candidate: Availability: 15 September\nRecruiter: I’ll confirm the interview window."
+            }
+            rows={6}
+            value={value}
+          />
+        </label>
+      </div>
+
+      <div className="context-transcript-import__analysis">
+        <fieldset>
+          <legend>Unlabeled lines belong to</legend>
+          <div>
+            {CONVERSATION_SPEAKERS.map((speaker) => (
+              <button
+                aria-pressed={unlabeledSpeaker === speaker}
+                key={speaker}
+                onClick={() => {
+                  setUnlabeledSpeaker(speaker);
+                  invalidateAnalysis();
+                }}
+                type="button"
+              >
+                {speaker === "unknown"
+                  ? "Not sure"
+                  : speaker === "candidate"
+                    ? "Candidate"
+                    : "Recruiter"}
+              </button>
+            ))}
+          </div>
+          <small>
+            Choose Candidate only for a candidate-only export. Talent Signal
+            never guesses a speaker from wording or message order.
+          </small>
+        </fieldset>
+        <button
+          className="context-secondary-button"
+          disabled={!value.trim()}
+          onClick={analyzeTranscript}
+          type="button"
+        >
+          <Sparkle aria-hidden="true" size={17} weight="fill" />
+          Analyze speaker labels
+        </button>
+      </div>
+
+      {analysisError ? (
+        <p className="context-resource-composer__error" role="alert">
+          <Warning aria-hidden="true" size={16} />
+          {analysisError}
+        </p>
+      ) : null}
+
+      {messages.length > 0 ? (
+        <section
+          aria-labelledby="transcript-review-title"
+          className="context-transcript-import__review"
+        >
+          <header>
+            <div>
+              <p className="eyebrow">SPEAKER REVIEW</p>
+              <h3 id="transcript-review-title">Review every message owner.</h3>
+            </div>
+            <span>
+              {messages.length} messages · {analysisSummary?.labeled ?? 0} labeled
+              {analysisSummary?.unknown
+                ? ` · ${analysisSummary.unknown} unknown`
+                : ""}
+            </span>
+          </header>
+          <div className="context-transcript-import__messages">
+            {messages.map((message) => (
+              <div data-speaker={message.speaker} key={message.sequence}>
+                <select
+                  aria-label={`Speaker for transcript message ${message.sequence + 1}`}
+                  onChange={(event) =>
+                    updateSpeaker(
+                      message.sequence,
+                      event.target.value as ConversationSpeaker,
+                    )
+                  }
+                  value={message.speaker}
+                >
+                  <option value="candidate">Candidate</option>
+                  <option value="recruiter">Recruiter</option>
+                  <option value="unknown">Not sure</option>
+                </select>
+                <p>{message.text}</p>
+              </div>
+            ))}
+          </div>
+          <label className="context-resource-checkbox context-transcript-import__confirm">
+            <input
+              checked={attributionReviewed}
+              onChange={(event) =>
+                onAttributionReviewedChange(event.target.checked)
+              }
+              type="checkbox"
+            />
+            <span>
+              I reviewed the speaker labels above
+              <small>
+                Unknown messages remain context only and cannot create candidate
+                facts. Every fact still requires separate review.
+              </small>
+            </span>
+          </label>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -1121,6 +2194,11 @@ function StartRelationshipPanel({
   const [createNewContext, setCreateNewContext] = useState(false);
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
+  const [transcriptMessages, setTranscriptMessages] = useState<
+    ConversationTranscriptMessage[]
+  >([]);
+  const [transcriptAttributionReviewed, setTranscriptAttributionReviewed] =
+    useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [documentKind, setDocumentKind] = useState<
     "resume" | "document"
@@ -1187,7 +2265,11 @@ function StartRelationshipPanel({
     (selectedPerson &&
       (selectedContext || (createNewContext && contextLabel.trim())));
   const sourceReady =
-    mode === "document" ? file !== null : value.trim().length > 0;
+    mode === "document"
+      ? file !== null
+      : mode === "conversation"
+        ? transcriptMessages.length > 0 && transcriptAttributionReviewed
+        : value.trim().length > 0;
 
   function resetRequest() {
     requestIdRef.current = null;
@@ -1250,6 +2332,12 @@ function StartRelationshipPanel({
             type: mode,
             title: title.trim() || undefined,
             value: value.trim(),
+            ...(mode === "conversation"
+              ? {
+                  transcript_messages: transcriptMessages,
+                  attribution_reviewed: transcriptAttributionReviewed,
+                }
+              : {}),
           }),
         });
       }
@@ -1432,7 +2520,7 @@ function StartRelationshipPanel({
 
       <div className="context-start__source">
         <div aria-label="First source type" role="tablist">
-          {(["note", "document", "url"] as const).map((sourceMode) => (
+          {(["note", "conversation", "document", "url"] as const).map((sourceMode) => (
             <button
               aria-selected={mode === sourceMode}
               key={sourceMode}
@@ -1445,12 +2533,18 @@ function StartRelationshipPanel({
             >
               {sourceMode === "note" ? (
                 <PencilSimple aria-hidden="true" size={16} />
+              ) : sourceMode === "conversation" ? (
+                <ChatCircleDots aria-hidden="true" size={16} />
               ) : sourceMode === "document" ? (
                 <UploadSimple aria-hidden="true" size={16} />
               ) : (
                 <LinkSimple aria-hidden="true" size={16} />
               )}
-              {sourceMode === "document" ? "File" : sourceMode}
+              {sourceMode === "document"
+                ? "File"
+                : sourceMode === "conversation"
+                  ? "Transcript"
+                  : sourceMode}
             </button>
           ))}
           <button onClick={onScreenshot} type="button">
@@ -1459,7 +2553,30 @@ function StartRelationshipPanel({
           </button>
         </div>
 
-        {mode === "document" ? (
+        {mode === "conversation" ? (
+          <ConversationTranscriptComposer
+            attributionReviewed={transcriptAttributionReviewed}
+            messages={transcriptMessages}
+            onAttributionReviewedChange={(reviewed) => {
+              setTranscriptAttributionReviewed(reviewed);
+              resetRequest();
+            }}
+            onMessagesChange={(messages) => {
+              setTranscriptMessages(messages);
+              resetRequest();
+            }}
+            onTitleChange={(nextTitle) => {
+              setTitle(nextTitle);
+              resetRequest();
+            }}
+            onValueChange={(nextValue) => {
+              setValue(nextValue);
+              resetRequest();
+            }}
+            title={title}
+            value={value}
+          />
+        ) : mode === "document" ? (
           <div className="context-resource-composer__document">
             <input
               accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
@@ -1603,6 +2720,11 @@ function RelationshipResourceComposer({
   const [mode, setMode] = useState<ResourceMode>("note");
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
+  const [transcriptMessages, setTranscriptMessages] = useState<
+    ConversationTranscriptMessage[]
+  >([]);
+  const [transcriptAttributionReviewed, setTranscriptAttributionReviewed] =
+    useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [documentKind, setDocumentKind] = useState<
     "resume" | "document"
@@ -2341,11 +3463,16 @@ function RelationshipResourceComposer({
   async function submit() {
     if (
       (mode === "document" && !file) ||
-      (mode !== "document" && !value.trim())
+      (mode === "conversation" &&
+        (transcriptMessages.length === 0 ||
+          !transcriptAttributionReviewed)) ||
+      (mode !== "document" && mode !== "conversation" && !value.trim())
     ) {
       setError(
         mode === "document"
           ? "Choose one resume or document."
+          : mode === "conversation"
+            ? "Analyze the transcript and confirm every speaker label."
           : "Add the context you want to preserve.",
       );
       return;
@@ -2383,6 +3510,12 @@ function RelationshipResourceComposer({
             type: mode,
             title: title.trim() || undefined,
             value: value.trim(),
+            ...(mode === "conversation"
+              ? {
+                  transcript_messages: transcriptMessages,
+                  attribution_reviewed: transcriptAttributionReviewed,
+                }
+              : {}),
           }),
         });
       }
@@ -2407,6 +3540,8 @@ function RelationshipResourceComposer({
       });
       setTitle("");
       setValue("");
+      setTranscriptMessages([]);
+      setTranscriptAttributionReviewed(false);
       setFile(null);
       onCommitted(payload.receipts);
       await loadResources();
@@ -2450,6 +3585,18 @@ function RelationshipResourceComposer({
             Note
           </button>
           <button
+            aria-selected={mode === "conversation"}
+            onClick={() => {
+              setMode("conversation");
+              resetRequest();
+            }}
+            role="tab"
+            type="button"
+          >
+            <ChatCircleDots aria-hidden="true" size={16} />
+            Transcript
+          </button>
+          <button
             aria-selected={mode === "document"}
             onClick={() => {
               setMode("document");
@@ -2480,7 +3627,30 @@ function RelationshipResourceComposer({
         </div>
       </div>
 
-      {mode === "document" ? (
+      {mode === "conversation" ? (
+        <ConversationTranscriptComposer
+          attributionReviewed={transcriptAttributionReviewed}
+          messages={transcriptMessages}
+          onAttributionReviewedChange={(reviewed) => {
+            setTranscriptAttributionReviewed(reviewed);
+            resetRequest();
+          }}
+          onMessagesChange={(messages) => {
+            setTranscriptMessages(messages);
+            resetRequest();
+          }}
+          onTitleChange={(nextTitle) => {
+            setTitle(nextTitle);
+            resetRequest();
+          }}
+          onValueChange={(nextValue) => {
+            setValue(nextValue);
+            resetRequest();
+          }}
+          title={title}
+          value={value}
+        />
+      ) : mode === "document" ? (
         <div className="context-resource-composer__document">
           <input
             accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
@@ -2607,14 +3777,19 @@ function RelationshipResourceComposer({
       ) : null}
       <footer>
         <p>
-          Files become proposed evidence until reviewed. Saving a URL is not
+          Every source remains separately reviewable. Saving a URL is not
           permission to crawl it.
         </p>
         <button
           className="context-primary-button context-primary-button--compact"
           disabled={
             busy ||
-            (mode === "document" ? !file : !value.trim())
+            (mode === "document"
+              ? !file
+              : mode === "conversation"
+                ? transcriptMessages.length === 0 ||
+                  !transcriptAttributionReviewed
+                : !value.trim())
           }
           onClick={() => void submit()}
           type="button"
@@ -2651,6 +3826,8 @@ function RelationshipResourceComposer({
                 <span>
                   {resource.kind === "personal_note" ? (
                     <PencilSimple aria-hidden="true" size={17} />
+                  ) : resource.kind === "conversation_transcript" ? (
+                    <ChatCircleDots aria-hidden="true" size={17} />
                   ) : resource.kind === "public_url" ? (
                     <LinkSimple aria-hidden="true" size={17} />
                   ) : (
@@ -2696,7 +3873,7 @@ function RelationshipResourceComposer({
           </div>
         ) : resourceLoading ? null : (
           <p className="context-resource-ledger__empty">
-            No additional note, file, or link is attached yet.
+            No additional note, transcript, file, or link is attached yet.
           </p>
         )}
       </div>
@@ -3315,6 +4492,32 @@ function RelationshipResourceComposer({
                       : "Run public research"}
                 </button>
               </footer>
+            </section>
+          ) : null}
+          {selectedResource.resource.kind === "conversation_screenshot" &&
+          selectedResource.resource.processing_state ===
+            "needs_fact_review" ? (
+            <section className="context-capture-review-bridge">
+              <div>
+                <span>
+                  <FileImage aria-hidden="true" size={18} weight="duotone" />
+                </span>
+                <p>
+                  <strong>Screenshot facts still need your judgment</strong>
+                  <small>
+                    Transcription review and fact decisions remain separate.
+                    Open the original capture review to confirm, dismiss, or
+                    leave each proposal unresolved.
+                  </small>
+                </p>
+              </div>
+              <a
+                className="context-secondary-button"
+                href={`/workspace?capture=${selectedResource.resource.capture_id}#proposed-changes`}
+              >
+                Continue fact review
+                <ArrowRight aria-hidden="true" size={15} />
+              </a>
             </section>
           ) : null}
           {selectedResource.claim_proposals.length > 0 ? (
@@ -5699,6 +6902,7 @@ function PersonMergeReview({
 export function RelationshipWorkspaceApp({
   initialAgentHistory,
   initialIdentityResolutionCase,
+  initialKnowledgeSnapshot,
   initialWorkspace,
   initialRelationshipScope,
   initialError,
@@ -5711,6 +6915,9 @@ export function RelationshipWorkspaceApp({
   );
   const [identityResolutionCase, setIdentityResolutionCase] = useState(
     initialIdentityResolutionCase,
+  );
+  const [knowledgeSnapshot, setKnowledgeSnapshot] = useState(
+    initialKnowledgeSnapshot,
   );
   const [error, setError] = useState(initialError ?? "");
   const [busy, setBusy] = useState("");
@@ -5762,6 +6969,23 @@ export function RelationshipWorkspaceApp({
         },
       }
     : relationshipScope;
+  const activeCaptureId = workspace?.capture.id ?? null;
+
+  useEffect(() => {
+    if (
+      !activeCaptureId ||
+      typeof window === "undefined" ||
+      window.location.hash !== "#proposed-changes"
+    ) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById("proposed-changes");
+      target?.scrollIntoView({ block: "start" });
+      target?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeCaptureId]);
 
   const assertions = workspace?.analysis.assertions ?? [];
   const pendingCount = assertions.filter(
@@ -5913,6 +7137,7 @@ export function RelationshipWorkspaceApp({
           : (payload as WorkspaceReviewResponse);
       setWorkspace(next);
       setChatResponse(null);
+      setKnowledgeSnapshot(null);
       chatRequestRef.current = null;
       setAnnouncement("Contact context updated.");
       return next;
@@ -5985,6 +7210,7 @@ export function RelationshipWorkspaceApp({
       });
       setWorkspace(null);
       setChatResponse(null);
+      setKnowledgeSnapshot(null);
       chatRequestRef.current = null;
       setDeleteConfirm(false);
       setAnnouncement("Source and registered derivatives deleted.");
@@ -6004,6 +7230,7 @@ export function RelationshipWorkspaceApp({
     setWorkspace(next);
     setRelationshipScope(null);
     setChatResponse(null);
+    setKnowledgeSnapshot(null);
     chatRequestRef.current = null;
     setDeletionSummary(null);
     setCaptureOpen(false);
@@ -6012,7 +7239,7 @@ export function RelationshipWorkspaceApp({
     window.history.replaceState(
       null,
       "",
-      `/workspace?capture=${encodeURIComponent(next.capture.id)}`,
+      `/workspace?capture=${encodeURIComponent(next.capture.id)}#proposed-changes`,
     );
     void refreshAgentHistory(
       next.subject.id,
@@ -6168,6 +7395,7 @@ export function RelationshipWorkspaceApp({
     setAgentHistory(null);
     setAgentCreateOpen(false);
     setChatResponse(null);
+    setKnowledgeSnapshot(compilation);
     chatRequestRef.current = null;
     setAgentOperation({
       title: compilation
@@ -6205,6 +7433,7 @@ export function RelationshipWorkspaceApp({
     receipts: ResourceCaptureResponse[],
   ) {
     setChatResponse(null);
+    setKnowledgeSnapshot(null);
     chatRequestRef.current = null;
     setError("");
     setAnnouncement(
@@ -6232,6 +7461,7 @@ export function RelationshipWorkspaceApp({
       (compilation) => compilation.status === "failed",
     ).length;
     setChatResponse(null);
+    setKnowledgeSnapshot(null);
     chatRequestRef.current = null;
     setPersonMergeReversalPreview(null);
     setError("");
@@ -6757,7 +7987,7 @@ export function RelationshipWorkspaceApp({
                   <span>01</span>
                   <p>
                     <strong>Any first source</strong>
-                    Note · file · link · screenshot
+                    Note · transcript · file · link · screenshot
                   </p>
                 </div>
                 <ArrowRight aria-hidden="true" size={19} />
@@ -6986,7 +8216,13 @@ export function RelationshipWorkspaceApp({
                             references
                           </span>
                           {block.requires_user_decision ? (
-                            <a href="#source-evidence">
+                            <a
+                              href="#source-evidence"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                openResourceComposer();
+                              }}
+                            >
                               Review source
                               <ArrowRight aria-hidden="true" size={14} />
                             </a>
@@ -7048,6 +8284,14 @@ export function RelationshipWorkspaceApp({
                 </div>
               </section>
 
+              <RelationshipWikiPanel
+                busy={busy === "Compiling a source-linked brief"}
+                onCompile={() => void askChat()}
+                onReviewSources={openResourceComposer}
+                response={chatResponse}
+                snapshot={knowledgeSnapshot}
+              />
+
               <PersonMergeReview
                 currentPerson={relationshipScope.person}
                 forceOpen={personMergeRequested}
@@ -7066,6 +8310,7 @@ export function RelationshipWorkspaceApp({
                   onCommitted={handleResourcesCommitted}
                   onEvidenceChanged={(announcement) => {
                     setChatResponse(null);
+                    setKnowledgeSnapshot(null);
                     chatRequestRef.current = null;
                     setAnnouncement(
                       announcement ??
@@ -7095,7 +8340,7 @@ export function RelationshipWorkspaceApp({
                     <p>
                       <strong>Add another governed source</strong>
                       <small>
-                        Note, file, link, resume, or conversation screenshot
+                        Note, transcript, file, link, resume, or screenshot
                       </small>
                     </p>
                   </div>
@@ -7400,6 +8645,14 @@ export function RelationshipWorkspaceApp({
                 </div>
               </section>
 
+              <RelationshipWikiPanel
+                busy={busy === "Compiling a source-linked brief"}
+                onCompile={() => void askChat()}
+                onReviewSources={openResourceComposer}
+                response={chatResponse}
+                snapshot={knowledgeSnapshot}
+              />
+
               <PersonMergeReview
                 currentPerson={{
                   id: workspace.subject.id,
@@ -7421,6 +8674,7 @@ export function RelationshipWorkspaceApp({
                   onCommitted={handleResourcesCommitted}
                   onEvidenceChanged={(announcement) => {
                     setChatResponse(null);
+                    setKnowledgeSnapshot(null);
                     chatRequestRef.current = null;
                     setAnnouncement(
                       announcement ??
@@ -7448,7 +8702,7 @@ export function RelationshipWorkspaceApp({
                     <p>
                       <strong>Add another governed source</strong>
                       <small>
-                        Note, file, link, resume, or conversation screenshot
+                        Note, transcript, file, link, resume, or screenshot
                       </small>
                     </p>
                   </div>
@@ -7525,6 +8779,7 @@ export function RelationshipWorkspaceApp({
                     aria-labelledby="changed-title"
                     className="context-section context-changed"
                     id="proposed-changes"
+                    tabIndex={-1}
                   >
                     <div className="context-section__heading">
                       <div>

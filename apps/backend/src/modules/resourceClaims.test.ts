@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { extractConservativeResourceClaims } from "./resourceClaims.js";
+import {
+  extractConservativeResourceClaims,
+  resourceFragmentClaimAuthority,
+} from "./resourceClaims.js";
 
 describe("conservative resource claim extraction", () => {
   it("extracts explicit bilingual recruiter-relevant fields with exact quotes", () => {
@@ -64,5 +67,41 @@ describe("conservative resource claim extraction", () => {
         value: "CTO",
       }),
     ]);
+  });
+});
+
+describe("conversation transcript claim authority", () => {
+  it("allows only explicitly confirmed candidate messages", () => {
+    expect(
+      resourceFragmentClaimAuthority({
+        resource_kind: "conversation_transcript",
+        attributed_actor: "candidate",
+        attribution_status: "confirmed",
+      }),
+    ).toEqual({ allowed: true, subjectKind: "candidate" });
+
+    for (const attributed_actor of [
+      "recruiter",
+      "unknown",
+    ] as const) {
+      expect(
+        resourceFragmentClaimAuthority({
+          resource_kind: "conversation_transcript",
+          attributed_actor,
+          attribution_status:
+            attributed_actor === "unknown" ? "unknown" : "confirmed",
+        }),
+      ).toEqual({ allowed: false, subjectKind: "unknown" });
+    }
+  });
+
+  it("does not promote proposed candidate attribution", () => {
+    expect(
+      resourceFragmentClaimAuthority({
+        resource_kind: "conversation_transcript",
+        attributed_actor: "candidate",
+        attribution_status: "proposed",
+      }),
+    ).toEqual({ allowed: false, subjectKind: "unknown" });
   });
 });

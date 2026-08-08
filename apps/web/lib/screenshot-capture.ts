@@ -24,18 +24,38 @@ export type ScreenshotAnalysisMeta = {
   model: string;
   request_id?: string;
   prompt_version: string;
+  pre_provider_minimization?: {
+    crop_bottom_percent: number;
+    crop_top_percent: number;
+    prepared_in_browser: true;
+    redaction_count: number;
+  };
   source_sha256: string;
   raw_image_stored_by_talent_signal: false;
 };
 
-const screenshotAnalysisMetaSchema = z.object({
-  provider: z.enum(["Volcano Ark", "OpenRouter"]),
-  model: z.string().min(1).max(120),
-  request_id: z.string().min(1).max(180).optional(),
-  prompt_version: z.string().min(1).max(80),
-  source_sha256: z.string().regex(/^[a-f0-9]{64}$/),
-  raw_image_stored_by_talent_signal: z.literal(false),
-});
+const screenshotAnalysisMetaSchema = z
+  .object({
+    provider: z.enum(["Volcano Ark", "OpenRouter"]),
+    model: z.string().min(1).max(120),
+    request_id: z.string().min(1).max(180).optional(),
+    prompt_version: z.string().min(1).max(80),
+    pre_provider_minimization: z
+      .object({
+        crop_bottom_percent: z.number().int().min(10).max(100),
+        crop_top_percent: z.number().int().min(0).max(90),
+        prepared_in_browser: z.literal(true),
+        redaction_count: z.number().int().min(0).max(100),
+      })
+      .refine(
+        (value) =>
+          value.crop_bottom_percent - value.crop_top_percent >= 10,
+        "The retained crop must cover at least ten percent of the image.",
+      )
+      .optional(),
+    source_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    raw_image_stored_by_talent_signal: z.literal(false),
+  });
 
 const assertionFieldSchema = z.enum(ASSERTION_FIELDS);
 const speakerSchema = z.enum(["candidate", "recruiter", "unknown"]);

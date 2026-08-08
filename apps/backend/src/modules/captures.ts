@@ -115,6 +115,30 @@ async function resolveBoundIdentity(
     );
   }
 
+  if (
+    identity.status === "bound_existing" &&
+    identity.assignment_id
+  ) {
+    const existingAssignment = await client.query<{ id: string }>(
+      `SELECT id
+       FROM assignments
+       WHERE account_id = $1
+         AND id = $2
+         AND subject_id = $3
+         AND status = 'active'`,
+      [accountId, identity.assignment_id, subjectId],
+    );
+    const assignmentId = existingAssignment.rows[0]?.id;
+    if (!assignmentId) {
+      throw new ApiError(
+        404,
+        "RELATIONSHIP_CONTEXT_NOT_FOUND",
+        "The selected relationship context is unavailable for this person.",
+      );
+    }
+    return { subjectId, assignmentId };
+  }
+
   const assignmentResult = await client.query<{ id: string }>(
     `INSERT INTO assignments(
        id, account_id, subject_id, external_ref, display_label, status, deleted_at
