@@ -715,6 +715,10 @@ p {
   padding-top: 34px;
 }
 
+.site-footer__base p {
+  min-width: 0;
+}
+
 .site-footer__base p:last-child {
   color: var(--ink);
   font-family: var(--font-sans), sans-serif;
@@ -724,6 +728,7 @@ p {
   line-height: 0.98;
   margin-left: auto;
   max-width: 18ch;
+  overflow-wrap: anywhere;
   text-align: right;
 }
 

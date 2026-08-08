@@ -145,6 +145,14 @@
   line-height: 1.7;
 }
 
+.desktopProduct {
+  padding-bottom: clamp(52px, 7vw, 92px);
+}
+
+.mobileProduct {
+  display: none;
+}
+
 .agentBoundary {
   padding: clamp(104px, 13vw, 190px) 0 clamp(92px, 11vw, 154px);
 }
@@ -212,7 +220,7 @@
   border-top: 1px solid var(--line);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .heroGrid,
   .experienceHeading,
   .agentGrid {
@@ -240,6 +248,14 @@
 
   .principles li + li {
     border-top: 1px solid var(--line-soft);
+  }
+
+  .desktopProduct {
+    display: none;
+  }
+
+  .mobileProduct {
+    display: block;
   }
 }
 
