@@ -43,4 +43,11 @@ describe("relationship workspace accessibility contract", () => {
     expect(capturePanel).toContain('aria-live="polite"');
     expect(capturePanel).toContain("onKeyboardAdjust={adjustLatestRedaction}");
   });
+
+  it("decodes local evidence into canvas without a user-controlled DOM URL", () => {
+    expect(component).toContain("function BrowserLocalImage(");
+    expect(component).toContain("createImageBitmap(source)");
+    expect(capturePanel).not.toContain("URL.createObjectURL");
+    expect(capturePanel).not.toContain("<img");
+  });
 });

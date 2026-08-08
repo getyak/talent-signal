@@ -9,7 +9,7 @@
       "severity": "medium",
       "criterion": "Human outcome evidence",
       "observation": "The private workspace preserves exact candidate words, uncertainty, ownership, quiet no-action, and recruiter review before any follow-through. The evaluated people and conversations are synthetic, so no candidate or candidate advisor has confirmed that the remembered wording and timing would feel accurate and respectful in a real search.",
-      "evidence": "Code artifact 93d3320211a660082721dcd80f4cc1398170ce1760bb503cfcd5f8faeb504204; synthetic text and screenshot episodes including locally minimized capture eb8c2254-e6ec-4ff7-8596-c824784e4660; durable Wiki ead49469; availability left unresolved; no-action block; no message, notification, meeting, or ATS effect executed.",
+      "evidence": "Code artifact d5cb393debfe3537d1aac0b2d5c2f7a3dccc813d61dd95e6eb3d3e9c3e2da127; synthetic text and screenshot episodes including locally minimized capture eb8c2254-e6ec-4ff7-8596-c824784e4660; durable Wiki ead49469; availability left unresolved; no-action block; no message, notification, meeting, or ATS effect executed.",
       "user_impact": "The design avoids obvious pressure and false empathy, but it cannot yet claim that the resulting continuity improves a candidate's real experience.",
       "recommendation": "Review the fact labels, uncertainty language, quiet state, and any future follow-up preview with candidates or candidate advisors before using outcome claims.",
       "verification": "Participants must correctly identify what the candidate actually said, what remains uncertain, who owns the next step, whether anyone will contact them, and how an error can be corrected or deleted."

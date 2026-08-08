@@ -76,6 +76,11 @@ provide.
   dismissal, exact opener restoration, zero overflow, and a successful
   `#proposed-changes` focus handoff; the empty-state screenshot control was also
   raised from 42 to 44 px.
+- Image previews now keep the selected and prepared File objects in browser
+  memory, decode them with `createImageBitmap`, and draw them to canvas instead
+  of assigning a user-derived DOM image URL. A fresh WebP run proved a non-empty
+  941x1672 source canvas, keyboard masking, live OpenRouter analysis, a non-empty
+  review canvas, and two proposed facts without committing a new source.
 - Four independent specialist packets and the final product panel pass their
   machine-checkable contracts. Recruiter, safety, candidate, and mobile each
   score 3/4 with no veto. Panel iteration 002 removes the earlier local-redaction

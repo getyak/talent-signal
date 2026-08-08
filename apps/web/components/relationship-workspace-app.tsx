@@ -504,14 +504,54 @@ function RelationshipWikiPanel({
   );
 }
 
+function BrowserLocalImage({
+  accessibleName,
+  source,
+}: {
+  accessibleName: string;
+  source: Blob;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let decodedImage: ImageBitmap | null = null;
+    void createImageBitmap(source)
+      .then((image) => {
+        decodedImage = image;
+        if (cancelled) {
+          image.close();
+          return;
+        }
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext("2d");
+        if (!canvas || !context) {
+          return;
+        }
+        canvas.width = image.width;
+        canvas.height = image.height;
+        context.drawImage(image, 0, 0);
+      })
+      .catch(() => {
+        // The server analysis path reports invalid image bytes to the user.
+      });
+    return () => {
+      cancelled = true;
+      decodedImage?.close();
+    };
+  }, [source]);
+
+  return <canvas aria-label={accessibleName} ref={canvasRef} role="img" />;
+}
+
 function ImageRedactionEditor({
   disabled,
   enabled,
   onAdd,
   onKeyboardAdjust,
   onKeyboardUndo,
-  previewUrl,
   redactions,
+  source,
 }: {
   disabled: boolean;
   enabled: boolean;
@@ -521,11 +561,11 @@ function ImageRedactionEditor({
     resize: boolean,
   ) => void;
   onKeyboardUndo: () => void;
-  previewUrl: string;
   redactions: NormalizedImageRedaction[];
+  source: Blob;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const imageRef = useRef<HTMLImageElement | null>(null);
+  const imageRef = useRef<ImageBitmap | null>(null);
   const [imageRevision, setImageRevision] = useState(0);
   const [draft, setDraft] = useState<{
     end: NormalizedImagePoint;
@@ -535,28 +575,33 @@ function ImageRedactionEditor({
 
   useEffect(() => {
     let cancelled = false;
-    const image = new Image();
-    image.decoding = "async";
-    image.onload = () => {
-      if (cancelled) {
-        return;
-      }
-      imageRef.current = image;
-      const canvas = canvasRef.current;
-      if (canvas) {
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
-      }
-      setImageRevision((current) => current + 1);
-    };
-    image.src = previewUrl;
+    let decodedImage: ImageBitmap | null = null;
+    void createImageBitmap(source)
+      .then((image) => {
+        decodedImage = image;
+        if (cancelled) {
+          image.close();
+          return;
+        }
+        imageRef.current = image;
+        const canvas = canvasRef.current;
+        if (canvas) {
+          canvas.width = image.width;
+          canvas.height = image.height;
+        }
+        setImageRevision((current) => current + 1);
+      })
+      .catch(() => {
+        // The server analysis path reports invalid image bytes to the user.
+      });
     return () => {
       cancelled = true;
-      if (imageRef.current === image) {
+      if (imageRef.current === decodedImage) {
         imageRef.current = null;
       }
+      decodedImage?.close();
     };
-  }, [previewUrl]);
+  }, [source]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -785,10 +830,8 @@ function CapturePanel({
   );
   const [phase, setPhase] = useState<CapturePhase>("select");
   const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [analysisPreviewUrl, setAnalysisPreviewUrl] = useState<string | null>(
-    null,
-  );
+  const [analysisPreviewImage, setAnalysisPreviewImage] =
+    useState<File | null>(null);
   const [cropTopPercent, setCropTopPercent] = useState(0);
   const [cropBottomPercent, setCropBottomPercent] = useState(100);
   const [redactions, setRedactions] = useState<NormalizedImageRedaction[]>([]);
@@ -830,22 +873,6 @@ function CapturePanel({
       });
     };
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
-
-  useEffect(() => {
-    return () => {
-      if (analysisPreviewUrl) {
-        URL.revokeObjectURL(analysisPreviewUrl);
-      }
-    };
-  }, [analysisPreviewUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -910,15 +937,20 @@ function CapturePanel({
       );
 
   function chooseFile(nextFile: File | null) {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    if (analysisPreviewUrl) {
-      URL.revokeObjectURL(analysisPreviewUrl);
+    if (
+      nextFile &&
+      (!["image/jpeg", "image/png", "image/webp"].includes(nextFile.type) ||
+        nextFile.size === 0 ||
+        nextFile.size > 8 * 1024 * 1024)
+    ) {
+      setError("Choose one non-empty JPEG, PNG, or WebP image up to 8 MB.");
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
+      return;
     }
     setFile(nextFile);
-    setPreviewUrl(nextFile ? URL.createObjectURL(nextFile) : null);
-    setAnalysisPreviewUrl(null);
+    setAnalysisPreviewImage(null);
     setCropTopPercent(0);
     setCropBottomPercent(100);
     setRedactions([]);
@@ -954,12 +986,7 @@ function CapturePanel({
         cropBottomPercent,
         redactions,
       );
-      if (analysisPreviewUrl) {
-        URL.revokeObjectURL(analysisPreviewUrl);
-      }
-      setAnalysisPreviewUrl(
-        preparedFile === file ? null : URL.createObjectURL(preparedFile),
-      );
+      setAnalysisPreviewImage(preparedFile === file ? null : preparedFile);
       const formData = new FormData();
       formData.set("image", preparedFile);
       formData.set("screenshotOwner", screenshotOwner);
@@ -1065,6 +1092,7 @@ function CapturePanel({
   }
 
   const draft = reviewedDraft ?? analysis?.draft ?? null;
+  const reviewImage = analysisPreviewImage ?? file;
   const transcriptEdited = Boolean(
     analysis &&
       draft &&
@@ -1450,7 +1478,7 @@ function CapturePanel({
                 tabIndex={-1}
                 type="file"
               />
-              {previewUrl ? (
+              {file ? (
                 <div className="context-dropzone__preview">
                   <div
                     className="context-dropzone__crop-image"
@@ -1471,8 +1499,8 @@ function CapturePanel({
                       onKeyboardUndo={() =>
                         setRedactions((current) => current.slice(0, -1))
                       }
-                      previewUrl={previewUrl}
                       redactions={redactions}
+                      source={file}
                     />
                     <i aria-hidden="true" data-edge="top" />
                     <i aria-hidden="true" data-edge="bottom" />
@@ -1674,11 +1702,10 @@ function CapturePanel({
           <div className="context-capture__review">
             <div className="context-review-source">
               <div className="context-review-source__image">
-                {analysisPreviewUrl ?? previewUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    alt="Exact conversation screenshot region analyzed and being reviewed"
-                    src={analysisPreviewUrl ?? previewUrl ?? undefined}
+                {reviewImage ? (
+                  <BrowserLocalImage
+                    accessibleName="Exact conversation screenshot region analyzed and being reviewed"
+                    source={reviewImage}
                   />
                 ) : null}
               </div>
