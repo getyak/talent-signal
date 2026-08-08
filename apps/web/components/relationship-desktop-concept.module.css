@@ -1,0 +1,1593 @@
+.frame {
+  --desk-accent: #c34632;
+  --desk-accent-strong: #a93627;
+  --desk-accent-soft: rgba(195, 70, 50, 0.11);
+  --desk-canvas: #efede6;
+  --desk-ink: #22211e;
+  --desk-muted: #66645d;
+  --desk-muted-strong: #57554e;
+  --desk-line: rgba(34, 33, 30, 0.13);
+  --desk-line-soft: rgba(34, 33, 30, 0.075);
+  --desk-surface: #f8f6f0;
+  --desk-surface-raised: rgba(252, 250, 245, 0.92);
+  --desk-shadow: 0 28px 88px rgba(48, 43, 34, 0.12);
+  position: relative;
+  display: grid;
+  width: min(1560px, calc(100% - 32px));
+  height: 900px;
+  min-height: 0;
+  grid-template-columns: 78px minmax(214px, 256px) minmax(540px, 1fr) minmax(270px, 318px);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--desk-line);
+  border-radius: 24px;
+  background: var(--desk-canvas);
+  box-shadow: var(--desk-shadow);
+  color: var(--desk-ink);
+  isolation: isolate;
+}
+
+.frame button,
+.frame input,
+.frame textarea {
+  color: inherit;
+  font: inherit;
+}
+
+.frame button {
+  cursor: pointer;
+}
+
+.frame button:focus-visible,
+.frame input:focus-visible,
+.frame textarea:focus-visible {
+  outline: 2px solid var(--desk-accent);
+  outline-offset: 3px;
+}
+
+.iconRail,
+.contextRail,
+.consequenceRail {
+  min-width: 0;
+  border-right: 1px solid var(--desk-line);
+}
+
+.iconRail {
+  display: flex;
+  z-index: 3;
+  align-items: center;
+  flex-direction: column;
+  padding: 18px 10px;
+  background: color-mix(in srgb, var(--desk-surface) 72%, transparent);
+}
+
+.mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  background: var(--desk-ink);
+  color: var(--desk-surface);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 8px 20px rgba(34, 33, 30, 0.12);
+}
+
+.mark :global(.brand) {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+}
+
+.mark :global(.brand__mark) {
+  width: 30px;
+  height: 30px;
+}
+
+.iconRail nav {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+}
+
+.railButton {
+  display: grid;
+  min-height: 66px;
+  grid-template-rows: 34px auto;
+  place-items: center;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--desk-muted);
+  font-size: 0.61rem;
+  font-weight: 650;
+  gap: 2px;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms var(--ease-out);
+}
+
+.railButton > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+
+.railButton:hover {
+  color: var(--desk-ink);
+  transform: translateY(-1px);
+}
+
+.railButton[data-active="true"] {
+  background: var(--desk-surface-raised);
+  color: var(--desk-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    0 8px 24px rgba(48, 43, 34, 0.07);
+}
+
+.railButton[data-active="true"] > span {
+  border-color: var(--desk-line-soft);
+  background: var(--desk-ink);
+  color: var(--desk-surface);
+}
+
+.railUtilities {
+  display: grid;
+  width: 100%;
+  margin-top: auto;
+  gap: 8px;
+}
+
+.railUtilities > button,
+.railUtilities :global(.theme-toggle) {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid var(--desk-line);
+  border-radius: 15px;
+  background: var(--desk-surface-raised);
+  box-shadow: none;
+}
+
+.contextRail {
+  display: flex;
+  z-index: 2;
+  min-height: 0;
+  flex-direction: column;
+  padding: 30px 22px 24px;
+  background: color-mix(in srgb, var(--desk-surface) 46%, transparent);
+}
+
+.contextHeader {
+  display: grid;
+  gap: 13px;
+  padding: 0 8px 26px;
+}
+
+.productName {
+  color: var(--desk-muted);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.contextHeader strong {
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 1.85rem;
+  font-weight: 400;
+  letter-spacing: -0.04em;
+}
+
+.contextNav {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 25px;
+  border-bottom: 1px solid var(--desk-line);
+}
+
+.contextNav button {
+  display: grid;
+  min-height: 46px;
+  grid-template-columns: 23px 1fr auto;
+  align-items: center;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--desk-muted-strong);
+  font-size: 0.78rem;
+  font-weight: 610;
+  gap: 9px;
+  text-align: left;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms var(--ease-out);
+}
+
+.contextNav button:hover {
+  color: var(--desk-ink);
+  transform: translateX(2px);
+}
+
+.contextNav button[data-active="true"] {
+  background: var(--desk-surface-raised);
+  color: var(--desk-ink);
+  box-shadow: 0 8px 24px rgba(48, 43, 34, 0.055);
+}
+
+.contextNav button > span {
+  color: var(--desk-muted);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+}
+
+.recent {
+  min-height: 0;
+  padding-top: 24px;
+  overflow-y: auto;
+}
+
+.sectionLabel,
+.dateLabel {
+  color: var(--desk-accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.61rem;
+  font-weight: 720;
+  letter-spacing: 0.125em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.recent > .sectionLabel {
+  display: block;
+  padding: 0 8px 10px;
+  color: var(--desk-muted);
+}
+
+.recent button {
+  display: grid;
+  width: 100%;
+  min-height: 66px;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--desk-line-soft);
+  background: transparent;
+  gap: 8px;
+  text-align: left;
+  transition:
+    color 180ms ease,
+    padding 180ms var(--ease-out);
+}
+
+.recent button:hover,
+.recent button[data-active="true"] {
+  padding-left: 12px;
+  color: var(--desk-accent-strong);
+}
+
+.recent strong,
+.recent small {
+  display: block;
+}
+
+.recent strong {
+  overflow: hidden;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 0.86rem;
+  font-weight: 400;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent small {
+  margin-top: 5px;
+  color: var(--desk-muted);
+  font-size: 0.65rem;
+}
+
+.privacyNote {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  margin-top: auto;
+  padding: 18px 8px 0;
+  border-top: 1px solid var(--desk-line);
+  color: var(--desk-muted);
+  font-size: 0.61rem;
+  line-height: 1.5;
+  gap: 9px;
+}
+
+.privacyNote svg {
+  color: var(--desk-accent-strong);
+}
+
+.privacyNote strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--desk-muted-strong);
+}
+
+.main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 255, 255, 0.56), transparent 29rem),
+    var(--desk-canvas);
+}
+
+.surface {
+  height: 100%;
+  min-width: 0;
+  padding: 40px clamp(28px, 3vw, 48px) 124px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.pageHeader h3 {
+  margin: 12px 0 6px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: clamp(2.9rem, 4.2vw, 4.15rem);
+  font-weight: 400;
+  letter-spacing: -0.058em;
+  line-height: 0.96;
+}
+
+.pageHeader > div > p {
+  color: var(--desk-muted-strong);
+  font-size: 0.83rem;
+  line-height: 1.55;
+}
+
+.dateLabel {
+  color: var(--desk-muted-strong);
+}
+
+.reviewWindow {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 13px;
+  border: 1px solid var(--desk-line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--desk-surface) 42%, transparent);
+  color: var(--desk-muted-strong);
+  font-size: 0.68rem;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.focusBrief {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(230px, 0.82fr);
+  margin-top: 30px;
+  padding: 38px 0 34px;
+  border-top: 1px solid var(--desk-line);
+  border-bottom: 1px solid var(--desk-line);
+  gap: clamp(28px, 3vw, 46px);
+}
+
+.focusCopy h4 {
+  max-width: 570px;
+  margin: 16px 0 15px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: clamp(2rem, 2.75vw, 2.85rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+}
+
+.focusCopy > p {
+  max-width: 530px;
+  color: var(--desk-muted-strong);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 0.91rem;
+  line-height: 1.58;
+}
+
+.focusCopy > button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin-top: 20px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--desk-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 720;
+  gap: 8px;
+  transition:
+    border-color 180ms ease,
+    gap 180ms var(--ease-out);
+}
+
+.focusCopy > button:hover {
+  gap: 12px;
+  border-bottom-color: currentColor;
+}
+
+.causalSeam {
+  position: relative;
+  padding: 3px 0 0 26px;
+  border-left: 2px solid var(--desk-accent);
+}
+
+.causalSeam::before {
+  position: absolute;
+  top: -5px;
+  left: -6px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--desk-canvas);
+  border-radius: 50%;
+  background: var(--desk-accent);
+  content: "";
+}
+
+.causalSeam[data-state="dismissed"] {
+  border-left-style: dashed;
+  border-left-color: var(--desk-muted);
+}
+
+.causalSeam[data-state="dismissed"]::before {
+  background: var(--desk-muted);
+}
+
+.causalSeam blockquote {
+  margin: 28px 0 24px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: clamp(1.25rem, 1.75vw, 1.65rem);
+  letter-spacing: -0.025em;
+  line-height: 1.34;
+}
+
+.causalSeam dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding-top: 17px;
+  border-top: 1px solid var(--desk-line);
+  gap: 16px;
+}
+
+.causalSeam dt,
+.actionMeta dt,
+.livingPage dt,
+.stateDiff dt {
+  color: var(--desk-muted);
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.causalSeam dd,
+.actionMeta dd,
+.livingPage dd,
+.stateDiff dd {
+  margin: 6px 0 0;
+  font-size: 0.69rem;
+  line-height: 1.45;
+}
+
+.inlineReceipt {
+  display: flex;
+  align-items: center;
+  margin-top: 16px;
+  color: var(--success);
+  font-size: 0.65rem;
+  font-weight: 680;
+  gap: 6px;
+}
+
+.motionQueue {
+  padding-top: 26px;
+}
+
+.motionQueue > .sectionLabel {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--desk-muted-strong);
+}
+
+.motionQueue > button {
+  display: grid;
+  width: 100%;
+  min-height: 68px;
+  grid-template-columns: 42px minmax(0, 1fr) auto 28px;
+  align-items: center;
+  padding: 9px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--desk-line-soft);
+  background: transparent;
+  gap: 11px;
+  text-align: left;
+  transition:
+    background-color 180ms ease,
+    padding 180ms var(--ease-out);
+}
+
+.motionQueue > button:hover {
+  padding-right: 8px;
+  padding-left: 8px;
+  background: color-mix(in srgb, var(--desk-surface) 38%, transparent);
+}
+
+.motionQueue strong,
+.motionQueue small {
+  display: block;
+}
+
+.motionQueue strong {
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 0.92rem;
+  font-weight: 400;
+}
+
+.motionQueue small {
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--desk-muted);
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.motionQueue em {
+  color: var(--desk-muted-strong);
+  font-size: 0.63rem;
+  font-style: normal;
+}
+
+.motionQueue em[data-state="review"],
+.motionQueue em[data-state="changed"] {
+  color: var(--desk-accent-strong);
+}
+
+.recency {
+  color: var(--desk-muted);
+  font-family: var(--font-mono);
+  font-size: 0.59rem;
+  text-align: right;
+}
+
+.avatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--desk-line);
+  border-radius: 50%;
+  background: var(--desk-surface);
+  color: var(--desk-muted-strong);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 0.74rem;
+}
+
+.avatar img {
+  object-fit: cover;
+  filter: saturate(0.26) contrast(1.04);
+}
+
+.avatarSmall {
+  width: 36px;
+  height: 36px;
+}
+
+.avatarMedium {
+  width: 48px;
+  height: 48px;
+}
+
+.avatarLarge {
+  width: 76px;
+  height: 76px;
+}
+
+.composer {
+  position: absolute;
+  z-index: 4;
+  bottom: 25px;
+  left: 50%;
+  display: grid;
+  width: min(590px, calc(100% - 54px));
+  min-height: 60px;
+  grid-template-columns: 24px minmax(0, 1fr) 38px 38px;
+  align-items: center;
+  padding: 6px 8px 6px 18px;
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--desk-line) 82%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--desk-surface-raised) 93%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 20px 46px rgba(48, 43, 34, 0.14);
+  color: var(--desk-muted);
+  gap: 8px;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.composer label {
+  min-width: 0;
+}
+
+.composer input {
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--desk-ink);
+  font-size: 0.75rem;
+}
+
+.composer input::placeholder {
+  color: var(--desk-muted);
+  opacity: 1;
+}
+
+.composer > button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--desk-line);
+  border-radius: 12px;
+  background: var(--desk-ink);
+  color: var(--desk-surface);
+  transition:
+    opacity 180ms ease,
+    transform 180ms var(--ease-out);
+}
+
+.composer > button:active {
+  transform: scale(0.96);
+}
+
+.composer > button:disabled {
+  opacity: 0.28;
+}
+
+.composer .voiceButton {
+  background: transparent;
+  color: var(--desk-ink);
+}
+
+.commandReceipt {
+  position: absolute;
+  z-index: 3;
+  right: 24px;
+  bottom: 94px;
+  display: flex;
+  max-width: min(480px, calc(100% - 48px));
+  align-items: flex-start;
+  padding: 11px 14px;
+  border: 1px solid var(--desk-line);
+  border-radius: 12px;
+  background: var(--desk-surface-raised);
+  box-shadow: 0 12px 32px rgba(48, 43, 34, 0.1);
+  color: var(--desk-muted-strong);
+  font-size: 0.64rem;
+  line-height: 1.5;
+  gap: 8px;
+  animation: receiptEnter 240ms var(--ease-out) both;
+}
+
+.commandReceipt svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--success);
+}
+
+.consequenceRail {
+  min-height: 0;
+  padding: 32px 26px 18px;
+  overflow-y: auto;
+  border-right: 0;
+  background: color-mix(in srgb, var(--desk-surface) 34%, transparent);
+}
+
+.consequenceRail h3 {
+  margin: 24px 0 13px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
+.consequenceRail > div:first-child > p {
+  color: var(--desk-muted-strong);
+  font-size: 0.7rem;
+  line-height: 1.6;
+}
+
+.actionMeta {
+  display: grid;
+  margin: 29px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--desk-line);
+}
+
+.actionMeta > div {
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 76px 1fr;
+  align-items: center;
+  border-bottom: 1px solid var(--desk-line-soft);
+  gap: 12px;
+}
+
+.actionMeta dd {
+  font-size: 0.66rem;
+}
+
+.actionControls {
+  display: grid;
+  margin-top: 25px;
+  gap: 9px;
+}
+
+.primaryButton,
+.secondaryButton,
+.textButton {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 15px;
+  border-radius: 12px;
+  font-size: 0.68rem;
+  font-weight: 720;
+  gap: 8px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease,
+    transform 180ms var(--ease-out);
+  white-space: nowrap;
+}
+
+.primaryButton {
+  border: 1px solid var(--desk-accent-strong);
+  background: var(--desk-accent-strong);
+  color: #fff9f5 !important;
+  box-shadow: 0 10px 24px rgba(169, 54, 39, 0.17);
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--desk-accent-strong) 88%, var(--desk-ink));
+  transform: translateY(-1px);
+}
+
+.primaryButton:active:not(:disabled),
+.secondaryButton:active,
+.textButton:active {
+  transform: scale(0.98);
+}
+
+.primaryButton:disabled {
+  border-color: var(--desk-line);
+  background: var(--desk-line-soft);
+  box-shadow: none;
+  color: var(--desk-muted) !important;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  border: 1px solid var(--desk-line);
+  background: var(--desk-surface-raised);
+  color: var(--desk-ink);
+}
+
+.secondaryButton:hover {
+  border-color: var(--desk-muted);
+  background: var(--desk-surface);
+}
+
+.textButton {
+  justify-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--desk-muted-strong);
+  font-size: 0.62rem;
+}
+
+.promiseSection {
+  display: grid;
+  margin-top: 31px;
+  padding-top: 23px;
+  border-top: 1px solid var(--desk-line);
+  gap: 4px;
+}
+
+.promiseSection > .sectionLabel {
+  margin-bottom: 8px;
+}
+
+.promiseSection > div {
+  display: grid;
+  min-height: 62px;
+  grid-template-columns: 20px 1fr;
+  align-items: start;
+  padding: 12px 0;
+  color: var(--desk-muted-strong);
+  gap: 10px;
+}
+
+.promiseSection > div[data-muted="true"] {
+  opacity: 0.68;
+}
+
+.promiseSection strong,
+.promiseSection small {
+  display: block;
+}
+
+.promiseSection strong {
+  font-size: 0.66rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.promiseSection small {
+  margin-top: 4px;
+  color: var(--desk-muted);
+  font-size: 0.58rem;
+}
+
+.authorityNote {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  margin-top: 25px;
+  padding: 16px;
+  border: 1px solid var(--desk-line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--desk-surface) 48%, transparent);
+  color: var(--desk-muted);
+  font-size: 0.61rem;
+  line-height: 1.55;
+  gap: 9px;
+}
+
+.authorityNote svg {
+  color: var(--desk-accent-strong);
+}
+
+.authorityNote strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--desk-muted-strong);
+}
+
+.peopleSearch {
+  display: grid;
+  width: min(310px, 42%);
+  min-height: 42px;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  padding: 0 13px;
+  border: 1px solid var(--desk-line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--desk-surface) 50%, transparent);
+  color: var(--desk-muted);
+  gap: 7px;
+}
+
+.peopleSearch input {
+  width: 100%;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--desk-ink);
+  font-size: 0.68rem;
+}
+
+.peopleSearch input::placeholder {
+  color: var(--desk-muted);
+  opacity: 1;
+}
+
+.peopleGrid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.82fr) minmax(290px, 1.18fr);
+  margin-top: 30px;
+  border-top: 1px solid var(--desk-line);
+  gap: clamp(24px, 3vw, 42px);
+}
+
+.peopleList {
+  padding-top: 8px;
+  border-right: 1px solid var(--desk-line);
+}
+
+.peopleList > button {
+  display: grid;
+  width: 100%;
+  min-height: 96px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  padding: 14px 18px 14px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--desk-line-soft);
+  background: transparent;
+  gap: 12px;
+  text-align: left;
+  transition:
+    background-color 180ms ease,
+    padding 180ms var(--ease-out);
+}
+
+.peopleList > button:hover,
+.peopleList > button[data-active="true"] {
+  padding-left: 10px;
+  background: color-mix(in srgb, var(--desk-surface) 38%, transparent);
+}
+
+.peopleList > button[data-active="true"] {
+  box-shadow: inset 2px 0 0 var(--desk-accent);
+}
+
+.peopleList strong,
+.peopleList small,
+.peopleList em {
+  display: block;
+}
+
+.peopleList strong {
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 0.92rem;
+  font-weight: 400;
+}
+
+.peopleList small {
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--desk-muted);
+  font-size: 0.59rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peopleList em {
+  margin-top: 7px;
+  color: var(--desk-muted-strong);
+  font-size: 0.62rem;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.personState {
+  grid-column: 2;
+  width: fit-content;
+  margin-top: -8px;
+  color: var(--desk-accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.emptyState {
+  display: grid;
+  min-height: 270px;
+  place-items: center;
+  align-content: center;
+  padding: 32px;
+  color: var(--desk-muted);
+  gap: 9px;
+  text-align: center;
+}
+
+.emptyState strong {
+  color: var(--desk-ink);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.emptyState p {
+  font-size: 0.65rem;
+}
+
+.livingPage {
+  padding: 28px 0;
+}
+
+.livingPage > header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.livingPage h4 {
+  margin: 5px 0 3px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 2.1rem;
+  font-weight: 400;
+  letter-spacing: -0.045em;
+}
+
+.livingPage h4[data-long="true"] {
+  max-width: 420px;
+  font-size: 1.65rem;
+  line-height: 1.08;
+}
+
+.livingPage header p,
+.livingPage section > p {
+  color: var(--desk-muted);
+  font-size: 0.68rem;
+}
+
+.livingPage > section {
+  margin-top: 27px;
+  padding: 25px 0;
+  border-top: 1px solid var(--desk-line);
+  border-bottom: 1px solid var(--desk-line);
+}
+
+.livingPage h5 {
+  margin: 12px 0 9px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 1.38rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.livingPage dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  padding: 21px 0;
+  gap: 20px;
+}
+
+.livingPage > button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0 15px;
+  border: 1px solid var(--desk-line);
+  border-radius: 12px;
+  background: var(--desk-surface-raised);
+  font-size: 0.68rem;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.searchTabs {
+  display: flex;
+  max-width: 52%;
+  padding: 3px;
+  border: 1px solid var(--desk-line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--desk-surface) 38%, transparent);
+  gap: 2px;
+}
+
+.searchTabs button {
+  min-height: 36px;
+  padding: 0 11px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--desk-muted);
+  font-size: 0.59rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchTabs button[aria-selected="true"] {
+  background: var(--desk-surface-raised);
+  box-shadow: 0 4px 14px rgba(48, 43, 34, 0.07);
+  color: var(--desk-ink);
+}
+
+.searchNarrative {
+  margin-top: 28px;
+  padding: 30px 0 28px;
+  border-top: 1px solid var(--desk-line);
+  border-bottom: 1px solid var(--desk-line);
+}
+
+.searchNarrative h4 {
+  margin: 0 0 12px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: clamp(1.75rem, 2.55vw, 2.5rem);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+}
+
+.searchNarrative p {
+  color: var(--desk-muted-strong);
+  font-size: 0.77rem;
+  line-height: 1.55;
+}
+
+.participantSection {
+  padding-top: 27px;
+}
+
+.participantSection > .sectionLabel {
+  color: var(--desk-muted-strong);
+}
+
+.participantList {
+  margin-top: 8px;
+}
+
+.participantList article {
+  display: grid;
+  min-height: 70px;
+  grid-template-columns: 42px minmax(120px, 0.65fr) minmax(160px, 1fr) auto;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--desk-line-soft);
+  gap: 12px;
+}
+
+.participantList article > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--desk-line);
+  border-radius: 50%;
+  background: var(--desk-surface);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 0.72rem;
+}
+
+.participantList strong,
+.participantList small {
+  display: block;
+}
+
+.participantList strong {
+  font-size: 0.72rem;
+}
+
+.participantList small {
+  margin-top: 4px;
+  color: var(--desk-muted);
+  font-size: 0.58rem;
+}
+
+.participantList p {
+  color: var(--desk-muted-strong);
+  font-size: 0.66rem;
+  line-height: 1.45;
+}
+
+.participantList em {
+  color: var(--desk-muted-strong);
+  font-size: 0.6rem;
+  font-style: normal;
+  text-align: right;
+}
+
+.disagreement {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  margin-top: 22px;
+  padding: 18px 0 0 18px;
+  border-left: 2px solid var(--desk-accent);
+  gap: 9px;
+}
+
+.disagreement > svg {
+  margin-top: 1px;
+  color: var(--desk-accent-strong);
+}
+
+.disagreement p {
+  max-width: 660px;
+  margin-top: 8px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.disagreement small {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  color: var(--desk-muted);
+  font-family: var(--font-mono);
+  font-size: 0.53rem;
+  gap: 9px;
+}
+
+.disagreement small span {
+  width: 22px;
+  height: 1px;
+  background: var(--desk-line);
+}
+
+.drawerBackdrop {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  background: rgba(25, 24, 22, 0.4);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+.drawerBackdrop[data-state="open"] {
+  animation: backdropEnter 180ms ease-out both;
+}
+
+.drawerBackdrop[data-state="closed"] {
+  animation: backdropExit 130ms ease-in both;
+}
+
+.evidenceDrawer {
+  position: absolute;
+  z-index: 11;
+  top: 0;
+  right: 0;
+  display: flex;
+  width: min(490px, calc(100% - 78px));
+  height: 100%;
+  flex-direction: column;
+  padding: 32px;
+  overflow-y: auto;
+  border-left: 1px solid var(--desk-line);
+  outline: 0;
+  background: var(--desk-surface);
+  box-shadow: -28px 0 78px rgba(48, 43, 34, 0.18);
+}
+
+.evidenceDrawer[data-state="open"] {
+  animation: drawerEnter 260ms var(--ease-out) both;
+}
+
+.evidenceDrawer[data-state="closed"] {
+  animation: drawerExit 170ms ease-in both;
+}
+
+.evidenceDrawer > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.evidenceDrawer h3 {
+  margin: 9px 0 0;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 2rem;
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+}
+
+.evidenceDrawer > header > button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--desk-line);
+  border-radius: 12px;
+  background: transparent;
+}
+
+.drawerIdentity {
+  display: flex;
+  align-items: center;
+  margin-top: 25px;
+  padding: 15px 0;
+  border-top: 1px solid var(--desk-line);
+  border-bottom: 1px solid var(--desk-line);
+  gap: 12px;
+}
+
+.drawerIdentity strong,
+.drawerIdentity span {
+  display: block;
+}
+
+.drawerIdentity strong {
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.drawerIdentity span {
+  margin-top: 4px;
+  color: var(--desk-muted);
+  font-size: 0.62rem;
+}
+
+.drawerEvidence {
+  position: relative;
+  margin-top: 28px;
+  padding-left: 24px;
+  border-left: 2px solid var(--desk-accent);
+}
+
+.drawerEvidence > svg {
+  margin-top: 22px;
+  color: var(--desk-accent-strong);
+}
+
+.drawerEvidence blockquote {
+  margin: 8px 0 17px;
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 1.35rem;
+  line-height: 1.42;
+}
+
+.drawerEvidence p {
+  color: var(--desk-muted);
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  line-height: 1.55;
+}
+
+.stateDiff {
+  margin-top: 29px;
+}
+
+.stateDiff dl {
+  display: grid;
+  grid-template-columns: 1fr 22px 1fr;
+  align-items: center;
+  margin: 10px 0 0;
+  padding: 17px 0;
+  border-top: 1px solid var(--desk-line);
+  border-bottom: 1px solid var(--desk-line);
+  gap: 12px;
+}
+
+.stateDiff dl > svg {
+  color: var(--desk-accent-strong);
+}
+
+.stateDiff dd {
+  font-size: 0.68rem;
+}
+
+.revisionControl {
+  display: grid;
+  margin-top: 3px;
+  gap: 6px;
+}
+
+.revisionControl > span {
+  color: var(--desk-muted);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.revisionControl textarea {
+  width: 100%;
+  min-height: 82px;
+  padding: 9px 10px;
+  resize: vertical;
+  border: 1px solid var(--desk-line);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--desk-surface-raised);
+  font-size: 0.65rem;
+  line-height: 1.45;
+}
+
+.revisionButton {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--desk-accent-strong) !important;
+  font-size: 0.58rem;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.drawerBoundary {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  margin-top: 23px;
+  padding: 15px;
+  border-radius: 14px;
+  background: var(--desk-accent-soft);
+  color: var(--desk-muted-strong);
+  font-size: 0.64rem;
+  line-height: 1.55;
+  gap: 9px;
+}
+
+.drawerBoundary svg {
+  color: var(--desk-accent-strong);
+}
+
+.evidenceDrawer > footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: auto;
+  padding-top: 26px;
+  gap: 10px;
+}
+
+@keyframes drawerEnter {
+  from { opacity: 0; transform: translateX(34px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes backdropEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes backdropExit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes drawerExit {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(28px); }
+}
+
+@keyframes receiptEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1240px) {
+  .frame {
+    grid-template-columns: 72px 210px minmax(510px, 1fr) 260px;
+  }
+
+  .contextRail {
+    padding-inline: 16px;
+  }
+
+  .consequenceRail {
+    padding-inline: 21px;
+  }
+
+  .focusBrief {
+    gap: 25px;
+  }
+
+  .surface {
+    padding-inline: 30px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .frame {
+    grid-template-columns: 70px minmax(510px, 1fr) 250px;
+  }
+
+  .contextRail {
+    display: none;
+  }
+
+  .pageHeader h3 {
+    font-size: 3rem;
+  }
+
+  .focusCopy h4 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .frame {
+    display: none;
+  }
+}
+
+:global([data-theme="dark"]) .frame {
+  --desk-accent: #e1604b;
+  --desk-accent-strong: #f07862;
+  --desk-accent-soft: rgba(225, 96, 75, 0.13);
+  --desk-canvas: #181815;
+  --desk-ink: #eeece6;
+  --desk-muted: #aaa79e;
+  --desk-muted-strong: #c9c5bc;
+  --desk-line: rgba(238, 236, 230, 0.14);
+  --desk-line-soft: rgba(238, 236, 230, 0.08);
+  --desk-surface: #22221e;
+  --desk-surface-raised: rgba(42, 42, 36, 0.92);
+  --desk-shadow: 0 30px 94px rgba(0, 0, 0, 0.34);
+}
+
+:global([data-theme="dark"]) .main {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 255, 255, 0.035), transparent 29rem),
+    var(--desk-canvas);
+}
+
+:global([data-theme="dark"]) .mark {
+  background: #eeece6;
+  color: #181815;
+}
+
+:global([data-theme="dark"]) .railButton[data-active="true"] > span,
+:global([data-theme="dark"]) .composer > button:not(.voiceButton) {
+  background: #eeece6;
+  color: #181815;
+}
+
+:global([data-theme="dark"]) .composer {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 22px 52px rgba(0, 0, 0, 0.34);
+}
+
+:global([data-theme="dark"]) .avatar img {
+  filter: saturate(0.18) brightness(0.84) contrast(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame *,
+  .frame *::before,
+  .frame *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .composer {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .composer,
+  .drawerBackdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .composer {
+    background: var(--desk-surface);
+  }
+}
