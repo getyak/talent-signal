@@ -11,6 +11,7 @@ next action. Carry verified context forward.
 
 [Product loop](#the-product-loop) ·
 [Trust contract](#trust-is-product-behavior) ·
+[Implementation status](#what-exists-today) ·
 [Quick start](#quick-start) ·
 [Architecture](#system-architecture) ·
 [Contributing](#contributing)
@@ -135,13 +136,69 @@ Read the canonical [product principles](docs/principles.md),
 
 ## What exists today
 
-| Surface | Current foundation |
+Talent Signal is strongest today as a governed, production-shaped reference
+implementation. The core authority boundaries are executable; production data,
+real connector writes, and a general open-ended Agent runtime are not yet
+claimed.
+
+| Area | Executable today | Current boundary |
+| --- | --- | --- |
+| Web | Product narrative, deterministic evidence demo, authenticated relationship workspace and People directory, plus gated Ark/OpenRouter screenshot analysis with review receipts. | The configured-provider, multi-channel flow still needs fresh end-to-end proof through review, commit, and workspace readback. |
+| Shared backend | Fastify and PostgreSQL authority core for captures, evidence, identity review, temporal facts, Wiki compilation, context manifests, action approval, audit, retention, deletion, and recovery workers. | It is a local shared backend, not a deployed production candidate-data service. |
+| iOS | SwiftUI screenshot import, on-device text review, identity comparison and relationship binding, Wiki receipt, and the synthetic momentum loop. | The image remains device-owned; Contacts, Calendar, ATS, CRM, and messaging writes are not implemented. |
+| Browser capture | Manifest V3 screenshot or selected-text review, redaction, idempotent localhost handoff, retry, and receipt reconciliation. | Fixture and package behavior are verified; the real toolbar gesture and cross-surface backend journey still need final integration proof. |
+| Contracts | Versioned TypeBox schemas and an HTTP client cover the shared authority API. | [`packages/domain/`](packages/domain/) remains a placeholder until native and API domain shapes stabilize. |
+| Agent system | The governed continuity loop, immutable Wiki/context compilation, specialized recoverable public research, and derived relationship Agent history are executable. | The generic Definition/Task/Run/Event/Checkpoint runner is designed but not implemented. |
+| Project knowledge | Checked canonical docs, editable architecture diagrams, a compiled Wiki workflow, dated evaluations, and pre-push enforcement. | Evaluation artifacts demonstrate synthetic and local behavior, not field value or production readiness. |
+
+### Agent Loop: implemented core versus proposed runtime
+
+Two different mechanisms are easy to call the “Agent Loop.” Their maturity is
+not the same.
+
+| Layer | Status | What the code proves |
+| --- | --- | --- |
+| Governed continuity workflow | Implemented | Capture, exact evidence, model or fixture proposal, independent fact decision, confirmed temporal state, action proposal, exact approval, effect attempt, destination observation, and outcome remain separate, idempotent records. |
+| Context and memory | Implemented | A gold relationship Wiki snapshot is compiled from governed state; each Chat task pins a bounded Context Manifest with inclusion reasons and evidence dependencies. |
+| Bounded public research | Implemented as a specialized worker | One recruiter-approved domain and page budget can be retrieved with SSRF controls, leases, partial results, retry, restart recovery, provenance, freshness, and deletion lineage. |
+| Relationship Agent history | Implemented as a derived view | Durable domain audit events are projected into person-and-relationship operation receipts and unresolved-effect follow-ups. This is not a Run event store. |
+| External-effect boundary | Implemented as a local deterministic simulation | Current facts, exact preview digest, short-lived human approval, capability grant, idempotent attempt, readback, reconciliation, and explicit `unknown` are enforced. No production connector is implied. |
+| Open-ended Agent runner | Designed only | Versioned Agent Definitions, immutable Tasks and Runs, append-only typed Run events, reducer, checkpoints, first-class artifacts, general budgets, cancellation, stop reasons, and a capability registry are still missing. |
+| External Agent access | Not implemented | Codex, Claude, Manus, OpenClaw, n8n, or another client does not yet receive a production scoped Agent protocol. |
+
+The executable core currently follows this path:
+
+```text
+capture
+→ exact evidence
+→ proposal
+→ recruiter fact decision
+→ confirmed temporal state
+→ gold Wiki snapshot + Context Manifest
+→ action proposal
+→ exact human approval
+→ local deterministic effect attempt
+→ destination readback or explicit unknown
+→ observed outcome and durable relationship history
+```
+
+The existing Chat endpoint is therefore a deterministic context compiler, not
+an iterative LLM runner. Public research supplies the closest reusable worker
+primitive, but it remains a task-specific workflow rather than a shared Agent
+kernel.
+
+| Agent-loop concern | Executable owner |
 | --- | --- |
-| Web | A polished product narrative, deterministic evidence-review demo, authenticated sample workspace, and living candidate page. |
-| iOS | A native SwiftUI capture and review flow with screenshot import, reviewable facts, action preview, and fixture-driven tests. |
-| Domain | A platform-neutral contract boundary; shared code waits until the iOS and API shapes are stable. |
-| Agent system | Provider-neutral boundaries for scoped reads, artifacts, proposals, checkpoints, and governed capabilities. |
-| Project Wiki | A checked raw-to-published knowledge workflow with portable links, backlinks, drift detection, and pre-push enforcement. |
+| Proposal validation | [`apps/backend/src/modules/proposals.ts`](apps/backend/src/modules/proposals.ts) |
+| Fact authority | [`apps/backend/src/modules/decisions.ts`](apps/backend/src/modules/decisions.ts) |
+| Knowledge compilation and bounded Chat context | [`apps/backend/src/modules/wiki.ts`](apps/backend/src/modules/wiki.ts) and [`apps/backend/src/modules/chat.ts`](apps/backend/src/modules/chat.ts) |
+| Recoverable public research | [`apps/backend/src/modules/research.ts`](apps/backend/src/modules/research.ts) |
+| Approval, attempt, observation, and reconciliation | [`apps/backend/src/modules/actions.ts`](apps/backend/src/modules/actions.ts) |
+| Derived relationship operation history | [`apps/backend/src/modules/agentHistory.ts`](apps/backend/src/modules/agentHistory.ts) |
+
+Read the stable boundaries in [Agent system](docs/agent-system.md), the
+code-to-design gap in the [Agent module blueprint](docs/research/talent-signal-agent-module-blueprint.md),
+and the pending milestones in the [Agent foundation plan](plans/2026-08-07-agent-module-foundation.md).
 
 ### What you can verify today
 
@@ -238,10 +295,12 @@ The full rationale is in [Architecture](docs/architecture.md) and
 | --- | --- |
 | [`apps/web/`](apps/web/) | Next.js narrative, sample workspace, and evidence-review demo |
 | [`apps/ios/`](apps/ios/) | Native SwiftUI capture, review, and timely briefing |
-| [`apps/backend/`](apps/backend/) | Deterministic local API boundary and candidate-momentum fixture contract |
+| [`apps/backend/`](apps/backend/) | Fastify/PostgreSQL shared authority core, recovery workers, and synthetic runtime evaluations |
 | [`apps/browser-extension/`](apps/browser-extension/) | Governed browser capture, review, retry, and receipt flow |
 | [`apps/chrome-extension/`](apps/chrome-extension/) | Chrome extension packaging and browser-specific integration surface |
-| [`packages/domain/`](packages/domain/) | Platform-neutral vocabulary and the future shared-contract boundary |
+| [`packages/contracts/`](packages/contracts/) | Versioned shared API schemas, identity utilities, and typed HTTP client |
+| [`packages/domain/`](packages/domain/) | Placeholder for a future stable cross-platform domain package |
+| [`plugins/talent-signal/`](plugins/talent-signal/) | Proposal-only Codex skill package and deterministic fixture validation |
 | [`brand/`](brand/README.md) | Canonical brand mark, controlled exports, and usage guidance |
 | [`docs/`](docs/README.md) | Canonical product, architecture, design, delivery, and operating knowledge |
 | [`_index/`](_index/README.md) | Raw sources, notes, drafts, and editable Wiki pages |
