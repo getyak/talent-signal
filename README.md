@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="brand/svg/talent-signal-readme-mark.svg" width="64" alt="Talent Signal Held Interval mark">
+<img src="brand/svg/talent-signal-readme-mark.svg" width="56" alt="Talent Signal Held Interval mark">
 
 # Talent Signal
 
@@ -9,25 +9,28 @@
 Capture a meaningful conversation. Review exactly what changed. Decide the
 next action. Carry verified context forward.
 
-[Product loop](#the-product-loop) ·
+[Explore the product](https://gettalentsignal.com) ·
+[Open the 60-second demo](https://gettalentsignal.com/demo) ·
+[See the product loop](#the-product-loop) ·
+[Run it locally](#quick-start)
+
 [Trust contract](#trust-is-product-behavior) ·
 [Implementation status](#what-exists-today) ·
-[Quick start](#quick-start) ·
 [Architecture](#system-architecture) ·
 [Contributing](#contributing)
-
-[Open the live demo](https://gettalentsignal.com/demo) ·
-[Explore the product](https://gettalentsignal.com) ·
-[Brand system](brand/README.md) ·
-[Read the trust contract](#trust-is-product-behavior)
 
 [![CI](https://github.com/getyak/talent-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/getyak/talent-signal/actions/workflows/ci.yml)
 [![Security](https://github.com/getyak/talent-signal/actions/workflows/security.yml/badge.svg)](https://github.com/getyak/talent-signal/actions/workflows/security.yml)
 
-[![Synthetic Talent Signal workspace showing exact source evidence beside reviewable proposed facts](docs/evaluations/overnight/web/artifacts/workspace-desktop-light.png)](https://gettalentsignal.com/demo)
+<a href="https://gettalentsignal.com" aria-label="Explore the Talent Signal product">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/home-dark.webp">
+    <img src="docs/readme/home-light.webp" width="1440" alt="Talent Signal home showing a relationship change grounded in exact source evidence">
+  </picture>
+</a>
 
-<sub>Real product surface · synthetic fixture · no private candidate data ·
-fact review grants no external execution authority</sub>
+<sub>Real product surface · synthetic people and conversations · no private
+candidate data · understanding never grants execution authority</sub>
 
 </div>
 
@@ -66,7 +69,38 @@ replacing relationship judgment.
 > proposed from exact source evidence, reviewed one fact at a time, and still
 > unable to authorize an external action.
 
-### See the trust boundary in 60 seconds
+## One relationship, continuous by design
+
+The desktop is a quiet relationship desk, not another pipeline. The phone keeps
+the same evidence, current dependency, and approved next step close to the
+conversation—without compressing the person into a score.
+
+<table>
+  <tr>
+    <td width="72%">
+      <a href="apps/web/public/marketing/signal-journey/web-relationship-output.webp">
+        <img src="apps/web/public/marketing/signal-journey/web-relationship-output.webp" alt="Talent Signal Living Desk showing a relationship library, source evidence, and one current next step">
+      </a>
+    </td>
+    <td width="28%">
+      <a href="apps/web/public/marketing/signal-journey/iphone-relationship-output.webp">
+        <img src="apps/web/public/marketing/signal-journey/iphone-relationship-output.webp" alt="Talent Signal iPhone relationship page showing the same current dependency and evidence-backed next step">
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td><sub><strong>Living Desk</strong> · relationships ordered by deserved attention, with evidence one gesture away</sub></td>
+    <td><sub><strong>In the conversation</strong> · continuity without a miniature CRM</sub></td>
+  </tr>
+</table>
+
+<sub>Concept surfaces use synthetic fixtures. Click either image to inspect it
+at full resolution.</sub>
+
+<details>
+<summary><strong>Try the trust boundary in 60 seconds</strong> — exact evidence, independent fact decisions, and an intentional <code>no_action</code></summary>
+
+<br>
 
 1. [Open the deterministic evidence review](https://gettalentsignal.com/demo).
 2. Use the included synthetic conversation—no account or candidate data is
@@ -76,6 +110,8 @@ replacing relationship judgment.
 5. Verify that fact confirmation still does not approve an external action.
 6. Change the note to produce insufficient evidence or `no_action`, then reset
    the demo without persisting the text.
+
+</details>
 
 ## The product loop
 
@@ -151,7 +187,10 @@ claimed.
 | Agent system | The governed continuity loop, immutable Wiki/context compilation, specialized recoverable public research, and derived relationship Agent history are executable. | The generic Definition/Task/Run/Event/Checkpoint runner is designed but not implemented. |
 | Project knowledge | Checked canonical docs, editable architecture diagrams, a compiled Wiki workflow, dated evaluations, and pre-push enforcement. | Evaluation artifacts demonstrate synthetic and local behavior, not field value or production readiness. |
 
-### Agent Loop: implemented core versus proposed runtime
+<details>
+<summary><strong>Engineering deep dive: implemented Agent Loop versus proposed runtime</strong> — inspect what is executable, simulated, designed, or absent</summary>
+
+<br>
 
 Two different mechanisms are easy to call the “Agent Loop.” Their maturity is
 not the same.
@@ -199,6 +238,8 @@ kernel.
 Read the stable boundaries in [Agent system](docs/agent-system.md), the
 code-to-design gap in the [Agent module blueprint](docs/research/talent-signal-agent-module-blueprint.md),
 and the pending milestones in the [Agent foundation plan](plans/2026-08-07-agent-module-foundation.md).
+
+</details>
 
 ### What you can verify today
 
