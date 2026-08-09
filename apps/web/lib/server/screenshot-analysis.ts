@@ -1,7 +1,12 @@
 import "server-only";
 
 import {
-  SCREENSHOT_PLATFORMS,
+  ProxyAgent,
+  fetch as undiciFetch,
+  type Dispatcher,
+} from "undici";
+
+import {
   parseScreenshotCaptureDraft,
   type ScreenshotAnalysisMeta,
   type ScreenshotCaptureDraft,
@@ -16,6 +21,8 @@ import {
 
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
+let openRouterProxy: { url: string; dispatcher: Dispatcher } | null = null;
+
 type OpenRouterResponse = {
   id?: string;
   model?: string;
@@ -24,6 +31,14 @@ type OpenRouterResponse = {
       content?: string;
     };
   }>;
+};
+
+type OpenRouterRequestInit = {
+  method: "POST";
+  headers: Record<string, string>;
+  body: string;
+  cache: "no-store";
+  signal: AbortSignal;
 };
 
 export type ScreenshotAnalysis = {
@@ -49,8 +64,50 @@ function openRouterEndpoint() {
 function openRouterScreenshotModel() {
   return (
     process.env.TALENT_SIGNAL_OPENROUTER_SCREENSHOT_MODEL ??
-    "google/gemini-3.1-flash-lite"
+    "google/gemini-3.5-flash-lite"
   );
+}
+
+function openRouterProxyUrl() {
+  const configured = process.env.TALENT_SIGNAL_OPENROUTER_PROXY_URL?.trim();
+  if (!configured) {
+    return null;
+  }
+  const parsed = new URL(configured);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(
+      "TALENT_SIGNAL_OPENROUTER_PROXY_URL must use HTTP or HTTPS.",
+    );
+  }
+  return parsed.toString();
+}
+
+function openRouterProxyDispatcher(proxyUrl: string) {
+  if (!openRouterProxy || openRouterProxy.url !== proxyUrl) {
+    openRouterProxy = {
+      url: proxyUrl,
+      dispatcher: new ProxyAgent(proxyUrl),
+    };
+  }
+  return openRouterProxy.dispatcher;
+}
+
+async function fetchOpenRouter(
+  endpoint: string,
+  init: OpenRouterRequestInit,
+  fetchImpl?: typeof fetch,
+) {
+  if (fetchImpl) {
+    return fetchImpl(endpoint, init);
+  }
+  const proxyUrl = openRouterProxyUrl();
+  if (!proxyUrl) {
+    return fetch(endpoint, init);
+  }
+  return undiciFetch(endpoint, {
+    ...init,
+    dispatcher: openRouterProxyDispatcher(proxyUrl),
+  });
 }
 
 function openRouterProviderOrder() {
@@ -94,149 +151,6 @@ export function getScreenshotAnalysisAvailability() {
   };
 }
 
-export const screenshotCaptureOutputSchema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    platform: {
-      type: "string",
-      enum: [...SCREENSHOT_PLATFORMS],
-    },
-    captured_at: {
-      anyOf: [{ type: "string", maxLength: 80 }, { type: "null" }],
-    },
-    transcription_notes: {
-      type: "array",
-      maxItems: 6,
-      items: { type: "string", minLength: 1, maxLength: 180 },
-    },
-    messages: {
-      type: "array",
-      minItems: 1,
-      maxItems: 80,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          source_message_id: {
-            type: "string",
-            minLength: 1,
-            maxLength: 80,
-            pattern: "^[a-zA-Z0-9:_-]+$",
-          },
-          speaker: {
-            type: "string",
-            enum: ["candidate", "recruiter", "unknown"],
-          },
-          text: { type: "string", minLength: 1, maxLength: 4000 },
-        },
-        required: ["source_message_id", "speaker", "text"],
-      },
-    },
-    assertions: {
-      type: "array",
-      maxItems: 12,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          field: {
-            type: "string",
-            enum: [
-              "availability",
-              "competing_process",
-              "decision_deadline",
-              "relocation_requirement",
-              "work_mode_constraint",
-              "work_mode_preference",
-            ],
-          },
-          status: { type: "string", enum: ["proposed", "ambiguous"] },
-          value: { type: "string", minLength: 1, maxLength: 1000 },
-          evidence_message_id: {
-            type: "string",
-            minLength: 1,
-            maxLength: 80,
-          },
-          evidence_quote: {
-            type: "string",
-            minLength: 1,
-            maxLength: 800,
-          },
-          ambiguity: {
-            anyOf: [
-              { type: "string", minLength: 1, maxLength: 180 },
-              { type: "null" },
-            ],
-          },
-        },
-        required: [
-          "field",
-          "status",
-          "value",
-          "evidence_message_id",
-          "evidence_quote",
-          "ambiguity",
-        ],
-      },
-    },
-    action: {
-      anyOf: [
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            target: { type: "string", minLength: 1, maxLength: 500 },
-            reason: { type: "string", minLength: 1, maxLength: 800 },
-            due: { type: "string", minLength: 1, maxLength: 160 },
-            evidence_message_ids: {
-              type: "array",
-              minItems: 1,
-              maxItems: 8,
-              items: { type: "string", minLength: 1, maxLength: 80 },
-            },
-          },
-          required: ["target", "reason", "due", "evidence_message_ids"],
-        },
-        { type: "null" },
-      ],
-    },
-  },
-  required: [
-    "platform",
-    "captured_at",
-    "transcription_notes",
-    "messages",
-    "assertions",
-    "action",
-  ],
-} as const;
-
-function providerCompatibleSchema(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(providerCompatibleSchema);
-  }
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-  const unsupportedKeywords = new Set([
-    "maxItems",
-    "maxLength",
-    "minItems",
-    "minLength",
-    "pattern",
-  ]);
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => !unsupportedKeywords.has(key))
-      .map(([key, item]) => [key, providerCompatibleSchema(item)]),
-  );
-}
-
-export const screenshotCaptureProviderSchema = providerCompatibleSchema(
-  screenshotCaptureOutputSchema,
-);
-
 async function analyzeWithOpenRouter(input: {
   bytes: Uint8Array;
   mimeType: "image/jpeg" | "image/png" | "image/webp";
@@ -244,6 +158,7 @@ async function analyzeWithOpenRouter(input: {
   assignmentLabel: string;
   screenshotOwner: ScreenshotOwnerRole;
   sourceSha256: string;
+  preProviderMinimization?: ScreenshotAnalysisMeta["pre_provider_minimization"];
   fetchImpl?: typeof fetch;
 }): Promise<ScreenshotAnalysis> {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -256,7 +171,7 @@ async function analyzeWithOpenRouter(input: {
     throw new Error("OpenRouter screenshot analysis is not configured.");
   }
   const dataUrl = `data:${input.mimeType};base64,${Buffer.from(input.bytes).toString("base64")}`;
-  const response = await (input.fetchImpl ?? fetch)(openRouterEndpoint(), {
+  const response = await fetchOpenRouter(openRouterEndpoint(), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -281,14 +196,11 @@ async function analyzeWithOpenRouter(input: {
           ],
         },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "screenshot_candidate_momentum_evidence",
-          strict: true,
-          schema: screenshotCaptureProviderSchema,
-        },
-      },
+      // The complete evidence contract is enforced by
+      // parseScreenshotCaptureDraft after the provider returns. Requesting
+      // native json_schema routing here excludes otherwise eligible ZDR
+      // vision endpoints for schemas with nullable unions.
+      response_format: { type: "json_object" },
       provider: {
         allow_fallbacks: true,
         data_collection: "deny",
@@ -302,7 +214,7 @@ async function analyzeWithOpenRouter(input: {
     }),
     cache: "no-store",
     signal: AbortSignal.timeout(45_000),
-  });
+  }, input.fetchImpl);
   if (!response.ok) {
     let providerDetail = "";
     try {
@@ -350,6 +262,9 @@ async function analyzeWithOpenRouter(input: {
       model: payload.model ?? availability.screenshot_model,
       ...(payload.id ? { request_id: payload.id } : {}),
       prompt_version: SCREENSHOT_PROMPT_VERSION,
+      ...(input.preProviderMinimization
+        ? { pre_provider_minimization: input.preProviderMinimization }
+        : {}),
       source_sha256: input.sourceSha256,
       raw_image_stored_by_talent_signal: false,
     },
@@ -363,6 +278,7 @@ export async function analyzeScreenshot(input: {
   assignmentLabel: string;
   screenshotOwner: ScreenshotOwnerRole;
   sourceSha256: string;
+  preProviderMinimization?: ScreenshotAnalysisMeta["pre_provider_minimization"];
   fetchImpl?: typeof fetch;
 }): Promise<ScreenshotAnalysis> {
   const availability = getScreenshotAnalysisAvailability();
@@ -378,6 +294,9 @@ export async function analyzeScreenshot(input: {
     meta: {
       ...result.meta,
       prompt_version: SCREENSHOT_PROMPT_VERSION,
+      ...(input.preProviderMinimization
+        ? { pre_provider_minimization: input.preProviderMinimization }
+        : {}),
       source_sha256: input.sourceSha256,
     },
   };

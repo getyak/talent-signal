@@ -170,6 +170,7 @@ const BoundExistingIdentitySchema = Type.Object(
   {
     status: Type.Literal("bound_existing"),
     subject_id: Id,
+    assignment_id: Type.Optional(Id),
     assignment_ref: Type.String({ minLength: 1, maxLength: 200 }),
     assignment_label: Type.String({ minLength: 1, maxLength: 200 }),
     binding_basis: Type.String({ minLength: 1, maxLength: 240 }),

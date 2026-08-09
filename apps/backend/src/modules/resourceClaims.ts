@@ -35,10 +35,40 @@ interface FragmentClaimContext {
   text_content: string | null;
   content_hash: string;
   review_status: "proposed" | "reviewed" | "rejected";
+  attributed_actor:
+    | "candidate"
+    | "recruiter"
+    | "client"
+    | "document_author"
+    | "public_source"
+    | "unknown";
   attribution_status: "confirmed" | "proposed" | "unknown";
   subject_id: string | null;
   assignment_id: string | null;
   identity_status: "bound" | "ambiguous" | "unbound";
+}
+
+export function resourceFragmentClaimAuthority(
+  context: Pick<
+    FragmentClaimContext,
+    "resource_kind" | "attributed_actor" | "attribution_status"
+  >,
+): { allowed: boolean; subjectKind: "candidate" | "unknown" } {
+  if (context.resource_kind === "conversation_transcript") {
+    const candidateConfirmed =
+      context.attributed_actor === "candidate" &&
+      context.attribution_status === "confirmed";
+    return {
+      allowed: candidateConfirmed,
+      subjectKind: candidateConfirmed ? "candidate" : "unknown",
+    };
+  }
+  return {
+    allowed: ["resume", "document", "public_url", "contact_record"].includes(
+      context.resource_kind,
+    ),
+    subjectKind: "unknown",
+  };
 }
 
 const LABEL_RULES: Array<{
@@ -234,6 +264,7 @@ export async function proposeResourceClaimsForFragment(
        fragments.text_content,
        fragments.content_hash,
        fragments.review_status,
+       fragments.attributed_actor,
        fragments.attribution_status,
        resources.resource_kind,
        resources.duplicate_of_resource_id,
@@ -255,6 +286,9 @@ export async function proposeResourceClaimsForFragment(
     [auth.accountId, fragmentId],
   );
   const context = result.rows[0];
+  const authority = context
+    ? resourceFragmentClaimAuthority(context)
+    : { allowed: false, subjectKind: "unknown" as const };
   if (
     !context ||
     context.review_status !== "reviewed" ||
@@ -263,9 +297,7 @@ export async function proposeResourceClaimsForFragment(
     !context.assignment_id ||
     !context.text_content ||
     context.duplicate_of_resource_id ||
-    !["resume", "document", "public_url", "contact_record"].includes(
-      context.resource_kind,
-    )
+    !authority.allowed
   ) {
     return 0;
   }
@@ -303,13 +335,18 @@ export async function proposeResourceClaimsForFragment(
   }
 
   const sourceMessageId = `resource-fragment:${fragmentId}`;
+  const evidenceSpeaker =
+    context.attributed_actor === "candidate" ||
+    context.attributed_actor === "recruiter"
+      ? context.attributed_actor
+      : "unknown";
   const evidenceId = randomUUID();
   const evidence = await client.query<{ id: string }>(
     `INSERT INTO evidence_items(
        id, account_id, capture_id, source_message_id, sequence,
        speaker, redacted_text, content_hash
      )
-     VALUES ($1, $2, $3, $4, $5, 'unknown', $6, $7)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (account_id, capture_id, source_message_id)
      DO UPDATE SET
        redacted_text = EXCLUDED.redacted_text,
@@ -321,6 +358,7 @@ export async function proposeResourceClaimsForFragment(
       context.capture_id,
       sourceMessageId,
       context.fragment_sequence,
+      evidenceSpeaker,
       context.text_content,
       context.content_hash,
     ],
@@ -406,7 +444,7 @@ export async function proposeResourceClaimsForFragment(
        )
        VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-         'unknown', $11, $12
+         $11, $12, $13
        )`,
       [
         randomUUID(),
@@ -419,6 +457,7 @@ export async function proposeResourceClaimsForFragment(
         ambiguous ? "ambiguous" : "proposed",
         claim.value,
         claim.evidenceQuote,
+        authority.subjectKind,
         temporalRelation,
         temporalRelation === "supersedes" ? active?.id ?? null : null,
       ],

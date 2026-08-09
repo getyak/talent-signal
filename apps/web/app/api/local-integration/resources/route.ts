@@ -12,6 +12,9 @@ import {
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import {
+  reviewedConversationFragments,
+} from "@/lib/conversation-transcript";
 import { isAllowedMutationOrigin } from "@/lib/request-origin";
 import { extractDocument } from "@/lib/server/documentExtraction";
 import {
@@ -37,9 +40,11 @@ type TextResourceInput = {
   candidate_person_ids?: string[];
   contact_name?: string;
   relationship_context_label?: string;
-  type: "contact" | "note" | "url";
+  type: "contact" | "conversation" | "note" | "url";
   title?: string;
   value: string;
+  transcript_messages?: unknown;
+  attribution_reviewed?: boolean;
   identity_clue_confirmed?: boolean;
 };
 
@@ -195,8 +200,23 @@ function textFragments(
   displayName: string;
   sourceLocator?: string;
   fragments: EvidenceFragmentInput[];
-  kind: "personal_note" | "public_url";
+  kind: "conversation_transcript" | "personal_note" | "public_url";
 } {
+  if (input.type === "conversation") {
+    if (input.attribution_reviewed !== true) {
+      throw new Error(
+        "Review every transcript speaker before attaching the conversation.",
+      );
+    }
+    return {
+      displayName: input.title?.trim() || "Reviewed conversation transcript",
+      kind: "conversation_transcript",
+      fragments: reviewedConversationFragments(
+        input.transcript_messages,
+        clientResourceId,
+      ),
+    };
+  }
   const value = input.value.normalize("NFKC").trim();
   if (value.length === 0 || value.length > 40_000) {
     throw new Error("Add between 1 and 40,000 characters.");
