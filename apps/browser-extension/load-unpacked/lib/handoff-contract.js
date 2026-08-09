@@ -3,6 +3,7 @@ export const DEFAULT_LOCAL_ORIGIN = "http://localhost:3000";
 export const MAX_HANDOFF_BYTES = 8_000_000;
 
 const LOCAL_ORIGINS = new Set(["localhost", "127.0.0.1"]);
+const CAPTURE_ID_PATTERN = /^[a-zA-Z0-9-]{8,80}$/;
 const RETENTION_MODES = new Set([
   "ephemeral",
   "evidence_crop",
@@ -72,6 +73,16 @@ export function normalizeLocalOrigin(value) {
   return parsed.origin;
 }
 
+export function buildExactWebReviewUrl(localOrigin, captureId) {
+  if (typeof captureId !== "string" || !CAPTURE_ID_PATTERN.test(captureId)) {
+    throw new Error("The receipt did not include a valid capture identifier.");
+  }
+  const target = new URL("/workspace", normalizeLocalOrigin(localOrigin));
+  target.searchParams.set("capture", captureId);
+  target.searchParams.set("source", "browser-extension");
+  return target.toString();
+}
+
 export function createRequestIdentity(draftId, randomUUID = () =>
   globalThis.crypto?.randomUUID?.() ?? `request-${Date.now()}`) {
   const requestId = randomUUID();
@@ -128,6 +139,11 @@ export function buildHandoffEnvelope({
 export function classifyReceiptResponse(status, body = {}) {
   const receiptId =
     typeof body.receipt_id === "string" ? body.receipt_id : null;
+  const captureId =
+    typeof body.capture_id === "string" &&
+    CAPTURE_ID_PATTERN.test(body.capture_id)
+      ? body.capture_id
+      : null;
 
   if (
     status === 409 &&
@@ -137,6 +153,7 @@ export function classifyReceiptResponse(status, body = {}) {
     return {
       state: "received",
       receipt_id: receiptId,
+      capture_id: captureId,
       duplicate: true,
       message: "This exact review packet was already received. No duplicate was created.",
     };
@@ -170,6 +187,7 @@ export function classifyReceiptResponse(status, body = {}) {
     return {
       state: "received",
       receipt_id: receiptId,
+      capture_id: captureId,
       duplicate: Boolean(body.duplicate),
       retention,
       message:

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildExactWebReviewUrl,
   buildHandoffEnvelope,
   classifyReceiptResponse,
   classifyTransportError,
@@ -52,6 +53,25 @@ test("accepts only localhost development origins", () => {
   );
   assert.throws(() => normalizeLocalOrigin("https://localhost:3000"));
   assert.throws(() => normalizeLocalOrigin("http://talent-signal.example"));
+});
+
+test("opens only a validated receipt on the local Web review surface", () => {
+  assert.equal(
+    buildExactWebReviewUrl(
+      "http://localhost:3000/path",
+      "1f1d18be-0190-4b93-8a48-5cb68274cabf",
+    ),
+    "http://localhost:3000/workspace?capture=1f1d18be-0190-4b93-8a48-5cb68274cabf&source=browser-extension",
+  );
+  assert.throws(() =>
+    buildExactWebReviewUrl("http://localhost:3000", "../../workspace"),
+  );
+  assert.throws(() =>
+    buildExactWebReviewUrl(
+      "https://talent-signal.example",
+      "1f1d18be-0190-4b93-8a48-5cb68274cabf",
+    ),
+  );
 });
 
 test("separates observed source, reviewed asset, authorization, and receipt", () => {
@@ -126,8 +146,17 @@ test("classifies pending, received, duplicate, stale, and invalid responses trut
     classifyReceiptResponse(202, {
       status: "received",
       receipt_id: "receipt-1",
+      capture_id: "1f1d18be-0190-4b93-8a48-5cb68274cabf",
     }).state,
     "received",
+  );
+  assert.equal(
+    classifyReceiptResponse(202, {
+      status: "received",
+      receipt_id: "receipt-1",
+      capture_id: "1f1d18be-0190-4b93-8a48-5cb68274cabf",
+    }).capture_id,
+    "1f1d18be-0190-4b93-8a48-5cb68274cabf",
   );
   const duplicate = classifyReceiptResponse(409, {
     status: "received",

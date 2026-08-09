@@ -22,6 +22,21 @@ export function normalizeTabSource(tab, capturedAt = new Date().toISOString()) {
   };
 }
 
+export function normalizeUploadedImageSource(
+  file,
+  importedAt = new Date().toISOString(),
+) {
+  return {
+    title:
+      typeof file?.name === "string" && file.name.trim()
+        ? file.name.trim().slice(0, 500)
+        : "Chosen screenshot",
+    url: "local-file://reviewed-screenshot",
+    captured_at: importedAt,
+    time_basis: "imported_at",
+  };
+}
+
 export function normalizeSelection(value) {
   const text = typeof value === "string" ? value.trim() : "";
 

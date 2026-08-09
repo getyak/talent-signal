@@ -5,6 +5,7 @@ import {
   MAX_SELECTION_CHARACTERS,
   normalizeSelection,
   normalizeTabSource,
+  normalizeUploadedImageSource,
 } from "../load-unpacked/lib/capture-contract.js";
 
 test("normalizes only the active source metadata supplied by Chrome", () => {
@@ -22,6 +23,24 @@ test("normalizes only the active source metadata supplied by Chrome", () => {
       title: "Candidate conversation",
       url: "https://example.test/messages/1",
       captured_at: "2026-08-05T09:00:00.000Z",
+    },
+  );
+});
+
+test("labels a chosen screenshot by import time without inventing capture time", () => {
+  assert.deepEqual(
+    normalizeUploadedImageSource(
+      {
+        name: "  reviewed-chat.png  ",
+        lastModified: Date.parse("2024-01-01T00:00:00.000Z"),
+      },
+      "2026-08-09T12:00:00.000Z",
+    ),
+    {
+      title: "reviewed-chat.png",
+      url: "local-file://reviewed-screenshot",
+      captured_at: "2026-08-09T12:00:00.000Z",
+      time_basis: "imported_at",
     },
   );
 });

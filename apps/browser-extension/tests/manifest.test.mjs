@@ -43,6 +43,16 @@ test("ships only local extension code in the review page", () => {
   assert.match(html, /<script type="module" src="sidepanel\.js"><\/script>/);
 });
 
+test("uses the approved mark and discloses image handoff limits before capture", () => {
+  assert.match(
+    html,
+    /M38 10\.5c-4\.3-2\.1-9\.2-2\.8-14-1\.6C12\.1 11\.8 5\.7 24\.2 9\.9 35\.6c3\.8 10\.2 14\.8 15\.8 25\.2 12\.9/,
+  );
+  assert.match(html, /Use selected text[\s\S]*continue to Web/);
+  assert.match(html, /Capture visible area[\s\S]*Local review only/);
+  assert.match(html, /Choose a screenshot[\s\S]*Web image intake is not connected/);
+});
+
 test("provides unique landmarks, live status, and an ordered review path", () => {
   const ids = [...html.matchAll(/\sid=["']([^"']+)["']/g)].map(
     (match) => match[1],
