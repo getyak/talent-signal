@@ -14,6 +14,7 @@ import {
   DotsThree,
   Export,
   Gear,
+  Images,
   Lifebuoy,
   ListDashes,
   MagnifyingGlass,
@@ -26,13 +27,18 @@ import {
   Quotes,
   ShareNetwork,
   ShieldCheck,
+  StackSimple,
   Star,
+  TextT,
+  Trash,
   UsersThree,
+  WarningCircle,
+  Waveform,
   WifiHigh,
   X,
 } from "@phosphor-icons/react";
 import Image from "next/image";
-import type { ReactNode } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./relationship-mobile-concept.module.css";
 
@@ -42,6 +48,26 @@ type CollectionView = "now" | "all" | "quiet";
 type AgentMode = "home" | "find" | "answer" | "remember";
 type ArchivePage = "today" | "people" | "library";
 type ReviewKind = "change" | "resume";
+type CapturePhase = "collect" | "review" | "receipt";
+type CaptureVoiceState = "empty" | "recording" | "ready";
+type SpeakerPerspective = "candidate" | "recruiter" | "unknown";
+
+type CaptureAsset = {
+  id: string;
+  kind: "local" | "synthetic";
+  label: string;
+  channel: string;
+  preview: string;
+};
+
+type CaptureDraft = {
+  assets: CaptureAsset[];
+  note: string;
+  phase: CapturePhase;
+  selectedAssetId: string | null;
+  speakerPerspective: SpeakerPerspective | null;
+  voiceState: CaptureVoiceState;
+};
 
 type Person = {
   id: string;
@@ -66,6 +92,41 @@ type DetailContent = {
   now: string;
   nextStep: string;
 };
+
+const syntheticCaptureAssets: CaptureAsset[] = [
+  {
+    id: "sample-whatsapp",
+    kind: "synthetic",
+    label: "Conversation 01",
+    channel: "WhatsApp",
+    preview: "/marketing/signal-journey/whatsapp-synthetic.webp",
+  },
+  {
+    id: "sample-wechat",
+    kind: "synthetic",
+    label: "Conversation 02",
+    channel: "WeChat",
+    preview: "/marketing/signal-journey/wechat-synthetic.webp",
+  },
+  {
+    id: "sample-boss",
+    kind: "synthetic",
+    label: "Conversation 03",
+    channel: "BOSS",
+    preview: "/marketing/signal-journey/boss-synthetic.webp",
+  },
+];
+
+function createEmptyCaptureDraft(): CaptureDraft {
+  return {
+    assets: [],
+    note: "",
+    phase: "collect",
+    selectedAssetId: null,
+    speakerPerspective: null,
+    voiceState: "empty",
+  };
+}
 
 const people: Person[] = [
   {
@@ -393,10 +454,14 @@ function BrandMenu({ onClose }: { onClose: () => void }) {
 }
 
 function AgentRail({
+  captureCount = 0,
   label = "Ask what deserves attention…",
+  onCapture,
   onOpen,
 }: {
+  captureCount?: number;
   label?: string;
+  onCapture: () => void;
   onOpen: () => void;
 }) {
   return (
@@ -408,8 +473,21 @@ function AgentRail({
         <span>{label}</span>
         <small>Draft authority only</small>
       </button>
-      <button aria-label="Capture a relationship moment" onClick={onOpen} type="button">
+      <button
+        aria-label={
+          captureCount > 0
+            ? `Resume relationship capture, ${captureCount} sources`
+            : "Capture a relationship moment"
+        }
+        className={styles.captureLauncher}
+        data-capture-launcher="true"
+        onClick={onCapture}
+        type="button"
+      >
         <NotePencil size={21} />
+        {captureCount > 0 ? (
+          <span aria-hidden="true">{captureCount}</span>
+        ) : null}
       </button>
     </div>
   );
@@ -503,11 +581,15 @@ function PersonRow({
 }
 
 function PeopleArchive({
+  captureCount,
+  onCapture,
   onGuide,
   onLibrary,
   onSelect,
   onToday,
 }: {
+  captureCount: number;
+  onCapture: () => void;
   onGuide: (mode?: AgentMode, person?: Person) => void;
   onLibrary: () => void;
   onSelect: (person: Person) => void;
@@ -605,18 +687,26 @@ function PeopleArchive({
         </section>
       </div>
 
-      <AgentRail onOpen={() => onGuide("home")} />
+      <AgentRail
+        captureCount={captureCount}
+        onCapture={onCapture}
+        onOpen={() => onGuide("home")}
+      />
     </div>
   );
 }
 
 function TodayArchive({
+  captureCount,
+  onCapture,
   onGuide,
   onLibrary,
   onPeople,
   onResume,
   onReview,
 }: {
+  captureCount: number;
+  onCapture: () => void;
   onGuide: (mode?: AgentMode, person?: Person) => void;
   onLibrary: () => void;
   onPeople: () => void;
@@ -707,7 +797,9 @@ function TodayArchive({
       </div>
 
       <AgentRail
+        captureCount={captureCount}
         label="Ask what deserves attention…"
+        onCapture={onCapture}
         onOpen={() => onGuide("answer", leila)}
       />
     </div>
@@ -715,11 +807,15 @@ function TodayArchive({
 }
 
 function LibraryArchive({
+  captureCount,
+  onCapture,
   onGuide,
   onPeople,
   onSelect,
   onToday,
 }: {
+  captureCount: number;
+  onCapture: () => void;
   onGuide: (mode?: AgentMode, person?: Person) => void;
   onPeople: () => void;
   onSelect: (person: Person) => void;
@@ -800,7 +896,12 @@ function LibraryArchive({
         </section>
       </div>
 
-      <AgentRail label="Find a source or relationship…" onOpen={() => onGuide("find")} />
+      <AgentRail
+        captureCount={captureCount}
+        label="Find a source or relationship…"
+        onCapture={onCapture}
+        onOpen={() => onGuide("find")}
+      />
     </div>
   );
 }
@@ -1020,11 +1121,13 @@ function PersonShareMenu({
 
 function PersonActionMenu({
   favorite,
+  onCapture,
   onClose,
   onFavoriteChange,
   person,
 }: {
   favorite: boolean;
+  onCapture: () => void;
   onClose: () => void;
   onFavoriteChange: (value: boolean) => void;
   person: Person;
@@ -1071,9 +1174,7 @@ function PersonActionMenu({
             detail="Keep raw words before interpretation"
             icon={<Plus size={18} />}
             label="Add note or evidence"
-            onClick={() =>
-              setReceipt("A new source review is ready. Nothing is attached yet.")
-            }
+            onClick={onCapture}
           />
           <MenuItem
             detail="Personal shortcut, never a person rank"
@@ -1107,11 +1208,15 @@ function PersonActionMenu({
 }
 
 function PersonDetail({
+  captureCount,
   onBack,
+  onCapture,
   onGuide,
   person,
 }: {
+  captureCount: number;
   onBack: () => void;
+  onCapture: (person: Person) => void;
   onGuide: (mode?: AgentMode, person?: Person) => void;
   person: Person;
 }) {
@@ -1222,7 +1327,9 @@ function PersonDetail({
       </div>
 
       <AgentRail
+        captureCount={captureCount}
         label={`Ask about ${person.name.split(" ")[0]}…`}
+        onCapture={() => onCapture(person)}
         onOpen={() => onGuide("answer", person)}
       />
       {openMenu === "share" ? (
@@ -1231,12 +1338,612 @@ function PersonDetail({
       {openMenu === "actions" ? (
         <PersonActionMenu
           favorite={favorite}
+          onCapture={() => {
+            setOpenMenu(null);
+            onCapture(person);
+          }}
           onClose={() => setOpenMenu(null)}
           onFavoriteChange={setFavorite}
           person={person}
         />
       ) : null}
     </div>
+  );
+}
+
+function CaptureSheet({
+  contextSuggestion,
+  draft,
+  onClearContext,
+  onClose,
+  onDelete,
+  setDraft,
+}: {
+  contextSuggestion: Person | null;
+  draft: CaptureDraft;
+  onClearContext: () => void;
+  onClose: () => void;
+  onDelete: () => void;
+  setDraft: Dispatch<SetStateAction<CaptureDraft>>;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [noteOpen, setNoteOpen] = useState(draft.note.trim().length > 0);
+  const selectedAsset =
+    draft.assets.find((asset) => asset.id === draft.selectedAssetId) ??
+    draft.assets[0] ??
+    null;
+  const canPrepare =
+    draft.assets.length > 0 ||
+    draft.note.trim().length > 0 ||
+    draft.voiceState === "ready";
+  const contextItemCount =
+    (draft.note.trim().length > 0 ? 1 : 0) +
+    (draft.voiceState === "ready" ? 1 : 0);
+  const itemCount = draft.assets.length + contextItemCount;
+  const hasLocalSources = draft.assets.some((asset) => asset.kind === "local");
+  const resultKind = hasLocalSources
+    ? "local"
+    : draft.assets.length > 1
+      ? "organize"
+      : draft.assets.length === 1
+        ? "identity"
+        : "note";
+
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, [draft.phase]);
+
+  const addFiles = async (files: FileList | null) => {
+    if (!files?.length) {
+      return;
+    }
+
+    const existingAssets = draft.assets.some((asset) => asset.kind === "local")
+      ? draft.assets
+      : [];
+    const selectedFiles = Array.from(files).slice(
+      0,
+      Math.max(0, 8 - existingAssets.length),
+    );
+    const localAssets = await Promise.all(
+      selectedFiles.map(
+        (file) =>
+          new Promise<CaptureAsset>((resolve) => {
+            const reader = new FileReader();
+            reader.addEventListener("load", () => {
+              resolve({
+                id: `local-${file.name}-${file.size}-${file.lastModified}`,
+                kind: "local",
+                label: file.name,
+                channel: "Selected screenshot",
+                preview: typeof reader.result === "string" ? reader.result : "",
+              });
+            });
+            reader.readAsDataURL(file);
+          }),
+      ),
+    );
+
+    setDraft((current) => {
+      const base = current.assets.some((asset) => asset.kind === "local")
+        ? current.assets
+        : [];
+      const mergedAssets = [...base, ...localAssets];
+      const assets = mergedAssets
+        .filter(
+          (asset, index) =>
+            mergedAssets.findIndex((candidate) => candidate.id === asset.id) ===
+            index,
+        )
+        .slice(0, 8);
+      return {
+        ...current,
+        assets,
+        phase: "collect",
+        selectedAssetId: assets.at(-1)?.id ?? null,
+        speakerPerspective: null,
+      };
+    });
+  };
+
+  const moveSelectedAsset = (offset: -1 | 1) => {
+    if (!selectedAsset) {
+      return;
+    }
+
+    setDraft((current) => {
+      const currentIndex = current.assets.findIndex(
+        (asset) => asset.id === selectedAsset.id,
+      );
+      const nextIndex = currentIndex + offset;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= current.assets.length) {
+        return current;
+      }
+      const assets = [...current.assets];
+      [assets[currentIndex], assets[nextIndex]] = [
+        assets[nextIndex],
+        assets[currentIndex],
+      ];
+      return { ...current, assets };
+    });
+  };
+
+  const removeSelectedAsset = () => {
+    if (!selectedAsset) {
+      return;
+    }
+
+    setDraft((current) => {
+      const assets = current.assets.filter((asset) => asset.id !== selectedAsset.id);
+      return {
+        ...current,
+        assets,
+        selectedAssetId: assets[0]?.id ?? null,
+        speakerPerspective: null,
+      };
+    });
+  };
+
+  const loadSyntheticExample = () => {
+    setDraft((current) => ({
+      ...current,
+      assets: syntheticCaptureAssets,
+      phase: "collect",
+      selectedAssetId: syntheticCaptureAssets[0].id,
+      speakerPerspective: null,
+    }));
+  };
+
+  const cycleVoiceState = () => {
+    setDraft((current) => ({
+      ...current,
+      voiceState:
+        current.voiceState === "empty"
+          ? "recording"
+          : current.voiceState === "recording"
+            ? "ready"
+            : "empty",
+    }));
+  };
+
+  return (
+    <>
+      <button
+        aria-label="Close quick add"
+        className={styles.captureScrim}
+        onClick={onClose}
+        tabIndex={-1}
+        type="button"
+      />
+      <section
+        aria-labelledby="capture-title"
+        aria-modal="true"
+        className={styles.captureSheet}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            onClose();
+            return;
+          }
+
+          if (event.key === "Tab") {
+            const focusable = Array.from(
+              event.currentTarget.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+              ),
+            ).filter((element) => element.offsetParent !== null);
+            const first = focusable[0];
+            const last = focusable.at(-1);
+
+            if (!first || !last) {
+              return;
+            }
+
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          }
+        }}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <span>Draft only</span>
+            <h2 id="capture-title">
+              {draft.phase === "collect"
+                ? "Quick add"
+                : draft.phase === "review"
+                  ? "Review"
+                  : "Saved for review"}
+            </h2>
+          </div>
+          <button
+            aria-label="Close quick add"
+            onClick={onClose}
+            ref={closeRef}
+            type="button"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className={styles.captureBody}>
+          {draft.phase === "collect" ? (
+            <>
+              <div className={styles.captureContextScope}>
+                <span>{contextSuggestion ? "Suggested relationship" : "Relationship"}</span>
+                <strong>{contextSuggestion?.name ?? "Unassigned"}</strong>
+                {contextSuggestion ? (
+                  <button onClick={onClearContext} type="button">
+                    Clear
+                  </button>
+                ) : (
+                  <small>Choose after the source is reviewed.</small>
+                )}
+              </div>
+
+              <div aria-label="Add context" className={styles.captureInsertTray}>
+                <button
+                  aria-label={`Add screenshots, ${draft.assets.length} of 8 selected`}
+                  aria-pressed={draft.assets.length > 0}
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <span><Images size={20} weight="duotone" /></span>
+                  <strong>Images</strong>
+                  <small>{draft.assets.length > 0 ? `${draft.assets.length} / 8` : "Add up to 8"}</small>
+                </button>
+                <button
+                  aria-label={
+                    draft.voiceState === "empty"
+                      ? "Add voice note"
+                      : draft.voiceState === "recording"
+                        ? "Stop voice note preview"
+                        : "Remove staged voice note"
+                  }
+                  aria-pressed={draft.voiceState !== "empty"}
+                  onClick={cycleVoiceState}
+                  type="button"
+                >
+                  <span>
+                    {draft.voiceState === "recording" ? (
+                      <Waveform size={20} weight="fill" />
+                    ) : (
+                      <Microphone size={20} />
+                    )}
+                  </span>
+                  <strong>
+                    {draft.voiceState === "empty"
+                      ? "Voice"
+                      : draft.voiceState === "recording"
+                        ? "Stop"
+                        : "Voice ready"}
+                  </strong>
+                  <small>
+                    {draft.voiceState === "recording" ? "Preview state" : "Your context"}
+                  </small>
+                </button>
+                <button
+                  aria-label={noteOpen ? "Hide text note" : "Add text note"}
+                  aria-pressed={noteOpen || draft.note.trim().length > 0}
+                  onClick={() => setNoteOpen((current) => !current)}
+                  type="button"
+                >
+                  <span><TextT size={20} /></span>
+                  <strong>Text</strong>
+                  <small>{draft.note.trim() ? "Note added" : "Add a note"}</small>
+                </button>
+              </div>
+
+              <input
+                accept="image/jpeg,image/png,image/webp"
+                aria-label="Choose conversation screenshots"
+                className={styles.captureFileInput}
+                multiple
+                onChange={(event) => {
+                  void addFiles(event.currentTarget.files);
+                  event.currentTarget.value = "";
+                }}
+                ref={fileInputRef}
+                type="file"
+              />
+
+              {draft.assets.length > 0 ? (
+                <section className={styles.captureSources} aria-label="Selected screenshots">
+                  <div className={styles.captureFilmstrip}>
+                    {draft.assets.map((asset, index) => (
+                      <button
+                        aria-label={`Source ${index + 1}, ${asset.channel}`}
+                        aria-pressed={selectedAsset?.id === asset.id}
+                        className={
+                          selectedAsset?.id === asset.id
+                            ? styles.captureAssetSelected
+                            : undefined
+                        }
+                        key={asset.id}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            selectedAssetId: asset.id,
+                          }))
+                        }
+                        type="button"
+                      >
+                        <Image
+                          alt=""
+                          fill
+                          sizes="64px"
+                          src={asset.preview}
+                          unoptimized={asset.kind === "local"}
+                        />
+                        <span>{index + 1}</span>
+                      </button>
+                    ))}
+                    {draft.assets.length < 8 ? (
+                      <button
+                        aria-label="Add more screenshots"
+                        className={styles.captureAddTile}
+                        onClick={() => fileInputRef.current?.click()}
+                        type="button"
+                      >
+                        <Plus size={19} />
+                        <span>Add</span>
+                      </button>
+                    ) : null}
+                  </div>
+                  {selectedAsset ? (
+                    <div className={styles.captureAssetControl}>
+                      <span>{selectedAsset.channel}</span>
+                      <div>
+                        <button
+                          aria-label="Move selected source earlier"
+                          disabled={draft.assets[0]?.id === selectedAsset.id}
+                          onClick={() => moveSelectedAsset(-1)}
+                          type="button"
+                        >
+                          <ArrowLeft size={16} />
+                        </button>
+                        <button
+                          aria-label="Move selected source later"
+                          disabled={draft.assets.at(-1)?.id === selectedAsset.id}
+                          onClick={() => moveSelectedAsset(1)}
+                          type="button"
+                        >
+                          <ArrowRight size={16} />
+                        </button>
+                        <button
+                          aria-label="Remove selected source"
+                          onClick={removeSelectedAsset}
+                          type="button"
+                        >
+                          <Trash size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
+              {noteOpen ? (
+                <label className={styles.captureTextNote}>
+                  <span>Recruiter note</span>
+                  <textarea
+                    autoFocus
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        note: event.target.value,
+                      }))
+                    }
+                    placeholder="What should not be lost?"
+                    rows={2}
+                    value={draft.note}
+                  />
+                </label>
+              ) : null}
+
+              {!canPrepare ? (
+                <button
+                  className={styles.captureSampleLink}
+                  onClick={loadSyntheticExample}
+                  type="button"
+                >
+                  Use example set
+                  <ArrowRight size={14} />
+                </button>
+              ) : null}
+
+              <div className={styles.capturePrivacyNote}>
+                <ShieldCheck size={15} weight="fill" />
+                <p>Context stays separate from evidence. This preview sends nothing.</p>
+              </div>
+            </>
+          ) : null}
+
+          {draft.phase === "review" ? (
+            <section className={styles.captureReview} aria-labelledby="capture-review-title">
+              <span>
+                {draft.assets.length > 0
+                  ? `${draft.assets.length} source${draft.assets.length === 1 ? "" : "s"}`
+                  : "Recruiter context only"}
+                {contextItemCount > 0 && draft.assets.length > 0
+                  ? " / context separate"
+                  : ""}
+              </span>
+
+              {resultKind === "organize" ? (
+                <>
+                  <StackSimple size={24} weight="duotone" />
+                  <h3 id="capture-review-title">Keep these conversations separate.</h3>
+                  <p>Each source gets its own identity review before anything changes.</p>
+                  <div className={styles.captureGroups}>
+                    {draft.assets.map((asset, index) => (
+                      <div key={asset.id}>
+                        <span>{index + 1}</span>
+                        <div>
+                          <strong>{asset.channel}</strong>
+                          <small>Unassigned</small>
+                        </div>
+                        <WarningCircle size={16} />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+
+              {resultKind === "identity" ? (
+                <>
+                  <WarningCircle size={24} weight="duotone" />
+                  <h3 id="capture-review-title">Who owned this phone?</h3>
+                  <p>Bubble sides can reverse who spoke. Choose only if you know.</p>
+                  <blockquote>
+                    “I have another offer. I need to decide by Wednesday.”
+                  </blockquote>
+                  <div className={styles.capturePerspective}>
+                    {(
+                      [
+                        ["candidate", "Candidate"],
+                        ["recruiter", "Recruiter"],
+                        ["unknown", "Keep unresolved"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        aria-pressed={draft.speakerPerspective === value}
+                        key={value}
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            speakerPerspective: value,
+                          }))
+                        }
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+
+              {resultKind === "local" ? (
+                <>
+                  <ShieldCheck size={24} weight="duotone" />
+                  <h3 id="capture-review-title">Local files are staged.</h3>
+                  <p>
+                    This public preview does not upload or analyze them. A real
+                    review would verify order, speaker, identity, and evidence.
+                  </p>
+                </>
+              ) : null}
+
+              {resultKind === "note" ? (
+                <>
+                  <TextT size={24} weight="duotone" />
+                  <h3 id="capture-review-title">Your note stays your note.</h3>
+                  <p>It can guide review, but cannot become candidate testimony.</p>
+                  <blockquote>
+                    {draft.note.trim() || "Voice note ready for transcript review."}
+                  </blockquote>
+                </>
+              ) : null}
+
+              <div className={styles.captureReviewBoundary}>
+                <ShieldCheck size={15} weight="fill" />
+                <p>AI may organize. Identity, facts, and actions still need review.</p>
+              </div>
+            </section>
+          ) : null}
+
+          {draft.phase === "receipt" ? (
+            <section className={styles.captureReceipt} aria-labelledby="capture-receipt-title">
+              <ShieldCheck size={28} weight="fill" />
+              <span>Reviewable draft</span>
+              <h3 id="capture-receipt-title">Saved without acting.</h3>
+              <p>The source bundle remains available for later evidence review.</p>
+              <dl>
+                <div>
+                  <dt>Items</dt>
+                  <dd>{itemCount}</dd>
+                </div>
+                <div>
+                  <dt>Confirmed</dt>
+                  <dd>0</dd>
+                </div>
+                <div>
+                  <dt>External</dt>
+                  <dd>0</dd>
+                </div>
+              </dl>
+              <div className={styles.captureReceiptNote}>
+                <Check size={16} weight="bold" />
+                <p>No message, meeting, contact, or CRM record changed.</p>
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <footer className={styles.captureFooter}>
+          {draft.phase === "collect" ? (
+            <>
+              <button
+                className={styles.captureDeleteAction}
+                onClick={canPrepare ? onDelete : onClose}
+                type="button"
+              >
+                {canPrepare ? "Discard" : "Close"}
+              </button>
+              <button
+                className={styles.capturePrimaryAction}
+                disabled={!canPrepare}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, phase: "review" }))
+                }
+                type="button"
+              >
+                Review{itemCount > 0 ? ` ${itemCount}` : ""}
+                <ArrowRight size={16} />
+              </button>
+            </>
+          ) : draft.phase === "review" ? (
+            <>
+              <button
+                className={styles.captureDeleteAction}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, phase: "collect" }))
+                }
+                type="button"
+              >
+                Back
+              </button>
+              <button
+                className={styles.capturePrimaryAction}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, phase: "receipt" }))
+                }
+                type="button"
+              >
+                Keep draft
+                <ArrowRight size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button className={styles.captureDeleteAction} onClick={onDelete} type="button">
+                Delete
+              </button>
+              <button className={styles.capturePrimaryAction} onClick={onClose} type="button">
+                Done
+                <Check size={16} weight="bold" />
+              </button>
+            </>
+          )}
+        </footer>
+      </section>
+    </>
   );
 }
 
@@ -1577,11 +2284,49 @@ export function RelationshipMobileConcept({
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideMode, setGuideMode] = useState<AgentMode>("home");
   const [guidePerson, setGuidePerson] = useState<Person | null>(null);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureContext, setCaptureContext] = useState<Person | null>(null);
+  const [captureDraft, setCaptureDraft] = useState<CaptureDraft>(() =>
+    createEmptyCaptureDraft(),
+  );
+  const captureTriggerRef = useRef<HTMLElement | null>(null);
 
   const openGuide = (mode: AgentMode = "home", person?: Person) => {
     setGuideMode(mode);
     setGuidePerson(person ?? null);
     setGuideOpen(true);
+    setCaptureOpen(false);
+  };
+
+  const openCapture = (person?: Person) => {
+    captureTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const hasDraft =
+      captureDraft.assets.length > 0 ||
+      captureDraft.note.trim().length > 0 ||
+      captureDraft.voiceState !== "empty";
+    if (!hasDraft) {
+      setCaptureContext(person ?? null);
+    }
+    setCaptureOpen(true);
+    setGuideOpen(false);
+  };
+
+  const closeCapture = () => {
+    setCaptureOpen(false);
+    window.requestAnimationFrame(() => {
+      const previousTrigger = captureTriggerRef.current;
+      if (previousTrigger?.isConnected) {
+        previousTrigger.focus();
+        return;
+      }
+
+      document
+        .querySelector<HTMLElement>('[data-capture-launcher="true"]')
+        ?.focus();
+    });
   };
 
   const showPerson = (person: Person) => {
@@ -1589,6 +2334,7 @@ export function RelationshipMobileConcept({
     setSelectedPerson(person);
     setReview(null);
     setGuideOpen(false);
+    setCaptureOpen(false);
   };
 
   const openReview = (person: Person, kind: ReviewKind = "change") => {
@@ -1596,6 +2342,7 @@ export function RelationshipMobileConcept({
     setSelectedPerson(null);
     setReview({ kind, person });
     setGuideOpen(false);
+    setCaptureOpen(false);
   };
 
   return (
@@ -1669,12 +2416,16 @@ export function RelationshipMobileConcept({
               />
             ) : selectedPerson ? (
               <PersonDetail
+                captureCount={captureDraft.assets.length}
                 onBack={() => setSelectedPerson(null)}
+                onCapture={openCapture}
                 onGuide={openGuide}
                 person={selectedPerson}
               />
             ) : archivePage === "today" ? (
               <TodayArchive
+                captureCount={captureDraft.assets.length}
+                onCapture={() => openCapture()}
                 onGuide={openGuide}
                 onLibrary={() => setArchivePage("library")}
                 onPeople={() => setArchivePage("people")}
@@ -1683,6 +2434,8 @@ export function RelationshipMobileConcept({
               />
             ) : archivePage === "library" ? (
               <LibraryArchive
+                captureCount={captureDraft.assets.length}
+                onCapture={() => openCapture()}
                 onGuide={openGuide}
                 onPeople={() => setArchivePage("people")}
                 onSelect={setSelectedPerson}
@@ -1690,6 +2443,8 @@ export function RelationshipMobileConcept({
               />
             ) : (
               <PeopleArchive
+                captureCount={captureDraft.assets.length}
+                onCapture={() => openCapture()}
                 onGuide={openGuide}
                 onLibrary={() => setArchivePage("library")}
                 onSelect={setSelectedPerson}
@@ -1705,6 +2460,20 @@ export function RelationshipMobileConcept({
                 onOpenPerson={showPerson}
               />
             ) : null}
+            {captureOpen ? (
+              <CaptureSheet
+                contextSuggestion={captureContext}
+                draft={captureDraft}
+                onClearContext={() => setCaptureContext(null)}
+                onClose={closeCapture}
+                onDelete={() => {
+                  setCaptureDraft(createEmptyCaptureDraft());
+                  setCaptureContext(null);
+                  closeCapture();
+                }}
+                setDraft={setCaptureDraft}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -1716,7 +2485,48 @@ export function RelationshipMobileConcept({
               : "Design decision"
           }
         >
-          {direction === "archive" ? (
+          {captureOpen ? (
+            <>
+              <span>One intentional bundle</span>
+              <h2>Collect freely. Resolve one thing.</h2>
+              <p>
+                Screenshots keep the source. Voice and text keep the
+                recruiter&apos;s context. AI only chooses the smallest truthful
+                review state.
+              </p>
+              <section
+                aria-label="Possible capture outcomes"
+                className={styles.captureOutcomeMap}
+              >
+                <div>
+                  <StackSimple size={19} />
+                  <span>
+                    <strong>Needs organizing</strong>
+                    <small>Several conversations stay separate.</small>
+                  </span>
+                </div>
+                <div>
+                  <WarningCircle size={19} />
+                  <span>
+                    <strong>Needs one clarification</strong>
+                    <small>Identity, speaker, or time remains open.</small>
+                  </span>
+                </div>
+                <div>
+                  <Check size={19} />
+                  <span>
+                    <strong>No supported change</strong>
+                    <small>Preserve the source without making work.</small>
+                  </span>
+                </div>
+              </section>
+              <p className={styles.productInstruction}>
+                Try the synthetic example in the phone. The capture can be
+                closed and resumed, but this public preview never analyzes
+                private files or writes to another system.
+              </p>
+            </>
+          ) : direction === "archive" ? (
             <>
               {isProduct ? (
                 <>
