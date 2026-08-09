@@ -26,19 +26,29 @@ a denial and asks for a new toolbar gesture.
 
 ```text
 toolbar gesture
-→ choose visible viewport or explicit selection
-→ inspect URL, title, and capture time
+→ choose an executable text selection or a local-only image review
+→ inspect URL, title, and the supported source time
 → inspect exact reviewed pixels or text
 → crop, redact, edit, or remove
+→ image path: keep the reviewed pixels local, then remove them
+→ selected-text path: continue to the localhost handoff
 → check one localhost session
 → preview target, effect, purpose, and retention request
 → explicit Submit
 → pending / received / failed / unknown receipt truth
+→ open the exact Web review when a real receipt returns its capture ID
 ```
 
-For a screenshot, the canvas shown under **What will be submitted** is encoded
-as the submitted asset. For selected text, only the current textarea value is
-sent. The original selection is omitted when the user edits it.
+For a screenshot, the canvas shown under **Reviewed pixels in this panel** is
+the exact local reviewed asset. A chosen file is labeled by import time because
+its filesystem modification time is not evidence of when the conversation was
+captured. For selected text, only the current textarea value is sent. The
+original selection is omitted when the user edits it.
+
+Visible-tab and chosen screenshots can be reviewed, cropped, and redacted in
+the extension, but remain local drafts today. Their dispatch shelf fails closed
+because the localhost backend does not yet own a governed raw-image and
+derivative lifecycle. The selected-text path is the executable Web handoff.
 
 One idempotency key is created for the reviewed draft and reused across retry
 or receipt reconciliation. A changed source, edit, retention choice, or local
@@ -92,7 +102,8 @@ The upload receives `Idempotency-Key` and, when available,
 ```json
 {
   "status": "received",
-  "receipt_id": "backend-observed-receipt"
+  "receipt_id": "backend-observed-receipt",
+  "capture_id": "backend-capture-id"
 }
 ```
 
@@ -131,11 +142,17 @@ From the repository root:
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
   --test apps/browser-extension/tests/*.test.mjs
 node apps/browser-extension/scripts/validate-package.mjs
+node apps/chrome-extension/scripts/build.mjs
+node apps/browser-extension/scripts/capture-design-preview.mjs
 ```
 
 This runs Node's built-in test runner and validates the load-unpacked package,
 syntax, icon set, exact fixture copy, manifest permissions, and absence of
-remote URLs.
+remote URLs. The design-preview script renders the unpacked extension into
+`output/playwright/browser-extension-capture-lens/` using synthetic sources.
+The optional preview command requires a globally resolvable `playwright` or
+`@playwright/test` installation and its Chromium browser; the contract and
+package checks do not.
 
 ## Platform references
 

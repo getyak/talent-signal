@@ -32,7 +32,7 @@
         </span>
         <span>
           <strong>Talent Signal</strong>
-          <small>Capture review</small>
+          <small>Browser capture</small>
         </span>
       </div>
       <label class="mode-control">
@@ -58,13 +58,75 @@
           the exact payload before anything leaves this panel.
         </p>
 
+        <div class="capture-lens" aria-hidden="true">
+          <div class="capture-lens__source">
+            <span class="capture-lens__label">This tab</span>
+            <span class="capture-lens__line capture-lens__line--short"></span>
+            <span class="capture-lens__line"></span>
+            <span class="capture-lens__selection"></span>
+            <span class="capture-lens__line capture-lens__line--quiet"></span>
+          </div>
+          <span class="capture-lens__seam"></span>
+          <div class="capture-lens__packet">
+            <span>Reviewed aperture</span>
+            <strong>Nothing leaves yet</strong>
+          </div>
+        </div>
+
         <div id="live-capture-controls" class="capture-actions">
-          <button id="capture-visible" class="primary-button" type="button">
-            Capture visible page
+          <button id="capture-selection" class="capture-option capture-option--primary" type="button">
+            <span class="capture-option__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M7 5.5h10M12 5.5v13M8.5 18.5h7"></path>
+                <path d="M4.5 9v6M19.5 9v6" opacity=".45"></path>
+              </svg>
+            </span>
+            <span class="capture-option__copy">
+              <strong>Use selected text</strong>
+              <small>Review the exact selection, then continue to Web</small>
+            </span>
+            <span class="capture-option__arrow" aria-hidden="true">→</span>
           </button>
-          <button id="capture-selection" class="secondary-button" type="button">
-            Use selected text
+          <button id="capture-visible" class="capture-option" type="button">
+            <span class="capture-option__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4.5 8.5V5.75c0-.69.56-1.25 1.25-1.25H8.5M15.5 4.5h2.75c.69 0 1.25.56 1.25 1.25V8.5M19.5 15.5v2.75c0 .69-.56 1.25-1.25 1.25H15.5M8.5 19.5H5.75c-.69 0-1.25-.56-1.25-1.25V15.5"></path>
+                <rect x="7.5" y="8" width="9" height="8" rx="1.5"></rect>
+              </svg>
+            </span>
+            <span class="capture-option__copy">
+              <strong>Capture visible area</strong>
+              <small>Local review only · crop and redact before removing</small>
+            </span>
+            <span class="capture-option__arrow" aria-hidden="true">＋</span>
           </button>
+          <input
+            id="upload-image"
+            class="sr-only"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+          />
+          <label class="capture-option" for="upload-image">
+            <span class="capture-option__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 15.5v-10M8.5 9 12 5.5 15.5 9"></path>
+                <path d="M5 14.5v3.75c0 .69.56 1.25 1.25 1.25h11.5c.69 0 1.25-.56 1.25-1.25V14.5"></path>
+              </svg>
+            </span>
+            <span class="capture-option__copy">
+              <strong>Choose a screenshot</strong>
+              <small>Local review only · Web image intake is not connected</small>
+            </span>
+            <span class="capture-option__arrow" aria-hidden="true">＋</span>
+          </label>
+        </div>
+
+        <div class="web-continuity" id="web-continuity">
+          <span class="web-continuity__mark" aria-hidden="true"></span>
+          <p>
+            <strong>Selected text continues to Web.</strong>
+            <span>Images stay local until governed image intake is connected.</span>
+          </p>
         </div>
 
         <div id="fixture-controls" class="fixture-controls" hidden>
@@ -103,26 +165,31 @@
           <p id="capture-alert-copy"></p>
         </div>
 
-        <section class="boundary-note" aria-labelledby="boundary-title">
-          <p class="eyebrow" id="boundary-title">Before capture</p>
-          <dl>
-            <div>
-              <dt>Access</dt>
-              <dd>Temporary, only after your toolbar click</dd>
-            </div>
-            <div>
-              <dt>Scope</dt>
-              <dd>Visible pixels or your explicit selection</dd>
-            </div>
-            <div>
-              <dt>Retention</dt>
-              <dd>In this panel until removed or handed off</dd>
-            </div>
-          </dl>
-          <p>
-            This extension never watches tabs, messages, history, or cookies.
-          </p>
-        </section>
+        <details class="boundary-note">
+          <summary>
+            <span>Private by deliberate scope</span>
+            <small>What this extension can access</small>
+          </summary>
+          <div class="boundary-note__body">
+            <dl>
+              <div>
+                <dt>Access</dt>
+                <dd>Temporary, only after your toolbar click</dd>
+              </div>
+              <div>
+                <dt>Scope</dt>
+                <dd>Visible pixels, a chosen image, or your explicit selection</dd>
+              </div>
+              <div>
+                <dt>Retention</dt>
+                <dd>In this panel until removed or handed off</dd>
+              </div>
+            </dl>
+            <p>
+              This extension never watches tabs, messages, history, or cookies.
+            </p>
+          </div>
+        </details>
       </section>
 
       <section id="review-view" class="view review-view" hidden>
@@ -139,9 +206,7 @@
           <p class="eyebrow">Observed source</p>
           <span id="capture-kind-chip" class="state-chip state-chip--observed"></span>
         </div>
-        <h1 id="review-heading" tabindex="-1">
-          Review the evidence, then decide.
-        </h1>
+        <h1 id="review-heading" tabindex="-1">Review one evidence packet.</h1>
         <p class="lede">
           Source context and the final pixels or text stay visible at the
           consequence boundary.
@@ -177,7 +242,7 @@
               <dd id="source-url" class="source-url"></dd>
             </div>
             <div>
-              <dt>Captured</dt>
+              <dt id="source-time-label">Captured</dt>
               <dd id="source-time"></dd>
             </div>
           </dl>
@@ -187,7 +252,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Exact reviewed pixels</p>
-              <h2>What will be submitted</h2>
+              <h2>Reviewed pixels in this panel</h2>
             </div>
             <span id="image-summary" class="asset-summary"></span>
           </div>
@@ -274,7 +339,7 @@
             <span id="fixture-id" class="asset-summary"></span>
           </div>
           <p class="fixture-banner">
-            Evaluation fixture — proposed interpretation, never confirmed
+            Evaluation fixture: proposed interpretation, never confirmed
             candidate state.
           </p>
           <div id="fixture-context" class="fixture-context"></div>
@@ -282,23 +347,34 @@
             <h3 id="fixture-messages-title">Observed messages</h3>
             <ol id="fixture-messages" class="message-list"></ol>
           </div>
-          <div>
-            <h3>Fixture contract · proposed understanding</h3>
+          <div class="fixture-brief">
+            <p class="eyebrow">Proposed for Web review</p>
             <p
               id="fixture-disposition"
               class="disposition"
               aria-live="off"
             ></p>
-            <div id="fixture-assertions" class="assertion-list"></div>
+            <div id="fixture-action-block">
+              <h3>One smallest next step</h3>
+              <p id="fixture-action"></p>
+            </div>
           </div>
-          <div id="fixture-action-block">
-            <h3>One action proposal</h3>
-            <p id="fixture-action"></p>
-          </div>
-          <div>
-            <h3>Hard boundaries</h3>
-            <ul id="fixture-boundaries" class="boundary-list"></ul>
-          </div>
+          <details class="fixture-details">
+            <summary>
+              <span>Inspect proposed changes</span>
+              <small id="fixture-detail-summary"></small>
+            </summary>
+            <div class="fixture-details__body">
+              <div>
+                <h3>Proposed understanding</h3>
+                <div id="fixture-assertions" class="assertion-list"></div>
+              </div>
+              <div>
+                <h3>Hard boundaries</h3>
+                <ul id="fixture-boundaries" class="boundary-list"></ul>
+              </div>
+            </div>
+          </details>
         </section>
 
         <section
@@ -321,6 +397,7 @@
           </p>
         </section>
 
+        <div class="dispatch-shell">
         <section class="connection-block" aria-labelledby="connection-title">
           <div class="section-heading">
             <div>
@@ -359,7 +436,7 @@
             </div>
             <div>
               <dt>Effect</dt>
-              <dd>Upload one reviewed capture for backend review only</dd>
+              <dd id="handoff-effect">Upload one reviewed capture for backend review only</dd>
             </div>
           </dl>
           <label class="retention-field">
@@ -402,12 +479,16 @@
             <button id="check-receipt" class="secondary-button" type="button" hidden>
               Check receipt
             </button>
+            <button id="open-web-review" class="secondary-button open-web-review" type="button" hidden>
+              Open exact Web review →
+            </button>
           </div>
-          <p class="submit-note">
+          <p id="submit-note" class="submit-note">
             Submission is a capture handoff only. It does not confirm facts,
             contact anyone, create a meeting, or update an ATS.
           </p>
         </section>
+        </div>
       </section>
     </main>
 

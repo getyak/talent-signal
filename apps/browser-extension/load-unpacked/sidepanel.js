@@ -1,5 +1,6 @@
 import {
   makeCaptureDraft,
+  normalizeUploadedImageSource,
 } from "./lib/capture-contract.js";
 import {
   cropPixels,
@@ -10,6 +11,7 @@ import {
   redactionPixels,
 } from "./lib/image-review.js";
 import {
+  buildExactWebReviewUrl,
   buildHandoffEnvelope,
   classifyReceiptResponse,
   classifyTransportError,
@@ -49,6 +51,7 @@ const elements = {
   fixtureScenario: byId("fixture-scenario"),
   captureVisible: byId("capture-visible"),
   captureSelection: byId("capture-selection"),
+  uploadImage: byId("upload-image"),
   loadFixture: byId("load-fixture"),
   captureAlert: byId("capture-alert"),
   captureAlertTitle: byId("capture-alert-title"),
@@ -62,6 +65,7 @@ const elements = {
   captureKindChip: byId("capture-kind-chip"),
   sourceTitle: byId("source-page-title"),
   sourceUrl: byId("source-url"),
+  sourceTimeLabel: byId("source-time-label"),
   sourceTime: byId("source-time"),
   screenshotReview: byId("screenshot-review"),
   textReview: byId("text-review"),
@@ -84,6 +88,7 @@ const elements = {
   fixtureContext: byId("fixture-context"),
   fixtureMessages: byId("fixture-messages"),
   fixtureDisposition: byId("fixture-disposition"),
+  fixtureDetailSummary: byId("fixture-detail-summary"),
   fixtureAssertions: byId("fixture-assertions"),
   fixtureActionBlock: byId("fixture-action-block"),
   fixtureAction: byId("fixture-action"),
@@ -97,6 +102,10 @@ const elements = {
   retentionMode: byId("retention-mode"),
   retentionCopy: byId("retention-copy"),
   handoffTarget: byId("handoff-target"),
+  handoffEffect: byId("handoff-effect"),
+  dispatchShell: document.querySelector(".dispatch-shell"),
+  submitHeading: byId("submit-title"),
+  submitNote: byId("submit-note"),
   approvalCheck: byId("approval-check"),
   submissionStatus: byId("submission-status"),
   submissionStateLabel: byId("submission-state-label"),
@@ -105,6 +114,7 @@ const elements = {
   receiptId: byId("receipt-id"),
   submitButton: byId("submit-button"),
   checkReceipt: byId("check-receipt"),
+  openWebReview: byId("open-web-review"),
 };
 
 const query = new URLSearchParams(location.search);
@@ -199,6 +209,7 @@ function clearCaptureAlert() {
 function setCaptureBusy(busy, label = "Capturing…") {
   elements.captureVisible.disabled = busy;
   elements.captureSelection.disabled = busy;
+  elements.uploadImage.disabled = busy;
   elements.loadFixture.disabled = busy;
   elements.captureView.setAttribute("aria-busy", String(busy));
 
@@ -320,6 +331,58 @@ async function requestCapture(type) {
   }
 }
 
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(reader.result), { once: true });
+    reader.addEventListener(
+      "error",
+      () => reject(new Error("The chosen screenshot could not be read.")),
+      { once: true },
+    );
+    reader.readAsDataURL(file);
+  });
+}
+
+async function openUploadedImage(file) {
+  clearCaptureAlert();
+  if (!file) {
+    return;
+  }
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    showCaptureAlert(
+      "Screenshot not opened",
+      "Choose a JPEG, PNG, or WebP image.",
+    );
+    return;
+  }
+  if (file.size <= 0 || file.size > MAX_HANDOFF_BYTES) {
+    showCaptureAlert(
+      "Screenshot not opened",
+      `Choose an image smaller than ${bytesLabel(MAX_HANDOFF_BYTES)}.`,
+    );
+    return;
+  }
+
+  setCaptureBusy(true, "Opening screenshot…");
+  try {
+    const dataUrl = await readImageFile(file);
+    const draft = makeCaptureDraft({
+      kind: "visible_tab",
+      source: normalizeUploadedImageSource(file),
+      dataUrl,
+    });
+    await openReview(draft);
+  } catch (error) {
+    showCaptureAlert(
+      "Screenshot not opened",
+      error instanceof Error ? error.message : "The image could not be read.",
+    );
+  } finally {
+    setCaptureBusy(false);
+  }
+}
+
 async function loadSelectedFixture() {
   if (!state.fixtureSuite) {
     return;
@@ -414,6 +477,7 @@ function clearDraft() {
   elements.reviewView.hidden = true;
   elements.captureView.hidden = false;
   elements.modeSelect.disabled = false;
+  elements.uploadImage.value = "";
   clearCaptureAlert();
   renderMode();
   elements.captureTitle.focus();
@@ -428,6 +492,8 @@ function renderReview() {
 
   elements.sourceTitle.textContent = draft.source.title;
   elements.sourceUrl.textContent = draft.source.url;
+  elements.sourceTimeLabel.textContent =
+    draft.source.time_basis === "imported_at" ? "Imported" : "Captured";
   elements.sourceTime.textContent = humanTime(draft.source.captured_at);
   elements.captureKindChip.textContent = {
     visible_tab: "Visible pixels",
@@ -478,6 +544,14 @@ function renderProgress() {
     copy.textContent = step.label;
     copy.closest("li").dataset.state = step.state;
   });
+
+  if (
+    state.draft?.kind === "visible_tab" &&
+    !retentionCompatibility("visible_tab", elements.retentionMode.value).supported
+  ) {
+    elements.stepSubmit.textContent = "Web image handoff unavailable";
+    elements.stepSubmit.closest("li").dataset.state = "upcoming";
+  }
 }
 
 function syncCropInputs() {
@@ -556,7 +630,7 @@ function renderCanvas() {
 
   const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
   elements.imageSummary.textContent =
-    `${canvas.width}×${canvas.height} · ${bytesLabel(estimateDataUrlBytes(dataUrl))} · ` +
+    `${canvas.width}×${canvas.height}, ${bytesLabel(estimateDataUrlBytes(dataUrl))}, ` +
     `${state.draft.redactions.length} redaction${state.draft.redactions.length === 1 ? "" : "s"}`;
 }
 
@@ -734,6 +808,8 @@ function renderFixture() {
   fixtureCase.expected.must_not.forEach((boundary) => {
     elements.fixtureBoundaries.append(node("li", `Must not ${boundary}.`));
   });
+  elements.fixtureDetailSummary.textContent =
+    `${fixtureCase.expected.assertions.length} proposed change${fixtureCase.expected.assertions.length === 1 ? "" : "s"} · ${fixtureCase.expected.must_not.length} limits`;
 }
 
 function focusFixtureMessage(messageId) {
@@ -786,6 +862,21 @@ function renderRetention() {
     elements.retentionMode.value,
   );
   elements.retentionCopy.textContent = compatibility.message;
+  const imageHandoffBlocked =
+    captureKind === "visible_tab" && !compatibility.supported;
+  elements.dispatchShell.dataset.imageHandoff = imageHandoffBlocked
+    ? "unavailable"
+    : "available";
+  elements.approvalCheck.closest("label").hidden = imageHandoffBlocked;
+  elements.submitHeading.textContent = imageHandoffBlocked
+    ? "Screenshot reviewed. Web image intake is not connected yet."
+    : "Submit this reviewed capture?";
+  elements.handoffEffect.textContent = imageHandoffBlocked
+    ? "No transfer · reviewed pixels remain local"
+    : "Upload one reviewed capture for backend review only";
+  elements.submitNote.textContent = imageHandoffBlocked
+    ? "The reviewed pixels remain local to this panel. Talent Signal will not pretend they were uploaded before Web owns raw-image retention and derivative deletion."
+    : "Submission is a capture handoff only. It does not confirm facts, contact anyone, create a meeting, or update an ATS.";
   elements.handoffTarget.textContent =
     isSyntheticTransport(state.draft)
       ? "Synthetic fixture transport · no network"
@@ -801,6 +892,14 @@ function renderSubmission() {
     String(presentation.busy),
   );
   elements.checkReceipt.hidden = !presentation.check_receipt;
+  const imageHandoffBlocked =
+    state.draft?.kind === "visible_tab" &&
+    !retentionCompatibility("visible_tab", elements.retentionMode.value).supported;
+  elements.openWebReview.hidden = !(
+    submission.state === "received" &&
+    submission.capture_id &&
+    !isSyntheticTransport(state.draft)
+  );
 
   if (presentation.visible) {
     elements.submissionStatus.dataset.state = submission.state;
@@ -813,7 +912,9 @@ function renderSubmission() {
       : "";
   }
 
-  elements.submitButton.textContent = presentation.action_label;
+  elements.submitButton.textContent = imageHandoffBlocked
+    ? "Image handoff not connected"
+    : presentation.action_label;
   updateSubmitAvailability();
   renderProgress();
 }
@@ -1153,6 +1254,28 @@ async function openSignIn() {
   }
 }
 
+async function openExactWebReview() {
+  if (!state.submission.capture_id || isSyntheticTransport(state.draft)) {
+    return;
+  }
+  try {
+    const target = buildExactWebReviewUrl(
+      elements.localOrigin.value,
+      state.submission.capture_id,
+    );
+    await chrome.tabs.create({ url: target });
+  } catch (error) {
+    state.submission = {
+      ...state.submission,
+      message:
+        error instanceof Error
+          ? error.message
+          : "The exact Web review could not be opened.",
+    };
+    renderSubmission();
+  }
+}
+
 function canvasPoint(event) {
   const bounds = elements.canvas.getBoundingClientRect();
   const crop = normalizeCrop(state.draft.crop);
@@ -1258,6 +1381,9 @@ elements.captureVisible.addEventListener("click", () =>
 elements.captureSelection.addEventListener("click", () =>
   requestCapture("capture.selection"),
 );
+elements.uploadImage.addEventListener("change", () =>
+  openUploadedImage(elements.uploadImage.files?.[0] ?? null),
+);
 elements.loadFixture.addEventListener("click", loadSelectedFixture);
 elements.backButton.addEventListener("click", clearDraft);
 elements.removeButton.addEventListener("click", clearDraft);
@@ -1287,6 +1413,7 @@ elements.submitButton.addEventListener("click", submitHandoff);
 elements.checkReceipt.addEventListener("click", checkReceipt);
 elements.checkSession.addEventListener("click", () => checkSession());
 elements.openSignIn.addEventListener("click", openSignIn);
+elements.openWebReview.addEventListener("click", openExactWebReview);
 
 async function initialize() {
   elements.localOrigin.value = DEFAULT_LOCAL_ORIGIN;
