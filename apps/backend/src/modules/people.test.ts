@@ -23,6 +23,7 @@ describe("people directory", () => {
           display_label: "周屿",
           context_count: 2,
           capture_count: 4,
+          confirmed_identity_count: 1,
           last_activity_at: new Date("2026-08-06T10:00:00.000Z"),
           name_match: true,
           matched_handle_status: null,
@@ -60,6 +61,7 @@ describe("people directory", () => {
         display_label: "周屿",
         context_count: 2,
         capture_count: 4,
+        confirmed_identity_count: 1,
         last_activity_at: "2026-08-06T10:00:00.000Z",
         contexts: [
           {
@@ -83,6 +85,7 @@ describe("people directory", () => {
           display_label: "周屿",
           context_count: 1,
           capture_count: 2,
+          confirmed_identity_count: 1,
           last_activity_at: new Date("2026-08-06T10:00:00.000Z"),
           name_match: false,
           matched_handle_status: "confirmed",
@@ -133,6 +136,7 @@ describe("people directory", () => {
           display_label: "周屿",
           context_count: 1,
           capture_count: 2,
+          confirmed_identity_count: 0,
           last_activity_at: new Date("2026-08-06T10:00:00.000Z"),
           name_match: false,
           matched_handle_status: "expired",
