@@ -1482,6 +1482,7 @@ export const PersonDirectoryItemSchema = Type.Object(
     display_label: Type.String({ minLength: 1, maxLength: 200 }),
     context_count: Type.Integer({ minimum: 0 }),
     capture_count: Type.Integer({ minimum: 0 }),
+    confirmed_identity_count: Type.Integer({ minimum: 0 }),
     last_activity_at: Timestamp,
     contexts: Type.Array(PersonDirectoryContextSchema, {
       maxItems: 20,

@@ -369,6 +369,13 @@ function knowledgeSnapshotWikiView(
   return { blocks, snapshotId: snapshot.id };
 }
 
+function wikiBodyLines(body: string) {
+  return body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function RelationshipWikiPanel({
   busy,
   onCompile,
@@ -419,6 +426,7 @@ function RelationshipWikiPanel({
         view.blocks.flatMap((block) => block.citationDependencyIds),
       ).size
     : 0;
+  const briefLines = brief ? wikiBodyLines(brief.body) : [];
 
   return (
     <section
@@ -448,7 +456,19 @@ function RelationshipWikiPanel({
               <i>{brief.status.replaceAll("_", " ")}</i>
             </div>
             <h3>{brief.title}</h3>
-            <p>{brief.body}</p>
+            <ul className="context-relationship-wiki__facts">
+              {briefLines.map((line, index) => {
+                const separator = line.indexOf(":");
+                const label = separator > 0 ? line.slice(0, separator) : "";
+                const value = separator > 0 ? line.slice(separator + 1).trim() : line;
+                return (
+                  <li key={`${line}:${index}`}>
+                    {label ? <strong>{label}</strong> : null}
+                    <span>{value}</span>
+                  </li>
+                );
+              })}
+            </ul>
             <footer>
               Snapshot {view.snapshotId.slice(0, 8)} · compiled
               from the current authorized source set
@@ -822,6 +842,7 @@ function CapturePanel({
   const dialogRef = useRef<HTMLElement | null>(null);
   const commitRequestIdRef = useRef<string | null>(null);
   const committedRef = useRef(false);
+  const peopleRequestIdRef = useRef(0);
   const returnFocusRef = useRef<HTMLElement | null>(
     typeof document !== "undefined" &&
       document.activeElement instanceof HTMLElement
@@ -842,6 +863,7 @@ function CapturePanel({
     useState<ScreenshotOwnerRole>("unknown");
   const [people, setPeople] = useState<PersonDirectoryItem[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(true);
+  const [peopleLookupFailed, setPeopleLookupFailed] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [selectedContextId, setSelectedContextId] = useState<string | null>(
     null,
@@ -875,59 +897,91 @@ function CapturePanel({
   }, []);
 
   useEffect(() => {
+    const query = contactName.normalize("NFKC").trim();
+    const requestId = ++peopleRequestIdRef.current;
     const controller = new AbortController();
-    void fetch("/api/local-integration/people", {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const payload = (await response.json()) as
-          | { people: PersonDirectoryItem[] }
-          | { message?: string };
-        if (!response.ok || !("people" in payload)) {
-          throw new Error(
-            "message" in payload && payload.message
-              ? payload.message
-              : "Existing people could not be loaded.",
-          );
-        }
-        setPeople(payload.people);
-      })
-      .catch((caught: unknown) => {
-        if (
-          caught instanceof DOMException &&
-          caught.name === "AbortError"
-        ) {
-          return;
-        }
-        setError(
-          caught instanceof Error
-            ? caught.message
-            : "Existing people could not be loaded.",
-        );
-      })
-      .finally(() => setPeopleLoading(false));
-    return () => controller.abort();
-  }, []);
+    const timer = window.setTimeout(
+      () => {
+        setPeopleLoading(true);
+        setPeopleLookupFailed(false);
+        void fetch(
+          query
+            ? "/api/local-integration/people/search"
+            : "/api/local-integration/people",
+          query
+            ? {
+                method: "POST",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query }),
+                signal: controller.signal,
+              }
+            : { cache: "no-store", signal: controller.signal },
+        )
+          .then(async (response) => {
+            const payload = (await response.json()) as
+              | { people: PersonDirectoryItem[] }
+              | { message?: string };
+            if (!response.ok || !("people" in payload)) {
+              throw new Error(
+                "message" in payload && payload.message
+                  ? payload.message
+                  : "Existing people could not be loaded.",
+              );
+            }
+            if (requestId !== peopleRequestIdRef.current) {
+              return;
+            }
+            setPeople(payload.people);
+            setPeopleLookupFailed(false);
+          })
+          .catch((caught: unknown) => {
+            if (
+              requestId !== peopleRequestIdRef.current ||
+              caught instanceof DOMException &&
+              caught.name === "AbortError"
+            ) {
+              return;
+            }
+            setPeople([]);
+            setPeopleLookupFailed(true);
+            setError(
+              caught instanceof Error
+                ? caught.message
+                : "Existing people could not be loaded.",
+            );
+          })
+          .finally(() => {
+            if (requestId === peopleRequestIdRef.current) {
+              setPeopleLoading(false);
+            }
+          });
+      },
+      query ? 250 : 0,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      if (requestId === peopleRequestIdRef.current) {
+        peopleRequestIdRef.current += 1;
+      }
+      controller.abort();
+    };
+  }, [contactName]);
 
-  const matchingPeople = useMemo(() => {
-    const query = contactName.normalize("NFKC").trim().toLowerCase();
-    if (!query) {
-      return people.slice(0, 4);
-    }
-    return people
-      .filter((person) =>
-        person.display_label.normalize("NFKC").toLowerCase().includes(query),
-      )
-      .slice(0, 4);
-  }, [contactName, people]);
+  const matchingPeople = people.slice(0, 4);
+  const contactQueryIsHandle = parseIdentityHandleQuery(contactName) !== null;
   const selectedPerson =
     people.find((person) => person.id === selectedPersonId) ?? null;
   const selectedContext =
     selectedPerson?.contexts.find(
       (context) => context.id === selectedContextId,
     ) ?? null;
-  const identityDecided = selectedPerson !== null || createNewPerson;
+  const identityDecided =
+    selectedPerson !== null ||
+    (createNewPerson &&
+      !peopleLoading &&
+      !peopleLookupFailed &&
+      !contactQueryIsHandle);
   const relationshipDecided = createNewPerson
     ? Boolean(assignmentLabel.trim())
     : Boolean(
@@ -1269,6 +1323,8 @@ function CapturePanel({
                   autoComplete="off"
                   maxLength={160}
                   onChange={(event) => {
+                    setPeopleLoading(true);
+                    setPeopleLookupFailed(false);
                     setContactName(event.target.value);
                     setSelectedPersonId(null);
                     setSelectedContextId(null);
@@ -1382,7 +1438,9 @@ function CapturePanel({
                         ))}
                       </div>
                     ) : null}
-                    {!peopleLoading ? (
+                    {!peopleLoading &&
+                    !peopleLookupFailed &&
+                    !contactQueryIsHandle ? (
                       <button
                         className="context-create-person"
                         onClick={() => {
@@ -1397,6 +1455,16 @@ function CapturePanel({
                         <Plus aria-hidden="true" size={16} />
                         Create a new person named “{contactName.trim()}”
                       </button>
+                    ) : null}
+                    {!peopleLoading &&
+                    !peopleLookupFailed &&
+                    contactQueryIsHandle &&
+                    matchingPeople.length === 0 ? (
+                      <p className="context-start__lookup-note">
+                        No current or historical owner matched this masked
+                        identity clue. Enter the person&apos;s name before creating
+                        a new identity.
+                      </p>
                     ) : null}
                   </>
                 ) : (
@@ -2206,8 +2274,10 @@ function StartRelationshipPanel({
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const requestIdRef = useRef<string | null>(null);
+  const peopleRequestIdRef = useRef(0);
   const [people, setPeople] = useState<PersonDirectoryItem[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(true);
+  const [peopleLookupFailed, setPeopleLookupFailed] = useState(false);
   const [mode, setMode] = useState<ResourceMode>("note");
   const [contactName, setContactName] = useState("");
   const [contextLabel, setContextLabel] = useState("");
@@ -2235,40 +2305,76 @@ function StartRelationshipPanel({
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const query = contactName.normalize("NFKC").trim();
+    const requestId = ++peopleRequestIdRef.current;
     const controller = new AbortController();
-    void fetch("/api/local-integration/people", {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const payload = (await response.json()) as
-          | { people: PersonDirectoryItem[] }
-          | { message?: string };
-        if (!response.ok || !("people" in payload)) {
-          throw new Error(
-            "message" in payload && payload.message
-              ? payload.message
-              : "Existing people could not be loaded.",
-          );
-        }
-        setPeople(payload.people);
-      })
-      .catch((caught: unknown) => {
-        if (
-          caught instanceof DOMException &&
-          caught.name === "AbortError"
-        ) {
-          return;
-        }
-        setError(
-          caught instanceof Error
-            ? caught.message
-            : "Existing people could not be loaded.",
-        );
-      })
-      .finally(() => setPeopleLoading(false));
-    return () => controller.abort();
-  }, []);
+    const timer = window.setTimeout(
+      () => {
+        setPeopleLoading(true);
+        setPeopleLookupFailed(false);
+        void fetch(
+          query
+            ? "/api/local-integration/people/search"
+            : "/api/local-integration/people",
+          query
+            ? {
+                method: "POST",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query }),
+                signal: controller.signal,
+              }
+            : { cache: "no-store", signal: controller.signal },
+        )
+          .then(async (response) => {
+            const payload = (await response.json()) as
+              | { people: PersonDirectoryItem[] }
+              | { message?: string };
+            if (!response.ok || !("people" in payload)) {
+              throw new Error(
+                "message" in payload && payload.message
+                  ? payload.message
+                  : "Existing people could not be loaded.",
+              );
+            }
+            if (requestId !== peopleRequestIdRef.current) {
+              return;
+            }
+            setPeople(payload.people);
+            setPeopleLookupFailed(false);
+          })
+          .catch((caught: unknown) => {
+            if (
+              requestId !== peopleRequestIdRef.current ||
+              caught instanceof DOMException &&
+              caught.name === "AbortError"
+            ) {
+              return;
+            }
+            setPeople([]);
+            setPeopleLookupFailed(true);
+            setError(
+              caught instanceof Error
+                ? caught.message
+                : "Existing people could not be loaded.",
+            );
+          })
+          .finally(() => {
+            if (requestId === peopleRequestIdRef.current) {
+              setPeopleLoading(false);
+            }
+          });
+      },
+      query ? 250 : 0,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      if (requestId === peopleRequestIdRef.current) {
+        peopleRequestIdRef.current += 1;
+      }
+      controller.abort();
+    };
+  }, [contactName]);
 
   const selectedPerson =
     people.find((person) => person.id === selectedPersonId) ?? null;
@@ -2276,19 +2382,15 @@ function StartRelationshipPanel({
     selectedPerson?.contexts.find(
       (context) => context.id === selectedContextId,
     ) ?? null;
-  const matchingPeople = useMemo(() => {
-    const query = contactName.normalize("NFKC").trim().toLowerCase();
-    if (!query) {
-      return people.slice(0, 4);
-    }
-    return people
-      .filter((person) =>
-        person.display_label.normalize("NFKC").toLowerCase().includes(query),
-      )
-      .slice(0, 4);
-  }, [contactName, people]);
+  const matchingPeople = people.slice(0, 4);
+  const contactQueryIsHandle = parseIdentityHandleQuery(contactName) !== null;
   const identityReady =
-    (createNewPerson && contactName.trim() && contextLabel.trim()) ||
+    (createNewPerson &&
+      !peopleLoading &&
+      !peopleLookupFailed &&
+      !contactQueryIsHandle &&
+      contactName.trim() &&
+      contextLabel.trim()) ||
     (selectedPerson &&
       (selectedContext || (createNewContext && contextLabel.trim())));
   const sourceReady =
@@ -2437,6 +2539,8 @@ function StartRelationshipPanel({
             autoComplete="off"
             maxLength={200}
             onChange={(event) => {
+              setPeopleLoading(true);
+              setPeopleLookupFailed(false);
               setContactName(event.target.value);
               setSelectedPersonId(null);
               setSelectedContextId(null);
@@ -2475,7 +2579,10 @@ function StartRelationshipPanel({
               </button>
             ))
           )}
-          {contactName.trim() ? (
+          {!peopleLoading &&
+          !peopleLookupFailed &&
+          contactName.trim() &&
+          !contactQueryIsHandle ? (
             <button
               data-selected={createNewPerson}
               onClick={() => {
@@ -2495,6 +2602,15 @@ function StartRelationshipPanel({
             </button>
           ) : null}
         </div>
+        {contactQueryIsHandle &&
+        matchingPeople.length === 0 &&
+        !peopleLoading &&
+        !peopleLookupFailed ? (
+          <p className="context-start__lookup-note">
+            No current or historical owner matched this masked identity clue.
+            Enter the person&apos;s name before creating a new identity.
+          </p>
+        ) : null}
 
         {selectedPerson ? (
           <div className="context-start__contexts">
@@ -5770,7 +5886,7 @@ function AgentCreatePersonCard({
             <small>
               {identityChoiceNeedsReview
                 ? "Choose the identity before confirming this clue."
-                : "Stores a hash, masked hint, governed source, and review deadline—not the raw value. Email, phone, and WeChat clues are reviewed annually."}
+                : "Stores a hash, masked hint, governed source, and review deadline, not the raw value. Email, phone, and WeChat clues are reviewed annually."}
             </small>
           </span>
         </label>
@@ -7806,8 +7922,7 @@ export function RelationshipWorkspaceApp({
             <Link aria-label="Open people directory" href="/workspace/people">
               <AddressBook aria-hidden="true" size={19} weight="duotone" />
               People
-              {activeScope ? <span>1</span> : null}
-            </Link>
+          </Link>
             <a aria-label="Open governed sources" href="#relationship-resources">
               <FileImage aria-hidden="true" size={19} weight="duotone" />
               Sources
@@ -8009,55 +8124,59 @@ export function RelationshipWorkspaceApp({
 
           {!workspace && !relationshipScope ? (
             <section className="context-onboarding">
-              <div className="context-onboarding__artifact">
-                <div>
-                  <span>01</span>
-                  <p>
-                    <strong>Any first source</strong>
-                    Note · transcript · file · link · screenshot
-                  </p>
-                </div>
-                <ArrowRight aria-hidden="true" size={19} />
-                <div>
-                  <span>02</span>
-                  <p>
-                    <strong>One relationship</strong>
-                    Explicit person and context binding
-                  </p>
-                </div>
-                <ArrowRight aria-hidden="true" size={19} />
-                <div>
-                  <span>03</span>
-                  <p>
-                    <strong>Chat + living Wiki</strong>
-                    Task views compiled from governed sources
-                  </p>
-                </div>
-              </div>
-              <div className="context-onboarding__copy">
+              <header className="context-onboarding__header">
                 <p className="eyebrow">RELATIONSHIP INTELLIGENCE</p>
-                <h1>Turn scattered context into one person you can understand.</h1>
+                <h1>Begin with the source already in front of you.</h1>
                 <p>
-                  Begin with the source already in front of you. Each note,
-                  document, link, or conversation remains reviewable and
-                  reversible; nothing contacts the person on your behalf.
+                  Bind one person and relationship, then review what the source
+                  can and cannot support.
                 </p>
+              </header>
+              <div className="context-onboarding__workbench">
                 <StartRelationshipPanel
                   onCommitted={handleInitialResourcesCommitted}
                   onScreenshot={() => setCaptureOpen(true)}
                 />
-                {deletionSummary ? (
-                  <div className="context-deletion-receipt">
-                    <Prohibit aria-hidden="true" size={19} />
+                <aside
+                  aria-label="From governed source to living Wiki"
+                  className="context-onboarding__artifact"
+                >
+                  <div>
+                    <span>01</span>
                     <p>
-                      <strong>Previous source deleted</strong>
-                      {deletionSummary.derivatives} derivatives removed ·{" "}
-                      {deletionSummary.lineage} audit-safe lineage entries
-                      retained.
+                      <strong>Bring one source</strong>
+                      Note, transcript, file, link, or screenshot
                     </p>
                   </div>
-                ) : null}
+                  <ArrowRight aria-hidden="true" size={19} />
+                  <div>
+                    <span>02</span>
+                    <p>
+                      <strong>Bind the context</strong>
+                      Person and relationship stay explicit
+                    </p>
+                  </div>
+                  <ArrowRight aria-hidden="true" size={19} />
+                  <div>
+                    <span>03</span>
+                    <p>
+                      <strong>Compile the Wiki</strong>
+                      Evidence governs every task view
+                    </p>
+                  </div>
+                </aside>
               </div>
+              {deletionSummary ? (
+                <div className="context-deletion-receipt">
+                  <Prohibit aria-hidden="true" size={19} />
+                  <p>
+                    <strong>Previous source deleted</strong>
+                    {deletionSummary.derivatives} derivatives removed ·{" "}
+                    {deletionSummary.lineage} audit-safe lineage entries
+                    retained.
+                  </p>
+                </div>
+              ) : null}
             </section>
           ) : !workspace && relationshipScope ? (
             <div className="context-page context-page--resource-only">
@@ -8653,7 +8772,7 @@ export function RelationshipWorkspaceApp({
                   </div>
                 </div>
                 <div className="context-contact-header__signal">
-                  <span>Relationship pulse</span>
+                  <span>Current dependency</span>
                   <strong>
                     {effect?.outcome?.status === "verified"
                       ? "Next move recorded"
@@ -8667,7 +8786,7 @@ export function RelationshipWorkspaceApp({
                           : "No confirmed change"}
                   </strong>
                   <small>
-                    Based on review state, never a score of this person.
+                    Derived from review state. It never rates the person.
                   </small>
                 </div>
               </section>

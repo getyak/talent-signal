@@ -6,6 +6,7 @@ import { PeopleDirectoryApp } from "@/components/people-directory-app";
 import {
   isIntegrationMode,
   loadPeopleDirectory,
+  searchPeopleDirectory,
 } from "@/lib/server/localBackend";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,11 @@ export default async function PeoplePage({
   let people: Awaited<ReturnType<typeof loadPeopleDirectory>>["people"] = [];
   let error: string | null = null;
   try {
-    people = (await loadPeopleDirectory(query)).people;
+    people = (
+      await (query
+        ? searchPeopleDirectory(query)
+        : loadPeopleDirectory())
+    ).people;
   } catch {
     error =
       "The account-scoped backend could not be reached. No relationship state is inferred from stale data.";

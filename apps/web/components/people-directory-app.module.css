@@ -245,6 +245,38 @@
   font-size: 0.68rem;
 }
 
+.matchReasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+}
+
+.matchReasons li {
+  background: var(--surface-muted);
+  border-radius: 999px;
+  color: var(--muted-strong);
+  font-size: 0.58rem;
+  line-height: 1.35;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 5px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matchReasons li[data-kind="confirmed_handle"] {
+  background: color-mix(in srgb, var(--success) 9%, var(--surface));
+  color: var(--success);
+}
+
+.matchReasons li[data-kind="expired_handle"] {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--accent-strong);
+}
+
 .contexts {
   min-width: 0;
 }
@@ -402,7 +434,7 @@
   }
 
   .evidence {
-    display: none;
+    grid-column: 2 / 4;
   }
 }
 
@@ -507,6 +539,10 @@
   }
 
   .contexts {
+    grid-column: 2 / -1;
+  }
+
+  .evidence {
     grid-column: 2 / -1;
   }
 

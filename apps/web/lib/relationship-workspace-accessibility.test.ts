@@ -14,6 +14,10 @@ const capturePanel = component.slice(
   component.indexOf("function CapturePanel("),
   component.indexOf("function ConversationTranscriptComposer("),
 );
+const startRelationshipPanel = component.slice(
+  component.indexOf("function StartRelationshipPanel("),
+  component.indexOf("function RelationshipResourceComposer("),
+);
 
 describe("relationship workspace accessibility contract", () => {
   it("uses a modal primitive with named content and guarded dismissal", () => {
@@ -49,5 +53,19 @@ describe("relationship workspace accessibility contract", () => {
     expect(component).toContain("createImageBitmap(source)");
     expect(capturePanel).not.toContain("URL.createObjectURL");
     expect(capturePanel).not.toContain("<img");
+  });
+
+  it("keeps identity creation blocked until the latest people lookup settles", () => {
+    for (const panel of [capturePanel, startRelationshipPanel]) {
+      expect(panel).toContain("const requestId = ++peopleRequestIdRef.current;");
+      expect(panel).toContain("requestId !== peopleRequestIdRef.current");
+      expect(panel).toContain("requestId === peopleRequestIdRef.current");
+      expect(panel).toMatch(
+        /onChange=\{\(event\) => \{\s*setPeopleLoading\(true\);\s*setPeopleLookupFailed\(false\);\s*setContactName/,
+      );
+    }
+    expect(startRelationshipPanel).toMatch(
+      /!peopleLoading &&\s*!peopleLookupFailed &&\s*contactName\.trim\(\) &&\s*!contactQueryIsHandle \? \(/,
+    );
   });
 });

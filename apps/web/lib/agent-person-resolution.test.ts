@@ -19,6 +19,7 @@ const person: PersonDirectoryItem = {
   display_label: "陈雅宁",
   context_count: 1,
   capture_count: 3,
+  confirmed_identity_count: 0,
   last_activity_at: "2026-08-07T00:00:00.000Z",
   identity_matches: [{ kind: "name" }],
   contexts: [

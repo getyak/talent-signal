@@ -61,6 +61,18 @@ function relationshipHref(person: PersonDirectoryItem) {
   return `/workspace?${search.toString()}`;
 }
 
+function identityMatchLabel(
+  match: PersonDirectoryItem["identity_matches"][number],
+) {
+  if (match.kind === "name") {
+    return "Name match";
+  }
+  if (match.kind === "confirmed_handle") {
+    return `Current ${match.handle_type}: ${match.display_hint}`;
+  }
+  return `Historical ${match.handle_type}: ${match.display_hint}`;
+}
+
 export function PeopleDirectoryApp({ error, people, query, user }: Props) {
   const accountLabel = user.name ?? "Recruiter";
 
@@ -88,7 +100,6 @@ export function PeopleDirectoryApp({ error, people, query, user }: Props) {
           >
             <AddressBook aria-hidden="true" size={19} weight="duotone" />
             People
-            <span>{people.length}</span>
           </Link>
           <Link
             aria-label="Governed sources"
@@ -152,11 +163,11 @@ export function PeopleDirectoryApp({ error, people, query, user }: Props) {
             <form action="/workspace/people" className={styles.search}>
               <MagnifyingGlass aria-hidden="true" size={19} />
               <input
-                aria-label="Search people by name"
+                aria-label="Search people by name or confirmed contact handle"
                 defaultValue={query}
                 maxLength={160}
                 name="query"
-                placeholder="Find a person…"
+                placeholder="Find by name, email, or phone…"
                 type="search"
               />
               <button type="submit">Search</button>
@@ -191,7 +202,7 @@ export function PeopleDirectoryApp({ error, people, query, user }: Props) {
                   <strong>{query ? "No matching person" : "No person yet"}</strong>
                   <p>
                     {query
-                      ? "Try a different name. Handles stay masked and are searched only when explicitly typed."
+                      ? "Try a different name, email, or phone. Contact handles stay masked and are searched only when explicitly typed."
                       : "Bring one governed source to create the first relationship page."}
                   </p>
                 </div>
@@ -205,9 +216,6 @@ export function PeopleDirectoryApp({ error, people, query, user }: Props) {
               <ol className={styles.peopleList}>
                 {people.map((person) => {
                   const href = relationshipHref(person);
-                  const confirmedIdentifiers = person.identity_matches.filter(
-                    (match) => match.kind === "confirmed_handle",
-                  ).length;
                   return (
                     <li key={person.id}>
                       <article className={styles.personCard}>
@@ -226,6 +234,18 @@ export function PeopleDirectoryApp({ error, people, query, user }: Props) {
                               {formatActivity(person.last_activity_at)}
                             </time>
                           </span>
+                          {person.identity_matches.length > 0 ? (
+                            <ul className={styles.matchReasons}>
+                              {person.identity_matches.map((match) => (
+                                <li
+                                  data-kind={match.kind}
+                                  key={identityMatchLabel(match)}
+                                >
+                                  {identityMatchLabel(match)}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
                         </div>
 
                         <div className={styles.contexts}>
@@ -254,7 +274,7 @@ export function PeopleDirectoryApp({ error, people, query, user }: Props) {
                           </div>
                           <div>
                             <dt>Confirmed IDs</dt>
-                            <dd>{confirmedIdentifiers}</dd>
+                            <dd>{person.confirmed_identity_count}</dd>
                           </div>
                         </dl>
 

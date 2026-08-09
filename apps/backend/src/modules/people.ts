@@ -18,6 +18,7 @@ interface PersonDirectoryRow {
   display_label: string;
   context_count: number;
   capture_count: number;
+  confirmed_identity_count: number;
   last_activity_at: Date;
   name_match: boolean;
   matched_handle_status: "confirmed" | "expired" | null;
@@ -74,6 +75,33 @@ async function queryPeople(
            AND captures.subject_id = subjects.id
            AND captures.status = 'active'
        ) AS capture_count,
+       (
+         SELECT COUNT(*)::integer
+         FROM identity_handles confirmed_handles
+         LEFT JOIN source_resources confirmed_resources
+           ON confirmed_resources.account_id = confirmed_handles.account_id
+          AND confirmed_resources.id = confirmed_handles.source_resource_id
+         LEFT JOIN source_retention_receipts confirmed_receipts
+           ON confirmed_receipts.account_id = confirmed_resources.account_id
+          AND confirmed_receipts.capture_id = confirmed_resources.capture_id
+         WHERE confirmed_handles.account_id = subjects.account_id
+           AND confirmed_handles.subject_id = subjects.id
+           AND confirmed_handles.status = 'confirmed'
+           AND (
+             confirmed_handles.valid_until IS NULL
+             OR confirmed_handles.valid_until > now()
+           )
+           AND (
+             confirmed_handles.source_resource_id IS NULL
+             OR (
+               confirmed_receipts.authorization_state = 'authorized'
+               AND (
+                 confirmed_receipts.authorization_expires_at IS NULL
+                 OR confirmed_receipts.authorization_expires_at > now()
+               )
+             )
+           )
+       ) AS confirmed_identity_count,
        COALESCE(
          (
            SELECT MAX(captures.created_at)
@@ -233,6 +261,7 @@ async function queryPeople(
         display_label: person.display_label,
         context_count: person.context_count,
         capture_count: person.capture_count,
+        confirmed_identity_count: person.confirmed_identity_count,
         last_activity_at: person.last_activity_at.toISOString(),
         contexts: person.contexts.map((context) => ({
           id: context.id,
