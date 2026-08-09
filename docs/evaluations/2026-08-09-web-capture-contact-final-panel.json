@@ -1,15 +1,16 @@
 {
-  "panel_id": "TS-2026-08-09-WEB-CAPTURE-CONTACT-003",
+  "panel_id": "TS-2026-08-09-WEB-CAPTURE-CONTACT-004",
   "artifact": {
     "id": "web-capture-to-living-contact",
     "type": "authenticated-responsive-web-build",
-    "version": "working-tree-93d3320211a660082721dcd80f4cc1398170ce1760bb503cfcd5f8faeb504204"
+    "version": "working-tree-d5cb393debfe3537d1aac0b2d5c2f7a3dccc813d61dd95e6eb3d3e9c3e2da127"
   },
   "scenario": "An independent recruiter intentionally imports a synthetic attributed transcript and a locally cropped-and-redacted synthetic conversation screenshot, binds both to one existing person and relationship, reviews exact evidence and atomic facts, preserves one conflicting availability statement as unresolved, restores the durable relationship Wiki after refresh, and receives a supported no-action result without external writes.",
   "frozen_evidence": [
     "apps/web/components/relationship-workspace-app.tsx",
     "apps/web/app/globals.css",
     "apps/web/lib/conversation-transcript.ts",
+    "apps/web/lib/relationship-workspace-accessibility.test.ts",
     "apps/web/lib/server/screenshot-analysis.ts",
     "apps/backend/src/modules/resourceClaims.ts",
     "apps/backend/src/modules/captures.ts",
@@ -69,7 +70,7 @@
           "severity": "medium",
           "criterion": "Field value evidence",
           "observation": "The authenticated executable flow turns either one reviewed screenshot or one explicitly attributed transcript into the same person-and-relationship page, exact source ledger, fact decisions, durable Wiki, and intentional no-action result. The evidence is synthetic and has not been compared with a working recruiter's current chat, notes, ATS, and calendar fallback.",
-          "evidence": "Working-tree code artifact 93d3320211a660082721dcd80f4cc1398170ce1760bb503cfcd5f8faeb504204; browser run on /workspace for capture 40c98a97-2be1-4552-93d8-c92304bd0110; synthetic-candidate-conversation.txt and live-model synthetic screenshot; locally minimized capture eb8c2254-e6ec-4ff7-8596-c824784e4660; Wiki snapshot ead49469 with 22 governed references; web 143 tests and backend 105 tests passed.",
+          "evidence": "Working-tree code artifact d5cb393debfe3537d1aac0b2d5c2f7a3dccc813d61dd95e6eb3d3e9c3e2da127; browser run on /workspace for capture 40c98a97-2be1-4552-93d8-c92304bd0110; synthetic-candidate-conversation.txt and live-model synthetic screenshot; locally minimized capture eb8c2254-e6ec-4ff7-8596-c824784e4660; Wiki snapshot ead49469 with 22 governed references; web 144 tests and backend 105 tests passed.",
           "user_impact": "The loop is operationally complete and avoids duplicate relationship reconstruction, but claims that it saves time or prevents a missed candidate window remain unproven in real search work.",
           "recommendation": "Run a five-minute pre-call reconstruction comparison with independent recruiters using their normal fallback and the same consented episode.",
           "verification": "In at least five consented cases, measure time to recover the current relationship, seeded-error correction, duplicate-entry rate, unnecessary outreach avoided, and whether the Wiki changes the next real step."
@@ -105,7 +106,7 @@
           "severity": "medium",
           "criterion": "Vendor and derived-store lifecycle proof",
           "observation": "The implementation sends only the user-kept image region, requests ZDR routing and data-collection denial, stores no original image, retains reviewed text with an explicit source receipt, and supports authorization revocation and deletion. Repository and browser evidence cannot independently verify provider deletion, infrastructure backups, or every operational log outside the tested application boundary.",
-          "evidence": "Code artifact 93d3320211a660082721dcd80f4cc1398170ce1760bb503cfcd5f8faeb504204; OpenRouter request policy in screenshot-analysis.ts; visible 30-day reviewed-text disclosure; live cropped-and-redacted analysis request gen-1786215853-1CW6441cvjEyRHr8dZFg; browser-local byte probe a333a1f145e1ea7c89ca6935a9f3ffcd71ba0f3be505ec5b7da175f22e9e908c; UI deletion of capture eb8c2254-e6ec-4ff7-8596-c824784e4660; backend deletion, authorization, restart-recovery, and resource lifecycle tests.",
+          "evidence": "Code artifact d5cb393debfe3537d1aac0b2d5c2f7a3dccc813d61dd95e6eb3d3e9c3e2da127; OpenRouter request policy in screenshot-analysis.ts; visible 30-day reviewed-text disclosure; live cropped-and-redacted analysis request gen-1786215853-1CW6441cvjEyRHr8dZFg; browser-local byte probe a333a1f145e1ea7c89ca6935a9f3ffcd71ba0f3be505ec5b7da175f22e9e908c; UI deletion of capture eb8c2254-e6ec-4ff7-8596-c824784e4660; backend deletion, authorization, restart-recovery, and resource lifecycle tests.",
           "user_impact": "The product boundary is truthful in the tested application, but production privacy claims about every processor, backup, and log would exceed the available evidence.",
           "recommendation": "Keep vendor and backup claims out of the UI until an operational retention inventory, processor configuration check, and deletion-monitoring run exist.",
           "verification": "For a consented canary source, record the application, provider, logs, caches, backup class, deletion request, deletion completion, and monitoring result; no raw or derived content may remain beyond its disclosed scope."
@@ -119,6 +120,7 @@
         "A conflicting semantic availability value remained unresolved while the existing confirmed 2026-09-15 fact stayed visible; no destructive overwrite or action was produced.",
         "Source authorization, retention scope, deletion, Wiki invalidation/rebuild, stale decisions, and idempotent operations are represented by executable contracts rather than policy copy alone.",
         "The browser supports freeform local masks inside the retained crop. Two masks were flattened before upload, produced continuous dark pixel ranges 33–150 and 869–975, and were recorded with crop and redaction counts in signed provenance.",
+        "Local image previews retain Blob/File objects in memory and decode them with createImageBitmap into canvas; no user-derived string is assigned to an image URL sink, and the client rejects empty, oversized, or unsupported MIME input before preview.",
         "No candidate quality, fit, personality, protected trait, sentiment, or acceptance probability is inferred or displayed."
       ],
       "missing_evidence": [
@@ -143,7 +145,7 @@
           "severity": "medium",
           "criterion": "Human outcome evidence",
           "observation": "The private workspace preserves exact candidate words, uncertainty, ownership, quiet no-action, and recruiter review before any follow-through. The evaluated people and conversations are synthetic, so no candidate or candidate advisor has confirmed that the remembered wording and timing would feel accurate and respectful in a real search.",
-          "evidence": "Code artifact 93d3320211a660082721dcd80f4cc1398170ce1760bb503cfcd5f8faeb504204; synthetic text and screenshot episodes; durable Wiki ead49469; availability left unresolved; no-action block; no message, notification, meeting, or ATS effect executed.",
+          "evidence": "Code artifact d5cb393debfe3537d1aac0b2d5c2f7a3dccc813d61dd95e6eb3d3e9c3e2da127; synthetic text and screenshot episodes; durable Wiki ead49469; availability left unresolved; no-action block; no message, notification, meeting, or ATS effect executed.",
           "user_impact": "The design avoids obvious pressure and false empathy, but it cannot yet claim that the resulting continuity improves a candidate's real experience.",
           "recommendation": "Review the fact labels, uncertainty language, quiet state, and any future follow-up preview with candidates or candidate advisors before using outcome claims.",
           "verification": "Participants must correctly identify what the candidate actually said, what remains uncertain, who owns the next step, whether anyone will contact them, and how an error can be corrected or deleted."
@@ -188,7 +190,7 @@
           "severity": "low",
           "criterion": "Assistive-technology completion",
           "observation": "The responsive executable route has semantic headings, skip navigation, an explicitly titled and described Radix modal, deterministic focus entry, bidirectional focus containment, Esc dismissal with opener restoration, fact-review focus after commit, keyboard-operable local masking, reduced-motion behavior, dark mode, text alternatives, a fixed mobile confirmation footer, and 44-pixel mobile targets. A real VoiceOver or switch-control task was not available in this browser-only run.",
-          "evidence": "Code artifact 93d3320211a660082721dcd80f4cc1398170ce1760bb503cfcd5f8faeb504204; Playwright 390x844 and 1440x1000 runs; workspace-local-redaction-final.png, workspace-local-redaction-mobile.png, and workspace-radix-modal-mobile.png; modal opened with the dialog itself active; Shift+Tab wrapped from Close to Cancel and Tab wrapped from Cancel to Close; Esc closed and restored the exact Import screenshot opener; capture 40c98a97-2be1-4552-93d8-c92304bd0110 loaded with #proposed-changes active; Enter added a local mask, arrows moved it, Shift+Arrow resized it, Delete restored the original canvas, and the live status announced both states; empty and prepared-state undersized-control audits returned []; dialog and body horizontal overflow were zero; clean console had zero errors or warnings.",
+          "evidence": "Code artifact d5cb393debfe3537d1aac0b2d5c2f7a3dccc813d61dd95e6eb3d3e9c3e2da127; Playwright 390x844 and 1440x1000 runs; workspace-local-redaction-final.png, workspace-local-redaction-mobile.png, and workspace-radix-modal-mobile.png; modal opened with the dialog itself active; Shift+Tab wrapped from Close to Cancel and Tab wrapped from Cancel to Close; Esc closed and restored the exact Import screenshot opener; capture 40c98a97-2be1-4552-93d8-c92304bd0110 loaded with #proposed-changes active; Enter added a local mask, arrows moved it, Shift+Arrow resized it, Delete restored the original canvas, and the live status announced both states; empty and prepared-state undersized-control audits returned []; dialog and body horizontal overflow were zero; clean console had zero errors or warnings.",
           "user_impact": "Keyboard focus behavior is now directly proven, but announcement order and scanning behavior could still affect VoiceOver or switch-control users without being visible to browser semantics alone.",
           "recommendation": "Run the screenshot crop, identity binding, evidence review, fact decision, Wiki, source deletion, and return path with VoiceOver and switch control on a supported device.",
           "verification": "Identity, exact source, crop consequence, uncertainty, proposed fact, decision controls, deletion effect, and restored Wiki must be announced once in visual order; every action must be operable and focus must return to the invoking control."
@@ -267,7 +269,7 @@
     ],
     "disagreements": [],
     "veto_resolution": [],
-    "rationale": "All four applicable reviewers return contract-valid 3 of 4 scores with direct executable evidence and no vetoes. Every defect found in the rendered implementation was corrected and retested: duplicate relationship creation, screenshot-to-fact deep linking, durable Wiki restoration, cloud-input cropping, browser-local freeform and keyboard-operable masking, Radix modal focus containment and restoration, fixed confirmation actions, mobile target size, responsive overflow, and provider connectivity. The pre-provider third-party minimization and browser keyboard gaps from earlier panels are resolved with byte, pixel, provenance, live-provider, focus, keyboard, and deletion proof. The gate remains needs_evidence because field usefulness, candidate comprehension, provider and backup lifecycle, real assistive-technology completion, and measured production performance require external evidence rather than more cosmetic iteration."
+    "rationale": "All four applicable reviewers return contract-valid 3 of 4 scores with direct executable evidence and no vetoes. Every defect found in the rendered implementation was corrected and retested: duplicate relationship creation, screenshot-to-fact deep linking, durable Wiki restoration, cloud-input cropping, browser-local freeform and keyboard-operable masking, Blob-to-canvas image preview, Radix modal focus containment and restoration, fixed confirmation actions, mobile target size, responsive overflow, and provider connectivity. The pre-provider third-party minimization, DOM URL, and browser keyboard gaps from earlier panels are resolved with byte, pixel, provenance, live-provider, focus, keyboard, and deletion proof. The gate remains needs_evidence because field usefulness, candidate comprehension, provider and backup lifecycle, real assistive-technology completion, and measured production performance require external evidence rather than more cosmetic iteration."
   },
   "next_tests": [
     {
