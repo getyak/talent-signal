@@ -10,7 +10,7 @@ const DEFAULT_ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 export const DEFAULT_SCREENSHOT_MODEL = "doubao-seed-2-0-lite-260215";
 export const DEFAULT_IMAGE_GENERATION_MODEL =
   "doubao-seedream-5-0-lite-260128";
-export const SCREENSHOT_PROMPT_VERSION = "screenshot-evidence.v2";
+export const SCREENSHOT_PROMPT_VERSION = "screenshot-evidence.v5";
 
 type ArkChatResponse = {
   id?: string;
@@ -85,9 +85,15 @@ export function screenshotPrompt(input: {
       "Do not infer personality, quality, fit, protected traits, health, age, ethnicity, gender, religion, compensation, or acceptance probability.",
       "Do not guess hidden text, cropped context, dates, years, time zones, or speaker identity.",
       "Channel chrome, account names, and bubble side are identity clues, never identity authority.",
-      "Use candidate or recruiter only when the recruiter-provided screenshot_owner and visible layout jointly support that attribution. When screenshot_owner is unknown or the layout is unclear, use unknown.",
+      "Map speakers from the recruiter-provided screenshot_owner and visible outgoing versus incoming layout before reading message meaning. Apply that mapping consistently across the whole screenshot.",
+      "For every message, return visual_direction as outgoing when the bubble was sent by the screenshot owner's account, incoming when sent by the other visible participant, or unknown when layout cannot establish it.",
+      "Message wording must never override visible sender layout. If screenshot_owner is candidate, outgoing messages belong to the candidate and incoming messages belong to the other participant when the header identifies that participant as a recruiter; reverse this rule when screenshot_owner is recruiter.",
+      "Use candidate or recruiter only when screenshot_owner and visible layout jointly support that attribution. When screenshot_owner is unknown or the layout is unclear, use unknown.",
+      "Create candidate assertions only from messages attributed to the candidate. Recruiter messages are context, not candidate facts.",
       "Every evidence_quote must be an exact contiguous substring of one transcribed message.",
       "When evidence is unclear, use status ambiguous and explain one concrete ambiguity.",
+      "Relative dates or times without a verified full date and time zone must be ambiguous, including weekday-only deadlines or availability.",
+      "An unresolved remote-work arrangement or policy is an ambiguous work_mode_constraint. Do not turn it into a confirmed requirement or preference.",
       "Propose at most one recruiter-owned prepare-question action. It must not contact anyone or write to an external system.",
     ],
     allowed_assertion_fields: [
@@ -104,11 +110,12 @@ export function screenshotPrompt(input: {
       captured_at:
         "an explicit timestamp visible in the screenshot, otherwise null",
       transcription_notes: [
-        "only concrete limits such as cropped text or uncertain speaker",
+        "only concrete limits such as cropped text or uncertain speaker; each note must be 180 characters or fewer",
       ],
       messages: [
         {
           source_message_id: "m1",
+          visual_direction: "incoming, outgoing, or unknown",
           speaker: "candidate, recruiter, or unknown",
           text: "verbatim message text",
         },
@@ -120,7 +127,8 @@ export function screenshotPrompt(input: {
           value: "neutral operational value",
           evidence_message_id: "message ID",
           evidence_quote: "exact contiguous quote",
-          ambiguity: "concrete ambiguity or null",
+          ambiguity:
+            "one concrete ambiguity in 180 characters or fewer, otherwise null",
         },
       ],
       action: {
@@ -142,6 +150,7 @@ export async function analyzeScreenshotWithArk(input: {
   assignmentLabel: string;
   screenshotOwner: ScreenshotOwnerRole;
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 }): Promise<ArkScreenshotAnalysis> {
   const availability = getArkAvailability();
   const apiKey = process.env.ARK_API_KEY;
@@ -187,7 +196,9 @@ export async function analyzeScreenshotWithArk(input: {
       max_tokens: 5_000,
     }),
     cache: "no-store",
-    signal: AbortSignal.timeout(45_000),
+    signal: input.signal
+      ? AbortSignal.any([input.signal, AbortSignal.timeout(45_000)])
+      : AbortSignal.timeout(45_000),
   });
 
   if (!response.ok) {
@@ -200,7 +211,10 @@ export async function analyzeScreenshotWithArk(input: {
   }
 
   return {
-    draft: parseScreenshotCaptureDraft(content),
+    draft: parseScreenshotCaptureDraft(content, {
+      require_visual_direction: true,
+      screenshot_owner: input.screenshotOwner,
+    }),
     meta: {
       provider: "Volcano Ark",
       model: payload.model ?? availability.screenshot_model,

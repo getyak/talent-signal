@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Screenshot analysis is not configured. Add the server-side Ark key and enable private AI processing.",
+          "Screenshot analysis is not configured. Configure a supported private provider and enable sensitive AI processing.",
         code: "provider_unavailable",
       },
       { status: 503, headers: noStoreHeaders() },
@@ -206,6 +206,7 @@ export async function POST(request: NextRequest) {
       contactName,
       assignmentLabel,
       screenshotOwner,
+      signal: request.signal,
       sourceSha256: createHash("sha256").update(bytes).digest("hex"),
       ...(minimizationIsValid
         ? {
@@ -226,6 +227,18 @@ export async function POST(request: NextRequest) {
       { headers: noStoreHeaders() },
     );
   } catch (error) {
+    if (
+      request.signal.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
+      return NextResponse.json(
+        {
+          error: "Screenshot analysis was canceled. No source was saved.",
+          code: "analysis_canceled",
+        },
+        { status: 499, headers: noStoreHeaders() },
+      );
+    }
     const requestId = randomUUID();
     const reason =
       error instanceof Error
