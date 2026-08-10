@@ -59,6 +59,7 @@ const screenshotAnalysisMetaSchema = z
 
 const assertionFieldSchema = z.enum(ASSERTION_FIELDS);
 const speakerSchema = z.enum(["candidate", "recruiter", "unknown"]);
+const visualDirectionSchema = z.enum(["incoming", "outgoing", "unknown"]);
 
 const rawScreenshotDraftSchema = z.object({
   platform: z.enum(SCREENSHOT_PLATFORMS),
@@ -72,6 +73,7 @@ const rawScreenshotDraftSchema = z.object({
           .min(1)
           .max(80)
           .regex(/^[a-zA-Z0-9:_-]+$/),
+        visual_direction: visualDirectionSchema.optional(),
         speaker: speakerSchema,
         text: z.string().min(1).max(4_000),
       }),
@@ -140,6 +142,52 @@ function decodeJsonObject(content: string): unknown {
   return JSON.parse(content.slice(start, end + 1));
 }
 
+function boundGeneratedExplanation(value: string, maximum: number) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maximum) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maximum - 1).trimEnd()}…`;
+}
+
+/**
+ * Provider-written notes explain uncertainty but are not source evidence.
+ * Bound only those explanatory fields before contract validation so a verbose
+ * model cannot discard an otherwise reviewable transcription. Messages,
+ * values, and exact evidence quotes remain untouched and fail closed.
+ */
+function normalizeGeneratedExplanations(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const draft = value as Record<string, unknown>;
+  const transcriptionNotes = Array.isArray(draft.transcription_notes)
+    ? draft.transcription_notes.map((note) =>
+        typeof note === "string" ? boundGeneratedExplanation(note, 180) : note,
+      )
+    : draft.transcription_notes;
+  const assertions = Array.isArray(draft.assertions)
+    ? draft.assertions.map((assertion) => {
+        if (!assertion || typeof assertion !== "object" || Array.isArray(assertion)) {
+          return assertion;
+        }
+        const item = assertion as Record<string, unknown>;
+        return {
+          ...item,
+          ambiguity:
+            typeof item.ambiguity === "string"
+              ? boundGeneratedExplanation(item.ambiguity, 180)
+              : item.ambiguity,
+        };
+      })
+    : draft.assertions;
+  return {
+    ...draft,
+    transcription_notes: transcriptionNotes,
+    assertions,
+  };
+}
+
 function containsRelativeTimeReference(value: string) {
   return /(?:today|tomorrow|yesterday|this\s+(?:week|month)|next\s+(?:week|month)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|今天|明天|昨天|本周|这周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|今日|明日|今週|来週|月曜|火曜|水曜|木曜|金曜|土曜|日曜)/iu.test(
     value,
@@ -170,13 +218,44 @@ function containsConcreteTimeReference(value: string) {
 
 export function parseScreenshotCaptureDraft(
   content: string,
+  context: {
+    require_visual_direction?: boolean;
+    screenshot_owner?: ScreenshotOwnerRole;
+  } = {},
 ): ScreenshotCaptureDraft {
-  const parsed = rawScreenshotDraftSchema.parse(decodeJsonObject(content));
-  const messages = parsed.messages.map((message, sequence) => ({
-    ...message,
-    text: message.text.trim(),
-    sequence,
-  }));
+  const parsed = rawScreenshotDraftSchema.parse(
+    normalizeGeneratedExplanations(decodeJsonObject(content)),
+  );
+  if (
+    context.require_visual_direction &&
+    parsed.messages.some((message) => message.visual_direction === undefined)
+  ) {
+    throw new Error(
+      "The provider transcription is missing visual message direction.",
+    );
+  }
+  const messages = parsed.messages.map((message, sequence) => {
+    const visualDirection = message.visual_direction;
+    const screenshotOwner = context.screenshot_owner ?? "unknown";
+    const speaker =
+      visualDirection &&
+      visualDirection !== "unknown" &&
+      screenshotOwner !== "unknown"
+        ? screenshotOwner === "candidate"
+          ? visualDirection === "outgoing"
+            ? "candidate"
+            : "recruiter"
+          : visualDirection === "outgoing"
+            ? "recruiter"
+            : "candidate"
+        : message.speaker;
+    return {
+      source_message_id: message.source_message_id,
+      speaker,
+      text: message.text.trim(),
+      sequence,
+    };
+  });
   const messagesById = new Map(
     messages.map((message) => [message.source_message_id, message]),
   );
@@ -185,8 +264,13 @@ export function parseScreenshotCaptureDraft(
   }
   const capturedAt = verifiedCapturedAt(parsed.captured_at);
 
-  const assertions = parsed.assertions.map((assertion) => {
+  let discardedRecruiterAssertionCount = 0;
+  const assertions = parsed.assertions.flatMap((assertion) => {
     const message = messagesById.get(assertion.evidence_message_id);
+    if (message?.speaker === "recruiter") {
+      discardedRecruiterAssertionCount += 1;
+      return [];
+    }
     if (!message || !message.text.includes(assertion.evidence_quote)) {
       throw new Error("A proposed fact does not contain an exact source quote.");
     }
@@ -201,18 +285,17 @@ export function parseScreenshotCaptureDraft(
       assertion.field === "decision_deadline" &&
       !containsConcreteTimeReference(assertion.evidence_quote);
     const status =
-      temporalReferenceIsUnresolved || deadlineHasNoConcreteTime
+      temporalReferenceIsUnresolved ||
+      deadlineHasNoConcreteTime ||
+      assertion.ambiguity !== null
       ? ("ambiguous" as const)
       : assertion.status;
-    if (
-      status === "proposed" &&
-      message.speaker !== "candidate"
-    ) {
+    if (status === "proposed" && message.speaker !== "candidate") {
       throw new Error(
         "A candidate fact cannot be confirmed from a non-candidate message.",
       );
     }
-    return {
+    return [{
       ...assertion,
       status,
       value: assertion.value.trim(),
@@ -224,7 +307,7 @@ export function parseScreenshotCaptureDraft(
           ? (assertion.ambiguity?.trim() ??
             "The source asks to clarify timing but does not state a concrete decision deadline.")
         : (assertion.ambiguity?.trim() ?? null),
-    };
+    }];
   });
 
   const hasAmbiguity = assertions.some(
@@ -257,6 +340,11 @@ export function parseScreenshotCaptureDraft(
       ...(parsed.captured_at !== null && capturedAt === null
         ? [
             "A visible date was not retained as capture time because the screenshot does not verify a full timestamp and time zone.",
+          ]
+        : []),
+      ...(discardedRecruiterAssertionCount > 0
+        ? [
+            `${discardedRecruiterAssertionCount} candidate assertion${discardedRecruiterAssertionCount === 1 ? " was" : "s were"} discarded because the evidence message was attributed to the recruiter.`,
           ]
         : []),
     ],
