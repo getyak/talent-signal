@@ -12,6 +12,7 @@ function modelPayload(text = "周五上午可以聊，时间还需要确认。")
     messages: [
       {
         source_message_id: "m1",
+        visual_direction: "unknown",
         speaker: "unknown",
         text,
       },
@@ -121,5 +122,42 @@ describe("private screenshot analysis provider", () => {
         sourceSha256,
       }),
     ).rejects.toThrow(/not configured/i);
+  });
+
+  it("propagates caller cancellation to the configured vision provider", async () => {
+    vi.stubEnv("TALENT_SIGNAL_AI_ENABLED", "true");
+    vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "true");
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubEnv("ARK_API_KEY", "");
+    const controller = new AbortController();
+    const fetchImpl = vi.fn(
+      async (_url: string | URL | Request, init?: RequestInit) => {
+        const providerSignal = init?.signal;
+        return await new Promise<Response>((_resolve, reject) => {
+          providerSignal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Canceled", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    );
+
+    const pending = analyzeScreenshot({
+      bytes: new Uint8Array([1, 2, 3]),
+      mimeType: "image/webp",
+      contactName: "Synthetic Candidate",
+      assignmentLabel: "Synthetic search",
+      screenshotOwner: "unknown",
+      signal: controller.signal,
+      sourceSha256,
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(
+      (fetchImpl.mock.calls[0]?.[1]?.signal as AbortSignal).aborted,
+    ).toBe(true);
   });
 });
