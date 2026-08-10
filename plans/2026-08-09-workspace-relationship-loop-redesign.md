@@ -185,20 +185,29 @@ Out of scope:
 - focused lint, typecheck, test, build, and `pnpm docs:check` results;
 - contract-valid specialist packets and adjudication artifact with no active veto.
 
-## Progress at draft PR
+## Completion
 
-- Implemented the source-first workspace composition and calmer causal hierarchy
-  without changing external-write authority.
-- Replaced client-inferred People counts with the authorized backend count and
-  exposed current/historical identity match reasons without ranking people.
-- Added request-generation guards so a stale identity lookup cannot overwrite a
-  newer query or enable new-person creation while resolution is pending or has
-  failed.
-- Verified the complete repository check with `pnpm check`; the focused Web
-  regression set passed 17 tests and the focused backend contract set passed 20
-  tests.
-- Before moving the PR from draft to ready, refresh the real-browser screenshot
-  and text paths against this isolated branch and attach the final review packet.
+- The source-first workspace, living contact, governed Wiki, next-move area,
+  and server-backed People directory now preserve identity, evidence, current
+  state, and action authority as separate reviewable objects.
+- Screenshot analysis fails closed on uncertain speaker ownership, keeps
+  ambiguous claims out of confirmed state, and is cancellable through the
+  provider request boundary without saving a source or losing browser-local
+  crop and masks.
+- The text and image paths, duplicate handling, `no_action`, People readback,
+  mobile reflow, keyboard order, and cancellation recovery were exercised with
+  repository-owned synthetic evidence. The final frozen evidence is recorded
+  in the `2026-08-10-workspace-*` evaluation artifacts.
+- Request-generation guards prevent a stale People lookup from overwriting a
+  newer query or enabling new-person creation while lookup is pending or has
+  failed; focused tests preserve both this invariant and screenshot
+  cancellation behavior.
+- The full repository check, production build, browser acceptance matrix, and
+  selected reviewer contracts passed without an active veto.
+
+Independent human screenshot labels, assistive-technology and broader device
+coverage, provider-side lifecycle inspection, consented recruiter comparison,
+and any separately authorized external-effect loop remain outside this result.
 
 ## Re-plan signals
 

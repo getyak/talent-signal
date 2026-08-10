@@ -133,6 +133,7 @@ type CapturePhase =
   | "binding"
   | "review"
   | "committing";
+const SCREENSHOT_ANALYSIS_SLOW_MS = 8_000;
 type ResourceMode = "conversation" | "note" | "document" | "url";
 type IdentityWorkflowResponse = {
   decision: IdentityResolutionDecisionResponse;
@@ -841,6 +842,8 @@ function CapturePanel({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
   const commitRequestIdRef = useRef<string | null>(null);
+  const analysisAbortRef = useRef<AbortController | null>(null);
+  const analysisRunRef = useRef(0);
   const committedRef = useRef(false);
   const peopleRequestIdRef = useRef(0);
   const returnFocusRef = useRef<HTMLElement | null>(
@@ -875,7 +878,16 @@ function CapturePanel({
     useState<ScreenshotCaptureDraft | null>(null);
   const [transcriptEditing, setTranscriptEditing] = useState(false);
   const [error, setError] = useState("");
+  const [analysisStatus, setAnalysisStatus] = useState("");
   const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      analysisRunRef.current += 1;
+      analysisAbortRef.current?.abort();
+      analysisAbortRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const returnTarget = returnFocusRef.current;
@@ -991,6 +1003,9 @@ function CapturePanel({
       );
 
   function chooseFile(nextFile: File | null) {
+    analysisRunRef.current += 1;
+    analysisAbortRef.current?.abort();
+    analysisAbortRef.current = null;
     if (
       nextFile &&
       (!["image/jpeg", "image/png", "image/webp"].includes(nextFile.type) ||
@@ -1014,6 +1029,7 @@ function CapturePanel({
     setTranscriptEditing(false);
     setPhase("select");
     setError("");
+    setAnalysisStatus("");
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -1023,7 +1039,22 @@ function CapturePanel({
   function onDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragging(false);
+    if (phase !== "select") {
+      return;
+    }
     chooseFile(event.dataTransfer.files?.[0] ?? null);
+  }
+
+  function cancelAnalysis() {
+    analysisRunRef.current += 1;
+    analysisAbortRef.current?.abort();
+    analysisAbortRef.current = null;
+    setAnalysisPreviewImage(null);
+    setPhase("select");
+    setError("");
+    setAnalysisStatus(
+      "Analysis canceled. No source was saved. Your crop and local masks remain ready to retry.",
+    );
   }
 
   async function analyze() {
@@ -1031,8 +1062,26 @@ function CapturePanel({
       setError("Choose one conversation screenshot before starting analysis.");
       return;
     }
+    analysisAbortRef.current?.abort();
+    const controller = new AbortController();
+    const run = analysisRunRef.current + 1;
+    analysisRunRef.current = run;
+    analysisAbortRef.current = controller;
     setPhase("analyzing");
     setError("");
+    setAnalysisStatus(
+      "Reading the transient screenshot. You can cancel; no person, source, or contact has been saved.",
+    );
+    const slowTimer = window.setTimeout(() => {
+      if (
+        analysisRunRef.current === run &&
+        !controller.signal.aborted
+      ) {
+        setAnalysisStatus(
+          "This is taking longer than usual. You can cancel; no source has been saved.",
+        );
+      }
+    }, SCREENSHOT_ANALYSIS_SLOW_MS);
     try {
       const preparedFile = await prepareConversationImage(
         file,
@@ -1040,6 +1089,12 @@ function CapturePanel({
         cropBottomPercent,
         redactions,
       );
+      if (
+        controller.signal.aborted ||
+        analysisRunRef.current !== run
+      ) {
+        return;
+      }
       setAnalysisPreviewImage(preparedFile === file ? null : preparedFile);
       const formData = new FormData();
       formData.set("image", preparedFile);
@@ -1051,6 +1106,7 @@ function CapturePanel({
         method: "POST",
         body: formData,
         cache: "no-store",
+        signal: controller.signal,
       });
       const payload = (await response.json()) as
         | CaptureAnalysis
@@ -1062,16 +1118,38 @@ function CapturePanel({
             : "The screenshot could not be analyzed.",
         );
       }
+      if (
+        controller.signal.aborted ||
+        analysisRunRef.current !== run
+      ) {
+        return;
+      }
       setAnalysis(payload);
       setReviewedDraft(payload.draft);
+      setAnalysisStatus("");
       setPhase("binding");
-    } catch (caught) {
+    } catch (caught: unknown) {
+      if (
+        controller.signal.aborted ||
+        analysisRunRef.current !== run ||
+        (caught instanceof DOMException && caught.name === "AbortError")
+      ) {
+        return;
+      }
       setError(
         caught instanceof Error
           ? caught.message
           : "The screenshot could not be analyzed.",
       );
+      setAnalysisStatus(
+        "No source was saved. Your crop and local masks remain ready to retry.",
+      );
       setPhase("select");
+    } finally {
+      window.clearTimeout(slowTimer);
+      if (analysisRunRef.current === run) {
+        analysisAbortRef.current = null;
+      }
     }
   }
 
@@ -1284,6 +1362,21 @@ function CapturePanel({
           </div>
         ) : null}
 
+        {analysisStatus ? (
+          <div
+            aria-live="polite"
+            className="context-analysis-status"
+            role="status"
+          >
+            {phase === "analyzing" ? (
+              <CircleNotch aria-hidden="true" className="spin" size={17} />
+            ) : (
+              <ShieldCheck aria-hidden="true" size={17} weight="duotone" />
+            )}
+            <p>{analysisStatus}</p>
+          </div>
+        ) : null}
+
         {phase === "select" ||
         phase === "analyzing" ||
         phase === "binding" ? (
@@ -1301,6 +1394,7 @@ function CapturePanel({
                     ] as const).map(([value, label]) => (
                       <button
                         aria-pressed={screenshotOwner === value}
+                        disabled={phase !== "select"}
                         key={value}
                         onClick={() => setScreenshotOwner(value)}
                         type="button"
@@ -1532,7 +1626,9 @@ function CapturePanel({
               data-selected={Boolean(file)}
               onDragEnter={(event) => {
                 event.preventDefault();
-                setDragging(true);
+                if (phase === "select") {
+                  setDragging(true);
+                }
               }}
               onDragLeave={() => setDragging(false)}
               onDragOver={(event) => event.preventDefault()}
@@ -1583,6 +1679,7 @@ function CapturePanel({
                     </p>
                     <button
                       className="context-text-button"
+                      disabled={phase !== "select"}
                       onClick={() => inputRef.current?.click()}
                       type="button"
                     >
@@ -1703,11 +1800,15 @@ function CapturePanel({
                   <strong>
                     {phase === "binding"
                       ? "Source read · identity still yours"
+                      : phase === "analyzing"
+                        ? "Transient analysis in progress"
                       : "Before you continue"}
                   </strong>
                   {phase === "binding"
                     ? "The model did not create a person. Choose an existing person or explicitly create a new one, then name the relationship context."
-                    : "Only upload a conversation you are authorized to process. Review every extracted fact before it becomes contact context."}
+                    : phase === "analyzing"
+                      ? "Canceling is safe: no source, person, or contact is saved until you finish review and explicitly commit it."
+                      : "Only upload a conversation you are authorized to process. Review every extracted fact before it becomes contact context."}
                 </p>
               </div>
             </div>
@@ -1716,6 +1817,10 @@ function CapturePanel({
               <button
                 className="context-secondary-button"
                 onClick={() => {
+                  if (phase === "analyzing") {
+                    cancelAnalysis();
+                    return;
+                  }
                   if (phase === "binding") {
                     setPhase("select");
                     return;
@@ -1724,7 +1829,11 @@ function CapturePanel({
                 }}
                 type="button"
               >
-                {phase === "binding" ? "Back to source" : "Cancel"}
+                {phase === "analyzing"
+                  ? "Cancel analysis"
+                  : phase === "binding"
+                    ? "Back to source"
+                    : "Cancel"}
               </button>
               <button
                 className="context-primary-button"
@@ -1933,6 +2042,14 @@ function CapturePanel({
                           <span>{fieldLabel(assertion.field)}</span>
                           <strong>{assertion.value}</strong>
                         </div>
+                        <span
+                          className="context-draft-fact__status"
+                          data-state={assertion.status}
+                        >
+                          {assertion.status === "ambiguous"
+                            ? "Needs clarification before confirmation"
+                            : "Proposal only · not remembered"}
+                        </span>
                         <blockquote>“{assertion.evidence_quote}”</blockquote>
                         {assertion.ambiguity ? (
                           <p>
@@ -7922,7 +8039,7 @@ export function RelationshipWorkspaceApp({
             <Link aria-label="Open people directory" href="/workspace/people">
               <AddressBook aria-hidden="true" size={19} weight="duotone" />
               People
-          </Link>
+            </Link>
             <a aria-label="Open governed sources" href="#relationship-resources">
               <FileImage aria-hidden="true" size={19} weight="duotone" />
               Sources
