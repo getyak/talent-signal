@@ -2,6 +2,9 @@
   "name": "talent-signal",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "packageManager": "pnpm@11.18.0",
   "scripts": {
     "architecture:check": "node scripts/check-architecture-diagrams.mjs",

@@ -260,7 +260,7 @@ foundation to a production relationship system.
 
 Requirements:
 
-- Node.js 22;
+- Node.js 22.19.0 or newer;
 - pnpm 11.18.0.
 
 ```bash
