@@ -55,6 +55,16 @@ describe("relationship workspace accessibility contract", () => {
     expect(capturePanel).not.toContain("<img");
   });
 
+  it("keeps slow screenshot analysis cancellable without claiming a saved source", () => {
+    expect(capturePanel).toContain("analysisAbortRef");
+    expect(capturePanel).toContain("signal: controller.signal");
+    expect(capturePanel).toContain("Cancel analysis");
+    expect(capturePanel).toContain(
+      "Analysis canceled. No source was saved.",
+    );
+    expect(capturePanel).toContain("This is taking longer than usual.");
+  });
+
   it("keeps identity creation blocked until the latest people lookup settles", () => {
     for (const panel of [capturePanel, startRelationshipPanel]) {
       expect(panel).toContain("const requestId = ++peopleRequestIdRef.current;");

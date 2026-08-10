@@ -6981,6 +6981,12 @@ p {
   outline-offset: 2px;
 }
 
+.context-capture__owner button:disabled,
+.context-dropzone .context-text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
 .context-capture__identity label {
   display: grid;
   gap: 7px;
@@ -7351,6 +7357,23 @@ p {
   padding: 12px;
 }
 
+.context-analysis-status {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  color: var(--accent-strong);
+  display: flex;
+  font-size: 0.69rem;
+  gap: 9px;
+  line-height: 1.5;
+  padding: 11px 26px;
+}
+
+.context-analysis-status svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
 .context-capture__privacy svg {
   color: var(--success);
   flex: 0 0 auto;
@@ -7674,6 +7697,18 @@ p {
   text-align: right;
 }
 
+.context-draft-fact__status {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.context-draft-fact__status[data-state="ambiguous"] {
+  color: var(--accent-strong);
+}
+
 .context-draft-facts blockquote {
   border-left: 2px solid var(--accent);
   color: var(--muted-strong);
@@ -7888,7 +7923,7 @@ p {
 /* Mobile workspace dock: one translucent navigation object, not a tool strip. */
 @media (max-width: 760px) {
   .context-workspace {
-    padding-bottom: 92px;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
   }
 
   .context-sidebar {
@@ -7898,7 +7933,7 @@ p {
     background: color-mix(in srgb, var(--surface) 78%, transparent);
     border: 1px solid var(--line);
     border-radius: 22px;
-    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     box-shadow: inset 0 1px 0 var(--edge-highlight), var(--shadow-focus);
     display: grid;
     gap: 7px;
@@ -8835,6 +8870,10 @@ p {
 
   .context-capture__select {
     padding: 18px;
+  }
+
+  .context-analysis-status {
+    padding-inline: 18px;
   }
 
   .context-capture__identity {
@@ -13046,7 +13085,7 @@ article[data-state="unresolved"]
 
 @media (max-width: 840px) {
   .context-workspace {
-    padding-bottom: 64px;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 
   .context-sidebar {
@@ -13056,9 +13095,9 @@ article[data-state="unresolved"]
     bottom: 0;
     display: flex;
     flex-direction: row;
-    height: 64px;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
     left: 0;
-    padding: 0 12px;
+    padding: 0 12px env(safe-area-inset-bottom, 0px);
     right: 0;
     top: auto;
     width: auto;
@@ -13736,5 +13775,42 @@ article[data-state="unresolved"]
 
   .context-main {
     margin-left: 378px;
+  }
+}
+
+@media (min-width: 841px) {
+  .context-agent-actions {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+/* On phones, an idle Agent should introduce the relationship, not consume a
+   full viewport of empty thread space before the living contact appears. */
+@media (max-width: 640px) {
+  .context-nav a {
+    font-size: 0;
+  }
+
+  .context-chat:has(.context-chat__empty) {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .context-chat:has(.context-chat__empty) .context-chat__empty {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .context-chat--standalone {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .context-chat--standalone .context-agent-thread {
+    flex: 0 0 auto;
+    overflow: visible;
   }
 }

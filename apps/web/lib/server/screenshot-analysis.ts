@@ -20,6 +20,8 @@ import {
 } from "./ark";
 
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const DEFAULT_OPENROUTER_SCREENSHOT_MODEL =
+  "qwen/qwen3-vl-30b-a3b-instruct";
 
 let openRouterProxy: { url: string; dispatcher: Dispatcher } | null = null;
 
@@ -40,6 +42,11 @@ type OpenRouterRequestInit = {
   cache: "no-store";
   signal: AbortSignal;
 };
+
+function screenshotAnalysisSignal(signal?: AbortSignal) {
+  const timeout = AbortSignal.timeout(45_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
 
 export type ScreenshotAnalysis = {
   draft: ScreenshotCaptureDraft;
@@ -64,7 +71,7 @@ function openRouterEndpoint() {
 function openRouterScreenshotModel() {
   return (
     process.env.TALENT_SIGNAL_OPENROUTER_SCREENSHOT_MODEL ??
-    "google/gemini-3.5-flash-lite"
+    DEFAULT_OPENROUTER_SCREENSHOT_MODEL
   );
 }
 
@@ -160,6 +167,7 @@ async function analyzeWithOpenRouter(input: {
   sourceSha256: string;
   preProviderMinimization?: ScreenshotAnalysisMeta["pre_provider_minimization"];
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 }): Promise<ScreenshotAnalysis> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   const availability = getScreenshotAnalysisAvailability();
@@ -213,7 +221,7 @@ async function analyzeWithOpenRouter(input: {
       max_tokens: 5000,
     }),
     cache: "no-store",
-    signal: AbortSignal.timeout(45_000),
+    signal: screenshotAnalysisSignal(input.signal),
   }, input.fetchImpl);
   if (!response.ok) {
     let providerDetail = "";
@@ -256,7 +264,10 @@ async function analyzeWithOpenRouter(input: {
     throw new Error("OpenRouter returned no structured screenshot analysis.");
   }
   return {
-    draft: parseScreenshotCaptureDraft(content),
+    draft: parseScreenshotCaptureDraft(content, {
+      require_visual_direction: true,
+      screenshot_owner: input.screenshotOwner,
+    }),
     meta: {
       provider: "OpenRouter",
       model: payload.model ?? availability.screenshot_model,
@@ -280,6 +291,7 @@ export async function analyzeScreenshot(input: {
   sourceSha256: string;
   preProviderMinimization?: ScreenshotAnalysisMeta["pre_provider_minimization"];
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 }): Promise<ScreenshotAnalysis> {
   const availability = getScreenshotAnalysisAvailability();
   if (!availability.enabled) {

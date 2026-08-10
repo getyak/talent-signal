@@ -100,6 +100,145 @@ describe("screenshot capture proposal", () => {
     expect(draft.action).toBeNull();
   });
 
+  it("does not accept a proposed status when the model also reports ambiguity", () => {
+    const draft = parseScreenshotCaptureDraft(
+      validDraft({
+        assertions: [
+          {
+            field: "work_mode_constraint",
+            status: "proposed",
+            value: "remote",
+            evidence_message_id: "m1",
+            evidence_quote: "我周二下午有时间",
+            ambiguity: "The source does not establish whether remote work is required or preferred.",
+          },
+        ],
+      }),
+    );
+
+    expect(draft.assertions[0]?.status).toBe("ambiguous");
+    expect(draft.disposition).toBe("clarify");
+    expect(draft.action).toBeNull();
+  });
+
+  it("discards a candidate assertion backed by a recruiter message", () => {
+    const draft = parseScreenshotCaptureDraft(
+      validDraft({
+        messages: [
+          {
+            source_message_id: "m1",
+            speaker: "recruiter",
+            text: "I have another offer and need to decide Wednesday.",
+          },
+        ],
+        assertions: [
+          {
+            field: "decision_deadline",
+            status: "ambiguous",
+            value: "Wednesday",
+            evidence_message_id: "m1",
+            evidence_quote: "decide Wednesday",
+            ambiguity: "The sender is visibly the recruiter.",
+          },
+        ],
+        action: null,
+      }),
+    );
+
+    expect(draft.assertions).toEqual([]);
+    expect(draft.disposition).toBe("no_action");
+    expect(draft.transcription_notes).toContainEqual(
+      expect.stringMatching(/discarded.*recruiter/i),
+    );
+  });
+
+  it("derives speaker identity from visual direction instead of message semantics", () => {
+    const draft = parseScreenshotCaptureDraft(
+      validDraft({
+        messages: [
+          {
+            source_message_id: "m1",
+            visual_direction: "incoming",
+            speaker: "candidate",
+            text: "I have another offer.",
+          },
+          {
+            source_message_id: "m2",
+            visual_direction: "outgoing",
+            speaker: "recruiter",
+            text: "Thank you for letting me know.",
+          },
+        ],
+        assertions: [],
+        action: null,
+      }),
+      {
+        require_visual_direction: true,
+        screenshot_owner: "candidate",
+      },
+    );
+
+    expect(draft.messages.map((message) => message.speaker)).toEqual([
+      "recruiter",
+      "candidate",
+    ]);
+  });
+
+  it("fails closed when a provider omits visual direction", () => {
+    expect(() =>
+      parseScreenshotCaptureDraft(validDraft(), {
+        require_visual_direction: true,
+        screenshot_owner: "candidate",
+      }),
+    ).toThrow(/visual message direction/i);
+  });
+
+  it("bounds verbose model explanations without changing exact evidence", () => {
+    const longExplanation = `Speaker ownership remains uncertain ${"because the visible account chrome does not establish identity ".repeat(5)}`;
+    const draft = parseScreenshotCaptureDraft(
+      validDraft({
+        transcription_notes: [longExplanation],
+        assertions: [
+          {
+            field: "availability",
+            status: "ambiguous",
+            value: "周二下午",
+            evidence_message_id: "m1",
+            evidence_quote: "我周二下午有时间",
+            ambiguity: longExplanation,
+          },
+        ],
+      }),
+    );
+
+    expect(draft.transcription_notes[0]).toHaveLength(180);
+    expect(draft.transcription_notes[0]).toMatch(/…$/);
+    expect(draft.assertions[0]?.ambiguity).toHaveLength(180);
+    expect(draft.assertions[0]?.evidence_quote).toBe("我周二下午有时间");
+    expect(draft.messages[0]?.text).toBe(
+      "我周二下午有时间，不过这周三之前需要做决定。",
+    );
+  });
+
+  it("still rejects overlong source evidence instead of truncating it", () => {
+    const overlongMessage = "候".repeat(4_001);
+    expect(() =>
+      parseScreenshotCaptureDraft(
+        validDraft({
+          messages: [
+            {
+              source_message_id: "m1",
+              speaker: "candidate",
+              text: overlongMessage,
+            },
+          ],
+          assertions: [],
+          action: null,
+        }),
+      ),
+    ).toThrow();
+  });
+
   it("downgrades a relative deadline when screenshot time is not verified", () => {
     const draft = parseScreenshotCaptureDraft(
       validDraft({ captured_at: null }),
