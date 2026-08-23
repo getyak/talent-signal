@@ -15,6 +15,7 @@ import {
   type DeleteCaptureResponse,
   type DeletionLineageResponse,
   type EffectResultResponse,
+  type EffectReversalPreview,
   type PersonDirectoryResponse,
   type PersonMergePreview,
   type PersonMergeRequest,
@@ -483,6 +484,7 @@ export async function decideIdentityResolution(
 
 type CommitRelationshipResourceCommon = {
   request_id: string;
+  captured_at: string;
   channel: "chat" | "web_upload";
   kind: ResourceCaptureRequest["resource"]["kind"];
   display_name: string;
@@ -535,7 +537,10 @@ export async function commitRelationshipResource(
   ) {
     throw new Error("The governed resource intake is incomplete.");
   }
-  const capturedAt = new Date().toISOString();
+  const capturedAt = input.captured_at;
+  if (new Date(capturedAt).toISOString() !== capturedAt) {
+    throw new Error("The governed resource observation time is invalid.");
+  }
   const timezone =
     Intl.DateTimeFormat().resolvedOptions().timeZone || null;
   const clientResourceId = `web-resource:${input.request_id}`;
@@ -1101,6 +1106,58 @@ export async function reconcileBackendEffect(
     effect,
     workspace: await readWorkspace(client, captureId),
   };
+}
+
+export async function previewBackendEffectReversal(
+  attemptId: string,
+): Promise<EffectReversalPreview> {
+  const { client } = await authenticatedClient("web-effect-reversal-preview");
+  return client.previewEffectReversal(attemptId);
+}
+
+export async function approveBackendEffectReversal(
+  attemptId: string,
+  request: {
+    expected_destination_version: number;
+    expected_preview_digest: string;
+    reason: string;
+    request_id: string;
+  },
+  captureId?: string,
+): Promise<WorkspaceReviewResponse> {
+  const { client } = await authenticatedClient("web-effect-reversal-approval");
+  await client.approveEffectReversal(attemptId, {
+    idempotency_key: `web-reversal-approve:${request.request_id}`,
+    expected_destination_version: request.expected_destination_version,
+    expected_preview_digest: request.expected_preview_digest,
+    reason: request.reason,
+  });
+  return readWorkspace(client, captureId);
+}
+
+export async function executeBackendEffectReversal(
+  attemptId: string,
+  approvalId: string,
+  captureId?: string,
+): Promise<WorkspaceReviewResponse> {
+  const { client } = await authenticatedClient("web-effect-reversal-execution");
+  await client.executeEffectReversal(attemptId, {
+    idempotency_key: `web-reversal-execute:${attemptId}:${approvalId}`,
+    approval_id: approvalId,
+  });
+  return readWorkspace(client, captureId);
+}
+
+export async function revokeBackendEffectReversalApproval(
+  approvalId: string,
+  captureId?: string,
+): Promise<WorkspaceReviewResponse> {
+  const { client } = await authenticatedClient("web-effect-reversal-revocation");
+  await client.revokeEffectReversalApproval(approvalId, {
+    idempotency_key: `web-reversal-revoke:${approvalId}`,
+    reason: "Recruiter cancelled the exact local effect reversal approval.",
+  });
+  return readWorkspace(client, captureId);
 }
 
 export async function revokeBackendApproval(

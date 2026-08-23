@@ -1,6 +1,9 @@
 import { fileURLToPath } from "node:url";
 
-import { SIMULATED_CAPABILITY } from "@talent-signal/contracts";
+import {
+  SIMULATED_CAPABILITY,
+  SIMULATED_REVERSAL_CAPABILITY,
+} from "@talent-signal/contracts";
 
 import { loadConfig } from "../config.js";
 import { createPool, inTransaction } from "./pool.js";
@@ -11,9 +14,12 @@ const IDS = {
   alphaReviewer: "10000000-0000-4000-8000-000000000012",
   alphaRecruiterGrant: "10000000-0000-4000-8000-000000000021",
   alphaReviewerGrant: "10000000-0000-4000-8000-000000000022",
+  alphaRecruiterReversalGrant: "10000000-0000-4000-8000-000000000031",
+  alphaReviewerReversalGrant: "10000000-0000-4000-8000-000000000032",
   betaAccount: "20000000-0000-4000-8000-000000000001",
   betaRecruiter: "20000000-0000-4000-8000-000000000011",
   betaGrant: "20000000-0000-4000-8000-000000000021",
+  betaReversalGrant: "20000000-0000-4000-8000-000000000031",
 } as const;
 
 export async function seed(): Promise<void> {
@@ -46,6 +52,32 @@ export async function seed(): Promise<void> {
           IDS.alphaReviewer,
           IDS.betaRecruiter,
           IDS.betaAccount,
+        ],
+      );
+      await client.query(
+        `INSERT INTO capability_grants(
+           id, account_id, user_id, capability, status, version, expires_at
+         )
+         VALUES
+           ($1, $2, $3, $7, 'active', 1, '2099-01-01T00:00:00Z'),
+           ($4, $2, $5, $7, 'active', 1, '2099-01-01T00:00:00Z'),
+           ($6, $8, $9, $7, 'active', 1, '2099-01-01T00:00:00Z')
+         ON CONFLICT (account_id, user_id, capability) DO UPDATE SET
+           status = 'active',
+           revoked_at = NULL,
+           revocation_reason = NULL,
+           expires_at = EXCLUDED.expires_at,
+           version = capability_grants.version + 1`,
+        [
+          IDS.alphaRecruiterReversalGrant,
+          IDS.alphaAccount,
+          IDS.alphaRecruiter,
+          IDS.alphaReviewerReversalGrant,
+          IDS.alphaReviewer,
+          IDS.betaReversalGrant,
+          SIMULATED_REVERSAL_CAPABILITY,
+          IDS.betaAccount,
+          IDS.betaRecruiter,
         ],
       );
       await client.query(

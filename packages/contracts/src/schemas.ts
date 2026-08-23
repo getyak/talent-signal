@@ -7,6 +7,7 @@ import {
   INPUT_CHANNELS,
   SIMULATED_ADAPTER,
   SIMULATED_CAPABILITY,
+  SIMULATED_REVERSAL_CAPABILITY,
   SOURCE_RESOURCE_KINDS,
   SOURCE_RETENTION_MODES,
   SOURCE_RETENTION_RECEIPT_MODES,
@@ -528,6 +529,165 @@ export const ReconcileEffectRequestSchema = Type.Object(
   { $id: "ReconcileEffectRequest", additionalProperties: false },
 );
 
+export const EffectReversalPreviewSchema = Type.Object(
+  {
+    original_attempt_id: Id,
+    simulated: Type.Literal(true),
+    capability: Type.Literal(SIMULATED_REVERSAL_CAPABILITY),
+    adapter: Type.Literal(SIMULATED_ADAPTER),
+    target: Type.Object(
+      {
+        destination_key: Type.String({ minLength: 1, maxLength: 200 }),
+        label: Type.String({ minLength: 1, maxLength: 200 }),
+      },
+      { additionalProperties: false },
+    ),
+    current_effect: Type.Object(
+      {
+        kind: Type.Literal("create_attention"),
+        title: Type.String({ minLength: 1, maxLength: 240 }),
+      },
+      { additionalProperties: false },
+    ),
+    reversal: Type.Object(
+      {
+        kind: Type.Literal("remove_attention"),
+        title: Type.String({ minLength: 1, maxLength: 240 }),
+      },
+      { additionalProperties: false },
+    ),
+    expected_destination_version: Type.Integer({ minimum: 1 }),
+    preview_digest: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+    blockers: Type.Array(
+      Type.Object(
+        {
+          code: Type.Union([
+            Type.Literal("effect_not_verified"),
+            Type.Literal("prior_state_not_reversible"),
+            Type.Literal("destination_changed"),
+            Type.Literal("reversal_already_verified"),
+          ]),
+          message: Type.String({ minLength: 1, maxLength: 500 }),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+    reversal_available: Type.Boolean(),
+  },
+  { $id: "EffectReversalPreview", additionalProperties: false },
+);
+
+export const ApproveEffectReversalRequestSchema = Type.Object(
+  {
+    idempotency_key: IdempotencyKey,
+    reason: Type.String({ minLength: 1, maxLength: 500 }),
+    expected_destination_version: Type.Integer({ minimum: 1 }),
+    expected_preview_digest: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+  },
+  { $id: "ApproveEffectReversalRequest", additionalProperties: false },
+);
+
+export const EffectReversalApprovalResponseSchema = Type.Object(
+  {
+    id: Id,
+    original_attempt_id: Id,
+    exact_preview: EffectReversalPreviewSchema,
+    exact_preview_digest: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+    status: Type.Union([
+      Type.Literal("active"),
+      Type.Literal("revoked"),
+      Type.Literal("stale"),
+      Type.Literal("consumed"),
+    ]),
+    reason: Type.String(),
+    approved_by_user_id: Id,
+    granted_at: Timestamp,
+    expires_at: Timestamp,
+  },
+  { $id: "EffectReversalApprovalResponse", additionalProperties: false },
+);
+
+export const ExecuteEffectReversalRequestSchema = Type.Object(
+  {
+    idempotency_key: IdempotencyKey,
+    approval_id: Id,
+  },
+  { $id: "ExecuteEffectReversalRequest", additionalProperties: false },
+);
+
+export const EffectReversalResultResponseSchema = Type.Object(
+  {
+    reversal_attempt_id: Id,
+    original_attempt_id: Id,
+    attempt_status: Type.Union([
+      Type.Literal("verified"),
+      Type.Literal("failed"),
+      Type.Literal("unknown"),
+    ]),
+    simulated: Type.Literal(true),
+    reused: Type.Boolean(),
+    observation: Type.Union([
+      Type.Object(
+        {
+          id: Id,
+          destination_key: Type.String(),
+          destination_version: Type.Union([
+            Type.Integer({ minimum: 1 }),
+            Type.Null(),
+          ]),
+          match_status: Type.Union([
+            Type.Literal("matched_absent"),
+            Type.Literal("still_present"),
+            Type.Literal("unavailable"),
+          ]),
+          observed_at: Timestamp,
+        },
+        { additionalProperties: false },
+      ),
+      Type.Null(),
+    ]),
+    outcome: Type.Union([
+      Type.Object(
+        {
+          id: Id,
+          status: Type.Union([
+            Type.Literal("verified"),
+            Type.Literal("failed"),
+            Type.Literal("unknown"),
+          ]),
+          summary: Type.String(),
+          created_at: Timestamp,
+        },
+        { additionalProperties: false },
+      ),
+      Type.Null(),
+    ]),
+  },
+  { $id: "EffectReversalResultResponse", additionalProperties: false },
+);
+
+export const EffectReversalSnapshotSchema = Type.Object(
+  {
+    status: Type.Union([
+      Type.Literal("available"),
+      Type.Literal("approved"),
+      Type.Literal("stale"),
+      Type.Literal("failed"),
+      Type.Literal("unknown"),
+      Type.Literal("verified"),
+    ]),
+    latest_approval: Type.Union([
+      EffectReversalApprovalResponseSchema,
+      Type.Null(),
+    ]),
+    latest_attempt: Type.Union([
+      EffectReversalResultResponseSchema,
+      Type.Null(),
+    ]),
+  },
+  { $id: "EffectReversalSnapshot", additionalProperties: false },
+);
+
 export const EffectResultResponseSchema = Type.Object(
   {
     attempt_id: Id,
@@ -567,6 +727,9 @@ export const EffectResultResponseSchema = Type.Object(
       }),
       Type.Null(),
     ]),
+    reversal: Type.Optional(
+      Type.Union([EffectReversalSnapshotSchema, Type.Null()]),
+    ),
   },
   { $id: "EffectResultResponse", additionalProperties: false },
 );
@@ -656,6 +819,17 @@ export const WorkspaceReviewResponseSchema = Type.Object(
       {
         id: Id,
         display_label: Type.String(),
+      },
+      { additionalProperties: false },
+    ),
+    source_authorization: Type.Object(
+      {
+        state: Type.Union([
+          Type.Literal("authorized"),
+          Type.Literal("revoked"),
+          Type.Literal("expired"),
+        ]),
+        expires_at: Type.Union([Timestamp, Type.Null()]),
       },
       { additionalProperties: false },
     ),
@@ -881,6 +1055,24 @@ export type RevokeApprovalRequest = Static<
 export type ExecuteActionRequest = Static<typeof ExecuteActionRequestSchema>;
 export type ReconcileEffectRequest = Static<
   typeof ReconcileEffectRequestSchema
+>;
+export type EffectReversalPreview = Static<
+  typeof EffectReversalPreviewSchema
+>;
+export type ApproveEffectReversalRequest = Static<
+  typeof ApproveEffectReversalRequestSchema
+>;
+export type EffectReversalApprovalResponse = Static<
+  typeof EffectReversalApprovalResponseSchema
+>;
+export type ExecuteEffectReversalRequest = Static<
+  typeof ExecuteEffectReversalRequestSchema
+>;
+export type EffectReversalResultResponse = Static<
+  typeof EffectReversalResultResponseSchema
+>;
+export type EffectReversalSnapshot = Static<
+  typeof EffectReversalSnapshotSchema
 >;
 export type EffectResultResponse = Static<typeof EffectResultResponseSchema>;
 export type SyncResponse = Static<typeof SyncResponseSchema>;

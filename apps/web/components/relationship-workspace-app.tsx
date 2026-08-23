@@ -5,6 +5,7 @@ import {
   maskIdentityHandle,
   parseIdentityHandleQuery,
   type ChatTaskResponse,
+  type EffectReversalPreview,
   type IdentityHandleType,
   type IdentityResolutionCase,
   type IdentityResolutionDecisionResponse,
@@ -38,6 +39,7 @@ import {
   Prohibit,
   Quotes,
   ShieldCheck,
+  SignOut,
   Sparkle,
   Trash,
   UploadSimple,
@@ -91,6 +93,7 @@ import type {
   ScreenshotCaptureDraft,
   ScreenshotOwnerRole,
 } from "@/lib/screenshot-capture";
+import { signOutOfWorkspace } from "@/app/login/actions";
 
 import { ThemeToggle } from "./theme-toggle";
 
@@ -170,6 +173,21 @@ function fieldLabel(field: string) {
     return "Professional history";
   }
   return fieldLabels[field] ?? field.replaceAll("_", " ");
+}
+
+function personContextSummary(person: PersonDirectoryItem) {
+  if (person.contexts.length === 0) {
+    return "No active relationship context";
+  }
+
+  const visibleContexts = person.contexts
+    .slice(0, 2)
+    .map((context) => context.display_label)
+    .join(" · ");
+  const remainingCount = Math.max(0, person.contexts.length - 2);
+  return remainingCount > 0
+    ? `${visibleContexts} · +${remainingCount} more`
+    : visibleContexts;
 }
 
 function reviewLabel(status: string) {
@@ -302,6 +320,11 @@ function knowledgeSnapshotWikiView(
         block.type,
       ),
   );
+  const currentFactBlocks = contextBlocks.filter(
+    (block) =>
+      block.block_key.startsWith("fact.") &&
+      block.status === "confirmed",
+  );
   const reviewBlocks = contextBlocks.filter(
     (block) =>
       block.type === "conflict" ||
@@ -316,11 +339,13 @@ function knowledgeSnapshotWikiView(
   const blocks: RelationshipWikiBlock[] = [
     {
       body:
-        contextBlocks.map((block) => block.content.headline).join("\n") ||
+        currentFactBlocks
+          .map((block) => block.content.headline)
+          .join("\n") ||
         "No additional reviewed relationship state is ready yet.",
       citationDependencyIds: uniqueWikiDependencies([
         identity,
-        ...contextBlocks,
+        ...currentFactBlocks,
       ]),
       id: `${identity.id}:brief`,
       kind: "person_brief",
@@ -1520,10 +1545,7 @@ function CapturePanel({
                             <p>
                               <strong>{person.display_label}</strong>
                               <small>
-                                {person.context_count} relationship{" "}
-                                {person.context_count === 1
-                                  ? "context"
-                                  : "contexts"}{" "}
+                                {personContextSummary(person)}{" "}
                                 · {person.capture_count} captures
                               </small>
                             </p>
@@ -2391,6 +2413,7 @@ function StartRelationshipPanel({
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const requestIdRef = useRef<string | null>(null);
+  const requestCapturedAtRef = useRef<string | null>(null);
   const peopleRequestIdRef = useRef(0);
   const [people, setPeople] = useState<PersonDirectoryItem[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(true);
@@ -2519,6 +2542,7 @@ function StartRelationshipPanel({
 
   function resetRequest() {
     requestIdRef.current = null;
+    requestCapturedAtRef.current = null;
     setError("");
   }
 
@@ -2529,8 +2553,16 @@ function StartRelationshipPanel({
       );
       return;
     }
-    requestIdRef.current ??= crypto.randomUUID();
+    if (!requestIdRef.current) {
+      requestIdRef.current = crypto.randomUUID();
+      requestCapturedAtRef.current = new Date().toISOString();
+    }
     const requestId = requestIdRef.current;
+    const capturedAt = requestCapturedAtRef.current;
+    if (!capturedAt) {
+      setError("The source observation time could not be preserved.");
+      return;
+    }
     const scopeMode = createNewPerson
       ? "new_person"
       : createNewContext
@@ -2543,6 +2575,7 @@ function StartRelationshipPanel({
       if (mode === "document" && file) {
         const form = new FormData();
         form.set("request_id", requestId);
+        form.set("captured_at", capturedAt);
         form.set("scope_mode", scopeMode);
         form.set("contact_name", contactName.trim());
         form.set("relationship_context_label", contextLabel.trim());
@@ -2570,6 +2603,7 @@ function StartRelationshipPanel({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             request_id: requestId,
+            captured_at: capturedAt,
             scope_mode: scopeMode,
             contact_name: contactName.trim(),
             relationship_context_label: contextLabel.trim(),
@@ -2691,7 +2725,10 @@ function StartRelationshipPanel({
                 <span>{initials(person.display_label)}</span>
                 <p>
                   <strong>{person.display_label}</strong>
-                  <small>{person.context_count} relationship contexts</small>
+                  <small>
+                    {personContextSummary(person)} · {person.capture_count}{" "}
+                    {person.capture_count === 1 ? "source" : "sources"}
+                  </small>
                 </p>
               </button>
             ))
@@ -2972,11 +3009,15 @@ function RelationshipResourceComposer({
   relationshipContextId: string;
   scopeLabel: string;
   onCommitted: (receipts: ResourceCaptureResponse[]) => void;
-  onEvidenceChanged: (announcement?: string) => void;
+  onEvidenceChanged: (
+    announcement?: string,
+    relationshipRemoved?: boolean,
+  ) => void | Promise<void>;
   onScreenshot: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const requestIdRef = useRef<string | null>(null);
+  const requestCapturedAtRef = useRef<string | null>(null);
   const [mode, setMode] = useState<ResourceMode>("note");
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
@@ -3591,14 +3632,19 @@ function RelationshipResourceComposer({
       }
       setSelectedResource(null);
       setDeleteResourceConfirm(false);
+      const relationshipRemoved =
+        !payload.compilation && !payload.compilation_error;
+      const announcement = payload.compilation?.status === "published"
+        ? "Source lineage deleted. The relationship Wiki was rebuilt from the governed sources that remain."
+        : payload.compilation_error
+          ? `Source lineage deleted. Wiki recompilation needs attention: ${payload.compilation_error}`
+          : "Source lineage deleted. No active relationship remains.";
+      if (relationshipRemoved) {
+        onEvidenceChanged(announcement, true);
+        return;
+      }
       await loadResources();
-      onEvidenceChanged(
-        payload.compilation?.status === "published"
-          ? "Source lineage deleted. The relationship Wiki was rebuilt from the governed sources that remain."
-          : payload.compilation_error
-            ? `Source lineage deleted. Wiki recompilation needs attention: ${payload.compilation_error}`
-            : "Source lineage deleted. No active relationship remained to recompile.",
-      );
+      onEvidenceChanged(announcement);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -3700,7 +3746,7 @@ function RelationshipResourceComposer({
                 payload.compilation_error ??
                 "the restored evidence still requires review"
               }`;
-      onEvidenceChanged(
+      await onEvidenceChanged(
         `${authorizationMessage}${externalEffectFollowUp}`,
       );
     } catch (caught) {
@@ -3716,6 +3762,7 @@ function RelationshipResourceComposer({
 
   function resetRequest() {
     requestIdRef.current = null;
+    requestCapturedAtRef.current = null;
     setReceipt(null);
     setError("");
   }
@@ -3737,7 +3784,15 @@ function RelationshipResourceComposer({
       );
       return;
     }
-    requestIdRef.current ??= crypto.randomUUID();
+    if (!requestIdRef.current) {
+      requestIdRef.current = crypto.randomUUID();
+      requestCapturedAtRef.current = new Date().toISOString();
+    }
+    const capturedAt = requestCapturedAtRef.current;
+    if (!capturedAt) {
+      setError("The source observation time could not be preserved.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -3745,6 +3800,7 @@ function RelationshipResourceComposer({
       if (mode === "document" && file) {
         const form = new FormData();
         form.set("request_id", requestIdRef.current);
+        form.set("captured_at", capturedAt);
         form.set("person_id", personId);
         form.set("relationship_context_id", relationshipContextId);
         form.set("document_kind", documentKind);
@@ -3765,6 +3821,7 @@ function RelationshipResourceComposer({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             request_id: requestIdRef.current,
+            captured_at: capturedAt,
             person_id: personId,
             relationship_context_id: relationshipContextId,
             type: mode,
@@ -7206,6 +7263,11 @@ export function RelationshipWorkspaceApp({
   const [editing, setEditing] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [reversalPreview, setReversalPreview] =
+    useState<EffectReversalPreview | null>(null);
+  const [reversalReason, setReversalReason] = useState("");
+  const [reversalReviewed, setReversalReviewed] = useState(false);
+  const reversalApprovalRequestRef = useRef<string | null>(null);
   const [deletionSummary, setDeletionSummary] = useState<{
     derivatives: number;
     lineage: number;
@@ -7260,6 +7322,14 @@ export function RelationshipWorkspaceApp({
     ),
   ).length;
   const action = workspace?.analysis.action ?? null;
+  const activeConfirmedStates =
+    workspace?.confirmed_state.assertions.filter(
+      (state) => state.state_status === "active",
+    ) ?? [];
+  const historicalConfirmedStates =
+    workspace?.confirmed_state.assertions.filter(
+      (state) => state.state_status !== "active",
+    ) ?? [];
   const requiredFactsConfirmed =
     action !== null &&
     action.required_assertion_ids.every((id) =>
@@ -7267,9 +7337,23 @@ export function RelationshipWorkspaceApp({
         (assertion) =>
           assertion.id === id && assertion.review_status === "confirmed",
       ),
-    );
+  );
   const approval = workspace?.latest_approval ?? null;
   const effect = workspace?.latest_effect ?? null;
+  const reversal = effect?.reversal ?? null;
+  const reversalApproval = reversal?.latest_approval ?? null;
+  const reversalAttempt = reversal?.latest_attempt ?? null;
+  const sourceAuthorizationAvailable =
+    workspace?.source_authorization.state === "authorized";
+  const staleApprovalNeedsReview =
+    action?.status === "proposed" &&
+    approval?.status === "stale" &&
+    effect === null;
+  const canApproveCurrentAction =
+    action?.status === "proposed" &&
+    requiredFactsConfirmed &&
+    effect === null &&
+    (approval === null || approval.status === "stale");
 
   const evidenceById = useMemo(
     () =>
@@ -7296,10 +7380,13 @@ export function RelationshipWorkspaceApp({
       },
       ...workspace.confirmed_state.assertions.map((state) => ({
         id: state.id,
-        label: `${fieldLabel(state.field)} confirmed`,
+        label:
+          state.state_status === "active"
+            ? `${fieldLabel(state.field)} confirmed`
+            : `${fieldLabel(state.field)} ${state.state_status}`,
         detail: state.value,
         time: workspace.analysis.created_at,
-        state: "confirmed",
+        state: state.state_status,
       })),
     ];
     if (approval) {
@@ -7326,11 +7413,23 @@ export function RelationshipWorkspaceApp({
         state: effect.outcome.status,
       });
     }
+    if (reversalAttempt?.outcome) {
+      items.push({
+        id: reversalAttempt.outcome.id,
+        label:
+          reversalAttempt.outcome.status === "verified"
+            ? "Reversal verified"
+            : `Reversal ${reversalAttempt.outcome.status}`,
+        detail: reversalAttempt.outcome.summary,
+        time: reversalAttempt.outcome.created_at,
+        state: `reversal-${reversalAttempt.outcome.status}`,
+      });
+    }
     return items.sort(
       (left, right) =>
         new Date(right.time).getTime() - new Date(left.time).getTime(),
     );
-  }, [approval, effect, workspace]);
+  }, [approval, effect, reversalAttempt, workspace]);
 
   async function refreshAgentHistory(
     personId = activeScope?.person.id,
@@ -7357,6 +7456,28 @@ export function RelationshipWorkspaceApp({
       }
     } catch {
       // A refresh failure never replaces previously verified history.
+    }
+  }
+
+  async function refreshWorkspaceReview(captureId: string) {
+    try {
+      const response = await fetch(
+        `/api/local-integration/workspace?capture_id=${encodeURIComponent(
+          captureId,
+        )}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | WorkspaceReviewResponse
+        | { message?: string };
+      if (!response.ok || !("capture" in payload)) {
+        return false;
+      }
+      setWorkspace(payload);
+      return true;
+    } catch {
+      // Keep the last verified review visible when a background refresh fails.
+      return false;
     }
   }
 
@@ -7411,6 +7532,78 @@ export function RelationshipWorkspaceApp({
       return null;
     } finally {
       setBusy("");
+    }
+  }
+
+  async function reviewEffectReversal() {
+    if (!effect) {
+      return;
+    }
+    setBusy("Reviewing current destination");
+    setError("");
+    setAnnouncement("Reading the current destination before reversal review.");
+    try {
+      const response = await fetch(
+        `/api/local-integration/effects/${effect.attempt_id}/reversal`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | EffectReversalPreview
+        | { message?: string };
+      if (!response.ok || !("preview_digest" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The reversal preview could not be verified.",
+        );
+      }
+      setReversalPreview(payload);
+      setReversalReviewed(false);
+      reversalApprovalRequestRef.current = null;
+      setAnnouncement(
+        payload.reversal_available
+          ? "Exact reversal preview ready. No destination state changed."
+          : "Automatic reversal is blocked by current destination state.",
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The reversal preview could not be verified.",
+      );
+      setAnnouncement("Reversal review failed. Nothing was removed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function approveCurrentEffectReversal() {
+    if (!effect || !reversalPreview || !reversalReason.trim()) {
+      return;
+    }
+    const next = await mutate(
+      `/api/local-integration/effects/${effect.attempt_id}/reversal`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          capture_id: workspace?.capture.id,
+          expected_destination_version:
+            reversalPreview.expected_destination_version,
+          expected_preview_digest: reversalPreview.preview_digest,
+          reason: reversalReason.trim(),
+          request_id:
+            reversalApprovalRequestRef.current ??
+            (reversalApprovalRequestRef.current = crypto.randomUUID()),
+        }),
+      },
+      "Approving the exact reversal",
+    );
+    if (next) {
+      reversalApprovalRequestRef.current = null;
+      setReversalReviewed(false);
+      setAnnouncement(
+        "Exact reversal approved. The destination is unchanged until separate execution.",
+      );
     }
   }
 
@@ -7505,6 +7698,20 @@ export function RelationshipWorkspaceApp({
       next.subject.id,
       next.assignment.id,
     );
+  }
+
+  function handleRelationshipRemoved(announcement: string) {
+    setWorkspace(null);
+    setRelationshipScope(null);
+    setIdentityResolutionCase(null);
+    setAgentHistory(null);
+    setChatResponse(null);
+    setKnowledgeSnapshot(null);
+    chatRequestRef.current = null;
+    setResourceComposerOpen(false);
+    setError("");
+    setAnnouncement(announcement);
+    window.history.replaceState(null, "", "/workspace");
   }
 
   function handleInitialResourcesCommitted(
@@ -8097,6 +8304,16 @@ export function RelationshipWorkspaceApp({
               <strong>{user.name ?? "Recruiter"}</strong>
               <small>{user.email ?? "Authenticated account"}</small>
             </p>
+            <form action={signOutOfWorkspace}>
+              <button
+                aria-label="Sign out"
+                className="icon-button context-account-signout"
+                title="Sign out"
+                type="submit"
+              >
+                <SignOut aria-hidden="true" size={17} />
+              </button>
+            </form>
             <ThemeToggle />
           </div>
         </aside>
@@ -8243,7 +8460,7 @@ export function RelationshipWorkspaceApp({
             <section className="context-onboarding">
               <header className="context-onboarding__header">
                 <p className="eyebrow">RELATIONSHIP INTELLIGENCE</p>
-                <h1>Begin with the source already in front of you.</h1>
+                <h1>Begin with the source.</h1>
                 <p>
                   Bind one person and relationship, then review what the source
                   can and cannot support.
@@ -8571,7 +8788,14 @@ export function RelationshipWorkspaceApp({
               {resourceComposerOpen ? (
                 <RelationshipResourceComposer
                   onCommitted={handleResourcesCommitted}
-                  onEvidenceChanged={(announcement) => {
+                  onEvidenceChanged={(announcement, relationshipRemoved) => {
+                    if (relationshipRemoved) {
+                      handleRelationshipRemoved(
+                        announcement ??
+                          "Source lineage deleted. No active relationship remains.",
+                      );
+                      return;
+                    }
                     setChatResponse(null);
                     setKnowledgeSnapshot(null);
                     chatRequestRef.current = null;
@@ -8891,7 +9115,9 @@ export function RelationshipWorkspaceApp({
                 <div className="context-contact-header__signal">
                   <span>Current dependency</span>
                   <strong>
-                    {effect?.outcome?.status === "verified"
+                    {!sourceAuthorizationAvailable
+                      ? `Source access ${workspace.source_authorization.state}`
+                      : effect?.outcome?.status === "verified"
                       ? "Next move recorded"
                       : assertions.some(
                             (assertion) =>
@@ -8935,13 +9161,30 @@ export function RelationshipWorkspaceApp({
               {resourceComposerOpen ? (
                 <RelationshipResourceComposer
                   onCommitted={handleResourcesCommitted}
-                  onEvidenceChanged={(announcement) => {
+                  onEvidenceChanged={async (
+                    announcement,
+                    relationshipRemoved,
+                  ) => {
+                    if (relationshipRemoved) {
+                      handleRelationshipRemoved(
+                        announcement ??
+                          "Source lineage deleted. No active relationship remains.",
+                      );
+                      return;
+                    }
                     setChatResponse(null);
                     setKnowledgeSnapshot(null);
                     chatRequestRef.current = null;
+                    const refreshed = await refreshWorkspaceReview(
+                      workspace.capture.id,
+                    );
                     setAnnouncement(
-                      announcement ??
-                        "Evidence review saved. Compile a new brief to use the updated source state.",
+                      refreshed
+                        ? announcement ??
+                            "Evidence review saved. Compile a new brief to use the updated source state."
+                        : `${
+                            announcement ?? "Evidence review saved."
+                          } The current review could not refresh; reload before making another decision.`,
                     );
                     void refreshAgentHistory(
                       workspace.subject.id,
@@ -9074,6 +9317,19 @@ export function RelationshipWorkspaceApp({
                           const needsCalendarDate =
                             ambiguous &&
                             assertion.field === "decision_deadline";
+                          const currentFieldState =
+                            activeConfirmedStates.find(
+                              (state) => state.field === assertion.field,
+                            );
+                          const valueUnderReview = isEditing
+                            ? edited.trim()
+                            : assertion.value?.trim() ?? "";
+                          const requiresSupersession = Boolean(
+                            pending &&
+                              currentFieldState &&
+                              currentFieldState.value !== valueUnderReview &&
+                              assertion.temporal_relation !== "supersedes",
+                          );
                           const editedValueIsValid =
                             edited.trim().length > 0 &&
                             (!needsCalendarDate ||
@@ -9150,6 +9406,19 @@ export function RelationshipWorkspaceApp({
                                     it unresolved, or dismiss it.
                                   </p>
                                 ) : null}
+                                {requiresSupersession ? (
+                                  <div className="context-fact__ambiguity" role="status">
+                                    <strong>Current value stays in place</strong>
+                                    <span>
+                                      {currentFieldState?.value} → {valueUnderReview}
+                                    </span>
+                                    <small>
+                                      Replacing it requires a separate source-linked
+                                      supersession proposal. Keep this unresolved or
+                                      dismiss it if that proposal is not available.
+                                    </small>
+                                  </div>
+                                ) : null}
                               </div>
 
                               {pending ? (
@@ -9158,7 +9427,11 @@ export function RelationshipWorkspaceApp({
                                     <>
                                       <button
                                         className="context-primary-button context-primary-button--compact"
-                                        disabled={Boolean(busy) || !editedValueIsValid}
+                                        disabled={
+                                          Boolean(busy) ||
+                                          !editedValueIsValid ||
+                                          requiresSupersession
+                                        }
                                         onClick={() =>
                                           decide(
                                             assertion.id,
@@ -9208,24 +9481,35 @@ export function RelationshipWorkspaceApp({
                                         </button>
                                       ) : (
                                         <>
-                                          <button
-                                            className="context-primary-button context-primary-button--compact"
-                                            disabled={Boolean(busy)}
-                                            onClick={() =>
-                                              decide(
-                                                assertion.id,
-                                                assertion.version,
-                                                "confirm",
-                                              )
-                                            }
-                                            type="button"
-                                          >
-                                            <Check
-                                              aria-hidden="true"
-                                              size={16}
-                                            />
-                                            Confirm
-                                          </button>
+                                          {requiresSupersession ? (
+                                            <button
+                                              className="context-primary-button context-primary-button--compact"
+                                              disabled
+                                              type="button"
+                                            >
+                                              <Warning aria-hidden="true" size={16} />
+                                              Supersession required
+                                            </button>
+                                          ) : (
+                                            <button
+                                              className="context-primary-button context-primary-button--compact"
+                                              disabled={Boolean(busy)}
+                                              onClick={() =>
+                                                decide(
+                                                  assertion.id,
+                                                  assertion.version,
+                                                  "confirm",
+                                                )
+                                              }
+                                              type="button"
+                                            >
+                                              <Check
+                                                aria-hidden="true"
+                                                size={16}
+                                              />
+                                              Confirm
+                                            </button>
+                                          )}
                                           <button
                                             aria-label={`Edit ${fieldLabel(assertion.field)}`}
                                             className="context-icon-button"
@@ -9282,6 +9566,16 @@ export function RelationshipWorkspaceApp({
                           );
                         })}
                       </div>
+                    ) : !sourceAuthorizationAvailable ? (
+                      <div className="context-no-signal context-no-signal--page">
+                        <Warning aria-hidden="true" size={25} />
+                        <p>
+                          <strong>Source access is unavailable.</strong>
+                          Restore or renew this governed source from Sources.
+                          Its prior conclusions and actions will not return
+                          automatically; the evidence comes back for review.
+                        </p>
+                      </div>
                     ) : (
                       <div className="context-no-signal context-no-signal--page">
                         <CheckCircle aria-hidden="true" size={25} />
@@ -9304,12 +9598,12 @@ export function RelationshipWorkspaceApp({
                         <h2 id="confirmed-title">Confirmed in this relationship</h2>
                       </div>
                       <span>
-                        {workspace.confirmed_state.assertions.length} active
+                        {activeConfirmedStates.length} active
                       </span>
                     </div>
-                    {workspace.confirmed_state.assertions.length > 0 ? (
+                    {activeConfirmedStates.length > 0 ? (
                       <dl className="context-known">
-                        {workspace.confirmed_state.assertions.map((state) => (
+                        {activeConfirmedStates.map((state) => (
                           <div key={state.id}>
                             <dt>{fieldLabel(state.field)}</dt>
                             <dd>{state.value}</dd>
@@ -9326,6 +9620,23 @@ export function RelationshipWorkspaceApp({
                         alone never becomes remembered context.
                       </p>
                     )}
+                    {historicalConfirmedStates.length > 0 ? (
+                      <details className="context-retention context-known-history">
+                        <summary>
+                          Previous fact versions ({historicalConfirmedStates.length})
+                        </summary>
+                        <dl>
+                          {historicalConfirmedStates.map((state) => (
+                            <div key={state.id}>
+                              <dt>{fieldLabel(state.field)}</dt>
+                              <dd>
+                                {state.value} · {state.state_status}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </details>
+                    ) : null}
                   </section>
 
                   <section
@@ -9338,9 +9649,7 @@ export function RelationshipWorkspaceApp({
                         <p className="eyebrow">SOURCE</p>
                         <h2 id="source-title">Reviewed extracted text</h2>
                       </div>
-                      <span>
-                        {workspace.capture.source.retention.source_access_state}
-                      </span>
+                      <span>{workspace.source_authorization.state}</span>
                     </div>
                     <div className="context-source-list">
                       {workspace.capture.messages.map((message) => (
@@ -9354,7 +9663,10 @@ export function RelationshipWorkspaceApp({
                             <small>{message.source_message_id}</small>
                           </figcaption>
                           <blockquote>
-                            {message.text ?? "Source text is no longer retained."}
+                            {message.text ??
+                              (sourceAuthorizationAvailable
+                                ? "Source text is no longer retained."
+                                : `Source authorization is ${workspace.source_authorization.state}. Restore or renew it from Sources before reviewing the evidence.`)}
                           </blockquote>
                         </figure>
                       ))}
@@ -9442,7 +9754,19 @@ export function RelationshipWorkspaceApp({
                           </div>
                         ) : null}
 
-                        {requiredFactsConfirmed && !approval ? (
+                        {staleApprovalNeedsReview ? (
+                          <div className="context-next-move__gate">
+                            <Warning aria-hidden="true" size={18} />
+                            <p>
+                              <strong>Prior approval is stale.</strong> The
+                              exact action changed after approval. Review the
+                              current target and change before approving this
+                              version.
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {canApproveCurrentAction ? (
                           <button
                             className="context-primary-button"
                             disabled={Boolean(busy)}
@@ -9461,7 +9785,9 @@ export function RelationshipWorkspaceApp({
                             type="button"
                           >
                             <ShieldCheck aria-hidden="true" size={18} />
-                            Approve exact internal action
+                            {staleApprovalNeedsReview
+                              ? "Approve revised internal action"
+                              : "Approve exact internal action"}
                           </button>
                         ) : null}
 
@@ -9503,11 +9829,19 @@ export function RelationshipWorkspaceApp({
                             className="context-outcome"
                             data-state={effect.outcome.status}
                           >
-                            <CheckCircle
-                              aria-hidden="true"
-                              size={25}
-                              weight="fill"
-                            />
+                            {effect.outcome.status === "verified" ? (
+                              <CheckCircle
+                                aria-hidden="true"
+                                size={25}
+                                weight="fill"
+                              />
+                            ) : (
+                              <Warning
+                                aria-hidden="true"
+                                size={25}
+                                weight="fill"
+                              />
+                            )}
                             <p>
                               <strong>
                                 {effect.outcome.status === "verified"
@@ -9516,9 +9850,325 @@ export function RelationshipWorkspaceApp({
                               </strong>
                               {effect.outcome.summary}
                             </p>
+                            {effect.outcome.status === "unknown" ? (
+                              <button
+                                className="context-secondary-button"
+                                disabled={Boolean(busy)}
+                                onClick={() =>
+                                  mutate(
+                                    `/api/local-integration/effects/${effect.attempt_id}/reconciliation`,
+                                    {
+                                      method: "POST",
+                                      body: JSON.stringify({
+                                        capture_id: workspace.capture.id,
+                                      }),
+                                    },
+                                    "Reconciling destination before retry",
+                                  )
+                                }
+                                type="button"
+                              >
+                                <ArrowRight aria-hidden="true" size={17} />
+                                Reconcile before retry
+                              </button>
+                            ) : null}
                           </div>
                         ) : null}
+
+                        {effect?.outcome?.status === "verified" ? (
+                          <section
+                            aria-labelledby="effect-reversal-title"
+                            className="context-effect-reversal"
+                          >
+                            <header>
+                              <div>
+                                <p className="eyebrow">REVERSAL</p>
+                                <h3 id="effect-reversal-title">
+                                  Remove the local effect safely
+                                </h3>
+                              </div>
+                              <span>Separate approval</span>
+                            </header>
+                            <p>
+                              Reversal removes only the labeled simulated
+                              Today item. The original approval, execution,
+                              readback, and reversal decision stay in history.
+                            </p>
+
+                            {reversalAttempt?.outcome?.status ===
+                            "verified" ? (
+                              <div
+                                className="context-effect-reversal__receipt"
+                                role="status"
+                              >
+                                <CheckCircle
+                                  aria-hidden="true"
+                                  size={23}
+                                  weight="fill"
+                                />
+                                <div>
+                                  <strong>Removed and verified absent</strong>
+                                  <p>{reversalAttempt.outcome.summary}</p>
+                                  <small>
+                                    Original effect {effect.attempt_id.slice(0, 8)} ·
+                                    reversal {reversalAttempt.reversal_attempt_id.slice(0, 8)}
+                                  </small>
+                                </div>
+                              </div>
+                            ) : reversal?.status === "approved" &&
+                              reversalApproval?.status === "active" ? (
+                              <div className="context-effect-reversal__approved">
+                                <dl>
+                                  <div>
+                                    <dt>Exact item</dt>
+                                    <dd>
+                                      {
+                                        reversalApproval.exact_preview
+                                          .current_effect.title
+                                      }
+                                    </dd>
+                                  </div>
+                                  <div>
+                                    <dt>Destination</dt>
+                                    <dd>
+                                      {
+                                        reversalApproval.exact_preview.target
+                                          .label
+                                      }
+                                    </dd>
+                                  </div>
+                                  <div>
+                                    <dt>Bound version</dt>
+                                    <dd>
+                                      {
+                                        reversalApproval.exact_preview
+                                          .expected_destination_version
+                                      }
+                                    </dd>
+                                  </div>
+                                  <div>
+                                    <dt>Reason</dt>
+                                    <dd>{reversalApproval.reason}</dd>
+                                  </div>
+                                </dl>
+                                <div className="context-effect-reversal__actions">
+                                  <button
+                                    className="context-primary-button"
+                                    disabled={Boolean(busy)}
+                                    onClick={() =>
+                                      mutate(
+                                        `/api/local-integration/effects/${effect.attempt_id}/reversal/execution`,
+                                        {
+                                          method: "POST",
+                                          body: JSON.stringify({
+                                            approval_id: reversalApproval.id,
+                                            capture_id: workspace.capture.id,
+                                          }),
+                                        },
+                                        "Reversing and verifying destination readback",
+                                      )
+                                    }
+                                    type="button"
+                                  >
+                                    <Prohibit aria-hidden="true" size={17} />
+                                    Remove item and verify
+                                  </button>
+                                  <button
+                                    className="context-text-button"
+                                    disabled={Boolean(busy)}
+                                    onClick={() =>
+                                      mutate(
+                                        `/api/local-integration/effect-reversal-approvals/${reversalApproval.id}/revocation`,
+                                        {
+                                          method: "POST",
+                                          body: JSON.stringify({
+                                            capture_id: workspace.capture.id,
+                                          }),
+                                        },
+                                        "Revoking the reversal approval",
+                                      )
+                                    }
+                                    type="button"
+                                  >
+                                    <X aria-hidden="true" size={16} />
+                                    Revoke reversal approval
+                                  </button>
+                                </div>
+                                <small>
+                                  Approval changes no destination state. The
+                                  removal still requires the separate action
+                                  above and a matching absence readback.
+                                </small>
+                              </div>
+                            ) : (
+                              <>
+                                {reversalAttempt?.outcome?.status ===
+                                "failed" ? (
+                                  <div
+                                    className="context-effect-reversal__blocked"
+                                    role="alert"
+                                  >
+                                    <Warning aria-hidden="true" size={18} />
+                                    <p>
+                                      <strong>Nothing was removed.</strong>{" "}
+                                      {reversalAttempt.outcome.summary} Open a
+                                      fresh review before deciding again.
+                                    </p>
+                                  </div>
+                                ) : null}
+
+                                {!reversalPreview ? (
+                                  <button
+                                    className="context-secondary-button"
+                                    disabled={Boolean(busy)}
+                                    onClick={() =>
+                                      void reviewEffectReversal()
+                                    }
+                                    type="button"
+                                  >
+                                    <ArrowRight aria-hidden="true" size={17} />
+                                    Review reversal
+                                  </button>
+                                ) : (
+                                  <div className="context-effect-reversal__preview">
+                                    <dl>
+                                      <div>
+                                        <dt>Remove</dt>
+                                        <dd>
+                                          {reversalPreview.reversal.title}
+                                        </dd>
+                                      </div>
+                                      <div>
+                                        <dt>From</dt>
+                                        <dd>
+                                          {reversalPreview.target.label}
+                                        </dd>
+                                      </div>
+                                      <div>
+                                        <dt>Current version</dt>
+                                        <dd>
+                                          {
+                                            reversalPreview.expected_destination_version
+                                          }
+                                        </dd>
+                                      </div>
+                                      <div>
+                                        <dt>Preserve</dt>
+                                        <dd>
+                                          Original effect and both audit receipts
+                                        </dd>
+                                      </div>
+                                    </dl>
+
+                                    {reversalPreview.blockers.length > 0 ? (
+                                      <div
+                                        className="context-effect-reversal__blocked"
+                                        role="alert"
+                                      >
+                                        <Warning
+                                          aria-hidden="true"
+                                          size={18}
+                                        />
+                                        <div>
+                                          <strong>Automatic reversal paused</strong>
+                                          {reversalPreview.blockers.map(
+                                            (blocker) => (
+                                              <p key={blocker.code}>
+                                                {blocker.message}
+                                              </p>
+                                            ),
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="context-effect-reversal__decision">
+                                        <label htmlFor="effect-reversal-reason">
+                                          Why should this item be removed?
+                                        </label>
+                                        <textarea
+                                          id="effect-reversal-reason"
+                                          onChange={(event) => {
+                                            setReversalReason(
+                                              event.target.value,
+                                            );
+                                            reversalApprovalRequestRef.current =
+                                              null;
+                                          }}
+                                          placeholder="Record the recruiter-observed reason."
+                                          rows={3}
+                                          value={reversalReason}
+                                        />
+                                        <label>
+                                          <input
+                                            checked={reversalReviewed}
+                                            onChange={(event) =>
+                                              setReversalReviewed(
+                                                event.target.checked,
+                                              )
+                                            }
+                                            type="checkbox"
+                                          />
+                                          <span>
+                                            I reviewed the exact item,
+                                            destination, current version, and
+                                            preserved audit history.
+                                          </span>
+                                        </label>
+                                        <div className="context-effect-reversal__actions">
+                                          <button
+                                            className="context-primary-button"
+                                            disabled={
+                                              Boolean(busy) ||
+                                              !reversalReviewed ||
+                                              !reversalReason.trim()
+                                            }
+                                            onClick={() =>
+                                              void approveCurrentEffectReversal()
+                                            }
+                                            type="button"
+                                          >
+                                            <ShieldCheck
+                                              aria-hidden="true"
+                                              size={17}
+                                            />
+                                            Approve exact reversal
+                                          </button>
+                                          <button
+                                            className="context-text-button"
+                                            disabled={Boolean(busy)}
+                                            onClick={() => {
+                                              setReversalPreview(null);
+                                              setReversalReviewed(false);
+                                              reversalApprovalRequestRef.current =
+                                                null;
+                                            }}
+                                            type="button"
+                                          >
+                                            Keep item
+                                          </button>
+                                        </div>
+                                        <small>
+                                          This approval grants no other action
+                                          and does not remove the item yet.
+                                        </small>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </section>
+                        ) : null}
                       </>
+                    ) : !sourceAuthorizationAvailable ? (
+                      <div className="context-next-move__empty">
+                        <Warning aria-hidden="true" size={23} />
+                        <p>
+                          <strong>No action authority is available.</strong>
+                          Restore or renew the source, then review every
+                          returned proposal before considering a new action.
+                        </p>
+                      </div>
                     ) : (
                       <div className="context-next-move__empty">
                         <CheckCircle aria-hidden="true" size={23} />

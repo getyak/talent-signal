@@ -25,7 +25,7 @@ describe("readiness rate limiting", () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
         {
-          version: "018_identity_freshness_policy_immutability",
+          version: "019_effect_reversals",
         },
       ],
     });

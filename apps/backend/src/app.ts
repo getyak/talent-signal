@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   AnalysisProposalResponseSchema,
   ApproveActionRequestSchema,
+  ApproveEffectReversalRequestSchema,
   ApprovalResponseSchema,
   AssertionDecisionRequestSchema,
   AssertionDecisionResponseSchema,
@@ -18,6 +19,9 @@ import {
   DeleteCaptureResponseSchema,
   DeletionLineageResponseSchema,
   EffectResultResponseSchema,
+  EffectReversalApprovalResponseSchema,
+  EffectReversalPreviewSchema,
+  EffectReversalResultResponseSchema,
   EvidenceFragmentReviewRequestSchema,
   EvidenceFragmentReviewResponseSchema,
   IdentityResolutionCaseSchema,
@@ -25,6 +29,7 @@ import {
   IdentityResolutionDecisionResponseSchema,
   ErrorResponseSchema,
   ExecuteActionRequestSchema,
+  ExecuteEffectReversalRequestSchema,
   ReconcileEffectRequestSchema,
   ResourceCaptureRequestSchema,
   ResourceCaptureResponseSchema,
@@ -54,6 +59,7 @@ import {
   TemporalStateResponseSchema,
   WorkspaceReviewResponseSchema,
   type ApproveActionRequest,
+  type ApproveEffectReversalRequest,
   type AssertionDecisionRequest,
   type CreateCaptureRequest,
   type CaptureIdentityCorrectionRequest,
@@ -61,6 +67,7 @@ import {
   type CompileKnowledgeRequest,
   type DeleteCaptureRequest,
   type ExecuteActionRequest,
+  type ExecuteEffectReversalRequest,
   type EvidenceFragmentReviewRequest,
   type IdentityResolutionDecisionRequest,
   type PersonMergeRequest,
@@ -88,11 +95,15 @@ import type { AuthContext } from "./modules/auth.js";
 import { getRelationshipAgentHistory } from "./modules/agentHistory.js";
 import {
   approveAction,
+  approveEffectReversal,
   executeAction,
+  executeEffectReversal,
+  previewEffectReversal,
   reconcileEffect,
   reviseAction,
   revokeApproval,
   revokeCapability,
+  revokeEffectReversalApproval,
 } from "./modules/actions.js";
 import {
   createAuthGuard,
@@ -340,7 +351,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '018_identity_freshness_policy_immutability'`,
+           WHERE version = '019_effect_reversals'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -1313,6 +1324,114 @@ export async function buildApp(
     },
     async (request, reply) => {
       const result = await reconcileEffect(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/effect-attempts/:id/reversal",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["effects"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: EffectReversalPreviewSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      previewEffectReversal(pool, request.auth, request.params.id),
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: ApproveEffectReversalRequest;
+  }>(
+    "/v1/effect-attempts/:id/reversal-approvals",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["effects"],
+        security,
+        params: IdParamsSchema,
+        body: ApproveEffectReversalRequestSchema,
+        response: {
+          201: EffectReversalApprovalResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await approveEffectReversal(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: ExecuteEffectReversalRequest;
+  }>(
+    "/v1/effect-attempts/:id/reversal-executions",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["effects"],
+        security,
+        params: IdParamsSchema,
+        body: ExecuteEffectReversalRequestSchema,
+        response: {
+          200: EffectReversalResultResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await executeEffectReversal(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: RevokeApprovalRequest }>(
+    "/v1/effect-reversal-approvals/:id/revocation",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["effects"],
+        security,
+        params: IdParamsSchema,
+        body: RevokeApprovalRequestSchema,
+        response: { "4xx": ErrorResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const result = await revokeEffectReversalApproval(
         pool,
         request.auth,
         request.params.id,

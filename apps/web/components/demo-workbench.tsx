@@ -101,6 +101,36 @@ function EmptyAnalysis({ evidence }: { evidence: Evidence[] }) {
   );
 }
 
+function ClarificationReview({ evidence }: { evidence: Evidence[] }) {
+  return (
+    <section
+      className="clarification-review"
+      aria-labelledby="clarification-review-title"
+    >
+      <WarningCircle aria-hidden="true" size={24} />
+      <div>
+        <p className="metadata">Unresolved evidence</p>
+        <h3 id="clarification-review-title">Clarify before confirming.</h3>
+        <p>
+          Relative dates and meeting windows stay outside the action list until
+          their source time is explicit.
+        </p>
+        <div className="ambiguous-evidence">
+          {evidence.map((item) => (
+            <div key={item.id}>
+              <strong>{item.label}</strong>
+              <q>{item.excerpt}</q>
+              {item.ambiguities.map((ambiguity) => (
+                <span key={ambiguity}>{ambiguity}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function DemoWorkbench({
   aiEnabled,
   aiProvider,
@@ -119,8 +149,10 @@ export function DemoWorkbench({
   const [analysisMeta, setAnalysisMeta] = useState<AiResponse["meta"] | null>(
     null,
   );
+  const [announcement, setAnnouncement] = useState("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRef = useRef<AbortController | null>(null);
+  const editingInputRef = useRef<HTMLInputElement | null>(null);
   const reduceMotion = useReducedMotionPreference();
 
   useEffect(() => {
@@ -132,6 +164,15 @@ export function DemoWorkbench({
     };
   }, []);
 
+  useEffect(() => {
+    if (!editingId) {
+      return;
+    }
+
+    editingInputRef.current?.focus();
+    editingInputRef.current?.select();
+  }, [editingId]);
+
   function applyResult(nextResult: AnalysisResult) {
     setResult(nextResult);
     setEdits(
@@ -140,17 +181,40 @@ export function DemoWorkbench({
       ),
     );
     setPhase("ready");
+    const unresolvedCount = nextResult.evidence.filter(
+      (item) => item.ambiguities.length > 0,
+    ).length;
+    if (nextResult.actions.length > 0) {
+      setAnnouncement(
+        `Analysis complete. ${nextResult.actions.length} supported ${nextResult.actions.length === 1 ? "change is" : "changes are"} ready for review.${
+          unresolvedCount > 0
+            ? ` ${unresolvedCount} unresolved evidence ${unresolvedCount === 1 ? "item needs" : "items need"} clarification.`
+            : ""
+        }`,
+      );
+    } else if (nextResult.evidence.length > 0) {
+      setAnnouncement(
+        "Analysis complete. Evidence needs clarification. No operational change was proposed.",
+      );
+    } else {
+      setAnnouncement(
+        "Analysis complete. No operational update was proposed.",
+      );
+    }
   }
 
   async function runAnalysis() {
     if (!input.trim()) {
-      setErrorMessage("Add a conversation note before analyzing evidence.");
+      const message = "Add a conversation note before analyzing evidence.";
+      setErrorMessage(message);
+      setAnnouncement(message);
       setPhase("error");
       setResult(null);
       return;
     }
 
     setPhase("loading");
+    setAnnouncement("Analyzing conversation evidence.");
     setErrorMessage("");
     setStatuses({});
     setEditingId(null);
@@ -202,11 +266,12 @@ export function DemoWorkbench({
         return;
       }
       setResult(null);
-      setErrorMessage(
+      const message =
         error instanceof Error
           ? error.message
-          : "Private AI analysis is unavailable.",
-      );
+          : "Private AI analysis is unavailable.";
+      setErrorMessage(message);
+      setAnnouncement(message);
       setPhase("error");
     } finally {
       if (requestRef.current === controller) {
@@ -216,8 +281,37 @@ export function DemoWorkbench({
   }
 
   function updateStatus(id: string, status: ActionStatus) {
-    setStatuses((current) => ({ ...current, [id]: status }));
+    const nextStatuses = { ...statuses, [id]: status };
+    setStatuses(nextStatuses);
     setEditingId(null);
+    const action = result?.actions.find((item) => item.id === id);
+    const confirmedCount = Object.values(nextStatuses).filter(
+      (nextStatus) => nextStatus === "confirmed",
+    ).length;
+    if (action && result) {
+      setAnnouncement(
+        `${action.title} ${
+          status === "confirmed"
+            ? "confirmed"
+            : status === "dismissed"
+              ? "dismissed"
+              : "returned to review"
+        }. ${confirmedCount} of ${result.actions.length} supported ${result.actions.length === 1 ? "change" : "changes"} confirmed.`,
+      );
+    }
+  }
+
+  function toggleEdit(action: ProposedAction) {
+    if (editingId === action.id) {
+      setEditingId(null);
+      setAnnouncement(
+        `${action.title} edit saved locally. Review it before confirming.`,
+      );
+      return;
+    }
+
+    setEditingId(action.id);
+    setAnnouncement(`${action.title} edit field ready.`);
   }
 
   function resetDemo() {
@@ -234,6 +328,7 @@ export function DemoWorkbench({
     setEdits({});
     setErrorMessage("");
     setAnalysisMeta(null);
+    setAnnouncement("Demo reset. Sample conversation restored.");
   }
 
   function selectMode(nextMode: AnalysisMode) {
@@ -252,11 +347,18 @@ export function DemoWorkbench({
     setEdits({});
     setErrorMessage("");
     setAnalysisMeta(null);
+    setAnnouncement(
+      nextMode === "local"
+        ? "Local browser-only analysis selected. Previous results cleared."
+        : "Private AI analysis selected. Previous results cleared.",
+    );
   }
 
   const actionSummary = result
     ? Object.values(statuses).filter((status) => status === "confirmed").length
     : 0;
+  const ambiguousEvidence =
+    result?.evidence.filter((item) => item.ambiguities.length > 0) ?? [];
 
   return (
     <div className="demo-workbench">
@@ -354,12 +456,19 @@ export function DemoWorkbench({
               ? "Analyze with private AI"
               : "Analyze locally"}
         </button>
+        <p
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {announcement}
+        </p>
       </section>
 
       <section
         className="demo-output"
         aria-labelledby="demo-output-title"
-        aria-live="polite"
       >
         <div className="demo-output__heading">
           <div>
@@ -369,7 +478,8 @@ export function DemoWorkbench({
           {phase === "ready" && result && result.actions.length > 0 && (
             <div className="analysis-summary">
               <p className="confirmation-count">
-                {actionSummary} of {result.actions.length} confirmed
+                {actionSummary} of {result.actions.length} supported changes
+                confirmed
               </p>
               {analysisMeta && (
                 <p className="analysis-origin">
@@ -439,6 +549,10 @@ export function DemoWorkbench({
                 </p>
               </div>
 
+              {ambiguousEvidence.length > 0 ? (
+                <ClarificationReview evidence={ambiguousEvidence} />
+              ) : null}
+
               <div className="action-list">
                 {result.actions.map((action) => {
                   const status = statuses[action.id] ?? "pending";
@@ -474,6 +588,7 @@ export function DemoWorkbench({
                             </label>
                             <input
                               id={`edit-${action.id}`}
+                              ref={editingInputRef}
                               value={edits[action.id] ?? action.detail}
                               onChange={(event) =>
                                 setEdits((current) => ({
@@ -505,11 +620,7 @@ export function DemoWorkbench({
                           <div className="action-card__actions">
                             <button
                               type="button"
-                              onClick={() =>
-                                editing
-                                  ? setEditingId(null)
-                                  : setEditingId(action.id)
-                              }
+                              onClick={() => toggleEdit(action)}
                             >
                               <PencilSimple aria-hidden="true" size={15} />
                               {editing ? "Save edit" : "Edit"}

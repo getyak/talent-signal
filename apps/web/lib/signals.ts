@@ -51,6 +51,14 @@ export type AnalysisResult = {
   insight: Insight;
 };
 
+type TemporalResolutionContext = {
+  hasExplicitTimeZone: boolean;
+};
+
+const unresolvedTemporalContext: TemporalResolutionContext = {
+  hasExplicitTimeZone: false,
+};
+
 const evidenceRules: Array<{
   id: EvidenceKind;
   label: string;
@@ -88,8 +96,16 @@ const evidenceRules: Array<{
 export const sampleConversation =
   "I have another offer and need to decide by Wednesday. I can speak Tuesday afternoon, but remote flexibility is important.";
 
-export function deriveInsight(evidence: Evidence[]): Insight {
+export function deriveInsight(
+  evidence: Evidence[],
+  temporalContext: TemporalResolutionContext = unresolvedTemporalContext,
+): Insight {
   const kinds = new Set(evidence.map((item) => item.id));
+  const hasAmbiguousDecisionPressure = evidence.some(
+    (item) =>
+      (item.id === "deadline" || item.id === "availability") &&
+      item.ambiguities.length > 0,
+  );
   const hasDecisionPressure =
     kinds.has("deadline") || kinds.has("competing-offer");
   const hasUnresolvedConstraint =
@@ -97,6 +113,26 @@ export function deriveInsight(evidence: Evidence[]): Insight {
     kinds.has("constraint") ||
     kinds.has("location-or-work-mode") ||
     kinds.has("client-dependency");
+
+  if (hasAmbiguousDecisionPressure) {
+    if (temporalContext.hasExplicitTimeZone) {
+      return {
+        verdict: "Resolve blocker",
+        rationale:
+          "The note states a timezone, but the source date is missing, so the relative time window is unresolved.",
+        nextAction:
+          "Clarify the exact calendar date before confirming a deadline or preparing a meeting.",
+      };
+    }
+
+    return {
+      verdict: "Resolve blocker",
+      rationale:
+        "The note contains a relative time window, but the source date or timezone is missing.",
+      nextAction:
+        "Clarify the exact date and timezone before confirming a deadline or preparing a meeting.",
+    };
+  }
 
   if (hasDecisionPressure && hasUnresolvedConstraint) {
     return {
@@ -151,8 +187,48 @@ const actionTitles: Record<EvidenceKind, string> = {
   "stage-change": "Record process stage change",
 };
 
-export function buildAnalysis(evidence: Evidence[]): AnalysisResult {
-  const actions = evidence.flatMap<ProposedAction>((item) => {
+const relativeTimePattern =
+  /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|this week|next week|next month)\b/i;
+
+const explicitTimeZonePattern =
+  /\b(?:time\s*zone|timezone)\s*(?:is|:)?\s*[a-z0-9_+:/-]{2,40}\b|\b(?:utc|gmt)\s*[+-]\s*\d{1,2}(?::?\d{2})?\b|\b(?:pst|pdt|est|edt|cst|cdt|mst|mdt|sgt|cet|cest|bst|ist|jst|aest|aedt)\b/i;
+
+function addDeterministicTemporalAmbiguity(
+  item: Evidence,
+  temporalContext: TemporalResolutionContext,
+): Evidence {
+  if (
+    item.ambiguities.length > 0 ||
+    (item.id !== "deadline" &&
+      item.id !== "availability" &&
+      item.id !== "next-meeting") ||
+    !relativeTimePattern.test(item.excerpt)
+  ) {
+    return item;
+  }
+
+  return {
+    ...item,
+    ambiguities: [
+      item.id === "deadline"
+        ? temporalContext.hasExplicitTimeZone
+          ? "Resolve the source date before confirming this relative deadline. Keep the stated timezone attached."
+          : "Resolve the source date and timezone before confirming this deadline."
+        : temporalContext.hasExplicitTimeZone
+          ? "Resolve the exact calendar date and local time before scheduling. Keep the stated timezone attached."
+          : "Resolve the exact date, local time, and timezone before scheduling.",
+    ],
+  };
+}
+
+export function buildAnalysis(
+  evidence: Evidence[],
+  temporalContext: TemporalResolutionContext = unresolvedTemporalContext,
+): AnalysisResult {
+  const reviewEvidence = evidence.map((item) =>
+    addDeterministicTemporalAmbiguity(item, temporalContext),
+  );
+  const actions = reviewEvidence.flatMap<ProposedAction>((item) => {
     if (item.speaker !== "candidate" || item.ambiguities.length > 0) {
       return [];
     }
@@ -178,9 +254,9 @@ export function buildAnalysis(evidence: Evidence[]): AnalysisResult {
   });
 
   return {
-    evidence,
+    evidence: reviewEvidence,
     actions,
-    insight: deriveInsight(evidence),
+    insight: deriveInsight(reviewEvidence, temporalContext),
   };
 }
 
@@ -206,5 +282,7 @@ export function analyzeConversation(input: string): AnalysisResult {
       })
     : [];
 
-  return buildAnalysis(evidence);
+  return buildAnalysis(evidence, {
+    hasExplicitTimeZone: explicitTimeZonePattern.test(normalized),
+  });
 }

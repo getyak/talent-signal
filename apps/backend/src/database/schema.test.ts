@@ -275,6 +275,24 @@ describe("authority schema", () => {
     );
   });
 
+  it("separates effect reversal approval, execution, observation, and outcome", async () => {
+    const sql = await readFile(
+      new URL("./019_effect_reversals.sql", import.meta.url),
+      "utf8",
+    );
+    for (const table of [
+      "effect_reversal_approvals",
+      "effect_reversal_attempts",
+      "effect_reversal_observations",
+      "effect_reversal_outcomes",
+    ]) {
+      expect(sql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(sql).toContain("effect_reversal_approvals_one_active_idx");
+    expect(sql).toContain("status IN ('active', 'revoked', 'stale', 'consumed')");
+    expect(sql).toContain("match_status IN ('matched_absent', 'still_present', 'unavailable')");
+  });
+
   it("separates evidence authorization from raw-source retention", async () => {
     const sql = await readFile(
       new URL("./011_source_authorization.sql", import.meta.url),
