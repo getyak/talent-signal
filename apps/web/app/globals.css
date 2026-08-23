@@ -1059,6 +1059,39 @@ p {
   font-size: 0.58rem;
 }
 
+.clarification-review {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--line));
+  border-radius: var(--card-radius);
+  display: flex;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 20px;
+}
+
+.clarification-review > svg {
+  color: var(--warning);
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.clarification-review > div {
+  min-width: 0;
+}
+
+.clarification-review h3 {
+  font-size: 1rem;
+  margin-top: 5px;
+}
+
+.clarification-review > div > p:not(.metadata) {
+  color: var(--muted-strong);
+  font-size: 0.74rem;
+  line-height: 1.55;
+  margin-top: 7px;
+}
+
 .analysis-result {
   margin-top: 34px;
 }
@@ -3087,6 +3120,57 @@ p {
   color: var(--muted);
   font-size: 0.61rem;
   line-height: 1.55;
+}
+
+.auth-access-state {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  display: grid;
+  gap: 10px;
+  margin-top: 34px;
+  padding: 24px;
+}
+
+.auth-access-state > p {
+  color: var(--accent-strong);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.auth-access-state h3 {
+  font-family: var(--font-display), serif;
+  font-size: 1.45rem;
+  font-weight: 580;
+  letter-spacing: -0.035em;
+}
+
+.auth-access-state > span {
+  color: var(--muted-strong);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.auth-access-state > div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.auth-access-state .button {
+  min-height: 44px;
+}
+
+.auth-demo-link {
+  color: var(--accent-strong);
+  font-size: 0.72rem;
+  font-weight: 730;
+  min-height: 44px;
+  padding: 13px 2px;
 }
 
 .default-account {
@@ -6722,6 +6806,193 @@ p {
   font-size: 0.76rem;
 }
 
+.context-effect-reversal {
+  border-top: 1px solid color-mix(in srgb, var(--background) 16%, transparent);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.context-effect-reversal > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.context-effect-reversal h3 {
+  color: var(--background);
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.context-effect-reversal > header > span {
+  border: 1px solid color-mix(in srgb, var(--background) 25%, transparent);
+  color: color-mix(in srgb, var(--background) 65%, transparent);
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.05em;
+  padding: 5px 7px;
+  text-transform: uppercase;
+}
+
+.context-effect-reversal > p,
+.context-effect-reversal__approved > small,
+.context-effect-reversal__decision > small {
+  color: color-mix(in srgb, var(--background) 62%, transparent);
+  display: block;
+  font-size: 0.67rem;
+  line-height: 1.55;
+  margin: 10px 0 14px;
+}
+
+.context-effect-reversal__preview,
+.context-effect-reversal__approved {
+  border: 1px solid color-mix(in srgb, var(--background) 18%, transparent);
+  margin-top: 12px;
+  padding: 13px;
+}
+
+.context-effect-reversal dl {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+.context-effect-reversal dl > div {
+  display: grid;
+  gap: 3px;
+}
+
+.context-effect-reversal dt {
+  color: color-mix(in srgb, var(--background) 48%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.57rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.context-effect-reversal dd {
+  color: var(--background);
+  font-size: 0.69rem;
+  line-height: 1.45;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.context-effect-reversal__decision {
+  border-top: 1px solid color-mix(in srgb, var(--background) 14%, transparent);
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+  padding-top: 13px;
+}
+
+.context-effect-reversal__decision > label:first-child {
+  color: var(--background);
+  font-size: 0.7rem;
+  font-weight: 720;
+}
+
+.context-effect-reversal__decision textarea {
+  background: color-mix(in srgb, var(--background) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--background) 23%, transparent);
+  border-radius: 0;
+  color: var(--background);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  min-height: 84px;
+  padding: 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.context-effect-reversal__decision textarea:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.context-effect-reversal__decision > label:has(input) {
+  align-items: center;
+  color: color-mix(in srgb, var(--background) 74%, transparent);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.67rem;
+  gap: 8px;
+  line-height: 1.45;
+  min-height: 44px;
+}
+
+.context-effect-reversal__decision input {
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.context-effect-reversal__actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.context-effect-reversal__actions button,
+.context-effect-reversal > .context-secondary-button {
+  min-height: 44px;
+  width: 100%;
+}
+
+.context-effect-reversal .context-text-button {
+  color: color-mix(in srgb, var(--background) 72%, transparent);
+  justify-content: center;
+}
+
+.context-effect-reversal__blocked,
+.context-effect-reversal__receipt {
+  align-items: flex-start;
+  display: flex;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.context-effect-reversal__blocked {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: color-mix(in srgb, var(--background) 78%, transparent);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.context-effect-reversal__blocked > svg {
+  color: var(--danger);
+  flex: 0 0 auto;
+}
+
+.context-effect-reversal__blocked strong,
+.context-effect-reversal__receipt strong {
+  color: var(--background);
+}
+
+.context-effect-reversal__receipt {
+  background: color-mix(in srgb, var(--success) 24%, transparent);
+}
+
+.context-effect-reversal__receipt > svg {
+  color: var(--success);
+  flex: 0 0 auto;
+}
+
+.context-effect-reversal__receipt p,
+.context-effect-reversal__receipt small {
+  color: color-mix(in srgb, var(--background) 70%, transparent);
+  display: block;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  margin-top: 3px;
+}
+
 .context-history {
   border-top: 1px solid var(--line-strong);
   padding-top: 19px;
@@ -8232,8 +8503,8 @@ p {
   }
 
   .context-onboarding__header h1 {
-    font-size: clamp(2.6rem, 12vw, 3.55rem);
-    max-width: 11ch;
+    font-size: clamp(2.2rem, 10vw, 2.75rem);
+    max-width: 14ch;
   }
 
   .context-onboarding__artifact {
@@ -8952,7 +9223,7 @@ p {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 22px 16px 16px;
   position: sticky;
   top: 0;
@@ -8986,7 +9257,10 @@ p {
 }
 
 .review-sidebar nav {
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
 }
 
 .review-case-rail {
@@ -9057,8 +9331,10 @@ p {
 }
 
 .review-sidebar__foot {
+  background: var(--background-deep);
   border-top: 1px solid var(--line);
   display: grid;
+  flex: 0 0 auto;
   gap: 2px;
   margin-top: auto;
   padding-top: 12px;
@@ -13215,6 +13491,7 @@ article[data-state="unresolved"]
   }
 
   .context-new-capture {
+    flex: 0 0 44px;
     width: 44px;
   }
 
@@ -13227,6 +13504,10 @@ article[data-state="unresolved"]
   .context-fact__evidence,
   .context-known a {
     min-height: 44px;
+  }
+
+  .context-topbar .context-primary-button--compact {
+    min-width: 44px;
   }
 
   .context-capture .context-text-button,
@@ -13732,7 +14013,13 @@ article[data-state="unresolved"]
 
   .context-person-merge--closed > button {
     grid-column: 1 / -1;
+    min-height: 44px;
     width: 100%;
+  }
+
+  .context-danger-zone > .context-text-button {
+    justify-content: flex-start;
+    min-height: 44px;
   }
 
   .context-person-merge__people,
@@ -13753,6 +14040,42 @@ article[data-state="unresolved"]
   .context-person-merge__receipt button {
     min-height: 44px;
     width: 100%;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 900px) and (max-height: 500px) {
+  .context-brand,
+  .context-nav a,
+  .context-new-capture,
+  .context-account-signout,
+  .context-sidebar__account .theme-toggle {
+    height: 44px;
+    min-height: 44px;
+    min-width: 44px;
+    width: 44px;
+  }
+
+  .context-brand {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .context-topbar a,
+  .context-topbar .context-primary-button--compact,
+  .context-agent-actions button,
+  .context-agent-page-update .context-primary-button--compact,
+  .context-chat__composer .context-primary-button,
+  .context-person-merge--closed > button,
+  .context-relationship-wiki__grid aside button,
+  .context-fact__evidence,
+  .context-fact__actions button,
+  .context-known a,
+  .context-danger-zone > .context-text-button {
+    min-height: 44px;
+  }
+
+  .context-fact__actions .context-icon-button {
+    min-width: 44px;
   }
 }
 
@@ -13787,7 +14110,32 @@ article[data-state="unresolved"]
 
 /* On phones, an idle Agent should introduce the relationship, not consume a
    full viewport of empty thread space before the living contact appears. */
+.context-sidebar__account form {
+  flex: 0 0 auto;
+}
+
+.context-account-signout {
+  height: 34px;
+  width: 34px;
+}
+
 @media (max-width: 640px) {
+  .context-account-signout {
+    height: 44px;
+    width: 44px;
+  }
+
+  .context-chat--standalone {
+    height: auto;
+    margin: 12px 12px 0;
+  }
+
+  .context-chat--standalone .context-agent-thread,
+  .context-chat--standalone .context-agent-actions,
+  .context-chat--standalone .context-agent-disabled-composer {
+    display: none;
+  }
+
   .context-nav a {
     font-size: 0;
   }

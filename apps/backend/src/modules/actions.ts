@@ -2,9 +2,16 @@ import { randomUUID } from "node:crypto";
 
 import {
   SIMULATED_CAPABILITY,
+  SIMULATED_REVERSAL_CAPABILITY,
+  type ApproveEffectReversalRequest,
   type ApproveActionRequest,
   type ApprovalResponse,
+  type EffectReversalApprovalResponse,
+  type EffectReversalPreview,
+  type EffectReversalResultResponse,
+  type EffectReversalSnapshot,
   type EffectResultResponse,
+  type ExecuteEffectReversalRequest,
   type ExecuteActionRequest,
   type ReconcileEffectRequest,
   type ReviseActionRequest,
@@ -14,7 +21,7 @@ import {
 } from "@talent-signal/contracts";
 import type { Pool, PoolClient } from "pg";
 
-import { inTransaction } from "../database/pool.js";
+import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
 import { digestValue, stableStringify } from "../lib/hash.js";
@@ -56,6 +63,37 @@ interface EffectResultRows {
   destination_key: string | null;
   destination_version: number | null;
   match_status: "matched" | "mismatched" | "unavailable" | null;
+  observed_at: Date | null;
+  outcome_id: string | null;
+  outcome_status: "verified" | "failed" | "unknown" | null;
+  summary: string | null;
+  outcome_created_at: Date | null;
+}
+
+interface EffectReversalApprovalRow {
+  id: string;
+  original_attempt_id: string;
+  exact_preview: EffectReversalPreview;
+  exact_preview_digest: string;
+  status: EffectReversalApprovalResponse["status"];
+  reason: string;
+  approved_by_user_id: string;
+  granted_at: Date;
+  expires_at: Date;
+}
+
+interface EffectReversalResultRow {
+  reversal_attempt_id: string;
+  original_attempt_id: string;
+  attempt_status: EffectReversalResultResponse["attempt_status"];
+  observation_id: string | null;
+  destination_key: string | null;
+  destination_version: number | null;
+  match_status:
+    | "matched_absent"
+    | "still_present"
+    | "unavailable"
+    | null;
   observed_at: Date | null;
   outcome_id: string | null;
   outcome_status: "verified" | "failed" | "unknown" | null;
@@ -465,6 +503,10 @@ async function loadEffectResult(
       "The effect attempt was not found.",
     );
   }
+  const reversal =
+    row.attempt_status === "verified"
+      ? await loadEffectReversalSnapshot(client, accountId, attemptId)
+      : null;
   return {
     attempt_id: row.attempt_id,
     action_id: row.action_id,
@@ -497,6 +539,7 @@ async function loadEffectResult(
             created_at: row.outcome_created_at.toISOString(),
           }
         : null,
+    reversal,
   };
 }
 
@@ -1108,6 +1151,779 @@ export async function reconcileEffect(
       attemptId,
       false,
     );
+    await completeIdempotency(client, idempotency, 200, body);
+    return { body, replayed: false, status: 200 };
+  });
+}
+
+async function buildEffectReversalPreview(
+  client: DatabaseClient,
+  accountId: string,
+  originalAttemptId: string,
+): Promise<EffectReversalPreview> {
+  const originalResult = await client.query<{
+    attempt_status: "verified" | "failed" | "unknown";
+    exact_preview: SimulatedEffectPreview;
+    destination_version: number | null;
+    match_status: "matched" | "mismatched" | "unavailable" | null;
+  }>(
+    `SELECT
+       attempts.status AS attempt_status,
+       actions.exact_preview,
+       observations.destination_version,
+       observations.match_status
+     FROM effect_attempts attempts
+     JOIN action_proposals actions
+       ON actions.account_id = attempts.account_id
+      AND actions.id = attempts.action_id
+     LEFT JOIN LATERAL (
+       SELECT destination_version, match_status
+       FROM effect_observations
+       WHERE account_id = attempts.account_id
+         AND attempt_id = attempts.id
+       ORDER BY observed_at DESC, id DESC
+       LIMIT 1
+     ) observations ON true
+     WHERE attempts.account_id = $1 AND attempts.id = $2`,
+    [accountId, originalAttemptId],
+  );
+  const original = originalResult.rows[0];
+  if (!original) {
+    throw new ApiError(
+      404,
+      "EFFECT_ATTEMPT_NOT_FOUND",
+      "The effect attempt was not found.",
+    );
+  }
+
+  const destinationResult = await client.query<{
+    state: unknown;
+    version: number;
+  }>(
+    `SELECT state, version
+     FROM simulated_destinations
+     WHERE account_id = $1 AND destination_key = $2`,
+    [accountId, original.exact_preview.target.destination_key],
+  );
+  const destination = destinationResult.rows[0];
+  const verifiedReversal = await client.query<{ id: string }>(
+    `SELECT id
+     FROM effect_reversal_attempts
+     WHERE account_id = $1
+       AND original_attempt_id = $2
+       AND status = 'verified'
+     ORDER BY attempt_number DESC
+     LIMIT 1`,
+    [accountId, originalAttemptId],
+  );
+
+  const blockers: EffectReversalPreview["blockers"] = [];
+  if (
+    original.attempt_status !== "verified" ||
+    original.match_status !== "matched"
+  ) {
+    blockers.push({
+      code: "effect_not_verified",
+      message:
+        "Only an effect with matching destination readback can be reversed.",
+    });
+  }
+  if (original.exact_preview.expected_destination_version !== 0) {
+    blockers.push({
+      code: "prior_state_not_reversible",
+      message:
+        "This effect replaced prior destination state that the current adapter cannot restore safely.",
+    });
+  }
+  if (verifiedReversal.rows[0]) {
+    blockers.push({
+      code: "reversal_already_verified",
+      message: "This effect was already reversed and verified.",
+    });
+  } else if (
+    !destination ||
+    destination.version !== original.destination_version ||
+    stableStringify(destination.state) !==
+      stableStringify(original.exact_preview.change)
+  ) {
+    blockers.push({
+      code: "destination_changed",
+      message:
+        "The destination changed after the verified effect. Review the current destination instead of deleting it automatically.",
+    });
+  }
+
+  const exact = {
+    original_attempt_id: originalAttemptId,
+    simulated: true as const,
+    capability: SIMULATED_REVERSAL_CAPABILITY,
+    adapter: "local_deterministic" as const,
+    target: original.exact_preview.target,
+    current_effect: original.exact_preview.change,
+    reversal: {
+      kind: "remove_attention" as const,
+      title: original.exact_preview.change.title,
+    },
+    expected_destination_version:
+      destination?.version ?? original.destination_version ?? 1,
+  };
+  return {
+    ...exact,
+    preview_digest: digestValue(exact),
+    blockers,
+    reversal_available: blockers.length === 0,
+  };
+}
+
+export async function previewEffectReversal(
+  pool: Pool,
+  auth: AuthContext,
+  originalAttemptId: string,
+): Promise<EffectReversalPreview> {
+  return buildEffectReversalPreview(
+    pool,
+    auth.accountId,
+    originalAttemptId,
+  );
+}
+
+function mapEffectReversalApproval(
+  row: EffectReversalApprovalRow,
+): EffectReversalApprovalResponse {
+  return {
+    id: row.id,
+    original_attempt_id: row.original_attempt_id,
+    exact_preview: row.exact_preview,
+    exact_preview_digest: row.exact_preview_digest,
+    status: row.status,
+    reason: row.reason,
+    approved_by_user_id: row.approved_by_user_id,
+    granted_at: row.granted_at.toISOString(),
+    expires_at: row.expires_at.toISOString(),
+  };
+}
+
+async function loadEffectReversalResult(
+  client: DatabaseClient,
+  accountId: string,
+  reversalAttemptId: string,
+  reused: boolean,
+): Promise<EffectReversalResultResponse> {
+  const result = await client.query<EffectReversalResultRow>(
+    `SELECT
+       attempts.id AS reversal_attempt_id,
+       attempts.original_attempt_id,
+       attempts.status AS attempt_status,
+       observations.id AS observation_id,
+       observations.destination_key,
+       observations.destination_version,
+       observations.match_status,
+       observations.observed_at,
+       outcomes.id AS outcome_id,
+       outcomes.status AS outcome_status,
+       outcomes.summary,
+       outcomes.created_at AS outcome_created_at
+     FROM effect_reversal_attempts attempts
+     LEFT JOIN LATERAL (
+       SELECT *
+       FROM effect_reversal_observations
+       WHERE account_id = attempts.account_id
+         AND reversal_attempt_id = attempts.id
+       ORDER BY observed_at DESC, id DESC
+       LIMIT 1
+     ) observations ON true
+     LEFT JOIN LATERAL (
+       SELECT *
+       FROM effect_reversal_outcomes
+       WHERE account_id = attempts.account_id
+         AND reversal_attempt_id = attempts.id
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1
+     ) outcomes ON true
+     WHERE attempts.account_id = $1 AND attempts.id = $2`,
+    [accountId, reversalAttemptId],
+  );
+  const row = result.rows[0];
+  if (!row) {
+    throw new ApiError(
+      404,
+      "EFFECT_REVERSAL_ATTEMPT_NOT_FOUND",
+      "The effect reversal attempt was not found.",
+    );
+  }
+  return {
+    reversal_attempt_id: row.reversal_attempt_id,
+    original_attempt_id: row.original_attempt_id,
+    attempt_status: row.attempt_status,
+    simulated: true,
+    reused,
+    observation:
+      row.observation_id &&
+      row.destination_key &&
+      row.match_status &&
+      row.observed_at
+        ? {
+            id: row.observation_id,
+            destination_key: row.destination_key,
+            destination_version: row.destination_version,
+            match_status: row.match_status,
+            observed_at: row.observed_at.toISOString(),
+          }
+        : null,
+    outcome:
+      row.outcome_id &&
+      row.outcome_status &&
+      row.summary &&
+      row.outcome_created_at
+        ? {
+            id: row.outcome_id,
+            status: row.outcome_status,
+            summary: row.summary,
+            created_at: row.outcome_created_at.toISOString(),
+          }
+        : null,
+  };
+}
+
+export async function loadEffectReversalSnapshot(
+  client: DatabaseClient,
+  accountId: string,
+  originalAttemptId: string,
+): Promise<EffectReversalSnapshot> {
+  const [approvalResult, attemptResult] = await Promise.all([
+    client.query<EffectReversalApprovalRow>(
+      `SELECT
+         id, original_attempt_id, exact_preview, exact_preview_digest,
+         status, reason, approved_by_user_id, granted_at, expires_at
+       FROM effect_reversal_approvals
+       WHERE account_id = $1 AND original_attempt_id = $2
+       ORDER BY granted_at DESC, id DESC
+       LIMIT 1`,
+      [accountId, originalAttemptId],
+    ),
+    client.query<{ id: string; status: EffectReversalResultResponse["attempt_status"] }>(
+      `SELECT id, status
+       FROM effect_reversal_attempts
+       WHERE account_id = $1 AND original_attempt_id = $2
+       ORDER BY attempt_number DESC, started_at DESC
+       LIMIT 1`,
+      [accountId, originalAttemptId],
+    ),
+  ]);
+  const approvalRow = approvalResult.rows[0];
+  const attemptRow = attemptResult.rows[0];
+  const latestApproval = approvalRow
+    ? mapEffectReversalApproval(approvalRow)
+    : null;
+  const latestAttempt = attemptRow
+    ? await loadEffectReversalResult(
+        client,
+        accountId,
+        attemptRow.id,
+        false,
+      )
+    : null;
+  const status: EffectReversalSnapshot["status"] = latestAttempt
+    ? latestAttempt.attempt_status
+    : latestApproval?.status === "active" &&
+        new Date(latestApproval.expires_at).getTime() > Date.now()
+      ? "approved"
+      : latestApproval
+        ? "stale"
+        : "available";
+  return {
+    status,
+    latest_approval: latestApproval,
+    latest_attempt: latestAttempt,
+  };
+}
+
+export async function approveEffectReversal(
+  pool: Pool,
+  auth: AuthContext,
+  originalAttemptId: string,
+  request: ApproveEffectReversalRequest,
+): Promise<MutationResult<EffectReversalApprovalResponse>> {
+  return inTransaction(pool, async (client) => {
+    const idempotency = await claimIdempotency(
+      client,
+      { accountId: auth.accountId, actorUserId: auth.userId },
+      `approve_effect_reversal:${originalAttemptId}`,
+      request.idempotency_key,
+      request,
+    );
+    if (idempotency.replay) {
+      return {
+        body: idempotency.replay.body as EffectReversalApprovalResponse,
+        replayed: true,
+        status: idempotency.replay.status,
+      };
+    }
+    await client.query(
+      `UPDATE effect_reversal_approvals
+       SET status = 'stale'
+       WHERE account_id = $1
+         AND original_attempt_id = $2
+         AND status = 'active'
+         AND expires_at <= now()`,
+      [auth.accountId, originalAttemptId],
+    );
+    const currentApproval = await client.query<{ id: string }>(
+      `SELECT id
+       FROM effect_reversal_approvals
+       WHERE account_id = $1
+         AND original_attempt_id = $2
+         AND status = 'active'
+       FOR UPDATE`,
+      [auth.accountId, originalAttemptId],
+    );
+    if (currentApproval.rows[0]) {
+      throw new ApiError(
+        409,
+        "EFFECT_REVERSAL_APPROVAL_EXISTS",
+        "A current reversal approval already exists.",
+      );
+    }
+    const preview = await buildEffectReversalPreview(
+      client,
+      auth.accountId,
+      originalAttemptId,
+    );
+    if (!preview.reversal_available) {
+      throw new ApiError(
+        409,
+        "EFFECT_REVERSAL_BLOCKED",
+        "The current destination cannot be reversed automatically.",
+        { blockers: preview.blockers },
+      );
+    }
+    if (
+      preview.expected_destination_version !==
+        request.expected_destination_version ||
+      preview.preview_digest !== request.expected_preview_digest
+    ) {
+      throw new ApiError(
+        409,
+        "EFFECT_REVERSAL_PREVIEW_STALE",
+        "The destination changed after the reversal preview.",
+        { current_preview: preview },
+      );
+    }
+    const id = randomUUID();
+    const grantedAt = new Date();
+    const expiresAt = new Date(grantedAt.getTime() + 15 * 60 * 1000);
+    await client.query(
+      `INSERT INTO effect_reversal_approvals(
+         id, account_id, original_attempt_id, approved_by_user_id,
+         exact_preview, exact_preview_digest, reason, status,
+         granted_at, expires_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9)`,
+      [
+        id,
+        auth.accountId,
+        originalAttemptId,
+        auth.userId,
+        preview,
+        preview.preview_digest,
+        request.reason,
+        grantedAt,
+        expiresAt,
+      ],
+    );
+    const body: EffectReversalApprovalResponse = {
+      id,
+      original_attempt_id: originalAttemptId,
+      exact_preview: preview,
+      exact_preview_digest: preview.preview_digest,
+      status: "active",
+      reason: request.reason,
+      approved_by_user_id: auth.userId,
+      granted_at: grantedAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    };
+    await appendAudit(
+      client,
+      { accountId: auth.accountId, actorUserId: auth.userId },
+      "effect_reversal.approved",
+      "effect_attempt",
+      originalAttemptId,
+      {
+        approval_id: id,
+        destination_key: preview.target.destination_key,
+        destination_version: preview.expected_destination_version,
+        reason: request.reason,
+        simulated: true,
+      },
+    );
+    await completeIdempotency(client, idempotency, 201, body);
+    return { body, replayed: false, status: 201 };
+  });
+}
+
+async function insertEffectReversalObservation(
+  client: PoolClient,
+  accountId: string,
+  reversalAttemptId: string,
+  destinationKey: string,
+  destination: { state: unknown; version: number } | undefined,
+  matchStatus: "matched_absent" | "still_present" | "unavailable",
+): Promise<string> {
+  const id = randomUUID();
+  await client.query(
+    `INSERT INTO effect_reversal_observations(
+       id, account_id, reversal_attempt_id, destination_key,
+       destination_version, observed_state, match_status
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      id,
+      accountId,
+      reversalAttemptId,
+      destinationKey,
+      destination?.version ?? null,
+      destination?.state ?? null,
+      matchStatus,
+    ],
+  );
+  return id;
+}
+
+async function insertEffectReversalOutcome(
+  client: PoolClient,
+  accountId: string,
+  reversalAttemptId: string,
+  observationId: string,
+  status: "verified" | "failed" | "unknown",
+  summary: string,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO effect_reversal_outcomes(
+       id, account_id, reversal_attempt_id, observation_id, status, summary
+     )
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      randomUUID(),
+      accountId,
+      reversalAttemptId,
+      observationId,
+      status,
+      summary,
+    ],
+  );
+}
+
+export async function executeEffectReversal(
+  pool: Pool,
+  auth: AuthContext,
+  originalAttemptId: string,
+  request: ExecuteEffectReversalRequest,
+): Promise<MutationResult<EffectReversalResultResponse>> {
+  return inTransaction(pool, async (client) => {
+    const idempotency = await claimIdempotency(
+      client,
+      { accountId: auth.accountId, actorUserId: auth.userId },
+      `execute_effect_reversal:${originalAttemptId}`,
+      request.idempotency_key,
+      request,
+    );
+    if (idempotency.replay) {
+      return {
+        body: {
+          ...(idempotency.replay.body as EffectReversalResultResponse),
+          reused: true,
+        },
+        replayed: true,
+        status: idempotency.replay.status,
+      };
+    }
+    const originalResult = await client.query<{ status: string }>(
+      `SELECT status
+       FROM effect_attempts
+       WHERE account_id = $1 AND id = $2
+       FOR UPDATE`,
+      [auth.accountId, originalAttemptId],
+    );
+    const original = originalResult.rows[0];
+    if (!original) {
+      throw new ApiError(
+        404,
+        "EFFECT_ATTEMPT_NOT_FOUND",
+        "The effect attempt was not found.",
+      );
+    }
+    const existing = await client.query<{ id: string }>(
+      `SELECT id
+       FROM effect_reversal_attempts
+       WHERE account_id = $1
+         AND original_attempt_id = $2
+         AND status = 'verified'
+       ORDER BY attempt_number DESC
+       LIMIT 1`,
+      [auth.accountId, originalAttemptId],
+    );
+    if (existing.rows[0]) {
+      const body = await loadEffectReversalResult(
+        client,
+        auth.accountId,
+        existing.rows[0].id,
+        true,
+      );
+      await completeIdempotency(client, idempotency, 200, body);
+      return { body, replayed: true, status: 200 };
+    }
+    if (original.status !== "verified") {
+      throw new ApiError(
+        409,
+        "EFFECT_NOT_VERIFIED",
+        "Only a verified effect can be reversed.",
+      );
+    }
+    const approvalResult = await client.query<EffectReversalApprovalRow>(
+      `SELECT
+         id, original_attempt_id, exact_preview, exact_preview_digest,
+         status, reason, approved_by_user_id, granted_at, expires_at
+       FROM effect_reversal_approvals
+       WHERE account_id = $1 AND id = $2 AND original_attempt_id = $3
+       FOR UPDATE`,
+      [auth.accountId, request.approval_id, originalAttemptId],
+    );
+    const approval = approvalResult.rows[0];
+    if (!approval) {
+      throw new ApiError(
+        404,
+        "EFFECT_REVERSAL_APPROVAL_NOT_FOUND",
+        "The exact reversal approval was not found.",
+      );
+    }
+    if (
+      approval.status !== "active" ||
+      approval.expires_at <= new Date() ||
+      approval.approved_by_user_id !== auth.userId
+    ) {
+      throw new ApiError(
+        409,
+        "EFFECT_REVERSAL_APPROVAL_NOT_CURRENT",
+        "The reversal approval is stale, expired, revoked, consumed, or belongs to another user.",
+      );
+    }
+    const grantResult = await client.query<{ id: string }>(
+      `SELECT id
+       FROM capability_grants
+       WHERE account_id = $1
+         AND user_id = $2
+         AND capability = $3
+         AND status = 'active'
+         AND expires_at > now()
+       FOR UPDATE`,
+      [auth.accountId, auth.userId, SIMULATED_REVERSAL_CAPABILITY],
+    );
+    const grant = grantResult.rows[0];
+    if (!grant) {
+      throw new ApiError(
+        403,
+        "EFFECT_REVERSAL_CAPABILITY_NOT_AUTHORIZED",
+        "The local simulated reversal capability is not currently authorized.",
+      );
+    }
+    const attemptNumberResult = await client.query<{ next_attempt: number }>(
+      `SELECT (count(*) + 1)::integer AS next_attempt
+       FROM effect_reversal_attempts
+       WHERE account_id = $1 AND original_attempt_id = $2`,
+      [auth.accountId, originalAttemptId],
+    );
+    const reversalAttemptId = randomUUID();
+    await client.query(
+      `INSERT INTO effect_reversal_attempts(
+         id, account_id, original_attempt_id, approval_id,
+         capability_grant_id, exact_preview_digest, adapter,
+         attempt_number, status
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, 'local_deterministic', $7, 'running')`,
+      [
+        reversalAttemptId,
+        auth.accountId,
+        originalAttemptId,
+        approval.id,
+        grant.id,
+        approval.exact_preview_digest,
+        attemptNumberResult.rows[0]?.next_attempt ?? 1,
+      ],
+    );
+    await appendAudit(
+      client,
+      { accountId: auth.accountId, actorUserId: auth.userId },
+      "effect_reversal.started",
+      "effect_reversal_attempt",
+      reversalAttemptId,
+      {
+        original_attempt_id: originalAttemptId,
+        approval_id: approval.id,
+        destination_key: approval.exact_preview.target.destination_key,
+        simulated: true,
+      },
+    );
+
+    const destinationResult = await client.query<{
+      id: string;
+      state: unknown;
+      version: number;
+    }>(
+      `SELECT id, state, version
+       FROM simulated_destinations
+       WHERE account_id = $1 AND destination_key = $2
+       FOR UPDATE`,
+      [auth.accountId, approval.exact_preview.target.destination_key],
+    );
+    const destination = destinationResult.rows[0];
+    const destinationMatches =
+      destination?.version ===
+        approval.exact_preview.expected_destination_version &&
+      stableStringify(destination.state) ===
+        stableStringify(approval.exact_preview.current_effect);
+
+    let observationId: string;
+    if (!destinationMatches) {
+      observationId = await insertEffectReversalObservation(
+        client,
+        auth.accountId,
+        reversalAttemptId,
+        approval.exact_preview.target.destination_key,
+        destination,
+        destination ? "still_present" : "unavailable",
+      );
+      await client.query(
+        `UPDATE effect_reversal_attempts
+         SET status = 'failed',
+             failure_code = 'REVERSAL_DESTINATION_CHANGED',
+             finished_at = now()
+         WHERE account_id = $1 AND id = $2`,
+        [auth.accountId, reversalAttemptId],
+      );
+      await client.query(
+        `UPDATE effect_reversal_approvals
+         SET status = 'stale'
+         WHERE account_id = $1 AND id = $2`,
+        [auth.accountId, approval.id],
+      );
+      await insertEffectReversalOutcome(
+        client,
+        auth.accountId,
+        reversalAttemptId,
+        observationId,
+        "failed",
+        "The destination changed after reversal approval. Nothing was removed.",
+      );
+    } else {
+      await client.query(
+        `DELETE FROM simulated_destinations
+         WHERE account_id = $1 AND id = $2 AND version = $3`,
+        [auth.accountId, destination.id, destination.version],
+      );
+      observationId = await insertEffectReversalObservation(
+        client,
+        auth.accountId,
+        reversalAttemptId,
+        approval.exact_preview.target.destination_key,
+        undefined,
+        "matched_absent",
+      );
+      await client.query(
+        `UPDATE effect_reversal_attempts
+         SET status = 'verified', failure_code = NULL, finished_at = now()
+         WHERE account_id = $1 AND id = $2`,
+        [auth.accountId, reversalAttemptId],
+      );
+      await client.query(
+        `UPDATE effect_reversal_approvals
+         SET status = 'consumed'
+         WHERE account_id = $1 AND id = $2`,
+        [auth.accountId, approval.id],
+      );
+      await insertEffectReversalOutcome(
+        client,
+        auth.accountId,
+        reversalAttemptId,
+        observationId,
+        "verified",
+        "Reversal verified: the labeled local simulated attention item is absent.",
+      );
+    }
+
+    const body = await loadEffectReversalResult(
+      client,
+      auth.accountId,
+      reversalAttemptId,
+      false,
+    );
+    await appendAudit(
+      client,
+      { accountId: auth.accountId, actorUserId: auth.userId },
+      `effect_reversal.${body.attempt_status}`,
+      "effect_reversal_attempt",
+      reversalAttemptId,
+      {
+        original_attempt_id: originalAttemptId,
+        destination_observed: body.observation !== null,
+        original_effect_preserved_in_audit: true,
+        simulated: true,
+      },
+    );
+    await completeIdempotency(client, idempotency, 200, body);
+    return { body, replayed: false, status: 200 };
+  });
+}
+
+export async function revokeEffectReversalApproval(
+  pool: Pool,
+  auth: AuthContext,
+  approvalId: string,
+  request: RevokeApprovalRequest,
+): Promise<MutationResult<{ id: string; status: "revoked" }>> {
+  return inTransaction(pool, async (client) => {
+    const idempotency = await claimIdempotency(
+      client,
+      { accountId: auth.accountId, actorUserId: auth.userId },
+      `revoke_effect_reversal_approval:${approvalId}`,
+      request.idempotency_key,
+      request,
+    );
+    if (idempotency.replay) {
+      return {
+        body: idempotency.replay.body as { id: string; status: "revoked" },
+        replayed: true,
+        status: idempotency.replay.status,
+      };
+    }
+    const result = await client.query<{ original_attempt_id: string }>(
+      `UPDATE effect_reversal_approvals
+       SET status = 'revoked',
+           revoked_at = now(),
+           revocation_reason = $4
+       WHERE account_id = $1
+         AND id = $2
+         AND approved_by_user_id = $3
+         AND status = 'active'
+       RETURNING original_attempt_id`,
+      [auth.accountId, approvalId, auth.userId, request.reason],
+    );
+    const approval = result.rows[0];
+    if (!approval) {
+      throw new ApiError(
+        409,
+        "EFFECT_REVERSAL_APPROVAL_NOT_CURRENT",
+        "The reversal approval is not current or belongs to another user.",
+      );
+    }
+    await appendAudit(
+      client,
+      { accountId: auth.accountId, actorUserId: auth.userId },
+      "effect_reversal.approval_revoked",
+      "effect_attempt",
+      approval.original_attempt_id,
+      { approval_id: approvalId, reason: request.reason },
+    );
+    const body = { id: approvalId, status: "revoked" as const };
     await completeIdempotency(client, idempotency, 200, body);
     return { body, replayed: false, status: 200 };
   });

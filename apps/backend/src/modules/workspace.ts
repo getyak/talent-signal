@@ -8,11 +8,14 @@ import {
 import type { Pool } from "pg";
 
 import { ApiError } from "../lib/apiError.js";
+import { loadEffectReversalSnapshot } from "./actions.js";
 import type { AuthContext } from "./auth.js";
 import { getCapture } from "./captures.js";
 
 interface WorkspaceCaptureRow {
   id: string;
+  authorization_expires_at: Date | null;
+  authorization_state: "authorized" | "revoked" | "expired";
   fixture_case_id: string | null;
   subject_id: string;
   subject_label: string;
@@ -116,6 +119,14 @@ export async function getWorkspaceReview(
   const captureResult = await pool.query<WorkspaceCaptureRow>(
     `SELECT
        captures.id,
+       receipts.authorization_expires_at,
+       CASE
+         WHEN receipts.authorization_state = 'authorized'
+          AND receipts.authorization_expires_at IS NOT NULL
+          AND receipts.authorization_expires_at <= now()
+         THEN 'expired'
+         ELSE receipts.authorization_state
+       END AS authorization_state,
        captures.fixture_case_id,
        captures.subject_id,
        subjects.display_label AS subject_label,
@@ -128,6 +139,9 @@ export async function getWorkspaceReview(
      JOIN assignments
        ON assignments.account_id = captures.account_id
       AND assignments.id = captures.assignment_id
+     JOIN source_retention_receipts receipts
+       ON receipts.account_id = captures.account_id
+      AND receipts.capture_id = captures.id
      WHERE captures.account_id = $1
        AND ${lookupClause}
        AND captures.status = 'active'
@@ -144,7 +158,22 @@ export async function getWorkspaceReview(
       "No active review exists for this synthetic case.",
     );
   }
-  const capture = await getCapture(pool, auth, workspaceCapture.id);
+  const sourceAuthorized =
+    workspaceCapture.authorization_state === "authorized";
+  const loadedCapture = await getCapture(
+    pool,
+    auth,
+    workspaceCapture.id,
+  );
+  const capture = sourceAuthorized
+    ? loadedCapture
+    : {
+        ...loadedCapture,
+        messages: loadedCapture.messages.map((message) => ({
+          ...message,
+          text: null,
+        })),
+      };
 
   const analysisResult = await pool.query<AnalysisRow>(
     `SELECT
@@ -212,12 +241,24 @@ export async function getWorkspaceReview(
          JOIN evidence_items evidence
            ON evidence.account_id = assertions.account_id
           AND evidence.id = assertions.evidence_id
+         JOIN captures source_captures
+           ON source_captures.account_id = assertions.account_id
+          AND source_captures.id = assertions.capture_id
+         JOIN source_retention_receipts source_receipts
+           ON source_receipts.account_id = source_captures.account_id
+          AND source_receipts.capture_id = source_captures.id
          WHERE states.account_id = $1
            AND states.assignment_id = $2
            AND states.status IN (
              'active', 'contested', 'expired', 'superseded'
            )
            AND states.value_text IS NOT NULL
+           AND source_captures.status = 'active'
+           AND source_receipts.authorization_state = 'authorized'
+           AND (
+             source_receipts.authorization_expires_at IS NULL
+             OR source_receipts.authorization_expires_at > now()
+           )
          ORDER BY states.field, states.valid_from, states.id`,
         [auth.accountId, workspaceCapture.assignment_id],
       ),
@@ -229,7 +270,7 @@ export async function getWorkspaceReview(
       ),
     ]);
 
-  const actionRow = actionResult.rows[0];
+  const actionRow = sourceAuthorized ? actionResult.rows[0] : undefined;
   const action: AnalysisProposalResponse["action"] = actionRow
     ? {
         id: actionRow.id,
@@ -256,7 +297,7 @@ export async function getWorkspaceReview(
       name: analysisRow.producer_name,
       version: analysisRow.producer_version,
     },
-    assertions: assertionsResult.rows.map((assertion) => ({
+    assertions: (sourceAuthorized ? assertionsResult.rows : []).map((assertion) => ({
       id: assertion.id,
       field: assertion.field,
       status: assertion.proposal_status,
@@ -319,12 +360,22 @@ export async function getWorkspaceReview(
        JOIN action_proposals actions
          ON actions.account_id = attempts.account_id
         AND actions.id = attempts.action_id
-       LEFT JOIN effect_observations observations
-         ON observations.account_id = attempts.account_id
-        AND observations.attempt_id = attempts.id
-       LEFT JOIN outcomes
-         ON outcomes.account_id = attempts.account_id
-        AND outcomes.attempt_id = attempts.id
+       LEFT JOIN LATERAL (
+         SELECT observation.*
+         FROM effect_observations observation
+         WHERE observation.account_id = attempts.account_id
+           AND observation.attempt_id = attempts.id
+         ORDER BY observation.observed_at DESC, observation.id DESC
+         LIMIT 1
+       ) observations ON true
+       LEFT JOIN LATERAL (
+         SELECT outcome.*
+         FROM outcomes outcome
+         WHERE outcome.account_id = attempts.account_id
+           AND outcome.attempt_id = attempts.id
+         ORDER BY outcome.created_at DESC, outcome.id DESC
+         LIMIT 1
+       ) outcomes ON true
        WHERE attempts.account_id = $1 AND attempts.action_id = $2
        ORDER BY attempts.attempt_number DESC, attempts.started_at DESC
        LIMIT 1`,
@@ -342,13 +393,12 @@ export async function getWorkspaceReview(
         observation:
           effect.observation_id &&
           effect.destination_key &&
-          effect.destination_version !== null &&
           effect.match_status &&
           effect.observed_at
             ? {
                 id: effect.observation_id,
                 destination_key: effect.destination_key,
-                destination_version: effect.destination_version,
+                destination_version: effect.destination_version ?? 0,
                 match_status: effect.match_status,
                 observed_at: effect.observed_at.toISOString(),
               }
@@ -364,6 +414,14 @@ export async function getWorkspaceReview(
                 summary: effect.outcome_summary,
                 created_at: effect.outcome_created_at.toISOString(),
               }
+            : null,
+        reversal:
+          effect.attempt_status === "verified"
+            ? await loadEffectReversalSnapshot(
+                pool,
+                auth.accountId,
+                effect.attempt_id,
+              )
             : null,
       };
     }
@@ -384,6 +442,11 @@ export async function getWorkspaceReview(
     assignment: {
       id: workspaceCapture.assignment_id,
       display_label: workspaceCapture.assignment_label,
+    },
+    source_authorization: {
+      state: workspaceCapture.authorization_state,
+      expires_at:
+        workspaceCapture.authorization_expires_at?.toISOString() ?? null,
     },
     capture,
     analysis,

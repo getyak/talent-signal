@@ -41,6 +41,7 @@ function request(body: unknown, origin = "http://127.0.0.1:3000") {
 
 const transcriptBody = {
   request_id: REQUEST_ID,
+  captured_at: "2026-08-11T02:45:00.000Z",
   person_id: PERSON_ID,
   relationship_context_id: CONTEXT_ID,
   type: "conversation",
@@ -90,6 +91,7 @@ describe("governed conversation resource intake", () => {
     expect(commitRelationshipResourceMock).toHaveBeenCalledWith(
       expect.objectContaining({
         request_id: REQUEST_ID,
+        captured_at: "2026-08-11T02:45:00.000Z",
         kind: "conversation_transcript",
         display_name: "Synthetic follow-up transcript",
         fragments: [

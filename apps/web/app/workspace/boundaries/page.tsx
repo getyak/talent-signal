@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { WorkspaceApp } from "@/components/workspace-app";
-import { loadCandidateWorkspace } from "@/lib/server/candidateWorkspace";
+import {
+  candidateMomentumFixtures,
+  type WorkspaceDataSource,
+} from "@/lib/candidateMomentum";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +26,15 @@ export default async function WorkspaceBoundariesPage() {
     redirect("/login?callbackUrl=/workspace/boundaries");
   }
 
-  const { dataset, source } = await loadCandidateWorkspace();
+  const source: WorkspaceDataSource = {
+    kind: "fixture-fallback",
+    label: "Frozen sample cases",
+    detail:
+      "These eight synthetic cases exercise the review interface only. Current backend behavior is verified separately by the runtime evaluation suite.",
+  };
   return (
     <WorkspaceApp
-      dataset={dataset}
+      dataset={candidateMomentumFixtures}
       source={source}
       user={{
         email: session.user.email,

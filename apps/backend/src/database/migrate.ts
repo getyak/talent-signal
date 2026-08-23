@@ -24,6 +24,7 @@ const MIGRATIONS = [
   "016_identity_handle_freshness",
   "017_identity_freshness_policy",
   "018_identity_freshness_policy_immutability",
+  "019_effect_reversals",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

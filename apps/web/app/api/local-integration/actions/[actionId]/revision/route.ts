@@ -9,6 +9,7 @@ import {
 } from "@/lib/server/localBackend";
 
 type RevisionBody = {
+  capture_id?: unknown;
   variant?: IntegrationRevisionVariant;
 };
 
@@ -27,7 +28,9 @@ export async function POST(
     return NextResponse.json({ code: "authentication_required" }, { status: 401 });
   }
   const { actionId } = await context.params;
-  const body = (await request.json()) as RevisionBody;
+  const body = (await request.json().catch(() => ({}))) as RevisionBody;
+  const captureId =
+    typeof body.capture_id === "string" ? body.capture_id : undefined;
   if (
     !/^[0-9a-f-]{36}$/i.test(actionId) ||
     !body.variant ||
@@ -35,9 +38,16 @@ export async function POST(
   ) {
     return NextResponse.json({ code: "revision_invalid" }, { status: 400 });
   }
+  if (captureId && !/^[0-9a-f-]{36}$/i.test(captureId)) {
+    return NextResponse.json({ code: "capture_invalid" }, { status: 400 });
+  }
   try {
     return NextResponse.json(
-      await reviseBackendActionForEvaluation(actionId, body.variant),
+      await reviseBackendActionForEvaluation(
+        actionId,
+        body.variant,
+        captureId,
+      ),
     );
   } catch (error) {
     if (error instanceof TalentSignalHttpError) {

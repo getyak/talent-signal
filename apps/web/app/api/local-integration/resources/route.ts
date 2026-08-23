@@ -30,6 +30,7 @@ const UUID =
 
 type TextResourceInput = {
   request_id: string;
+  captured_at: string;
   person_id?: string;
   relationship_context_id?: string;
   scope_mode?:
@@ -243,7 +244,6 @@ function textFragments(
     };
   }
   const url = canonicalUrl(value);
-  const retrievedAt = new Date().toISOString();
   return {
     displayName: input.title?.trim() || new URL(url).hostname,
     kind: "public_url",
@@ -257,7 +257,7 @@ function textFragments(
         locator: {
           kind: "url_excerpt",
           canonical_url: url,
-          retrieved_at: retrievedAt,
+          retrieved_at: input.captured_at,
         },
         attribution: {
           actor_kind: "public_source",
@@ -306,6 +306,7 @@ async function commitText(
     }
     const receipt = await commitRelationshipResource({
       request_id: input.request_id,
+      captured_at: input.captured_at,
       person_scope: scope,
       channel: "chat",
       kind: "contact_record",
@@ -353,6 +354,7 @@ async function commitText(
   const resource = textFragments(input, clientResourceId);
   const receipt = await commitRelationshipResource({
     request_id: input.request_id,
+    captured_at: input.captured_at,
     person_scope: scope,
     channel: "chat",
     kind: resource.kind,
@@ -379,6 +381,7 @@ async function commitFile(
   parser_warnings: string[];
 }> {
   const requestId = String(form.get("request_id") ?? "");
+  const capturedAt = String(form.get("captured_at") ?? "");
   const personId = String(form.get("person_id") ?? "");
   const relationshipContextId = String(
     form.get("relationship_context_id") ?? "",
@@ -397,6 +400,7 @@ async function commitFile(
   const file = form.get("file");
   if (
     !UUID.test(requestId) ||
+    new Date(capturedAt).toISOString() !== capturedAt ||
     !(file instanceof File) ||
     !["resume", "document"].includes(documentKind)
   ) {
@@ -407,6 +411,7 @@ async function commitFile(
   const extraction = await extractDocument(file, clientResourceId);
   const parent = await commitRelationshipResource({
     request_id: requestId,
+    captured_at: capturedAt,
     person_scope: personScope({
       scope_mode: scopeMode,
       ...(personId ? { person_id: personId } : {}),
@@ -446,6 +451,7 @@ async function commitFile(
       receipts.push(
         await commitRelationshipResource({
           request_id: childRequestId,
+          captured_at: capturedAt,
           person_id: boundPersonId,
           relationship_context_id: boundRelationshipContextId,
           channel: "web_upload",
@@ -463,7 +469,7 @@ async function commitFile(
               locator: {
                 kind: "url_excerpt",
                 canonical_url: link,
-                retrieved_at: new Date().toISOString(),
+                retrieved_at: capturedAt,
               },
               attribution: {
                 actor_kind: "public_source",

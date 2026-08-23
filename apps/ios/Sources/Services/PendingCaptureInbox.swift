@@ -1,12 +1,13 @@
+import CryptoKit
 import Foundation
 
 actor PendingCaptureInbox {
     static let shared = PendingCaptureInbox()
 
-    private let directoryURL: URL
-    private let metadataURL: URL
-    private let imageURL: URL
-    private let draftURL: URL
+    private let capturesDirectoryURL: URL
+    private let legacyMetadataURL: URL
+    private let legacyImageURL: URL
+    private let legacyDraftURL: URL
 
     init(directoryURL: URL? = nil) {
         let resolvedDirectory = directoryURL
@@ -14,10 +15,13 @@ actor PendingCaptureInbox {
                 for: .applicationSupportDirectory,
                 in: .userDomainMask
             )[0].appending(path: "RelationshipCaptureInbox", directoryHint: .isDirectory)
-        self.directoryURL = resolvedDirectory
-        metadataURL = resolvedDirectory.appending(path: "pending.json")
-        imageURL = resolvedDirectory.appending(path: "pending-image")
-        draftURL = resolvedDirectory.appending(path: "pending-draft.json")
+        capturesDirectoryURL = resolvedDirectory.appending(
+            path: "captures",
+            directoryHint: .isDirectory
+        )
+        legacyMetadataURL = resolvedDirectory.appending(path: "pending.json")
+        legacyImageURL = resolvedDirectory.appending(path: "pending-image")
+        legacyDraftURL = resolvedDirectory.appending(path: "pending-draft.json")
     }
 
     func stage(
@@ -26,40 +30,111 @@ actor PendingCaptureInbox {
         mediaType: String,
         origin: CaptureOrigin
     ) throws -> PendingCaptureSeed {
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
+        try prepareQueue()
+        let contentFingerprint = Self.contentFingerprint(for: imageData)
+        if let metadata = try queuedMetadata().first(
+            where: { $0.contentFingerprint == contentFingerprint }
+        ), let existing = try load(metadata: metadata) {
+            return existing
+        }
+
         let seed = PendingCaptureSeed(
             imageData: imageData,
             fileName: fileName,
             mediaType: mediaType,
             origin: origin
         )
-        if FileManager.default.fileExists(atPath: draftURL.path) {
-            try FileManager.default.removeItem(at: draftURL)
-        }
-        try imageData.write(to: imageURL, options: .atomic)
-        let metadata = PendingMetadata(seed: seed)
-        try JSONEncoder.captureEncoder.encode(metadata).write(
-            to: metadataURL,
-            options: .atomic
-        )
+        try persist(seed, contentFingerprint: contentFingerprint)
         return seed
     }
 
     func load() throws -> PendingCaptureSeed? {
-        guard FileManager.default.fileExists(atPath: metadataURL.path),
-              FileManager.default.fileExists(atPath: imageURL.path) else {
+        try prepareQueue()
+        guard let metadata = try queuedMetadata().first else { return nil }
+        return try load(metadata: metadata)
+    }
+
+    func count() throws -> Int {
+        try prepareQueue()
+        return try queuedMetadata().count
+    }
+
+    func remove(id: UUID) throws {
+        try prepareQueue()
+        guard FileManager.default.fileExists(
+            atPath: metadataURL(for: id).path
+        ) else {
+            return
+        }
+        for url in [metadataURL(for: id), imageURL(for: id), draftURL(for: id)] {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    func saveDraft(_ draft: RecognizedCaptureDraft, for id: UUID) throws {
+        try prepareQueue()
+        guard try load(id: id) != nil else { return }
+        try JSONEncoder.captureEncoder.encode(
+            SavedDraft(seedID: id, draft: draft)
+        ).write(to: draftURL(for: id), options: .atomic)
+    }
+
+    func loadDraft(for id: UUID) throws -> RecognizedCaptureDraft? {
+        try prepareQueue()
+        let url = draftURL(for: id)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+        let saved = try JSONDecoder.captureDecoder.decode(
+            SavedDraft.self,
+            from: Data(contentsOf: url)
+        )
+        return saved.seedID == id ? saved.draft : nil
+    }
+
+    private func prepareQueue() throws {
+        try FileManager.default.createDirectory(
+            at: capturesDirectoryURL,
+            withIntermediateDirectories: true
+        )
+        try migrateLegacyCaptureIfNeeded()
+    }
+
+    private func persist(
+        _ seed: PendingCaptureSeed,
+        contentFingerprint: String
+    ) throws {
+        try seed.imageData.write(to: imageURL(for: seed.id), options: .atomic)
+        try JSONEncoder.captureEncoder.encode(
+            PendingMetadata(
+                seed: seed,
+                contentFingerprint: contentFingerprint
+            )
+        ).write(to: metadataURL(for: seed.id), options: .atomic)
+    }
+
+    private func load(id: UUID) throws -> PendingCaptureSeed? {
+        let url = metadataURL(for: id)
+        guard FileManager.default.fileExists(atPath: url.path) else {
             return nil
         }
         let metadata = try JSONDecoder.captureDecoder.decode(
             PendingMetadata.self,
-            from: Data(contentsOf: metadataURL)
+            from: Data(contentsOf: url)
         )
+        return try load(metadata: metadata)
+    }
+
+    private func load(metadata: PendingMetadata) throws -> PendingCaptureSeed? {
+        let url = imageURL(for: metadata.id)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
         return PendingCaptureSeed(
             id: metadata.id,
-            imageData: try Data(contentsOf: imageURL),
+            imageData: try Data(contentsOf: url),
             fileName: metadata.fileName,
             mediaType: metadata.mediaType,
             createdAt: metadata.createdAt,
@@ -67,35 +142,83 @@ actor PendingCaptureInbox {
         )
     }
 
-    func remove(id: UUID) throws {
-        guard let pending = try load(), pending.id == id else { return }
-        if FileManager.default.fileExists(atPath: metadataURL.path) {
-            try FileManager.default.removeItem(at: metadataURL)
-        }
-        if FileManager.default.fileExists(atPath: imageURL.path) {
-            try FileManager.default.removeItem(at: imageURL)
-        }
-        if FileManager.default.fileExists(atPath: draftURL.path) {
-            try FileManager.default.removeItem(at: draftURL)
-        }
-    }
-
-    func saveDraft(_ draft: RecognizedCaptureDraft, for id: UUID) throws {
-        guard let pending = try load(), pending.id == id else { return }
-        try JSONEncoder.captureEncoder.encode(
-            SavedDraft(seedID: id, draft: draft)
-        ).write(to: draftURL, options: .atomic)
-    }
-
-    func loadDraft(for id: UUID) throws -> RecognizedCaptureDraft? {
-        guard FileManager.default.fileExists(atPath: draftURL.path) else {
-            return nil
-        }
-        let saved = try JSONDecoder.captureDecoder.decode(
-            SavedDraft.self,
-            from: Data(contentsOf: draftURL)
+    private func queuedMetadata() throws -> [PendingMetadata] {
+        try FileManager.default.contentsOfDirectory(
+            at: capturesDirectoryURL,
+            includingPropertiesForKeys: nil
         )
-        return saved.seedID == id ? saved.draft : nil
+        .filter { $0.lastPathComponent.hasSuffix(".metadata.json") }
+        .compactMap { url in
+            try? JSONDecoder.captureDecoder.decode(
+                PendingMetadata.self,
+                from: Data(contentsOf: url)
+            )
+        }
+        .filter {
+            FileManager.default.fileExists(atPath: imageURL(for: $0.id).path)
+        }
+        .sorted {
+            if $0.queueOrder == $1.queueOrder {
+                return $0.id.uuidString < $1.id.uuidString
+            }
+            return $0.queueOrder < $1.queueOrder
+        }
+    }
+
+    private func migrateLegacyCaptureIfNeeded() throws {
+        guard FileManager.default.fileExists(atPath: legacyMetadataURL.path),
+              FileManager.default.fileExists(atPath: legacyImageURL.path) else {
+            return
+        }
+        let metadata = try JSONDecoder.captureDecoder.decode(
+            PendingMetadata.self,
+            from: Data(contentsOf: legacyMetadataURL)
+        )
+        if try load(id: metadata.id) == nil {
+            let seed = PendingCaptureSeed(
+                id: metadata.id,
+                imageData: try Data(contentsOf: legacyImageURL),
+                fileName: metadata.fileName,
+                mediaType: metadata.mediaType,
+                createdAt: metadata.createdAt,
+                origin: metadata.origin
+            )
+            try persist(
+                seed,
+                contentFingerprint: Self.contentFingerprint(
+                    for: seed.imageData
+                )
+            )
+            if FileManager.default.fileExists(atPath: legacyDraftURL.path) {
+                try Data(contentsOf: legacyDraftURL).write(
+                    to: draftURL(for: metadata.id),
+                    options: .atomic
+                )
+            }
+        }
+        for url in [legacyMetadataURL, legacyImageURL, legacyDraftURL] {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    private func metadataURL(for id: UUID) -> URL {
+        capturesDirectoryURL.appending(path: "\(id.uuidString).metadata.json")
+    }
+
+    private func imageURL(for id: UUID) -> URL {
+        capturesDirectoryURL.appending(path: "\(id.uuidString).image")
+    }
+
+    private func draftURL(for id: UUID) -> URL {
+        capturesDirectoryURL.appending(path: "\(id.uuidString).draft.json")
+    }
+
+    private static func contentFingerprint(for data: Data) -> String {
+        SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     private struct PendingMetadata: Codable {
@@ -104,13 +227,27 @@ actor PendingCaptureInbox {
         let mediaType: String
         let createdAt: Date
         let origin: CaptureOrigin
+        let contentFingerprint: String?
+        let enqueueOrder: Int64?
 
-        init(seed: PendingCaptureSeed) {
+        var queueOrder: Int64 {
+            enqueueOrder
+                ?? Int64(createdAt.timeIntervalSince1970 * 1_000_000)
+        }
+
+        init(
+            seed: PendingCaptureSeed,
+            contentFingerprint: String
+        ) {
             id = seed.id
             fileName = seed.fileName
             mediaType = seed.mediaType
             createdAt = seed.createdAt
             origin = seed.origin
+            self.contentFingerprint = contentFingerprint
+            enqueueOrder = Int64(
+                seed.createdAt.timeIntervalSince1970 * 1_000_000
+            )
         }
     }
 
@@ -142,6 +279,15 @@ final class CaptureHandoffStore: ObservableObject {
         if let seed = try? await PendingCaptureInbox.shared.load() {
             savedSeed = seed
             pendingSeed = seed
+        }
+    }
+
+    func advanceToNextCapture() async {
+        pendingSeed = nil
+        savedSeed = nil
+        initialDraft = nil
+        if let seed = try? await PendingCaptureInbox.shared.load() {
+            savedSeed = seed
         }
     }
 

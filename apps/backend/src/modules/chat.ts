@@ -51,9 +51,8 @@ function briefBody(blocks: KnowledgeBlock[]): string {
     blocks
       .filter(
         (item) =>
-          !["identity_context", "next_action", "no_action"].includes(
-            item.type,
-          ),
+          item.block_key.startsWith("fact.") &&
+          item.status === "confirmed",
       )
       .map((item) => item.content.headline),
   );
@@ -74,6 +73,11 @@ export function responseBlocks(
     (item) =>
       !["identity_context", "next_action", "no_action"].includes(item.type),
   );
+  const currentFactBlocks = contextBlocks.filter(
+    (item) =>
+      item.block_key.startsWith("fact.") &&
+      item.status === "confirmed",
+  );
   const proposedContext = contextBlocks.some((item) =>
     ["proposed", "contested"].includes(item.status),
   );
@@ -86,7 +90,10 @@ export function responseBlocks(
         briefBody(blocks) ||
         "No additional reviewed relationship state is ready for this task.",
       status: proposedContext ? "needs_review" : "confirmed",
-      citation_dependency_ids: citations([identity, ...contextBlocks]),
+      citation_dependency_ids: citations([
+        identity,
+        ...currentFactBlocks,
+      ]),
       requires_user_decision: proposedContext,
     },
   ];

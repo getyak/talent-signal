@@ -48,6 +48,7 @@ final class RelationshipCaptureTests: XCTestCase {
     func testPendingInboxRestoresReviewedDraft() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "talent-signal-inbox-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
         let inbox = PendingCaptureInbox(directoryURL: directory)
         let seed = try await inbox.stage(
             imageData: Data([1, 2, 3]),
@@ -72,6 +73,138 @@ final class RelationshipCaptureTests: XCTestCase {
         let removedDraft = try await inbox.loadDraft(for: seed.id)
         XCTAssertNil(removed)
         XCTAssertNil(removedDraft)
+    }
+
+    func testPendingInboxQueuesDistinctCapturesAndDeduplicatesExactRetry() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-inbox-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+
+        let first = try await inbox.stage(
+            imageData: Data([1, 2, 3]),
+            fileName: "first.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+        try await Task.sleep(nanoseconds: 2_000_000)
+        let second = try await inbox.stage(
+            imageData: Data([4, 5, 6]),
+            fileName: "second.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+        let retriedFirst = try await inbox.stage(
+            imageData: Data([1, 2, 3]),
+            fileName: "retried-first.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+
+        let initialCount = try await inbox.count()
+        let initialHead = try await inbox.load()
+        XCTAssertEqual(retriedFirst.id, first.id)
+        XCTAssertEqual(retriedFirst.imageData, first.imageData)
+        XCTAssertEqual(initialCount, 2)
+        XCTAssertEqual(initialHead?.id, first.id)
+
+        try await inbox.remove(id: first.id)
+        let nextHead = try await inbox.load()
+        let remainingCount = try await inbox.count()
+        XCTAssertEqual(nextHead?.id, second.id)
+        XCTAssertEqual(remainingCount, 1)
+
+        let laterReview = try await inbox.stage(
+            imageData: Data([1, 2, 3]),
+            fileName: "later-review.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+        let countAfterLaterReview = try await inbox.count()
+        XCTAssertNotEqual(laterReview.id, first.id)
+        XCTAssertEqual(countAfterLaterReview, 2)
+    }
+
+    func testPendingInboxKeepsDraftsIsolatedByCapture() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-inbox-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let first = try await inbox.stage(
+            imageData: Data([10]),
+            fileName: "first.png",
+            mediaType: "image/png",
+            origin: .photosPicker
+        )
+        let second = try await inbox.stage(
+            imageData: Data([20]),
+            fileName: "second.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+        var firstDraft = RecognizedCaptureDraft.empty
+        firstDraft.reviewedText = "First reviewed source"
+        var secondDraft = RecognizedCaptureDraft.empty
+        secondDraft.reviewedText = "Second reviewed source"
+
+        try await inbox.saveDraft(firstDraft, for: first.id)
+        try await inbox.saveDraft(secondDraft, for: second.id)
+
+        let restoredFirstDraft = try await inbox.loadDraft(for: first.id)
+        let restoredSecondDraft = try await inbox.loadDraft(for: second.id)
+        XCTAssertEqual(restoredFirstDraft, firstDraft)
+        XCTAssertEqual(restoredSecondDraft, secondDraft)
+
+        try await inbox.remove(id: first.id)
+        let removedFirstDraft = try await inbox.loadDraft(for: first.id)
+        let retainedSecondDraft = try await inbox.loadDraft(for: second.id)
+        XCTAssertNil(removedFirstDraft)
+        XCTAssertEqual(retainedSecondDraft, secondDraft)
+    }
+
+    func testPendingInboxMigratesLegacySingleCapture() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-inbox-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let id = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1_786_400_000)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(
+            LegacyPendingMetadata(
+                id: id,
+                fileName: "legacy.png",
+                mediaType: "image/png",
+                createdAt: createdAt,
+                origin: .appShortcut
+            )
+        ).write(to: directory.appending(path: "pending.json"), options: .atomic)
+        try Data([7, 8, 9]).write(
+            to: directory.appending(path: "pending-image"),
+            options: .atomic
+        )
+
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let restored = try await inbox.load()
+
+        XCTAssertEqual(restored?.id, id)
+        XCTAssertEqual(restored?.imageData, Data([7, 8, 9]))
+        let migratedCount = try await inbox.count()
+        XCTAssertEqual(migratedCount, 1)
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: directory.appending(path: "pending.json").path
+            )
+        )
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: directory.appending(path: "pending-image").path
+            )
+        )
     }
 
     @MainActor
@@ -318,6 +451,14 @@ final class RelationshipCaptureTests: XCTestCase {
             quality: .init(verdict: "gold", reasons: ["All gates pass."])
         )
     }
+}
+
+private struct LegacyPendingMetadata: Encodable {
+    let id: UUID
+    let fileName: String
+    let mediaType: String
+    let createdAt: Date
+    let origin: CaptureOrigin
 }
 
 private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {

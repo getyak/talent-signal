@@ -1,5 +1,6 @@
 import type {
   AnalysisProposalResponse,
+  ApproveEffectReversalRequest,
   ApproveActionRequest,
   ApprovalResponse,
   AssertionDecisionRequest,
@@ -10,6 +11,10 @@ import type {
   DeleteCaptureResponse,
   DeletionLineageResponse,
   EffectResultResponse,
+  EffectReversalApprovalResponse,
+  EffectReversalPreview,
+  EffectReversalResultResponse,
+  ExecuteEffectReversalRequest,
   ExecuteActionRequest,
   ReconcileEffectRequest,
   ReviseActionRequest,
@@ -385,6 +390,44 @@ export class TalentSignalClient {
       method: "POST",
       body: request,
     });
+  }
+
+  previewEffectReversal(
+    attemptId: string,
+  ): Promise<EffectReversalPreview> {
+    return this.request(`/v1/effect-attempts/${attemptId}/reversal`, {
+      method: "GET",
+    });
+  }
+
+  approveEffectReversal(
+    attemptId: string,
+    request: ApproveEffectReversalRequest,
+  ): Promise<EffectReversalApprovalResponse> {
+    return this.request(
+      `/v1/effect-attempts/${attemptId}/reversal-approvals`,
+      { method: "POST", body: request },
+    );
+  }
+
+  executeEffectReversal(
+    attemptId: string,
+    request: ExecuteEffectReversalRequest,
+  ): Promise<EffectReversalResultResponse> {
+    return this.request(
+      `/v1/effect-attempts/${attemptId}/reversal-executions`,
+      { method: "POST", body: request },
+    );
+  }
+
+  revokeEffectReversalApproval(
+    approvalId: string,
+    request: { idempotency_key: string; reason: string },
+  ): Promise<{ id: string; status: "revoked" }> {
+    return this.request(
+      `/v1/effect-reversal-approvals/${approvalId}/revocation`,
+      { method: "POST", body: request },
+    );
   }
 
   deleteCapture(

@@ -3,7 +3,11 @@
 The native SwiftUI client provides intentional screenshot import, on-device
 text review, temporal identity comparison, explicit relationship attachment,
 and a compiled-Wiki receipt. Photos selection and the `Review screenshot in
-Talent Signal` App Shortcut enter the same resumable review. The original image
+Talent Signal` App Shortcut enter the same resumable review. The shortcut runs
+quietly in the background: it atomically adds the selected image to the local
+FIFO review queue and returns without network work, an app launch, or a Live
+Activity. An exact retry reuses the still-pending queue item, while a later
+import after completion starts a new purpose-scoped review. The original image
 stays on-device in this slice; the local backend receives recruiter-reviewed
 text and governed source metadata.
 

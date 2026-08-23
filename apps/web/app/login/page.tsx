@@ -1,6 +1,7 @@
 import {
   AppleLogo,
   ArrowLeft,
+  ArrowRight,
   GoogleLogo,
   ShieldCheck,
 } from "@phosphor-icons/react/dist/ssr";
@@ -16,6 +17,7 @@ import {
   getAuthAvailability,
   safeRedirectTarget,
 } from "@/lib/auth-config";
+import { accessRequestHref } from "@/lib/site";
 import { getGoogleOAuthCredentials } from "@/lib/server/google-oauth";
 import {
   signInWithApple,
@@ -66,6 +68,9 @@ export default async function LoginPage({
     ? (oauthErrors[parameters.error] ??
       "Sign in could not be completed. Please try another method.")
     : "";
+  const hasOAuth = availability.google || availability.apple;
+  const hasConfiguredSignIn =
+    hasOAuth || availability.email || availability.defaultAccount;
 
   return (
     <main id="main-content" className="auth-page">
@@ -116,41 +121,79 @@ export default async function LoginPage({
             </p>
           )}
 
-          <div className="oauth-methods">
-            <form action={signInWithGoogle}>
-              <input type="hidden" name="redirectTo" value={callbackUrl} />
-              <button
-                className="auth-provider"
-                type="submit"
-                disabled={!availability.google}
-              >
-                <GoogleLogo aria-hidden="true" size={19} weight="bold" />
-                <span>Continue with Google</span>
-                {!availability.google && <small>Not configured</small>}
-              </button>
-            </form>
-            <form action={signInWithApple}>
-              <input type="hidden" name="redirectTo" value={callbackUrl} />
-              <button
-                className="auth-provider auth-provider--apple"
-                type="submit"
-                disabled={!availability.apple}
-              >
-                <AppleLogo aria-hidden="true" size={20} weight="fill" />
-                <span>Continue with Apple</span>
-                {!availability.apple && <small>Not configured</small>}
-              </button>
-            </form>
-          </div>
+          {hasConfiguredSignIn ? (
+            <>
+              {hasOAuth ? (
+                <div className="oauth-methods">
+                  {availability.google ? (
+                    <form action={signInWithGoogle}>
+                      <input
+                        type="hidden"
+                        name="redirectTo"
+                        value={callbackUrl}
+                      />
+                      <button className="auth-provider" type="submit">
+                        <GoogleLogo
+                          aria-hidden="true"
+                          size={19}
+                          weight="bold"
+                        />
+                        <span>Continue with Google</span>
+                      </button>
+                    </form>
+                  ) : null}
+                  {availability.apple ? (
+                    <form action={signInWithApple}>
+                      <input
+                        type="hidden"
+                        name="redirectTo"
+                        value={callbackUrl}
+                      />
+                      <button
+                        className="auth-provider auth-provider--apple"
+                        type="submit"
+                      >
+                        <AppleLogo
+                          aria-hidden="true"
+                          size={20}
+                          weight="fill"
+                        />
+                        <span>Continue with Apple</span>
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              ) : null}
 
-          <div className="auth-divider">
-            <span>or use email</span>
-          </div>
+              {hasOAuth && availability.email ? (
+                <div className="auth-divider">
+                  <span>or use email</span>
+                </div>
+              ) : null}
 
-          <EmailSignInForm
-            callbackUrl={callbackUrl}
-            enabled={availability.email}
-          />
+              {availability.email ? (
+                <EmailSignInForm callbackUrl={callbackUrl} enabled />
+              ) : null}
+            </>
+          ) : (
+            <section className="auth-access-state" aria-labelledby="access-title">
+              <p>Private workspace access</p>
+              <h3 id="access-title">This workspace is not open yet.</h3>
+              <span>
+                Request a guided account, or inspect the browser-only evidence
+                review without sharing a conversation.
+              </span>
+              <div>
+                <a className="button" href={accessRequestHref}>
+                  Request access
+                  <ArrowRight aria-hidden="true" size={17} />
+                </a>
+                <Link className="auth-demo-link" href="/demo">
+                  Try the live demo
+                </Link>
+              </div>
+            </section>
+          )}
 
           {availability.defaultAccount && (
             <form

@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import {
+  CONTRACT_VERSION,
   SIMULATED_CAPABILITY,
   TalentSignalClient,
   TalentSignalHttpError,
@@ -946,6 +947,251 @@ async function main(): Promise<void> {
     retry_status: retryResult.attempt_status,
   });
 
+  const reversalPreview = await reviewer.previewEffectReversal(
+    retryResult.attempt_id,
+  );
+  assert.equal(reversalPreview.reversal_available, true);
+  assert.deepEqual(reversalPreview.blockers, []);
+  assert.equal(reversalPreview.expected_destination_version, 1);
+  const reversalApproval = await reviewer.approveEffectReversal(
+    retryResult.attempt_id,
+    {
+      idempotency_key: "recovery:effect-reversal:approve",
+      expected_destination_version:
+        reversalPreview.expected_destination_version,
+      expected_preview_digest: reversalPreview.preview_digest,
+      reason: "The recruiter no longer needs this simulated Today item.",
+    },
+  );
+  const reversalApprovedWorkspace =
+    await recruiter.getWorkspaceReviewByCapture(failed.capture.id);
+  assert.equal(
+    reversalApprovedWorkspace.latest_effect?.reversal?.status,
+    "approved",
+  );
+  assert.equal(
+    reversalApprovedWorkspace.latest_effect?.reversal?.latest_attempt,
+    null,
+  );
+  const reversalResult = await reviewer.executeEffectReversal(
+    retryResult.attempt_id,
+    {
+      idempotency_key: "recovery:effect-reversal:execute",
+      approval_id: reversalApproval.id,
+    },
+  );
+  assert.equal(reversalResult.attempt_status, "verified");
+  assert.equal(
+    reversalResult.observation?.match_status,
+    "matched_absent",
+  );
+  const reversalReplay = await reviewer.executeEffectReversal(
+    retryResult.attempt_id,
+    {
+      idempotency_key: "recovery:effect-reversal:execute",
+      approval_id: reversalApproval.id,
+    },
+  );
+  assert.equal(reversalReplay.reversal_attempt_id, reversalResult.reversal_attempt_id);
+  assert.equal(reversalReplay.reused, true);
+  const reversalWorkspace = await recruiter.getWorkspaceReviewByCapture(
+    failed.capture.id,
+  );
+  assert.equal(
+    reversalWorkspace.latest_effect?.reversal?.status,
+    "verified",
+  );
+  assert.equal(
+    reversalWorkspace.latest_effect?.reversal?.latest_attempt?.outcome
+      ?.status,
+    "verified",
+  );
+  const reversedPreview = await reviewer.previewEffectReversal(
+    retryResult.attempt_id,
+  );
+  assert.equal(reversedPreview.reversal_available, false);
+  assert(
+    reversedPreview.blockers.some(
+      (blocker) => blocker.code === "reversal_already_verified",
+    ),
+  );
+  const reversalAudit = await reviewer.sync(0);
+  assert(
+    reversalAudit.events.some(
+      (event) =>
+        event.event_type === "effect_reversal.verified" &&
+        event.entity_id === reversalResult.reversal_attempt_id,
+    ),
+  );
+  await expectHttpError(
+    "cross-account effect reversal preview is hidden",
+    beta.previewEffectReversal(retryResult.attempt_id),
+    404,
+    "EFFECT_ATTEMPT_NOT_FOUND",
+  );
+  recoveryResults.push({
+    scenario: "verified local effect reversed through separate approval and readback",
+    passed: true,
+    approval_changed_destination: false,
+    reversal_status: reversalResult.attempt_status,
+    destination_match: reversalResult.observation?.match_status,
+    idempotent_replay: reversalReplay.reused,
+    reload_status: reversalWorkspace.latest_effect?.reversal?.status,
+    original_effect_preserved: reversalWorkspace.latest_effect?.attempt_id === retryResult.attempt_id,
+  });
+
+  const driftOriginal = await provisionExecutableScenario(
+    recruiter,
+    reviewer,
+    "reversal-drift-original",
+    "success",
+  );
+  assert(driftOriginal.analysis.action);
+  const driftOriginalEffect = await reviewer.executeAction(
+    driftOriginal.analysis.action.id,
+    {
+      idempotency_key: "recovery:reversal-drift:original-execute",
+      approval_id: driftOriginal.approval.id,
+      expected_action_version: 1,
+    },
+  );
+  const driftReversalPreview = await reviewer.previewEffectReversal(
+    driftOriginalEffect.attempt_id,
+  );
+  const driftReversalApproval = await reviewer.approveEffectReversal(
+    driftOriginalEffect.attempt_id,
+    {
+      idempotency_key: "recovery:reversal-drift:approve",
+      expected_destination_version:
+        driftReversalPreview.expected_destination_version,
+      expected_preview_digest: driftReversalPreview.preview_digest,
+      reason: "Approve before a concurrent destination change.",
+    },
+  );
+  const driftWriter = await provisionExecutableScenario(
+    recruiter,
+    reviewer,
+    "reversal-drift-writer",
+    "success",
+  );
+  assert(driftWriter.analysis.action);
+  const driftWriterPreview: SimulatedEffectPreview = {
+    ...driftWriter.analysis.action.exact_preview,
+    target: driftOriginal.analysis.action.exact_preview.target,
+    change: {
+      kind: "create_attention",
+      title: "A newer recruiter-owned attention item",
+    },
+    expected_destination_version: 1,
+  };
+  const driftWriterRevision = await recruiter.reviseAction(
+    driftWriter.analysis.action.id,
+    {
+      idempotency_key: "recovery:reversal-drift:writer-revise",
+      expected_action_version: 1,
+      exact_preview: driftWriterPreview,
+      reason: "Exercise destination drift after reversal approval.",
+    },
+  );
+  const driftWriterApproval = await reviewer.approveAction(
+    driftWriter.analysis.action.id,
+    {
+      idempotency_key: "recovery:reversal-drift:writer-approve-v2",
+      expected_action_version: driftWriterRevision.version,
+      exact_preview: driftWriterPreview,
+    },
+  );
+  const driftWriterEffect = await reviewer.executeAction(
+    driftWriter.analysis.action.id,
+    {
+      idempotency_key: "recovery:reversal-drift:writer-execute-v2",
+      approval_id: driftWriterApproval.id,
+      expected_action_version: driftWriterRevision.version,
+    },
+  );
+  assert.equal(driftWriterEffect.attempt_status, "verified");
+  const driftReversalResult = await reviewer.executeEffectReversal(
+    driftOriginalEffect.attempt_id,
+    {
+      idempotency_key: "recovery:reversal-drift:execute",
+      approval_id: driftReversalApproval.id,
+    },
+  );
+  assert.equal(driftReversalResult.attempt_status, "failed");
+  assert.equal(
+    driftReversalResult.observation?.match_status,
+    "still_present",
+  );
+  assert.equal(
+    driftReversalResult.outcome?.summary,
+    "The destination changed after reversal approval. Nothing was removed.",
+  );
+  const driftBlockedPreview = await reviewer.previewEffectReversal(
+    driftOriginalEffect.attempt_id,
+  );
+  assert.equal(driftBlockedPreview.reversal_available, false);
+  assert(
+    driftBlockedPreview.blockers.some(
+      (blocker) => blocker.code === "destination_changed",
+    ),
+  );
+  recoveryResults.push({
+    scenario: "destination drift invalidates reversal without deleting newer state",
+    passed: true,
+    reversal_status: driftReversalResult.attempt_status,
+    destination_match: driftReversalResult.observation?.match_status,
+    no_delete_summary: driftReversalResult.outcome?.summary,
+    fresh_preview_blocked: !driftBlockedPreview.reversal_available,
+  });
+
+  const revokeReversal = await provisionExecutableScenario(
+    recruiter,
+    reviewer,
+    "reversal-approval-revocation",
+    "success",
+  );
+  assert(revokeReversal.analysis.action);
+  const revokeReversalEffect = await reviewer.executeAction(
+    revokeReversal.analysis.action.id,
+    {
+      idempotency_key: "recovery:reversal-revoke:forward-execute",
+      approval_id: revokeReversal.approval.id,
+      expected_action_version: 1,
+    },
+  );
+  const revokeReversalPreview = await reviewer.previewEffectReversal(
+    revokeReversalEffect.attempt_id,
+  );
+  const revokedReversalApproval = await reviewer.approveEffectReversal(
+    revokeReversalEffect.attempt_id,
+    {
+      idempotency_key: "recovery:reversal-revoke:approve",
+      expected_destination_version:
+        revokeReversalPreview.expected_destination_version,
+      expected_preview_digest: revokeReversalPreview.preview_digest,
+      reason: "Exercise revocation before reversal execution.",
+    },
+  );
+  await reviewer.revokeEffectReversalApproval(revokedReversalApproval.id, {
+    idempotency_key: "recovery:reversal-revoke:revoke",
+    reason: "Keep the item after all.",
+  });
+  await expectHttpError(
+    "revoked effect reversal approval cannot execute",
+    reviewer.executeEffectReversal(revokeReversalEffect.attempt_id, {
+      idempotency_key: "recovery:reversal-revoke:execute",
+      approval_id: revokedReversalApproval.id,
+    }),
+    409,
+    "EFFECT_REVERSAL_APPROVAL_NOT_CURRENT",
+  );
+  recoveryResults.push({
+    scenario: "revoked effect reversal approval preserves destination",
+    passed: true,
+    approval_status: "revoked",
+    execution_blocked: true,
+  });
+
   const timedOut = await provisionExecutableScenario(
     recruiter,
     reviewer,
@@ -1007,11 +1253,24 @@ async function main(): Promise<void> {
   );
   assert.equal(beforeReconciled.attempt_status, "unknown");
   assert.equal(beforeReconciled.observation?.match_status, "unavailable");
+  const beforeWorkspace = await recruiter.getWorkspaceReviewByCapture(
+    beforeTimeout.capture.id,
+  );
+  assert.equal(
+    beforeWorkspace.latest_effect?.observation?.match_status,
+    "unavailable",
+  );
+  assert.equal(
+    beforeWorkspace.latest_effect?.outcome?.summary,
+    "Reconciliation could not observe the labeled local simulated destination.",
+  );
   recoveryResults.push({
     scenario: "timeout before write remains truthfully unknown",
     passed: true,
     reconciled_status: beforeReconciled.attempt_status,
     destination_match: beforeReconciled.observation?.match_status,
+    workspace_readback_match:
+      beforeWorkspace.latest_effect?.observation?.match_status,
   });
 
   const revokedApproval = await provisionExecutableScenario(
@@ -1137,9 +1396,12 @@ async function main(): Promise<void> {
     info?: { version?: string };
     paths?: Record<string, unknown>;
   };
-  assert.equal(openApi.info?.version, "2026-08-05.3");
+  assert.equal(openApi.info?.version, CONTRACT_VERSION);
   assert(openApi.paths?.["/v1/captures"]);
   assert(openApi.paths?.["/v1/actions/{id}/executions"]);
+  assert(openApi.paths?.["/v1/effect-attempts/{id}/reversal"]);
+  assert(openApi.paths?.["/v1/effect-attempts/{id}/reversal-approvals"]);
+  assert(openApi.paths?.["/v1/effect-attempts/{id}/reversal-executions"]);
   assert.equal(
     JSON.stringify(openApi).includes("calendar.create"),
     false,

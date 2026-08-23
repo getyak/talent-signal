@@ -3,6 +3,8 @@ import SwiftUI
 
 @main
 struct TalentSignalApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     private var requestedColorScheme: ColorScheme? {
         ProcessInfo.processInfo.arguments.contains("--force-dark") ? .dark : nil
     }
@@ -20,6 +22,12 @@ struct TalentSignalApp: App {
                         await CaptureHandoffStore.shared.restorePendingCapture()
                     }
                     TalentSignalShortcuts.updateAppShortcutParameters()
+                }
+                .onChange(of: scenePhase) { phase in
+                    guard phase == .active else { return }
+                    Task {
+                        await CaptureHandoffStore.shared.restorePendingCapture()
+                    }
                 }
         }
     }

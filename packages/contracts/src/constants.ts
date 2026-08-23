@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = "2026-08-07.1" as const;
+export const CONTRACT_VERSION = "2026-08-11.1" as const;
 export const SOURCE_RETENTION_POLICY_VERSION = "source-retention.v2" as const;
 
 export const SOURCE_RETENTION_MODES = [
@@ -46,6 +46,8 @@ export const DISPOSITIONS = [
 
 export const SIMULATED_CAPABILITY =
   "local.simulated_attention.create" as const;
+export const SIMULATED_REVERSAL_CAPABILITY =
+  "local.simulated_attention.delete" as const;
 export const SIMULATED_ADAPTER = "local_deterministic" as const;
 
 export const PROHIBITED_INFERENCE_TERMS = [
