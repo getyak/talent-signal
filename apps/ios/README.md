@@ -50,16 +50,18 @@ The release identity is:
 
 ## TestFlight
 
-The repository uses Fastlane Match and the shared private certificate repository
-at `getyak/daypage-certs`.
+The repository uses Fastlane Match and the isolated private certificate
+repository at `getyak/talent-signal-certs`. It contains only encrypted Talent
+Signal signing assets. CI accesses it with a dedicated read-only deploy key.
 
 ```sh
 bundle exec fastlane ios prepare_signing
 bundle exec fastlane ios beta
 ```
 
-`prepare_signing` is a one-time provisioning step. CI runs Match in read-only
-mode and uploads through the App Store Connect API. Uploads require:
+`prepare_signing` is an explicit provisioning or rotation step. CI runs Match
+in read-only mode, waits for App Store Connect to finish processing the build,
+and then creates the matching release tag. Uploads require:
 
 - `APP_STORE_CONNECT_API_KEY_ID`
 - `APP_STORE_CONNECT_ISSUER_ID`
@@ -73,3 +75,9 @@ mode and uploads through the App Store Connect API. Uploads require:
 Signing assets remain encrypted through Fastlane Match. Never commit the
 API key, match password, deploy key, certificates, or provisioning profiles to
 this repository.
+
+The `testflight` GitHub Environment accepts only `main` and has no reviewer, so
+a successful `main` CI run with iOS release-input changes publishes
+automatically. App Store Connect must separately keep an internal testing group
+with automatic distribution enabled; that group plus an invited-device install
+is the proof that a processed build is available on a phone.

@@ -21,8 +21,10 @@ pull request / push
 
 successful main CI + iOS product change
         |
-        +--> testflight environment approval
-                signed archive -> TestFlight
+        +--> main-only testflight environment
+                isolated match signing -> archive
+                TestFlight upload -> processing complete
+                internal group automatic distribution
                 provenance attestation
                 version tag + GitHub prerelease + retained IPA
 ```
@@ -48,12 +50,22 @@ weekly updates for GitHub Actions, pnpm, and Bundler.
 An ordinary workflow dispatch defaults to **not** publishing TestFlight. A
 manual caller must explicitly set `publish_testflight`, and an automatic
 release is considered only when the verified `main` change touches iOS release
-inputs. Both routes must pass the `testflight` GitHub Environment approval.
+inputs. The `testflight` GitHub Environment permits only `main`; it intentionally
+has no required reviewer because internal TestFlight delivery is the continuous
+delivery target.
 
 The release job checks required secret names without printing their values,
-writes signing material only under the runner temporary directory, and removes
-those files even after failure. The tag and GitHub prerelease are created only
-after App Store Connect accepts the upload.
+writes signing material only under the runner temporary directory, verifies
+read access to the isolated private match repository, and removes those files
+even after failure. Fastlane waits for App Store Connect build processing. The
+tag and GitHub prerelease are created only after that stronger acceptance
+point, not merely after transport upload.
+
+App Store Connect owns the last delivery hop. Talent Signal must have an
+internal testing group with automatic distribution enabled and at least one
+eligible App Store Connect user. A green workflow proves upload and processing;
+the App Store Connect group and an invited-device installation prove that the
+build is usable on a phone.
 
 ## Required GitHub settings
 
@@ -65,7 +77,11 @@ after App Store Connect accepts the upload.
 - Private vulnerability reporting: enabled.
 - `main`: pull request required, force-push and deletion blocked, `CI required`
   and `Security required` required.
-- `testflight`: only `main`, with a required reviewer.
+- `testflight`: only `main`, without a required reviewer.
+- Private match repository: `getyak/talent-signal-certs`, with only encrypted
+  Talent Signal signing assets and a dedicated read-only CI deploy key.
+- Public App Store submission remains an explicit promotion after metadata,
+  agreements, App Review readiness, and a human release decision are verified.
 
 These settings are managed through the GitHub API during repository bootstrap.
 Review them after ownership, plan, or maintainer membership changes.
@@ -107,7 +123,11 @@ again. The hook never mutates a commit during push.
   to inspect or retry checks.
 - A failed TestFlight upload creates no release tag. Rerun the failed workflow
   after correcting credentials or signing state.
-- If TestFlight accepts an upload but a later metadata step fails, verify the
-  build in App Store Connect before rerunning to avoid duplicate uploads.
-- Never bypass the protected environment to solve a signing problem. Rotate or
-  repair the scoped secret instead.
+- If TestFlight accepts an upload but processing or later metadata fails,
+  verify the version and build number in App Store Connect before rerunning to
+  avoid duplicate uploads.
+- If a release waits before receiving a runner, inspect environment protection
+  rules and the global `release-ios` concurrency group. Cancel obsolete waiting
+  runs before changing a gate so a stale build cannot begin unexpectedly.
+- Never bypass the `main` environment restriction to solve a signing problem.
+  Rotate or repair the scoped deploy key or secret instead.

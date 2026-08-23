@@ -1,4 +1,4 @@
-git_url(ENV.fetch("MATCH_GIT_URL", "git@github.com:getyak/daypage-certs.git"))
+git_url(ENV.fetch("MATCH_GIT_URL", "git@github.com:getyak/talent-signal-certs.git"))
 storage_mode("git")
 type("appstore")
 app_identifier("com.talentsignal.app")

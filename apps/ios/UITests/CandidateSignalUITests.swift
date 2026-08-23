@@ -289,26 +289,40 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("AX5 dark status-safe review")
 
         if #available(iOS 17.0, *) {
-            try app.performAccessibilityAudit(for: [
+            let auditTypes: XCUIAccessibilityAuditType = [
                 .dynamicType,
                 .contrast,
                 .hitRegion,
                 .sufficientElementDescription
-            ]) { issue in
+            ]
+            let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
                 guard issue.auditType == .contrast,
                       let issueElement = issue.element else {
                     return false
                 }
                 let frame = issueElement.frame
                 let window = self.app.windows.firstMatch.frame
-                let scrollView = self.app.scrollViews.firstMatch
-                let viewportBottom = scrollView.exists
-                    ? scrollView.frame.maxY
-                    : window.maxY
                 let statusBottom = statusBar.frame.maxY
                 let edgeTolerance: CGFloat = 1
+                let systemEdgeInset = max(statusBar.frame.height, edgeTolerance)
+                // Partially clipped SwiftUI text at either system edge can
+                // produce a false contrast issue while its accessibility
+                // frame still appears inside the app window. Keep the rest
+                // of the visible screen under the full contrast audit.
                 return frame.minY <= statusBottom + edgeTolerance
-                    || frame.maxY >= viewportBottom - edgeTolerance
+                    || frame.maxY >= window.maxY - systemEdgeInset
+            }
+
+            do {
+                try app.performAccessibilityAudit(for: auditTypes, issueHandler)
+            } catch let error as NSError
+                where error.domain == "com.apple.xcode.xctest.accessibilityAudit"
+                    && error.code == -56 {
+                // Xcode occasionally times out before producing any audit
+                // result. Retry that infrastructure failure once; recorded
+                // accessibility issues are not errors and remain unsuppressed.
+                XCTAssertTrue(reviewInstruction.waitForExistence(timeout: 2))
+                try app.performAccessibilityAudit(for: auditTypes, issueHandler)
             }
         }
         preserveScreenshot("AX5 dark critical review")
