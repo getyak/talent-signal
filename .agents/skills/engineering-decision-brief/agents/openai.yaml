@@ -1,0 +1,4 @@
+interface:
+  display_name: "Engineering Decision Brief"
+  short_description: "Compile project evidence into layered decision briefs"
+  default_prompt: "Use $engineering-decision-brief to analyze this project and produce a concise brief, engineering dossier, and exact evidence trail."
