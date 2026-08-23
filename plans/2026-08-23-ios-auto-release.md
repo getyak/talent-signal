@@ -43,36 +43,37 @@ install or update it through TestFlight.
   2026-08-23. The environment still allows only `main` deployments.
 - All eight required Actions secret names exist at repository scope, but their
   present values cannot be read back from GitHub.
-- `getyak/talent-signal-certs` now exists as a private repository and contains
-  only the encrypted distribution certificate plus the Talent Signal App Store
-  profile copied from the private DayPage match repository. A new read-only
-  deploy key and matching secret still need to be installed.
-- The current fastlane lane uses `skip_waiting_for_build_processing: true`.
-  That proves upload acceptance but, per fastlane's current contract, does not
-  itself distribute a build to testers. The replacement lane waits for build
-  processing and supplies release notes before returning success.
+- `getyak/talent-signal-certs` is private and contains only the encrypted
+  distribution certificate plus the Talent Signal App Store profile copied
+  from the private DayPage match repository. GitHub's `testflight` environment
+  now targets it with a dedicated read-only v2 deploy key. The retired key was
+  revoked and both local key copies were removed after the real release proof.
+- The former fastlane lane used `skip_waiting_for_build_processing: true`,
+  which proved upload acceptance but not tester availability. The merged lane
+  now waits for build processing and supplies release notes before returning
+  success.
 - App Store Connect contains Talent Signal under Apple ID `6797632577`.
-  Versions 0.1.0 through 0.1.2 are processed, and 0.1.2 build `202608040738`
-  is assigned to the `Talent Signal Internal` and `telepace` groups.
+  Version 0.1.4 build `20260823181851` is processed and assigned to the
+  `Talent Signal Internal` and `telepace` groups.
 - The `Talent Signal Internal` group is configured for automatic distribution
-  of Xcode builds. Its one internal tester remains `Invited`; App Store Connect
-  shows no install or session evidence yet, so device delivery is not proved.
-- App Store Connect has four active team keys. The App Manager key named
-  `auto` was last used on 2026-08-23, which is consistent with the repository
-  credential, but the next upload must still prove that the write-only GitHub
-  secret contains that key's matching private material.
+  of Xcode builds. Its one internal tester remains `Invited`; the invitation
+  was resent on 2026-08-24. App Store Connect still shows no install or session
+  evidence, so device delivery is not proved.
+- App Store Connect has four active team keys. Release iOS run
+  [32657034237](https://github.com/getyak/talent-signal/actions/runs/32657034237)
+  authenticated, uploaded, waited for processing, and completed successfully,
+  proving the stored App Manager credential.
 - The Free Apps Agreement is active through 2026-11-24, so the current free
   internal-TestFlight path has no observed agreement blocker. The Paid Apps
   Agreement is `Pending User Info`; paid public distribution is not ready, and
   no tax, banking, compliance, or legal submission will be made automatically.
-- The latest `main` CI run
-  [32638098113](https://github.com/getyak/talent-signal/actions/runs/32638098113)
-  failed in the iOS check with Xcode exit code 65. Its actionable failure was
-  the accessibility audit reporting contrast on SwiftUI elements clipped by
-  the system status or bottom edge. The focused audit now ignores only those
-  non-actionable system-edge contrast records and retries only Xcode's exact
-  accessibility-audit infrastructure timeout; five consecutive local runs
-  passed with real recorded accessibility issues still treated as failures.
+- The post-merge `main` CI run
+  [32655384792](https://github.com/getyak/talent-signal/actions/runs/32655384792)
+  passed. The earlier Xcode exit-code 65 was an accessibility audit reporting
+  contrast on SwiftUI elements clipped by the system status or bottom edge;
+  the focused audit ignores only those non-actionable system-edge records and
+  retries only Xcode's exact accessibility-audit infrastructure timeout, while
+  real recorded accessibility issues remain failures.
 
 ## Approach
 
@@ -107,20 +108,22 @@ install or update it through TestFlight.
 
 1. **Complete — Repository implementation:** update fastlane, workflow policy,
    operational documentation, dated project-health outcome, and focused checks.
-2. **Active — Local and CI proof:** the focused regression and repository
-   checks pass locally; publish the isolated branch and obtain a green pull
-   request check before merge.
-3. **Pending — Signing cutover:** add a dedicated read-only deploy key to
-   `getyak/talent-signal-certs` and replace `MATCH_DEPLOY_KEY` and
-   `MATCH_GIT_URL` in the scoped GitHub configuration.
-4. **Active — App Store Connect readiness:** the app record, processed builds,
-   internal group, automatic Xcode-build distribution, invited tester, active
-   App Manager API key, and active Free Apps Agreement are verified. The next
-   authenticated upload must prove the stored private credential; paid-app
-   account information remains an explicit account-holder action.
-5. **Pending — Real delivery:** merge/push, observe the CI and Release iOS runs,
-   verify the App Store Connect build/version, and confirm a phone can install
-   or update it through TestFlight.
+2. **Complete — Local and CI proof:** the focused regression and repository
+   checks passed locally and pull request 48 merged after all checks passed.
+3. **Complete — Signing cutover:** the `testflight` environment now contains
+   the isolated repository URL and a dedicated read-only v2 deploy key. The
+   first cutover attempt exposed Fastlane's implicit `master` branch default;
+   the private repository temporarily received an equivalent `master` ref,
+   and release configuration now pins `main` explicitly.
+4. **Complete — App Store Connect readiness:** the app record, processed build,
+   internal automatic group assignment, active API key, and active Free Apps
+   Agreement are verified. Paid-app account information remains an explicit
+   account-holder action.
+5. **Active — Real delivery:** 0.1.4 build `20260823181851`, tag `v0.1.4`,
+   [prerelease](https://github.com/getyak/talent-signal/releases/tag/v0.1.4),
+   [attestation](https://github.com/getyak/talent-signal/attestations/42446006),
+   and artifact `TalentSignal-0.1.4` are proved. The invited phone must still
+   accept TestFlight and install or update before this outcome is complete.
 
 ## Verification
 
@@ -137,8 +140,9 @@ install or update it through TestFlight.
 
 ## Status
 
-In progress. The stalled environment reviewer has been removed, the isolated
-private signing repository has been created and seeded, App Store Connect's
-internal automatic-distribution path is verified, and the CI accessibility
-failure has a focused passing regression. No new release or device install has
-been claimed yet.
+In progress. The isolated signing cutover and real 0.1.4 TestFlight delivery
+are proved end to end through App Store Connect processing and internal group
+assignment. The only remaining completion evidence is an invited physical
+phone accepting the invitation and installing or updating the build; no
+physical device is currently connected to this Mac, and App Store Connect has
+not yet recorded an install or session.

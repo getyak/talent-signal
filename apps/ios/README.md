@@ -52,7 +52,10 @@ The release identity is:
 
 The repository uses Fastlane Match and the isolated private certificate
 repository at `getyak/talent-signal-certs`. It contains only encrypted Talent
-Signal signing assets. CI accesses it with a dedicated read-only deploy key.
+Signal signing assets on `main`. CI accesses it with a dedicated read-only
+deploy key. `MATCH_GIT_BRANCH` may override the branch for a deliberate
+migration, but release jobs default explicitly to `main` rather than Fastlane's
+legacy `master` default.
 
 ```sh
 bundle exec fastlane ios prepare_signing
