@@ -96,7 +96,9 @@ struct CandidateSignalView: View {
                 case .keepForLater:
                     captureHandoff.keepForLater()
                 case .discard, .finished:
-                    captureHandoff.clear()
+                    Task {
+                        await captureHandoff.advanceToNextCapture()
+                    }
                 }
             }
         }
