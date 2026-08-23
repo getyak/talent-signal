@@ -48,6 +48,8 @@ install or update it through TestFlight.
   from the private DayPage match repository. GitHub's `testflight` environment
   now targets it with a dedicated read-only v2 deploy key. The retired key was
   revoked and both local key copies were removed after the real release proof.
+  The temporary `master` compatibility ref was removed after the pinned `main`
+  configuration completed a fresh automatic release.
 - The former fastlane lane used `skip_waiting_for_build_processing: true`,
   which proved upload acceptance but not tester availability. The merged lane
   now waits for build processing and supplies release notes before returning
@@ -113,16 +115,22 @@ install or update it through TestFlight.
 3. **Complete — Signing cutover:** the `testflight` environment now contains
    the isolated repository URL and a dedicated read-only v2 deploy key. The
    first cutover attempt exposed Fastlane's implicit `master` branch default;
-   the private repository temporarily received an equivalent `master` ref,
-   and release configuration now pins `main` explicitly.
+   release configuration now pins `main` explicitly, a subsequent automatic
+   release proved that path, and the temporary equivalent `master` ref was
+   removed.
 4. **Complete — App Store Connect readiness:** the app record, processed build,
    internal automatic group assignment, active API key, and active Free Apps
    Agreement are verified. Paid-app account information remains an explicit
    account-holder action.
-5. **Active — Real delivery:** 0.1.4 build `20260823181851`, tag `v0.1.4`,
-   [prerelease](https://github.com/getyak/talent-signal/releases/tag/v0.1.4),
-   [attestation](https://github.com/getyak/talent-signal/attestations/42446006),
-   and artifact `TalentSignal-0.1.4` are proved. The invited phone must still
+5. **Active — Real delivery:** merging the pinned signing configuration to
+   `main` produced green CI run
+   [32659479684](https://github.com/getyak/talent-signal/actions/runs/32659479684),
+   which automatically triggered successful release run
+   [32659877251](https://github.com/getyak/talent-signal/actions/runs/32659877251).
+   It processed 0.1.5 build `20260823190119`, tag `v0.1.5`,
+   [prerelease](https://github.com/getyak/talent-signal/releases/tag/v0.1.5),
+   [attestation](https://github.com/getyak/talent-signal/attestations/42449085),
+   retained IPA, and artifact `TalentSignal-0.1.5`. The invited phone must still
    accept TestFlight and install or update before this outcome is complete.
 
 ## Verification
@@ -140,9 +148,9 @@ install or update it through TestFlight.
 
 ## Status
 
-In progress. The isolated signing cutover and real 0.1.4 TestFlight delivery
-are proved end to end through App Store Connect processing and internal group
-assignment. The only remaining completion evidence is an invited physical
-phone accepting the invitation and installing or updating the build; no
-physical device is currently connected to this Mac, and App Store Connect has
-not yet recorded an install or session.
+In progress. The isolated signing cutover and automatically triggered 0.1.5
+TestFlight delivery are proved end to end through App Store Connect processing
+and internal group distribution. The only remaining completion evidence is an
+invited physical phone accepting the invitation and installing or updating the
+build; no physical device is currently connected to this Mac, and App Store
+Connect has not yet recorded an install or session.
