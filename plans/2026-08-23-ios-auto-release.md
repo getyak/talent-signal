@@ -57,9 +57,14 @@ install or update it through TestFlight.
 - The `Talent Signal Internal` group is configured for automatic distribution
   of Xcode builds. Its one internal tester remains `Invited`; App Store Connect
   shows no install or session evidence yet, so device delivery is not proved.
-- The App Store Connect API credential can be proved only by the next upload.
-  Account agreement readiness has not been established, and no legal terms
-  will be accepted without the account holder's explicit decision.
+- App Store Connect has four active team keys. The App Manager key named
+  `auto` was last used on 2026-08-23, which is consistent with the repository
+  credential, but the next upload must still prove that the write-only GitHub
+  secret contains that key's matching private material.
+- The Free Apps Agreement is active through 2026-11-24, so the current free
+  internal-TestFlight path has no observed agreement blocker. The Paid Apps
+  Agreement is `Pending User Info`; paid public distribution is not ready, and
+  no tax, banking, compliance, or legal submission will be made automatically.
 - The latest `main` CI run
   [32638098113](https://github.com/getyak/talent-signal/actions/runs/32638098113)
   failed in the iOS check with Xcode exit code 65. Its actionable failure was
@@ -109,9 +114,10 @@ install or update it through TestFlight.
    `getyak/talent-signal-certs` and replace `MATCH_DEPLOY_KEY` and
    `MATCH_GIT_URL` in the scoped GitHub configuration.
 4. **Active — App Store Connect readiness:** the app record, processed builds,
-   internal group, automatic Xcode-build distribution, and invited tester are
-   verified. The next authenticated upload must prove the API credential; any
-   account agreement remains an explicit account-holder action.
+   internal group, automatic Xcode-build distribution, invited tester, active
+   App Manager API key, and active Free Apps Agreement are verified. The next
+   authenticated upload must prove the stored private credential; paid-app
+   account information remains an explicit account-holder action.
 5. **Pending — Real delivery:** merge/push, observe the CI and Release iOS runs,
    verify the App Store Connect build/version, and confirm a phone can install
    or update it through TestFlight.
