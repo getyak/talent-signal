@@ -1948,7 +1948,7 @@ struct PursuitDetailView: View {
                                 Text(gap.title)
                                     .font(.headline)
                                     .foregroundStyle(Color.tsInk)
-                                Text("\(gap.basis.kind.humanized) · \(gap.basis.evidenceState.attentionLabel)")
+                                Text("\(gap.basis.temporalAuthorityLabel) · \(gap.basis.evidenceState.attentionLabel)")
                                     .font(.caption)
                                     .foregroundStyle(
                                         gap.basis.evidenceState.availability == "available"
@@ -2667,5 +2667,14 @@ extension String {
 
     var workspacePhrase: String {
         contains("_") ? humanized : self
+    }
+}
+
+private extension WorkspaceGap.Basis {
+    var temporalAuthorityLabel: String {
+        if kind == "evidence_supported", evidenceState.availability != "available" {
+            return "Originally evidence-supported"
+        }
+        return kind.humanized
     }
 }

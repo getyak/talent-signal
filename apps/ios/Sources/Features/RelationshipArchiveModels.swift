@@ -74,6 +74,7 @@ struct AgentEvidenceReviewOperation: Codable, Equatable, Identifiable {
         case pending
         case outcomeUnknown = "outcome_unknown"
         case failed
+        case superseded
         case applied
     }
 
@@ -311,6 +312,8 @@ final class AgentSessionStore: ObservableObject {
     private static let draftRetention: TimeInterval = 7 * 24 * 60 * 60
     @Published private var storedSessions: [AgentSession]
     @Published private var storedEvidenceReviews: [AgentEvidenceReviewOperation]
+    @Published private(set) var activeEvidenceReviewKeys: Set<String>
+    @Published private(set) var transientSupersededEvidenceReviewKeys: Set<String>
     @Published private(set) var persistenceNotice: String?
     private var drafts: [AgentSessionDraft]
     private let persistence: AgentSessionPersisting?
@@ -327,6 +330,8 @@ final class AgentSessionStore: ObservableObject {
         expirationTask = nil
         persistenceNotice = nil
         drafts = []
+        activeEvidenceReviewKeys = []
+        transientSupersededEvidenceReviewKeys = []
         storedEvidenceReviews = []
         storedSessions = sessions.sorted { $0.updatedAt > $1.updatedAt }
         defer { scheduleNextExpiration() }
@@ -615,6 +620,9 @@ final class AgentSessionStore: ObservableObject {
     }
 
     func markEvidenceReviewPending(_ idempotencyKey: String) throws {
+        guard !isEvidenceReviewSuperseded(idempotencyKey) else {
+            throw AgentSessionPersistenceError.evidenceReviewSuperseded
+        }
         guard updateEvidenceReview(idempotencyKey, update: {
             $0.state = .pending
             $0.statusMessage = nil
@@ -656,6 +664,51 @@ final class AgentSessionStore: ObservableObject {
             $0.state = .failed
             $0.statusMessage = message
         }
+    }
+
+    @discardableResult
+    func markEvidenceReviewSuperseded(
+        _ idempotencyKey: String,
+        message: String
+    ) -> Bool {
+        guard storedEvidenceReviews.contains(where: {
+            $0.idempotencyKey == idempotencyKey
+        }) else { return false }
+        let didPersist = updateEvidenceReview(
+            idempotencyKey,
+            allowSupersededMutation: true
+        ) {
+            $0.state = .superseded
+            $0.statusMessage = message
+        }
+        if didPersist {
+            transientSupersededEvidenceReviewKeys.remove(idempotencyKey)
+        } else {
+            transientSupersededEvidenceReviewKeys.insert(idempotencyKey)
+        }
+        return didPersist
+    }
+
+    func isEvidenceReviewSuperseded(_ idempotencyKey: String) -> Bool {
+        transientSupersededEvidenceReviewKeys.contains(idempotencyKey)
+            || storedEvidenceReviews.contains {
+                $0.idempotencyKey == idempotencyKey
+                    && $0.state == .superseded
+            }
+    }
+
+    @discardableResult
+    func claimEvidenceReview(_ idempotencyKey: String) -> Bool {
+        guard !activeEvidenceReviewKeys.contains(idempotencyKey),
+              !isEvidenceReviewSuperseded(idempotencyKey) else {
+            return false
+        }
+        activeEvidenceReviewKeys.insert(idempotencyKey)
+        return true
+    }
+
+    func releaseEvidenceReview(_ idempotencyKey: String) {
+        activeEvidenceReviewKeys.remove(idempotencyKey)
     }
 
     func latestEvidenceReviews(taskID: String) -> [AgentEvidenceReviewOperation] {
@@ -757,6 +810,8 @@ final class AgentSessionStore: ObservableObject {
     func deleteAll() -> Bool {
         guard let persistence else {
             expirationTask?.cancel()
+            activeEvidenceReviewKeys = []
+            transientSupersededEvidenceReviewKeys = []
             storedSessions = []
             drafts = []
             storedEvidenceReviews = []
@@ -770,6 +825,8 @@ final class AgentSessionStore: ObservableObject {
             return false
         }
         expirationTask?.cancel()
+        activeEvidenceReviewKeys = []
+        transientSupersededEvidenceReviewKeys = []
         storedSessions = []
         drafts = []
         storedEvidenceReviews = []
@@ -829,6 +886,13 @@ final class AgentSessionStore: ObservableObject {
         storedSessions = retainedSessions
         drafts = retainedDrafts
         storedEvidenceReviews = retainedEvidenceReviews
+        let retainedReviewKeys = Set(
+            retainedEvidenceReviews.map(\.idempotencyKey)
+        )
+        activeEvidenceReviewKeys.formIntersection(retainedReviewKeys)
+        transientSupersededEvidenceReviewKeys.formIntersection(
+            retainedReviewKeys
+        )
         return true
     }
 
@@ -876,6 +940,7 @@ final class AgentSessionStore: ObservableObject {
     @discardableResult
     private func updateEvidenceReview(
         _ idempotencyKey: String,
+        allowSupersededMutation: Bool = false,
         update: (inout AgentEvidenceReviewOperation) -> Void
     ) -> Bool {
         _ = pruneExpiredState()
@@ -883,6 +948,13 @@ final class AgentSessionStore: ObservableObject {
             $0.idempotencyKey == idempotencyKey
         }) else { return false }
         let prior = storedEvidenceReviews[index]
+        guard allowSupersededMutation
+                || (prior.state != .superseded
+                    && !transientSupersededEvidenceReviewKeys.contains(
+                        idempotencyKey
+                    )) else {
+            return false
+        }
         update(&storedEvidenceReviews[index])
         storedEvidenceReviews[index].updatedAt = now()
         guard persist() else {
@@ -898,6 +970,7 @@ enum AgentSessionPersistenceError: LocalizedError, Equatable {
     case unsupportedVersion
     case deletionCouldNotBeVerified
     case evidenceReviewRecoveryUnavailable
+    case evidenceReviewSuperseded
 
     var errorDescription: String? {
         switch self {
@@ -907,6 +980,8 @@ enum AgentSessionPersistenceError: LocalizedError, Equatable {
             "Saved Agent sessions could not be deleted safely."
         case .evidenceReviewRecoveryUnavailable:
             "Source review was not attempted because protected recovery could not be saved. No canonical source change was sent."
+        case .evidenceReviewSuperseded:
+            "A newer source decision is current. This older operation cannot be retried."
         }
     }
 }

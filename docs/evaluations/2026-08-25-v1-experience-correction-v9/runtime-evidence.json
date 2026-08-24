@@ -1,14 +1,15 @@
 {
   "artifact_id": "TS-V1-EXPERIENCE-2026-08-25-09",
   "base_commit": "50f91d04ec67a6874f7662b1ffd0006cfae67b12",
-  "frozen_at": "2026-08-25T04:50:00+08:00",
+  "source_commit": "5fa53ecf272eef6722b46698a14c3bc8c22f0b4a",
+  "frozen_at": "2026-08-25T04:57:07+08:00",
   "environment": {
     "device": "iPhone 17 Pro Max Simulator",
     "device_id": "059DFEA6-9776-4E24-AB8B-9D36EFCE12DA",
     "os": "iOS 26.5 (23F77)",
     "host": "macOS 26.4",
-    "canonical_backend": "fresh V9 final3 Docker image, Fastify/PostgreSQL on 127.0.0.1:4339 through test-owned fixture origin 127.0.0.1:4340",
-    "backend_image": "talent-signal-backend-local@sha256:802ac3338350dddc59be643f9be132b0895960b8267e6dd8a492d94b19cc02a4"
+    "canonical_backend": "fresh V9 final4 Docker image, Fastify/PostgreSQL on 127.0.0.1:4339 through test-owned fixture origin 127.0.0.1:4340",
+    "backend_image": "talent-signal-backend-local@sha256:608b6afa9a007f43aa452ff546b6fbc6d3c81cc22e773006ef5047aafa60d7f2"
   },
   "checks": [
     {
@@ -17,7 +18,7 @@
       "failed": 0,
       "skipped": 0,
       "result_bundles": [
-        "/tmp/talent-signal-v9-canonical-frozen.xcresult",
+        "/tmp/talent-signal-v9-canonical-authority-chain.xcresult",
         "/tmp/talent-signal-v9-noncanonical-final.xcresult"
       ],
       "tests": [
@@ -38,12 +39,13 @@
     { "name": "diff_whitespace_check", "result": "passed", "command": "git diff --check" }
   ],
   "authority_adversarial_runtime": {
-    "command": "API_BASE_URL=http://127.0.0.1:4339 pnpm --filter @talent-signal/backend test:evidence-review-authority",
-    "same_cycle_replay_review_id": "4375ca77-6f6f-4a74-b692-0c06b207640e",
-    "later_review_id": "9f5be480-85f4-46e7-ad60-46ab8be3cffa",
+    "command": "API_BASE_URL=http://127.0.0.1:4339 DATABASE_URL=<local V9 PostgreSQL> pnpm --filter @talent-signal/backend test:evidence-review-authority",
+    "same_cycle_replay_review_id": "cc53a34b-6f57-467c-b0e7-1013bb60c4bf",
+    "later_review_id": "fabda28c-6008-44c3-9741-74564d71ada3",
     "stale_replay_rejected": true,
     "error_code": "EVIDENCE_REVIEW_AUTHORITY_STALE",
-    "final_review_status": "reviewed"
+    "final_review_status": "reviewed",
+    "persisted_authority_chain_verified": true
   },
   "canonical_runtime_readback": {
     "scope_match": true,
@@ -94,15 +96,15 @@
     "apps/backend/src/app.ts": "c3fd595c0bc4ee9d7364f6e7d58888c8c9aa20f95d1b955ccb53e3f6f7f9dbd8",
     "apps/backend/src/app.test.ts": "949a97c29d3ac2b299bb22a204ce9720bd92a42eba3139ee68513423f3ead6f6",
     "apps/backend/src/database/migrate.ts": "e406758debe2ec968e0ff45920016f31bd12548c1b992823486781de1d8ea683",
-    "apps/backend/src/database/schema.test.ts": "e8679b881a3c0809d56edf0a158a3b91615021b617abb6325a5b54944ed03346",
-    "apps/backend/src/database/027_evidence_review_authority_chain.sql": "839425ee061b30e39adef84964e1bd6101b4ff4b7388e763f790c20ccaee9039",
+    "apps/backend/src/database/schema.test.ts": "ce06cb11847d6de7a9fbd73d67a595b05c4aee413c9cb638fdcb57c23a5ebbe6",
+    "apps/backend/src/database/027_evidence_review_authority_chain.sql": "e1084aa4ac604ac7ec5ab1c48c566ed88ff86be4a14212ca420cfe0472b19791",
     "apps/backend/src/evaluation/prepareIOSPursuitProposalFixture.ts": "56abac80f2f71c0a5eff2acd48e21f68f6931c8ee08a2c7545c6a17af3f83d26",
-    "apps/backend/src/evaluation/runEvidenceReviewAuthorityEvaluation.ts": "348e62dc16035e9529a841c1078222053cfc317e9f92b064ff9c6fcfdcf60c9b",
+    "apps/backend/src/evaluation/runEvidenceReviewAuthorityEvaluation.ts": "fadce442b0375eb51cb86e2daa2d80e3811b36df4f38cf95038a70ff681aa8bc",
     "apps/backend/src/modules/auth.ts": "ef41601ebdf128d9a2b22840353101867d6db3e8bb5ec381c9344d2d0e8c931b",
     "apps/backend/src/modules/auth.test.ts": "3a1bc0164e5cb5a6b83d594659a447cce00f28699920f3bcdfca6d2fe9ac80a8",
     "apps/backend/src/modules/chat.ts": "21f9f7eb9738caa6431544c89d216eec95170836a6c25f913383c204da2a3f20",
     "apps/backend/src/modules/chat.test.ts": "7dc16ed4bb9e2d02128c48fd6111a66f11d5585a36196e9f9db60346b9801197",
-    "apps/backend/src/modules/resources.ts": "64763cab5e5f523f3fb6520d784f7c4b117c6d59c23e38b66c9e47f47c584376",
+    "apps/backend/src/modules/resources.ts": "30ba993fc05e8fec0ad86bdb62f7c2e41a3ad04a9a492682a28ba4785611ce34",
     "apps/backend/src/modules/resources.test.ts": "cf7c98fe2f319e30c9aee7902bc3d06c0366ed6458bfa3b31754118604850702",
     "apps/ios/Sources/Domain/PursuitWorkspace.swift": "a1fdfd99c47bef5f4f33d7fc6be33e3f44de31c772e41a730afcb8d892abeae4",
     "apps/ios/Sources/Features/AppAuthenticationView.swift": "35506384bbec57e8dbdc698cce7f3c7bee2e4053d7faedc4c2c7e4aacce649d9",

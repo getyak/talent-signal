@@ -5,7 +5,8 @@
 - Artifact ID: `TS-V1-EXPERIENCE-2026-08-25-09`
 - Type: iOS experience, authenticated canonical Ask loop, atomic evidence review,
   exact-action handoff, Capture boundary, and Apple account-entry boundary
-- Version: working-tree snapshot frozen at 2026-08-25 04:50 CST by the source,
+- Version: source commit `5fa53ec` plus final runtime evidence frozen at
+  2026-08-25 04:57 CST by the source,
   result-bundle, Docker-image, and screenshot hashes in
   [`runtime-evidence.json`](runtime-evidence.json)
 - Target user: an independent recruiter returning to relationship work

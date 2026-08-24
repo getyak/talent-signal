@@ -154,6 +154,11 @@ final class CandidateSignalUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH %@", "pursuit-target-action-")
         ).firstMatch
         XCTAssertTrue(referencedAction.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Evidence Supported · Evidence unavailable"].exists)
+        XCTAssertTrue(
+            app.staticTexts["Originally evidence-supported · Evidence unavailable"]
+                .waitForExistence(timeout: 5)
+        )
         preserveScreenshot("Ask opens the exact existing Pursuit action")
     }
 

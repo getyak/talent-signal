@@ -47,6 +47,7 @@ const sourceScope = [
   "apps/ios/UITests",
   "packages/contracts/src",
   "scripts/evals",
+  "scripts/ios",
   "docs/product.md",
   "docs/architecture.md",
   "docs/delivery.md",

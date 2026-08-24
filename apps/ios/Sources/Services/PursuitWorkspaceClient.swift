@@ -601,6 +601,11 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
     case askUnavailable
     case backend(code: String, message: String)
 
+    var isSupersededEvidenceReview: Bool {
+        guard case let .backend(code, _) = self else { return false }
+        return code == "EVIDENCE_REVIEW_AUTHORITY_STALE"
+    }
+
     var errorDescription: String? {
         switch self {
         case .loopbackOnly:

@@ -38,7 +38,6 @@ struct RelationshipAskView: View {
     @State private var errorMessage: String?
     @State private var selectedCitation: SelectedAskCitation?
     @State private var selectedPursuit: SelectedPursuitTarget?
-    @State private var inFlightEvidenceReviewKeys: Set<String> = []
     @State private var reinstatementOperation: AgentEvidenceReviewOperation?
     @State private var reinstatementReason = ""
     @State private var reviewPreparationError: String?
@@ -98,8 +97,10 @@ struct RelationshipAskView: View {
                     reviewPreparationError = nil
                     sessionStore.markCitationStale(selection.citation.id)
                     selectedCitation = nil
-                    inFlightEvidenceReviewKeys.insert(reviewKey)
-                    defer { inFlightEvidenceReviewKeys.remove(reviewKey) }
+                    guard sessionStore.claimEvidenceReview(reviewKey) else {
+                        return
+                    }
+                    defer { sessionStore.releaseEvidenceReview(reviewKey) }
                     do {
                         let result = try await reviewEvidence(
                             selection.citation.id,
@@ -116,8 +117,11 @@ struct RelationshipAskView: View {
                             reviewPreparationError = postReviewPersistenceMessage
                         }
                     } catch {
-                        recordEvidenceReviewFailure(reviewKey, error: error)
-                        throw error
+                        let isTerminal = recordEvidenceReviewFailure(
+                            reviewKey,
+                            error: error
+                        )
+                        if !isTerminal { throw error }
                     }
                 } : nil
             )
@@ -334,7 +338,9 @@ struct RelationshipAskView: View {
                                 evidenceReviewHistory: sessionStore.evidenceReviewHistory(
                                     taskID: turn.response.taskID
                                 ),
-                                inFlightEvidenceReviewKeys: inFlightEvidenceReviewKeys,
+                                inFlightEvidenceReviewKeys: sessionStore.activeEvidenceReviewKeys,
+                                transientSupersededEvidenceReviewKeys:
+                                    sessionStore.transientSupersededEvidenceReviewKeys,
                                 onOpenEvidence: { citation in
                                     selectedCitation = SelectedAskCitation(
                                         taskID: turn.response.taskID,
@@ -345,6 +351,16 @@ struct RelationshipAskView: View {
                                 onReinstateEvidence: { operation in
                                     reinstatementReason = ""
                                     reinstatementOperation = operation
+                                },
+                                onStartFreshAsk: {
+                                    draft = RelationshipAskDraftPolicy.currentEvidenceDraft(
+                                        preserving: draft,
+                                        suggestion: appLanguage.text(
+                                            "What is current now?",
+                                            zhHans: "现在的最新情况是什么？"
+                                        )
+                                    )
+                                    composerFocused = true
                                 },
                                 onOpenPursuit: { pursuitID, actionID in
                                     guard let pursuit = snapshot.pursuit(id: pursuitID) else {
@@ -678,7 +694,9 @@ struct RelationshipAskView: View {
     }
 
     private func retryEvidenceReview(_ operation: AgentEvidenceReviewOperation) {
-        guard !inFlightEvidenceReviewKeys.contains(operation.idempotencyKey) else {
+        guard !sessionStore.activeEvidenceReviewKeys.contains(
+            operation.idempotencyKey
+        ) else {
             return
         }
         do {
@@ -692,13 +710,12 @@ struct RelationshipAskView: View {
     }
 
     private func performEvidenceReview(_ operation: AgentEvidenceReviewOperation) {
-        guard !inFlightEvidenceReviewKeys.contains(operation.idempotencyKey) else {
+        guard sessionStore.claimEvidenceReview(operation.idempotencyKey) else {
             return
         }
-        inFlightEvidenceReviewKeys.insert(operation.idempotencyKey)
         Task {
             defer {
-                inFlightEvidenceReviewKeys.remove(operation.idempotencyKey)
+                sessionStore.releaseEvidenceReview(operation.idempotencyKey)
             }
             do {
                 let result = try await reviewEvidence(
@@ -717,7 +734,7 @@ struct RelationshipAskView: View {
                 }
                 await revalidateAndDismissUnavailableCitation()
             } catch {
-                recordEvidenceReviewFailure(
+                _ = recordEvidenceReviewFailure(
                     operation.idempotencyKey,
                     error: error
                 )
@@ -776,10 +793,28 @@ struct RelationshipAskView: View {
             )
     }
 
+    @discardableResult
     private func recordEvidenceReviewFailure(
         _ idempotencyKey: String,
         error: Error
-    ) {
+    ) -> Bool {
+        if let typed = error as? PursuitWorkspaceClientError,
+           typed.isSupersededEvidenceReview {
+            let didPersist = sessionStore.markEvidenceReviewSuperseded(
+                idempotencyKey,
+                message: appLanguage.text(
+                    "A newer source decision is already current. This older operation cannot be retried.",
+                    zhHans: "已有更新的来源决定生效。这条较早的操作不能再次重试。"
+                )
+            )
+            if !didPersist {
+                reviewPreparationError = appLanguage.text(
+                    "A newer source decision is current, but this device could not save that notice. Ask again for current evidence.",
+                    zhHans: "已有更新的来源决定生效，但此设备无法保存该提示。请重新提问以获取当前证据。"
+                )
+            }
+            return true
+        }
         let message = evidenceReviewFailureMessage(error)
         let didPersist: Bool
         if let typed = error as? PursuitWorkspaceClientError,
@@ -797,6 +832,7 @@ struct RelationshipAskView: View {
         if !didPersist {
             reviewPreparationError = postReviewPersistenceMessage
         }
+        return false
     }
 
     private var selectedCitationIsCurrent: Bool {
@@ -839,9 +875,11 @@ private struct AskTurnView: View {
     let evidenceReviews: [AgentEvidenceReviewOperation]
     let evidenceReviewHistory: [AgentEvidenceReviewOperation]
     let inFlightEvidenceReviewKeys: Set<String>
+    let transientSupersededEvidenceReviewKeys: Set<String>
     let onOpenEvidence: (RelationshipAskResponse.Citation) -> Void
     let onRetryEvidenceReview: (AgentEvidenceReviewOperation) -> Void
     let onReinstateEvidence: (AgentEvidenceReviewOperation) -> Void
+    let onStartFreshAsk: () -> Void
     let onOpenPursuit: (String, String) -> Void
 
     var body: some View {
@@ -957,8 +995,13 @@ private struct AskTurnView: View {
                     isInFlight: inFlightEvidenceReviewKeys.contains(
                         operation.idempotencyKey
                     ),
+                    isSupersededInSession:
+                        transientSupersededEvidenceReviewKeys.contains(
+                            operation.idempotencyKey
+                        ),
                     onRetry: { onRetryEvidenceReview(operation) },
-                    onReinstate: { onReinstateEvidence(operation) }
+                    onReinstate: { onReinstateEvidence(operation) },
+                    onStartFreshAsk: onStartFreshAsk
                 )
             }
 
@@ -1128,8 +1171,10 @@ private struct AskEvidenceReviewStatusView: View {
     let operation: AgentEvidenceReviewOperation
     let language: AppLanguage
     let isInFlight: Bool
+    let isSupersededInSession: Bool
     let onRetry: () -> Void
     let onReinstate: () -> Void
+    let onStartFreshAsk: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1150,8 +1195,20 @@ private struct AskEvidenceReviewStatusView: View {
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
                 .fixedSize(horizontal: false, vertical: true)
-            if let statusMessage = operation.statusMessage,
-               [.outcomeUnknown, .failed].contains(operation.state) {
+            if isSupersededInSession && operation.state != .superseded {
+                Text(
+                    language.text(
+                        "This terminal notice could not be saved on this device. The older operation stays blocked for this session.",
+                        zhHans: "此终态提示未能保存在本设备上。这条较早的操作在本次会话中仍会被阻止。"
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            } else if let statusMessage = operation.statusMessage,
+                      [.outcomeUnknown, .failed, .superseded].contains(
+                        operation.state
+                      ) {
                 Text(statusMessage)
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
@@ -1166,7 +1223,27 @@ private struct AskEvidenceReviewStatusView: View {
             .font(.caption2)
             .foregroundStyle(Color.tsMutedInk)
 
-            if [.outcomeUnknown, .failed].contains(operation.state)
+            if isEffectivelySuperseded {
+                Button(action: onStartFreshAsk) {
+                    Label(
+                        language.text(
+                            "Ask with current evidence",
+                            zhHans: "基于当前证据提问"
+                        ),
+                        systemImage: "sparkle.magnifyingglass"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(
+                    language.text(
+                        "Moves to a fresh Ask; it does not retry the superseded source decision",
+                        zhHans: "转到新的提问；不会重试已被取代的来源决定"
+                    )
+                )
+                .accessibilityIdentifier("ask-evidence-review-current")
+            } else if [.outcomeUnknown, .failed].contains(operation.state)
                 || (operation.state == .pending && !isInFlight) {
                 Button(action: onRetry) {
                     Label(
@@ -1210,42 +1287,77 @@ private struct AskEvidenceReviewStatusView: View {
     }
 
     private var symbol: String {
+        if isEffectivelySuperseded {
+            return "arrow.trianglehead.2.clockwise.rotate.90"
+        }
         switch operation.state {
-        case .pending: "clock"
-        case .outcomeUnknown, .failed: "exclamationmark.triangle"
-        case .applied: operation.decision == "rejected"
-            ? "checkmark.shield"
-            : "checkmark.seal"
+        case .pending:
+            return "clock"
+        case .outcomeUnknown, .failed:
+            return "exclamationmark.triangle"
+        case .superseded:
+            return "arrow.trianglehead.2.clockwise.rotate.90"
+        case .applied:
+            return operation.decision == "rejected"
+                ? "checkmark.shield"
+                : "checkmark.seal"
         }
     }
 
     private var foreground: Color {
-        [.outcomeUnknown, .failed].contains(operation.state)
+        (isEffectivelySuperseded
+            || [.outcomeUnknown, .failed].contains(operation.state))
             ? Color.tsVermilion
             : Color.tsMutedInk
     }
 
     private var title: String {
+        if isEffectivelySuperseded {
+            return language.text(
+                "Newer source review is current",
+                zhHans: "更新的来源审阅已生效"
+            )
+        }
         switch operation.state {
         case .pending:
-            isInFlight
+            return isInFlight
                 ? language.text("Saving source review…", zhHans: "正在保存来源审阅…")
                 : language.text(
                     "Source review needs reconciliation",
                     zhHans: "来源审阅需要核对"
                 )
         case .outcomeUnknown:
-            language.text("Review outcome unknown", zhHans: "审阅结果尚不确定")
+            return language.text("Review outcome unknown", zhHans: "审阅结果尚不确定")
         case .failed:
-            language.text("Review was not saved", zhHans: "审阅未保存")
+            return language.text("Review was not saved", zhHans: "审阅未保存")
+        case .superseded:
+            return language.text(
+                "Newer source review is current",
+                zhHans: "更新的来源审阅已生效"
+            )
         case .applied where operation.decision == "rejected":
-            language.text("Source disputed · saved", zhHans: "来源已标记争议 · 已保存")
+            return language.text("Source disputed · saved", zhHans: "来源已标记争议 · 已保存")
         case .applied:
-            language.text(
+            return language.text(
                 "Source re-reviewed · ask again for fresh evidence",
                 zhHans: "来源已重新审阅 · 再次提问以获取最新证据"
             )
         }
+    }
+
+    private var isEffectivelySuperseded: Bool {
+        operation.state == .superseded || isSupersededInSession
+    }
+}
+
+enum RelationshipAskDraftPolicy {
+    static func currentEvidenceDraft(
+        preserving existingDraft: String,
+        suggestion: String
+    ) -> String {
+        existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? suggestion
+            : existingDraft
     }
 }
 
