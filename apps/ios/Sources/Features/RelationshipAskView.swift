@@ -1,3 +1,4 @@
+import CryptoKit
 import SwiftUI
 
 @MainActor
@@ -18,6 +19,7 @@ struct RelationshipAskView: View {
         _ reason: String,
         _ idempotencyKey: String
     ) async throws -> Void
+    let revalidateSessions: () async -> Void
     let onCapture: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -63,13 +65,18 @@ struct RelationshipAskView: View {
                 citation: citation,
                 language: appLanguage,
                 onReject: isCanonical ? { reason in
+                    let reviewKey = reviewIdempotencyKey(
+                        citation: citation,
+                        reason: reason,
+                        decision: "rejected"
+                    )
+                    sessionStore.markCitationStale(citation.id)
                     try await rejectEvidence(
                         citation.id,
                         citation.reviewStatus,
                         reason,
-                        "ios:reject-evidence:\(UUID().uuidString.lowercased())"
+                        reviewKey
                     )
-                    sessionStore.markCitationStale(citation.id)
                     selectedCitation = nil
                 } : nil
             )
@@ -77,6 +84,7 @@ struct RelationshipAskView: View {
                 .presentationDragIndicator(.visible)
         }
         .task {
+            await revalidateSessions()
             activeSessionID = sessionID
             if let session = sessionStore.session(id: sessionID) {
                 selectedScope = availableScopes.first {
@@ -508,6 +516,24 @@ struct RelationshipAskView: View {
             relationshipContextID: selectedScope.context.id
         )
     }
+
+    private func reviewIdempotencyKey(
+        citation: RelationshipAskResponse.Citation,
+        reason: String,
+        decision: String
+    ) -> String {
+        let material = [
+            citation.id,
+            citation.reviewStatus,
+            citation.lastReviewedAt ?? "never-reviewed",
+            decision,
+            reason.trimmingCharacters(in: .whitespacesAndNewlines),
+        ].joined(separator: "|")
+        let digest = SHA256.hash(data: Data(material.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return "ios:evidence-review:\(digest)"
+    }
 }
 
 private struct AskScope: Identifiable, Equatable {
@@ -642,6 +668,21 @@ extension RelationshipAskResponse.Citation {
         return sourceTimezone.map { "\(value) · \($0)" } ?? value
     }
 
+    var detailedLastReviewedAt: String? {
+        guard let lastReviewedAt else { return nil }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = fractional.date(from: lastReviewedAt)
+            ?? ISO8601DateFormatter().date(from: lastReviewedAt)
+        guard let date else {
+            return "\(lastReviewedAt)\(sourceTimezone.map { " · \($0)" } ?? "")"
+        }
+        let value = Self.observedDateTimeFormatter(
+            timeZone: resolvedSourceTimeZone
+        ).string(from: date)
+        return sourceTimezone.map { "\(value) · \($0)" } ?? value
+    }
+
     private var observedDate: Date? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -722,7 +763,7 @@ private struct AskCitationDetailView: View {
                         if let reviewer = citation.lastReviewedBy {
                             citationLine(
                                 language.text("Last reviewed", zhHans: "最近审阅"),
-                                "\(reviewer)\(citation.lastReviewedAt.map { " · \($0)" } ?? "")"
+                                "\(reviewer)\(citation.detailedLastReviewedAt.map { " · \($0)" } ?? "")"
                             )
                         }
                         citationLine(

@@ -129,6 +129,33 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testCanonicalRevalidationCanStaleATurnWithoutALocalCitationCallback() throws {
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let store = AgentSessionStore()
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let sessionID = store.record(
+            sessionID: nil,
+            objective: "What changed?",
+            response: response,
+            person: person,
+            context: context
+        )
+        XCTAssertEqual(store.validationTargets().map(\.taskID), ["task-1"])
+
+        store.markTaskStale("task-1")
+
+        let turn = try XCTUnwrap(store.session(id: sessionID)?.turns.first)
+        XCTAssertTrue(turn.requiresRefresh)
+        XCTAssertTrue(store.validationTargets().isEmpty)
+    }
+
+    @MainActor
     func testAgentSessionsAndDraftsRestoreOnlyInsideTheirAccountBoundary() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "agent-session-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -321,6 +348,44 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testContinuouslyVisibleSessionListPrunesAtTheExactThirtyDayBoundary() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "visible-agent-retention-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let clock = AgentSessionTestClock(
+            now: Date(timeIntervalSince1970: 1_780_000_000)
+        )
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let store = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        _ = store.record(
+            sessionID: nil,
+            objective: "Private retained question",
+            response: relationshipAskResponseFixture(),
+            person: person,
+            context: context,
+            createdAt: clock.now
+        )
+        XCTAssertEqual(store.sessions.count, 1)
+
+        clock.now.addTimeInterval(30 * 24 * 60 * 60)
+
+        XCTAssertTrue(store.sessions.isEmpty)
+        let relaunched = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        XCTAssertTrue(relaunched.sessions.isEmpty)
+    }
+
+    @MainActor
     func testPendingAskReusesOneIdempotencyKeyAfterRelaunch() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "pending-agent-ask-\(UUID().uuidString)")
@@ -424,6 +489,12 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertTrue(boundary.compactProvenance.hasPrefix("2026-08-25"))
         XCTAssertTrue(boundary.detailedObservedAt.contains("2026-08-25 01:33"))
         XCTAssertTrue(boundary.detailedObservedAt.contains("Asia/Shanghai"))
+        XCTAssertTrue(
+            boundary.detailedLastReviewedAt?.contains("2026-08-24 18:00") == true
+        )
+        XCTAssertTrue(
+            boundary.detailedLastReviewedAt?.contains("Asia/Shanghai") == true
+        )
     }
 
     func testOrdinaryLaunchOpensEditorialToday() {

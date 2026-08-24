@@ -54,6 +54,13 @@ struct AgentSession: Identifiable, Equatable {
     }
 }
 
+struct AgentSessionValidationTarget: Equatable {
+    let taskID: String
+    let personID: String
+    let relationshipContextID: String
+    let response: RelationshipAskResponse
+}
+
 struct AgentSessionDraft: Codable, Equatable {
     let personID: String
     let relationshipContextID: String
@@ -249,11 +256,12 @@ private struct PersistedRelationshipAskResponse: Codable {
 final class AgentSessionStore: ObservableObject {
     private static let sessionRetention: TimeInterval = 30 * 24 * 60 * 60
     private static let draftRetention: TimeInterval = 7 * 24 * 60 * 60
-    @Published private(set) var sessions: [AgentSession]
+    @Published private var storedSessions: [AgentSession]
     @Published private(set) var persistenceNotice: String?
     private var drafts: [AgentSessionDraft]
     private let persistence: AgentSessionPersisting?
     private let now: () -> Date
+    private var expirationTask: Task<Void, Never>?
 
     init(
         sessions: [AgentSession] = [],
@@ -262,9 +270,11 @@ final class AgentSessionStore: ObservableObject {
     ) {
         self.persistence = persistence
         self.now = now
+        expirationTask = nil
         persistenceNotice = nil
         drafts = []
-        self.sessions = sessions.sorted { $0.updatedAt > $1.updatedAt }
+        storedSessions = sessions.sorted { $0.updatedAt > $1.updatedAt }
+        defer { scheduleNextExpiration() }
         guard sessions.isEmpty, let persistence else { return }
         do {
             if try persistence.deletionPending() {
@@ -283,27 +293,32 @@ final class AgentSessionStore: ObservableObject {
             guard envelope.version == 1 else {
                 throw AgentSessionPersistenceError.unsupportedVersion
             }
-            self.sessions = envelope.sessions
+            storedSessions = envelope.sessions
                 .map(\.value)
                 .sorted { $0.updatedAt > $1.updatedAt }
             drafts = envelope.drafts
             persist()
         } catch {
-            self.sessions = []
+            storedSessions = []
             drafts = []
             persistenceNotice = "Saved Agent sessions could not be restored on this device."
         }
     }
 
+    var sessions: [AgentSession] {
+        pruneExpired()
+        return storedSessions
+    }
+
     var unreadSessions: [AgentSession] {
         pruneExpired()
-        return sessions.filter(\.isUnread)
+        return storedSessions.filter(\.isUnread)
     }
 
     func session(id: UUID?) -> AgentSession? {
         pruneExpired()
         guard let id else { return nil }
-        return sessions.first { $0.id == id }
+        return storedSessions.first { $0.id == id }
     }
 
     @discardableResult
@@ -325,12 +340,12 @@ final class AgentSessionStore: ObservableObject {
         )
         let resolvedID = sessionID ?? UUID()
 
-        if let index = sessions.firstIndex(where: { $0.id == resolvedID }) {
-            sessions[index].turns.append(turn)
-            sessions[index].updatedAt = createdAt
-            sessions[index].isUnread = false
+        if let index = storedSessions.firstIndex(where: { $0.id == resolvedID }) {
+            storedSessions[index].turns.append(turn)
+            storedSessions[index].updatedAt = createdAt
+            storedSessions[index].isUnread = false
         } else {
-            sessions.append(
+            storedSessions.append(
                 AgentSession(
                     id: resolvedID,
                     personID: person.id,
@@ -351,21 +366,21 @@ final class AgentSessionStore: ObservableObject {
 
     func markRead(_ id: UUID) {
         _ = pruneExpiredState()
-        guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
-        sessions[index].isUnread = false
+        guard let index = storedSessions.firstIndex(where: { $0.id == id }) else { return }
+        storedSessions[index].isUnread = false
         persist()
     }
 
     func markUnread(_ id: UUID) {
         _ = pruneExpiredState()
-        guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
-        sessions[index].isUnread = true
+        guard let index = storedSessions.firstIndex(where: { $0.id == id }) else { return }
+        storedSessions[index].isUnread = true
         persist()
     }
 
     func delete(_ id: UUID) {
         _ = pruneExpiredState()
-        sessions.removeAll { $0.id == id }
+        storedSessions.removeAll { $0.id == id }
         persist()
     }
 
@@ -451,7 +466,7 @@ final class AgentSessionStore: ObservableObject {
     func markCitationStale(_ citationID: String) {
         _ = pruneExpiredState()
         var didChange = false
-        sessions = sessions.map { session in
+        storedSessions = storedSessions.map { session in
             var next = session
             next.turns = session.turns.map { turn in
                 guard !turn.requiresRefresh,
@@ -474,15 +489,60 @@ final class AgentSessionStore: ObservableObject {
         if didChange { persist() }
     }
 
+    func markTaskStale(_ taskID: String) {
+        _ = pruneExpiredState()
+        var didChange = false
+        storedSessions = storedSessions.map { session in
+            var next = session
+            next.turns = session.turns.map { turn in
+                guard !turn.requiresRefresh,
+                      turn.response.taskID == taskID else {
+                    return turn
+                }
+                didChange = true
+                return AgentSessionTurn(
+                    id: turn.id,
+                    objective: turn.objective,
+                    response: turn.response,
+                    createdAt: turn.createdAt,
+                    requiresRefresh: true
+                )
+            }
+            return next
+        }
+        if didChange { persist() }
+    }
+
+    func validationTargets() -> [AgentSessionValidationTarget] {
+        pruneExpired()
+        return storedSessions.flatMap { session in
+            session.turns.compactMap { turn in
+                guard !turn.requiresRefresh,
+                      !turn.response.citations.isEmpty else {
+                    return nil
+                }
+                return AgentSessionValidationTarget(
+                    taskID: turn.response.taskID,
+                    personID: session.personID,
+                    relationshipContextID: session.relationshipContextID,
+                    response: turn.response
+                )
+            }
+        }
+    }
+
     func pruneExpired() {
-        guard pruneExpiredState() else { return }
-        persistCurrentState()
+        if pruneExpiredState() {
+            persistCurrentState()
+        }
+        scheduleNextExpiration()
     }
 
     @discardableResult
     func deleteAll() -> Bool {
         guard let persistence else {
-            sessions = []
+            expirationTask?.cancel()
+            storedSessions = []
             drafts = []
             persistenceNotice = nil
             return true
@@ -493,7 +553,8 @@ final class AgentSessionStore: ObservableObject {
             persistenceNotice = "Sign out paused because protected Agent history could not be scheduled for deletion."
             return false
         }
-        sessions = []
+        expirationTask?.cancel()
+        storedSessions = []
         drafts = []
         do {
             try persistence.completeDeletion()
@@ -506,12 +567,13 @@ final class AgentSessionStore: ObservableObject {
     }
 
     private func sortSessions() {
-        sessions.sort { $0.updatedAt > $1.updatedAt }
+        storedSessions.sort { $0.updatedAt > $1.updatedAt }
     }
 
     private func persist() {
         _ = pruneExpiredState()
         persistCurrentState()
+        scheduleNextExpiration()
     }
 
     private func persistCurrentState() {
@@ -519,7 +581,7 @@ final class AgentSessionStore: ObservableObject {
         do {
             let envelope = PersistedAgentSessionEnvelope(
                 version: 1,
-                sessions: sessions.map(PersistedAgentSession.init),
+                sessions: storedSessions.map(PersistedAgentSession.init),
                 drafts: drafts
             )
             try persistence.save(try JSONEncoder.agentSession.encode(envelope))
@@ -532,14 +594,39 @@ final class AgentSessionStore: ObservableObject {
     private func pruneExpiredState() -> Bool {
         let sessionCutoff = now().addingTimeInterval(-Self.sessionRetention)
         let draftCutoff = now().addingTimeInterval(-Self.draftRetention)
-        let retainedSessions = sessions.filter { $0.updatedAt > sessionCutoff }
+        let retainedSessions = storedSessions.filter { $0.updatedAt > sessionCutoff }
         let retainedDrafts = drafts.filter { $0.updatedAt > draftCutoff }
-        let didChange = retainedSessions.count != sessions.count
+        let didChange = retainedSessions.count != storedSessions.count
             || retainedDrafts.count != drafts.count
         guard didChange else { return false }
-        sessions = retainedSessions
+        storedSessions = retainedSessions
         drafts = retainedDrafts
         return true
+    }
+
+    private func scheduleNextExpiration() {
+        expirationTask?.cancel()
+        let sessionExpirations = storedSessions.map {
+            $0.updatedAt.addingTimeInterval(Self.sessionRetention)
+        }
+        let draftExpirations = drafts.map {
+            $0.updatedAt.addingTimeInterval(Self.draftRetention)
+        }
+        guard let nextExpiration = (sessionExpirations + draftExpirations).min() else {
+            expirationTask = nil
+            return
+        }
+        let delay = max(0, nextExpiration.timeIntervalSince(now()))
+        let nanoseconds = UInt64(min(delay * 1_000_000_000, Double(UInt64.max)))
+        expirationTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: nanoseconds)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            self?.pruneExpired()
+        }
     }
 
     private static func sessionTitle(from objective: String) -> String {

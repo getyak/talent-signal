@@ -170,6 +170,9 @@ struct RelationshipArchiveView: View {
                                 idempotencyKey: idempotencyKey
                             )
                         },
+                        revalidateSessions: {
+                            await revalidateSessionEvidence()
+                        },
                         onCapture: {
                             deferredIntakePresentation = .init(initialDestination: nil)
                             capturePresentation = nil
@@ -189,7 +192,10 @@ struct RelationshipArchiveView: View {
         }
         .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
-            sessionStore.pruneExpired()
+            Task {
+                sessionStore.pruneExpired()
+                await revalidateSessionEvidence()
+            }
         }
         .sheet(item: $intakePresentation) { presentation in
             SignalCaptureHubView(
@@ -221,6 +227,7 @@ struct RelationshipArchiveView: View {
         }
         .task {
             await workspaceStore.load()
+            await revalidateSessionEvidence()
         }
         .tint(.tsVermilion)
     }
@@ -286,6 +293,21 @@ struct RelationshipArchiveView: View {
     private func openSession(_ session: AgentSession) {
         sessionStore.markRead(session.id)
         capturePresentation = .ask(sessionID: session.id)
+    }
+
+    private func revalidateSessionEvidence() async {
+        guard workspaceStore.isCanonical else { return }
+        for target in sessionStore.validationTargets() {
+            do {
+                try await workspaceStore.revalidateAsk(
+                    response: target.response,
+                    personID: target.personID,
+                    relationshipContextID: target.relationshipContextID
+                )
+            } catch {
+                sessionStore.markTaskStale(target.taskID)
+            }
+        }
     }
 
     private func completeDeferredTransition() {
