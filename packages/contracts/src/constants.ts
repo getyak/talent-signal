@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = "2026-08-11.1" as const;
+export const CONTRACT_VERSION = "2026-08-24.10" as const;
 export const SOURCE_RETENTION_POLICY_VERSION = "source-retention.v2" as const;
 
 export const SOURCE_RETENTION_MODES = [
@@ -134,6 +134,7 @@ export const CHAT_RESPONSE_BLOCK_KINDS = [
   "conflict_review",
   "research_status",
   "action_proposal",
+  "active_action",
   "no_action",
   "failure_recovery",
 ] as const;

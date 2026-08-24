@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import type {
+  ChatCitation,
   ChatResponseBlock,
   ChatTaskRequest,
+  ChatTaskReadback,
   ChatTaskResponse,
   KnowledgeBlock,
 } from "@talent-signal/contracts";
@@ -27,6 +29,17 @@ export interface ChatTaskMutationResult {
   status: number;
 }
 
+export interface ChatActiveAttention {
+  action_id: string;
+  action_title: string;
+  action_status: string;
+  due_at: Date | null;
+  owner_display_name: string;
+  pursuit_title: string;
+  gap_title: string | null;
+  gap_close_condition: string | null;
+}
+
 function unique(values: string[]): string[] {
   return [...new Set(values)];
 }
@@ -34,9 +47,289 @@ function unique(values: string[]): string[] {
 function citations(blocks: KnowledgeBlock[]): string[] {
   return unique(
     blocks.flatMap((item) =>
-      item.dependencies.map((itemDependency) => itemDependency.id),
+      item.dependencies
+        .filter(
+          (itemDependency) =>
+            itemDependency.type === "evidence_fragment",
+        )
+        .map((itemDependency) => itemDependency.id),
     ),
   );
+}
+
+export interface ChatManifestRow {
+  id: string;
+  task_id: string;
+  subject_id: string;
+  assignment_id: string;
+  knowledge_snapshot_id: string;
+  manifest_status: ChatTaskReadback["manifest_status"];
+  snapshot_status: ChatTaskReadback["snapshot_status"];
+  authorization_scope: string;
+  created_at: Date;
+}
+
+export interface ChatCitationRow {
+  id: string;
+  person_id: string | null;
+  relationship_context_id: string | null;
+  inclusion_reason: string;
+  resource_id: string;
+  source_name: string;
+  observed_at: Date;
+  source_timezone: string | null;
+  capture_version: number;
+  fragment_kind: ChatCitation["fragment_kind"];
+  sequence: number;
+  exact_excerpt: string | null;
+  locator: ChatCitation["locator"];
+  attributed_actor: ChatCitation["attribution"]["actor_kind"];
+  attribution_status: ChatCitation["attribution"]["status"];
+  review_status: ChatCitation["review_status"];
+  parser_name: string;
+  parser_version: string;
+  content_hash: string;
+  fragment_created_at: Date;
+  last_reviewed_at: Date | null;
+  last_reviewed_by: string | null;
+  fragment_status: "active" | "purged" | "deleted";
+  resource_status: string;
+  capture_status: "active" | "deleted";
+  source_access_state: "available" | "purged" | "deleted" | null;
+  authorization_state: "authorized" | "revoked" | "expired" | null;
+  authorization_expires_at: Date | null;
+}
+
+export function citationAvailability(
+  manifest: ChatManifestRow,
+  citation: ChatCitationRow,
+): Pick<ChatCitation, "availability" | "unavailable_reason"> {
+  if (
+    manifest.manifest_status !== "active" ||
+    manifest.snapshot_status !== "published"
+  ) {
+    return {
+      availability: "superseded",
+      unavailable_reason:
+        "The Chat context has been superseded; compile a fresh relationship view before relying on this source.",
+    };
+  }
+  if (
+    citation.person_id !== manifest.subject_id ||
+    citation.relationship_context_id !== manifest.assignment_id
+  ) {
+    return {
+      availability: "unauthorized",
+      unavailable_reason:
+        "The cited source does not belong to this person and relationship context.",
+    };
+  }
+  if (
+    citation.review_status !== "reviewed" ||
+    citation.attribution_status !== "confirmed" ||
+    citation.exact_excerpt === null ||
+    citation.exact_excerpt.trim().length === 0
+  ) {
+    return {
+      availability: "superseded",
+      unavailable_reason:
+        "The cited source is not currently reviewed, attribution-confirmed, and inspectable.",
+    };
+  }
+  if (
+    citation.fragment_status !== "active" ||
+    citation.resource_status === "deleted" ||
+    citation.capture_status !== "active" ||
+    citation.source_access_state === "deleted"
+  ) {
+    return {
+      availability: "deleted",
+      unavailable_reason: "The cited source is no longer available.",
+    };
+  }
+  const authorizationExpired =
+    citation.authorization_expires_at !== null &&
+    citation.authorization_expires_at <= new Date();
+  if (
+    citation.source_access_state === null ||
+    citation.authorization_state !== "authorized" ||
+    authorizationExpired
+  ) {
+    return {
+      availability: "unauthorized",
+      unavailable_reason:
+        "The cited source is outside its current access or authorization scope.",
+    };
+  }
+  return { availability: "available", unavailable_reason: null };
+}
+
+export async function getChatTaskReadback(
+  pool: Pool,
+  auth: AuthContext,
+  taskId: string,
+): Promise<ChatTaskReadback> {
+  const manifestResult = await pool.query<ChatManifestRow>(
+    `SELECT
+       manifests.id,
+       manifests.task_id,
+       manifests.subject_id,
+       manifests.assignment_id,
+       manifests.knowledge_snapshot_id,
+       manifests.status AS manifest_status,
+       snapshots.status AS snapshot_status,
+       manifests.authorization_scope,
+       manifests.created_at
+     FROM context_manifests manifests
+     JOIN knowledge_snapshots snapshots
+       ON snapshots.account_id = manifests.account_id
+      AND snapshots.id = manifests.knowledge_snapshot_id
+     WHERE manifests.account_id = $1
+       AND manifests.task_id = $2`,
+    [auth.accountId, taskId],
+  );
+  const manifest = manifestResult.rows[0];
+  if (!manifest || !manifest.assignment_id) {
+    throw new ApiError(
+      404,
+      "CHAT_TASK_READBACK_NOT_FOUND",
+      "The account-scoped Chat task context was not found.",
+    );
+  }
+
+  const citationResult = await pool.query<ChatCitationRow>(
+    `SELECT
+       fragments.id,
+       captures.subject_id AS person_id,
+       captures.assignment_id AS relationship_context_id,
+       manifest_evidence.inclusion_reason,
+       resources.id AS resource_id,
+       resources.display_name AS source_name,
+       resources.observed_at,
+       resources.source_timezone,
+       captures.version AS capture_version,
+       fragments.fragment_kind,
+       fragments.sequence,
+       fragments.text_content AS exact_excerpt,
+       fragments.locator,
+       fragments.attributed_actor,
+       fragments.attribution_status,
+       fragments.review_status,
+       fragments.parser_name,
+       fragments.parser_version,
+       fragments.content_hash,
+       fragments.created_at AS fragment_created_at,
+       latest_review.decided_at AS last_reviewed_at,
+       latest_review.display_name AS last_reviewed_by,
+       fragments.status AS fragment_status,
+       resources.processing_state AS resource_status,
+       captures.status AS capture_status,
+       retention.source_access_state,
+       CASE
+         WHEN retention.authorization_state = 'authorized'
+          AND retention.authorization_expires_at IS NOT NULL
+          AND retention.authorization_expires_at <= now()
+         THEN 'expired'
+         ELSE retention.authorization_state
+       END AS authorization_state,
+       retention.authorization_expires_at
+     FROM context_manifest_evidence manifest_evidence
+     JOIN evidence_fragments fragments
+       ON fragments.account_id = manifest_evidence.account_id
+      AND fragments.id = manifest_evidence.evidence_fragment_id
+     JOIN source_resources resources
+       ON resources.account_id = fragments.account_id
+      AND resources.id = fragments.resource_id
+     JOIN captures
+       ON captures.account_id = resources.account_id
+      AND captures.id = resources.capture_id
+     LEFT JOIN source_retention_receipts retention
+       ON retention.account_id = captures.account_id
+      AND retention.capture_id = captures.id
+     LEFT JOIN LATERAL (
+       SELECT reviews.decided_at, users.display_name
+       FROM evidence_fragment_reviews reviews
+       JOIN users
+         ON users.account_id = reviews.account_id
+        AND users.id = reviews.decided_by_user_id
+       WHERE reviews.account_id = fragments.account_id
+         AND reviews.fragment_id = fragments.id
+       ORDER BY reviews.decided_at DESC, reviews.id DESC
+       LIMIT 1
+     ) latest_review ON true
+     WHERE manifest_evidence.account_id = $1
+       AND manifest_evidence.manifest_id = $2
+     ORDER BY resources.observed_at DESC, fragments.sequence, fragments.id`,
+    [auth.accountId, manifest.id],
+  );
+
+  const readbackCitations: ChatCitation[] = citationResult.rows.map(
+    (citation) => {
+      const availability = citationAvailability(manifest, citation);
+      const canExposeSource = availability.availability === "available";
+      return {
+        id: citation.id,
+        dependency_type: "evidence_fragment",
+        person_id: citation.person_id,
+        relationship_context_id: citation.relationship_context_id,
+        inclusion_reason: citation.inclusion_reason,
+        authorization_scope:
+          citation.person_id && citation.relationship_context_id
+            ? `person:${citation.person_id}:relationship-context:${citation.relationship_context_id}`
+            : "unresolved-source-scope",
+        ...availability,
+        resource_id: citation.resource_id,
+        source_name: citation.source_name,
+        observed_at: citation.observed_at.toISOString(),
+        source_timezone: citation.source_timezone,
+        capture_version: citation.capture_version,
+        fragment_kind: citation.fragment_kind,
+        sequence: citation.sequence,
+        exact_excerpt: canExposeSource ? citation.exact_excerpt : null,
+        locator: canExposeSource ? citation.locator : null,
+        attribution: {
+          actor_kind: citation.attributed_actor,
+          status: citation.attribution_status,
+        },
+        review_status: citation.review_status,
+        parser: {
+          name: citation.parser_name,
+          version: citation.parser_version,
+        },
+        content_hash: citation.content_hash,
+        fragment_created_at: citation.fragment_created_at.toISOString(),
+        last_reviewed_at:
+          citation.last_reviewed_at?.toISOString() ?? null,
+        last_reviewed_by: citation.last_reviewed_by,
+      };
+    },
+  );
+  if (
+    readbackCitations.some(
+      (citation) => citation.availability !== "available",
+    )
+  ) {
+    throw new ApiError(
+      409,
+      "CHAT_CITED_EVIDENCE_UNAVAILABLE",
+      "The Chat readback stopped because one governed source is no longer reviewed, scope-bound, inspectable, or authorized.",
+    );
+  }
+
+  return {
+    contract_version: CONTRACT_VERSION,
+    account_id: auth.accountId,
+    task_id: manifest.task_id,
+    context_manifest_id: manifest.id,
+    knowledge_snapshot_id: manifest.knowledge_snapshot_id,
+    person_id: manifest.subject_id,
+    relationship_context_id: manifest.assignment_id,
+    manifest_status: manifest.manifest_status,
+    snapshot_status: manifest.snapshot_status,
+    authorization_scope: manifest.authorization_scope,
+    citations: readbackCitations,
+    created_at: manifest.created_at.toISOString(),
+  };
 }
 
 function boundedBody(lines: string[]): string {
@@ -46,13 +339,23 @@ function boundedBody(lines: string[]): string {
     : `${body.slice(0, 7_799).trimEnd()}…`;
 }
 
+const RELATIVE_TIME_PATTERN =
+  /\b(today|tomorrow|yesterday|tonight|next|this|last)\s+(morning|afternoon|evening|night|week|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)?\b/i;
+
+function hasUnresolvedRelativeTime(block: KnowledgeBlock): boolean {
+  return block.block_key.startsWith("fact.") &&
+    block.status === "confirmed" &&
+    RELATIVE_TIME_PATTERN.test(block.content.headline);
+}
+
 function briefBody(blocks: KnowledgeBlock[]): string {
   return boundedBody(
     blocks
       .filter(
         (item) =>
           item.block_key.startsWith("fact.") &&
-          item.status === "confirmed",
+          item.status === "confirmed" &&
+          !hasUnresolvedRelativeTime(item),
       )
       .map((item) => item.content.headline),
   );
@@ -60,6 +363,7 @@ function briefBody(blocks: KnowledgeBlock[]): string {
 
 export function responseBlocks(
   blocks: KnowledgeBlock[],
+  activeAttention: ChatActiveAttention | null = null,
 ): ChatResponseBlock[] {
   const identity = blocks.find((item) => item.type === "identity_context");
   if (!identity) {
@@ -76,11 +380,13 @@ export function responseBlocks(
   const currentFactBlocks = contextBlocks.filter(
     (item) =>
       item.block_key.startsWith("fact.") &&
-      item.status === "confirmed",
+      item.status === "confirmed" &&
+      !hasUnresolvedRelativeTime(item),
   );
+  const relativeTimeFacts = contextBlocks.filter(hasUnresolvedRelativeTime);
   const proposedContext = contextBlocks.some((item) =>
     ["proposed", "contested"].includes(item.status),
-  );
+  ) || relativeTimeFacts.length > 0;
   const answer: ChatResponseBlock[] = [
     {
       id: randomUUID(),
@@ -131,6 +437,21 @@ export function responseBlocks(
       ),
       status: "needs_review",
       citation_dependency_ids: citations(factReview),
+      requires_user_decision: true,
+    });
+  }
+
+  if (relativeTimeFacts.length > 0) {
+    answer.push({
+      id: randomUUID(),
+      kind: "fact_review",
+      title: "Clarify relative timing before relying on it",
+      body: boundedBody([
+        ...relativeTimeFacts.map((item) => item.content.headline),
+        "Confirm one explicit calendar date and timezone.",
+      ]),
+      status: "needs_review",
+      citation_dependency_ids: citations(relativeTimeFacts),
       requires_user_decision: true,
     });
   }
@@ -207,7 +528,30 @@ export function responseBlocks(
 
   const nextAction = blocks.find((item) => item.type === "next_action");
   const noAction = blocks.find((item) => item.type === "no_action");
-  if (nextAction) {
+  if (activeAttention) {
+    answer.push({
+      id: randomUUID(),
+      kind: "active_action",
+      title: "Existing owned next move",
+      body: boundedBody([
+        activeAttention.action_title,
+        `Owner: ${activeAttention.owner_display_name}`,
+        activeAttention.due_at
+          ? `Due: ${activeAttention.due_at.toISOString()}`
+          : "Due: not set",
+        activeAttention.gap_title
+          ? `Open gap: ${activeAttention.gap_title}`
+          : "",
+        activeAttention.gap_close_condition
+          ? `Close when: ${activeAttention.gap_close_condition}`
+          : "",
+        "This is existing canonical work; Ask has created no new action or external effect.",
+      ]),
+      status: "confirmed",
+      citation_dependency_ids: [],
+      requires_user_decision: false,
+    });
+  } else if (nextAction) {
     answer.push({
       id: randomUUID(),
       kind: "action_proposal",
@@ -228,7 +572,13 @@ export function responseBlocks(
       id: randomUUID(),
       kind: "no_action",
       title: "No action",
-      body: noAction.content.headline,
+      body: [
+        noAction.content.headline,
+        noAction.content.summary,
+        ...noAction.content.items,
+      ]
+        .filter(Boolean)
+        .join("\n"),
       status: "confirmed",
       citation_dependency_ids: citations([noAction]),
       requires_user_decision: false,
@@ -241,6 +591,70 @@ export function responseBlocks(
     );
   }
   return answer;
+}
+
+async function loadActiveAttention(
+  client: Pick<Pool, "query">,
+  accountId: string,
+  personId: string,
+  relationshipContextId: string,
+): Promise<ChatActiveAttention | null> {
+  const result = await client.query<ChatActiveAttention>(
+    `SELECT
+       actions.id AS action_id,
+       actions.title AS action_title,
+       actions.status AS action_status,
+       actions.due_at,
+       owners.display_name AS owner_display_name,
+       pursuits.title AS pursuit_title,
+       open_gap.title AS gap_title,
+       open_gap.close_condition AS gap_close_condition
+     FROM pursuit_roles roles
+     JOIN pursuits
+       ON pursuits.account_id = roles.account_id
+      AND pursuits.id = roles.pursuit_id
+     JOIN pursuit_actions actions
+       ON actions.account_id = pursuits.account_id
+      AND actions.pursuit_id = pursuits.id
+     JOIN users owners
+       ON owners.account_id = actions.account_id
+      AND owners.id = actions.owner_user_id
+     LEFT JOIN LATERAL (
+       SELECT gaps.title, gaps.close_condition
+       FROM pursuit_gaps gaps
+       WHERE gaps.account_id = pursuits.account_id
+         AND gaps.pursuit_id = pursuits.id
+         AND gaps.status = 'open'
+       ORDER BY gaps.display_order, gaps.created_at, gaps.id
+       LIMIT 1
+     ) open_gap ON true
+     WHERE roles.account_id = $1
+       AND roles.person_id = $2
+       AND roles.status <> 'removed'
+       AND pursuits.status IN ('draft', 'active', 'paused')
+       AND actions.status NOT IN ('completed', 'cancelled')
+       AND EXISTS (
+         SELECT 1
+         FROM pursuit_role_evidence role_evidence
+         JOIN evidence_fragments fragments
+           ON fragments.account_id = role_evidence.account_id
+          AND fragments.id = role_evidence.evidence_fragment_id
+         JOIN source_resources resources
+           ON resources.account_id = fragments.account_id
+          AND resources.id = fragments.resource_id
+         JOIN captures
+           ON captures.account_id = resources.account_id
+          AND captures.id = resources.capture_id
+         WHERE role_evidence.account_id = roles.account_id
+           AND role_evidence.role_id = roles.id
+           AND captures.subject_id = $2
+           AND captures.assignment_id = $3
+       )
+     ORDER BY actions.due_at ASC NULLS LAST, actions.created_at, actions.id
+     LIMIT 1`,
+    [accountId, personId, relationshipContextId],
+  );
+  return result.rows[0] ?? null;
 }
 
 export async function createChatTask(
@@ -372,7 +786,13 @@ export async function createChatTask(
       );
     }
 
-    const blocks = responseBlocks(selectedBlocks);
+    const activeAttention = await loadActiveAttention(
+      client,
+      auth.accountId,
+      request.person_id,
+      request.relationship_context_id,
+    );
+    const blocks = responseBlocks(selectedBlocks, activeAttention);
     const action = blocks.find((item) => item.kind === "action_proposal");
     const noAction = blocks.find((item) => item.kind === "no_action");
     const response: ChatTaskResponse = {

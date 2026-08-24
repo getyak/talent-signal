@@ -1,0 +1,943 @@
+{
+  "schema_version": "talent-signal.v1-prd-07-runtime.1",
+  "artifact_id": "TS-V1-PRD-07-RUNTIME-01",
+  "generated_at": "2026-08-24T13:30:00.000Z",
+  "data_classification": "synthetic_only",
+  "contract_version": "2026-08-24.9",
+  "verdict": "pass",
+  "checks": {
+    "confirmed_role_has_reviewed_evidence_or_user_attribution": true,
+    "epistemic_proposal_state_remains_explicit": true,
+    "same_name_people_remain_distinct": true,
+    "same_name_capture_enters_identity_review": true,
+    "pre_delete_authority_available": true,
+    "post_delete_role_authority_partial": true,
+    "post_delete_gap_authority_partial_and_unavailable": true,
+    "user_authored_gap_not_rewritten": true,
+    "open_proposal_superseded": true,
+    "superseded_proposal_not_reviewable": true,
+    "today_projection_does_not_claim_evidence_backed": true,
+    "applied_milestone_authority_available_before_source_delete": true,
+    "applied_milestone_value_preserved_after_source_delete": true,
+    "applied_milestone_authority_unavailable_after_source_delete": true,
+    "applied_milestone_keeps_confirmer_time_proposal_and_receipt": true,
+    "source_derived_proposal_content_redacted_after_deletion": true,
+    "deletion_canary_absent_from_api_and_operational_stores": true,
+    "milestone_authority_follows_latest_mutation_not_value_equality": true,
+    "deletion_retry_is_idempotent": true,
+    "lineage_includes_pursuit_proposal_and_item": true,
+    "cross_workspace_pursuit_and_lineage_hidden": true
+  },
+  "identity_review": {
+    "resolution_case_id": "1b3f3b88-bcf3-465b-9d14-e573b02b10c8",
+    "candidate_person_ids": [
+      "aae91771-e6e7-4942-bc61-b9879a9be750",
+      "7bd5d1e7-8817-4c04-b240-74efb343cc6f"
+    ]
+  },
+  "pre_delete": {
+    "pursuit": {
+      "id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "type": "recruiting",
+      "title": "Synthetic evidence-integrity search",
+      "target_outcome": "mutual_final_decision",
+      "target_date": "2026-10-30",
+      "status": "active",
+      "milestone": "evidence_review",
+      "milestone_authority": {
+        "kind": "user_authored",
+        "evidence_refs": [],
+        "evidence_state": {
+          "availability": "not_required",
+          "reference_count": 0,
+          "available_reference_count": 0,
+          "unavailable_reference_count": 0
+        },
+        "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+        "confirmed_at": "2026-08-24T06:36:56.109Z",
+        "proposal_id": null,
+        "receipt_id": "496db12f-d69b-4d25-8e5c-c502682f63ad"
+      },
+      "revision": 1,
+      "roles": [
+        {
+          "id": "e710f839-6a69-4853-9825-0b94e9ffb8f5",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "subject_ref": {
+            "type": "person",
+            "id": "51e1f2bd-1098-4bab-9e5f-4510e622e804"
+          },
+          "role_type": "candidate",
+          "status": "active",
+          "confidence": "confirmed",
+          "basis": {
+            "kind": "evidence_supported",
+            "attributed_by_user_id": null
+          },
+          "evidence_refs": [
+            "4c78faab-2a6e-4a23-b011-2a4123176fcc",
+            "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+          ],
+          "evidence_state": {
+            "availability": "available",
+            "reference_count": 2,
+            "available_reference_count": 2,
+            "unavailable_reference_count": 0
+          },
+          "revision": 1
+        },
+        {
+          "id": "b31b193d-cabe-4874-a97d-8600e10e6a30",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "subject_ref": {
+            "type": "person",
+            "id": "aae91771-e6e7-4942-bc61-b9879a9be750"
+          },
+          "role_type": "candidate",
+          "status": "active",
+          "confidence": "confirmed",
+          "basis": {
+            "kind": "user_authored",
+            "attributed_by_user_id": "10000000-0000-4000-8000-000000000011"
+          },
+          "evidence_refs": [],
+          "evidence_state": {
+            "availability": "not_required",
+            "reference_count": 0,
+            "available_reference_count": 0,
+            "unavailable_reference_count": 0
+          },
+          "revision": 1
+        },
+        {
+          "id": "8aa08986-9192-4862-8442-8270b3078903",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "subject_ref": {
+            "type": "person",
+            "id": "7bd5d1e7-8817-4c04-b240-74efb343cc6f"
+          },
+          "role_type": "candidate",
+          "status": "active",
+          "confidence": "confirmed",
+          "basis": {
+            "kind": "user_authored",
+            "attributed_by_user_id": "10000000-0000-4000-8000-000000000011"
+          },
+          "evidence_refs": [],
+          "evidence_state": {
+            "availability": "not_required",
+            "reference_count": 0,
+            "available_reference_count": 0,
+            "unavailable_reference_count": 0
+          },
+          "revision": 1
+        }
+      ],
+      "criteria": [],
+      "gaps": [
+        {
+          "id": "0a3095a5-778c-4105-b305-30abf1929af9",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Two-source dependency",
+          "status": "open",
+          "basis": {
+            "kind": "evidence_supported",
+            "summary": "Two reviewed sources currently support this open question.",
+            "evidence_refs": [
+              "4c78faab-2a6e-4a23-b011-2a4123176fcc",
+              "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+            ],
+            "attributed_by_user_id": null,
+            "evidence_state": {
+              "availability": "available",
+              "reference_count": 2,
+              "available_reference_count": 2,
+              "unavailable_reference_count": 0
+            }
+          },
+          "close_condition": "The candidate records one current answer.",
+          "revision": 1
+        },
+        {
+          "id": "37cff7bf-972d-4310-8e28-cd798e2c2f78",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Single-source scheduling dependency",
+          "status": "open",
+          "basis": {
+            "kind": "evidence_supported",
+            "summary": "Only the first source supports this open question.",
+            "evidence_refs": [
+              "4c78faab-2a6e-4a23-b011-2a4123176fcc"
+            ],
+            "attributed_by_user_id": null,
+            "evidence_state": {
+              "availability": "available",
+              "reference_count": 1,
+              "available_reference_count": 1,
+              "unavailable_reference_count": 0
+            }
+          },
+          "close_condition": "A new reviewed source records the exact time.",
+          "revision": 1
+        },
+        {
+          "id": "0a09464f-db54-4f32-b856-c20f2ada9da0",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Recruiter-authored calibration note",
+          "status": "open",
+          "basis": {
+            "kind": "user_authored",
+            "summary": "The recruiter explicitly recorded this without claiming evidence support.",
+            "evidence_refs": [],
+            "attributed_by_user_id": "10000000-0000-4000-8000-000000000011",
+            "evidence_state": {
+              "availability": "not_required",
+              "reference_count": 0,
+              "available_reference_count": 0,
+              "unavailable_reference_count": 0
+            }
+          },
+          "close_condition": "The recruiter removes or closes the note.",
+          "revision": 1
+        }
+      ],
+      "actions": [],
+      "created_at": "2026-08-24T06:36:56.109Z",
+      "updated_at": "2026-08-24T06:36:56.109Z"
+    },
+    "proposal": {
+      "id": "31b16e36-ace3-495f-be7a-c0b7b4aff56c",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+      "capture_id": "0c377248-ccd8-4902-8abe-3a0dae88a8c7",
+      "base_revision": 1,
+      "summary": "The first source may support a milestone change. DELETE-CANARY-57daaeef-28d9-4048-b7fd-24ff3112926c",
+      "producer": {
+        "kind": "agent",
+        "name": "synthetic-prd07-proposal-worker",
+        "version": "1.0.0",
+        "run_id": "57daaeef-28d9-4048-b7fd-24ff3112926c"
+      },
+      "status": "needs_review",
+      "revision": 1,
+      "evidence_state": {
+        "availability": "available",
+        "reference_count": 1,
+        "available_reference_count": 1,
+        "unavailable_reference_count": 0
+      },
+      "review_context": {
+        "pursuit": {
+          "id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Synthetic evidence-integrity search"
+        },
+        "capture": {
+          "id": "0c377248-ccd8-4902-8abe-3a0dae88a8c7",
+          "purpose": "Synthetic evidence availability and identity integrity proof"
+        },
+        "subject": {
+          "person_id": "51e1f2bd-1098-4bab-9e5f-4510e622e804",
+          "display_label": "Synthetic evidence person",
+          "contextual_roles": [
+            {
+              "role_type": "candidate",
+              "status": "active",
+              "confidence": "confirmed"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "fragment_id": "4c78faab-2a6e-4a23-b011-2a4123176fcc",
+            "text": "Tuesday works, but the exact time remains unresolved. DELETE-CANARY-57daaeef-28d9-4048-b7fd-24ff3112926c",
+            "fragment_kind": "message",
+            "fragment_status": "active",
+            "observed_at": "2026-08-24T13:00:00.000Z",
+            "source_timezone": "Asia/Shanghai",
+            "source_display_name": "Synthetic governed Signal first",
+            "input_channel": "ios_share",
+            "source_processing_state": "ready",
+            "attributed_actor": "candidate",
+            "attribution_status": "confirmed",
+            "review_status": "reviewed",
+            "parser": {
+              "name": "synthetic-prd07",
+              "version": "1.0.0"
+            }
+          }
+        ]
+      },
+      "items": [
+        {
+          "id": "8812d22b-52b3-4c89-a3ff-034b4d85dd61",
+          "item_key": "milestone",
+          "change_kind": "set_milestone",
+          "target": {
+            "entity_type": "pursuit",
+            "entity_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+            "field": "milestone"
+          },
+          "before_value": "evidence_review",
+          "proposed_value": "scheduling_review_DELETE-CANARY-57daaeef-28d9-4048-b7fd-24ff3112926c",
+          "basis_kind": "evidence_supported",
+          "attributed_by_user_id": null,
+          "epistemic_status": "inference",
+          "evidence_refs": [
+            "4c78faab-2a6e-4a23-b011-2a4123176fcc"
+          ],
+          "evidence_state": {
+            "availability": "available",
+            "reference_count": 1,
+            "available_reference_count": 1,
+            "unavailable_reference_count": 0
+          },
+          "reason": "The candidate described a scheduling step. DELETE-CANARY-57daaeef-28d9-4048-b7fd-24ff3112926c",
+          "effect_summary": "Would change only the Pursuit milestone after review. DELETE-CANARY-57daaeef-28d9-4048-b7fd-24ff3112926c",
+          "decision": {
+            "status": "pending",
+            "decided_value": null,
+            "decided_by_user_id": null,
+            "reason": null,
+            "decided_at": null
+          }
+        }
+      ],
+      "created_at": "2026-08-24T06:36:56.117Z",
+      "updated_at": "2026-08-24T06:36:56.117Z"
+    }
+  },
+  "post_delete": {
+    "pursuit": {
+      "id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "type": "recruiting",
+      "title": "Synthetic evidence-integrity search",
+      "target_outcome": "mutual_final_decision",
+      "target_date": "2026-10-30",
+      "status": "active",
+      "milestone": "evidence_review",
+      "milestone_authority": {
+        "kind": "user_authored",
+        "evidence_refs": [],
+        "evidence_state": {
+          "availability": "not_required",
+          "reference_count": 0,
+          "available_reference_count": 0,
+          "unavailable_reference_count": 0
+        },
+        "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+        "confirmed_at": "2026-08-24T06:36:56.109Z",
+        "proposal_id": null,
+        "receipt_id": "496db12f-d69b-4d25-8e5c-c502682f63ad"
+      },
+      "revision": 1,
+      "roles": [
+        {
+          "id": "e710f839-6a69-4853-9825-0b94e9ffb8f5",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "subject_ref": {
+            "type": "person",
+            "id": "51e1f2bd-1098-4bab-9e5f-4510e622e804"
+          },
+          "role_type": "candidate",
+          "status": "active",
+          "confidence": "confirmed",
+          "basis": {
+            "kind": "evidence_supported",
+            "attributed_by_user_id": null
+          },
+          "evidence_refs": [
+            "4c78faab-2a6e-4a23-b011-2a4123176fcc",
+            "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+          ],
+          "evidence_state": {
+            "availability": "partial",
+            "reference_count": 2,
+            "available_reference_count": 1,
+            "unavailable_reference_count": 1
+          },
+          "revision": 1
+        },
+        {
+          "id": "b31b193d-cabe-4874-a97d-8600e10e6a30",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "subject_ref": {
+            "type": "person",
+            "id": "aae91771-e6e7-4942-bc61-b9879a9be750"
+          },
+          "role_type": "candidate",
+          "status": "active",
+          "confidence": "confirmed",
+          "basis": {
+            "kind": "user_authored",
+            "attributed_by_user_id": "10000000-0000-4000-8000-000000000011"
+          },
+          "evidence_refs": [],
+          "evidence_state": {
+            "availability": "not_required",
+            "reference_count": 0,
+            "available_reference_count": 0,
+            "unavailable_reference_count": 0
+          },
+          "revision": 1
+        },
+        {
+          "id": "8aa08986-9192-4862-8442-8270b3078903",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "subject_ref": {
+            "type": "person",
+            "id": "7bd5d1e7-8817-4c04-b240-74efb343cc6f"
+          },
+          "role_type": "candidate",
+          "status": "active",
+          "confidence": "confirmed",
+          "basis": {
+            "kind": "user_authored",
+            "attributed_by_user_id": "10000000-0000-4000-8000-000000000011"
+          },
+          "evidence_refs": [],
+          "evidence_state": {
+            "availability": "not_required",
+            "reference_count": 0,
+            "available_reference_count": 0,
+            "unavailable_reference_count": 0
+          },
+          "revision": 1
+        }
+      ],
+      "criteria": [],
+      "gaps": [
+        {
+          "id": "0a3095a5-778c-4105-b305-30abf1929af9",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Two-source dependency",
+          "status": "open",
+          "basis": {
+            "kind": "evidence_supported",
+            "summary": "Two reviewed sources currently support this open question.",
+            "evidence_refs": [
+              "4c78faab-2a6e-4a23-b011-2a4123176fcc",
+              "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+            ],
+            "attributed_by_user_id": null,
+            "evidence_state": {
+              "availability": "partial",
+              "reference_count": 2,
+              "available_reference_count": 1,
+              "unavailable_reference_count": 1
+            }
+          },
+          "close_condition": "The candidate records one current answer.",
+          "revision": 1
+        },
+        {
+          "id": "37cff7bf-972d-4310-8e28-cd798e2c2f78",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Single-source scheduling dependency",
+          "status": "open",
+          "basis": {
+            "kind": "evidence_supported",
+            "summary": "Only the first source supports this open question.",
+            "evidence_refs": [
+              "4c78faab-2a6e-4a23-b011-2a4123176fcc"
+            ],
+            "attributed_by_user_id": null,
+            "evidence_state": {
+              "availability": "unavailable",
+              "reference_count": 1,
+              "available_reference_count": 0,
+              "unavailable_reference_count": 1
+            }
+          },
+          "close_condition": "A new reviewed source records the exact time.",
+          "revision": 1
+        },
+        {
+          "id": "0a09464f-db54-4f32-b856-c20f2ada9da0",
+          "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Recruiter-authored calibration note",
+          "status": "open",
+          "basis": {
+            "kind": "user_authored",
+            "summary": "The recruiter explicitly recorded this without claiming evidence support.",
+            "evidence_refs": [],
+            "attributed_by_user_id": "10000000-0000-4000-8000-000000000011",
+            "evidence_state": {
+              "availability": "not_required",
+              "reference_count": 0,
+              "available_reference_count": 0,
+              "unavailable_reference_count": 0
+            }
+          },
+          "close_condition": "The recruiter removes or closes the note.",
+          "revision": 1
+        }
+      ],
+      "actions": [],
+      "created_at": "2026-08-24T06:36:56.109Z",
+      "updated_at": "2026-08-24T06:36:56.109Z"
+    },
+    "proposal": {
+      "id": "31b16e36-ace3-495f-be7a-c0b7b4aff56c",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+      "capture_id": "0c377248-ccd8-4902-8abe-3a0dae88a8c7",
+      "base_revision": 1,
+      "summary": "[source-derived Proposal content removed]",
+      "producer": {
+        "kind": "agent",
+        "name": "synthetic-prd07-proposal-worker",
+        "version": "1.0.0",
+        "run_id": "57daaeef-28d9-4048-b7fd-24ff3112926c"
+      },
+      "status": "superseded",
+      "revision": 2,
+      "evidence_state": {
+        "availability": "unavailable",
+        "reference_count": 1,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 1
+      },
+      "review_context": {
+        "pursuit": {
+          "id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Synthetic evidence-integrity search"
+        },
+        "capture": {
+          "id": "0c377248-ccd8-4902-8abe-3a0dae88a8c7",
+          "purpose": "[deleted]"
+        },
+        "subject": {
+          "person_id": "51e1f2bd-1098-4bab-9e5f-4510e622e804",
+          "display_label": "Synthetic evidence person",
+          "contextual_roles": [
+            {
+              "role_type": "candidate",
+              "status": "active",
+              "confidence": "confirmed"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "fragment_id": "4c78faab-2a6e-4a23-b011-2a4123176fcc",
+            "text": null,
+            "fragment_kind": "message",
+            "fragment_status": "deleted",
+            "observed_at": "2026-08-24T13:00:00.000Z",
+            "source_timezone": "Asia/Shanghai",
+            "source_display_name": "[deleted]",
+            "input_channel": "ios_share",
+            "source_processing_state": "deleted",
+            "attributed_actor": "candidate",
+            "attribution_status": "confirmed",
+            "review_status": "reviewed",
+            "parser": {
+              "name": "synthetic-prd07",
+              "version": "1.0.0"
+            }
+          }
+        ]
+      },
+      "items": [
+        {
+          "id": "8812d22b-52b3-4c89-a3ff-034b4d85dd61",
+          "item_key": "milestone",
+          "change_kind": "set_milestone",
+          "target": {
+            "entity_type": "pursuit",
+            "entity_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+            "field": "milestone"
+          },
+          "before_value": null,
+          "proposed_value": {
+            "content_removed": true
+          },
+          "basis_kind": "evidence_supported",
+          "attributed_by_user_id": null,
+          "epistemic_status": "superseded",
+          "evidence_refs": [
+            "4c78faab-2a6e-4a23-b011-2a4123176fcc"
+          ],
+          "evidence_state": {
+            "availability": "unavailable",
+            "reference_count": 1,
+            "available_reference_count": 0,
+            "unavailable_reference_count": 1
+          },
+          "reason": "[source-derived Proposal reason removed]",
+          "effect_summary": "[source-derived Proposal effect removed]",
+          "decision": {
+            "status": "pending",
+            "decided_value": null,
+            "decided_by_user_id": null,
+            "reason": null,
+            "decided_at": null
+          }
+        }
+      ],
+      "created_at": "2026-08-24T06:36:56.117Z",
+      "updated_at": "2026-08-24T06:36:56.122Z"
+    },
+    "today_projection": {
+      "eyebrow": "Evidence partly unavailable",
+      "evidence_backed": false,
+      "available_reference_count": 1,
+      "reference_count": 2
+    },
+    "deletion": {
+      "deletion_id": "86cfc759-441b-4b70-bfb1-f79ee4242119",
+      "capture_id": "0c377248-ccd8-4902-8abe-3a0dae88a8c7",
+      "status": "deleted",
+      "derivatives_deleted": 6,
+      "access_revoked_at": "2026-08-24T06:36:56.133Z"
+    },
+    "lineage_types": [
+      "capture",
+      "evidence_fragment",
+      "idempotency_record",
+      "pursuit_proposal",
+      "pursuit_proposal_item",
+      "source_resource"
+    ]
+  },
+  "applied_milestone_source_deletion": {
+    "proposal": {
+      "id": "0d9f9103-ea6c-4487-914e-d76c48bb38de",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+      "capture_id": "0ce4bffa-a4fd-494e-8d0b-b35bffd5950f",
+      "base_revision": 1,
+      "summary": "The surviving reviewed source supports a recruiter-confirmed milestone update.",
+      "producer": {
+        "kind": "agent",
+        "name": "synthetic-prd07-proposal-worker",
+        "version": "1.0.0",
+        "run_id": "57daaeef-28d9-4048-b7fd-24ff3112926c"
+      },
+      "status": "applied",
+      "revision": 2,
+      "evidence_state": {
+        "availability": "available",
+        "reference_count": 1,
+        "available_reference_count": 1,
+        "unavailable_reference_count": 0
+      },
+      "review_context": {
+        "pursuit": {
+          "id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Synthetic evidence-integrity search"
+        },
+        "capture": {
+          "id": "0ce4bffa-a4fd-494e-8d0b-b35bffd5950f",
+          "purpose": "Synthetic evidence availability and identity integrity proof"
+        },
+        "subject": {
+          "person_id": "51e1f2bd-1098-4bab-9e5f-4510e622e804",
+          "display_label": "Synthetic evidence person",
+          "contextual_roles": [
+            {
+              "role_type": "candidate",
+              "status": "active",
+              "confidence": "confirmed"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "fragment_id": "d09abffc-d0ee-4492-b7ab-50ccf92d8232",
+            "text": "The candidate confirmed the role outcome remains relevant.",
+            "fragment_kind": "message",
+            "fragment_status": "active",
+            "observed_at": "2026-08-24T13:00:00.000Z",
+            "source_timezone": "Asia/Shanghai",
+            "source_display_name": "Synthetic governed Signal second",
+            "input_channel": "ios_share",
+            "source_processing_state": "ready",
+            "attributed_actor": "candidate",
+            "attribution_status": "confirmed",
+            "review_status": "reviewed",
+            "parser": {
+              "name": "synthetic-prd07",
+              "version": "1.0.0"
+            }
+          }
+        ]
+      },
+      "items": [
+        {
+          "id": "fda1a2cf-3463-4dbf-b96d-b2e7cf0cc3a4",
+          "item_key": "applied-milestone",
+          "change_kind": "set_milestone",
+          "target": {
+            "entity_type": "pursuit",
+            "entity_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+            "field": "milestone"
+          },
+          "before_value": "evidence_review",
+          "proposed_value": "candidate_outcome_review",
+          "basis_kind": "evidence_supported",
+          "attributed_by_user_id": null,
+          "epistemic_status": "inference",
+          "evidence_refs": [
+            "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+          ],
+          "evidence_state": {
+            "availability": "available",
+            "reference_count": 1,
+            "available_reference_count": 1,
+            "unavailable_reference_count": 0
+          },
+          "reason": "The surviving reviewed source supports this milestone.",
+          "effect_summary": "Would change only the Pursuit milestone after recruiter review.",
+          "decision": {
+            "status": "confirmed",
+            "decided_value": "candidate_outcome_review",
+            "decided_by_user_id": "10000000-0000-4000-8000-000000000011",
+            "reason": "The recruiter confirms the milestone while the supporting source is still available.",
+            "decided_at": "2026-08-24T06:36:56.211Z"
+          }
+        }
+      ],
+      "created_at": "2026-08-24T06:36:56.206Z",
+      "updated_at": "2026-08-24T06:36:56.211Z"
+    },
+    "applied_receipt": {
+      "id": "8fe8b9aa-7e58-4a90-b24e-cce3e76d2cc4",
+      "operation_id": "a950593c-a553-45ac-81c7-d38ab97db1b1",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "actor_user_id": "10000000-0000-4000-8000-000000000011",
+      "operation_kind": "review_pursuit_proposal",
+      "status": "applied",
+      "proposal_id": "0d9f9103-ea6c-4487-914e-d76c48bb38de",
+      "outcome": "canonical_applied",
+      "entity_ref": {
+        "type": "pursuit",
+        "id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+        "before_revision": 1,
+        "after_revision": 2
+      },
+      "changed_fields": [
+        "milestone"
+      ],
+      "item_decisions": [
+        {
+          "item_id": "fda1a2cf-3463-4dbf-b96d-b2e7cf0cc3a4",
+          "decision": "confirmed",
+          "changed": true
+        }
+      ],
+      "external_effects": [],
+      "summary": "Proposal review recorded: 1 applied, 0 rejected, 0 unresolved.",
+      "occurred_at": "2026-08-24T06:36:56.211Z"
+    },
+    "authority_before_delete": {
+      "kind": "evidence_supported",
+      "evidence_refs": [
+        "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+      ],
+      "evidence_state": {
+        "availability": "available",
+        "reference_count": 1,
+        "available_reference_count": 1,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-24T06:36:56.211Z",
+      "proposal_id": "0d9f9103-ea6c-4487-914e-d76c48bb38de",
+      "receipt_id": "8fe8b9aa-7e58-4a90-b24e-cce3e76d2cc4"
+    },
+    "authority_after_delete": {
+      "kind": "evidence_supported",
+      "evidence_refs": [
+        "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+      ],
+      "evidence_state": {
+        "availability": "unavailable",
+        "reference_count": 1,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 1
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-24T06:36:56.211Z",
+      "proposal_id": "0d9f9103-ea6c-4487-914e-d76c48bb38de",
+      "receipt_id": "8fe8b9aa-7e58-4a90-b24e-cce3e76d2cc4"
+    },
+    "redacted_proposal_after_delete": {
+      "id": "0d9f9103-ea6c-4487-914e-d76c48bb38de",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "pursuit_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+      "capture_id": "0ce4bffa-a4fd-494e-8d0b-b35bffd5950f",
+      "base_revision": 1,
+      "summary": "[source-derived Proposal content removed]",
+      "producer": {
+        "kind": "agent",
+        "name": "synthetic-prd07-proposal-worker",
+        "version": "1.0.0",
+        "run_id": "57daaeef-28d9-4048-b7fd-24ff3112926c"
+      },
+      "status": "applied",
+      "revision": 3,
+      "evidence_state": {
+        "availability": "unavailable",
+        "reference_count": 1,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 1
+      },
+      "review_context": {
+        "pursuit": {
+          "id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+          "title": "Synthetic evidence-integrity search"
+        },
+        "capture": {
+          "id": "0ce4bffa-a4fd-494e-8d0b-b35bffd5950f",
+          "purpose": "[deleted]"
+        },
+        "subject": {
+          "person_id": "51e1f2bd-1098-4bab-9e5f-4510e622e804",
+          "display_label": "[deleted]",
+          "contextual_roles": [
+            {
+              "role_type": "candidate",
+              "status": "active",
+              "confidence": "confirmed"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "fragment_id": "d09abffc-d0ee-4492-b7ab-50ccf92d8232",
+            "text": null,
+            "fragment_kind": "message",
+            "fragment_status": "deleted",
+            "observed_at": "2026-08-24T13:00:00.000Z",
+            "source_timezone": "Asia/Shanghai",
+            "source_display_name": "[deleted]",
+            "input_channel": "ios_share",
+            "source_processing_state": "deleted",
+            "attributed_actor": "candidate",
+            "attribution_status": "confirmed",
+            "review_status": "reviewed",
+            "parser": {
+              "name": "synthetic-prd07",
+              "version": "1.0.0"
+            }
+          }
+        ]
+      },
+      "items": [
+        {
+          "id": "fda1a2cf-3463-4dbf-b96d-b2e7cf0cc3a4",
+          "item_key": "applied-milestone",
+          "change_kind": "set_milestone",
+          "target": {
+            "entity_type": "pursuit",
+            "entity_id": "ac1f6285-3948-4542-90d9-8694f00a51f4",
+            "field": "milestone"
+          },
+          "before_value": null,
+          "proposed_value": {
+            "content_removed": true
+          },
+          "basis_kind": "evidence_supported",
+          "attributed_by_user_id": null,
+          "epistemic_status": "superseded",
+          "evidence_refs": [
+            "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+          ],
+          "evidence_state": {
+            "availability": "unavailable",
+            "reference_count": 1,
+            "available_reference_count": 0,
+            "unavailable_reference_count": 1
+          },
+          "reason": "[source-derived Proposal reason removed]",
+          "effect_summary": "[source-derived Proposal effect removed]",
+          "decision": {
+            "status": "confirmed",
+            "decided_value": {
+              "content_removed": true
+            },
+            "decided_by_user_id": "10000000-0000-4000-8000-000000000011",
+            "reason": "[source-derived review reason removed]",
+            "decided_at": "2026-08-24T06:36:56.211Z"
+          }
+        }
+      ],
+      "created_at": "2026-08-24T06:36:56.206Z",
+      "updated_at": "2026-08-24T06:36:56.252Z"
+    },
+    "deletion": {
+      "deletion_id": "cf28db4a-f3c4-4782-b41e-b12b9187f08e",
+      "capture_id": "0ce4bffa-a4fd-494e-8d0b-b35bffd5950f",
+      "status": "deleted",
+      "derivatives_deleted": 13,
+      "access_revoked_at": "2026-08-24T06:36:56.258Z"
+    }
+  },
+  "temporal_milestone_authority": {
+    "evidence_backed_b": {
+      "kind": "evidence_supported",
+      "evidence_refs": [
+        "d09abffc-d0ee-4492-b7ab-50ccf92d8232"
+      ],
+      "evidence_state": {
+        "availability": "available",
+        "reference_count": 1,
+        "available_reference_count": 1,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-24T06:36:56.233Z",
+      "proposal_id": "5b313da1-f9f3-4e7b-90b6-c9cdc1a5f177",
+      "receipt_id": "c080b1b3-72ca-47cd-9438-83f715d66551"
+    },
+    "direct_c": {
+      "kind": "user_authored",
+      "evidence_refs": [],
+      "evidence_state": {
+        "availability": "not_required",
+        "reference_count": 0,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-24T06:36:56.241Z",
+      "proposal_id": null,
+      "receipt_id": "bf0bc3a8-54df-4398-a220-c1baa5d0435f"
+    },
+    "direct_b": {
+      "kind": "user_authored",
+      "evidence_refs": [],
+      "evidence_state": {
+        "availability": "not_required",
+        "reference_count": 0,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-24T06:36:56.247Z",
+      "proposal_id": null,
+      "receipt_id": "af746cc2-5ee6-4e7a-a9e0-c9b026fa01c7"
+    },
+    "after_old_source_deletion": {
+      "kind": "user_authored",
+      "evidence_refs": [],
+      "evidence_state": {
+        "availability": "not_required",
+        "reference_count": 0,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-24T06:36:56.247Z",
+      "proposal_id": null,
+      "receipt_id": "af746cc2-5ee6-4e7a-a9e0-c9b026fa01c7"
+    }
+  },
+  "missing_proof": [
+    "physical-device relaunch across an authenticated workspace switch",
+    "real candidate data retention and privacy operations"
+  ]
+}

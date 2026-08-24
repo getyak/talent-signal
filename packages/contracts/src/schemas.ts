@@ -45,6 +45,34 @@ export const SimulatedLoginRequestSchema = Type.Object(
   { $id: "SimulatedLoginRequest", additionalProperties: false },
 );
 
+export const AppleLoginChallengeRequestSchema = Type.Object(
+  {
+    client_label: Type.String({ minLength: 1, maxLength: 80 }),
+  },
+  { $id: "AppleLoginChallengeRequest", additionalProperties: false },
+);
+
+export const AppleLoginChallengeResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    challenge_id: Id,
+    nonce: Type.String({ minLength: 32, maxLength: 128 }),
+    expires_at: Timestamp,
+  },
+  { $id: "AppleLoginChallengeResponse", additionalProperties: false },
+);
+
+export const AppleLoginRequestSchema = Type.Object(
+  {
+    challenge_id: Id,
+    identity_token: Type.String({ minLength: 100, maxLength: 20_000 }),
+    client_label: Type.String({ minLength: 1, maxLength: 80 }),
+    given_name: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
+    family_name: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
+  },
+  { $id: "AppleLoginRequest", additionalProperties: false },
+);
+
 export const SessionResponseSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
@@ -59,10 +87,44 @@ export const SessionResponseSchema = Type.Object(
       id: Id,
       email: Type.String(),
       display_name: Type.String(),
-      kind: Type.Literal("simulated_human"),
+      kind: Type.Union([
+        Type.Literal("simulated_human"),
+        Type.Literal("apple_human"),
+      ]),
     }),
   },
   { $id: "SessionResponse", additionalProperties: false },
+);
+
+export const CurrentSessionResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    expires_at: Timestamp,
+    account: Type.Object({
+      id: Id,
+      slug: Type.String(),
+      name: Type.String(),
+    }),
+    user: Type.Object({
+      id: Id,
+      email: Type.String(),
+      display_name: Type.String(),
+      kind: Type.Union([
+        Type.Literal("simulated_human"),
+        Type.Literal("apple_human"),
+      ]),
+    }),
+  },
+  { $id: "CurrentSessionResponse", additionalProperties: false },
+);
+
+export const LogoutResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    revoked_session_id: Id,
+    revoked_at: Timestamp,
+  },
+  { $id: "LogoutResponse", additionalProperties: false },
 );
 
 export const SourceRetentionRequestSchema = Type.Object(
@@ -1024,6 +1086,17 @@ export type SimulatedLoginRequest = Static<
   typeof SimulatedLoginRequestSchema
 >;
 export type SessionResponse = Static<typeof SessionResponseSchema>;
+export type AppleLoginChallengeRequest = Static<
+  typeof AppleLoginChallengeRequestSchema
+>;
+export type AppleLoginChallengeResponse = Static<
+  typeof AppleLoginChallengeResponseSchema
+>;
+export type AppleLoginRequest = Static<typeof AppleLoginRequestSchema>;
+export type CurrentSessionResponse = Static<
+  typeof CurrentSessionResponseSchema
+>;
+export type LogoutResponse = Static<typeof LogoutResponseSchema>;
 export type SourceRetentionRequest = Static<
   typeof SourceRetentionRequestSchema
 >;

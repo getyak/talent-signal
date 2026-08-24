@@ -25,6 +25,13 @@ const MIGRATIONS = [
   "017_identity_freshness_policy",
   "018_identity_freshness_policy_immutability",
   "019_effect_reversals",
+  "020_pursuit_domain",
+  "021_pursuit_proposal_review",
+  "022_pursuit_evidence_integrity",
+  "023_agent_control_plane",
+  "024_pursuit_action_outcome",
+  "025_milestone_authority_pointer",
+  "026_apple_auth",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

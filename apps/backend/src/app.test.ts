@@ -6,6 +6,8 @@ import type { BackendConfig } from "./config.js";
 
 const config: BackendConfig = {
   allowedOrigins: ["http://localhost:3000"],
+  appleSignInAudiences: ["com.talentsignal.app"],
+  appleSignInEnabled: true,
   databaseUrl: "postgresql://synthetic-only",
   host: "127.0.0.1",
   port: 4317,
@@ -25,7 +27,7 @@ describe("readiness rate limiting", () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
         {
-          version: "019_effect_reversals",
+          version: "026_apple_auth",
         },
       ],
     });
@@ -50,5 +52,8 @@ describe("readiness rate limiting", () => {
 
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("026_apple_auth"),
+    );
   }, 10_000);
 });

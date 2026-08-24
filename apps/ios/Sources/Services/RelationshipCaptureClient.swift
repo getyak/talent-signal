@@ -25,14 +25,18 @@ protocol RelationshipCaptureServing {
 actor URLRelationshipCaptureClient: RelationshipCaptureServing {
     private let baseURL: URL
     private let session: URLSession
+    private let usesAuthenticatedSession: Bool
     private var accessToken: String?
 
     init(
         baseURL: URL = URL(string: "http://127.0.0.1:4317")!,
-        session: URLSession = .shared
+        session: URLSession = .shared,
+        accessToken: String? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
+        usesAuthenticatedSession = accessToken != nil
+        self.accessToken = accessToken
     }
 
     func createCapture(
@@ -41,7 +45,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
     ) async throws -> ResourceCaptureResult {
         let clientResourceID = "ios-share:\(seed.id.uuidString.lowercased())"
         let body = ResourceCaptureBody(
-            contractVersion: "2026-08-07.1",
+            contractVersion: TalentSignalAPIContract.version,
             idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):capture",
             channel: "ios_share",
             purpose: "Preserve recruiter-reviewed conversation evidence for a purpose-scoped relationship",
@@ -158,7 +162,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         method: String,
         body: Body?
     ) async throws -> Response {
-        guard URLFixtureLoader.isLoopback(baseURL) else {
+        guard URLFixtureLoader.isLoopback(baseURL) || usesAuthenticatedSession else {
             throw RelationshipCaptureClientError.loopbackOnly
         }
         let token = try await authenticatedToken()

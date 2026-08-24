@@ -2,11 +2,17 @@ import { randomBytes, randomUUID } from "node:crypto";
 
 import {
   CONTRACT_VERSION,
+  type AppleLoginChallengeRequest,
+  type AppleLoginChallengeResponse,
+  type AppleLoginRequest,
+  type CurrentSessionResponse,
+  type LogoutResponse,
   type SessionResponse,
   type SimulatedLoginRequest,
 } from "@talent-signal/contracts";
 import type { preHandlerHookHandler } from "fastify";
-import type { Pool } from "pg";
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import type { Pool, PoolClient } from "pg";
 
 import type { BackendConfig } from "../config.js";
 import { ApiError } from "../lib/apiError.js";
@@ -17,8 +23,339 @@ export interface AuthContext {
   accountSlug: string;
   userId: string;
   userEmail: string;
-  userKind: "simulated_human";
+  userKind: "simulated_human" | "apple_human";
   sessionId: string;
+}
+
+export interface AppleIdentityToken {
+  audience: string;
+  email: string | null;
+  emailVerified: boolean;
+  expiresAt: Date;
+  issuer: "https://appleid.apple.com";
+  nonce: string;
+  subject: string;
+}
+
+export interface AppleTokenVerifying {
+  verify(identityToken: string, audiences: string[]): Promise<AppleIdentityToken>;
+}
+
+const appleJwks = createRemoteJWKSet(
+  new URL("https://appleid.apple.com/auth/keys"),
+);
+
+export const appleTokenVerifier: AppleTokenVerifying = {
+  async verify(identityToken, audiences) {
+    const result = await jwtVerify(identityToken, appleJwks, {
+      algorithms: ["RS256"],
+      audience: audiences,
+      issuer: "https://appleid.apple.com",
+    });
+    const { aud, email, email_verified: emailVerified, exp, iss, nonce, sub } =
+      result.payload;
+    const audience = Array.isArray(aud) ? aud[0] : aud;
+    if (
+      !audience ||
+      !exp ||
+      iss !== "https://appleid.apple.com" ||
+      typeof nonce !== "string" ||
+      typeof sub !== "string"
+    ) {
+      throw new ApiError(
+        401,
+        "APPLE_TOKEN_INVALID",
+        "The Apple identity token is missing required claims.",
+      );
+    }
+    return {
+      audience,
+      email: typeof email === "string" && email.length > 0 ? email : null,
+      emailVerified: emailVerified === true || emailVerified === "true",
+      expiresAt: new Date(exp * 1_000),
+      issuer: "https://appleid.apple.com",
+      nonce,
+      subject: sub,
+    };
+  },
+};
+
+function requireAppleAuth(config: BackendConfig): void {
+  if (!config.appleSignInEnabled) {
+    throw new ApiError(
+      404,
+      "APPLE_SIGN_IN_DISABLED",
+      "Sign in with Apple is not configured for this service.",
+    );
+  }
+}
+
+function sessionToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+function boundedName(request: AppleLoginRequest): string {
+  const name = [request.given_name, request.family_name]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .trim();
+  return name || "Talent Signal Recruiter";
+}
+
+async function insertSession(
+  client: Pick<Pool, "query"> | PoolClient,
+  config: BackendConfig,
+  identity: {
+    accountId: string;
+    accountName: string;
+    accountSlug: string;
+    displayName: string;
+    userEmail: string;
+    userId: string;
+    userKind: "simulated_human" | "apple_human";
+  },
+  clientLabel: string,
+): Promise<SessionResponse> {
+  const accessToken = sessionToken();
+  const expiresAt = new Date(Date.now() + config.sessionTtlSeconds * 1_000);
+  await client.query(
+    `INSERT INTO sessions(
+       id, account_id, user_id, token_hash, client_label, expires_at
+     )
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      randomUUID(),
+      identity.accountId,
+      identity.userId,
+      sha256(accessToken),
+      clientLabel,
+      expiresAt,
+    ],
+  );
+  return {
+    contract_version: CONTRACT_VERSION,
+    access_token: accessToken,
+    expires_at: expiresAt.toISOString(),
+    account: {
+      id: identity.accountId,
+      slug: identity.accountSlug,
+      name: identity.accountName,
+    },
+    user: {
+      id: identity.userId,
+      email: identity.userEmail,
+      display_name: identity.displayName,
+      kind: identity.userKind,
+    },
+  };
+}
+
+export async function createAppleLoginChallenge(
+  pool: Pool,
+  config: BackendConfig,
+  request: AppleLoginChallengeRequest,
+): Promise<AppleLoginChallengeResponse> {
+  requireAppleAuth(config);
+  const nonce = randomBytes(32).toString("base64url");
+  const expectedNonceHash = sha256(nonce);
+  const challengeId = randomUUID();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1_000);
+  await pool.query(
+    `INSERT INTO apple_login_challenges(
+       id, expected_nonce_hash, client_label, expires_at
+     ) VALUES ($1, $2, $3, $4)`,
+    [challengeId, expectedNonceHash, request.client_label, expiresAt],
+  );
+  return {
+    contract_version: CONTRACT_VERSION,
+    challenge_id: challengeId,
+    nonce,
+    expires_at: expiresAt.toISOString(),
+  };
+}
+
+export async function createAppleSession(
+  pool: Pool,
+  config: BackendConfig,
+  request: AppleLoginRequest,
+  verifier: AppleTokenVerifying = appleTokenVerifier,
+): Promise<SessionResponse> {
+  requireAppleAuth(config);
+  const challengeResult = await pool.query<{
+    client_label: string;
+    expected_nonce_hash: string;
+  }>(
+    `SELECT client_label, expected_nonce_hash
+     FROM apple_login_challenges
+     WHERE id = $1 AND consumed_at IS NULL AND expires_at > now()`,
+    [request.challenge_id],
+  );
+  const challenge = challengeResult.rows[0];
+  if (!challenge || challenge.client_label !== request.client_label) {
+    throw new ApiError(
+      409,
+      "APPLE_CHALLENGE_INVALID",
+      "The Apple sign-in challenge is expired, consumed, or belongs to another client.",
+    );
+  }
+
+  let token: AppleIdentityToken;
+  try {
+    token = await verifier.verify(
+      request.identity_token,
+      config.appleSignInAudiences,
+    );
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      401,
+      "APPLE_TOKEN_INVALID",
+      "The Apple identity token could not be verified.",
+    );
+  }
+  if (token.nonce !== challenge.expected_nonce_hash) {
+    throw new ApiError(
+      401,
+      "APPLE_NONCE_MISMATCH",
+      "The Apple identity token does not belong to this sign-in attempt.",
+    );
+  }
+  if (!config.appleSignInAudiences.includes(token.audience)) {
+    throw new ApiError(
+      401,
+      "APPLE_AUDIENCE_MISMATCH",
+      "The Apple identity token was issued for another application.",
+    );
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const consumed = await client.query(
+      `UPDATE apple_login_challenges
+       SET consumed_at = now()
+       WHERE id = $1 AND consumed_at IS NULL AND expires_at > now()
+       RETURNING id`,
+      [request.challenge_id],
+    );
+    if (!consumed.rows[0]) {
+      throw new ApiError(
+        409,
+        "APPLE_CHALLENGE_REPLAYED",
+        "This Apple sign-in attempt has already been used. Start again.",
+      );
+    }
+    const assertion = await client.query(
+      `INSERT INTO consumed_auth_assertions(
+         id, provider, assertion_hash, challenge_id, expires_at
+       ) VALUES ($1, 'apple', $2, $3, $4)
+       ON CONFLICT (assertion_hash) DO NOTHING
+       RETURNING id`,
+      [
+        randomUUID(),
+        sha256(request.identity_token),
+        request.challenge_id,
+        token.expiresAt,
+      ],
+    );
+    if (!assertion.rows[0]) {
+      throw new ApiError(
+        409,
+        "APPLE_TOKEN_REPLAYED",
+        "This Apple identity token has already been used. Start again.",
+      );
+    }
+
+    const subjectHash = sha256(`${token.issuer}:${token.subject}`);
+    const existing = await client.query<{
+      account_id: string;
+      account_name: string;
+      account_slug: string;
+      display_name: string;
+      user_email: string;
+      user_id: string;
+    }>(
+      `SELECT
+         auth_identities.account_id,
+         accounts.name AS account_name,
+         accounts.slug AS account_slug,
+         users.display_name,
+         users.email AS user_email,
+         auth_identities.user_id
+       FROM auth_identities
+       JOIN accounts ON accounts.id = auth_identities.account_id
+       JOIN users
+         ON users.account_id = auth_identities.account_id
+        AND users.id = auth_identities.user_id
+       WHERE auth_identities.provider = 'apple'
+         AND auth_identities.subject_hash = $1
+         AND users.status = 'active'`,
+      [subjectHash],
+    );
+
+    let identity = existing.rows[0];
+    if (!identity) {
+      const accountId = randomUUID();
+      const userId = randomUUID();
+      const accountSlug = `personal-${randomUUID()}`;
+      const displayName = boundedName(request);
+      const email = token.emailVerified && token.email
+        ? token.email
+        : `apple-${subjectHash.slice(0, 24)}@private.talentsignal.invalid`;
+      await client.query(
+        `INSERT INTO accounts(id, slug, name) VALUES ($1, $2, $3)`,
+        [accountId, accountSlug, `${displayName}'s workspace`],
+      );
+      await client.query(
+        `INSERT INTO users(id, account_id, email, display_name, kind)
+         VALUES ($1, $2, $3, $4, 'apple_human')`,
+        [userId, accountId, email, displayName],
+      );
+      await client.query(
+        `INSERT INTO auth_identities(
+           id, account_id, user_id, provider, subject_hash
+         ) VALUES ($1, $2, $3, 'apple', $4)`,
+        [randomUUID(), accountId, userId, subjectHash],
+      );
+      identity = {
+        account_id: accountId,
+        account_name: `${displayName}'s workspace`,
+        account_slug: accountSlug,
+        display_name: displayName,
+        user_email: email,
+        user_id: userId,
+      };
+    } else {
+      await client.query(
+        `UPDATE auth_identities
+         SET last_authenticated_at = now()
+         WHERE provider = 'apple' AND subject_hash = $1`,
+        [subjectHash],
+      );
+    }
+
+    const session = await insertSession(
+      client,
+      config,
+      {
+        accountId: identity.account_id,
+        accountName: identity.account_name,
+        accountSlug: identity.account_slug,
+        displayName: identity.display_name,
+        userEmail: identity.user_email,
+        userId: identity.user_id,
+        userKind: "apple_human",
+      },
+      request.client_label,
+    );
+    await client.query("COMMIT");
+    return session;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function createSimulatedSession(
@@ -66,38 +403,93 @@ export async function createSimulatedSession(
     );
   }
 
-  const accessToken = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + config.sessionTtlSeconds * 1000);
-  await pool.query(
-    `INSERT INTO sessions(
-       id, account_id, user_id, token_hash, client_label, expires_at
-     )
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [
-      randomUUID(),
-      identity.account_id,
-      identity.user_id,
-      sha256(accessToken),
-      request.client_label,
-      expiresAt,
-    ],
+  return insertSession(
+    pool,
+    config,
+    {
+      accountId: identity.account_id,
+      accountName: identity.account_name,
+      accountSlug: identity.account_slug,
+      displayName: identity.display_name,
+      userEmail: identity.user_email,
+      userId: identity.user_id,
+      userKind: "simulated_human",
+    },
+    request.client_label,
   );
+}
 
+export async function currentSession(
+  pool: Pool,
+  auth: AuthContext,
+): Promise<CurrentSessionResponse> {
+  const result = await pool.query<{
+    account_name: string;
+    account_slug: string;
+    display_name: string;
+    expires_at: Date;
+    user_email: string;
+    user_kind: "simulated_human" | "apple_human";
+  }>(
+    `SELECT
+       accounts.name AS account_name,
+       accounts.slug AS account_slug,
+       users.display_name,
+       users.email AS user_email,
+       users.kind AS user_kind,
+       sessions.expires_at
+     FROM sessions
+     JOIN accounts ON accounts.id = sessions.account_id
+     JOIN users
+       ON users.account_id = sessions.account_id
+      AND users.id = sessions.user_id
+     WHERE sessions.id = $1
+       AND sessions.account_id = $2
+       AND sessions.user_id = $3
+       AND sessions.revoked_at IS NULL
+       AND sessions.expires_at > now()`,
+    [auth.sessionId, auth.accountId, auth.userId],
+  );
+  const session = result.rows[0];
+  if (!session) {
+    throw new ApiError(401, "SESSION_INVALID", "The session is no longer active.");
+  }
   return {
     contract_version: CONTRACT_VERSION,
-    access_token: accessToken,
-    expires_at: expiresAt.toISOString(),
+    expires_at: session.expires_at.toISOString(),
     account: {
-      id: identity.account_id,
-      slug: identity.account_slug,
-      name: identity.account_name,
+      id: auth.accountId,
+      slug: session.account_slug,
+      name: session.account_name,
     },
     user: {
-      id: identity.user_id,
-      email: identity.user_email,
-      display_name: identity.display_name,
-      kind: "simulated_human",
+      id: auth.userId,
+      email: session.user_email,
+      display_name: session.display_name,
+      kind: session.user_kind,
     },
+  };
+}
+
+export async function revokeCurrentSession(
+  pool: Pool,
+  auth: AuthContext,
+): Promise<LogoutResponse> {
+  const result = await pool.query<{ revoked_at: Date }>(
+    `UPDATE sessions
+     SET revoked_at = now()
+     WHERE id = $1 AND account_id = $2 AND user_id = $3 AND revoked_at IS NULL
+     RETURNING revoked_at`,
+    [auth.sessionId, auth.accountId, auth.userId],
+  );
+  const revokedAt = result.rows[0]?.revoked_at;
+  if (!revokedAt) {
+    throw new ApiError(401, "SESSION_INVALID", "The session is no longer active.");
+  }
+  return {
+    contract_version: CONTRACT_VERSION,
+    revoked_session_id: auth.sessionId,
+    revoked_at: revokedAt.toISOString(),
   };
 }
 
@@ -117,7 +509,7 @@ export function createAuthGuard(pool: Pool): preHandlerHookHandler {
       account_slug: string;
       user_id: string;
       user_email: string;
-      user_kind: "simulated_human";
+      user_kind: "simulated_human" | "apple_human";
       session_id: string;
     }>(
       `SELECT

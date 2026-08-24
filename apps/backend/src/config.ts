@@ -1,5 +1,7 @@
 export interface BackendConfig {
   allowedOrigins: string[];
+  appleSignInAudiences: string[];
+  appleSignInEnabled: boolean;
   databaseUrl: string;
   host: string;
   port: number;
@@ -33,6 +35,19 @@ export function loadConfig(): BackendConfig {
   if (nodeEnvironment === "production" && simulatedAuthEnabled) {
     throw new Error("Simulated authentication cannot run in production.");
   }
+  const appleSignInAudiences = (process.env.APPLE_SIGN_IN_AUDIENCES ?? "")
+    .split(",")
+    .map((audience) => audience.trim())
+    .filter(Boolean);
+  const appleSignInEnabled = parseBoolean(
+    process.env.APPLE_SIGN_IN_ENABLED,
+    appleSignInAudiences.length > 0,
+  );
+  if (appleSignInEnabled && appleSignInAudiences.length === 0) {
+    throw new Error(
+      "APPLE_SIGN_IN_AUDIENCES is required when Apple sign-in is enabled.",
+    );
+  }
 
   return {
     allowedOrigins: (
@@ -42,6 +57,8 @@ export function loadConfig(): BackendConfig {
       .split(",")
       .map((origin) => origin.trim())
       .filter(Boolean),
+    appleSignInAudiences,
+    appleSignInEnabled,
     databaseUrl: requireValue("DATABASE_URL"),
     host: process.env.HOST ?? "0.0.0.0",
     port: Number.parseInt(process.env.PORT ?? "4317", 10),

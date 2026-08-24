@@ -41,56 +41,6 @@ struct SourceNotice: View {
     }
 }
 
-struct HeroConversationPreview: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 7) {
-                Image(systemName: "photo.on.rectangle.angled")
-                Text("Synthetic conversation image")
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(Color.tsMutedInk)
-
-            HStack {
-                Spacer(minLength: 30)
-                Text("I have another offer and need to decide Friday. Remote is important to me.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tsInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(12)
-                    .background(
-                        Color.tsSurface,
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    )
-            }
-
-            HStack {
-                Spacer(minLength: 30)
-                Text("Thursday at 3:00 PM Singapore time works—please send a 30-minute video invite.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tsInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(12)
-                    .background(
-                        Color.tsSurface,
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    )
-            }
-        }
-        .padding(14)
-        .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.tsLine, lineWidth: 1)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "Synthetic conversation image. Candidate says: I have another offer and need to decide Friday. Remote is important to me. Thursday at 3 PM Singapore time works. Please send a 30-minute video invite."
-        )
-        .accessibilityIdentifier("hero-conversation-preview")
-    }
-}
-
 struct FixtureReviewView: View {
     let session: ReviewSession
     let sourceNotice: String
