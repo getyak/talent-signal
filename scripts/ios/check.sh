@@ -96,7 +96,7 @@ trap cleanup_ios_helpers EXIT
 wait_for_url() {
   local url="$1"
   local attempt
-  for attempt in {1..40}; do
+  for ((attempt = 0; attempt < 40; attempt += 1)); do
     if curl --fail --silent --show-error "$url" >/dev/null 2>&1; then
       return 0
     fi
@@ -115,8 +115,9 @@ free_loopback_port() {
 
 ios_backend_url="${TS_IOS_BACKEND_URL:-}"
 if [ -z "$ios_backend_url" ]; then
-  export POSTGRES_PORT="$(free_loopback_port)"
-  export BACKEND_PORT="$(free_loopback_port)"
+  POSTGRES_PORT="$(free_loopback_port)"
+  BACKEND_PORT="$(free_loopback_port)"
+  export POSTGRES_PORT BACKEND_PORT
   export BACKEND_IMAGE="talent-signal-backend-local:$ios_check_project"
   ios_backend_started="true"
   docker compose \
