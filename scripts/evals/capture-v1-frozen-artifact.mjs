@@ -196,8 +196,12 @@ const artifact = {
       allowed_skip: ios.allowed_skip,
       simulator: `${ios.environment.modelName}, iOS ${ios.environment.osVersion}`,
       path: `${evidenceRoot}/ios-full-suite-runtime.json`,
-      xcresult: "/tmp/talent-signal-full-retest-03-final.xcresult",
-      log: "/tmp/talent-signal-full-retest-03-final.log",
+      xcresult:
+        process.env.V1_FINAL_IOS_XCRESULT ??
+        "/tmp/talent-signal-full-retest-03-final.xcresult",
+      log:
+        process.env.V1_FINAL_IOS_LOG ??
+        "/tmp/talent-signal-full-retest-03-final.log",
     },
     ios_small_device: {
       verdict: small.verdict,
@@ -207,8 +211,12 @@ const artifact = {
       simulator:
         "iPhone SE (3rd generation), 375x667, iOS 26.5, dark mode, AX5",
       path: `${evidenceRoot}/ios-375x667-runtime.json`,
-      xcresult: "/tmp/talent-signal-se-375x667-retest-03-final.xcresult",
-      log: "/tmp/talent-signal-se-375x667-retest-03-final.log",
+      xcresult:
+        process.env.V1_FINAL_SMALL_IOS_XCRESULT ??
+        "/tmp/talent-signal-se-375x667-retest-03-final.xcresult",
+      log:
+        process.env.V1_FINAL_SMALL_IOS_LOG ??
+        "/tmp/talent-signal-se-375x667-retest-03-final.log",
     },
     p0_journeys: {
       verdict: p0.verdict,
@@ -237,7 +245,9 @@ const artifact = {
       {
         command: "pnpm check",
         result: "passed",
-        log: "/tmp/talent-signal-pnpm-check-v8-authority.log",
+        log:
+          process.env.V1_FINAL_PNPM_CHECK_LOG ??
+          "/tmp/talent-signal-pnpm-check-v8-authority.log",
       },
       { command: "pnpm docs:check", result: "passed" },
       { command: "git diff --check", result: "passed" },
