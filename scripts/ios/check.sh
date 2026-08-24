@@ -115,16 +115,21 @@ free_loopback_port() {
 
 ios_backend_url="${TS_IOS_BACKEND_URL:-}"
 if [ -z "$ios_backend_url" ]; then
-  POSTGRES_PORT="$(free_loopback_port)"
-  BACKEND_PORT="$(free_loopback_port)"
-  export POSTGRES_PORT BACKEND_PORT
-  export BACKEND_IMAGE="talent-signal-backend-local:$ios_check_project"
-  ios_backend_started="true"
-  docker compose \
-    --project-directory "$repository_root" \
-    -p "$ios_check_project" \
-    up --build --wait
-  ios_backend_url="http://127.0.0.1:$BACKEND_PORT"
+  if command -v docker >/dev/null 2>&1; then
+    POSTGRES_PORT="$(free_loopback_port)"
+    BACKEND_PORT="$(free_loopback_port)"
+    export POSTGRES_PORT BACKEND_PORT
+    export BACKEND_IMAGE="talent-signal-backend-local:$ios_check_project"
+    ios_backend_started="true"
+    docker compose \
+      --project-directory "$repository_root" \
+      -p "$ios_check_project" \
+      up --build --wait
+    ios_backend_url="http://127.0.0.1:$BACKEND_PORT"
+  else
+    ios_backend_url="http://127.0.0.1:4317"
+    echo "Docker is unavailable; backend-dependent iOS journeys will skip." >&2
+  fi
 fi
 
 ios_response_loss_proxy_port="$(free_loopback_port)"
