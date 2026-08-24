@@ -132,6 +132,12 @@ install or update it through TestFlight.
    [attestation](https://github.com/getyak/talent-signal/attestations/42449085),
    retained IPA, and artifact `TalentSignal-0.1.5`. The invited phone must still
    accept TestFlight and install or update before this outcome is complete.
+6. **Active — Tester access repair:** the target internal tester remains in an
+   invitation state without an observed install. A manual, environment-scoped
+   workflow now audits the active App Store Connect user, TestFlight tester,
+   internal group, and latest build relationships without exposing the tester
+   email in repository files or logs. It can repair missing group/build access
+   and resend the TestFlight invitation when the server state requires it.
 
 ## Verification
 
@@ -152,5 +158,7 @@ In progress. The isolated signing cutover and automatically triggered 0.1.5
 TestFlight delivery are proved end to end through App Store Connect processing
 and internal group distribution. The only remaining completion evidence is an
 invited physical phone accepting the invitation and installing or updating the
-build; no physical device is currently connected to this Mac, and App Store
-Connect has not yet recorded an install or session.
+build. The access-audit workflow distinguishes a pending App Store Connect user
+invitation from missing group/build access and an unaccepted TestFlight invite;
+no physical device is currently connected to this Mac, and App Store Connect
+has not yet recorded an install or session.
