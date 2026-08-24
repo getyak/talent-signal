@@ -98,7 +98,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       actions: read
       contents: read

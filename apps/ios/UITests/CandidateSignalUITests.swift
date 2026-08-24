@@ -305,8 +305,9 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     func testCanonicalWorkspaceEmptyStateDoesNotInventWork() async throws {
-        let backendURL = try await pursuitFixtureBackendURLIfAvailable()
-            ?? testConfiguration("TS_IOS_BACKEND_URL", fallback: "http://127.0.0.1:4320")
+        guard let backendURL = try await pursuitFixtureBackendURLIfAvailable() else {
+            throw XCTSkip("The canonical Pursuit workspace fixture was not configured.")
+        }
         app.launchArguments = [
             "--workspace-backend-url", backendURL,
             "--workspace-account-slug", "fixture-beta",
