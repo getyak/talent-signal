@@ -143,18 +143,23 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     func testAppleLoginKeepsOneCalmPrimaryAction() {
+        let backendURL = testConfiguration(
+            "TS_IOS_BACKEND_URL",
+            fallback: "http://127.0.0.1:4318"
+        )
         app.launchArguments = [
             "--show-login",
-            "--auth-backend-url", "http://127.0.0.1:4318",
+            "--auth-backend-url", backendURL,
         ]
         app.launch()
 
         XCTAssertTrue(element("authentication-screen").waitForExistence(timeout: 10))
         let primaryActions = app.buttons.matching(
             NSPredicate(
-                format: "identifier == %@ OR identifier == %@",
-                "sign-in-with-apple",
-                "retry-apple-challenge"
+                format: "label == %@ OR label == %@ OR label == %@",
+                "Continue with Apple",
+                "Connecting…",
+                "Try again"
             )
         )
         XCTAssertTrue(primaryActions.firstMatch.waitForExistence(timeout: 10))
