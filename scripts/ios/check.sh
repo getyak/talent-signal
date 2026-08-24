@@ -232,6 +232,30 @@ declare -a ios_result_parts=()
 ios_suite_failed="false"
 ios_part_index=0
 
+is_runner_bootstrap_failure() {
+  local result_path="$1"
+  [ -d "$result_path" ] || return 1
+  xcrun xcresulttool get test-results summary \
+    --path "$result_path" \
+    --format json 2>/dev/null |
+    ruby -rjson -e '
+      result = JSON.parse(STDIN.read)
+      failures = result.fetch("testFailures", [])
+      only_failure = failures.length == 1 ? failures.first : {}
+      bootstrap_failure = result.fetch("passedTests", 0).zero? &&
+        result.fetch("skippedTests", 0).zero? &&
+        only_failure.fetch("testName", "").include?("UITests-Runner encountered an error") &&
+        only_failure.fetch("failureText", "").include?("before establishing connection")
+      exit(bootstrap_failure ? 0 : 1)
+    '
+}
+
+reboot_simulator_for_retry() {
+  xcrun simctl shutdown "$simulator_id" >/dev/null 2>&1 || true
+  xcrun simctl boot "$simulator_id" >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$simulator_id" -b
+}
+
 run_ios_test_part() {
   local selector="$1"
   local part_label="$2"
@@ -239,15 +263,24 @@ run_ios_test_part() {
   local part_path=""
 
   ios_part_index=$((ios_part_index + 1))
-  if [ -n "${RESULT_BUNDLE_PATH:-}" ]; then
-    part_path="$ios_result_parts_dir/$(printf '%03d' "$ios_part_index")-$part_label.xcresult"
-    part_arguments+=(-resultBundlePath "$part_path")
-  fi
+  part_path="$ios_result_parts_dir/$(printf '%03d' "$ios_part_index")-$part_label.xcresult"
+  part_arguments+=(-resultBundlePath "$part_path")
 
-  if ! xcodebuild "${part_arguments[@]}" test-without-building; then
+  if xcodebuild "${part_arguments[@]}" test-without-building; then
+    :
+  elif is_runner_bootstrap_failure "$part_path"; then
+    local infra_failure_dir="$ios_result_parts_dir/infra-failures"
+    mkdir -p "$infra_failure_dir"
+    mv "$part_path" "$infra_failure_dir/$(basename "$part_path")"
+    echo "Retrying isolated iOS test after runner bootstrap failure: $selector" >&2
+    reboot_simulator_for_retry
+    if ! xcodebuild "${part_arguments[@]}" test-without-building; then
+      ios_suite_failed="true"
+    fi
+  else
     ios_suite_failed="true"
   fi
-  if [ -n "$part_path" ] && [ -d "$part_path" ]; then
+  if [ -d "$part_path" ]; then
     ios_result_parts+=("$part_path")
   fi
 }

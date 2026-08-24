@@ -98,6 +98,9 @@ assert.equal(
   "Every isolated unit/UI result part must finish successfully.",
 );
 assert(!log.includes("Failing tests:"), "The log still names failing tests.");
+const infrastructureRetryCount = (
+  log.match(/Retrying isolated iOS test after runner bootstrap failure:/g) ?? []
+).length;
 
 const artifact = {
   artifact_version: "talent-signal.v1-ios-full-suite.1",
@@ -112,6 +115,7 @@ const artifact = {
   failed_test_count: failed.length,
   skipped_test_count: skipped.length,
   allowed_skip: skipped[0]?.nodeIdentifier ?? null,
+  infrastructure_retry_count: infrastructureRetryCount,
   checks,
 };
 await writeFile(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
