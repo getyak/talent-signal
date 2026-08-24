@@ -546,7 +546,7 @@ private struct PursuitTodayView: View {
                     .foregroundStyle(Color.tsInk)
                     .tracking(-1.3)
                     .padding(.top, 7)
-                if !snapshot.todayItems.isEmpty {
+                if !attentionItems.isEmpty || actionRecovery != nil {
                     Text(summary)
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
@@ -606,10 +606,12 @@ private struct PursuitTodayView: View {
                     .padding(.top, 6)
                 }
 
-                if snapshot.todayItems.isEmpty {
-                    PursuitNoActionView()
-                        .padding(.top, topWorkSpacing)
-                } else if let focus = snapshot.todayItems.first {
+                if attentionItems.isEmpty {
+                    if actionRecovery == nil {
+                        PursuitNoActionView()
+                            .padding(.top, topWorkSpacing)
+                    }
+                } else if let focus = attentionItems.first {
                     TodayFocusCard(
                         item: focus,
                         pursuit: snapshot.pursuit(id: focus.pursuitID),
@@ -623,7 +625,7 @@ private struct PursuitTodayView: View {
                     )
                     .padding(.top, topWorkSpacing)
 
-                    if snapshot.todayItems.count > 1 {
+                    if attentionItems.count > 1 {
                         Text(appLanguage.text("Next", zhHans: "接下来"))
                             .font(.caption.weight(.bold))
                             .tracking(1.1)
@@ -680,7 +682,9 @@ private struct PursuitTodayView: View {
     }
 
     private var summary: String {
-        let total = snapshot.todayItems.count + unreadSessions.count
+        let total = attentionItems.count
+            + unreadSessions.count
+            + (actionRecovery == nil ? 0 : 1)
         if total == 0 {
             return ""
         }
@@ -705,12 +709,19 @@ private struct PursuitTodayView: View {
     }
 
     private var visibleContinuationItems: [PursuitAttentionItem] {
-        let continuation = Array(snapshot.todayItems.dropFirst())
+        let continuation = Array(attentionItems.dropFirst())
         return showsAllAttention ? continuation : Array(continuation.prefix(4))
     }
 
     private var hiddenAttentionCount: Int {
-        max(snapshot.todayItems.count - 5, 0)
+        max(attentionItems.count - 5, 0)
+    }
+
+    private var attentionItems: [PursuitAttentionItem] {
+        guard let actionRecovery else { return snapshot.todayItems }
+        return snapshot.todayItems.filter {
+            $0.pursuitID != actionRecovery.pursuitID
+        }
     }
 
     private var attentionDisclosureLabel: String {
