@@ -14,6 +14,7 @@ struct RelationshipArchiveView: View {
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
     @State private var deferredIntakePresentation: AgentIntakePresentation?
+    @State private var deferredArchiveSheet: RelationshipArchiveSheet?
     private let reviewBaseURL: URL?
     private let authenticatedAccessToken: String?
     private let onSignOut: (() async -> Void)?
@@ -35,7 +36,12 @@ struct RelationshipArchiveView: View {
             )
         }
         _workspaceStore = StateObject(
-            wrappedValue: PursuitWorkspaceStore(service: resolvedService)
+            wrappedValue: PursuitWorkspaceStore(
+                service: resolvedService,
+                actionCompletions: session?.accountID.map {
+                    FilePursuitActionCompletionStore(accountID: $0)
+                } ?? UserDefaultsPursuitActionCompletionStore()
+            )
         )
         _sessionStore = StateObject(
             wrappedValue: resolvedService == nil
@@ -130,6 +136,9 @@ struct RelationshipArchiveView: View {
                     },
                     onSignOut: onSignOut.map { signOut in
                         {
+                            guard workspaceStore.deleteSavedActionCompletions() else {
+                                return false
+                            }
                             guard sessionStore.deleteAll() else { return false }
                             await signOut()
                             return true
@@ -148,6 +157,7 @@ struct RelationshipArchiveView: View {
                     RelationshipAskView(
                         snapshot: snapshot,
                         isCanonical: workspaceStore.isCanonical,
+                        workspaceStore: workspaceStore,
                         sessionStore: sessionStore,
                         sessionID: sessionID,
                         ask: { objective, personID, contextID, idempotencyKey in
@@ -158,20 +168,26 @@ struct RelationshipArchiveView: View {
                                 idempotencyKey: idempotencyKey
                             )
                         },
-                        rejectEvidence: {
+                        reviewEvidence: {
                             fragmentID,
                             expectedReviewStatus,
+                            decision,
                             reason,
                             idempotencyKey in
-                            try await workspaceStore.rejectEvidence(
+                            try await workspaceStore.reviewEvidence(
                                 fragmentID: fragmentID,
                                 expectedReviewStatus: expectedReviewStatus,
+                                decision: decision,
                                 reason: reason,
                                 idempotencyKey: idempotencyKey
                             )
                         },
                         revalidateSessions: {
                             await revalidateSessionEvidence()
+                        },
+                        onOpenProposal: { proposal in
+                            deferredArchiveSheet = .proposal(proposal)
+                            capturePresentation = nil
                         },
                         onCapture: {
                             deferredIntakePresentation = .init(initialDestination: nil)
@@ -253,9 +269,18 @@ struct RelationshipArchiveView: View {
                     snapshot: snapshot,
                     isPreview: !workspaceStore.isCanonical,
                     unreadSessions: sessionStore.unreadSessions,
+                    actionRecovery: workspaceStore.latestActionRecovery(
+                        in: snapshot
+                    ),
                     onOpenSession: openSession,
                     onOpenAttention: openAttention,
-                    onOpenPursuit: { presentedSheet = .pursuit($0) }
+                    onOpenPursuit: { presentedSheet = .pursuit($0) },
+                    onOpenActionRecovery: { pursuitID in
+                        guard let pursuit = snapshot.pursuit(id: pursuitID) else {
+                            return
+                        }
+                        presentedSheet = .pursuit(pursuit)
+                    }
                 )
                 .tag(RelationshipArchivePage.today)
 
@@ -311,6 +336,10 @@ struct RelationshipArchiveView: View {
     }
 
     private func completeDeferredTransition() {
+        if let deferredArchiveSheet {
+            presentedSheet = deferredArchiveSheet
+            self.deferredArchiveSheet = nil
+        }
         if let deferredIntakePresentation {
             intakePresentation = deferredIntakePresentation
             self.deferredIntakePresentation = nil
@@ -498,9 +527,11 @@ private struct PursuitTodayView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
     let unreadSessions: [AgentSession]
+    let actionRecovery: PursuitActionRecoveryItem?
     let onOpenSession: (AgentSession) -> Void
     let onOpenAttention: (PursuitAttentionItem) -> Void
     let onOpenPursuit: (WorkspacePursuit) -> Void
+    let onOpenActionRecovery: (String) -> Void
     @State private var showsAllAttention = false
     @Environment(\.appLanguage) private var appLanguage
 
@@ -548,9 +579,34 @@ private struct PursuitTodayView: View {
                     .padding(.top, 6)
                 }
 
+                if let actionRecovery {
+                    Text(
+                        appLanguage.text(
+                            actionRecovery.status == .recorded
+                                ? "Recent outcome"
+                                : "Recovery in progress",
+                            zhHans: actionRecovery.status == .recorded
+                                ? "近期结果"
+                                : "正在恢复"
+                        )
+                    )
+                    .font(.caption.weight(.bold))
+                    .tracking(1.1)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .padding(.top, unreadSessions.isEmpty ? 30 : 24)
+
+                    TodayActionRecoveryCard(
+                        item: actionRecovery,
+                        action: {
+                            onOpenActionRecovery(actionRecovery.pursuitID)
+                        }
+                    )
+                    .padding(.top, 6)
+                }
+
                 if snapshot.todayItems.isEmpty {
                     PursuitNoActionView()
-                        .padding(.top, unreadSessions.isEmpty ? 38 : 24)
+                        .padding(.top, topWorkSpacing)
                 } else if let focus = snapshot.todayItems.first {
                     TodayFocusCard(
                         item: focus,
@@ -563,7 +619,7 @@ private struct PursuitTodayView: View {
                             }
                         }
                     )
-                    .padding(.top, unreadSessions.isEmpty ? 34 : 28)
+                    .padding(.top, topWorkSpacing)
 
                     if snapshot.todayItems.count > 1 {
                         Text(appLanguage.text("Next", zhHans: "接下来"))
@@ -632,6 +688,10 @@ private struct PursuitTodayView: View {
         )
     }
 
+    private var topWorkSpacing: CGFloat {
+        unreadSessions.isEmpty && actionRecovery == nil ? 34 : 24
+    }
+
     private var formattedToday: String {
         Date.now.formatted(
             Date.FormatStyle()
@@ -656,8 +716,8 @@ private struct PursuitTodayView: View {
             return appLanguage.text("Show fewer", zhHans: "收起")
         }
         return appLanguage.text(
-            "Show (hiddenAttentionCount) more",
-            zhHans: "再显示 (hiddenAttentionCount) 件"
+            "Show \(hiddenAttentionCount) more",
+            zhHans: "再显示 \(hiddenAttentionCount) 件"
         )
     }
 
@@ -681,6 +741,56 @@ private struct PursuitTodayView: View {
             "\(snapshot.noActionPursuitCount) need no action",
             zhHans: "\(snapshot.noActionPursuitCount) 个暂不行动"
         )
+    }
+}
+
+private struct TodayActionRecoveryCard: View {
+    let item: PursuitActionRecoveryItem
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Label(
+                        item.status == .recorded
+                            ? "Outcome recorded"
+                            : "Checking canonical result",
+                        systemImage: item.status == .recorded
+                            ? "checkmark.seal"
+                            : "arrow.triangle.2.circlepath"
+                    )
+                    .font(.headline)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                }
+                Text(item.actionTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(item.outcomeSummary)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(item.pursuitTitle) · Owner: \(item.ownerDisplayName)")
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Label(
+                    "No message, calendar event, or external write",
+                    systemImage: "lock.shield"
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+            }
+            .foregroundStyle(Color.tsInk)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("today-action-recovery-\(item.actionID)")
     }
 }
 
@@ -1709,7 +1819,7 @@ private struct PursuitWorkspaceEmptyView: View {
     }
 }
 
-private struct PursuitDetailView: View {
+struct PursuitDetailView: View {
     @State private var pursuit: WorkspacePursuit
     let snapshot: PursuitWorkspaceSnapshot?
     let currentUserID: String?

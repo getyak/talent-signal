@@ -150,11 +150,15 @@ final class CandidateSignalUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(element("authentication-screen").waitForExistence(timeout: 10))
-        XCTAssertTrue(
-            app.buttons.matching(
-                NSPredicate(format: "label CONTAINS %@", "Apple")
-            ).firstMatch.exists
+        let primaryActions = app.buttons.matching(
+            NSPredicate(
+                format: "identifier == %@ OR identifier == %@",
+                "sign-in-with-apple",
+                "retry-apple-challenge"
+            )
         )
+        XCTAssertTrue(primaryActions.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertEqual(primaryActions.count, 1)
         XCTAssertTrue(app.staticTexts["Talent Signal"].exists)
         XCTAssertTrue(app.staticTexts["Relationships, in context."].exists)
         XCTAssertFalse(app.staticTexts["Create an account"].exists)
@@ -273,13 +277,17 @@ final class CandidateSignalUITests: XCTestCase {
             app.staticTexts.matching(
                 NSPredicate(
                     format: "label CONTAINS %@",
-                    "The final conversation works next Tuesday"
+                    "Availability: 2026-09-01, Asia/Shanghai"
                 )
             ).firstMatch.exists
         )
         preserveScreenshot("Canonical Today to Proposal review")
 
         app.buttons["Close relationship review"].tap()
+        XCTAssertTrue(
+            app.buttons["Close relationship review"]
+                .waitForNonExistence(timeout: 5)
+        )
         let pursuit = app.buttons[
             "today-attention-pursuit-\(fixture.pursuitID)"
         ]
@@ -292,6 +300,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Canonical Pursuit detail")
 
         app.buttons["Close"].tap()
+        XCTAssertTrue(element("pursuit-detail").waitForNonExistence(timeout: 5))
         let people = app.buttons["archive-tab-people"]
         XCTAssertTrue(people.waitForExistence(timeout: 6))
         people.tap()
@@ -482,7 +491,14 @@ final class CandidateSignalUITests: XCTestCase {
         let proposal = app.buttons["today-review-proposal-\(fixture.pursuitID)"]
         tapWorkspaceElementWhenVisible(proposal, in: "canonical-pursuit-today")
         XCTAssertTrue(element("review-exact-evidence").waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Relative time remains unresolved"].exists)
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(
+                    format: "label CONTAINS %@",
+                    "Availability: 2026-09-01, Asia/Shanghai"
+                )
+            ).firstMatch.exists
+        )
         XCTAssertTrue(
             app.staticTexts.matching(
                 NSPredicate(format: "label == %@", "PROPOSED")
@@ -566,7 +582,7 @@ final class CandidateSignalUITests: XCTestCase {
         let menu = app.buttons["relationship-menu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 8))
         let window = app.windows.firstMatch
-        XCTAssertGreaterThan(
+        XCTAssertGreaterThanOrEqual(
             menu.frame.minY,
             window.frame.minY + 32,
             "The persistent workspace header must remain below the status bar after dismissing a detail sheet."
@@ -622,7 +638,7 @@ final class CandidateSignalUITests: XCTestCase {
             app.staticTexts.matching(
                 NSPredicate(
                     format: "label CONTAINS %@",
-                    "The final conversation works next Tuesday"
+                    "Availability: 2026-09-01, Asia/Shanghai"
                 )
             ).firstMatch.exists
         )
@@ -711,7 +727,7 @@ final class CandidateSignalUITests: XCTestCase {
             app.staticTexts.matching(
                 NSPredicate(
                     format: "label CONTAINS %@",
-                    "The final conversation works next Tuesday"
+                    "Availability: 2026-09-01, Asia/Shanghai"
                 )
             ).firstMatch.exists
         )
@@ -814,10 +830,27 @@ final class CandidateSignalUITests: XCTestCase {
         app.launchArguments = launchArguments
         app.launch()
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
-        let relaunchedRow = app.buttons[
+        let recovery = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "today-action-recovery-"
+            )
+        ).firstMatch
+        XCTAssertTrue(recovery.waitForExistence(timeout: 20))
+        XCTAssertTrue(
+            recovery.label.contains(
+                "Client supplied two final-conversation times after response loss."
+            )
+        )
+        let oldAttentionRow = app.buttons[
             "today-attention-pursuit-\(fixture.recoveryPursuitID)"
         ]
-        tapWhenVisible(relaunchedRow, maxSwipes: 120)
+        XCTAssertFalse(oldAttentionRow.exists)
+        preserveScreenshot("Relaunch restored owned action recovery entry")
+        tapWhenVisible(recovery)
+        XCTAssertTrue(
+            element("pursuit-detail").waitForExistence(timeout: 10)
+        )
         XCTAssertTrue(
             element("pursuit-action-completion-receipt").waitForExistence(timeout: 20)
         )

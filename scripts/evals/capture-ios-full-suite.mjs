@@ -88,7 +88,15 @@ assert.equal(
 );
 const log = await readFile(logPath, "utf8");
 assert(log.includes("** BUILD SUCCEEDED **"), "The Release build did not pass.");
-assert(log.includes("** TEST SUCCEEDED **"), "The full test command did not pass.");
+assert(
+  log.includes("** TEST BUILD SUCCEEDED **"),
+  "The full-suite test build did not pass.",
+);
+assert.equal(
+  (log.match(/\*\* TEST EXECUTE SUCCEEDED \*\*/g) ?? []).length,
+  40,
+  "Every isolated unit/UI result part must finish successfully.",
+);
 assert(!log.includes("Failing tests:"), "The log still names failing tests.");
 
 const artifact = {

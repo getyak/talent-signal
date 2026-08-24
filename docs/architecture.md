@@ -167,20 +167,20 @@ an older value never restores older evidence. State remains explainable by histo
 
 ### Evidence is scoped
 
-Every consequential claim preserves its source, purpose, authorization, and
-retention boundary. Retrieval is authorized at use time, not only at storage
-time.
+Every consequential claim preserves source, purpose, authorization, and retention. Retrieval is authorized at use time, not only at storage time.
 
-Chat citations use authenticated readback bound to the generation account,
-task, manifest, snapshot, person, context, and authorization scope. Each citation
-returns its canonical source person and context. The backend fails readback
-unless every fragment is active, reviewed, attribution-confirmed, inspectable,
-and authorized in that exact scope; the client rechecks before recording; readback grants no write authority.
-Agent Sessions use an account-hashed, protected, backup-excluded device container. It retains scoped questions and response identity, not answer blocks
-or excerpts. Drafts expire at seven days and Sessions at thirty; operations and
-foreground resume prune. In-flight Ask retains its draft and idempotency key.
-Sign-out tombstones deletion, suppresses restore, verifies absence, and retries.
-Restored answers hide citations until a fresh scoped Ask.
+Chat citation readback binds account, task, manifest, snapshot, person, context, and authorization scope. Every fragment must be active, reviewed,
+attribution-confirmed, inspectable, and authorized in that exact scope. The client rechecks before recording, when Ask opens, on foreground return,
+and each minute while visible; failure makes the local turn stale. Readback grants no write authority.
+Agent Sessions use an account-hashed, protected, backup-excluded device container holding scoped questions and response identity, never answer blocks or excerpts. Drafts expire at seven days and Sessions at thirty through exact-timer, read, and foreground pruning.
+In-flight Ask retains its draft and idempotency key; restored answers hide citations until a fresh scoped Ask.
+Before source review, the same container stores fragment, expected state, decision, reason, task, and an authority-bound idempotency key, never the excerpt; failed persistence blocks the request.
+Pending, failed, outcome-unknown, and applied states survive relaunch and reuse that key. A new authority cycle gets a new key; reinstatement appends a reviewed decision against rejected state.
+Sign-out tombstones and verifies deletion. Neither review path makes an old answer current.
+
+Owned-action outcome drafts, operation IDs, and receipts use a separate account-hashed, protected, backup-excluded container with a thirty-day limit.
+The operation ID must be durably saved before the canonical POST can begin; otherwise the client fails closed without sending. Relaunch reconciles the
+same operation by canonical readback, and sign-out tombstones and verifies deletion of this recovery state before the account session is revoked.
 
 Pursuit roles, gaps, and Proposal items return durable evidence references and
 computed authority: `available`, `partial`, `unavailable`, or `not_required`

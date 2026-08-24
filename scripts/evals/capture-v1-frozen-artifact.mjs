@@ -144,7 +144,7 @@ const artifact = {
     task:
       "capture the Signal, choose the exact Person/Pursuit scope, review evidence and a revision-checked Proposal, apply once, record one owned internal action outcome, and read both canonical receipts back",
     success_condition:
-      "Today preserves every attention-bearing Pursuit with outcome, target, blocker, evidence, owner, due work, and no display cap; identity, operation, action, deletion, retry, interruption, and response-loss paths remain scoped and truthful",
+      "Today preserves access to every attention-bearing Pursuit while focusing the first item and disclosing additional work; outcome, target, blocker, evidence, owner, and due work remain visible, and identity, operation, action, deletion, retry, interruption, and response-loss paths remain scoped and truthful",
     intentionally_unavailable: [
       "real candidate content",
       "production authentication or provider writes",
@@ -210,7 +210,7 @@ const artifact = {
     },
     agent: {
       package_tests: "24/24 passed",
-      backend_tests: "118/118 passed",
+      backend_tests: "129/129 passed",
       deterministic_trials: `${agent.trial_count}/${agent.trial_count} passed`,
       deterministic_safety_pass_rate: agent.invariants.safety_pass_rate,
       external_effect_count: agent.invariants.external_effect_count,

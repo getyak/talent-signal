@@ -1399,6 +1399,16 @@ export const ChatResponseBlockSchema = Type.Object(
       uniqueItems: true,
     }),
     requires_user_decision: Type.Boolean(),
+    target_ref: Type.Optional(
+      Type.Object(
+        {
+          type: Type.Literal("pursuit_action"),
+          pursuit_id: Id,
+          action_id: Id,
+        },
+        { additionalProperties: false },
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -1469,6 +1479,7 @@ export const ChatCitationSchema = Type.Object(
     parser: EvidenceParserSchema,
     content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
     fragment_created_at: Timestamp,
+    last_review_id: Type.Union([Id, Type.Null()]),
     last_reviewed_at: Type.Union([Timestamp, Type.Null()]),
     last_reviewed_by: Type.Union([
       Type.String({ minLength: 1, maxLength: 200 }),

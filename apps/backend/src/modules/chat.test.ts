@@ -103,6 +103,50 @@ describe("chat current-state projection", () => {
     );
   });
 
+  it("does not repeat source material already attached to a response block", () => {
+    const dependency = {
+      type: "evidence_fragment" as const,
+      id: "00000000-0000-4000-8000-000000000090",
+      inclusion_reason: "Supports the reviewed availability fact.",
+      authorization_scope: "relationship_context",
+    };
+    const identity = block(
+      "00000000-0000-4000-8000-000000000091",
+      "identity.context",
+      "identity_context",
+      "confirmed",
+      "Jordan Kim",
+    );
+    const fact = block(
+      "00000000-0000-4000-8000-000000000092",
+      "fact.availability",
+      "constraint",
+      "confirmed",
+      "Availability: 2026-09-01, Asia/Shanghai",
+    );
+    const source = block(
+      "00000000-0000-4000-8000-000000000093",
+      "resource.conversation.fixture",
+      "relationship_history",
+      "confirmed",
+      "Conversation evidence attached",
+    );
+    const noAction = block(
+      "00000000-0000-4000-8000-000000000094",
+      "attention.no-action",
+      "no_action",
+      "confirmed",
+      "No action until the candidate clarifies availability",
+    );
+    fact.dependencies = [dependency];
+    source.dependencies = [dependency];
+
+    const response = responseBlocks([identity, fact, source, noAction]);
+
+    expect(response.some((item) => item.kind === "source_receipt")).toBe(false);
+    expect(response[0]?.citation_dependency_ids).toEqual([dependency.id]);
+  });
+
   it("keeps relative timing out of confirmed state until date and timezone are explicit", () => {
     const identity = block(
       "00000000-0000-4000-8000-000000000031",
@@ -132,7 +176,8 @@ describe("chat current-state projection", () => {
       (item) => item.title === "Clarify relative timing before relying on it",
     );
     expect(brief?.body).not.toContain("Next Tuesday");
-    expect(brief?.status).toBe("needs_review");
+    expect(brief?.status).toBe("confirmed");
+    expect(brief?.requires_user_decision).toBe(false);
     expect(review?.body).toContain("Confirm one explicit calendar date and timezone.");
     expect(review?.requires_user_decision).toBe(true);
   });
@@ -153,6 +198,7 @@ describe("chat current-state projection", () => {
       "No supported next action is ready.",
     );
     const response = responseBlocks([identity, noAction], {
+      pursuit_id: "00000000-0000-4000-8000-000000000044",
       action_id: "00000000-0000-4000-8000-000000000043",
       action_title: "Ask the client for two final-conversation times",
       action_status: "drafted",
@@ -166,8 +212,14 @@ describe("chat current-state projection", () => {
     expect(response.some((item) => item.kind === "no_action")).toBe(false);
     const action = response.find((item) => item.kind === "active_action");
     expect(action?.body).toContain("Ask the client for two final-conversation times");
+    expect(action?.body).toContain("Due: 2026-08-24 09:00:00 UTC");
     expect(action?.body).toContain("Client availability is unresolved");
     expect(action?.requires_user_decision).toBe(false);
+    expect(action?.target_ref).toEqual({
+      type: "pursuit_action",
+      pursuit_id: "00000000-0000-4000-8000-000000000044",
+      action_id: "00000000-0000-4000-8000-000000000043",
+    });
   });
 
   it("fails closed when a citation is not bound, reviewed, confirmed, and inspectable", () => {
@@ -204,6 +256,7 @@ describe("chat current-state projection", () => {
       parser_version: "1",
       content_hash: "0".repeat(64),
       fragment_created_at: new Date("2026-08-24T17:34:00.000Z"),
+      last_review_id: "00000000-0000-4000-8000-000000000108",
       last_reviewed_at: new Date("2026-08-24T17:35:00.000Z"),
       last_reviewed_by: "Recruiter",
       fragment_status: "active",

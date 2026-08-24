@@ -73,6 +73,13 @@ protocol PursuitWorkspaceServing {
         reason: String,
         idempotencyKey: String
     ) async throws
+    func reviewEvidence(
+        fragmentID: String,
+        expectedReviewStatus: String,
+        decision: String,
+        reason: String,
+        idempotencyKey: String
+    ) async throws
     func completeAction(
         pursuitID: String,
         actionID: String,
@@ -112,6 +119,24 @@ extension PursuitWorkspaceServing {
         idempotencyKey: String
     ) async throws {
         throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func reviewEvidence(
+        fragmentID: String,
+        expectedReviewStatus: String,
+        decision: String,
+        reason: String,
+        idempotencyKey: String
+    ) async throws {
+        guard decision == "rejected" else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        try await rejectEvidence(
+            fragmentID: fragmentID,
+            expectedReviewStatus: expectedReviewStatus,
+            reason: reason,
+            idempotencyKey: idempotencyKey
+        )
     }
 
     func completeAction(
@@ -316,7 +341,24 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         reason: String,
         idempotencyKey: String
     ) async throws {
-        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+        try await reviewEvidence(
+            fragmentID: fragmentID,
+            expectedReviewStatus: expectedReviewStatus,
+            decision: "rejected",
+            reason: reason,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func reviewEvidence(
+        fragmentID: String,
+        expectedReviewStatus: String,
+        decision: String,
+        reason: String,
+        idempotencyKey: String
+    ) async throws {
+        guard ["reviewed", "rejected"].contains(decision),
+              authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
             throw PursuitWorkspaceClientError.loopbackOnly
         }
         let login = try await loginIfNeeded()
@@ -326,12 +368,13 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             body: WorkspaceEvidenceReviewBody(
                 idempotencyKey: idempotencyKey,
                 expectedReviewStatus: expectedReviewStatus,
-                decision: "rejected",
+                decision: decision,
                 reason: reason
             )
         )
         guard response.fragmentID == fragmentID,
-              response.reviewStatus == "rejected" else {
+              response.reviewStatus == decision,
+              Self.isVerifiedTimestamp(response.decidedAt) else {
             throw PursuitWorkspaceClientError.scopeReadbackMismatch
         }
     }
@@ -469,6 +512,13 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         }
     }
 
+    private static func isVerifiedTimestamp(_ value: String) -> Bool {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: value) != nil
+            || ISO8601DateFormatter().date(from: value) != nil
+    }
+
     private func loginIfNeeded() async throws -> WorkspaceLoginResponse {
         if let authenticatedSession { return authenticatedSession }
         var request = URLRequest(url: baseURL.appending(path: "v1/auth/simulated-login"))
@@ -557,11 +607,45 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         let status: String
         let citationDependencyIDs: [String]
         let requiresUserDecision: Bool
+        let targetRef: TargetRef?
+
+        struct TargetRef: Codable, Equatable {
+            let type: String
+            let pursuitID: String
+            let actionID: String
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case pursuitID = "pursuit_id"
+                case actionID = "action_id"
+            }
+        }
 
         enum CodingKeys: String, CodingKey {
             case id, kind, title, body, status
             case citationDependencyIDs = "citation_dependency_ids"
             case requiresUserDecision = "requires_user_decision"
+            case targetRef = "target_ref"
+        }
+
+        init(
+            id: String,
+            kind: String,
+            title: String,
+            body: String,
+            status: String,
+            citationDependencyIDs: [String],
+            requiresUserDecision: Bool,
+            targetRef: TargetRef? = nil
+        ) {
+            self.id = id
+            self.kind = kind
+            self.title = title
+            self.body = body
+            self.status = status
+            self.citationDependencyIDs = citationDependencyIDs
+            self.requiresUserDecision = requiresUserDecision
+            self.targetRef = targetRef
         }
     }
 
@@ -587,6 +671,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         let parser: Parser
         let contentHash: String
         let fragmentCreatedAt: String
+        let lastReviewID: String?
         let lastReviewedAt: String?
         let lastReviewedBy: String?
 
@@ -623,6 +708,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             case reviewStatus = "review_status"
             case contentHash = "content_hash"
             case fragmentCreatedAt = "fragment_created_at"
+            case lastReviewID = "last_review_id"
             case lastReviewedAt = "last_reviewed_at"
             case lastReviewedBy = "last_reviewed_by"
         }
@@ -737,6 +823,7 @@ struct RelationshipAskReadback: Decodable, Equatable {
                 && citation.relationshipContextID == expectedRelationshipContextID
                 && citation.authorizationScope == expectedCitationScope
                 && citation.reviewStatus == "reviewed"
+                && citation.lastReviewID != nil
                 && citation.attribution.status == "confirmed"
                 && citation.exactExcerpt?.trimmingCharacters(
                     in: .whitespacesAndNewlines
@@ -795,10 +882,12 @@ private struct WorkspaceEvidenceReviewBody: Encodable {
 private struct WorkspaceEvidenceReviewResponse: Decodable {
     let fragmentID: String
     let reviewStatus: String
+    let decidedAt: String
 
     enum CodingKeys: String, CodingKey {
         case fragmentID = "fragment_id"
         case reviewStatus = "review_status"
+        case decidedAt = "decided_at"
     }
 }
 

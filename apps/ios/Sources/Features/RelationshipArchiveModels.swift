@@ -69,6 +69,55 @@ struct AgentSessionDraft: Codable, Equatable {
     var pendingIdempotencyKey: String?
 }
 
+struct AgentEvidenceReviewOperation: Codable, Equatable, Identifiable {
+    enum State: String, Codable, Equatable {
+        case pending
+        case outcomeUnknown = "outcome_unknown"
+        case failed
+        case applied
+    }
+
+    let idempotencyKey: String
+    let taskID: String
+    let fragmentID: String
+    let resourceID: String
+    let sourceName: String
+    let personID: String
+    let personDisplayName: String
+    let relationshipContextID: String
+    let relationshipContextDisplayName: String
+    let expectedReviewStatus: String
+    let decision: String
+    let reason: String
+    var state: State
+    var statusMessage: String?
+    var updatedAt: Date
+
+    var id: String { idempotencyKey }
+}
+
+enum AgentEvidenceReviewIntent {
+    static func idempotencyKey(
+        fragmentID: String,
+        expectedReviewStatus: String,
+        authorityToken: String,
+        decision: String,
+        reason: String
+    ) -> String {
+        let material = [
+            fragmentID,
+            expectedReviewStatus,
+            authorityToken,
+            decision,
+            reason.trimmingCharacters(in: .whitespacesAndNewlines),
+        ].joined(separator: "|")
+        let digest = SHA256.hash(data: Data(material.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return "ios:evidence-review:\(digest)"
+    }
+}
+
 protocol AgentSessionPersisting {
     func load() throws -> Data?
     func save(_ data: Data) throws
@@ -147,6 +196,7 @@ private struct PersistedAgentSessionEnvelope: Codable {
     let version: Int
     let sessions: [PersistedAgentSession]
     let drafts: [AgentSessionDraft]
+    let evidenceReviews: [AgentEvidenceReviewOperation]?
 }
 
 private struct PersistedAgentSession: Codable {
@@ -257,6 +307,7 @@ final class AgentSessionStore: ObservableObject {
     private static let sessionRetention: TimeInterval = 30 * 24 * 60 * 60
     private static let draftRetention: TimeInterval = 7 * 24 * 60 * 60
     @Published private var storedSessions: [AgentSession]
+    @Published private var storedEvidenceReviews: [AgentEvidenceReviewOperation]
     @Published private(set) var persistenceNotice: String?
     private var drafts: [AgentSessionDraft]
     private let persistence: AgentSessionPersisting?
@@ -273,6 +324,7 @@ final class AgentSessionStore: ObservableObject {
         expirationTask = nil
         persistenceNotice = nil
         drafts = []
+        storedEvidenceReviews = []
         storedSessions = sessions.sorted { $0.updatedAt > $1.updatedAt }
         defer { scheduleNextExpiration() }
         guard sessions.isEmpty, let persistence else { return }
@@ -290,17 +342,19 @@ final class AgentSessionStore: ObservableObject {
                 PersistedAgentSessionEnvelope.self,
                 from: data
             )
-            guard envelope.version == 1 else {
+            guard [1, 2].contains(envelope.version) else {
                 throw AgentSessionPersistenceError.unsupportedVersion
             }
             storedSessions = envelope.sessions
                 .map(\.value)
                 .sorted { $0.updatedAt > $1.updatedAt }
             drafts = envelope.drafts
+            storedEvidenceReviews = envelope.evidenceReviews ?? []
             persist()
         } catch {
             storedSessions = []
             drafts = []
+            storedEvidenceReviews = []
             persistenceNotice = "Saved Agent sessions could not be restored on this device."
         }
     }
@@ -463,6 +517,152 @@ final class AgentSessionStore: ObservableObject {
         persist()
     }
 
+    @discardableResult
+    func beginEvidenceReview(
+        idempotencyKey: String,
+        taskID: String,
+        citation: RelationshipAskResponse.Citation,
+        personDisplayName: String,
+        relationshipContextDisplayName: String,
+        expectedReviewStatus: String,
+        decision: String,
+        reason: String
+    ) throws -> AgentEvidenceReviewOperation {
+        _ = pruneExpiredState()
+        if let existing = storedEvidenceReviews.first(where: {
+            $0.idempotencyKey == idempotencyKey
+        }) {
+            return existing
+        }
+        let operation = AgentEvidenceReviewOperation(
+            idempotencyKey: idempotencyKey,
+            taskID: taskID,
+            fragmentID: citation.id,
+            resourceID: citation.resourceID,
+            sourceName: citation.sourceName,
+            personID: citation.personID ?? "unavailable",
+            personDisplayName: personDisplayName,
+            relationshipContextID: citation.relationshipContextID ?? "unavailable",
+            relationshipContextDisplayName: relationshipContextDisplayName,
+            expectedReviewStatus: expectedReviewStatus,
+            decision: decision,
+            reason: reason,
+            state: .pending,
+            statusMessage: nil,
+            updatedAt: now()
+        )
+        storedEvidenceReviews.append(operation)
+        guard persist() else {
+            storedEvidenceReviews.removeAll {
+                $0.idempotencyKey == idempotencyKey
+            }
+            scheduleNextExpiration()
+            throw AgentSessionPersistenceError.evidenceReviewRecoveryUnavailable
+        }
+        return operation
+    }
+
+    @discardableResult
+    func beginEvidenceReview(
+        idempotencyKey: String,
+        basedOn prior: AgentEvidenceReviewOperation,
+        expectedReviewStatus: String,
+        decision: String,
+        reason: String
+    ) throws -> AgentEvidenceReviewOperation {
+        _ = pruneExpiredState()
+        if let existing = storedEvidenceReviews.first(where: {
+            $0.idempotencyKey == idempotencyKey
+        }) {
+            return existing
+        }
+        let operation = AgentEvidenceReviewOperation(
+            idempotencyKey: idempotencyKey,
+            taskID: prior.taskID,
+            fragmentID: prior.fragmentID,
+            resourceID: prior.resourceID,
+            sourceName: prior.sourceName,
+            personID: prior.personID,
+            personDisplayName: prior.personDisplayName,
+            relationshipContextID: prior.relationshipContextID,
+            relationshipContextDisplayName: prior.relationshipContextDisplayName,
+            expectedReviewStatus: expectedReviewStatus,
+            decision: decision,
+            reason: reason,
+            state: .pending,
+            statusMessage: nil,
+            updatedAt: now()
+        )
+        storedEvidenceReviews.append(operation)
+        guard persist() else {
+            storedEvidenceReviews.removeAll {
+                $0.idempotencyKey == idempotencyKey
+            }
+            scheduleNextExpiration()
+            throw AgentSessionPersistenceError.evidenceReviewRecoveryUnavailable
+        }
+        return operation
+    }
+
+    func markEvidenceReviewPending(_ idempotencyKey: String) throws {
+        guard updateEvidenceReview(idempotencyKey, update: {
+            $0.state = .pending
+            $0.statusMessage = nil
+        }) else {
+            throw AgentSessionPersistenceError.evidenceReviewRecoveryUnavailable
+        }
+    }
+
+    @discardableResult
+    func markEvidenceReviewApplied(_ idempotencyKey: String) -> Bool {
+        updateEvidenceReview(idempotencyKey) {
+            $0.state = .applied
+            $0.statusMessage = nil
+        }
+    }
+
+    @discardableResult
+    func markEvidenceReviewUnknown(
+        _ idempotencyKey: String,
+        message: String
+    ) -> Bool {
+        updateEvidenceReview(idempotencyKey) {
+            $0.state = .outcomeUnknown
+            $0.statusMessage = message
+        }
+    }
+
+    @discardableResult
+    func markEvidenceReviewFailed(
+        _ idempotencyKey: String,
+        message: String
+    ) -> Bool {
+        updateEvidenceReview(idempotencyKey) {
+            $0.state = .failed
+            $0.statusMessage = message
+        }
+    }
+
+    func latestEvidenceReviews(taskID: String) -> [AgentEvidenceReviewOperation] {
+        let matching = evidenceReviewHistory(taskID: taskID)
+        var seen = Set<String>()
+        return matching.filter { operation in
+            seen.insert(operation.fragmentID).inserted
+        }
+    }
+
+    func evidenceReviewHistory(taskID: String) -> [AgentEvidenceReviewOperation] {
+        pruneExpired()
+        return storedEvidenceReviews.enumerated()
+            .filter { $0.element.taskID == taskID }
+            .sorted { lhs, rhs in
+                lhs.element.updatedAt == rhs.element.updatedAt
+                    ? lhs.offset > rhs.offset
+                    : lhs.element.updatedAt > rhs.element.updatedAt
+            }
+            .map(\.element)
+    }
+
     func markCitationStale(_ citationID: String) {
         _ = pruneExpiredState()
         var didChange = false
@@ -544,6 +744,7 @@ final class AgentSessionStore: ObservableObject {
             expirationTask?.cancel()
             storedSessions = []
             drafts = []
+            storedEvidenceReviews = []
             persistenceNotice = nil
             return true
         }
@@ -556,6 +757,7 @@ final class AgentSessionStore: ObservableObject {
         expirationTask?.cancel()
         storedSessions = []
         drafts = []
+        storedEvidenceReviews = []
         do {
             try persistence.completeDeletion()
             persistenceNotice = nil
@@ -570,24 +772,30 @@ final class AgentSessionStore: ObservableObject {
         storedSessions.sort { $0.updatedAt > $1.updatedAt }
     }
 
-    private func persist() {
+    @discardableResult
+    private func persist() -> Bool {
         _ = pruneExpiredState()
-        persistCurrentState()
+        let didPersist = persistCurrentState()
         scheduleNextExpiration()
+        return didPersist
     }
 
-    private func persistCurrentState() {
-        guard let persistence else { return }
+    @discardableResult
+    private func persistCurrentState() -> Bool {
+        guard let persistence else { return true }
         do {
             let envelope = PersistedAgentSessionEnvelope(
-                version: 1,
+                version: 2,
                 sessions: storedSessions.map(PersistedAgentSession.init),
-                drafts: drafts
+                drafts: drafts,
+                evidenceReviews: storedEvidenceReviews
             )
             try persistence.save(try JSONEncoder.agentSession.encode(envelope))
             persistenceNotice = nil
+            return true
         } catch {
             persistenceNotice = "Agent session changes are not saved on this device."
+            return false
         }
     }
 
@@ -596,11 +804,16 @@ final class AgentSessionStore: ObservableObject {
         let draftCutoff = now().addingTimeInterval(-Self.draftRetention)
         let retainedSessions = storedSessions.filter { $0.updatedAt > sessionCutoff }
         let retainedDrafts = drafts.filter { $0.updatedAt > draftCutoff }
+        let retainedEvidenceReviews = storedEvidenceReviews.filter {
+            $0.updatedAt > sessionCutoff
+        }
         let didChange = retainedSessions.count != storedSessions.count
             || retainedDrafts.count != drafts.count
+            || retainedEvidenceReviews.count != storedEvidenceReviews.count
         guard didChange else { return false }
         storedSessions = retainedSessions
         drafts = retainedDrafts
+        storedEvidenceReviews = retainedEvidenceReviews
         return true
     }
 
@@ -612,7 +825,12 @@ final class AgentSessionStore: ObservableObject {
         let draftExpirations = drafts.map {
             $0.updatedAt.addingTimeInterval(Self.draftRetention)
         }
-        guard let nextExpiration = (sessionExpirations + draftExpirations).min() else {
+        let evidenceReviewExpirations = storedEvidenceReviews.map {
+            $0.updatedAt.addingTimeInterval(Self.sessionRetention)
+        }
+        guard let nextExpiration = (
+            sessionExpirations + draftExpirations + evidenceReviewExpirations
+        ).min() else {
             expirationTask = nil
             return
         }
@@ -639,11 +857,43 @@ final class AgentSessionStore: ObservableObject {
         )
         return bounded.count < firstLine.count ? "\(bounded)…" : bounded
     }
+
+    @discardableResult
+    private func updateEvidenceReview(
+        _ idempotencyKey: String,
+        update: (inout AgentEvidenceReviewOperation) -> Void
+    ) -> Bool {
+        _ = pruneExpiredState()
+        guard let index = storedEvidenceReviews.firstIndex(where: {
+            $0.idempotencyKey == idempotencyKey
+        }) else { return false }
+        let prior = storedEvidenceReviews[index]
+        update(&storedEvidenceReviews[index])
+        storedEvidenceReviews[index].updatedAt = now()
+        guard persist() else {
+            storedEvidenceReviews[index] = prior
+            scheduleNextExpiration()
+            return false
+        }
+        return true
+    }
 }
 
-private enum AgentSessionPersistenceError: Error {
+enum AgentSessionPersistenceError: LocalizedError, Equatable {
     case unsupportedVersion
     case deletionCouldNotBeVerified
+    case evidenceReviewRecoveryUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .unsupportedVersion:
+            "Saved Agent sessions use an unsupported version."
+        case .deletionCouldNotBeVerified:
+            "Saved Agent sessions could not be deleted safely."
+        case .evidenceReviewRecoveryUnavailable:
+            "Source review was not attempted because protected recovery could not be saved. No canonical source change was sent."
+        }
+    }
 }
 
 private extension JSONEncoder {
@@ -711,6 +961,7 @@ extension AgentSessionStore {
                     parser: .init(name: "preview", version: "1"),
                     contentHash: String(repeating: "0", count: 64),
                     fragmentCreatedAt: "2026-08-24T10:31:00.000Z",
+                    lastReviewID: "preview-review",
                     lastReviewedAt: "2026-08-24T10:35:00.000Z",
                     lastReviewedBy: "Preview recruiter"
                 ),

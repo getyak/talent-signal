@@ -1,10 +1,10 @@
-import CryptoKit
 import SwiftUI
 
 @MainActor
 struct RelationshipAskView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isCanonical: Bool
+    @ObservedObject var workspaceStore: PursuitWorkspaceStore
     @ObservedObject var sessionStore: AgentSessionStore
     let sessionID: UUID?
     let ask: (
@@ -13,13 +13,15 @@ struct RelationshipAskView: View {
         _ contextID: String,
         _ idempotencyKey: String
     ) async throws -> RelationshipAskResponse
-    let rejectEvidence: (
+    let reviewEvidence: (
         _ fragmentID: String,
         _ expectedReviewStatus: String,
+        _ decision: String,
         _ reason: String,
         _ idempotencyKey: String
     ) async throws -> Void
     let revalidateSessions: () async -> Void
+    let onOpenProposal: (WorkspaceProposal) -> Void
     let onCapture: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -33,7 +35,11 @@ struct RelationshipAskView: View {
     @State private var activeSessionID: UUID?
     @State private var isSending = false
     @State private var errorMessage: String?
-    @State private var selectedCitation: RelationshipAskResponse.Citation?
+    @State private var selectedCitation: SelectedAskCitation?
+    @State private var selectedPursuit: WorkspacePursuit?
+    @State private var reinstatementOperation: AgentEvidenceReviewOperation?
+    @State private var reinstatementReason = ""
+    @State private var reviewPreparationError: String?
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -60,31 +66,102 @@ struct RelationshipAskView: View {
         }
         .tint(.tsInk)
         .presentationDetents([.large])
-        .sheet(item: $selectedCitation) { citation in
+        .sheet(item: $selectedCitation) { selection in
             AskCitationDetailView(
-                citation: citation,
+                citation: selection.citation,
                 language: appLanguage,
                 onReject: isCanonical ? { reason in
                     let reviewKey = reviewIdempotencyKey(
-                        citation: citation,
+                        fragmentID: selection.citation.id,
+                        expectedReviewStatus: selection.citation.reviewStatus,
+                        authorityToken: selection.citation.lastReviewID
+                            ?? selection.citation.lastReviewedAt
+                            ?? "review-status:\(selection.citation.reviewStatus)",
                         reason: reason,
                         decision: "rejected"
                     )
-                    sessionStore.markCitationStale(citation.id)
-                    try await rejectEvidence(
-                        citation.id,
-                        citation.reviewStatus,
-                        reason,
-                        reviewKey
+                    let scope = selectedScope
+                    _ = try sessionStore.beginEvidenceReview(
+                        idempotencyKey: reviewKey,
+                        taskID: selection.taskID,
+                        citation: selection.citation,
+                        personDisplayName: scope?.person.displayLabel ?? "Current person",
+                        relationshipContextDisplayName: scope?.context.displayLabel
+                            ?? "Current relationship",
+                        expectedReviewStatus: selection.citation.reviewStatus,
+                        decision: "rejected",
+                        reason: reason
                     )
+                    reviewPreparationError = nil
+                    sessionStore.markCitationStale(selection.citation.id)
                     selectedCitation = nil
+                    do {
+                        try await reviewEvidence(
+                            selection.citation.id,
+                            selection.citation.reviewStatus,
+                            "rejected",
+                            reason,
+                            reviewKey
+                        )
+                        if !sessionStore.markEvidenceReviewApplied(reviewKey) {
+                            reviewPreparationError = postReviewPersistenceMessage
+                        }
+                    } catch {
+                        recordEvidenceReviewFailure(reviewKey, error: error)
+                        throw error
+                    }
                 } : nil
             )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $selectedPursuit) { pursuit in
+            PursuitDetailView(
+                pursuit: pursuit,
+                snapshot: workspaceStore.snapshot,
+                currentUserID: workspaceStore.snapshot?.currentUserID,
+                workspaceStore: workspaceStore,
+                onOpenProposal: { proposal in
+                    selectedPursuit = nil
+                    onOpenProposal(proposal)
+                }
+            )
+        }
+        .alert(
+            appLanguage.text("Re-review this source?", zhHans: "重新审阅此来源？"),
+            isPresented: Binding(
+                get: { reinstatementOperation != nil },
+                set: { if !$0 { reinstatementOperation = nil } }
+            )
+        ) {
+            TextField(
+                appLanguage.text("What changed or was corrected?", zhHans: "发生了什么更正？"),
+                text: $reinstatementReason
+            )
+            Button(appLanguage.text("Cancel", zhHans: "取消"), role: .cancel) {
+                reinstatementOperation = nil
+                reinstatementReason = ""
+            }
+            Button(appLanguage.text("Re-review source", zhHans: "重新审阅来源")) {
+                guard let operation = reinstatementOperation else { return }
+                submitReinstatement(operation)
+                reinstatementOperation = nil
+            }
+            .disabled(
+                reinstatementReason.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ).isEmpty
+            )
+        } message: {
+            Text(
+                appLanguage.text(
+                    "The prior dispute stays in the audit. Old answers stay stale; only a fresh Ask can use the source again.",
+                    zhHans: "原争议会保留在审计记录中。旧回复仍为过期；只有新的提问才能再次使用该来源。"
+                )
+            )
+        }
         .task {
-            await revalidateSessions()
+            await revalidateAndDismissUnavailableCitation()
             activeSessionID = sessionID
             if let session = sessionStore.session(id: sessionID) {
                 selectedScope = availableScopes.first {
@@ -96,6 +173,17 @@ struct RelationshipAskView: View {
                 selectedScope = availableScopes.first
             }
             restoreDraft()
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(60))
+                } catch {
+                    return
+                }
+                await revalidateAndDismissUnavailableCitation()
+            }
+        }
+        .onChange(of: selectedCitationIsCurrent) { isCurrent in
+            if !isCurrent { selectedCitation = nil }
         }
         .onChange(of: draft) { value in
             guard let selectedScope else { return }
@@ -230,7 +318,26 @@ struct RelationshipAskView: View {
                             AskTurnView(
                                 turn: turn,
                                 language: appLanguage,
-                                onOpenEvidence: { selectedCitation = $0 }
+                                evidenceReviews: sessionStore.latestEvidenceReviews(
+                                    taskID: turn.response.taskID
+                                ),
+                                evidenceReviewHistory: sessionStore.evidenceReviewHistory(
+                                    taskID: turn.response.taskID
+                                ),
+                                onOpenEvidence: { citation in
+                                    selectedCitation = SelectedAskCitation(
+                                        taskID: turn.response.taskID,
+                                        citation: citation
+                                    )
+                                },
+                                onRetryEvidenceReview: retryEvidenceReview,
+                                onReinstateEvidence: { operation in
+                                    reinstatementReason = ""
+                                    reinstatementOperation = operation
+                                },
+                                onOpenPursuit: { pursuitID in
+                                    selectedPursuit = snapshot.pursuit(id: pursuitID)
+                                }
                             )
                                 .id(turn.id)
                         }
@@ -262,6 +369,26 @@ struct RelationshipAskView: View {
                         .padding(14)
                         .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
                         .id("ask-error")
+                    }
+
+                    if let reviewPreparationError {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "exclamationmark.shield")
+                                .foregroundStyle(Color.tsVermilion)
+                                .accessibilityHidden(true)
+                            Text(reviewPreparationError)
+                                .font(.caption)
+                                .foregroundStyle(Color.tsInk)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            Button(appLanguage.text("Dismiss", zhHans: "关闭")) {
+                                self.reviewPreparationError = nil
+                            }
+                            .font(.caption.weight(.semibold))
+                        }
+                        .padding(14)
+                        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+                        .accessibilityIdentifier("ask-evidence-review-persistence-error")
                     }
                 }
                 .padding(.horizontal, 20)
@@ -518,21 +645,134 @@ struct RelationshipAskView: View {
     }
 
     private func reviewIdempotencyKey(
-        citation: RelationshipAskResponse.Citation,
+        fragmentID: String,
+        expectedReviewStatus: String,
+        authorityToken: String,
         reason: String,
         decision: String
     ) -> String {
-        let material = [
-            citation.id,
-            citation.reviewStatus,
-            citation.lastReviewedAt ?? "never-reviewed",
-            decision,
-            reason.trimmingCharacters(in: .whitespacesAndNewlines),
-        ].joined(separator: "|")
-        let digest = SHA256.hash(data: Data(material.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
-        return "ios:evidence-review:\(digest)"
+        AgentEvidenceReviewIntent.idempotencyKey(
+            fragmentID: fragmentID,
+            expectedReviewStatus: expectedReviewStatus,
+            authorityToken: authorityToken,
+            decision: decision,
+            reason: reason
+        )
+    }
+
+    private func retryEvidenceReview(_ operation: AgentEvidenceReviewOperation) {
+        do {
+            try sessionStore.markEvidenceReviewPending(operation.idempotencyKey)
+            reviewPreparationError = nil
+        } catch {
+            reviewPreparationError = evidenceReviewFailureMessage(error)
+            return
+        }
+        performEvidenceReview(operation)
+    }
+
+    private func performEvidenceReview(_ operation: AgentEvidenceReviewOperation) {
+        Task {
+            do {
+                try await reviewEvidence(
+                    operation.fragmentID,
+                    operation.expectedReviewStatus,
+                    operation.decision,
+                    operation.reason,
+                    operation.idempotencyKey
+                )
+                if !sessionStore.markEvidenceReviewApplied(operation.idempotencyKey) {
+                    reviewPreparationError = postReviewPersistenceMessage
+                }
+                await revalidateAndDismissUnavailableCitation()
+            } catch {
+                recordEvidenceReviewFailure(
+                    operation.idempotencyKey,
+                    error: error
+                )
+            }
+        }
+    }
+
+    private func submitReinstatement(_ prior: AgentEvidenceReviewOperation) {
+        let reason = reinstatementReason.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !reason.isEmpty else { return }
+        let key = reviewIdempotencyKey(
+            fragmentID: prior.fragmentID,
+            expectedReviewStatus: "rejected",
+            authorityToken: prior.idempotencyKey,
+            reason: reason,
+            decision: "reviewed"
+        )
+        reinstatementReason = ""
+        do {
+            let operation = try sessionStore.beginEvidenceReview(
+                idempotencyKey: key,
+                basedOn: prior,
+                expectedReviewStatus: "rejected",
+                decision: "reviewed",
+                reason: reason
+            )
+            reviewPreparationError = nil
+            performEvidenceReview(operation)
+        } catch {
+            reviewPreparationError = evidenceReviewFailureMessage(error)
+        }
+    }
+
+    private var postReviewPersistenceMessage: String {
+        appLanguage.text(
+            "The canonical review responded, but its protected local confirmation was not saved. Reconcile safely with the same operation key.",
+            zhHans: "规范审阅已响应，但受保护的本地确认未能保存。请使用同一操作键安全核对。"
+        )
+    }
+
+    private func evidenceReviewFailureMessage(_ error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription
+            ?? appLanguage.text(
+                "The canonical review outcome is unknown. Retry uses the same operation key.",
+                zhHans: "规范审阅结果尚不确定。重试会使用同一个操作键。"
+            )
+    }
+
+    private func recordEvidenceReviewFailure(
+        _ idempotencyKey: String,
+        error: Error
+    ) {
+        let message = evidenceReviewFailureMessage(error)
+        let didPersist: Bool
+        if let typed = error as? PursuitWorkspaceClientError,
+           case .backend = typed {
+            didPersist = sessionStore.markEvidenceReviewFailed(
+                idempotencyKey,
+                message: message
+            )
+        } else {
+            didPersist = sessionStore.markEvidenceReviewUnknown(
+                idempotencyKey,
+                message: message
+            )
+        }
+        if !didPersist {
+            reviewPreparationError = postReviewPersistenceMessage
+        }
+    }
+
+    private var selectedCitationIsCurrent: Bool {
+        guard isCanonical, let selectedCitation else { return true }
+        return sessionStore.validationTargets().contains { target in
+            target.taskID == selectedCitation.taskID
+                && target.response.citations.contains {
+                    $0.id == selectedCitation.citation.id
+                }
+        }
+    }
+
+    private func revalidateAndDismissUnavailableCitation() async {
+        await revalidateSessions()
+        if !selectedCitationIsCurrent { selectedCitation = nil }
     }
 }
 
@@ -542,10 +782,21 @@ private struct AskScope: Identifiable, Equatable {
     var id: String { "\(person.id):\(context.id)" }
 }
 
+private struct SelectedAskCitation: Identifiable {
+    let taskID: String
+    let citation: RelationshipAskResponse.Citation
+    var id: String { "\(taskID):\(citation.id)" }
+}
+
 private struct AskTurnView: View {
     let turn: AgentSessionTurn
     let language: AppLanguage
+    let evidenceReviews: [AgentEvidenceReviewOperation]
+    let evidenceReviewHistory: [AgentEvidenceReviewOperation]
     let onOpenEvidence: (RelationshipAskResponse.Citation) -> Void
+    let onRetryEvidenceReview: (AgentEvidenceReviewOperation) -> Void
+    let onReinstateEvidence: (AgentEvidenceReviewOperation) -> Void
+    let onOpenPursuit: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -585,10 +836,19 @@ private struct AskTurnView: View {
                                 )
                         }
                     }
-                    Text(block.body)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.tsInk)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if block.kind == "active_action" {
+                        AskActiveActionView(
+                            rawBody: block.body,
+                            targetRef: block.targetRef,
+                            language: language,
+                            onOpenPursuit: onOpenPursuit
+                        )
+                    } else {
+                        Text(block.body)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.tsInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if !block.citationDependencyIDs.isEmpty && !turn.requiresRefresh {
                         let citations = block.citationDependencyIDs.compactMap { id in
                             turn.response.citations.first { $0.id == id }
@@ -643,9 +903,345 @@ private struct AskTurnView: View {
                 .padding(.vertical, 14)
                 .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
             }
+
+            ForEach(evidenceReviews) { operation in
+                AskEvidenceReviewStatusView(
+                    operation: operation,
+                    language: language,
+                    onRetry: { onRetryEvidenceReview(operation) },
+                    onReinstate: { onReinstateEvidence(operation) }
+                )
+            }
+
+            if evidenceReviewHistory.count > 1 {
+                AskEvidenceReviewHistoryView(
+                    operations: evidenceReviewHistory,
+                    language: language
+                )
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ask-response-turn")
+    }
+}
+
+private struct AskActiveActionView: View {
+    let rawBody: String
+    let targetRef: RelationshipAskResponse.Block.TargetRef?
+    let language: AppLanguage
+    let onOpenPursuit: (String) -> Void
+
+    private var fields: Fields { Fields(body: rawBody) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(fields.action)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { metadata }
+                VStack(alignment: .leading, spacing: 8) { metadata }
+            }
+
+            if let gap = fields.gap {
+                detail(
+                    language.text("Waiting on", zhHans: "正在等待"),
+                    value: gap,
+                    symbol: "hourglass"
+                )
+            }
+            if let close = fields.closeCondition {
+                detail(
+                    language.text("Done when", zhHans: "完成条件"),
+                    value: close,
+                    symbol: "checkmark.circle"
+                )
+            }
+            if let effect = fields.effect {
+                Label(effect, systemImage: "shield.lefthalf.filled")
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let targetRef, targetRef.type == "pursuit_action" {
+                Button {
+                    onOpenPursuit(targetRef.pursuitID)
+                } label: {
+                    Label(
+                        language.text("Open Pursuit", zhHans: "打开追求事项"),
+                        systemImage: "arrow.up.right"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(
+                    language.text(
+                        "Opens the existing action without recording a change",
+                        zhHans: "打开现有行动，不记录任何更改"
+                    )
+                )
+                .accessibilityIdentifier(
+                    "ask-open-pursuit-\(targetRef.pursuitID)-\(targetRef.actionID)"
+                )
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-active-action")
+    }
+
+    @ViewBuilder
+    private var metadata: some View {
+        if let owner = fields.owner {
+            Label(owner, systemImage: "person.crop.circle")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
+        }
+        if let due = fields.due {
+            Label(due.label(language: language), systemImage: due.isOverdue ? "exclamationmark.clock" : "calendar")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(due.isOverdue ? Color.tsVermilion : Color.tsMutedInk)
+                .accessibilityIdentifier("ask-active-action-due")
+        }
+    }
+
+    private func detail(_ label: String, value: String, symbol: String) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
+                .frame(width: 16)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsMutedInk)
+                Text(value)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private struct Fields {
+        let action: String
+        let owner: String?
+        let due: Due?
+        let gap: String?
+        let closeCondition: String?
+        let effect: String?
+
+        init(body: String) {
+            let lines = body.split(separator: "\n").map(String.init)
+            action = lines.first ?? body
+            owner = Self.value(prefix: "Owner: ", lines: lines)
+            due = Self.value(prefix: "Due: ", lines: lines).flatMap(Due.init(raw:))
+            gap = Self.value(prefix: "Open gap: ", lines: lines)
+            closeCondition = Self.value(prefix: "Close when: ", lines: lines)
+            effect = lines.first { $0.hasPrefix("Existing work only") }
+        }
+
+        private static func value(prefix: String, lines: [String]) -> String? {
+            lines.first { $0.hasPrefix(prefix) }.map { String($0.dropFirst(prefix.count)) }
+        }
+    }
+
+    private struct Due {
+        let date: Date?
+        let fallback: String
+
+        init?(raw: String) {
+            guard raw != "not set" else { return nil }
+            fallback = raw
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss 'UTC'"
+            date = formatter.date(from: raw)
+        }
+
+        var isOverdue: Bool { date.map { $0 < Date() } ?? false }
+
+        func label(language: AppLanguage) -> String {
+            guard let date else { return fallback }
+            let localized = date.formatted(date: .abbreviated, time: .shortened)
+            return isOverdue
+                ? language.text("Overdue · \(localized)", zhHans: "已逾期 · \(localized)")
+                : localized
+        }
+    }
+}
+
+private struct AskEvidenceReviewStatusView: View {
+    let operation: AgentEvidenceReviewOperation
+    let language: AppLanguage
+    let onRetry: () -> Void
+    let onReinstate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: symbol)
+                    .foregroundStyle(foreground)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                Spacer(minLength: 8)
+                if operation.state == .pending {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            Text("\(operation.sourceName) · \(operation.personDisplayName) · \(operation.relationshipContextDisplayName)")
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            if let statusMessage = operation.statusMessage,
+               [.outcomeUnknown, .failed].contains(operation.state) {
+                Text(statusMessage)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(
+                language.text(
+                    "The audit keeps every decision. Old answers stay stale.",
+                    zhHans: "审计会保留每次决定。旧回复仍保持过期。"
+                )
+            )
+            .font(.caption2)
+            .foregroundStyle(Color.tsMutedInk)
+
+            if [.pending, .outcomeUnknown, .failed].contains(operation.state) {
+                Button(action: onRetry) {
+                    Label(
+                        language.text("Reconcile safely", zhHans: "安全核对"),
+                        systemImage: "arrow.clockwise"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(
+                    language.text(
+                        "Retries the same evidence-review operation; it cannot create a duplicate review",
+                        zhHans: "使用同一证据审阅操作重试，不会创建重复审阅"
+                    )
+                )
+            } else if operation.state == .applied,
+                      operation.decision == "rejected" {
+                Button(action: onReinstate) {
+                    Label(
+                        language.text("Re-review corrected source", zhHans: "重新审阅已更正来源"),
+                        systemImage: "clock.arrow.circlepath"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(
+                    language.text(
+                        "Adds a new reviewed decision; the prior dispute remains in the audit",
+                        zhHans: "添加新的已审阅决定；原争议仍保留在审计中"
+                    )
+                )
+            }
+        }
+        .padding(14)
+        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-evidence-review-\(operation.fragmentID)")
+    }
+
+    private var symbol: String {
+        switch operation.state {
+        case .pending: "clock"
+        case .outcomeUnknown, .failed: "exclamationmark.triangle"
+        case .applied: operation.decision == "rejected"
+            ? "checkmark.shield"
+            : "checkmark.seal"
+        }
+    }
+
+    private var foreground: Color {
+        [.outcomeUnknown, .failed].contains(operation.state)
+            ? Color.tsVermilion
+            : Color.tsMutedInk
+    }
+
+    private var title: String {
+        switch operation.state {
+        case .pending:
+            language.text("Saving source review…", zhHans: "正在保存来源审阅…")
+        case .outcomeUnknown:
+            language.text("Review outcome unknown", zhHans: "审阅结果尚不确定")
+        case .failed:
+            language.text("Review was not saved", zhHans: "审阅未保存")
+        case .applied where operation.decision == "rejected":
+            language.text("Source disputed · saved", zhHans: "来源已标记争议 · 已保存")
+        case .applied:
+            language.text(
+                "Source re-reviewed · ask again for fresh evidence",
+                zhHans: "来源已重新审阅 · 再次提问以获取最新证据"
+            )
+        }
+    }
+}
+
+private struct AskEvidenceReviewHistoryView: View {
+    let operations: [AgentEvidenceReviewOperation]
+    let language: AppLanguage
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(operations) { operation in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(decisionLabel(operation))
+                                .font(.caption.weight(.semibold))
+                            Spacer(minLength: 8)
+                            Text(operation.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2)
+                                .foregroundStyle(Color.tsMutedInk)
+                        }
+                        Text(operation.reason)
+                            .font(.caption)
+                            .foregroundStyle(Color.tsInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("\(operation.state.rawValue) · …\(operation.idempotencyKey.suffix(8))")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
+                    if operation.id != operations.last?.id {
+                        Divider().overlay(Color.tsLine)
+                    }
+                }
+            }
+            .padding(.top, 10)
+        } label: {
+            Label(
+                language.text(
+                    "Source review history · \(operations.count)",
+                    zhHans: "来源审阅历史 · \(operations.count)"
+                ),
+                systemImage: "clock.arrow.circlepath"
+            )
+            .font(.caption.weight(.semibold))
+        }
+        .padding(14)
+        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityIdentifier("ask-evidence-review-history")
+    }
+
+    private func decisionLabel(_ operation: AgentEvidenceReviewOperation) -> String {
+        operation.decision == "rejected"
+            ? language.text("Disputed", zhHans: "已标记争议")
+            : language.text("Reviewed", zhHans: "已审阅")
     }
 }
 

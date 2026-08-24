@@ -129,6 +129,195 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testEvidenceReviewOutcomePersistsForSafeRetryAndAppendOnlyReReview() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "evidence-review-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = Date(timeIntervalSince1970: 1_787_650_000)
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+        let writer = AgentSessionStore(
+            persistence: persistence,
+            now: { now }
+        )
+        let rejected = try writer.beginEvidenceReview(
+            idempotencyKey: "review-key-rejected",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+        writer.markEvidenceReviewUnknown(
+            rejected.idempotencyKey,
+            message: "The canonical outcome is unknown."
+        )
+
+        let restored = AgentSessionStore(
+            persistence: persistence,
+            now: { now }
+        )
+        let unresolved = try XCTUnwrap(
+            restored.latestEvidenceReviews(taskID: response.taskID).first
+        )
+        XCTAssertEqual(unresolved.idempotencyKey, rejected.idempotencyKey)
+        XCTAssertEqual(unresolved.state, .outcomeUnknown)
+        XCTAssertEqual(unresolved.fragmentID, citation.id)
+        XCTAssertEqual(unresolved.reason, "The excerpt needs correction.")
+
+        try restored.markEvidenceReviewPending(unresolved.idempotencyKey)
+        restored.markEvidenceReviewApplied(unresolved.idempotencyKey)
+        let reviewedAgain = try restored.beginEvidenceReview(
+            idempotencyKey: "review-key-restored",
+            basedOn: unresolved,
+            expectedReviewStatus: "rejected",
+            decision: "reviewed",
+            reason: "The source was corrected and rechecked."
+        )
+        restored.markEvidenceReviewApplied(reviewedAgain.idempotencyKey)
+
+        let latest = try XCTUnwrap(
+            restored.latestEvidenceReviews(taskID: response.taskID).first
+        )
+        XCTAssertEqual(latest.idempotencyKey, reviewedAgain.idempotencyKey)
+        XCTAssertEqual(latest.decision, "reviewed")
+        XCTAssertEqual(latest.state, .applied)
+        XCTAssertEqual(
+            restored.evidenceReviewHistory(taskID: response.taskID).map(\.idempotencyKey),
+            [reviewedAgain.idempotencyKey, rejected.idempotencyKey]
+        )
+
+        let otherAccount = AgentSessionStore(
+            persistence: FileAgentSessionPersistence(
+                accountID: "account-two",
+                rootURL: root
+            ),
+            now: { now }
+        )
+        XCTAssertTrue(
+            otherAccount.latestEvidenceReviews(taskID: response.taskID).isEmpty
+        )
+
+        XCTAssertTrue(restored.deleteAll())
+        let afterDeletion = AgentSessionStore(
+            persistence: persistence,
+            now: { now }
+        )
+        XCTAssertTrue(
+            afterDeletion.latestEvidenceReviews(taskID: response.taskID).isEmpty
+        )
+    }
+
+    @MainActor
+    func testEvidenceReviewFailsClosedWhenProtectedSaveFails() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        persistence.failSave = true
+        let store = AgentSessionStore(persistence: persistence)
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+
+        XCTAssertThrowsError(
+            try store.beginEvidenceReview(
+                idempotencyKey: "review-save-failure",
+                taskID: response.taskID,
+                citation: citation,
+                personDisplayName: "Leila Hartmann",
+                relationshipContextDisplayName: "Chief Product Officer search",
+                expectedReviewStatus: "reviewed",
+                decision: "rejected",
+                reason: "The excerpt needs correction."
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentSessionPersistenceError,
+                .evidenceReviewRecoveryUnavailable
+            )
+        }
+        XCTAssertTrue(
+            store.evidenceReviewHistory(taskID: response.taskID).isEmpty
+        )
+        XCTAssertNotNil(store.persistenceNotice)
+        XCTAssertEqual(persistence.saveAttempts, 1)
+
+        persistence.failSave = false
+        let operation = try store.beginEvidenceReview(
+            idempotencyKey: "review-save-failure",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+        XCTAssertTrue(
+            store.markEvidenceReviewFailed(
+                operation.idempotencyKey,
+                message: "No canonical change was recorded."
+            )
+        )
+        persistence.failSave = true
+        XCTAssertThrowsError(
+            try store.markEvidenceReviewPending(operation.idempotencyKey)
+        )
+        XCTAssertEqual(
+            store.evidenceReviewHistory(taskID: response.taskID).first?.state,
+            .failed
+        )
+    }
+
+    func testEvidenceReviewIdempotencyBindsEachCanonicalAuthorityCycle() {
+        let firstReject = AgentEvidenceReviewIntent.idempotencyKey(
+            fragmentID: "evidence-1",
+            expectedReviewStatus: "reviewed",
+            authorityToken: "2026-08-25T01:00:00.000Z",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+        let firstRetry = AgentEvidenceReviewIntent.idempotencyKey(
+            fragmentID: "evidence-1",
+            expectedReviewStatus: "reviewed",
+            authorityToken: "2026-08-25T01:00:00.000Z",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+        let reviewedAgain = AgentEvidenceReviewIntent.idempotencyKey(
+            fragmentID: "evidence-1",
+            expectedReviewStatus: "rejected",
+            authorityToken: firstReject,
+            decision: "reviewed",
+            reason: "The corrected source was checked."
+        )
+        let laterSameReasonReject = AgentEvidenceReviewIntent.idempotencyKey(
+            fragmentID: "evidence-1",
+            expectedReviewStatus: "reviewed",
+            authorityToken: "2026-08-25T02:00:00.000Z",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+
+        XCTAssertEqual(firstReject, firstRetry)
+        XCTAssertNotEqual(firstReject, reviewedAgain)
+        XCTAssertNotEqual(firstReject, laterSameReasonReject)
+    }
+
+    @MainActor
     func testCanonicalRevalidationCanStaleATurnWithoutALocalCitationCallback() throws {
         let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
         let context = try XCTUnwrap(person.contexts.first)
@@ -483,6 +672,7 @@ final class RelationshipArchiveTests: XCTestCase {
             parser: citation.parser,
             contentHash: citation.contentHash,
             fragmentCreatedAt: citation.fragmentCreatedAt,
+            lastReviewID: citation.lastReviewID,
             lastReviewedAt: citation.lastReviewedAt,
             lastReviewedBy: citation.lastReviewedBy
         )
@@ -881,6 +1071,76 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(fixture.service.completeCount, 0)
     }
 
+    func testOwnedActionRecoveryIsAccountScopedExpiresAndDeletes() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "action-recovery-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        var now = Date(timeIntervalSince1970: 1_787_650_000)
+        let accountOne = FilePursuitActionCompletionStore(
+            accountID: "account-one",
+            rootURL: root,
+            now: { now }
+        )
+        let entry = PersistedPursuitActionCompletion(
+            workspaceID: "workspace-one",
+            pursuitID: "pursuit-one",
+            actionID: "action-one",
+            expectedPursuitRevision: 1,
+            expectedActionRevision: 1,
+            outcomeSummary: "Client supplied two final-conversation times.",
+            operationID: UUID(),
+            receipt: nil,
+            updatedAt: now
+        )
+
+        try accountOne.save(entry)
+        XCTAssertEqual(try accountOne.entry(for: entry.actionID), entry)
+        XCTAssertTrue(
+            try FilePursuitActionCompletionStore(
+                accountID: "account-two",
+                rootURL: root,
+                now: { now }
+            ).allEntries().isEmpty
+        )
+
+        now = now.addingTimeInterval(31 * 24 * 60 * 60)
+        XCTAssertTrue(try accountOne.allEntries().isEmpty)
+
+        now = Date(timeIntervalSince1970: 1_787_650_000)
+        try accountOne.save(entry)
+        try accountOne.deleteAll()
+        XCTAssertTrue(try accountOne.allEntries().isEmpty)
+    }
+
+    @MainActor
+    func testOwnedActionDoesNotPostWhenOperationCannotBeProtected() async {
+        let fixture = actionCompletionFixture()
+        let persistence = FailingActionCompletions()
+        let store = PursuitWorkspaceStore(
+            service: fixture.service,
+            actionCompletions: persistence
+        )
+        await store.load()
+        store.updateActionOutcomeDraft(
+            pursuit: fixture.originalPursuit,
+            action: fixture.originalAction,
+            value: fixture.outcome
+        )
+
+        await store.submitActionCompletion(
+            pursuit: fixture.originalPursuit,
+            action: fixture.originalAction
+        )
+
+        XCTAssertEqual(fixture.service.completeCount, 0)
+        guard case let .failed(message) = store.actionCompletionPhase(
+            actionID: fixture.originalAction.id
+        ) else {
+            return XCTFail("Expected a protected-persistence failure.")
+        }
+        XCTAssertTrue(message.contains("No outcome was sent"))
+    }
+
     @MainActor
     func testOwnedActionResponseLossRelaunchReconcilesOnePersistedOperation() async {
         let operationID = UUID(uuidString: "77777777-7777-4777-8777-777777777777")!
@@ -925,10 +1185,6 @@ final class RelationshipArchiveTests: XCTestCase {
             actionCompletions: persistence
         )
         await relaunched.load()
-        await relaunched.prepareActionCompletion(
-            pursuit: fixture.completedPursuit,
-            action: fixture.completedAction
-        )
 
         guard case let .recorded(result) = relaunched.actionCompletionPhase(
             actionID: fixture.originalAction.id
@@ -1135,6 +1391,26 @@ private final class FailingDeletionAgentSessionPersistence: AgentSessionPersisti
     }
 }
 
+private final class ToggleSaveAgentSessionPersistence: AgentSessionPersisting {
+    var data: Data?
+    var failSave = false
+    var saveAttempts = 0
+
+    func load() throws -> Data? { data }
+
+    func save(_ data: Data) throws {
+        saveAttempts += 1
+        if failSave {
+            throw CocoaError(.fileWriteNoPermission)
+        }
+        self.data = data
+    }
+
+    func deletionPending() throws -> Bool { false }
+    func beginDeletion() throws {}
+    func completeDeletion() throws { data = nil }
+}
+
 private func relationshipAskReadbackFixture(
     citationAvailability: String = "available",
     citationPersonID: String = "person-1",
@@ -1185,6 +1461,7 @@ private func relationshipAskReadbackFixture(
                 parser: .init(name: "fixture", version: "1.0.0"),
                 contentHash: String(repeating: "0", count: 64),
                 fragmentCreatedAt: "2026-08-24T10:00:01.000Z",
+                lastReviewID: "review-1",
                 lastReviewedAt: "2026-08-24T10:00:02.000Z",
                 lastReviewedBy: "Recruiter"
             ),
@@ -1464,11 +1741,46 @@ private final class MemoryActionCompletions: PursuitActionCompletionPersisting {
         values[actionID]
     }
 
+    func allEntries() -> [PersistedPursuitActionCompletion] {
+        Array(values.values)
+    }
+
     func save(_ entry: PersistedPursuitActionCompletion) {
         values[entry.actionID] = entry
     }
 
     func remove(actionID: String) {
         values.removeValue(forKey: actionID)
+    }
+
+    func deleteAll() {
+        values = [:]
+    }
+}
+
+private final class FailingActionCompletions: PursuitActionCompletionPersisting {
+    private var entryValue: PersistedPursuitActionCompletion?
+
+    func entry(for actionID: String) -> PersistedPursuitActionCompletion? {
+        entryValue?.actionID == actionID ? entryValue : nil
+    }
+
+    func allEntries() -> [PersistedPursuitActionCompletion] {
+        entryValue.map { [$0] } ?? []
+    }
+
+    func save(_ entry: PersistedPursuitActionCompletion) throws {
+        if entry.operationID != nil {
+            throw CocoaError(.fileWriteNoPermission)
+        }
+        entryValue = entry
+    }
+
+    func remove(actionID: String) {
+        entryValue = nil
+    }
+
+    func deleteAll() {
+        entryValue = nil
     }
 }

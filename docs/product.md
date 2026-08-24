@@ -106,12 +106,24 @@ new Ask before source authority is claimed again. A submitted question remains
 recoverable until validated recording succeeds, and retry reuses the same task
 intent instead of creating duplicate work.
 
+Ask reconciles its answer with canonical work already owned in that exact
+Pursuit. When an open action or evidence-backed gap exists, the response shows
+its owner, due time, and close condition without creating another action; it
+must not also claim `no_action`. The structured block can open that exact
+Pursuit and action without recording a change. Relative dates without an
+explicit calendar date and timezone stay in source review instead of appearing
+as confirmed current state.
+
 An exact citation can enter a scoped source review from the Agent response. A
 recruiter can dispute it with a reason; the source is rejected canonically, its
 dependent knowledge is invalidated, and the current Agent turn becomes stale.
-No message or other external effect is executed. A no-action result carries one
-evidence-state condition for revisiting the decision without manufacturing
-urgency.
+The conversation keeps a visible review state and offers a same-intent retry if
+the outcome is unknown. A mistaken dispute can be corrected only through a new,
+reasoned review decision: the prior dispute stays in the audit, the old answer
+stays stale, and only a fresh Ask may cite the source again. No message or other
+external effect is executed. If protected recovery cannot be saved, no source
+review request is sent or presented as saved. A no-action result carries one evidence-state
+condition for revisiting the decision without manufacturing urgency.
 
 Mobile capture is the complementary intent surface. A screenshot selected from
 Photos or handed in through a system shortcut enters one recoverable review:

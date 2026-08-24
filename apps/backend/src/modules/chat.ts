@@ -30,6 +30,7 @@ export interface ChatTaskMutationResult {
 }
 
 export interface ChatActiveAttention {
+  pursuit_id: string;
   action_id: string;
   action_title: string;
   action_status: string;
@@ -42,6 +43,13 @@ export interface ChatActiveAttention {
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function compactUtcTimestamp(value: Date): string {
+  return value
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d{3}Z$/, " UTC");
 }
 
 function citations(blocks: KnowledgeBlock[]): string[] {
@@ -90,6 +98,7 @@ export interface ChatCitationRow {
   parser_version: string;
   content_hash: string;
   fragment_created_at: Date;
+  last_review_id: string | null;
   last_reviewed_at: Date | null;
   last_reviewed_by: string | null;
   fragment_status: "active" | "purged" | "deleted";
@@ -219,6 +228,7 @@ export async function getChatTaskReadback(
        fragments.parser_version,
        fragments.content_hash,
        fragments.created_at AS fragment_created_at,
+       latest_review.review_id AS last_review_id,
        latest_review.decided_at AS last_reviewed_at,
        latest_review.display_name AS last_reviewed_by,
        fragments.status AS fragment_status,
@@ -247,7 +257,7 @@ export async function getChatTaskReadback(
        ON retention.account_id = captures.account_id
       AND retention.capture_id = captures.id
      LEFT JOIN LATERAL (
-       SELECT reviews.decided_at, users.display_name
+       SELECT reviews.id AS review_id, reviews.decided_at, users.display_name
        FROM evidence_fragment_reviews reviews
        JOIN users
          ON users.account_id = reviews.account_id
@@ -298,6 +308,7 @@ export async function getChatTaskReadback(
         },
         content_hash: citation.content_hash,
         fragment_created_at: citation.fragment_created_at.toISOString(),
+        last_review_id: citation.last_review_id,
         last_reviewed_at:
           citation.last_reviewed_at?.toISOString() ?? null,
         last_reviewed_by: citation.last_reviewed_by,
@@ -384,9 +395,6 @@ export function responseBlocks(
       !hasUnresolvedRelativeTime(item),
   );
   const relativeTimeFacts = contextBlocks.filter(hasUnresolvedRelativeTime);
-  const proposedContext = contextBlocks.some((item) =>
-    ["proposed", "contested"].includes(item.status),
-  ) || relativeTimeFacts.length > 0;
   const answer: ChatResponseBlock[] = [
     {
       id: randomUUID(),
@@ -395,12 +403,15 @@ export function responseBlocks(
       body:
         briefBody(blocks) ||
         "No additional reviewed relationship state is ready for this task.",
-      status: proposedContext ? "needs_review" : "confirmed",
+      // This block contains only confirmed, non-relative facts. Review state
+      // for other context belongs on its own visible block; otherwise one
+      // unrelated proposal makes a confirmed claim look uncertain.
+      status: "confirmed",
       citation_dependency_ids: citations([
         identity,
         ...currentFactBlocks,
       ]),
-      requires_user_decision: proposedContext,
+      requires_user_decision: false,
     },
   ];
 
@@ -508,19 +519,28 @@ export function responseBlocks(
       item.block_key.startsWith("resource.personal-note.") ||
       item.block_key.startsWith("resource.conversation."),
   );
-  if (sourceReceipts.length > 0) {
+  const alreadyAttachedCitationIDs = new Set(
+    answer.flatMap((item) => item.citation_dependency_ids),
+  );
+  const unattachedSourceReceipts = sourceReceipts.filter((item) => {
+    const dependencyIDs = citations([item]);
+    return dependencyIDs.length === 0 || dependencyIDs.some(
+      (id) => !alreadyAttachedCitationIDs.has(id),
+    );
+  });
+  if (unattachedSourceReceipts.length > 0) {
     answer.push({
       id: randomUUID(),
       kind: "source_receipt",
       title: "Governed source material is attached",
       body: boundedBody(
-        sourceReceipts.map((item) => item.content.headline),
+        unattachedSourceReceipts.map((item) => item.content.headline),
       ),
-      status: sourceReceipts.some((item) => item.status === "proposed")
+      status: unattachedSourceReceipts.some((item) => item.status === "proposed")
         ? "needs_review"
         : "confirmed",
-      citation_dependency_ids: citations(sourceReceipts),
-      requires_user_decision: sourceReceipts.some(
+      citation_dependency_ids: citations(unattachedSourceReceipts),
+      requires_user_decision: unattachedSourceReceipts.some(
         (item) => item.status === "proposed",
       ),
     });
@@ -537,7 +557,7 @@ export function responseBlocks(
         activeAttention.action_title,
         `Owner: ${activeAttention.owner_display_name}`,
         activeAttention.due_at
-          ? `Due: ${activeAttention.due_at.toISOString()}`
+          ? `Due: ${compactUtcTimestamp(activeAttention.due_at)}`
           : "Due: not set",
         activeAttention.gap_title
           ? `Open gap: ${activeAttention.gap_title}`
@@ -545,11 +565,16 @@ export function responseBlocks(
         activeAttention.gap_close_condition
           ? `Close when: ${activeAttention.gap_close_condition}`
           : "",
-        "This is existing canonical work; Ask has created no new action or external effect.",
+        "Existing work only · no new action or external effect.",
       ]),
       status: "confirmed",
       citation_dependency_ids: [],
       requires_user_decision: false,
+      target_ref: {
+        type: "pursuit_action",
+        pursuit_id: activeAttention.pursuit_id,
+        action_id: activeAttention.action_id,
+      },
     });
   } else if (nextAction) {
     answer.push({
@@ -601,6 +626,7 @@ async function loadActiveAttention(
 ): Promise<ChatActiveAttention | null> {
   const result = await client.query<ChatActiveAttention>(
     `SELECT
+       pursuits.id AS pursuit_id,
        actions.id AS action_id,
        actions.title AS action_title,
        actions.status AS action_status,
