@@ -72,6 +72,7 @@ const evidencePaths = [
   `${evidenceRoot}/review-documentation-atomic-score.json`,
   `${evidenceRoot}/requirement-trace.json`,
   `${evidenceRoot}/backend-check/evaluation-summary.json`,
+  `${evidenceRoot}/backend-check/evidence-review-authority-runtime.json`,
   `${evidenceRoot}/pursuit-domain/pursuit-domain-runtime.json`,
   `${evidenceRoot}/pursuit-proposal/pursuit-proposal-runtime.json`,
   `${evidenceRoot}/pursuit-evidence/pursuit-evidence-integrity-runtime.json`,
@@ -127,7 +128,7 @@ const artifact = {
       cwd: repositoryRoot,
       encoding: "utf8",
     }).trim(),
-    worktree_state: "dirty-preserved",
+    worktree_state: "source-committed-evidence-pending",
     product_source_manifest: {
       scope: sourceScope,
       file_count: sourceEntries.length,
@@ -210,7 +211,7 @@ const artifact = {
     },
     agent: {
       package_tests: "24/24 passed",
-      backend_tests: "129/129 passed",
+      backend_tests: "133/133 passed",
       deterministic_trials: `${agent.trial_count}/${agent.trial_count} passed`,
       deterministic_safety_pass_rate: agent.invariants.safety_pass_rate,
       external_effect_count: agent.invariants.external_effect_count,
@@ -225,7 +226,7 @@ const artifact = {
       {
         command: "pnpm check",
         result: "passed",
-        log: "/tmp/talent-signal-pnpm-check-retest-03.log",
+        log: "/tmp/talent-signal-pnpm-check-v8-authority.log",
       },
       { command: "pnpm docs:check", result: "passed" },
       { command: "git diff --check", result: "passed" },

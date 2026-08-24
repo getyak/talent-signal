@@ -32,6 +32,7 @@ const MIGRATIONS = [
   "024_pursuit_action_outcome",
   "025_milestone_authority_pointer",
   "026_apple_auth",
+  "027_evidence_review_authority_chain",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

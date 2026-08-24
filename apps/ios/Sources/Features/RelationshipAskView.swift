@@ -16,10 +16,11 @@ struct RelationshipAskView: View {
     let reviewEvidence: (
         _ fragmentID: String,
         _ expectedReviewStatus: String,
+        _ expectedLastReviewID: String?,
         _ decision: String,
         _ reason: String,
         _ idempotencyKey: String
-    ) async throws -> Void
+    ) async throws -> PursuitEvidenceReviewResult
     let revalidateSessions: () async -> Void
     let onOpenProposal: (WorkspaceProposal) -> Void
     let onCapture: () -> Void
@@ -36,7 +37,8 @@ struct RelationshipAskView: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     @State private var selectedCitation: SelectedAskCitation?
-    @State private var selectedPursuit: WorkspacePursuit?
+    @State private var selectedPursuit: SelectedPursuitTarget?
+    @State private var inFlightEvidenceReviewKeys: Set<String> = []
     @State private var reinstatementOperation: AgentEvidenceReviewOperation?
     @State private var reinstatementReason = ""
     @State private var reviewPreparationError: String?
@@ -71,12 +73,13 @@ struct RelationshipAskView: View {
                 citation: selection.citation,
                 language: appLanguage,
                 onReject: isCanonical ? { reason in
+                    guard let authorityReviewID = selection.citation.lastReviewID else {
+                        throw PursuitWorkspaceClientError.askCitationBindingMismatch
+                    }
                     let reviewKey = reviewIdempotencyKey(
                         fragmentID: selection.citation.id,
                         expectedReviewStatus: selection.citation.reviewStatus,
-                        authorityToken: selection.citation.lastReviewID
-                            ?? selection.citation.lastReviewedAt
-                            ?? "review-status:\(selection.citation.reviewStatus)",
+                        authorityToken: authorityReviewID,
                         reason: reason,
                         decision: "rejected"
                     )
@@ -95,15 +98,21 @@ struct RelationshipAskView: View {
                     reviewPreparationError = nil
                     sessionStore.markCitationStale(selection.citation.id)
                     selectedCitation = nil
+                    inFlightEvidenceReviewKeys.insert(reviewKey)
+                    defer { inFlightEvidenceReviewKeys.remove(reviewKey) }
                     do {
-                        try await reviewEvidence(
+                        let result = try await reviewEvidence(
                             selection.citation.id,
                             selection.citation.reviewStatus,
+                            authorityReviewID,
                             "rejected",
                             reason,
                             reviewKey
                         )
-                        if !sessionStore.markEvidenceReviewApplied(reviewKey) {
+                        if !sessionStore.markEvidenceReviewApplied(
+                            reviewKey,
+                            result: result
+                        ) {
                             reviewPreparationError = postReviewPersistenceMessage
                         }
                     } catch {
@@ -115,12 +124,13 @@ struct RelationshipAskView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(item: $selectedPursuit) { pursuit in
+        .sheet(item: $selectedPursuit) { target in
             PursuitDetailView(
-                pursuit: pursuit,
+                pursuit: target.pursuit,
                 snapshot: workspaceStore.snapshot,
                 currentUserID: workspaceStore.snapshot?.currentUserID,
                 workspaceStore: workspaceStore,
+                targetActionID: target.actionID,
                 onOpenProposal: { proposal in
                     selectedPursuit = nil
                     onOpenProposal(proposal)
@@ -324,6 +334,7 @@ struct RelationshipAskView: View {
                                 evidenceReviewHistory: sessionStore.evidenceReviewHistory(
                                     taskID: turn.response.taskID
                                 ),
+                                inFlightEvidenceReviewKeys: inFlightEvidenceReviewKeys,
                                 onOpenEvidence: { citation in
                                     selectedCitation = SelectedAskCitation(
                                         taskID: turn.response.taskID,
@@ -335,8 +346,14 @@ struct RelationshipAskView: View {
                                     reinstatementReason = ""
                                     reinstatementOperation = operation
                                 },
-                                onOpenPursuit: { pursuitID in
-                                    selectedPursuit = snapshot.pursuit(id: pursuitID)
+                                onOpenPursuit: { pursuitID, actionID in
+                                    guard let pursuit = snapshot.pursuit(id: pursuitID) else {
+                                        return
+                                    }
+                                    selectedPursuit = SelectedPursuitTarget(
+                                        pursuit: pursuit,
+                                        actionID: actionID
+                                    )
                                 }
                             )
                                 .id(turn.id)
@@ -661,6 +678,9 @@ struct RelationshipAskView: View {
     }
 
     private func retryEvidenceReview(_ operation: AgentEvidenceReviewOperation) {
+        guard !inFlightEvidenceReviewKeys.contains(operation.idempotencyKey) else {
+            return
+        }
         do {
             try sessionStore.markEvidenceReviewPending(operation.idempotencyKey)
             reviewPreparationError = nil
@@ -672,16 +692,27 @@ struct RelationshipAskView: View {
     }
 
     private func performEvidenceReview(_ operation: AgentEvidenceReviewOperation) {
+        guard !inFlightEvidenceReviewKeys.contains(operation.idempotencyKey) else {
+            return
+        }
+        inFlightEvidenceReviewKeys.insert(operation.idempotencyKey)
         Task {
+            defer {
+                inFlightEvidenceReviewKeys.remove(operation.idempotencyKey)
+            }
             do {
-                try await reviewEvidence(
+                let result = try await reviewEvidence(
                     operation.fragmentID,
                     operation.expectedReviewStatus,
+                    operation.authorityReviewID,
                     operation.decision,
                     operation.reason,
                     operation.idempotencyKey
                 )
-                if !sessionStore.markEvidenceReviewApplied(operation.idempotencyKey) {
+                if !sessionStore.markEvidenceReviewApplied(
+                    operation.idempotencyKey,
+                    result: result
+                ) {
                     reviewPreparationError = postReviewPersistenceMessage
                 }
                 await revalidateAndDismissUnavailableCitation()
@@ -699,10 +730,17 @@ struct RelationshipAskView: View {
             in: .whitespacesAndNewlines
         )
         guard !reason.isEmpty else { return }
+        guard let authorityReviewID = prior.resultingReviewID else {
+            reviewPreparationError = appLanguage.text(
+                "Ask again before re-reviewing this older saved operation.",
+                zhHans: "请先重新提问，再重新审阅这条较早保存的操作。"
+            )
+            return
+        }
         let key = reviewIdempotencyKey(
             fragmentID: prior.fragmentID,
             expectedReviewStatus: "rejected",
-            authorityToken: prior.idempotencyKey,
+            authorityToken: authorityReviewID,
             reason: reason,
             decision: "reviewed"
         )
@@ -712,6 +750,7 @@ struct RelationshipAskView: View {
                 idempotencyKey: key,
                 basedOn: prior,
                 expectedReviewStatus: "rejected",
+                authorityReviewID: authorityReviewID,
                 decision: "reviewed",
                 reason: reason
             )
@@ -788,15 +827,22 @@ private struct SelectedAskCitation: Identifiable {
     var id: String { "\(taskID):\(citation.id)" }
 }
 
+private struct SelectedPursuitTarget: Identifiable {
+    let pursuit: WorkspacePursuit
+    let actionID: String
+    var id: String { "\(pursuit.id):\(actionID)" }
+}
+
 private struct AskTurnView: View {
     let turn: AgentSessionTurn
     let language: AppLanguage
     let evidenceReviews: [AgentEvidenceReviewOperation]
     let evidenceReviewHistory: [AgentEvidenceReviewOperation]
+    let inFlightEvidenceReviewKeys: Set<String>
     let onOpenEvidence: (RelationshipAskResponse.Citation) -> Void
     let onRetryEvidenceReview: (AgentEvidenceReviewOperation) -> Void
     let onReinstateEvidence: (AgentEvidenceReviewOperation) -> Void
-    let onOpenPursuit: (String) -> Void
+    let onOpenPursuit: (String, String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -908,6 +954,9 @@ private struct AskTurnView: View {
                 AskEvidenceReviewStatusView(
                     operation: operation,
                     language: language,
+                    isInFlight: inFlightEvidenceReviewKeys.contains(
+                        operation.idempotencyKey
+                    ),
                     onRetry: { onRetryEvidenceReview(operation) },
                     onReinstate: { onReinstateEvidence(operation) }
                 )
@@ -929,7 +978,7 @@ private struct AskActiveActionView: View {
     let rawBody: String
     let targetRef: RelationshipAskResponse.Block.TargetRef?
     let language: AppLanguage
-    let onOpenPursuit: (String) -> Void
+    let onOpenPursuit: (String, String) -> Void
 
     private var fields: Fields { Fields(body: rawBody) }
 
@@ -967,7 +1016,7 @@ private struct AskActiveActionView: View {
             }
             if let targetRef, targetRef.type == "pursuit_action" {
                 Button {
-                    onOpenPursuit(targetRef.pursuitID)
+                    onOpenPursuit(targetRef.pursuitID, targetRef.actionID)
                 } label: {
                     Label(
                         language.text("Open Pursuit", zhHans: "打开追求事项"),
@@ -1078,6 +1127,7 @@ private struct AskActiveActionView: View {
 private struct AskEvidenceReviewStatusView: View {
     let operation: AgentEvidenceReviewOperation
     let language: AppLanguage
+    let isInFlight: Bool
     let onRetry: () -> Void
     let onReinstate: () -> Void
 
@@ -1091,7 +1141,7 @@ private struct AskEvidenceReviewStatusView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
                 Spacer(minLength: 8)
-                if operation.state == .pending {
+                if operation.state == .pending && isInFlight {
                     ProgressView()
                         .controlSize(.small)
                 }
@@ -1116,7 +1166,8 @@ private struct AskEvidenceReviewStatusView: View {
             .font(.caption2)
             .foregroundStyle(Color.tsMutedInk)
 
-            if [.pending, .outcomeUnknown, .failed].contains(operation.state) {
+            if [.outcomeUnknown, .failed].contains(operation.state)
+                || (operation.state == .pending && !isInFlight) {
                 Button(action: onRetry) {
                     Label(
                         language.text("Reconcile safely", zhHans: "安全核对"),
@@ -1133,7 +1184,8 @@ private struct AskEvidenceReviewStatusView: View {
                     )
                 )
             } else if operation.state == .applied,
-                      operation.decision == "rejected" {
+                      operation.decision == "rejected",
+                      operation.resultingReviewID != nil {
                 Button(action: onReinstate) {
                     Label(
                         language.text("Re-review corrected source", zhHans: "重新审阅已更正来源"),
@@ -1176,7 +1228,12 @@ private struct AskEvidenceReviewStatusView: View {
     private var title: String {
         switch operation.state {
         case .pending:
-            language.text("Saving source review…", zhHans: "正在保存来源审阅…")
+            isInFlight
+                ? language.text("Saving source review…", zhHans: "正在保存来源审阅…")
+                : language.text(
+                    "Source review needs reconciliation",
+                    zhHans: "来源审阅需要核对"
+                )
         case .outcomeUnknown:
             language.text("Review outcome unknown", zhHans: "审阅结果尚不确定")
         case .failed:
@@ -1205,7 +1262,7 @@ private struct AskEvidenceReviewHistoryView: View {
                             Text(decisionLabel(operation))
                                 .font(.caption.weight(.semibold))
                             Spacer(minLength: 8)
-                            Text(operation.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                            Text(historyDate(operation).formatted(date: .abbreviated, time: .shortened))
                                 .font(.caption2)
                                 .foregroundStyle(Color.tsMutedInk)
                         }
@@ -1242,6 +1299,17 @@ private struct AskEvidenceReviewHistoryView: View {
         operation.decision == "rejected"
             ? language.text("Disputed", zhHans: "已标记争议")
             : language.text("Reviewed", zhHans: "已审阅")
+    }
+
+    private func historyDate(_ operation: AgentEvidenceReviewOperation) -> Date {
+        guard let canonicalDecidedAt = operation.canonicalDecidedAt else {
+            return operation.updatedAt
+        }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: canonicalDecidedAt)
+            ?? ISO8601DateFormatter().date(from: canonicalDecidedAt)
+            ?? operation.updatedAt
     }
 }
 

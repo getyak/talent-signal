@@ -64,6 +64,8 @@ const required = {
     "CandidateSignalUITests/testSameNameTextSignalScopeStaysDistinctAcrossRelaunchAndReadback()",
   canonical_review_and_action_outcome:
     "CandidateSignalUITests/testCanonicalWorkspaceAX5DarkReducedMotionKeepsNavigationReachable()",
+  ask_opens_exact_existing_pursuit_action:
+    "CandidateSignalUITests/testCanonicalAskSearchesWorkspaceAndReturnsEvidenceBoundResponse()",
   audio_authorization_receipt_lifecycle:
     "CandidateSignalUITests/testAudioSignalRequiresAuthorizationThenShowsVerifiedLocalLifecycle()",
   receipt_operation_binding:

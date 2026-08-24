@@ -264,7 +264,7 @@ export async function getChatTaskReadback(
         AND users.id = reviews.decided_by_user_id
        WHERE reviews.account_id = fragments.account_id
          AND reviews.fragment_id = fragments.id
-       ORDER BY reviews.decided_at DESC, reviews.id DESC
+       ORDER BY reviews.review_revision DESC
        LIMIT 1
      ) latest_review ON true
      WHERE manifest_evidence.account_id = $1

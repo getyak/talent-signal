@@ -115,6 +115,7 @@ async function run(): Promise<void> {
   await client.reviewEvidenceFragment(parentFragment.id, {
     idempotency_key: `resource-deletion:${runId}:review`,
     expected_review_status: "proposed",
+    expected_last_review_id: null,
     decision: "reviewed",
     reason:
       "The synthetic recruiter compared the extracted text with the source.",

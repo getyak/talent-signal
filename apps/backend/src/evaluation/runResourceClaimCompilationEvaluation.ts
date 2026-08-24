@@ -116,6 +116,7 @@ async function run(): Promise<void> {
   await client.reviewEvidenceFragment(baselineFragment.id, {
     idempotency_key: `resource-claim:${runId}:review-baseline`,
     expected_review_status: "proposed",
+    expected_last_review_id: null,
     decision: "reviewed",
     reason:
       "The synthetic recruiter compared the extracted text with the visible source.",
@@ -203,6 +204,7 @@ async function run(): Promise<void> {
   await client.reviewEvidenceFragment(updateFragment.id, {
     idempotency_key: `resource-claim:${runId}:review-update`,
     expected_review_status: "proposed",
+    expected_last_review_id: null,
     decision: "reviewed",
     reason:
       "The synthetic recruiter compared the updated extraction with the visible source.",

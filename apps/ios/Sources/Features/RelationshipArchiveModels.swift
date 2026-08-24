@@ -87,8 +87,11 @@ struct AgentEvidenceReviewOperation: Codable, Equatable, Identifiable {
     let relationshipContextID: String
     let relationshipContextDisplayName: String
     let expectedReviewStatus: String
+    let authorityReviewID: String?
     let decision: String
     let reason: String
+    var resultingReviewID: String?
+    var canonicalDecidedAt: String?
     var state: State
     var statusMessage: String?
     var updatedAt: Date
@@ -545,8 +548,11 @@ final class AgentSessionStore: ObservableObject {
             relationshipContextID: citation.relationshipContextID ?? "unavailable",
             relationshipContextDisplayName: relationshipContextDisplayName,
             expectedReviewStatus: expectedReviewStatus,
+            authorityReviewID: citation.lastReviewID,
             decision: decision,
             reason: reason,
+            resultingReviewID: nil,
+            canonicalDecidedAt: nil,
             state: .pending,
             statusMessage: nil,
             updatedAt: now()
@@ -567,6 +573,7 @@ final class AgentSessionStore: ObservableObject {
         idempotencyKey: String,
         basedOn prior: AgentEvidenceReviewOperation,
         expectedReviewStatus: String,
+        authorityReviewID: String,
         decision: String,
         reason: String
     ) throws -> AgentEvidenceReviewOperation {
@@ -587,8 +594,11 @@ final class AgentSessionStore: ObservableObject {
             relationshipContextID: prior.relationshipContextID,
             relationshipContextDisplayName: prior.relationshipContextDisplayName,
             expectedReviewStatus: expectedReviewStatus,
+            authorityReviewID: authorityReviewID,
             decision: decision,
             reason: reason,
+            resultingReviewID: nil,
+            canonicalDecidedAt: nil,
             state: .pending,
             statusMessage: nil,
             updatedAt: now()
@@ -614,10 +624,15 @@ final class AgentSessionStore: ObservableObject {
     }
 
     @discardableResult
-    func markEvidenceReviewApplied(_ idempotencyKey: String) -> Bool {
+    func markEvidenceReviewApplied(
+        _ idempotencyKey: String,
+        result: PursuitEvidenceReviewResult
+    ) -> Bool {
         updateEvidenceReview(idempotencyKey) {
             $0.state = .applied
             $0.statusMessage = nil
+            $0.resultingReviewID = result.reviewID
+            $0.canonicalDecidedAt = result.decidedAt
         }
     }
 

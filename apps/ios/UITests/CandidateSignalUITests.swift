@@ -140,6 +140,21 @@ final class CandidateSignalUITests: XCTestCase {
             element("ask-citation-detail").waitForNonExistence(timeout: 5)
         )
         preserveScreenshot("Disputed citation makes Agent response stale")
+
+        let openPursuit = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "ask-open-pursuit-\(fixture.pursuitID)-"
+            )
+        ).firstMatch
+        XCTAssertTrue(openPursuit.waitForExistence(timeout: 5))
+        openPursuit.tap()
+        XCTAssertTrue(element("pursuit-detail").waitForExistence(timeout: 5))
+        let referencedAction = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "pursuit-target-action-")
+        ).firstMatch
+        XCTAssertTrue(referencedAction.waitForExistence(timeout: 5))
+        preserveScreenshot("Ask opens the exact existing Pursuit action")
     }
 
     func testAppleLoginKeepsOneCalmPrimaryAction() {

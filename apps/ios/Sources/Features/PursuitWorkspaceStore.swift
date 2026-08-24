@@ -348,39 +348,45 @@ final class PursuitWorkspaceStore: ObservableObject {
     func rejectEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
+        expectedLastReviewID: String?,
         reason: String,
         idempotencyKey: String
-    ) async throws {
+    ) async throws -> PursuitEvidenceReviewResult {
         guard let service else {
             throw PursuitWorkspaceClientError.askUnavailable
         }
-        try await service.rejectEvidence(
+        let result = try await service.rejectEvidence(
             fragmentID: fragmentID,
             expectedReviewStatus: expectedReviewStatus,
+            expectedLastReviewID: expectedLastReviewID,
             reason: reason,
             idempotencyKey: idempotencyKey
         )
         await load()
+        return result
     }
 
     func reviewEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
+        expectedLastReviewID: String?,
         decision: String,
         reason: String,
         idempotencyKey: String
-    ) async throws {
+    ) async throws -> PursuitEvidenceReviewResult {
         guard let service else {
             throw PursuitWorkspaceClientError.askUnavailable
         }
-        try await service.reviewEvidence(
+        let result = try await service.reviewEvidence(
             fragmentID: fragmentID,
             expectedReviewStatus: expectedReviewStatus,
+            expectedLastReviewID: expectedLastReviewID,
             decision: decision,
             reason: reason,
             idempotencyKey: idempotencyKey
         )
         await load()
+        return result
     }
 
     func prepareActionCompletion(

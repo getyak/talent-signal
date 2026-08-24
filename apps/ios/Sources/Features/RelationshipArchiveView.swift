@@ -171,12 +171,14 @@ struct RelationshipArchiveView: View {
                         reviewEvidence: {
                             fragmentID,
                             expectedReviewStatus,
+                            expectedLastReviewID,
                             decision,
                             reason,
                             idempotencyKey in
-                            try await workspaceStore.reviewEvidence(
+                            return try await workspaceStore.reviewEvidence(
                                 fragmentID: fragmentID,
                                 expectedReviewStatus: expectedReviewStatus,
+                                expectedLastReviewID: expectedLastReviewID,
                                 decision: decision,
                                 reason: reason,
                                 idempotencyKey: idempotencyKey
@@ -1824,6 +1826,7 @@ struct PursuitDetailView: View {
     let snapshot: PursuitWorkspaceSnapshot?
     let currentUserID: String?
     @ObservedObject var workspaceStore: PursuitWorkspaceStore
+    let targetActionID: String?
     let onOpenProposal: (WorkspaceProposal) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var completingActionID: String?
@@ -1833,19 +1836,22 @@ struct PursuitDetailView: View {
         snapshot: PursuitWorkspaceSnapshot?,
         currentUserID: String?,
         workspaceStore: PursuitWorkspaceStore,
+        targetActionID: String? = nil,
         onOpenProposal: @escaping (WorkspaceProposal) -> Void
     ) {
         _pursuit = State(initialValue: pursuit)
         self.snapshot = snapshot
         self.currentUserID = currentUserID
         self.workspaceStore = workspaceStore
+        self.targetActionID = targetActionID
         self.onOpenProposal = onOpenProposal
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
                     RelationshipEyebrow("\(pursuit.status.humanized) · revision \(pursuit.revision)")
                         .padding(.top, 26)
                     Text(pursuit.title)
@@ -1999,6 +2005,17 @@ struct PursuitDetailView: View {
                     } else {
                         ForEach(pursuit.actions) { action in
                             VStack(alignment: .leading, spacing: 7) {
+                                if action.id == targetActionID {
+                                    Label(
+                                        "Referenced in Ask",
+                                        systemImage: "arrow.down.right.circle.fill"
+                                    )
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.tsVermilion)
+                                    .accessibilityIdentifier(
+                                        "pursuit-target-action-\(action.id)"
+                                    )
+                                }
                                 Text(action.title)
                                     .font(.headline)
                                     .foregroundStyle(Color.tsInk)
@@ -2050,34 +2067,54 @@ struct PursuitDetailView: View {
                                 }
                             }
                             .padding(.vertical, 16)
+                            .padding(.horizontal, action.id == targetActionID ? 12 : 0)
+                            .background(
+                                action.id == targetActionID
+                                    ? Color.tsCanvas
+                                    : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 14)
+                            )
+                            .overlay {
+                                if action.id == targetActionID {
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Color.tsVermilion.opacity(0.55), lineWidth: 1)
+                                }
+                            }
                             .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+                            .id(action.id)
                         }
                     }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 22)
-                .padding(.bottom, 40)
-            }
-            .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle("Pursuit")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close", action: dismiss.callAsFunction)
+                .background(Color.tsSurface.ignoresSafeArea())
+                .navigationTitle("Pursuit")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Close", action: dismiss.callAsFunction)
+                    }
+                }
+                .task {
+                    if let targetActionID,
+                       pursuit.actions.contains(where: { $0.id == targetActionID }) {
+                        await Task.yield()
+                        proxy.scrollTo(targetActionID, anchor: .center)
+                    }
+                    for action in pursuit.actions
+                    where workspaceStore.hasSavedActionCompletion(actionID: action.id) {
+                        completingActionID = action.id
+                        await workspaceStore.prepareActionCompletion(
+                            pursuit: pursuit,
+                            action: action
+                        )
+                        syncRecordedAction()
+                    }
                 }
             }
         }
         .accessibilityIdentifier("pursuit-detail")
-        .task {
-            for action in pursuit.actions
-            where workspaceStore.hasSavedActionCompletion(actionID: action.id) {
-                completingActionID = action.id
-                await workspaceStore.prepareActionCompletion(
-                    pursuit: pursuit,
-                    action: action
-                )
-                syncRecordedAction()
-            }
-        }
     }
 
     private var pendingProposals: [WorkspaceProposal] {

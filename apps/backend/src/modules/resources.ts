@@ -87,6 +87,36 @@ export interface ResourceReviewMutationResult {
   status: number;
 }
 
+interface EvidenceReviewAuthorityState {
+  review_status: EvidenceFragment["review_status"];
+  last_review_id: string | null;
+}
+
+export function assertEvidenceReviewReplayAuthority(
+  fragmentId: string,
+  request: EvidenceFragmentReviewRequest,
+  current: EvidenceReviewAuthorityState,
+  replay: EvidenceFragmentReviewResponse,
+): void {
+  if (
+    replay.fragment_id !== fragmentId ||
+    replay.prior_review_id !== request.expected_last_review_id ||
+    replay.review_id !== current.last_review_id ||
+    replay.review_status !== request.decision ||
+    replay.review_status !== current.review_status
+  ) {
+    throw new ApiError(
+      409,
+      "EVIDENCE_REVIEW_AUTHORITY_STALE",
+      "The evidence review operation no longer matches the current canonical authority.",
+      {
+        current_review_status: current.review_status,
+        current_last_review_id: current.last_review_id,
+      },
+    );
+  }
+}
+
 function mapResource(row: ResourceListRow): RelationshipResourceListItem {
   return {
     id: row.id,
@@ -455,14 +485,6 @@ export async function reviewEvidenceFragment(
       request.idempotency_key,
       { fragment_id: fragmentId, ...request },
     );
-    if (idempotency.replay) {
-      return {
-        body: idempotency.replay.body as EvidenceFragmentReviewResponse,
-        replayed: true,
-        status: idempotency.replay.status,
-      };
-    }
-
     const fragmentResult = await client.query<{
       resource_id: string;
       review_status: EvidenceFragment["review_status"];
@@ -495,17 +517,36 @@ export async function reviewEvidenceFragment(
          AND fragments.status = 'active'
          AND resources.processing_state <> 'deleted'
          AND captures.status = 'active'
-       FOR UPDATE OF fragments, resources`,
+       FOR UPDATE OF fragments, resources, captures, receipts`,
       [auth.accountId, fragmentId],
     );
-    const fragment = fragmentResult.rows[0];
-    if (!fragment) {
+    const lockedFragment = fragmentResult.rows[0];
+    if (!lockedFragment) {
       throw new ApiError(
         404,
         "EVIDENCE_FRAGMENT_NOT_FOUND",
         "The active evidence fragment was not found.",
       );
     }
+    const latestReviewResult = await client.query<{
+      id: string;
+      review_revision: number;
+    }>(
+      `SELECT id, review_revision
+       FROM evidence_fragment_reviews
+       WHERE account_id = $1
+         AND fragment_id = $2
+       ORDER BY review_revision DESC
+       LIMIT 1`,
+      [auth.accountId, fragmentId],
+    );
+    const fragment: EvidenceReviewAuthorityState &
+      typeof lockedFragment & { last_review_revision: number } = {
+      ...lockedFragment,
+      last_review_id: latestReviewResult.rows[0]?.id ?? null,
+      last_review_revision:
+        Number(latestReviewResult.rows[0]?.review_revision ?? 0),
+    };
     if (fragment.identity_status !== "bound") {
       throw new ApiError(
         409,
@@ -520,28 +561,52 @@ export async function reviewEvidenceFragment(
         "Restore or renew the source authorization before reviewing its evidence.",
       );
     }
-    if (fragment.review_status !== request.expected_review_status) {
+    if (idempotency.replay) {
+      const replay = idempotency.replay.body as EvidenceFragmentReviewResponse;
+      assertEvidenceReviewReplayAuthority(
+        fragmentId,
+        request,
+        fragment,
+        replay,
+      );
+      return {
+        body: replay,
+        replayed: true,
+        status: idempotency.replay.status,
+      };
+    }
+    if (
+      fragment.review_status !== request.expected_review_status ||
+      fragment.last_review_id !== request.expected_last_review_id
+    ) {
       throw new ApiError(
         409,
-        "EVIDENCE_REVIEW_STALE",
-        "The evidence fragment review state changed before this decision.",
-        { current_review_status: fragment.review_status },
+        "EVIDENCE_REVIEW_AUTHORITY_STALE",
+        "The evidence fragment review authority changed before this decision.",
+        {
+          current_review_status: fragment.review_status,
+          current_last_review_id: fragment.last_review_id,
+        },
       );
     }
 
     const decidedAt = new Date();
+    const reviewId = randomUUID();
     await client.query(
       `INSERT INTO evidence_fragment_reviews(
          id, account_id, fragment_id, decided_by_user_id,
-         prior_review_status, decision, reason, decided_at
+         prior_review_status, prior_review_id, review_revision,
+         decision, reason, decided_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
-        randomUUID(),
+        reviewId,
         auth.accountId,
         fragmentId,
         auth.userId,
         fragment.review_status,
+        fragment.last_review_id,
+        fragment.last_review_revision + 1,
         request.decision,
         request.reason,
         decidedAt,
@@ -622,6 +687,8 @@ export async function reviewEvidenceFragment(
     const body: EvidenceFragmentReviewResponse = {
       fragment_id: fragmentId,
       resource_id: fragment.resource_id,
+      review_id: reviewId,
+      prior_review_id: fragment.last_review_id,
       review_status: request.decision,
       resource_processing_state: processingState,
       decided_at: decidedAt.toISOString(),
@@ -634,6 +701,8 @@ export async function reviewEvidenceFragment(
       fragmentId,
       {
         decision: request.decision,
+        review_id: reviewId,
+        prior_review_id: fragment.last_review_id,
         resource_id: fragment.resource_id,
         proposed_claim_count: proposedClaimCount,
         invalidated_snapshot_ids: invalidatedSnapshotIds,

@@ -122,8 +122,13 @@ the outcome is unknown. A mistaken dispute can be corrected only through a new,
 reasoned review decision: the prior dispute stays in the audit, the old answer
 stays stale, and only a fresh Ask may cite the source again. No message or other
 external effect is executed. If protected recovery cannot be saved, no source
-review request is sent or presented as saved. A no-action result carries one evidence-state
-condition for revisiting the decision without manufacturing urgency.
+review request is sent or presented as saved. Each review names the exact prior
+review authority it observed. A same-intent replay succeeds only while its
+result is still the fragment's current review; the client verifies both prior
+and resulting review IDs before presenting the decision as applied. While the
+original request is in flight, recovery is visible but cannot start a competing
+reconciliation. A no-action result carries one evidence-state condition for
+revisiting the decision without manufacturing urgency.
 
 Mobile capture is the complementary intent surface. A screenshot selected from
 Photos or handed in through a system shortcut enters one recoverable review:

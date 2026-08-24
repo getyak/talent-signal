@@ -177,15 +177,35 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(unresolved.reason, "The excerpt needs correction.")
 
         try restored.markEvidenceReviewPending(unresolved.idempotencyKey)
-        restored.markEvidenceReviewApplied(unresolved.idempotencyKey)
+        let rejectedResult = PursuitEvidenceReviewResult(
+            reviewID: "review-rejected",
+            priorReviewID: citation.lastReviewID,
+            decidedAt: "2026-08-25T04:30:00.000Z"
+        )
+        XCTAssertTrue(
+            restored.markEvidenceReviewApplied(
+                unresolved.idempotencyKey,
+                result: rejectedResult
+            )
+        )
         let reviewedAgain = try restored.beginEvidenceReview(
             idempotencyKey: "review-key-restored",
             basedOn: unresolved,
             expectedReviewStatus: "rejected",
+            authorityReviewID: rejectedResult.reviewID,
             decision: "reviewed",
             reason: "The source was corrected and rechecked."
         )
-        restored.markEvidenceReviewApplied(reviewedAgain.idempotencyKey)
+        XCTAssertTrue(
+            restored.markEvidenceReviewApplied(
+                reviewedAgain.idempotencyKey,
+                result: PursuitEvidenceReviewResult(
+                    reviewID: "review-restored",
+                    priorReviewID: rejectedResult.reviewID,
+                    decidedAt: "2026-08-25T04:31:00.000Z"
+                )
+            )
+        )
 
         let latest = try XCTUnwrap(
             restored.latestEvidenceReviews(taskID: response.taskID).first
@@ -193,6 +213,8 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(latest.idempotencyKey, reviewedAgain.idempotencyKey)
         XCTAssertEqual(latest.decision, "reviewed")
         XCTAssertEqual(latest.state, .applied)
+        XCTAssertEqual(latest.authorityReviewID, rejectedResult.reviewID)
+        XCTAssertEqual(latest.resultingReviewID, "review-restored")
         XCTAssertEqual(
             restored.evidenceReviewHistory(taskID: response.taskID).map(\.idempotencyKey),
             [reviewedAgain.idempotencyKey, rejected.idempotencyKey]
@@ -315,6 +337,39 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(firstReject, firstRetry)
         XCTAssertNotEqual(firstReject, reviewedAgain)
         XCTAssertNotEqual(firstReject, laterSameReasonReject)
+    }
+
+    func testEvidenceReviewResponseMustMatchCanonicalAuthorityIDs() throws {
+        let result = try URLPursuitWorkspaceClient.validatedEvidenceReviewResult(
+            expectedFragmentID: "fragment-1",
+            expectedLastReviewID: "review-1",
+            expectedDecision: "rejected",
+            responseFragmentID: "fragment-1",
+            responseReviewID: "review-2",
+            responsePriorReviewID: "review-1",
+            responseReviewStatus: "rejected",
+            responseDecidedAt: "2026-08-25T04:31:00.000Z"
+        )
+        XCTAssertEqual(result.reviewID, "review-2")
+        XCTAssertEqual(result.priorReviewID, "review-1")
+
+        XCTAssertThrowsError(
+            try URLPursuitWorkspaceClient.validatedEvidenceReviewResult(
+                expectedFragmentID: "fragment-1",
+                expectedLastReviewID: "review-1",
+                expectedDecision: "rejected",
+                responseFragmentID: "fragment-1",
+                responseReviewID: "review-2",
+                responsePriorReviewID: "review-stale",
+                responseReviewStatus: "rejected",
+                responseDecidedAt: "2026-08-25T04:31:00.000Z"
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PursuitWorkspaceClientError,
+                .scopeReadbackMismatch
+            )
+        }
     }
 
     @MainActor

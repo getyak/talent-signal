@@ -19,6 +19,7 @@
     "test:pursuit-proposals": "tsx src/evaluation/runPursuitProposalEvaluation.ts",
     "test:pursuit-workspace": "tsx src/evaluation/runPursuitWorkspaceEvaluation.ts",
     "test:pursuit-evidence": "tsx src/evaluation/runPursuitEvidenceIntegrityEvaluation.ts",
+    "test:evidence-review-authority": "tsx src/evaluation/runEvidenceReviewAuthorityEvaluation.ts",
     "test:agent-control-plane": "tsx src/evaluation/runAgentControlPlaneEvaluation.ts",
     "fixture:ios-pursuit-proposal": "tsx src/evaluation/prepareIOSPursuitProposalFixture.ts",
     "fixture:ios-pursuit-proposal-server": "tsx src/evaluation/startIOSPursuitProposalFixtureServer.ts",
