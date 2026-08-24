@@ -1,6 +1,6 @@
 {
   "manifest_version": "talent-signal.v1-p0-journeys.1",
-  "contract_version": "2026-08-24.9",
+  "contract_version": "2026-08-24.10",
   "data_classification": "synthetic_only",
   "journey_count": 12,
   "policy": {
