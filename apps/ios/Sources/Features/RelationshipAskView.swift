@@ -341,6 +341,8 @@ struct RelationshipAskView: View {
                                 inFlightEvidenceReviewKeys: sessionStore.activeEvidenceReviewKeys,
                                 transientSupersededEvidenceReviewKeys:
                                     sessionStore.transientSupersededEvidenceReviewKeys,
+                                evidenceReviewAuthorityReadbackKeys:
+                                    sessionStore.evidenceReviewAuthorityReadbackKeys,
                                 onOpenEvidence: { citation in
                                     selectedCitation = SelectedAskCitation(
                                         taskID: turn.response.taskID,
@@ -641,6 +643,13 @@ struct RelationshipAskView: View {
                     selectedScope.context.id,
                     idempotencyKey
                 )
+                sessionStore.revalidateEvidenceReviewAuthority(
+                    citations: response.citations,
+                    supersededMessage: appLanguage.text(
+                        "A newer source decision is already current. This older operation cannot be retried.",
+                        zhHans: "已有更新的来源决定生效。这条较早的操作不能再次重试。"
+                    )
+                )
                 activeSessionID = sessionStore.record(
                     sessionID: activeSessionID,
                     objective: trimmed,
@@ -876,6 +885,7 @@ private struct AskTurnView: View {
     let evidenceReviewHistory: [AgentEvidenceReviewOperation]
     let inFlightEvidenceReviewKeys: Set<String>
     let transientSupersededEvidenceReviewKeys: Set<String>
+    let evidenceReviewAuthorityReadbackKeys: Set<String>
     let onOpenEvidence: (RelationshipAskResponse.Citation) -> Void
     let onRetryEvidenceReview: (AgentEvidenceReviewOperation) -> Void
     let onReinstateEvidence: (AgentEvidenceReviewOperation) -> Void
@@ -997,6 +1007,10 @@ private struct AskTurnView: View {
                     ),
                     isSupersededInSession:
                         transientSupersededEvidenceReviewKeys.contains(
+                            operation.idempotencyKey
+                        ),
+                    requiresAuthorityReadback:
+                        evidenceReviewAuthorityReadbackKeys.contains(
                             operation.idempotencyKey
                         ),
                     onRetry: { onRetryEvidenceReview(operation) },
@@ -1172,6 +1186,7 @@ private struct AskEvidenceReviewStatusView: View {
     let language: AppLanguage
     let isInFlight: Bool
     let isSupersededInSession: Bool
+    let requiresAuthorityReadback: Bool
     let onRetry: () -> Void
     let onReinstate: () -> Void
     let onStartFreshAsk: () -> Void
@@ -1195,7 +1210,17 @@ private struct AskEvidenceReviewStatusView: View {
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
                 .fixedSize(horizontal: false, vertical: true)
-            if isSupersededInSession && operation.state != .superseded {
+            if requiresAuthorityReadback && !isEffectivelySuperseded {
+                Text(
+                    language.text(
+                        "This operation was restored after an interruption. Check current evidence before any retry.",
+                        zhHans: "此操作在中断后恢复。任何重试前，请先检查当前证据。"
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            } else if isSupersededInSession && operation.state != .superseded {
                 Text(
                     language.text(
                         "This terminal notice could not be saved on this device. The older operation stays blocked for this session.",
@@ -1223,12 +1248,16 @@ private struct AskEvidenceReviewStatusView: View {
             .font(.caption2)
             .foregroundStyle(Color.tsMutedInk)
 
-            if isEffectivelySuperseded {
+            if isEffectivelySuperseded || requiresAuthorityReadback {
                 Button(action: onStartFreshAsk) {
                     Label(
                         language.text(
-                            "Ask with current evidence",
-                            zhHans: "基于当前证据提问"
+                            requiresAuthorityReadback
+                                ? "Check current evidence"
+                                : "Ask with current evidence",
+                            zhHans: requiresAuthorityReadback
+                                ? "检查当前证据"
+                                : "基于当前证据提问"
                         ),
                         systemImage: "sparkle.magnifyingglass"
                     )
@@ -1238,8 +1267,8 @@ private struct AskEvidenceReviewStatusView: View {
                 .buttonStyle(.plain)
                 .accessibilityHint(
                     language.text(
-                        "Moves to a fresh Ask; it does not retry the superseded source decision",
-                        zhHans: "转到新的提问；不会重试已被取代的来源决定"
+                        "Moves to a fresh Ask and sends nothing automatically; the old review is not retried",
+                        zhHans: "转到新的提问且不会自动发送；不会重试较早的审阅"
                     )
                 )
                 .accessibilityIdentifier("ask-evidence-review-current")
@@ -1290,6 +1319,9 @@ private struct AskEvidenceReviewStatusView: View {
         if isEffectivelySuperseded {
             return "arrow.trianglehead.2.clockwise.rotate.90"
         }
+        if requiresAuthorityReadback {
+            return "checkmark.shield"
+        }
         switch operation.state {
         case .pending:
             return "clock"
@@ -1306,6 +1338,7 @@ private struct AskEvidenceReviewStatusView: View {
 
     private var foreground: Color {
         (isEffectivelySuperseded
+            || requiresAuthorityReadback
             || [.outcomeUnknown, .failed].contains(operation.state))
             ? Color.tsVermilion
             : Color.tsMutedInk
@@ -1316,6 +1349,12 @@ private struct AskEvidenceReviewStatusView: View {
             return language.text(
                 "Newer source review is current",
                 zhHans: "更新的来源审阅已生效"
+            )
+        }
+        if requiresAuthorityReadback {
+            return language.text(
+                "Check source authority before retry",
+                zhHans: "重试前检查来源权限"
             )
         }
         switch operation.state {

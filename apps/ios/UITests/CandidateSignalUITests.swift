@@ -887,6 +887,18 @@ final class CandidateSignalUITests: XCTestCase {
                 )
             ).firstMatch.exists
         )
+        XCTAssertTrue(
+            app.staticTexts["ACTIVE · REVISION 2"].waitForExistence(timeout: 20)
+        )
+        XCTAssertFalse(app.staticTexts["Waiting for review"].exists)
+        XCTAssertFalse(
+            app.buttons.matching(
+                NSPredicate(
+                    format: "identifier BEGINSWITH %@",
+                    "pursuit-proposal-"
+                )
+            ).firstMatch.exists
+        )
         preserveScreenshot("Relaunch reconciled owned action receipt")
 
         let (finalData, finalResponse) = try await URLSession.shared.data(from: stateURL)

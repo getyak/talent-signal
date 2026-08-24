@@ -74,6 +74,8 @@ const required = {
     "CandidateSignalUITests/testResponseLossRelaunchReconcilesPersistedOperationWithoutResubmit()",
   owned_action_response_loss_reconciles_without_second_post:
     "CandidateSignalUITests/testOwnedActionResponseLossRelaunchReconcilesWithoutSecondPost()",
+  restored_evidence_review_requires_current_authority_readback:
+    "RelationshipArchiveTests/testSupersededPersistenceFailureKeepsSessionTerminalGuard()",
   release_arguments_are_inert:
     "ReleaseBoundaryTests/testSyntheticLaunchArgumentsAreInertOutsideDebugBuilds()",
 };

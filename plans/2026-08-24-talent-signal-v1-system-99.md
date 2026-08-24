@@ -381,6 +381,19 @@ recruiter/candidate field outcomes remain missing. Until those observations are
 frozen, neither the milestone nor this plan can make a 99/100 experience or
 production-release claim.
 
+The first Retest-03 final panel then found two additional deterministic gaps
+despite issuing no active veto. A restored evidence-review operation could
+re-expose its old reconcile control after a failed superseded-state save and a
+process relaunch, even though exact backend authority would reject the write.
+Also, an owned action could advance a Pursuit revision while the already-open
+detail sheet still presented its older Proposal as waiting for review. Retest-04
+must therefore require a fresh canonical evidence-authority readback before any
+restored review POST, canonically supersede open Proposals when an independent
+owned-action outcome advances the Pursuit, hide stale review authority in iOS,
+and freeze every transitive P0 oracle dependency by hash. The narrow source
+checks pass; milestone 7 remains active until the complete rebuilt runtime and
+independent Retest-04 panel confirm these closures.
+
 ## Completion evidence
 
 - a requirement trace matrix covering every `V1-*` ID with code, test, and

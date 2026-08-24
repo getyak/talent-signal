@@ -9,6 +9,7 @@ const repositoryRoot = path.resolve(
   "../..",
 );
 const evaluationRoot =
+  process.env.V1_FINAL_EVALUATION_ROOT ??
   "docs/evaluations/2026-08-24-v1-final-panel-retest-03";
 const evidenceRoot = `${evaluationRoot}/evidence`;
 const outputPath = path.join(repositoryRoot, evaluationRoot, "artifact.json");
@@ -64,7 +65,7 @@ const sourceDigest = digest(
   `${sourceEntries.map(({ path: name, sha256 }) => `${sha256}  ${name}`).join("\n")}\n`,
 );
 
-const evidencePaths = [
+const requiredEvidencePaths = [
   `${evidenceRoot}/ios-full-suite-runtime.json`,
   `${evidenceRoot}/ios-375x667-runtime.json`,
   `${evidenceRoot}/p0-journey-manifest.json`,
@@ -80,13 +81,21 @@ const evidencePaths = [
   `${evidenceRoot}/agent-control-plane/agent-control-plane-deterministic-runtime.json`,
   `${evidenceRoot}/agent-control-plane/claude-agent-live-runtime.json`,
 ];
+const screenshotDirectory = `${evidenceRoot}/screenshots`;
+const evidencePaths = (await filesUnder(evidenceRoot))
+  .filter((relativePath) => !relativePath.startsWith(`${screenshotDirectory}/`))
+  .sort();
+for (const requiredPath of requiredEvidencePaths) {
+  if (!evidencePaths.includes(requiredPath)) {
+    throw new Error(`Required frozen evidence is missing: ${requiredPath}`);
+  }
+}
 const evidenceManifest = await Promise.all(
   evidencePaths.map(async (relativePath) => ({
     path: relativePath,
     sha256: await fileHash(relativePath),
   })),
 );
-const screenshotDirectory = `${evidenceRoot}/screenshots`;
 const screenshotPaths = (await filesUnder(screenshotDirectory)).sort();
 const screenshotManifest = await Promise.all(
   screenshotPaths.map(async (relativePath) => ({
@@ -111,7 +120,8 @@ const liveAgent = await json(
 );
 
 const artifact = {
-  artifact_id: "TS-V1-FINAL-20260824-03",
+  artifact_id:
+    process.env.V1_FINAL_ARTIFACT_ID ?? "TS-V1-FINAL-20260824-03",
   artifact_type: "v1-ios-backend-agent-system",
   contract_version: "2026-08-24.10",
   generated_at: new Date().toISOString(),

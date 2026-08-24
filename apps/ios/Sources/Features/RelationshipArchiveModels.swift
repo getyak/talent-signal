@@ -314,6 +314,7 @@ final class AgentSessionStore: ObservableObject {
     @Published private var storedEvidenceReviews: [AgentEvidenceReviewOperation]
     @Published private(set) var activeEvidenceReviewKeys: Set<String>
     @Published private(set) var transientSupersededEvidenceReviewKeys: Set<String>
+    @Published private(set) var evidenceReviewAuthorityReadbackKeys: Set<String>
     @Published private(set) var persistenceNotice: String?
     private var drafts: [AgentSessionDraft]
     private let persistence: AgentSessionPersisting?
@@ -332,6 +333,7 @@ final class AgentSessionStore: ObservableObject {
         drafts = []
         activeEvidenceReviewKeys = []
         transientSupersededEvidenceReviewKeys = []
+        evidenceReviewAuthorityReadbackKeys = []
         storedEvidenceReviews = []
         storedSessions = sessions.sorted { $0.updatedAt > $1.updatedAt }
         defer { scheduleNextExpiration() }
@@ -358,11 +360,19 @@ final class AgentSessionStore: ObservableObject {
                 .sorted { $0.updatedAt > $1.updatedAt }
             drafts = envelope.drafts
             storedEvidenceReviews = envelope.evidenceReviews ?? []
+            evidenceReviewAuthorityReadbackKeys = Set(
+                storedEvidenceReviews.lazy
+                    .filter {
+                        [.pending, .outcomeUnknown, .failed].contains($0.state)
+                    }
+                    .map(\.idempotencyKey)
+            )
             persist()
         } catch {
             storedSessions = []
             drafts = []
             storedEvidenceReviews = []
+            evidenceReviewAuthorityReadbackKeys = []
             persistenceNotice = "Saved Agent sessions could not be restored on this device."
         }
     }
@@ -623,6 +633,9 @@ final class AgentSessionStore: ObservableObject {
         guard !isEvidenceReviewSuperseded(idempotencyKey) else {
             throw AgentSessionPersistenceError.evidenceReviewSuperseded
         }
+        guard !evidenceReviewAuthorityReadbackKeys.contains(idempotencyKey) else {
+            throw AgentSessionPersistenceError.evidenceReviewAuthorityReadbackRequired
+        }
         guard updateEvidenceReview(idempotencyKey, update: {
             $0.state = .pending
             $0.statusMessage = nil
@@ -686,6 +699,7 @@ final class AgentSessionStore: ObservableObject {
         } else {
             transientSupersededEvidenceReviewKeys.insert(idempotencyKey)
         }
+        evidenceReviewAuthorityReadbackKeys.remove(idempotencyKey)
         return didPersist
     }
 
@@ -697,10 +711,40 @@ final class AgentSessionStore: ObservableObject {
             }
     }
 
+    func requiresEvidenceReviewAuthorityReadback(_ idempotencyKey: String) -> Bool {
+        evidenceReviewAuthorityReadbackKeys.contains(idempotencyKey)
+    }
+
+    func revalidateEvidenceReviewAuthority(
+        citations: [RelationshipAskResponse.Citation],
+        supersededMessage: String
+    ) {
+        for idempotencyKey in Array(evidenceReviewAuthorityReadbackKeys) {
+            guard let operation = storedEvidenceReviews.first(where: {
+                $0.idempotencyKey == idempotencyKey
+            }), let citation = citations.first(where: {
+                $0.id == operation.fragmentID
+            }) else {
+                continue
+            }
+            if citation.availability == "available",
+               citation.reviewStatus == operation.expectedReviewStatus,
+               citation.lastReviewID == operation.authorityReviewID {
+                evidenceReviewAuthorityReadbackKeys.remove(idempotencyKey)
+            } else {
+                _ = markEvidenceReviewSuperseded(
+                    idempotencyKey,
+                    message: supersededMessage
+                )
+            }
+        }
+    }
+
     @discardableResult
     func claimEvidenceReview(_ idempotencyKey: String) -> Bool {
         guard !activeEvidenceReviewKeys.contains(idempotencyKey),
-              !isEvidenceReviewSuperseded(idempotencyKey) else {
+              !isEvidenceReviewSuperseded(idempotencyKey),
+              !evidenceReviewAuthorityReadbackKeys.contains(idempotencyKey) else {
             return false
         }
         activeEvidenceReviewKeys.insert(idempotencyKey)
@@ -812,6 +856,7 @@ final class AgentSessionStore: ObservableObject {
             expirationTask?.cancel()
             activeEvidenceReviewKeys = []
             transientSupersededEvidenceReviewKeys = []
+            evidenceReviewAuthorityReadbackKeys = []
             storedSessions = []
             drafts = []
             storedEvidenceReviews = []
@@ -827,6 +872,7 @@ final class AgentSessionStore: ObservableObject {
         expirationTask?.cancel()
         activeEvidenceReviewKeys = []
         transientSupersededEvidenceReviewKeys = []
+        evidenceReviewAuthorityReadbackKeys = []
         storedSessions = []
         drafts = []
         storedEvidenceReviews = []
@@ -891,6 +937,9 @@ final class AgentSessionStore: ObservableObject {
         )
         activeEvidenceReviewKeys.formIntersection(retainedReviewKeys)
         transientSupersededEvidenceReviewKeys.formIntersection(
+            retainedReviewKeys
+        )
+        evidenceReviewAuthorityReadbackKeys.formIntersection(
             retainedReviewKeys
         )
         return true
@@ -971,6 +1020,7 @@ enum AgentSessionPersistenceError: LocalizedError, Equatable {
     case deletionCouldNotBeVerified
     case evidenceReviewRecoveryUnavailable
     case evidenceReviewSuperseded
+    case evidenceReviewAuthorityReadbackRequired
 
     var errorDescription: String? {
         switch self {
@@ -982,6 +1032,8 @@ enum AgentSessionPersistenceError: LocalizedError, Equatable {
             "Source review was not attempted because protected recovery could not be saved. No canonical source change was sent."
         case .evidenceReviewSuperseded:
             "A newer source decision is current. This older operation cannot be retried."
+        case .evidenceReviewAuthorityReadbackRequired:
+            "Check current source authority before retrying this restored operation."
         }
     }
 }

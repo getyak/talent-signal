@@ -176,6 +176,15 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(unresolved.fragmentID, citation.id)
         XCTAssertEqual(unresolved.reason, "The excerpt needs correction.")
 
+        XCTAssertTrue(
+            restored.requiresEvidenceReviewAuthorityReadback(
+                unresolved.idempotencyKey
+            )
+        )
+        restored.revalidateEvidenceReviewAuthority(
+            citations: response.citations,
+            supersededMessage: "A newer source decision is current."
+        )
         try restored.markEvidenceReviewPending(unresolved.idempotencyKey)
         let rejectedResult = PursuitEvidenceReviewResult(
             reviewID: "review-rejected",
@@ -414,6 +423,108 @@ final class RelationshipArchiveTests: XCTestCase {
                 .evidenceReviewSuperseded
             )
         }
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertTrue(
+            restored.requiresEvidenceReviewAuthorityReadback(
+                operation.idempotencyKey
+            )
+        )
+        XCTAssertFalse(restored.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertThrowsError(
+            try restored.markEvidenceReviewPending(operation.idempotencyKey)
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentSessionPersistenceError,
+                .evidenceReviewAuthorityReadbackRequired
+            )
+        }
+        XCTAssertEqual(
+            restored.latestEvidenceReviews(taskID: response.taskID).first?.state,
+            .pending
+        )
+    }
+
+    @MainActor
+    func testRestoredEvidenceReviewUnlocksOnlyAfterExactAuthorityReadback() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+        let first = AgentSessionStore(persistence: persistence)
+        let operation = try first.beginEvidenceReview(
+            idempotencyKey: "restored-authority-readback",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertFalse(restored.claimEvidenceReview(operation.idempotencyKey))
+        restored.revalidateEvidenceReviewAuthority(
+            citations: response.citations,
+            supersededMessage: "A newer source decision is current."
+        )
+
+        XCTAssertFalse(
+            restored.requiresEvidenceReviewAuthorityReadback(
+                operation.idempotencyKey
+            )
+        )
+        XCTAssertTrue(restored.claimEvidenceReview(operation.idempotencyKey))
+        restored.releaseEvidenceReview(operation.idempotencyKey)
+    }
+
+    @MainActor
+    func testRestoredEvidenceReviewBecomesTerminalAfterNewerAuthorityReadback() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+        let first = AgentSessionStore(persistence: persistence)
+        let operation = try first.beginEvidenceReview(
+            idempotencyKey: "restored-stale-authority",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+        let newer = try relationshipAskReadbackFixture(
+            citationLastReviewID: "review-2"
+        ).validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        restored.revalidateEvidenceReviewAuthority(
+            citations: newer.citations,
+            supersededMessage: "A newer source decision is current."
+        )
+
+        XCTAssertTrue(restored.isEvidenceReviewSuperseded(operation.idempotencyKey))
+        XCTAssertFalse(restored.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertEqual(
+            restored.latestEvidenceReviews(taskID: response.taskID).first?.state,
+            .superseded
+        )
     }
 
     @MainActor
@@ -1690,7 +1801,8 @@ private func relationshipAskReadbackFixture(
     citationAuthorizationScope: String = "person:person-1:relationship-context:context-1",
     citationReviewStatus: String = "reviewed",
     citationAttributionStatus: String = "confirmed",
-    citationExactExcerpt: String? = "The final conversation works next Tuesday."
+    citationExactExcerpt: String? = "The final conversation works next Tuesday.",
+    citationLastReviewID: String? = "review-1"
 ) -> RelationshipAskReadback {
     RelationshipAskReadback(
         contractVersion: TalentSignalAPIContract.version,
@@ -1733,7 +1845,7 @@ private func relationshipAskReadbackFixture(
                 parser: .init(name: "fixture", version: "1.0.0"),
                 contentHash: String(repeating: "0", count: 64),
                 fragmentCreatedAt: "2026-08-24T10:00:01.000Z",
-                lastReviewID: "review-1",
+                lastReviewID: citationLastReviewID,
                 lastReviewedAt: "2026-08-24T10:00:02.000Z",
                 lastReviewedBy: "Recruiter"
             ),

@@ -1935,6 +1935,27 @@ struct PursuitDetailView: View {
                         }
                     }
 
+                    if !staleProposals.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(
+                                "Proposal is out of date",
+                                systemImage: "clock.badge.exclamationmark"
+                            )
+                            .font(.headline)
+                            .foregroundStyle(Color.tsVermilion)
+                            Text(
+                                "This Pursuit is now revision \(currentPursuitRevision). An older Proposal cannot be reviewed and has no execution authority. Current workspace readback will replace it."
+                            )
+                            .font(.subheadline)
+                            .foregroundStyle(Color.tsMutedInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(14)
+                        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+                        .padding(.top, 24)
+                        .accessibilityIdentifier("pursuit-stale-proposal")
+                    }
+
                     RelationshipEyebrow("Open gaps")
                         .padding(.top, 30)
                     if pursuit.gaps.filter({ $0.status == "open" }).isEmpty {
@@ -2118,7 +2139,23 @@ struct PursuitDetailView: View {
     }
 
     private var pendingProposals: [WorkspaceProposal] {
-        snapshot?.openProposals.filter { $0.pursuitID == pursuit.id } ?? []
+        workspaceStore.snapshot?.openProposals.filter {
+            $0.pursuitID == pursuit.id
+                && $0.baseRevision == currentPursuitRevision
+        } ?? []
+    }
+
+    private var staleProposals: [WorkspaceProposal] {
+        workspaceStore.snapshot?.openProposals.filter {
+            $0.pursuitID == pursuit.id
+                && $0.baseRevision != currentPursuitRevision
+        } ?? []
+    }
+
+    private var currentPursuitRevision: Int {
+        recordedActionCompletion?.result.pursuit.revision
+            ?? workspaceStore.snapshot?.pursuit(id: pursuit.id)?.revision
+            ?? pursuit.revision
     }
 
     private var milestoneConfirmationSummary: String {
