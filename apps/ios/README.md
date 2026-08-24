@@ -1,20 +1,42 @@
 # Talent Signal for iOS
 
-The native SwiftUI client provides intentional screenshot import, on-device
-text review, temporal identity comparison, explicit relationship attachment,
-and a compiled-Wiki receipt. Photos selection and the `Review screenshot in
-Talent Signal` App Shortcut enter the same resumable review. The shortcut runs
-quietly in the background: it atomically adds the selected image to the local
-FIFO review queue and returns without network work, an app launch, or a Live
-Activity. An exact retry reuses the still-pending queue item, while a later
-import after completion starts a new purpose-scoped review. The original image
-stays on-device in this slice; the local backend receives recruiter-reviewed
-text and governed source metadata.
+The native SwiftUI client opens on Pursuit-first Today. Today, Pursuits, and
+People are projections of the same account-scoped canonical workspace; Inbox
+opens the Proposal, item decision, revision, Receipt, and readback loop. Failed
+reads do not substitute preview facts, and attention ranks work rather than a
+person.
+
+Ask opens as a focused, Pursuit-scoped AI conversation with canonical Person
+and context lookup, compact prompt tools, capture, and direct record navigation.
+Today keeps one decision visually primary and renders later work as quiet
+continuations; it has no separate feed or generic search panel.
+
+The bottom Capture control opens one purpose-bound chooser for Text Signal,
+conversation screenshot, or Audio Signal. The `Capture Signal` App Shortcut is
+suitable for an Action button configuration and only foregrounds that chooser.
+`Record Signal` only opens the foreground audio surface. Neither intent starts
+the microphone. Audio requires a non-empty purpose, explicit authorization,
+system permission, an active foreground scene, available input, and recorder
+success before the UI can say `Recording now`. Completed audio stays protected
+on-device with a checksum and deletion path; this slice has no upload,
+transcription, Proposal, confirmed-state, or external-write authority.
+
+Intentional screenshot import still provides on-device text review, temporal
+identity comparison, explicit relationship attachment, and a compiled-Wiki
+receipt. Photos selection and the `Review screenshot in Talent Signal` App
+Shortcut enter the same resumable review. The shortcut runs quietly in the
+background: it atomically adds the selected image to the local FIFO review queue
+and returns without network work, an app launch, or a Live Activity. An exact
+retry reuses the still-pending queue item, while a later import after completion
+starts a new purpose-scoped review. The original image stays on-device in this
+slice; the local backend receives recruiter-reviewed text and governed source
+metadata.
 
 The app also retains the synthetic candidate-momentum fixture loop for bounded
 review and action testing. It keeps provider keys out of the app bundle and
 never performs a candidate-facing or external-system write from screenshot
-capture.
+capture. Deterministic launch routing and localhost sessions are compiled out
+of Release; a Release-specific test verifies those arguments are inert.
 
 ## Requirements
 
@@ -30,6 +52,14 @@ open apps/ios/TalentSignal.xcodeproj
 ```
 
 Select the `TalentSignal` scheme and an iOS 16+ simulator or device.
+
+Release builds require a backend HTTPS URL in `TalentSignalAPIBaseURL` and use
+Sign in with Apple before opening the workspace. Configure the App ID capability
+and set the backend's `APPLE_SIGN_IN_AUDIENCES` to the same client identifier.
+The backend verifies the Apple assertion and issues the application session;
+the app stores that session in the device Keychain. Debug builds can show the
+real login surface against localhost with `--show-login --auth-backend-url`,
+but deterministic simulated login remains a Debug-only fixture path.
 
 ## Verify
 

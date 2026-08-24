@@ -10,15 +10,38 @@ struct CandidateSignalView: View {
     @State private var importedImage: UIImage?
     @State private var photoImportTask: Task<Void, Never>?
     @State private var localhostExpanded = false
-    @State private var recruiterContext = HeroLoopCatalog.defaultRecruiterContext
+    @State private var showingTextSignal = false
+    @State private var pendingTextSignal: TextSignalOutboxRecord?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private let onClose: (() -> Void)?
+    private let showsFixtureTools: Bool
+    private let authenticatedBackendURL: URL?
+    private let authenticatedAccessToken: String?
+    private let authenticatedWorkspaceID: String?
 
-    init() {
+    init(
+        backendURL: URL? = nil,
+        accessToken: String? = nil,
+        workspaceID: String? = nil,
+        onClose: (() -> Void)? = nil
+    ) {
         _store = StateObject(wrappedValue: CandidateSignalStore())
+        self.onClose = onClose
+        authenticatedBackendURL = backendURL
+        authenticatedAccessToken = accessToken
+        authenticatedWorkspaceID = workspaceID
+        showsFixtureTools = TalentSignalRootRoute.opensReviewWorkbench(
+            arguments: ProcessInfo.processInfo.arguments
+        )
     }
 
-    init(store: CandidateSignalStore) {
+    init(store: CandidateSignalStore, onClose: (() -> Void)? = nil) {
         _store = StateObject(wrappedValue: store)
+        self.onClose = onClose
+        authenticatedBackendURL = nil
+        authenticatedAccessToken = nil
+        authenticatedWorkspaceID = nil
+        showsFixtureTools = true
     }
 
     var body: some View {
@@ -28,8 +51,14 @@ struct CandidateSignalView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 24) {
-                            BrandHeader()
-                                .id("screen-top")
+                            Group {
+                                if case .idle = store.stage, !showsFixtureTools {
+                                    captureHeader
+                                } else {
+                                    BrandHeader()
+                                }
+                            }
+                            .id("screen-top")
 
                             switch store.stage {
                             case .idle:
@@ -73,9 +102,29 @@ struct CandidateSignalView: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            Color.tsCanvas
-                .frame(height: 8)
-                .accessibilityHidden(true)
+            if let onClose {
+                HStack {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Close capture workbench")
+                    Spacer()
+                    Text("Capture")
+                        .font(.headline)
+                        .foregroundStyle(Color.tsInk)
+                    Spacer()
+                    Color.clear.frame(width: 44, height: 44)
+                }
+                .padding(.horizontal, 12)
+                .background(Color.tsCanvas)
+            } else {
+                Color.tsCanvas
+                    .frame(height: 8)
+                    .accessibilityHidden(true)
+            }
         }
         .tint(.tsVermilion)
         .onChange(of: selectedPhoto) { item in
@@ -84,11 +133,24 @@ struct CandidateSignalView: View {
         .onDisappear {
             photoImportTask?.cancel()
         }
+        .task {
+            await refreshPendingTextSignal()
+        }
+        .sheet(isPresented: $showingTextSignal) {
+            TextSignalCaptureView(
+                backendURL: effectiveBackendURL,
+                accessToken: authenticatedAccessToken,
+                workspaceID: authenticatedWorkspaceID,
+                initialRecord: pendingTextSignal
+            ) {
+                Task { await refreshPendingTextSignal() }
+            }
+        }
         .fullScreenCover(item: $captureHandoff.pendingSeed) { seed in
             RelationshipCaptureView(
                 seed: seed,
-                backendURL: URL(string: store.backendAddress)
-                    ?? URL(string: "http://127.0.0.1:4317")!,
+                backendURL: effectiveBackendURL,
+                accessToken: authenticatedAccessToken,
                 initialDraft: captureHandoff.initialDraft
             ) { disposition in
                 selectedPhoto = nil
@@ -104,9 +166,60 @@ struct CandidateSignalView: View {
         }
     }
 
+    private var effectiveBackendURL: URL {
+        authenticatedBackendURL
+            ?? URL(string: store.backendAddress)
+            ?? URL(string: "http://127.0.0.1:4317")!
+    }
+
+    private var captureHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel(text: "Remember a moment")
+                .foregroundStyle(Color.tsVermilion)
+            Text("Bring one source into review.")
+                .font(.custom("Georgia", size: 36, relativeTo: .largeTitle))
+                .foregroundStyle(Color.tsInk)
+                .tracking(-0.8)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Choose only the conversation evidence you intend to use. You will review text, identity, and relationship scope before anything becomes current state.")
+                .font(.body)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("capture-entry-header")
+    }
+
     private var idleContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            SourceNotice(text: store.sourceNotice)
+            if showsFixtureTools {
+                SourceNotice(text: store.sourceNotice)
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel(text: pendingTextSignal == nil ? "Fastest safe capture" : "Recoverable text Signal")
+                Text(pendingTextSignal == nil ? "Write one exact Signal" : "Continue the saved Signal")
+                    .font(.headline)
+                    .foregroundStyle(Color.tsInk)
+                Text(
+                    pendingTextSignal == nil
+                        ? "Text is durably saved before sync. You choose Pursuit, Person role, and speaker; no model or external write runs here."
+                        : "The protected local command still owns its original Signal ID and retry history."
+                )
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+                Button(pendingTextSignal == nil ? "Write text Signal" : "Resume text Signal") {
+                    showingTextSignal = true
+                }
+                .buttonStyle(TSPrimaryButtonStyle())
+                .accessibilityIdentifier(
+                    pendingTextSignal == nil
+                        ? "write-text-signal"
+                        : "resume-text-signal"
+                )
+            }
+            .tsCard()
 
             if let savedSeed = captureHandoff.savedSeed,
                captureHandoff.pendingSeed == nil {
@@ -129,56 +242,7 @@ struct CandidateSignalView: View {
             }
 
             VStack(alignment: .leading, spacing: 16) {
-                SectionLabel(text: "90-second product loop")
-
-                Text("See the value after confirmation")
-                    .font(.system(.title2, design: .rounded).weight(.bold))
-                    .foregroundStyle(Color.tsInk)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("A synthetic conversation becomes exact facts, two reviewable action cards, and one relationship-aware insight.")
-                    .font(.body)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HeroConversationPreview()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Optional recruiter context")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.tsMutedInk)
-
-                    TextEditor(text: $recruiterContext)
-                        .font(.body)
-                        .foregroundStyle(Color.tsInk)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 92)
-                        .padding(10)
-                        .background(
-                            Color.tsSurfaceMuted,
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        )
-                        .accessibilityLabel("Optional recruiter context")
-                        .accessibilityIdentifier("hero-recruiter-context")
-                }
-
-                Button {
-                    store.beginHeroLoop(recruiterContext: recruiterContext)
-                } label: {
-                    Label("Run screenshot → action → insight", systemImage: "arrow.right.circle.fill")
-                }
-                .buttonStyle(TSPrimaryButtonStyle())
-                .accessibilityIdentifier("open-hero-loop")
-
-                Text("Synthetic evidence only · arbitrary-image OCR and external writes remain explicitly out of scope.")
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .tsCard()
-
-            VStack(alignment: .leading, spacing: 16) {
-                SectionLabel(text: "Try your own image")
+                SectionLabel(text: "Device-owned source")
 
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
                     Label {
@@ -201,64 +265,71 @@ struct CandidateSignalView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("choose-image")
                 .accessibilityHint("Opens the system photo picker, then starts text and identity review.")
-            }
-            .tsCard()
 
-            VStack(alignment: .leading, spacing: 16) {
-                SectionLabel(text: "Synthetic fixture demo")
-
-                Picker("Fixture case", selection: $store.selectedFixtureID) {
-                    ForEach(store.suite.cases) { fixture in
-                        Text("\(fixture.id) · \(fixture.title)")
-                            .tag(fixture.id)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("fixture-picker")
-
-                Text("Fixture data is synthetic and intentionally selected. It is never inferred from the image above.")
-                    .font(.subheadline)
+                Text("The original image stays on this device in the current slice. No contact, message, meeting, ATS, CRM, or reminder is written from selection alone.")
+                    .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
-
-                Button {
-                    store.beginFixtureImport()
-                } label: {
-                    Label("Open selected synthetic case", systemImage: "doc.text.magnifyingglass")
-                }
-                .buttonStyle(TSPrimaryButtonStyle())
-                .accessibilityIdentifier("open-fixture")
             }
             .tsCard()
 
-            DisclosureGroup(isExpanded: $localhostExpanded) {
-                VStack(alignment: .leading, spacing: 14) {
-                    TextField("http://127.0.0.1:8787/fixtures.json", text: $store.localhostAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Local fixture server address")
-                        .accessibilityIdentifier("localhost-address")
+            if showsFixtureTools {
+                VStack(alignment: .leading, spacing: 16) {
+                    SectionLabel(text: "Deterministic review fixtures")
 
-                    Text("Read-only sync accepts only localhost or loopback addresses and requires the same eight-case fixture contract.")
+                    Picker("Fixture case", selection: $store.selectedFixtureID) {
+                        ForEach(store.suite.cases) { fixture in
+                            Text("\(fixture.id) · \(fixture.title)")
+                                .tag(fixture.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("fixture-picker")
+
+                    Text("Fixture data is synthetic and intentionally selected. It is never inferred from the image above.")
                         .font(.subheadline)
                         .foregroundStyle(Color.tsMutedInk)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Button("Sync and open selected case") {
-                        store.syncFromLocalhost()
+                    Button {
+                        store.beginFixtureImport()
+                    } label: {
+                        Label("Open selected synthetic case", systemImage: "doc.text.magnifyingglass")
                     }
-                    .buttonStyle(TSSecondaryButtonStyle())
-                    .accessibilityIdentifier("sync-localhost")
+                    .buttonStyle(TSPrimaryButtonStyle())
+                    .accessibilityIdentifier("open-fixture")
                 }
-                .padding(.top, 14)
-            } label: {
-                Label("Configure localhost fixture sync", systemImage: "network")
-                    .font(.headline)
-                    .foregroundStyle(Color.tsInk)
+                .tsCard()
+
+                DisclosureGroup(isExpanded: $localhostExpanded) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        TextField("http://127.0.0.1:8787/fixtures.json", text: $store.localhostAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Local fixture server address")
+                            .accessibilityIdentifier("localhost-address")
+
+                        Text("Read-only sync accepts only localhost or loopback addresses and requires the same eight-case fixture contract.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.tsMutedInk)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button("Sync and open selected case") {
+                            store.syncFromLocalhost()
+                        }
+                        .buttonStyle(TSSecondaryButtonStyle())
+                        .accessibilityIdentifier("sync-localhost")
+                    }
+                    .padding(.top, 14)
+                } label: {
+                    Label("Configure localhost fixture sync", systemImage: "network")
+                        .font(.headline)
+                        .foregroundStyle(Color.tsInk)
+                }
+                .tsCard()
             }
-            .tsCard()
         }
     }
 
@@ -484,6 +555,21 @@ struct CandidateSignalView: View {
         importedImage = nil
         selectedPhoto = nil
         store.reset()
+    }
+
+    private func refreshPendingTextSignal() async {
+        guard let baseURL = URL(string: store.backendAddress) else {
+            pendingTextSignal = nil
+            return
+        }
+        do {
+            let catalog = try await URLTextSignalSyncClient(baseURL: baseURL).loadScopes()
+            pendingTextSignal = try await TextSignalOutbox.shared.oldest(
+                workspaceID: catalog.workspaceID
+            )
+        } catch {
+            pendingTextSignal = nil
+        }
     }
 }
 

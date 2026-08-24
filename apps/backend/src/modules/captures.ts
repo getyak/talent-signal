@@ -822,6 +822,40 @@ export async function deleteCapture(
          FROM analysis_proposals
          WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
        UNION ALL
+       SELECT DISTINCT 'pursuit_proposal', proposals.id
+         FROM pursuit_proposals proposals
+         LEFT JOIN pursuit_proposal_items items
+           ON items.account_id = proposals.account_id
+          AND items.proposal_id = proposals.id
+         LEFT JOIN pursuit_proposal_item_evidence proposal_evidence
+           ON proposal_evidence.account_id = items.account_id
+          AND proposal_evidence.proposal_item_id = items.id
+         LEFT JOIN evidence_fragments proposal_fragments
+           ON proposal_fragments.account_id = proposal_evidence.account_id
+          AND proposal_fragments.id = proposal_evidence.evidence_fragment_id
+         WHERE proposals.account_id = $1
+           AND (
+             proposals.capture_id = ANY($2::uuid[])
+             OR proposal_fragments.capture_id = ANY($2::uuid[])
+           )
+       UNION ALL
+       SELECT DISTINCT 'pursuit_proposal_item', items.id
+         FROM pursuit_proposal_items items
+         JOIN pursuit_proposals proposals
+           ON proposals.account_id = items.account_id
+          AND proposals.id = items.proposal_id
+         LEFT JOIN pursuit_proposal_item_evidence proposal_evidence
+           ON proposal_evidence.account_id = items.account_id
+          AND proposal_evidence.proposal_item_id = items.id
+         LEFT JOIN evidence_fragments proposal_fragments
+           ON proposal_fragments.account_id = proposal_evidence.account_id
+          AND proposal_fragments.id = proposal_evidence.evidence_fragment_id
+         WHERE proposals.account_id = $1
+           AND (
+             proposals.capture_id = ANY($2::uuid[])
+             OR proposal_fragments.capture_id = ANY($2::uuid[])
+           )
+       UNION ALL
        SELECT 'assertion_proposal', id
          FROM proposed_assertions
          WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
@@ -1105,6 +1139,110 @@ export async function deleteCapture(
        WHERE account_id = $1 AND capture_id = ANY($2::uuid[])`,
       [auth.accountId, governedCaptureIds],
     );
+    const affectedPursuitProposals = await client.query<{
+      id: string;
+      status: string;
+    }>(
+      `SELECT DISTINCT proposals.id, proposals.status
+       FROM pursuit_proposals proposals
+       LEFT JOIN pursuit_proposal_items items
+         ON items.account_id = proposals.account_id
+        AND items.proposal_id = proposals.id
+       LEFT JOIN pursuit_proposal_item_evidence proposal_evidence
+         ON proposal_evidence.account_id = items.account_id
+        AND proposal_evidence.proposal_item_id = items.id
+       LEFT JOIN evidence_fragments fragments
+         ON fragments.account_id = proposal_evidence.account_id
+        AND fragments.id = proposal_evidence.evidence_fragment_id
+       WHERE proposals.account_id = $1
+         AND (
+           proposals.capture_id = ANY($2::uuid[])
+           OR fragments.capture_id = ANY($2::uuid[])
+         )`,
+      [auth.accountId, governedCaptureIds],
+    );
+    const affectedPursuitProposalIds = affectedPursuitProposals.rows.map(
+      (proposal) => proposal.id,
+    );
+    const supersededPursuitProposalIds = affectedPursuitProposals.rows
+      .filter((proposal) =>
+        ["needs_review", "confirming", "conflict", "failed"].includes(
+          proposal.status,
+        ),
+      )
+      .map((proposal) => proposal.id);
+    if (affectedPursuitProposalIds.length > 0) {
+      await client.query(
+        `UPDATE pursuit_proposals
+         SET status = CASE
+               WHEN status IN ('needs_review', 'confirming', 'conflict', 'failed')
+                 THEN 'superseded'
+               ELSE status
+             END,
+             summary = '[source-derived Proposal content removed]',
+             revision = revision + 1,
+             updated_at = now()
+         WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+        [auth.accountId, affectedPursuitProposalIds],
+      );
+      await client.query(
+        `UPDATE pursuit_proposal_items
+         SET before_value = NULL,
+             proposed_value = '{"content_removed":true}'::jsonb,
+             epistemic_status = 'superseded',
+             reason = '[source-derived Proposal reason removed]',
+             effect_summary = '[source-derived Proposal effect removed]',
+             decided_value = CASE
+               WHEN decided_value IS NULL THEN NULL
+               ELSE '{"content_removed":true}'::jsonb
+             END,
+             decision_reason = CASE
+               WHEN decision_reason IS NULL THEN NULL
+               ELSE '[source-derived review reason removed]'
+             END
+         WHERE account_id = $1
+           AND proposal_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedPursuitProposalIds],
+      );
+      await client.query(
+        `UPDATE pursuit_operations
+         SET reason = '[source-derived operation reason removed]',
+             status = CASE
+               WHEN status IN ('confirming', 'unknown_locked') THEN 'failed'
+               ELSE status
+             END,
+             resolved_at = CASE
+               WHEN status IN ('confirming', 'unknown_locked') THEN now()
+               ELSE resolved_at
+             END
+         WHERE account_id = $1
+           AND proposal_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedPursuitProposalIds],
+      );
+      await client.query(
+        `UPDATE audit_events
+         SET metadata = (metadata - 'reason')
+           || '{"source_content_state":"removed"}'::jsonb
+         WHERE account_id = $1
+           AND entity_type = 'pursuit_proposal'
+           AND entity_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedPursuitProposalIds],
+      );
+    }
+    for (const proposalId of supersededPursuitProposalIds) {
+      await appendAudit(
+        client,
+        { accountId: auth.accountId, actorUserId: auth.userId },
+        "pursuit.proposal.superseded_by_source_deletion",
+        "pursuit_proposal",
+        proposalId,
+        {
+          deletion_id: deletionId,
+          root_capture_id: captureId,
+          affected_capture_ids: governedCaptureIds,
+        },
+      );
+    }
     const priorStateIds = priorStatesNeedingReview.rows.map(
       (state) => state.prior_state_id,
     );
@@ -1282,11 +1420,24 @@ export async function deleteCapture(
              operation_scope = 'run_public_research'
              AND response_body->>'task_id' = ANY($3::text[])
            )
+           OR (
+             (
+               operation_scope LIKE 'stage_pursuit_proposal:%'
+               OR operation_scope LIKE 'review_pursuit_proposal:%'
+             )
+             AND (
+               response_body->'proposal'->>'capture_id'
+                 = ANY($2::text[])
+               OR response_body->'proposal'->>'id'
+                 = ANY($4::text[])
+             )
+           )
          )`,
       [
         auth.accountId,
         governedCaptureIds,
         affectedResearchTaskIds,
+        affectedPursuitProposalIds,
       ],
     );
     entities.rows.push(

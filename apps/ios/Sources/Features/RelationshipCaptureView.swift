@@ -15,13 +15,17 @@ struct RelationshipCaptureView: View {
     init(
         seed: PendingCaptureSeed,
         backendURL: URL,
+        accessToken: String? = nil,
         initialDraft: RecognizedCaptureDraft? = nil,
         onDismiss: @escaping (CaptureDismissDisposition) -> Void
     ) {
         _store = StateObject(
             wrappedValue: RelationshipCaptureStore(
                 seed: seed,
-                service: URLRelationshipCaptureClient(baseURL: backendURL),
+                service: URLRelationshipCaptureClient(
+                    baseURL: backendURL,
+                    accessToken: accessToken
+                ),
                 initialDraft: initialDraft
             )
         )

@@ -9,6 +9,7 @@
   "scripts": {
     "architecture:check": "node scripts/check-architecture-diagrams.mjs",
     "architecture:generate": "node scripts/generate-architecture-diagrams.mjs",
+    "agent:check": "pnpm --filter @talent-signal/agent typecheck && pnpm --filter @talent-signal/agent test",
     "backend:check": "./apps/backend/scripts/local-check.sh",
     "backend:ci": "./apps/backend/scripts/ci.sh",
     "backend:up": "docker compose up --build --wait",
@@ -17,6 +18,11 @@
     "build": "pnpm --filter @talent-signal/web build",
     "docs:check": "node scripts/check-docs.mjs && node scripts/wiki.mjs check && pnpm architecture:check",
     "eval:core": "node scripts/evals/validate-candidate-momentum.mjs",
+    "eval:v1-p0": "node scripts/evals/validate-v1-p0-journeys.mjs",
+    "eval:ios-full": "node scripts/evals/capture-ios-full-suite.mjs",
+    "eval:v1-trace": "node scripts/evals/capture-v1-requirement-trace.mjs",
+    "eval:ios-small": "node scripts/evals/capture-ios-small-device.mjs",
+    "eval:v1-atoms": "node scripts/evals/capture-v1-atomic-scores.mjs",
     "hooks:install": "./scripts/install-git-hooks.sh",
     "ios:check": "./scripts/ios/check.sh",
     "ios:generate": "./scripts/ios/generate.sh",
@@ -26,6 +32,6 @@
     "wiki:build": "node scripts/wiki.mjs build",
     "wiki:check": "node scripts/wiki.mjs check",
     "wiki:test": "node --test scripts/wiki.test.mjs",
-    "check": "pnpm brand:check && pnpm docs:check && pnpm lint && pnpm typecheck && pnpm test && ./apps/backend/scripts/ci.sh && pnpm build"
+    "check": "pnpm brand:check && pnpm docs:check && pnpm agent:check && pnpm lint && pnpm typecheck && pnpm test && ./apps/backend/scripts/ci.sh && pnpm build"
   }
 }

@@ -18,10 +18,17 @@ targets:
   TalentSignal:
     type: application
     platform: iOS
+    entitlements:
+      path: Resources/TalentSignal.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
     sources:
       - path: Sources
       - path: Resources
         buildPhase: resources
+        excludes:
+          - TalentSignal.entitlements
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -33,6 +40,8 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
         INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Talent Signal imports only the conversation screenshot you choose.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Talent Signal records audio only after you confirm authorization and tap Start while the app is in the foreground.
+        INFOPLIST_KEY_TalentSignalAPIBaseURL: $(TALENT_SIGNAL_API_BASE_URL)
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad:
@@ -77,11 +86,14 @@ targets:
     platform: iOS
     sources:
       - path: UITests
+        excludes:
+          - Info.plist
     dependencies:
       - target: TalentSignal
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
-        GENERATE_INFOPLIST_FILE: YES
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: UITests/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.app.uitests
         TEST_TARGET_NAME: TalentSignal

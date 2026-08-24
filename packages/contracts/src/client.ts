@@ -1,11 +1,15 @@
 import type {
   AnalysisProposalResponse,
+  AppleLoginChallengeRequest,
+  AppleLoginChallengeResponse,
+  AppleLoginRequest,
   ApproveEffectReversalRequest,
   ApproveActionRequest,
   ApprovalResponse,
   AssertionDecisionRequest,
   AssertionDecisionResponse,
   CaptureResponse,
+  CurrentSessionResponse,
   CreateCaptureRequest,
   DeleteCaptureRequest,
   DeleteCaptureResponse,
@@ -17,6 +21,7 @@ import type {
   ExecuteEffectReversalRequest,
   ExecuteActionRequest,
   ReconcileEffectRequest,
+  LogoutResponse,
   ReviseActionRequest,
   SessionResponse,
   SimulatedLoginRequest,
@@ -54,9 +59,30 @@ import type {
 import type {
   CompileKnowledgeRequest,
   ChatTaskRequest,
+  ChatTaskReadback,
   ChatTaskResponse,
   KnowledgeSnapshot,
 } from "./resourceSchemas.js";
+import type {
+  PursuitProposalListResponse,
+  PursuitProposalResponse,
+  PursuitProposalReviewResponse,
+  ReviewPursuitProposalRequest,
+  StagePursuitProposalRequest,
+} from "./proposalSchemas.js";
+import type {
+  CompletePursuitActionRequest,
+  CreatePursuitRequest,
+  PursuitDetailResponse,
+  PursuitListResponse,
+  PursuitMutationResponse,
+  PursuitOperationResponse,
+  RevisePursuitRequest,
+} from "./pursuitSchemas.js";
+import type {
+  AgentRunResponse,
+  CreatePursuitAgentRunRequest,
+} from "./agentSchemas.js";
 
 export class TalentSignalHttpError extends Error {
   readonly status: number;
@@ -100,6 +126,123 @@ export class TalentSignalClient {
     );
     this.setAccessToken(response.access_token);
     return response;
+  }
+
+  createAppleLoginChallenge(
+    request: AppleLoginChallengeRequest,
+  ): Promise<AppleLoginChallengeResponse> {
+    return this.request("/v1/auth/apple/challenges", {
+      method: "POST",
+      body: request,
+      authenticated: false,
+    });
+  }
+
+  async signInWithApple(request: AppleLoginRequest): Promise<SessionResponse> {
+    const response = await this.request<SessionResponse>("/v1/auth/apple", {
+      method: "POST",
+      body: request,
+      authenticated: false,
+    });
+    this.setAccessToken(response.access_token);
+    return response;
+  }
+
+  currentSession(): Promise<CurrentSessionResponse> {
+    return this.request("/v1/auth/session", { method: "GET" });
+  }
+
+  async logout(): Promise<LogoutResponse> {
+    const response = await this.request<LogoutResponse>("/v1/auth/logout", {
+      method: "POST",
+    });
+    this.accessToken = undefined;
+    return response;
+  }
+
+  createPursuit(
+    request: CreatePursuitRequest,
+  ): Promise<PursuitMutationResponse> {
+    return this.request("/v1/pursuits", { method: "POST", body: request });
+  }
+
+  listPursuits(): Promise<PursuitListResponse> {
+    return this.request("/v1/pursuits", { method: "GET" });
+  }
+
+  getPursuit(pursuitId: string): Promise<PursuitDetailResponse> {
+    return this.request(`/v1/pursuits/${pursuitId}`, { method: "GET" });
+  }
+
+  revisePursuit(
+    pursuitId: string,
+    request: RevisePursuitRequest,
+  ): Promise<PursuitMutationResponse> {
+    return this.request(`/v1/pursuits/${pursuitId}/revisions`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  completePursuitAction(
+    pursuitId: string,
+    actionId: string,
+    request: CompletePursuitActionRequest,
+  ): Promise<PursuitMutationResponse> {
+    return this.request(
+      `/v1/pursuits/${pursuitId}/actions/${actionId}/completions`,
+      { method: "POST", body: request },
+    );
+  }
+
+  getOperation(operationId: string): Promise<PursuitOperationResponse> {
+    return this.request(`/v1/operations/${operationId}`, { method: "GET" });
+  }
+
+  createPursuitAgentRun(
+    pursuitId: string,
+    request: CreatePursuitAgentRunRequest,
+  ): Promise<AgentRunResponse> {
+    return this.request(`/v1/pursuits/${pursuitId}/agent-runs`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  getAgentRun(runId: string): Promise<AgentRunResponse> {
+    return this.request(`/v1/agent-runs/${runId}`, { method: "GET" });
+  }
+
+  stagePursuitProposal(
+    pursuitId: string,
+    request: StagePursuitProposalRequest,
+  ): Promise<PursuitProposalResponse> {
+    return this.request(`/v1/pursuits/${pursuitId}/proposals`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  getPursuitProposal(
+    proposalId: string,
+  ): Promise<PursuitProposalResponse> {
+    return this.request(`/v1/pursuit-proposals/${proposalId}`, {
+      method: "GET",
+    });
+  }
+
+  listPursuitProposals(): Promise<PursuitProposalListResponse> {
+    return this.request("/v1/pursuit-proposals", { method: "GET" });
+  }
+
+  reviewPursuitProposal(
+    proposalId: string,
+    request: ReviewPursuitProposalRequest,
+  ): Promise<PursuitProposalReviewResponse> {
+    return this.request(`/v1/pursuit-proposals/${proposalId}/reviews`, {
+      method: "POST",
+      body: request,
+    });
   }
 
   createCapture(request: CreateCaptureRequest): Promise<CaptureResponse> {
@@ -312,6 +455,12 @@ export class TalentSignalClient {
     return this.request("/v1/chat/tasks", {
       method: "POST",
       body: request,
+    });
+  }
+
+  getChatTaskReadback(taskId: string): Promise<ChatTaskReadback> {
+    return this.request(`/v1/chat/tasks/${taskId}/readback`, {
+      method: "GET",
     });
   }
 

@@ -1399,6 +1399,16 @@ export const ChatResponseBlockSchema = Type.Object(
       uniqueItems: true,
     }),
     requires_user_decision: Type.Boolean(),
+    target_ref: Type.Optional(
+      Type.Object(
+        {
+          type: Type.Literal("pursuit_action"),
+          pursuit_id: Id,
+          action_id: Id,
+        },
+        { additionalProperties: false },
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -1423,6 +1433,92 @@ export const ChatTaskResponseSchema = Type.Object(
     created_at: Timestamp,
   },
   { $id: "ChatTaskResponse", additionalProperties: false },
+);
+
+export const ChatCitationSchema = Type.Object(
+  {
+    id: Id,
+    dependency_type: Type.Literal("evidence_fragment"),
+    person_id: Type.Union([Id, Type.Null()]),
+    relationship_context_id: Type.Union([Id, Type.Null()]),
+    inclusion_reason: Type.String({ minLength: 1, maxLength: 500 }),
+    authorization_scope: Type.String({ minLength: 1, maxLength: 500 }),
+    availability: Type.Union([
+      Type.Literal("available"),
+      Type.Literal("superseded"),
+      Type.Literal("unauthorized"),
+      Type.Literal("deleted"),
+    ]),
+    unavailable_reason: Type.Union([
+      Type.String({ minLength: 1, maxLength: 500 }),
+      Type.Null(),
+    ]),
+    resource_id: Id,
+    source_name: Type.String({ minLength: 1, maxLength: 240 }),
+    observed_at: Timestamp,
+    source_timezone: Type.Union([
+      Type.String({ minLength: 1, maxLength: 80 }),
+      Type.Null(),
+    ]),
+    capture_version: Type.Integer({ minimum: 1 }),
+    fragment_kind: Type.Union(
+      EVIDENCE_FRAGMENT_KINDS.map((kind) => Type.Literal(kind)),
+    ),
+    sequence: Type.Integer({ minimum: 0 }),
+    exact_excerpt: Type.Union([
+      Type.String({ minLength: 1, maxLength: 40_000 }),
+      Type.Null(),
+    ]),
+    locator: Type.Union([EvidenceLocatorSchema, Type.Null()]),
+    attribution: EvidenceAttributionSchema,
+    review_status: Type.Union([
+      Type.Literal("proposed"),
+      Type.Literal("reviewed"),
+      Type.Literal("rejected"),
+    ]),
+    parser: EvidenceParserSchema,
+    content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+    fragment_created_at: Timestamp,
+    last_review_id: Type.Union([Id, Type.Null()]),
+    last_reviewed_at: Type.Union([Timestamp, Type.Null()]),
+    last_reviewed_by: Type.Union([
+      Type.String({ minLength: 1, maxLength: 200 }),
+      Type.Null(),
+    ]),
+  },
+  { additionalProperties: false },
+);
+
+export const ChatTaskReadbackSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    account_id: Id,
+    task_id: Id,
+    context_manifest_id: Id,
+    knowledge_snapshot_id: Id,
+    person_id: Id,
+    relationship_context_id: Id,
+    manifest_status: Type.Union([
+      Type.Literal("active"),
+      Type.Literal("superseded"),
+      Type.Literal("expired"),
+      Type.Literal("deleted"),
+    ]),
+    snapshot_status: Type.Union([
+      Type.Literal("draft"),
+      Type.Literal("published"),
+      Type.Literal("abstained"),
+      Type.Literal("superseded"),
+      Type.Literal("deleted"),
+    ]),
+    authorization_scope: Type.String({ minLength: 1, maxLength: 1_000 }),
+    citations: Type.Array(ChatCitationSchema, {
+      maxItems: 500,
+      uniqueItems: true,
+    }),
+    created_at: Timestamp,
+  },
+  { $id: "ChatTaskReadback", additionalProperties: false },
 );
 
 export const ChatTaskRequestSchema = Type.Object(
@@ -1778,6 +1874,8 @@ export type CompileKnowledgeRequest = Static<
 export type ContextManifest = Static<typeof ContextManifestSchema>;
 export type ChatResponseBlock = Static<typeof ChatResponseBlockSchema>;
 export type ChatTaskResponse = Static<typeof ChatTaskResponseSchema>;
+export type ChatCitation = Static<typeof ChatCitationSchema>;
+export type ChatTaskReadback = Static<typeof ChatTaskReadbackSchema>;
 export type ChatTaskRequest = Static<typeof ChatTaskRequestSchema>;
 export type PersonDirectoryContext = Static<
   typeof PersonDirectoryContextSchema

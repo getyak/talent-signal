@@ -80,7 +80,6 @@ const canonicalAppIcon = await readFile(
 );
 const iosAppIcons = [
   "apps/ios/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png",
-  "apps/ios/TalentSignal/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png",
 ];
 
 for (const file of iosAppIcons) {

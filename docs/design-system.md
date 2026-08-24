@@ -66,42 +66,51 @@ progressively stronger attention.
 The current state should be simple, while prior values, conflicts, corrections,
 and outcomes remain available through progressive disclosure.
 
+### Space is part of the hierarchy
+
+Breathing room gives each mobile viewport one visual resting point and open
+space before the next decision. Avoid feed frames, generic search, repeated
+boundary prose, or decorative cards; prefer interaction when copy adds no decision.
+
 ## Information model
 
-The canonical working object is a person within a selected relationship or
-assignment context.
+The canonical working object is a Pursuit with a target outcome, time horizon,
+and governed resources. People are stable identities whose roles and evidence
+remain scoped to each Pursuit.
 
 The primary surfaces answer different questions:
 
 | Surface | Question |
 | --- | --- |
 | Today | What deserves attention now? |
-| Library | Who or what am I looking for? |
-| Candidate page | What is currently true in this assignment? |
+| Sessions | Which recent Agent conversation should I resume? |
+| Pursuits | Which outcome am I trying to advance? |
+| People | Who or what am I looking for? |
+| Pursuit page | What outcome, milestone, gap, and action are current? |
+| Candidate page | What is currently true for this person in this Pursuit? |
 | Timeline | How did understanding and action change? |
 | Evidence review | What supports or contradicts this state? |
 | Relationship graph | Which connections matter to this question? |
 
-These are views, not competing records.
+On mobile, Today is the default return surface when unread Agent work or an
+evidence-supported Pursuit dependency deserves judgment. Sessions preserves
+recent conversational intent, and People remains the stable cross-goal
+retrieval destination. Pursuit rooms remain directly reachable without
+competing for primary navigation. Evidence opens from its claim or record;
+Today stays sparse with one lead dependency and a complete no-action state.
 
-On mobile, Today is the default return surface when evidence supports a
-relationship dependency that deserves judgment. People remains the stable
-retrieval destination and Library preserves assignment rooms and reviewed
-sources. Today stays sparse: show only a few supported dependencies and make
-an explicit no-action state feel complete.
-
-The Agent is a contextual threshold across those surfaces, not a competing
-destination. It may find, explain, or stage a memory after explicit intent.
-Capture is likewise a capability, not top-level navigation: preserve the
-recruiter's raw words through a contextual Remember action, share surface, or
-voice entry before proposing structure.
+The Agent is a contextual threshold; Sessions retrieves conversations it has
+handled without owning relationship truth or execution authority. On mobile,
+Ask begins with one compact composer; scope, prompts, capture, and record
+navigation appear after intent. Capture accepts text, one image, or foreground
+voice before the Agent proposes structure; consequential review stays explicit.
 
 ## Agent-operated relationship workspace
 
-On desktop, the default working composition pairs a persistent, relationship-
-scoped Agent surface with the living person page. The Agent owns intent and
-coordination; the person page owns structured understanding and review. Neither
-may obscure the other at the moment of a material decision.
+On desktop, the default working composition pairs a persistent, Pursuit-scoped
+Agent surface with the Pursuit room and selected living person page. The Agent
+owns intent and coordination; the governed pages own structured understanding
+and review. Neither may obscure the other at the moment of a material decision.
 
 Agent operations follow a visible consequence ladder:
 
@@ -203,9 +212,13 @@ The design must distinguish:
 Use plain language that describes what the user can do next. Never make a
 failed or uncertain state look complete.
 
-## Candidate page
+## Pursuit and candidate pages
 
-The living page is a current, assignment-scoped explanation of the
+The Pursuit page is the current explanation of one target outcome. It leads
+with outcome, deadline, milestone, supported blockers, and the smallest next
+step before showing the broader resource map.
+
+The living candidate page is a current, Pursuit-scoped explanation of the
 relationship. It should combine:
 
 - the current dependency;
@@ -295,10 +308,8 @@ Approved mark geometry, controlled material variants, practical exports, and
 usage constraints live in the repository
 [brand system](../brand/README.md).
 
-External products worth studying, with one-line judgments and borrowing
-boundaries, live in the
-[Design reference catalog](research/design-reference-catalog.md). The detailed
-mobile comparison and rejected directions remain in the
+External comparisons and borrowing boundaries live in the
+[Design reference catalog](research/design-reference-catalog.md) and
 [iOS relationship library benchmark](research/ios-relationship-library-design-benchmark.md).
 
 See [Product](product.md) and [Capture to action](capture-to-action.md).

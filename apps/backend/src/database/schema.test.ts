@@ -293,6 +293,103 @@ describe("authority schema", () => {
     expect(sql).toContain("match_status IN ('matched_absent', 'still_present', 'unavailable')");
   });
 
+  it("adds an account-scoped Pursuit aggregate with auditable operations and receipts", async () => {
+    const sql = await readFile(
+      new URL("./020_pursuit_domain.sql", import.meta.url),
+      "utf8",
+    );
+    for (const table of [
+      "organizations",
+      "pursuits",
+      "pursuit_roles",
+      "pursuit_role_evidence",
+      "pursuit_criteria",
+      "pursuit_gaps",
+      "pursuit_gap_evidence",
+      "pursuit_actions",
+      "pursuit_operations",
+      "pursuit_receipts",
+    ]) {
+      expect(sql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(sql).toContain("FOREIGN KEY (account_id, pursuit_id)");
+    expect(sql).toContain("FOREIGN KEY (account_id, person_id)");
+    expect(sql).toContain("FOREIGN KEY (account_id, organization_id)");
+    expect(sql).toContain("FOREIGN KEY (account_id, evidence_fragment_id)");
+    expect(sql).toContain("jsonb_array_length(external_effects) = 0");
+    expect(sql).toContain(
+      "status IN ('confirming', 'applied', 'conflict', 'failed', 'unknown_locked')",
+    );
+    expect(sql).toContain("UNIQUE (account_id, operation_id)");
+  });
+
+  it("adds item-level Pursuit Proposal review without external effects", async () => {
+    const sql = await readFile(
+      new URL("./021_pursuit_proposal_review.sql", import.meta.url),
+      "utf8",
+    );
+    for (const table of [
+      "pursuit_proposals",
+      "pursuit_proposal_items",
+      "pursuit_proposal_item_evidence",
+    ]) {
+      expect(sql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(sql).toContain("review_pursuit_proposal");
+    expect(sql).toContain("'confirmed', 'edited', 'rejected', 'kept_unresolved'");
+    expect(sql).toContain("FOREIGN KEY (account_id, evidence_fragment_id)");
+    expect(sql).toContain("jsonb_array_length(external_effects) = 0");
+    expect(sql).toContain("pursuit_operations_proposal_kind_check");
+    expect(sql).toContain("pursuit_receipts_proposal_kind_check");
+  });
+
+  it("propagates Pursuit evidence authority and preserves authored order", async () => {
+    const sql = await readFile(
+      new URL("./022_pursuit_evidence_integrity.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("ADD COLUMN basis_kind text");
+    expect(sql).toContain("pursuit_role_evidence_fragment_idx");
+    expect(sql).toContain("pursuit_gap_evidence_fragment_idx");
+    for (const table of [
+      "pursuit_roles",
+      "pursuit_criteria",
+      "pursuit_gaps",
+      "pursuit_actions",
+    ]) {
+      expect(sql).toContain(`ALTER TABLE ${table} ADD COLUMN display_order integer`);
+      expect(sql).toContain(`${table}_display_order_idx`);
+    }
+  });
+
+  it("persists bounded Agent trajectories without payloads or external effects", async () => {
+    const sql = await readFile(
+      new URL("./023_agent_control_plane.sql", import.meta.url),
+      "utf8",
+    );
+    for (const table of [
+      "agent_runs",
+      "agent_run_evidence",
+      "agent_run_events",
+      "agent_tool_calls",
+      "agent_run_outputs",
+      "agent_no_actions",
+    ]) {
+      expect(sql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(sql).toContain("external_effects = '[]'::jsonb");
+    expect(sql).toContain(
+      "FOREIGN KEY (account_id, fragment_id)",
+    );
+    expect(sql).toContain(
+      "FOREIGN KEY (account_id, idempotency_record_id)",
+    );
+    expect(sql).toContain("input_fingerprint text NOT NULL");
+    expect(sql).toContain("output_fingerprint text NOT NULL");
+    expect(sql).not.toContain("input_payload");
+    expect(sql).not.toContain("output_payload");
+  });
+
   it("separates evidence authorization from raw-source retention", async () => {
     const sql = await readFile(
       new URL("./011_source_authorization.sql", import.meta.url),

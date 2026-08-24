@@ -1234,7 +1234,13 @@ export async function compileRelationshipWiki(
               conflictsResult.rows.length > 0
                 ? "No action until the unresolved evidence is clarified."
                 : "No supported next action is ready.",
-            items: [],
+            items: [
+              conflictsResult.rows.length > 0
+                ? "Revisit when the unresolved evidence has been reviewed."
+                : latestSource
+                  ? "Revisit when a reviewed source changes the confirmed relationship state."
+                  : "Revisit when reviewed evidence or a confirmed dependency enters this context.",
+            ],
           },
           valid_from: null,
           valid_until: null,
