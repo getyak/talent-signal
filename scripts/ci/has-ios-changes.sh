@@ -16,8 +16,11 @@ paths=(
 if [ "$include_ci_files" = "--ci-files" ]; then
   paths+=(
     .github/workflows/ci.yml
+    .github/workflows/release-ios.yml
     .github/workflows/security.yml
     scripts/ci/has-ios-changes.sh
+    scripts/ci/next-ios-version.sh
+    scripts/ci/test-next-ios-version.sh
   )
 fi
 

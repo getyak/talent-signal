@@ -1587,50 +1587,48 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("AX5 dark status-safe review")
 
         if #available(iOS 17.0, *) {
-            func performCriticalAudit() throws {
-                try app.performAccessibilityAudit(for: [
-                    .dynamicType,
-                    .contrast,
-                    .hitRegion,
-                    .sufficientElementDescription
-                ]) { issue in
-                    guard issue.auditType == .contrast,
-                          let issueElement = issue.element else {
-                        return false
-                    }
-                    let frame = issueElement.frame
-                    let window = self.app.windows.firstMatch.frame
-                    if issueElement.identifier.hasPrefix("fact-confirm-"),
-                       frame.maxY >= window.maxY - 4 {
-                        // iOS 26 can retain the already-used confirmation control
-                        // as a clipped accessibility node at the scroll edge. Its
-                        // audit crop contains only the button's rounded edge and
-                        // the canvas behind it, not any visible label. Keep its
-                        // contrast findings active away from the viewport edge.
-                        return true
-                    }
-                    let scrollView = self.app.scrollViews.firstMatch
-                    let viewportBottom = scrollView.exists
-                        ? scrollView.frame.maxY
-                        : window.maxY
-                    let statusBottom = statusBar.frame.maxY
-                    let edgeTolerance: CGFloat = 1
-                    return frame.minY <= statusBottom + edgeTolerance
-                        || frame.maxY >= viewportBottom - edgeTolerance
+            let auditTypes: XCUIAccessibilityAuditType = [
+                .dynamicType,
+                .contrast,
+                .hitRegion,
+                .sufficientElementDescription
+            ]
+            let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
+                guard issue.auditType == .contrast,
+                      let issueElement = issue.element else {
+                    return false
                 }
+                let frame = issueElement.frame
+                let window = self.app.windows.firstMatch.frame
+                if issueElement.identifier.hasPrefix("fact-confirm-"),
+                   frame.maxY >= window.maxY - 4 {
+                    // iOS 26 can retain the already-used confirmation control
+                    // as a clipped accessibility node at the scroll edge. Its
+                    // audit crop contains only the button's rounded edge and
+                    // the canvas behind it, not any visible label. Keep its
+                    // contrast findings active away from the viewport edge.
+                    return true
+                }
+                let scrollView = self.app.scrollViews.firstMatch
+                let viewportBottom = scrollView.exists
+                    ? scrollView.frame.maxY
+                    : window.maxY
+                let statusBottom = statusBar.frame.maxY
+                let edgeTolerance: CGFloat = 1
+                return frame.minY <= statusBottom + edgeTolerance
+                    || frame.maxY >= viewportBottom - edgeTolerance
             }
+
             do {
-                try performCriticalAudit()
-            } catch {
-                // iOS 26 occasionally returns a transient snapshot or contrast-sampling
-                // error for this otherwise idle hierarchy. Preserve the first result,
-                // then run one fresh, still-strict audit; no issue type is waived.
-                XCTContext.runActivity(named: "First AX5 audit result") { activity in
-                    let attachment = XCTAttachment(string: error.localizedDescription)
-                    attachment.lifetime = .keepAlways
-                    activity.add(attachment)
-                }
-                try performCriticalAudit()
+                try app.performAccessibilityAudit(for: auditTypes, issueHandler)
+            } catch let error as NSError
+                where error.domain == "com.apple.xcode.xctest.accessibilityAudit"
+                    && error.code == -56 {
+                // Xcode occasionally times out before producing any audit
+                // result. Retry that infrastructure failure once; recorded
+                // accessibility issues are not errors and remain unsuppressed.
+                XCTAssertTrue(reviewInstruction.waitForExistence(timeout: 2))
+                try app.performAccessibilityAudit(for: auditTypes, issueHandler)
             }
         }
         preserveScreenshot("AX5 dark critical review")

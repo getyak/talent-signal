@@ -67,7 +67,8 @@ jobs:
             fi
 
             if ! git diff --quiet "$base_sha" "$RELEASE_SHA" -- \
-              apps/ios fastlane scripts/ios Gemfile Gemfile.lock; then
+              apps/ios fastlane scripts/ios scripts/ci/next-ios-version.sh \
+              .github/workflows/release-ios.yml Gemfile Gemfile.lock; then
               should_release=true
             fi
           fi
@@ -81,7 +82,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 90
     environment:
       name: testflight
       url: https://appstoreconnect.apple.com/apps
@@ -130,6 +131,33 @@ jobs:
           VERSION_OVERRIDE: ${{ inputs.version_override || '' }}
         run: ./scripts/ci/next-ios-version.sh "$VERSION_OVERRIDE"
 
+      - name: Prepare TestFlight release notes
+        id: release_notes
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+        run: |
+          notes="$RUNNER_TEMP/testflight-release-notes.txt"
+          previous_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
+
+          if [ -n "$previous_tag" ]; then
+            git log "$previous_tag..$RELEASE_SHA" --format='- %s' > "$notes"
+          else
+            git log -n 20 "$RELEASE_SHA" --format='- %s' > "$notes"
+          fi
+
+          if [ ! -s "$notes" ]; then
+            printf '%s\n' '- Internal TestFlight update' > "$notes"
+          fi
+
+          python3 - "$notes" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          path.write_text(path.read_text()[:3800])
+          PY
+          echo "path=$notes" >> "$GITHUB_OUTPUT"
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
         with:
@@ -137,6 +165,7 @@ jobs:
           bundler-cache: true
 
       - name: Configure signing material
+        id: release_metadata
         env:
           API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
           MATCH_DEPLOY_KEY: ${{ secrets.MATCH_DEPLOY_KEY }}
@@ -146,9 +175,17 @@ jobs:
           chmod 600 "$RUNNER_TEMP/match-ssh/key"
           printf '%s\n' "$API_KEY_CONTENT" > "$RUNNER_TEMP/asc_key.p8"
           chmod 600 "$RUNNER_TEMP/asc_key.p8"
-          echo "BUILD_NUMBER=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_ENV"
+          build_number="$(date -u +%Y%m%d%H%M%S)"
+          echo "BUILD_NUMBER=$build_number" >> "$GITHUB_ENV"
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
 
-      - name: Archive and upload
+      - name: Verify isolated signing repository access
+        env:
+          GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+        run: git ls-remote --exit-code "$MATCH_GIT_URL" HEAD
+
+      - name: Archive and process TestFlight build
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -158,6 +195,7 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          RELEASE_CHANGELOG_PATH: ${{ steps.release_notes.outputs.path }}
           RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
           FASTLANE_SKIP_UPDATE_CHECK: "1"
         run: bundle exec fastlane ios beta
@@ -202,6 +240,21 @@ jobs:
           path: build/ios/TalentSignal.ipa
           if-no-files-found: error
           retention-days: 14
+
+      - name: Summarize internal release
+        env:
+          BUILD_NUMBER: ${{ steps.release_metadata.outputs.build_number }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+        run: |
+          {
+            echo "### TestFlight release processed"
+            echo ""
+            echo "- Version: \`$RELEASE_VERSION\`"
+            echo "- Build: \`$BUILD_NUMBER\`"
+            echo "- Tag: \`$RELEASE_TAG\`"
+            echo "- App Store Connect: https://appstoreconnect.apple.com/apps"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary signing material
         if: always()
