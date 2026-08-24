@@ -58,9 +58,14 @@ install or update it through TestFlight.
   Version 0.1.4 build `20260823181851` is processed and assigned to the
   `Talent Signal Internal` and `telepace` groups.
 - The `Talent Signal Internal` group is configured for automatic distribution
-  of Xcode builds. Its one internal tester remains `Invited`; the invitation
-  was resent on 2026-08-24. App Store Connect still shows no install or session
-  evidence, so device delivery is not proved.
+  of Xcode builds. Access run
+  [32680106925](https://github.com/getyak/talent-signal/actions/runs/32680106925)
+  proved that its one tester is an active App Store Connect user with no pending
+  team invitation, belongs to the internal group, and can access valid 0.1.5
+  build `20260823190119`. The tester remains `Invited` with zero known devices;
+  the invitation was resent through Apple's API on 2026-08-24. App Store
+  Connect still shows no install or session evidence, so device delivery is not
+  proved.
 - App Store Connect has four active team keys. Release iOS run
   [32657034237](https://github.com/getyak/talent-signal/actions/runs/32657034237)
   authenticated, uploaded, waited for processing, and completed successfully,
@@ -132,12 +137,11 @@ install or update it through TestFlight.
    [attestation](https://github.com/getyak/talent-signal/attestations/42449085),
    retained IPA, and artifact `TalentSignal-0.1.5`. The invited phone must still
    accept TestFlight and install or update before this outcome is complete.
-6. **Active — Tester access repair:** the target internal tester remains in an
-   invitation state without an observed install. A manual, environment-scoped
-   workflow now audits the active App Store Connect user, TestFlight tester,
-   internal group, and latest build relationships without exposing the tester
-   email in repository files or logs. It can repair missing group/build access
-   and resend the TestFlight invitation when the server state requires it.
+6. **Complete — Tester access diagnosis:** the environment-scoped access run
+   proved the active user, internal group membership, all-build access, valid
+   0.1.5 build, and absence of a pending team invitation. No relationship repair
+   was needed. It resent the invitation and isolated the remaining state as
+   `TESTFLIGHT_INVITATION_NOT_ACCEPTED`, with zero known devices.
 
 ## Verification
 
@@ -160,5 +164,6 @@ and internal group distribution. The only remaining completion evidence is an
 invited physical phone accepting the invitation and installing or updating the
 build. The access-audit workflow distinguishes a pending App Store Connect user
 invitation from missing group/build access and an unaccepted TestFlight invite;
-no physical device is currently connected to this Mac, and App Store Connect
-has not yet recorded an install or session.
+the real audit proved that server access is ready and the invitation has not
+been accepted. No physical device is currently connected to this Mac, and App
+Store Connect has not yet recorded an install or session.
