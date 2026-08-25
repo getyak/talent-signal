@@ -27,6 +27,7 @@
     "ios:check": "./scripts/ios/check.sh",
     "ios:configure": "node scripts/ios/configure-build-environment.mjs --configuration Debug",
     "ios:generate": "./scripts/ios/generate.sh",
+    "ios:testflight-backend": "./scripts/deploy/testflight-local.sh",
     "lint": "pnpm --filter @talent-signal/web lint",
     "typecheck": "pnpm --filter @talent-signal/web typecheck",
     "test": "pnpm --filter @talent-signal/web test",

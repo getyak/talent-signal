@@ -1,0 +1,19 @@
+# Public routing. Keep the actual file at /etc/talent-signal/production.env.
+API_DOMAIN=api.gettalentsignal.com
+TALENT_SIGNAL_API_BASE_URL=https://api.gettalentsignal.com
+
+# Use a generated URL-safe password in the real environment file.
+POSTGRES_DB=talent_signal
+POSTGRES_USER=talent_signal
+POSTGRES_PASSWORD=replace-with-generated-value
+
+# Runtime policy. Production Compose always disables simulated authentication.
+APPLE_SIGN_IN_AUDIENCES=com.talentsignal.app
+ALLOWED_ORIGINS=https://gettalentsignal.com,https://www.gettalentsignal.com
+SESSION_TTL_SECONDS=28800
+RETENTION_SWEEP_INTERVAL_MS=60000
+LOG_LEVEL=info
+
+# Optional build/runtime overrides.
+BACKEND_IMAGE=talent-signal-backend:production
+TS_PNPM_REGISTRY=https://registry.npmjs.org

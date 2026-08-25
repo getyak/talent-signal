@@ -31,8 +31,7 @@ Out of scope without a separate authorized deployment decision:
   bundle;
 - inventing a production backend URL or treating the public marketing site as
   an API;
-- deploying the current local shared backend to an unselected cloud, database,
-  region, or retention posture;
+- treating the internal Tailscale topology as an external production service;
 - bypassing Sign in with Apple or replacing account scope with a Release demo.
 
 ## Initial evidence and remaining unknowns
@@ -50,9 +49,10 @@ Out of scope without a separate authorized deployment decision:
 - Live checks on 2026-08-25 found that `POST
   https://gettalentsignal.com/v1/auth/apple/challenges` and its `/api` variant
   return 404; `api.gettalentsignal.com` has no DNS record.
-- A real production HTTPS backend, database/retention posture, Apple audience
-  configuration, and stable public origin remain unknown. This is a runtime
-  prerequisite, not a value that code generation can infer safely.
+- The user selected an operator-owned Mac, local PostgreSQL, and Tailscale Serve
+  as the authorized bridge for owner-only or small internal TestFlight testing.
+  The stable internal origin is the Mac's MagicDNS HTTPS hostname. This does not
+  select an external production backend or widen access beyond the tailnet.
 
 ## Chosen approach
 
@@ -77,6 +77,12 @@ The API origin is public app metadata, so it belongs in a GitHub Actions
 Environment variable, not a secret. All actual credentials remain server-side
 or in the existing scoped signing secrets.
 
+For the current internal release proof, use a separate no-seed Compose topology
+that disables simulated authentication, keeps PostgreSQL inside Docker, binds
+the API only to Mac loopback, and lets Tailscale Serve terminate HTTPS. Each
+testing iPhone must join the authorized tailnet. Keep the cloud topology and
+external public release decision paused until the product needs broader access.
+
 ## Rejected alternatives
 
 - Do not commit a production URL into `project.yml`; that couples source to one
@@ -99,10 +105,9 @@ or in the existing scoped signing secrets.
    the same contract; require and probe the `testflight` Environment variable.
 3. **Completed — compiled proof:** build Debug and Release variants, inspect their
    Info.plists, and prove missing/invalid/loopback/HTTPS cases.
-4. **Blocked on deployment choice — runtime proof:** launch the app against an
-   authorized production backend and observe the login surface plus a successful
-   authentication challenge.
-5. **Active — review and merge:** complete the repository review standard,
+4. **Active — internal runtime proof:** verify the no-seed Apple-auth backend on
+   Mac loopback through Tailscale HTTPS, then observe the TestFlight login path.
+5. **Pending — review and merge:** complete the repository review standard,
    open a pull request, wait for required checks, resolve findings, and merge.
 6. **Pending — release proof:** observe the automatic main release and verify
    the resulting TestFlight build reaches the authenticated workspace.
@@ -135,8 +140,7 @@ Verification completed on 2026-08-25:
 
 ## Decisions that can change direction
 
-Selecting the production backend host, operator, region, database, retention
-posture, and Apple Sign in configuration is a consequential deployment decision.
-If no already-authorized service exists, that deployment needs an explicit owner
-and evidence before the final runtime, merge, and release milestones can be
-claimed complete.
+External TestFlight or App Store use still requires a production backend host,
+operator, region, database, retention posture, and public exposure review. The
+internal Tailscale bridge may prove the login loop, but it cannot satisfy that
+future production decision.

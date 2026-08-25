@@ -1,0 +1,96 @@
+name: talent-signal-testflight-local
+
+x-backend-build: &backend-build
+  context: .
+  dockerfile: apps/backend/Dockerfile
+  args:
+    PNPM_REGISTRY: ${TS_PNPM_REGISTRY:-https://registry.npmjs.org}
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGDATA: /var/lib/postgresql/18/docker
+    volumes:
+      - talent_signal_testflight_postgres:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 1m
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  migrate:
+    image: ${BACKEND_IMAGE:-talent-signal-backend-local:testflight}
+    build: *backend-build
+    profiles: [tools]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      NODE_ENV: production
+    command: ["node", "apps/backend/dist/database/migrate.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  api:
+    image: ${BACKEND_IMAGE:-talent-signal-backend-local:testflight}
+    build: *backend-build
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      NODE_ENV: production
+      SIMULATED_AUTH_ENABLED: "false"
+      APPLE_SIGN_IN_ENABLED: "true"
+      APPLE_SIGN_IN_AUDIENCES: ${APPLE_SIGN_IN_AUDIENCES:?APPLE_SIGN_IN_AUDIENCES is required}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-28800}
+      RETENTION_SWEEP_INTERVAL_MS: ${RETENTION_SWEEP_INTERVAL_MS:-60000}
+      PORT: "4317"
+      HOST: "0.0.0.0"
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    init: true
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-4317}:4317"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4317/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+volumes:
+  talent_signal_testflight_postgres:

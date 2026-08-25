@@ -63,8 +63,9 @@ changes. A change to the release decision itself therefore receives the same
 real TestFlight proof as an iOS product change.
 
 The release job checks required secret names without printing their values,
-writes the validated public `TALENT_SIGNAL_API_BASE_URL` from the `testflight`
-Environment into the app build configuration, verifies a current Apple
+joins the internal TestFlight tailnet as an ephemeral `tag:ci` node, writes the
+validated `TALENT_SIGNAL_API_BASE_URL` from the `testflight` Environment into
+the app build configuration, verifies tailnet reachability and a current Apple
 authentication challenge before signing, writes signing material only under
 the runner temporary directory, verifies
 read access to the isolated private match repository, and removes those files
@@ -111,8 +112,15 @@ proves a device download.
 - `main`: pull request required, force-push and deletion blocked, `CI required`
   and `Security required` required.
 - `testflight`: only `main`, without a required reviewer.
-- `testflight` variable `TALENT_SIGNAL_API_BASE_URL`: stable production HTTPS
-  origin with a reachable, contract-current Apple authentication challenge.
+- `testflight` variable `TALENT_SIGNAL_API_BASE_URL`: the stable HTTPS origin
+  selected for the current release stage, with a reachable, contract-current
+  Apple authentication challenge. The internal stage may use a tailnet-only
+  Tailscale Serve origin; external testing and production require the public
+  production origin.
+- `testflight` secrets `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`: a Tailscale
+  trust credential limited to ephemeral `tag:ci` nodes with device-core and
+  auth-key write scopes. The tag is admin-owned and the credential is never
+  written into the app.
 - Private match repository: `getyak/talent-signal-certs`, with only encrypted
   Talent Signal signing assets and a dedicated read-only CI deploy key.
 - Public App Store submission remains an explicit promotion after metadata,

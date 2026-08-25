@@ -167,6 +167,14 @@ test("automatic releases call the shared release classifier", () => {
     /TALENT_SIGNAL_API_BASE_URL: \$\{\{ vars\.TALENT_SIGNAL_API_BASE_URL \}\}/,
   );
   assert.match(releaseWorkflow, /probe-auth-backend\.mjs/);
+  assert.match(
+    releaseWorkflow,
+    /tailscale\/github-action@[0-9a-f]{40} # v4\.1\.3/,
+  );
+  assert.match(releaseWorkflow, /TS_OAUTH_CLIENT_ID/);
+  assert.match(releaseWorkflow, /TS_OAUTH_SECRET/);
+  assert.match(releaseWorkflow, /tags: tag:ci/);
+  assert.match(releaseWorkflow, /tailscale ping/);
   assert.doesNotMatch(
     releaseWorkflow,
     /TALENT_SIGNAL_API_BASE_URL: \$\{\{ secrets\./,
