@@ -26,6 +26,6 @@
   "devDependencies": {
     "@types/node": "^24.3.0",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^4.0.0"
+    "vitest": "^4.1.11"
   }
 }

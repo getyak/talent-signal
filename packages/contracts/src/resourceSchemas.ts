@@ -1123,6 +1123,7 @@ export const EvidenceFragmentReviewRequestSchema = Type.Object(
       Type.Literal("reviewed"),
       Type.Literal("rejected"),
     ]),
+    expected_last_review_id: Type.Union([Id, Type.Null()]),
     decision: Type.Union([
       Type.Literal("reviewed"),
       Type.Literal("rejected"),
@@ -1139,6 +1140,8 @@ export const EvidenceFragmentReviewResponseSchema = Type.Object(
   {
     fragment_id: Id,
     resource_id: Id,
+    review_id: Id,
+    prior_review_id: Type.Union([Id, Type.Null()]),
     review_status: Type.Union([
       Type.Literal("reviewed"),
       Type.Literal("rejected"),

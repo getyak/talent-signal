@@ -176,16 +176,45 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(unresolved.fragmentID, citation.id)
         XCTAssertEqual(unresolved.reason, "The excerpt needs correction.")
 
+        XCTAssertTrue(
+            restored.requiresEvidenceReviewAuthorityReadback(
+                unresolved.idempotencyKey
+            )
+        )
+        restored.revalidateEvidenceReviewAuthority(
+            citations: response.citations,
+            supersededMessage: "A newer source decision is current."
+        )
         try restored.markEvidenceReviewPending(unresolved.idempotencyKey)
-        restored.markEvidenceReviewApplied(unresolved.idempotencyKey)
+        let rejectedResult = PursuitEvidenceReviewResult(
+            reviewID: "review-rejected",
+            priorReviewID: citation.lastReviewID,
+            decidedAt: "2026-08-25T04:30:00.000Z"
+        )
+        XCTAssertTrue(
+            restored.markEvidenceReviewApplied(
+                unresolved.idempotencyKey,
+                result: rejectedResult
+            )
+        )
         let reviewedAgain = try restored.beginEvidenceReview(
             idempotencyKey: "review-key-restored",
             basedOn: unresolved,
             expectedReviewStatus: "rejected",
+            authorityReviewID: rejectedResult.reviewID,
             decision: "reviewed",
             reason: "The source was corrected and rechecked."
         )
-        restored.markEvidenceReviewApplied(reviewedAgain.idempotencyKey)
+        XCTAssertTrue(
+            restored.markEvidenceReviewApplied(
+                reviewedAgain.idempotencyKey,
+                result: PursuitEvidenceReviewResult(
+                    reviewID: "review-restored",
+                    priorReviewID: rejectedResult.reviewID,
+                    decidedAt: "2026-08-25T04:31:00.000Z"
+                )
+            )
+        )
 
         let latest = try XCTUnwrap(
             restored.latestEvidenceReviews(taskID: response.taskID).first
@@ -193,6 +222,8 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(latest.idempotencyKey, reviewedAgain.idempotencyKey)
         XCTAssertEqual(latest.decision, "reviewed")
         XCTAssertEqual(latest.state, .applied)
+        XCTAssertEqual(latest.authorityReviewID, rejectedResult.reviewID)
+        XCTAssertEqual(latest.resultingReviewID, "review-restored")
         XCTAssertEqual(
             restored.evidenceReviewHistory(taskID: response.taskID).map(\.idempotencyKey),
             [reviewedAgain.idempotencyKey, rejected.idempotencyKey]
@@ -216,6 +247,325 @@ final class RelationshipArchiveTests: XCTestCase {
         )
         XCTAssertTrue(
             afterDeletion.latestEvidenceReviews(taskID: response.taskID).isEmpty
+        )
+    }
+
+    @MainActor
+    func testEvidenceReviewTaskOwnershipSurvivesPresentationButNotRelaunch() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "evidence-review-owner-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+        let store = AgentSessionStore(persistence: persistence)
+        let operation = try store.beginEvidenceReview(
+            idempotencyKey: "session-owned-review",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+
+        XCTAssertTrue(store.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertFalse(store.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertEqual(
+            store.activeEvidenceReviewKeys,
+            Set([operation.idempotencyKey])
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertTrue(restored.activeEvidenceReviewKeys.isEmpty)
+        XCTAssertEqual(
+            restored.latestEvidenceReviews(taskID: response.taskID).first?.state,
+            .pending
+        )
+
+        store.releaseEvidenceReview(operation.idempotencyKey)
+        XCTAssertTrue(store.activeEvidenceReviewKeys.isEmpty)
+        XCTAssertTrue(store.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertTrue(store.deleteAll())
+        XCTAssertTrue(store.activeEvidenceReviewKeys.isEmpty)
+    }
+
+    @MainActor
+    func testSupersededEvidenceReviewIsTerminalAndPersists() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "evidence-review-superseded-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+        let store = AgentSessionStore(persistence: persistence)
+        let operation = try store.beginEvidenceReview(
+            idempotencyKey: "superseded-review",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+        let message = "A newer source decision is already current."
+
+        XCTAssertTrue(
+            store.markEvidenceReviewSuperseded(
+                operation.idempotencyKey,
+                message: message
+            )
+        )
+        XCTAssertEqual(
+            store.latestEvidenceReviews(taskID: response.taskID).first?.state,
+            .superseded
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        let terminal = try XCTUnwrap(
+            restored.latestEvidenceReviews(taskID: response.taskID).first
+        )
+        XCTAssertEqual(terminal.state, .superseded)
+        XCTAssertEqual(terminal.statusMessage, message)
+        XCTAssertThrowsError(
+            try restored.markEvidenceReviewPending(operation.idempotencyKey)
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentSessionPersistenceError,
+                .evidenceReviewSuperseded
+            )
+        }
+        XCTAssertEqual(
+            restored.latestEvidenceReviews(taskID: response.taskID).first,
+            terminal
+        )
+        XCTAssertFalse(restored.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertTrue(
+            PursuitWorkspaceClientError.backend(
+                code: "EVIDENCE_REVIEW_AUTHORITY_STALE",
+                message: "A newer review is current."
+            ).isSupersededEvidenceReview
+        )
+        XCTAssertFalse(
+            PursuitWorkspaceClientError.backend(
+                code: "EVIDENCE_SOURCE_AUTHORIZATION_UNAVAILABLE",
+                message: "The source is unavailable."
+            ).isSupersededEvidenceReview
+        )
+    }
+
+    @MainActor
+    func testSupersededPersistenceFailureKeepsSessionTerminalGuard() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+        let operation = try store.beginEvidenceReview(
+            idempotencyKey: "superseded-save-failure",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+        XCTAssertTrue(store.claimEvidenceReview(operation.idempotencyKey))
+        persistence.failSave = true
+
+        XCTAssertFalse(
+            store.markEvidenceReviewSuperseded(
+                operation.idempotencyKey,
+                message: "A newer source decision is already current."
+            )
+        )
+        store.releaseEvidenceReview(operation.idempotencyKey)
+
+        XCTAssertEqual(
+            store.latestEvidenceReviews(taskID: response.taskID).first?.state,
+            .pending
+        )
+        XCTAssertTrue(
+            store.transientSupersededEvidenceReviewKeys.contains(
+                operation.idempotencyKey
+            )
+        )
+        XCTAssertTrue(store.isEvidenceReviewSuperseded(operation.idempotencyKey))
+        XCTAssertFalse(store.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertThrowsError(
+            try store.markEvidenceReviewPending(operation.idempotencyKey)
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentSessionPersistenceError,
+                .evidenceReviewSuperseded
+            )
+        }
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertTrue(
+            restored.requiresEvidenceReviewAuthorityReadback(
+                operation.idempotencyKey
+            )
+        )
+        XCTAssertFalse(restored.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertThrowsError(
+            try restored.markEvidenceReviewPending(operation.idempotencyKey)
+        ) { error in
+            XCTAssertEqual(
+                error as? AgentSessionPersistenceError,
+                .evidenceReviewAuthorityReadbackRequired
+            )
+        }
+        XCTAssertEqual(
+            restored.latestEvidenceReviews(taskID: response.taskID).first?.state,
+            .pending
+        )
+    }
+
+    @MainActor
+    func testRestoredEvidenceReviewUnlocksOnlyAfterExactAuthorityReadback() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+        let first = AgentSessionStore(persistence: persistence)
+        let operation = try first.beginEvidenceReview(
+            idempotencyKey: "restored-authority-readback",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertFalse(restored.claimEvidenceReview(operation.idempotencyKey))
+        restored.revalidateEvidenceReviewAuthority(
+            citations: response.citations,
+            supersededMessage: "A newer source decision is current."
+        )
+
+        XCTAssertFalse(
+            restored.requiresEvidenceReviewAuthorityReadback(
+                operation.idempotencyKey
+            )
+        )
+        XCTAssertTrue(restored.claimEvidenceReview(operation.idempotencyKey))
+        restored.releaseEvidenceReview(operation.idempotencyKey)
+    }
+
+    @MainActor
+    func testRestoredEvidenceReviewBecomesTerminalAfterNewerAuthorityReadback() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let response = try relationshipAskReadbackFixture().validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        let citation = try XCTUnwrap(response.citations.first)
+        let first = AgentSessionStore(persistence: persistence)
+        let operation = try first.beginEvidenceReview(
+            idempotencyKey: "restored-stale-authority",
+            taskID: response.taskID,
+            citation: citation,
+            personDisplayName: "Leila Hartmann",
+            relationshipContextDisplayName: "Chief Product Officer search",
+            expectedReviewStatus: "reviewed",
+            decision: "rejected",
+            reason: "The excerpt needs correction."
+        )
+        let newer = try relationshipAskReadbackFixture(
+            citationLastReviewID: "review-2"
+        ).validated(
+            relationshipAskResponseFixture(),
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        restored.revalidateEvidenceReviewAuthority(
+            citations: newer.citations,
+            supersededMessage: "A newer source decision is current."
+        )
+
+        XCTAssertTrue(restored.isEvidenceReviewSuperseded(operation.idempotencyKey))
+        XCTAssertFalse(restored.claimEvidenceReview(operation.idempotencyKey))
+        XCTAssertEqual(
+            restored.latestEvidenceReviews(taskID: response.taskID).first?.state,
+            .superseded
+        )
+    }
+
+    @MainActor
+    func testCurrentEvidenceSuggestionPreservesPersistedNonemptyDraft() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "ask-draft-preservation-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let store = AgentSessionStore(persistence: persistence)
+        let original = "Ask whether the client can move the final conversation."
+        store.saveDraft(
+            original,
+            personID: "person-1",
+            relationshipContextID: "context-1"
+        )
+        let restored = store.draft(
+            personID: "person-1",
+            relationshipContextID: "context-1"
+        )
+        let next = RelationshipAskDraftPolicy.currentEvidenceDraft(
+            preserving: restored,
+            suggestion: "What is current now?"
+        )
+
+        XCTAssertEqual(next, original)
+        XCTAssertEqual(
+            store.draft(
+                personID: "person-1",
+                relationshipContextID: "context-1"
+            ),
+            original
+        )
+        XCTAssertEqual(
+            RelationshipAskDraftPolicy.currentEvidenceDraft(
+                preserving: "  \n",
+                suggestion: "What is current now?"
+            ),
+            "What is current now?"
         )
     }
 
@@ -315,6 +665,39 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(firstReject, firstRetry)
         XCTAssertNotEqual(firstReject, reviewedAgain)
         XCTAssertNotEqual(firstReject, laterSameReasonReject)
+    }
+
+    func testEvidenceReviewResponseMustMatchCanonicalAuthorityIDs() throws {
+        let result = try URLPursuitWorkspaceClient.validatedEvidenceReviewResult(
+            expectedFragmentID: "fragment-1",
+            expectedLastReviewID: "review-1",
+            expectedDecision: "rejected",
+            responseFragmentID: "fragment-1",
+            responseReviewID: "review-2",
+            responsePriorReviewID: "review-1",
+            responseReviewStatus: "rejected",
+            responseDecidedAt: "2026-08-25T04:31:00.000Z"
+        )
+        XCTAssertEqual(result.reviewID, "review-2")
+        XCTAssertEqual(result.priorReviewID, "review-1")
+
+        XCTAssertThrowsError(
+            try URLPursuitWorkspaceClient.validatedEvidenceReviewResult(
+                expectedFragmentID: "fragment-1",
+                expectedLastReviewID: "review-1",
+                expectedDecision: "rejected",
+                responseFragmentID: "fragment-1",
+                responseReviewID: "review-2",
+                responsePriorReviewID: "review-stale",
+                responseReviewStatus: "rejected",
+                responseDecidedAt: "2026-08-25T04:31:00.000Z"
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PursuitWorkspaceClientError,
+                .scopeReadbackMismatch
+            )
+        }
     }
 
     @MainActor
@@ -1418,7 +1801,8 @@ private func relationshipAskReadbackFixture(
     citationAuthorizationScope: String = "person:person-1:relationship-context:context-1",
     citationReviewStatus: String = "reviewed",
     citationAttributionStatus: String = "confirmed",
-    citationExactExcerpt: String? = "The final conversation works next Tuesday."
+    citationExactExcerpt: String? = "The final conversation works next Tuesday.",
+    citationLastReviewID: String? = "review-1"
 ) -> RelationshipAskReadback {
     RelationshipAskReadback(
         contractVersion: TalentSignalAPIContract.version,
@@ -1461,7 +1845,7 @@ private func relationshipAskReadbackFixture(
                 parser: .init(name: "fixture", version: "1.0.0"),
                 contentHash: String(repeating: "0", count: 64),
                 fragmentCreatedAt: "2026-08-24T10:00:01.000Z",
-                lastReviewID: "review-1",
+                lastReviewID: citationLastReviewID,
                 lastReviewedAt: "2026-08-24T10:00:02.000Z",
                 lastReviewedBy: "Recruiter"
             ),

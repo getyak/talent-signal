@@ -1291,6 +1291,42 @@ export async function completePursuitAction(
        WHERE account_id = $1 AND id = $2`,
       [auth.accountId, pursuitId, nextPursuitRevision, auth.userId, occurredAt],
     );
+    const supersededProposals = await client.query<{ id: string }>(
+      `UPDATE pursuit_proposals
+       SET status = 'superseded', revision = revision + 1, updated_at = $4
+       WHERE account_id = $1
+         AND pursuit_id = $2
+         AND status = 'needs_review'
+         AND base_revision < $3
+       RETURNING id`,
+      [auth.accountId, pursuitId, nextPursuitRevision, occurredAt],
+    );
+    if (supersededProposals.rows.length > 0) {
+      const proposalIds = supersededProposals.rows.map(({ id }) => id);
+      await client.query(
+        `UPDATE pursuit_proposal_items
+         SET epistemic_status = 'superseded'
+         WHERE account_id = $1
+           AND proposal_id = ANY($2::uuid[])
+           AND decision_status = 'pending'`,
+        [auth.accountId, proposalIds],
+      );
+      for (const proposalId of proposalIds) {
+        await appendAudit(
+          client,
+          { accountId: auth.accountId, actorUserId: auth.userId },
+          "pursuit.proposal.superseded_by_revision",
+          "pursuit_proposal",
+          proposalId,
+          {
+            pursuit_id: pursuitId,
+            prior_pursuit_revision: pursuit.revision,
+            pursuit_revision: nextPursuitRevision,
+            cause: "owned_action_outcome",
+          },
+        );
+      }
+    }
     const changedFields = [
       `actions.${actionId}.status`,
       `actions.${actionId}.outcome_summary`,

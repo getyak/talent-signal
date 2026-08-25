@@ -9,6 +9,7 @@ const repositoryRoot = path.resolve(
   "../..",
 );
 const evaluationRoot =
+  process.env.V1_FINAL_EVALUATION_ROOT ??
   "docs/evaluations/2026-08-24-v1-final-panel-retest-03";
 const evidenceRoot = `${evaluationRoot}/evidence`;
 const outputPath = path.join(repositoryRoot, evaluationRoot, "artifact.json");
@@ -47,6 +48,7 @@ const sourceScope = [
   "apps/ios/UITests",
   "packages/contracts/src",
   "scripts/evals",
+  "scripts/ios",
   "docs/product.md",
   "docs/architecture.md",
   "docs/delivery.md",
@@ -63,7 +65,7 @@ const sourceDigest = digest(
   `${sourceEntries.map(({ path: name, sha256 }) => `${sha256}  ${name}`).join("\n")}\n`,
 );
 
-const evidencePaths = [
+const requiredEvidencePaths = [
   `${evidenceRoot}/ios-full-suite-runtime.json`,
   `${evidenceRoot}/ios-375x667-runtime.json`,
   `${evidenceRoot}/p0-journey-manifest.json`,
@@ -72,19 +74,28 @@ const evidencePaths = [
   `${evidenceRoot}/review-documentation-atomic-score.json`,
   `${evidenceRoot}/requirement-trace.json`,
   `${evidenceRoot}/backend-check/evaluation-summary.json`,
+  `${evidenceRoot}/backend-check/evidence-review-authority-runtime.json`,
   `${evidenceRoot}/pursuit-domain/pursuit-domain-runtime.json`,
   `${evidenceRoot}/pursuit-proposal/pursuit-proposal-runtime.json`,
   `${evidenceRoot}/pursuit-evidence/pursuit-evidence-integrity-runtime.json`,
   `${evidenceRoot}/agent-control-plane/agent-control-plane-deterministic-runtime.json`,
   `${evidenceRoot}/agent-control-plane/claude-agent-live-runtime.json`,
 ];
+const screenshotDirectory = `${evidenceRoot}/screenshots`;
+const evidencePaths = (await filesUnder(evidenceRoot))
+  .filter((relativePath) => !relativePath.startsWith(`${screenshotDirectory}/`))
+  .sort();
+for (const requiredPath of requiredEvidencePaths) {
+  if (!evidencePaths.includes(requiredPath)) {
+    throw new Error(`Required frozen evidence is missing: ${requiredPath}`);
+  }
+}
 const evidenceManifest = await Promise.all(
   evidencePaths.map(async (relativePath) => ({
     path: relativePath,
     sha256: await fileHash(relativePath),
   })),
 );
-const screenshotDirectory = `${evidenceRoot}/screenshots`;
 const screenshotPaths = (await filesUnder(screenshotDirectory)).sort();
 const screenshotManifest = await Promise.all(
   screenshotPaths.map(async (relativePath) => ({
@@ -109,7 +120,8 @@ const liveAgent = await json(
 );
 
 const artifact = {
-  artifact_id: "TS-V1-FINAL-20260824-03",
+  artifact_id:
+    process.env.V1_FINAL_ARTIFACT_ID ?? "TS-V1-FINAL-20260824-03",
   artifact_type: "v1-ios-backend-agent-system",
   contract_version: "2026-08-24.10",
   generated_at: new Date().toISOString(),
@@ -127,7 +139,7 @@ const artifact = {
       cwd: repositoryRoot,
       encoding: "utf8",
     }).trim(),
-    worktree_state: "dirty-preserved",
+    worktree_state: "source-committed-evidence-pending",
     product_source_manifest: {
       scope: sourceScope,
       file_count: sourceEntries.length,
@@ -184,8 +196,12 @@ const artifact = {
       allowed_skip: ios.allowed_skip,
       simulator: `${ios.environment.modelName}, iOS ${ios.environment.osVersion}`,
       path: `${evidenceRoot}/ios-full-suite-runtime.json`,
-      xcresult: "/tmp/talent-signal-full-retest-03-final.xcresult",
-      log: "/tmp/talent-signal-full-retest-03-final.log",
+      xcresult:
+        process.env.V1_FINAL_IOS_XCRESULT ??
+        "/tmp/talent-signal-full-retest-03-final.xcresult",
+      log:
+        process.env.V1_FINAL_IOS_LOG ??
+        "/tmp/talent-signal-full-retest-03-final.log",
     },
     ios_small_device: {
       verdict: small.verdict,
@@ -195,8 +211,12 @@ const artifact = {
       simulator:
         "iPhone SE (3rd generation), 375x667, iOS 26.5, dark mode, AX5",
       path: `${evidenceRoot}/ios-375x667-runtime.json`,
-      xcresult: "/tmp/talent-signal-se-375x667-retest-03-final.xcresult",
-      log: "/tmp/talent-signal-se-375x667-retest-03-final.log",
+      xcresult:
+        process.env.V1_FINAL_SMALL_IOS_XCRESULT ??
+        "/tmp/talent-signal-se-375x667-retest-03-final.xcresult",
+      log:
+        process.env.V1_FINAL_SMALL_IOS_LOG ??
+        "/tmp/talent-signal-se-375x667-retest-03-final.log",
     },
     p0_journeys: {
       verdict: p0.verdict,
@@ -210,7 +230,7 @@ const artifact = {
     },
     agent: {
       package_tests: "24/24 passed",
-      backend_tests: "129/129 passed",
+      backend_tests: "133/133 passed",
       deterministic_trials: `${agent.trial_count}/${agent.trial_count} passed`,
       deterministic_safety_pass_rate: agent.invariants.safety_pass_rate,
       external_effect_count: agent.invariants.external_effect_count,
@@ -225,7 +245,9 @@ const artifact = {
       {
         command: "pnpm check",
         result: "passed",
-        log: "/tmp/talent-signal-pnpm-check-retest-03.log",
+        log:
+          process.env.V1_FINAL_PNPM_CHECK_LOG ??
+          "/tmp/talent-signal-pnpm-check-v8-authority.log",
       },
       { command: "pnpm docs:check", result: "passed" },
       { command: "git diff --check", result: "passed" },

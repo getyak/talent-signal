@@ -106,6 +106,7 @@ async function run(): Promise<void> {
   await client.reviewEvidenceFragment(fragment.id, {
     idempotency_key: `expiry-review:${randomUUID()}`,
     expected_review_status: "proposed",
+    expected_last_review_id: null,
     decision: "reviewed",
     reason:
       "Synthetic recruiter verified this contact field against the governed record.",

@@ -19,6 +19,7 @@
     "test:pursuit-proposals": "tsx src/evaluation/runPursuitProposalEvaluation.ts",
     "test:pursuit-workspace": "tsx src/evaluation/runPursuitWorkspaceEvaluation.ts",
     "test:pursuit-evidence": "tsx src/evaluation/runPursuitEvidenceIntegrityEvaluation.ts",
+    "test:evidence-review-authority": "tsx src/evaluation/runEvidenceReviewAuthorityEvaluation.ts",
     "test:agent-control-plane": "tsx src/evaluation/runAgentControlPlaneEvaluation.ts",
     "fixture:ios-pursuit-proposal": "tsx src/evaluation/prepareIOSPursuitProposalFixture.ts",
     "fixture:ios-pursuit-proposal-server": "tsx src/evaluation/startIOSPursuitProposalFixtureServer.ts",
@@ -40,15 +41,15 @@
     "@sinclair/typebox": "^0.34.41",
     "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
-    "fastify": "^5.5.0",
+    "fastify": "^5.12.1",
     "jose": "6.2.10",
-    "pg": "^8.16.3"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
-    "@types/pg": "^8.15.5",
-    "tsx": "^4.20.5",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.12",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^4.0.0"
+    "vitest": "^4.1.11"
   }
 }

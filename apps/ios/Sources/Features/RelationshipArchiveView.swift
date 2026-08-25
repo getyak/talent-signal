@@ -171,12 +171,14 @@ struct RelationshipArchiveView: View {
                         reviewEvidence: {
                             fragmentID,
                             expectedReviewStatus,
+                            expectedLastReviewID,
                             decision,
                             reason,
                             idempotencyKey in
-                            try await workspaceStore.reviewEvidence(
+                            return try await workspaceStore.reviewEvidence(
                                 fragmentID: fragmentID,
                                 expectedReviewStatus: expectedReviewStatus,
+                                expectedLastReviewID: expectedLastReviewID,
                                 decision: decision,
                                 reason: reason,
                                 idempotencyKey: idempotencyKey
@@ -544,7 +546,7 @@ private struct PursuitTodayView: View {
                     .foregroundStyle(Color.tsInk)
                     .tracking(-1.3)
                     .padding(.top, 7)
-                if !snapshot.todayItems.isEmpty {
+                if !attentionItems.isEmpty || actionRecovery != nil {
                     Text(summary)
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
@@ -604,10 +606,12 @@ private struct PursuitTodayView: View {
                     .padding(.top, 6)
                 }
 
-                if snapshot.todayItems.isEmpty {
-                    PursuitNoActionView()
-                        .padding(.top, topWorkSpacing)
-                } else if let focus = snapshot.todayItems.first {
+                if attentionItems.isEmpty {
+                    if actionRecovery == nil {
+                        PursuitNoActionView()
+                            .padding(.top, topWorkSpacing)
+                    }
+                } else if let focus = attentionItems.first {
                     TodayFocusCard(
                         item: focus,
                         pursuit: snapshot.pursuit(id: focus.pursuitID),
@@ -621,7 +625,7 @@ private struct PursuitTodayView: View {
                     )
                     .padding(.top, topWorkSpacing)
 
-                    if snapshot.todayItems.count > 1 {
+                    if attentionItems.count > 1 {
                         Text(appLanguage.text("Next", zhHans: "接下来"))
                             .font(.caption.weight(.bold))
                             .tracking(1.1)
@@ -678,7 +682,9 @@ private struct PursuitTodayView: View {
     }
 
     private var summary: String {
-        let total = snapshot.todayItems.count + unreadSessions.count
+        let total = attentionItems.count
+            + unreadSessions.count
+            + (actionRecovery == nil ? 0 : 1)
         if total == 0 {
             return ""
         }
@@ -703,12 +709,19 @@ private struct PursuitTodayView: View {
     }
 
     private var visibleContinuationItems: [PursuitAttentionItem] {
-        let continuation = Array(snapshot.todayItems.dropFirst())
+        let continuation = Array(attentionItems.dropFirst())
         return showsAllAttention ? continuation : Array(continuation.prefix(4))
     }
 
     private var hiddenAttentionCount: Int {
-        max(snapshot.todayItems.count - 5, 0)
+        max(attentionItems.count - 5, 0)
+    }
+
+    private var attentionItems: [PursuitAttentionItem] {
+        guard let actionRecovery else { return snapshot.todayItems }
+        return snapshot.todayItems.filter {
+            $0.pursuitID != actionRecovery.pursuitID
+        }
     }
 
     private var attentionDisclosureLabel: String {
@@ -1824,6 +1837,7 @@ struct PursuitDetailView: View {
     let snapshot: PursuitWorkspaceSnapshot?
     let currentUserID: String?
     @ObservedObject var workspaceStore: PursuitWorkspaceStore
+    let targetActionID: String?
     let onOpenProposal: (WorkspaceProposal) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var completingActionID: String?
@@ -1833,19 +1847,22 @@ struct PursuitDetailView: View {
         snapshot: PursuitWorkspaceSnapshot?,
         currentUserID: String?,
         workspaceStore: PursuitWorkspaceStore,
+        targetActionID: String? = nil,
         onOpenProposal: @escaping (WorkspaceProposal) -> Void
     ) {
         _pursuit = State(initialValue: pursuit)
         self.snapshot = snapshot
         self.currentUserID = currentUserID
         self.workspaceStore = workspaceStore
+        self.targetActionID = targetActionID
         self.onOpenProposal = onOpenProposal
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
                     RelationshipEyebrow("\(pursuit.status.humanized) · revision \(pursuit.revision)")
                         .padding(.top, 26)
                     Text(pursuit.title)
@@ -1929,6 +1946,27 @@ struct PursuitDetailView: View {
                         }
                     }
 
+                    if !staleProposals.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label(
+                                "Proposal is out of date",
+                                systemImage: "clock.badge.exclamationmark"
+                            )
+                            .font(.headline)
+                            .foregroundStyle(Color.tsVermilion)
+                            Text(
+                                "This Pursuit is now revision \(currentPursuitRevision). An older Proposal cannot be reviewed and has no execution authority. Current workspace readback will replace it."
+                            )
+                            .font(.subheadline)
+                            .foregroundStyle(Color.tsMutedInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(14)
+                        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+                        .padding(.top, 24)
+                        .accessibilityIdentifier("pursuit-stale-proposal")
+                    }
+
                     RelationshipEyebrow("Open gaps")
                         .padding(.top, 30)
                     if pursuit.gaps.filter({ $0.status == "open" }).isEmpty {
@@ -1942,7 +1980,7 @@ struct PursuitDetailView: View {
                                 Text(gap.title)
                                     .font(.headline)
                                     .foregroundStyle(Color.tsInk)
-                                Text("\(gap.basis.kind.humanized) · \(gap.basis.evidenceState.attentionLabel)")
+                                Text("\(gap.basis.temporalAuthorityLabel) · \(gap.basis.evidenceState.attentionLabel)")
                                     .font(.caption)
                                     .foregroundStyle(
                                         gap.basis.evidenceState.availability == "available"
@@ -1999,6 +2037,17 @@ struct PursuitDetailView: View {
                     } else {
                         ForEach(pursuit.actions) { action in
                             VStack(alignment: .leading, spacing: 7) {
+                                if action.id == targetActionID {
+                                    Label(
+                                        "Referenced in Ask",
+                                        systemImage: "arrow.down.right.circle.fill"
+                                    )
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.tsVermilion)
+                                    .accessibilityIdentifier(
+                                        "pursuit-target-action-\(action.id)"
+                                    )
+                                }
                                 Text(action.title)
                                     .font(.headline)
                                     .foregroundStyle(Color.tsInk)
@@ -2050,38 +2099,74 @@ struct PursuitDetailView: View {
                                 }
                             }
                             .padding(.vertical, 16)
+                            .padding(.horizontal, action.id == targetActionID ? 12 : 0)
+                            .background(
+                                action.id == targetActionID
+                                    ? Color.tsCanvas
+                                    : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 14)
+                            )
+                            .overlay {
+                                if action.id == targetActionID {
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Color.tsVermilion.opacity(0.55), lineWidth: 1)
+                                }
+                            }
                             .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+                            .id(action.id)
                         }
                     }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 22)
-                .padding(.bottom, 40)
-            }
-            .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle("Pursuit")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close", action: dismiss.callAsFunction)
+                .background(Color.tsSurface.ignoresSafeArea())
+                .navigationTitle("Pursuit")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Close", action: dismiss.callAsFunction)
+                    }
+                }
+                .task {
+                    if let targetActionID,
+                       pursuit.actions.contains(where: { $0.id == targetActionID }) {
+                        await Task.yield()
+                        proxy.scrollTo(targetActionID, anchor: .center)
+                    }
+                    for action in pursuit.actions
+                    where workspaceStore.hasSavedActionCompletion(actionID: action.id) {
+                        completingActionID = action.id
+                        await workspaceStore.prepareActionCompletion(
+                            pursuit: pursuit,
+                            action: action
+                        )
+                        syncRecordedAction()
+                    }
                 }
             }
         }
         .accessibilityIdentifier("pursuit-detail")
-        .task {
-            for action in pursuit.actions
-            where workspaceStore.hasSavedActionCompletion(actionID: action.id) {
-                completingActionID = action.id
-                await workspaceStore.prepareActionCompletion(
-                    pursuit: pursuit,
-                    action: action
-                )
-                syncRecordedAction()
-            }
-        }
     }
 
     private var pendingProposals: [WorkspaceProposal] {
-        snapshot?.openProposals.filter { $0.pursuitID == pursuit.id } ?? []
+        workspaceStore.snapshot?.openProposals.filter {
+            $0.pursuitID == pursuit.id
+                && $0.baseRevision == currentPursuitRevision
+        } ?? []
+    }
+
+    private var staleProposals: [WorkspaceProposal] {
+        workspaceStore.snapshot?.openProposals.filter {
+            $0.pursuitID == pursuit.id
+                && $0.baseRevision != currentPursuitRevision
+        } ?? []
+    }
+
+    private var currentPursuitRevision: Int {
+        recordedActionCompletion?.result.pursuit.revision
+            ?? workspaceStore.snapshot?.pursuit(id: pursuit.id)?.revision
+            ?? pursuit.revision
     }
 
     private var milestoneConfirmationSummary: String {
@@ -2630,5 +2715,14 @@ extension String {
 
     var workspacePhrase: String {
         contains("_") ? humanized : self
+    }
+}
+
+private extension WorkspaceGap.Basis {
+    var temporalAuthorityLabel: String {
+        if kind == "evidence_supported", evidenceState.availability != "available" {
+            return "Originally evidence-supported"
+        }
+        return kind.humanized
     }
 }

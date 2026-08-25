@@ -64,6 +64,8 @@ const required = {
     "CandidateSignalUITests/testSameNameTextSignalScopeStaysDistinctAcrossRelaunchAndReadback()",
   canonical_review_and_action_outcome:
     "CandidateSignalUITests/testCanonicalWorkspaceAX5DarkReducedMotionKeepsNavigationReachable()",
+  ask_opens_exact_existing_pursuit_action:
+    "CandidateSignalUITests/testCanonicalAskSearchesWorkspaceAndReturnsEvidenceBoundResponse()",
   audio_authorization_receipt_lifecycle:
     "CandidateSignalUITests/testAudioSignalRequiresAuthorizationThenShowsVerifiedLocalLifecycle()",
   receipt_operation_binding:
@@ -72,6 +74,8 @@ const required = {
     "CandidateSignalUITests/testResponseLossRelaunchReconcilesPersistedOperationWithoutResubmit()",
   owned_action_response_loss_reconciles_without_second_post:
     "CandidateSignalUITests/testOwnedActionResponseLossRelaunchReconcilesWithoutSecondPost()",
+  restored_evidence_review_requires_current_authority_readback:
+    "RelationshipArchiveTests/testSupersededPersistenceFailureKeepsSessionTerminalGuard()",
   release_arguments_are_inert:
     "ReleaseBoundaryTests/testSyntheticLaunchArgumentsAreInertOutsideDebugBuilds()",
 };

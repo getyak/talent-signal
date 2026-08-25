@@ -1,7 +1,7 @@
 {
   "artifact_version": "talent-signal.v1-ios-375x667.1",
-  "contract_version": "2026-08-24.9",
-  "generated_at": "2026-08-24T07:02:42.204Z",
+  "contract_version": "2026-08-24.10",
+  "generated_at": "2026-08-24T21:52:30.656Z",
   "data_classification": "synthetic_only",
   "verdict": "pass",
   "environment": {

@@ -329,6 +329,39 @@ async function main(): Promise<void> {
   assert.equal(finalRecruiting.pursuit.revision, 3);
   const ownedAction = finalRecruiting.pursuit.actions[0];
   assert(ownedAction);
+  const proposalSupersededByAction = await alpha.stagePursuitProposal(
+    created.pursuit.id,
+    {
+      idempotency_key: `${runId}:recruiting:proposal:before-action`,
+      capture_id: personCapture.id,
+      base_revision: finalRecruiting.pursuit.revision,
+      summary: "This proposal must not remain reviewable after the Pursuit changes.",
+      producer: {
+        kind: "human",
+        name: "synthetic-pursuit-domain-evaluator",
+        version: "1.0.0",
+        run_id: `TS-V1-ACTION-SUPERSESSION-${runId}`,
+      },
+      items: [
+        {
+          item_key: "superseded-gap",
+          basis_kind: "user_authored",
+          epistemic_status: "unknown",
+          evidence_refs: [],
+          reason: "Exercise proposal authority after an independent action outcome.",
+          effect_summary: "Would add one internal gap only after item review.",
+          change: {
+            kind: "add_gap",
+            proposed_value: {
+              title: "Synthetic proposal authority gap",
+              basis_summary: "Synthetic user-authored evaluator input.",
+              close_condition: "The evaluator observes canonical supersession.",
+            },
+          },
+        },
+      ],
+    },
+  );
   await expectHttpError(
     () =>
       alpha.completePursuitAction(created.pursuit.id, ownedAction.id, {
@@ -361,6 +394,17 @@ async function main(): Promise<void> {
   assert.equal(completedAction.pursuit.revision, 4);
   assert.equal(completedActionReadback.status, "completed");
   assert.equal(completedActionReadback.revision, ownedAction.revision + 1);
+  assert.equal(
+    (await alpha.getPursuitProposal(proposalSupersededByAction.proposal.id))
+      .proposal.status,
+    "superseded",
+  );
+  assert.equal(
+    (await alpha.listPursuitProposals()).proposals.some(
+      ({ id }) => id === proposalSupersededByAction.proposal.id,
+    ),
+    false,
+  );
   assert.equal(
     completedActionReadback.outcome_summary,
     actionCompletionRequest.outcome_summary,
@@ -435,6 +479,7 @@ async function main(): Promise<void> {
       owned_action_observed_outcome: "persisted_with_revisioned_readback",
       duplicate_action_completion_same_receipt: "pass",
       reused_action_operation_id: "rejected",
+      action_revision_supersedes_open_proposal: "pass",
       external_effect_arrays: "empty",
     },
     recruiting: {

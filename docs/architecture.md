@@ -174,8 +174,8 @@ attribution-confirmed, inspectable, and authorized in that exact scope. The clie
 and each minute while visible; failure makes the local turn stale. Readback grants no write authority.
 Agent Sessions use an account-hashed, protected, backup-excluded device container holding scoped questions and response identity, never answer blocks or excerpts. Drafts expire at seven days and Sessions at thirty through exact-timer, read, and foreground pruning.
 In-flight Ask retains its draft and idempotency key; restored answers hide citations until a fresh scoped Ask.
-Before source review, the same container stores fragment, expected state, decision, reason, task, and an authority-bound idempotency key, never the excerpt; failed persistence blocks the request.
-Pending, failed, outcome-unknown, and applied states survive relaunch and reuse that key. A new authority cycle gets a new key; reinstatement appends a reviewed decision against rejected state.
+Before source review, the same container stores fragment, expected state, exact prior review ID, decision, reason, task, and an authority-bound idempotency key, never the excerpt; failed persistence blocks the request. The server locks current authority before accepting or replaying the operation and persists every decision as a same-fragment predecessor link with a monotonic revision; replay succeeds only when its resulting review is still current, and the client validates both review IDs before marking it applied.
+Pending, failed, outcome-unknown, and applied states survive relaunch and reuse that key. A live request cannot also reconcile; a new authority cycle gets a new key, and reinstatement appends a reviewed decision against rejected state.
 Sign-out tombstones and verifies deletion. Neither review path makes an old answer current.
 
 Owned-action outcome drafts, operation IDs, and receipts use a separate account-hashed, protected, backup-excluded container with a thirty-day limit.

@@ -82,6 +82,7 @@ async function createFixture(
   await client.reviewEvidenceFragment(evidence.id, {
     idempotency_key: `${options.fixtureKey}:${runId}:review-evidence`,
     expected_review_status: "proposed",
+    expected_last_review_id: null,
     decision: "reviewed",
     reason:
       "The synthetic evaluator matched the excerpt to the visible fixture source.",

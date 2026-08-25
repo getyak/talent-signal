@@ -1,7 +1,7 @@
 {
   "artifact_version": "talent-signal.v1-review-documentation-atoms.1",
-  "contract_version": "2026-08-24.9",
-  "generated_at": "2026-08-24T07:10:37.644Z",
+  "contract_version": "2026-08-24.10",
+  "generated_at": "2026-08-24T21:56:50.254Z",
   "data_classification": "synthetic_only",
   "assessor": "deterministic acceptance ledger; independent specialist review remains separate",
   "verdict": "pass",

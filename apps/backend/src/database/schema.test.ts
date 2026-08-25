@@ -226,6 +226,24 @@ describe("authority schema", () => {
     );
   });
 
+  it("persists a monotonic, same-fragment evidence-review authority chain", async () => {
+    const sql = await readFile(
+      new URL("./027_evidence_review_authority_chain.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("ADD COLUMN prior_review_id uuid");
+    expect(sql).toContain("ADD COLUMN review_revision integer");
+    expect(sql).toContain(
+      "UNIQUE (account_id, fragment_id, review_revision)",
+    );
+    expect(sql).toContain(
+      "FOREIGN KEY (account_id, fragment_id, prior_review_id)",
+    );
+    expect(sql).toContain(
+      "REFERENCES evidence_fragment_reviews(account_id, fragment_id, id)",
+    );
+  });
+
   it("binds every new research task to its governed seed resource", async () => {
     const sql = await readFile(
       new URL("./008_research_seed_lineage.sql", import.meta.url),

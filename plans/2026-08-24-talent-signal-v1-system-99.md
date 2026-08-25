@@ -109,19 +109,21 @@ rebuildable projections.
    only behind typed tools and backend authorization, then deterministic
    oracles, multi-trial critical cases, fingerprints, cost/latency receipts,
    and all twelve P0 journeys.
-7. **PRD-09 hardening and 99+ adjudication.** Run Release builds, all repository
+7. **PRD-09 hardening and 99+ adjudication — active.** Run Release builds, all repository
    checks, small-phone/AX5/VoiceOver/dark/reduced-motion/offline tests, freeze one
    evidence bundle, collect independent specialist packets, fix every veto and
    affected finding, and publish the final REVIEW decision.
-8. **User-led visual, data, and identity correction — active.** Treat the
+8. **User-led visual, data, and identity correction — complete for local
+   implementation.** Treat the
    2026-08-24 direct usability critique as stronger experience evidence than the
    atomic ledger. Recompose Today around one calm focus and compact continuation,
    remove page-local feed/search noise, make Ask a conversation-first surface
    with canonical database search and scoped task results, and add production
    Sign in with Apple, durable account-scoped sessions, and explicit sign-out.
-   Freeze new small-phone, AX5, auth, empty/error/retry, and real-backend evidence
-   before another specialist panel. Milestone 7 cannot complete until this
-   correction is proven.
+   V9 freezes the local product loop and V11 closes the correction-panel veto in
+   source and unit evidence. Milestone 7 retains direct transition, complete
+   small-phone AX5 and physical accessibility, production authorization, and
+   field-outcome proof before the final claim.
 
 Only one milestone is active at a time. Each milestone must leave contracts,
 tests, and a resumable checkpoint before the next begins.
@@ -343,6 +345,54 @@ independent panel tied to one frozen artifact. Apple developer credentials,
 physical-device Apple Account UI, and production deployment remain missing
 proof until separately available; local UI or mocked token tests cannot be
 represented as those outcomes.
+
+## Checkpoint — V9–V11 usability correction adjudication
+
+The hash-matched V9 artifact freezes the corrected local product loop: Today has
+one calm focus and compact continuation instead of a page-local feed; Ask opens
+as a scoped conversation, searches canonical account data, renders backend
+answer/evidence/action blocks, exposes exact evidence one step away, and creates
+no external effect; the authenticated shell includes Apple entry, account-scoped
+session restoration, explicit sign-out, Capture, empty/error/retry, stale, dark,
+reduced-motion, small-device, and initial AX5 evidence. Its independent panel had
+no veto but found view-local live review ownership and a retryable stale-authority
+dead end.
+
+V10 moved live ownership into `AgentSessionStore` and introduced persisted
+superseded authority, but its panel correctly blocked the delta because the
+fresh-current-evidence action could overwrite an unsent Ask draft and a failed
+terminal save could re-expose obsolete reconciliation. V11 now preserves every
+nonempty draft byte-for-byte, seeds only an empty composer, focuses without
+sending, retains a truthful current-session terminal tombstone after save
+failure, and rejects claim, pending, applied, failed, or unknown mutation through
+the shared terminal guard. The frozen V11 result passes 100/100 iOS unit tests,
+the unsigned generic iOS Release build, `pnpm check` including 133/133 backend,
+185 passing Web tests with one skip, 24/24 Agent tests, and `git diff --check`.
+
+The contract-valid V11 panel in
+`docs/evaluations/2026-08-25-v1-experience-correction-v11/panel.json` is
+`pass_with_changes / needs_evidence` with no veto. Specialist rubric scores are
+recruiter workflow 2, evidence safety 2, mobile UX 3, and candidate experience 3;
+they are intentionally not averaged. Direct rendered draft/close-reopen/save-
+failure/relaunch/stale-authority transitions, the complete smallest-device AX5
+path, physical VoiceOver and Switch Control, production Apple Account and
+microphone behavior, deletion/export boundaries, deployment, and structured
+recruiter/candidate field outcomes remain missing. Until those observations are
+frozen, neither the milestone nor this plan can make a 99/100 experience or
+production-release claim.
+
+The first Retest-03 final panel then found two additional deterministic gaps
+despite issuing no active veto. A restored evidence-review operation could
+re-expose its old reconcile control after a failed superseded-state save and a
+process relaunch, even though exact backend authority would reject the write.
+Also, an owned action could advance a Pursuit revision while the already-open
+detail sheet still presented its older Proposal as waiting for review. Retest-04
+must therefore require a fresh canonical evidence-authority readback before any
+restored review POST, canonically supersede open Proposals when an independent
+owned-action outcome advances the Pursuit, hide stale review authority in iOS,
+and freeze every transitive P0 oracle dependency by hash. The narrow source
+checks pass; milestone 7 remains active until the complete rebuilt runtime and
+independent Retest-04 panel confirm these closures.
 
 ## Completion evidence
 
