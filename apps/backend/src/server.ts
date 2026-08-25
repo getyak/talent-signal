@@ -2,6 +2,7 @@ import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { createPool } from "./database/pool.js";
 import { runSourceLifecycleSweep } from "./modules/sourceLifecycle.js";
+import { recoverInterruptedAgentRuns } from "./modules/agentRuns.js";
 
 const config = loadConfig();
 const pool = createPool(config);
@@ -21,6 +22,7 @@ process.once("SIGTERM", () => {
 });
 
 try {
+  await recoverInterruptedAgentRuns(pool);
   await app.listen({ host: config.host, port: config.port });
   void runSourceLifecycleSweep(pool).catch((error: unknown) => {
     app.log.error(

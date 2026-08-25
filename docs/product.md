@@ -11,10 +11,11 @@ preserve governed context. Their absence from the account model does not remove
 their privacy rights or turn their conversations into unrestricted customer
 property.
 
-After a meaningful conversation, it helps the recruiter answer:
+For each active search, and especially after a meaningful conversation, it
+helps the recruiter answer:
 
-> What changed, why does it matter now, and what is the smallest safe action
-> that keeps the relationship moving?
+> What outcome are we pursuing, what changed, what is blocking it now, and
+> what is the smallest safe action that keeps the relationship moving?
 
 ## Promise
 
@@ -41,19 +42,93 @@ The editable diagram is
 
 ## Canonical experience
 
-The product is organized around a person viewed within a relationship or
-assignment context.
+The product is organized around a `Pursuit`: a concrete outcome with a time
+horizon that requires people, organizations, evidence, criteria, and action.
+The first complete Pursuit is a recruiting or executive-search mandate.
 
-Cards, lists, timelines, graphs, Today, and living pages are different views of
-the same governed relationship state. A person may be a candidate in one
-assignment, a client stakeholder in another, and a referrer elsewhere without
-becoming several unrelated identities.
+People remain stable identities across the product, while roles, criteria,
+claims, gaps, and actions are scoped to a Pursuit. A person may be a candidate
+in one search, a client stakeholder in another, and a referrer elsewhere
+without becoming several unrelated identities. Cards, lists, timelines,
+graphs, Today, Pursuit rooms, and living person pages are views of the same
+governed state, not competing records.
+
+Today, Sessions, and People are the primary mobile retrieval surfaces. A
+Session groups recruiter-initiated Agent tasks around one explicit relationship
+context so a recent conversation can be resumed without reconstructing intent.
+It is a projection, not a second record: Pursuit, evidence, Proposal, reviewed
+state, Action, and Receipt continue to own goals, provenance, decisions, and
+effects. Evidence remains one step from a consequential claim but does not
+become a top-level library that asks the recruiter to browse sources before
+understanding the goal. Pursuits remain directly reachable from Today, a
+Session, a person, and review context rather than consuming a higher-frequency
+mobile retrieval position.
+
+Today continues unread Sessions and gives one supported dependency or
+reviewable Agent insight a clear visual lead. Remaining attention-bearing
+Pursuits stay compact continuations without an arbitrary data cap. Target
+outcome and date, current blocker, evidence freshness, owned action, owner, and
+due date remain available from the item or its Pursuit rather than being
+repeated as dashboard chrome. Today is a flexible retrieval composition, not a
+generic feed: it shows only unread conversation work and current governed
+attention. A pending Proposal may change the primary decision, but it cannot
+hide an owned action or gap from the same Pursuit. Pursuits with no pending
+review, owned action, or evidence-backed gap remain an explicit no-action count
+rather than invented work.
+
+Evidence-backed is a live authority statement, not permanent copy. When a
+source is deleted or loses authorization, the affected role, gap, Proposal,
+and Today item visibly become partial or unavailable. An explicitly
+recruiter-authored note remains attributable to that recruiter and says that
+evidence is not required; it is never relabeled as source-supported. A Proposal
+whose source authority is gone stays available only as superseded history and
+cannot be confirmed.
+
+A reviewed milestone remains a versioned historical fact after its source is
+deleted, but its current evidence authority becomes unavailable. The readback
+keeps the confirmer, decision time, Proposal, and Receipt so history is not
+silently rewritten or presented as currently source-supported.
 
 Chat is the primary intent surface for ordinary desktop work, not another
-record. It stays beside the selected relationship so the recruiter can ask,
-navigate, compile, or stage a change while the affected person page remains
-visible. Structured review happens on the governed object, and Chat returns an
-operation receipt rather than claiming that a page or external system changed.
+record. It stays beside the selected Pursuit and affected person so the
+recruiter can ask, navigate, compile, or stage a change while the governed
+object remains visible. On mobile, the same tasks appear in manageable Sessions
+because recent intent is retrieved more often than the full contact directory.
+Structured review still happens on the affected object, and Chat or Session
+returns an operation receipt rather than claiming that a page or external
+system changed. An answer may cite only exact, currently available evidence
+fragments from its account-, person-, relationship-, and snapshot-bound context.
+The source name is visible in the conversation and opens an inspectable evidence
+readback; a generic person page or an opaque evidence count is not a citation.
+Successful mobile Sessions and unsent drafts resume within the same signed-in
+account. Restored answers are visibly stale, hide their citations, and require a
+new Ask before source authority is claimed again. A submitted question remains
+recoverable until validated recording succeeds, and retry reuses the same task
+intent instead of creating duplicate work.
+
+Ask reconciles its answer with canonical work already owned in that exact
+Pursuit. When an open action or evidence-backed gap exists, the response shows
+its owner, due time, and close condition without creating another action; it
+must not also claim `no_action`. The structured block can open that exact
+Pursuit and action without recording a change. Relative dates without an
+explicit calendar date and timezone stay in source review instead of appearing
+as confirmed current state.
+
+An exact citation can enter a scoped source review from the Agent response. A
+recruiter can dispute it with a reason; the source is rejected canonically, its
+dependent knowledge is invalidated, and the current Agent turn becomes stale.
+The conversation keeps a visible review state and offers a same-intent retry if
+the outcome is unknown. A mistaken dispute can be corrected only through a new,
+reasoned review decision: the prior dispute stays in the audit, the old answer
+stays stale, and only a fresh Ask may cite the source again. No message or other
+external effect is executed. If protected recovery cannot be saved, no source
+review request is sent or presented as saved. Each review names the exact prior
+review authority it observed. A same-intent replay succeeds only while its
+result is still the fragment's current review; the client verifies both prior
+and resulting review IDs before presenting the decision as applied. While the
+original request is in flight, recovery is visible but cannot start a competing
+reconciliation. A no-action result carries one evidence-state condition for
+revisiting the decision without manufacturing urgency.
 
 Mobile capture is the complementary intent surface. A screenshot selected from
 Photos or handed in through a system shortcut enters one recoverable review:
@@ -62,6 +137,24 @@ relationship clues they can support, compares temporal owners without a
 default selection, and explicitly attaches the governed source. Completion
 returns the actual compiled-Wiki quality and identifiers; it does not create a
 second contact merely because another source arrived.
+
+Local typed-signal recovery follows the authenticated workspace. The app does
+not display a restored payload until workspace readback agrees, so switching
+accounts on a shared device cannot expose another workspace's draft. Retry and
+deletion continue to use the original workspace and stable Signal ID.
+
+Typed Signal uses a searchable, untruncated scope list with a stable Person
+record clue beside the Pursuit and relationship context. Name alone never
+selects a Person; canonical readback must return the same workspace, Person,
+role, and context identifiers.
+
+An owned internal action closes only when its owner records an observed outcome.
+Before submission, the client persists the draft and a client-owned operation
+ID that the backend must use for the canonical operation. An ambiguous response
+locks the draft until exact-ID readback reconciles it, including after relaunch;
+retry cannot mint a second operation. Completion is revisioned and idempotent,
+returns a matching canonical Receipt and readback, and has no external effects.
+It never implies that an email, meeting, ATS, CRM, or notification write occurred.
 
 The recruiter gets one contact entry without receiving one flattened context.
 Every material item remains scoped to the relationship, assignment, purpose,
@@ -143,13 +236,15 @@ The default unit of attention is not a score. It is a current dependency:
 
 ## Initial wedge
 
-Begin with intentional mobile capture and an Agent-first web review surface.
-The first complete experience should take one recruiter-controlled conversation
-through recoverable evidence and identity review, one relationship Wiki, one
-safe action, and a verified result.
+Begin with an independent recruiter managing several high-value searches. The
+first complete experience should take one recruiter-controlled post-call signal
+through recoverable capture, Pursuit and identity review, evidence-backed
+claims and an explicit gap, one safe action, and a verified internal result.
 
-Broader research, desktop workflows, channels, and external agents should reuse
-the same truth and approval boundaries.
+A thin sales fixture may prove that the Pursuit contract is not hard-coded to
+recruiting, but it does not broaden V1 into a general CRM. Broader research,
+desktop workflows, channels, and external agents reuse the same truth and
+approval boundaries only after the recruiting loop is complete.
 
 ## Non-goals
 

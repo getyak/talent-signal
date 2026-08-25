@@ -1,0 +1,82 @@
+name: TestFlight Access
+
+on:
+  workflow_dispatch:
+    inputs:
+      repair_access:
+        description: Repair missing tester group or build access
+        required: true
+        default: true
+        type: boolean
+      resend_invitation:
+        description: Resend an invitation when the tester has not accepted
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight-access
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Audit and repair internal tester access
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: testflight
+      url: https://appstoreconnect.apple.com/apps
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Validate access secrets
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          TESTFLIGHT_TESTER_EMAIL: ${{ secrets.TESTFLIGHT_TESTER_EMAIL }}
+        run: |
+          missing=0
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            TESTFLIGHT_TESTER_EMAIL; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Configure App Store Connect key
+        env:
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          printf '%s\n' "$API_KEY_CONTENT" > "$RUNNER_TEMP/asc_key.p8"
+          chmod 600 "$RUNNER_TEMP/asc_key.p8"
+
+      - name: Audit and repair TestFlight access
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          TESTFLIGHT_REPAIR_ACCESS: ${{ inputs.repair_access }}
+          TESTFLIGHT_RESEND_INVITATION: ${{ inputs.resend_invitation }}
+          TESTFLIGHT_TARGET_GROUP: Talent Signal Internal
+          TESTFLIGHT_TESTER_EMAIL: ${{ secrets.TESTFLIGHT_TESTER_EMAIL }}
+        run: bundle exec ruby .github/scripts/testflight-access-audit.rb
+
+      - name: Remove temporary API key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc_key.p8"

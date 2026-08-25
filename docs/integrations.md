@@ -18,6 +18,14 @@ image, stage it in the device-owned pending-capture inbox, and open the app's
 ordinary review. The shortcut is an entry adapter: it has no identity,
 relationship, compilation, or external-write authority.
 
+Sign in with Apple is an account-entry adapter. The iOS client requests a
+nonce-bound identity assertion; the backend verifies it and owns account
+binding, session issuance, replay prevention, and revocation. Apple profile
+fields may be available only on the first authorization and are not evidence
+about any candidate relationship. Sign-out revokes the server session when
+reachable, always clears the protected device credential, and returns to the
+account boundary so a prior workspace cannot remain visible.
+
 ### Shared services
 
 Use the shared backend for cross-surface identity, evidence, review, action,

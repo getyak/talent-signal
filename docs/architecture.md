@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Talent Signal needs one trustworthy relationship state across mobile capture,
-desktop review, future channels, and external agents.
+Talent Signal needs one trustworthy Pursuit and relationship state across
+mobile capture, desktop review, future channels, and external agents.
 
 The architecture therefore separates:
 
@@ -37,9 +37,10 @@ candidate truth.
 
 ### Truth, memory, and knowledge
 
-The canonical layer preserves source evidence, reviewed temporal state,
-actions, observations, and outcomes. It retains provenance and scope so current
-understanding can be reconstructed.
+The canonical layer preserves Pursuits, contextual roles, source evidence,
+reviewed temporal state, gaps, actions, observations, and outcomes. It retains
+provenance and scope so current understanding and target progress can be
+reconstructed.
 
 A versioned knowledge projection compiles that governed state into navigable
 pages and addressable blocks for both people and Agents. It is a durable
@@ -106,7 +107,27 @@ relationship. Leaving identity unresolved is a valid terminal state.
 
 ## Truth model
 
-Architecture follows four durable rules.
+Architecture follows five durable rules.
+
+### Pursuits own outcome context
+
+A Pursuit owns outcome, horizon, milestone, contextual roles, criteria, gaps,
+and actions, not a second person or source. Recruiting is the flagship template;
+a sales fixture reuses the contract without a parallel domain model.
+
+Pursuit progress derives from evidence-backed gaps and owner-recorded outcomes.
+An unknown completion response locks until exact-ID readback; completion is
+revisioned, idempotent, effect-free, and never a score.
+
+Roles, criteria, gaps, and actions retain authored canonical display order; a
+reviewed Proposal appends after current items and UUIDs never determine order.
+
+### Account access is server-verified
+
+Only the shared backend verifies a platform identity assertion, binds its stable
+provider subject, and owns replay, nonce, audience, expiry, revocation, and
+account scope. The device stores the protected session; provider identity is
+never relationship evidence.
 
 ### Identity is stable; roles are contextual
 
@@ -114,74 +135,73 @@ One person may participate in several organizations, assignments, and
 relationships. Shared identity does not imply shared visibility or one
 permanent role.
 
-Identity repair is a versioned ownership transition, not deletion or profile
-flattening. A merge preserves the source subject as a redirectable merged
-identity, reassigns recorded relationship contexts and their governed
-resources to an explicitly retained subject, invalidates every affected
-knowledge projection, and records the exact moved identifiers. The mutation
-requires an optimistic preview digest and fails closed when identity review or
-unresolved effects are still active. Reversal restores those recorded
-identifiers only while no new evidence depends on a moved context; otherwise it
-returns to human review. An applied merge is addressable from durable Agent
-history, but every reopen recomputes person status, context ownership, and
-post-merge dependencies before proposing reversal. A historical event never
-authorizes the mutation. When reversal moves the currently open relationship
-back to the source person, the Web scope, URL, and Agent history follow that
-restored owner instead of leaving a stale target-person view. Neither direction
-widens evidence authorization or changes external systems.
+Identity repair is a versioned transition, not deletion; a merge keeps a redirect,
+records moved contexts and resources, and invalidates projections. It requires a
+current preview digest and fails closed on unresolved identity or effects.
+Reversal restores only recorded identifiers while no new evidence depends on
+them; otherwise it returns to review. Every reopen recomputes current ownership
+and dependencies; neither direction widens authorization or changes an external system.
 
-Identity handles are temporal, source-linked clues rather than permanent person
-keys. A confirmed email, phone, WeChat ID, source-native ID, or public profile
-has its own freshness deadline. At and after that deadline it may identify a
-prior owner for human review, but it cannot bind new evidence or act as a
-confirmed directory match. A fresh governed source plus an explicit person and
-relationship decision starts a new confirmation interval; the system preserves
-confirmed, expired, and reconfirmed events instead of rewriting the prior
-ownership history. Raw handle values stay in the governed source when needed;
-the account-scoped identity index, search response, audit event, and Agent
-history use a normalized hash and masked hint.
+Identity handles and stable record IDs are temporal source-linked clues, never
+name-based keys. After expiry they identify a prior owner for review but cannot
+bind evidence. A fresh governed source and explicit decision start a new
+interval. Raw values stay governed; indexes use a normalized hash and hint.
 
-One normalized handle may therefore have an expired historical owner and a
-different current owner. Retrieval ranks the current confirmed owner before
-historical owners and carries that temporal reason into the review case; it
-must not re-sort candidates by activity, name, or opaque identifier. A fresh
-source cannot be bound to a historical owner while another person has current
-authority. Correction or deletion retracts only the authority supported by the
-affected source and never silently restores an expired owner.
+One normalized handle may have different historical and current owners.
+Retrieval puts current ownership and its temporal reason first. A historical
+owner receives no fresh evidence; correction restores no expired owner.
 
-The Web projection preserves this evidence order as typed presentation state:
-`current`, `historical`, or `name_only`. The first two are not generic match
-scores. A current owner is selectable only after a human action; a historical
-owner is comparison-only while any current owner exists. With no explicit
-selection, the source may enter a durable identity-review case, but it cannot
-create a new person, bind a relationship, confirm a clue, or authorize an
-effect. Selecting the current relationship stages source attachment and
-changes no canonical state until the governed source operation is submitted.
+The Web projection preserves `current`, `historical`, or `name_only`, never a
+match score. Current ownership needs human selection; historical is comparison
+only. No selection may create review but cannot bind, confirm, create, or act.
 
-Every confirmation snapshots the effective freshness-policy version, final
-deadline, policy-default or human-override basis, and any override reason on
-both the handle and lifecycle event. Published policy content is immutable;
-retirement is one-way and successor intervals cannot overlap. A new policy
-affects only later confirmation and never recomputes or extends earlier
-authority.
+Confirmation snapshots policy version, deadline, basis, and reason. Published
+policy is immutable, retirement one-way, intervals non-overlapping, and
+successors affect only later confirmation.
 
 ### State is temporal
 
-Important values can be proposed, confirmed, contested, expired, or
-superseded. Current state must remain explainable from its history.
+Important values can be proposed, confirmed, contested, expired, or superseded.
+Each current field points to its exact latest authority-owning operation; matching
+an older value never restores older evidence. State remains explainable by history.
 
 ### Evidence is scoped
 
-Every consequential claim preserves its source, purpose, authorization, and
-retention boundary. Retrieval is authorized at use time, not only at storage
-time.
+Every consequential claim preserves source, purpose, authorization, and retention. Retrieval is authorized at use time, not only at storage time.
 
-Raw-asset retention and evidence authorization are separate clocks. Purging an
-original screenshot or file does not by itself withdraw already reviewed,
-purpose-scoped evidence. Revoking or expiring evidence authorization makes the
-source and every dependent claim, state, action, Wiki block, and Agent context
-unavailable; restoring authorization returns evidence to review rather than
-restoring prior conclusions or execution authority.
+Chat citation readback binds account, task, manifest, snapshot, person, context, and authorization scope. Every fragment must be active, reviewed,
+attribution-confirmed, inspectable, and authorized in that exact scope. The client rechecks before recording, when Ask opens, on foreground return,
+and each minute while visible; failure makes the local turn stale. Readback grants no write authority.
+Agent Sessions use an account-hashed, protected, backup-excluded device container holding scoped questions and response identity, never answer blocks or excerpts. Drafts expire at seven days and Sessions at thirty through exact-timer, read, and foreground pruning.
+In-flight Ask retains its draft and idempotency key; restored answers hide citations until a fresh scoped Ask.
+Before source review, the same container stores fragment, expected state, exact prior review ID, decision, reason, task, and an authority-bound idempotency key, never the excerpt; failed persistence blocks the request. The server locks current authority before accepting or replaying the operation and persists every decision as a same-fragment predecessor link with a monotonic revision; replay succeeds only when its resulting review is still current, and the client validates both review IDs before marking it applied.
+Pending, failed, outcome-unknown, and applied states survive relaunch and reuse that key. A live request cannot also reconcile; a new authority cycle gets a new key, and reinstatement appends a reviewed decision against rejected state.
+Sign-out tombstones and verifies deletion. Neither review path makes an old answer current.
+
+Owned-action outcome drafts, operation IDs, and receipts use a separate account-hashed, protected, backup-excluded container with a thirty-day limit.
+The operation ID must be durably saved before the canonical POST can begin; otherwise the client fails closed without sending. Relaunch reconciles the
+same operation by canonical readback, and sign-out tombstones and verifies deletion of this recovery state before the account session is revoked.
+
+Pursuit roles, gaps, and Proposal items return durable evidence references and
+computed authority: `available`, `partial`, `unavailable`, or `not_required`
+for explicit user authorship. Availability requires an active reviewed
+fragment, confirmed attribution and identity, active capture/resource, and
+current authorization. Dependency loss changes authority without rewriting the
+reference or pretending user authorship.
+
+Deletion supersedes open Proposals and redacts source-derived narratives, cached
+writes, and rationale. Applied state retains value, revision, confirmer, time,
+Receipt, and unavailable authority; Today invents no conclusion.
+
+Recoverable typed-signal drafts use a one-way workspace directory component.
+iOS verifies canonical workspace readback before opening a payload; a mismatch
+reveals no saved text and authorizes no sync.
+
+Raw-asset retention and evidence authorization are separate clocks. Raw purge
+does not withdraw reviewed, purpose-scoped evidence. Authorization loss makes
+the source and every dependent claim, state, action, Wiki block, and Agent
+context unavailable; restoration returns evidence to review, not prior
+conclusions or execution authority.
 
 An authorization deadline is enforced when evidence is used, so a delayed
 worker never becomes a permission grace period. The durable expiry transition
@@ -215,8 +235,7 @@ to decide the follow-up and carries no execution authority.
 ### Views are derived
 
 Today, search, timelines, graphs, insights, and living pages are disposable
-projections. They may be rebuilt after correction, conflict resolution, or
-deletion.
+projections rebuilt after correction, conflict resolution, or deletion.
 
 Derived does not mean human-facing or operationally unimportant. An Agent Wiki
 may be the primary way an Agent navigates longitudinal context, provided every
@@ -248,8 +267,7 @@ The rationale is recorded in
 - Unknown external results remain unknown until reconciled.
 - Cross-context identity does not widen evidence access.
 - Source deletion propagates through every registered derivative.
-- Candidate quality, personality, protected traits, culture fit, and acceptance
-  probability are outside the system's inference boundary.
+- Candidate quality, personality, protected traits, culture fit, and acceptance probability are outside the inference boundary.
 
 ## Failure philosophy
 

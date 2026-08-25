@@ -293,6 +293,7 @@ final class CaptureHandoffStore: ObservableObject {
 
     @discardableResult
     func configureDeterministicLaunch(arguments: [String]) -> Bool {
+#if DEBUG
         guard Self.value(after: "--scenario", in: arguments)
                 == "relationship-capture" else {
             return false
@@ -335,6 +336,9 @@ final class CaptureHandoffStore: ObservableObject {
             initialDraft: draft
         )
         return true
+#else
+        return false
+#endif
     }
 
     func keepForLater() {

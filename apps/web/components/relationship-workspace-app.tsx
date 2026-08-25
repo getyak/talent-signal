@@ -3524,6 +3524,7 @@ function RelationshipResourceComposer({
           body: JSON.stringify({
             idempotency_key: crypto.randomUUID(),
             expected_review_status: currentStatus,
+            expected_last_review_id: null,
             decision,
             reason:
               decision === "reviewed"

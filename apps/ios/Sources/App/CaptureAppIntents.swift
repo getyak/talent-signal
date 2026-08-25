@@ -1,7 +1,80 @@
 import AppIntents
+import Combine
 import Foundation
 import OSLog
 import UniformTypeIdentifiers
+
+enum CaptureIntentDestination: String, Equatable, Sendable {
+    case hub
+    case foregroundAudio
+}
+
+@MainActor
+final class CaptureIntentRouter: ObservableObject {
+    struct Request: Identifiable, Equatable {
+        let id = UUID()
+        let destination: CaptureIntentDestination
+    }
+
+    static let shared = CaptureIntentRouter()
+
+    @Published private(set) var request: Request?
+
+    private init() {}
+
+    func route(to destination: CaptureIntentDestination) {
+        request = Request(destination: destination)
+    }
+
+    func consume(_ id: UUID) {
+        guard request?.id == id else { return }
+        request = nil
+    }
+}
+
+struct CaptureSignalIntent: AppIntent {
+    static let title: LocalizedStringResource = "Capture Signal"
+    static let description = IntentDescription(
+        "Open Talent Signal to choose a purpose-bound text, screenshot, or foreground audio capture."
+    )
+
+    @available(iOS 26.0, *)
+    static let supportedModes: IntentModes = .foreground(.immediate)
+
+    // Compatibility for iOS 16–25. `supportedModes` replaces this on iOS 26.
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        await MainActor.run {
+            CaptureIntentRouter.shared.route(to: .hub)
+        }
+        return .result(
+            dialog: "Talent Signal opened to Capture. Nothing has been recorded or uploaded."
+        )
+    }
+}
+
+struct RecordSignalIntent: AppIntent {
+    static let title: LocalizedStringResource = "Record Signal"
+    static let description = IntentDescription(
+        "Open Talent Signal before requesting microphone permission or starting a recording."
+    )
+
+    @available(iOS 26.0, *)
+    static let supportedModes: IntentModes = .foreground(.immediate)
+
+    // Compatibility for iOS 16–25. Recording never runs inside the intent.
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        await MainActor.run {
+            CaptureIntentRouter.shared.route(to: .foregroundAudio)
+        }
+        return .result(
+            dialog: "Talent Signal opened for foreground recording. Recording has not started."
+        )
+    }
+}
 
 struct ImportConversationScreenshotIntent: AppIntent {
     static let title: LocalizedStringResource = "Review conversation screenshot"
@@ -84,6 +157,24 @@ struct ImportConversationScreenshotIntent: AppIntent {
 
 struct TalentSignalShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: CaptureSignalIntent(),
+            phrases: [
+                "Capture Signal with \(.applicationName)",
+                "Remember a Signal in \(.applicationName)"
+            ],
+            shortTitle: "Capture Signal",
+            systemImageName: "waveform.badge.plus"
+        )
+        AppShortcut(
+            intent: RecordSignalIntent(),
+            phrases: [
+                "Record a Signal with \(.applicationName)",
+                "Open Signal recorder in \(.applicationName)"
+            ],
+            shortTitle: "Record Signal",
+            systemImageName: "mic"
+        )
         AppShortcut(
             intent: ImportConversationScreenshotIntent(),
             phrases: [

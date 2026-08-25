@@ -64,7 +64,7 @@ The editable source is
 
 Every run follows the same conceptual discipline:
 
-1. authorize one immutable objective, scope, and budget;
+1. authorize one immutable objective, Pursuit or subject scope, and budget;
 2. compile the smallest relevant context;
 3. choose or revise a short plan;
 4. request one bounded read, artifact, clarification, proposal, or stop;
@@ -157,9 +157,9 @@ restorable reference. Large observations belong in artifacts, not the active
 prompt.
 
 Each run pins a knowledge snapshot and records a context manifest: the task
-version, included references, inclusion reasons, authorization scope, and
-content identity needed to explain or replay what the Agent could know. The
-manifest points to governed content rather than copying another unbounded
+version, Pursuit and subject scope, included references, inclusion reasons,
+authorization scope, and content identity needed to explain or replay what the
+Agent could know. The manifest points to governed content rather than copying another unbounded
 transcript.
 
 Screenshots, web pages, files, connector results, and generated wiki text remain
@@ -239,7 +239,7 @@ through one provider-neutral Talent Signal boundary.
 
 Initial external abilities should remain narrow:
 
-- read a scoped brief or evidence excerpt;
+- read a scoped Pursuit brief or evidence excerpt;
 - submit intentional capture;
 - create an artifact;
 - propose a fact or action;
@@ -253,16 +253,21 @@ database, or obtain a generic browser or shell over candidate data.
 Channels such as WeChat are capture and attention surfaces, not tenant
 boundaries or systems of record.
 
-## n8n and durable orchestration
+## V1 bounded runtime
 
-n8n is useful for connector prototypes, customer-specific automation, and
-operations. It should call the same governed capability boundary as every other
-client and should not own candidate truth or authorization.
+`@talent-signal/agent` is the provider-neutral runner. Its Claude adapter pins
+Claude Agent SDK `0.3.241`, one explicit model, no built-in tools, settings,
+plugins, Skills, subagents, or session persistence, and exactly four in-process
+capabilities: `read_pursuit`, `read_evidence`, `stage_pursuit_proposal`, and
+`record_no_action`. A second permission check rejects every other tool.
 
-The core system requires durable checkpoints and resumable human decisions.
-Begin with the simplest mechanism that preserves those semantics. Adopt a
-specialized workflow or agent framework only when operational evidence
-justifies it.
+The backend freezes one workspace, user, Pursuit revision, Capture, evidence
+manifest, objective, and budget. Migration `023_agent_control_plane` stores run,
+event, tool-call fingerprints, validated output, usage, and one terminal
+receipt without raw tool payload columns. A successful run creates only a
+`needs_review` Proposal or durable `no_action`; external effects are
+database-constrained to empty. Startup and request-level recovery close
+interrupted runs from durable state rather than provider session memory.
 
 ## Evaluation
 
@@ -289,18 +294,13 @@ Release boundaries include:
 - duplicate and unknown-result writes remain safe;
 - source deletion reaches every governed derivative.
 
-## Evolution
+## V1 proof boundary
 
-1. Establish shared contracts and replayable states.
-2. Deliver evidence to reviewed relationship state.
-3. Add one safe, verifiable action.
-4. Add semantic memory and reviewable learning.
-5. Add provider-neutral external Agent access.
-6. Add managed research and parallelism only after evaluation supports it.
-
-Do not begin with a multi-agent recruiter, automatic outreach, universal
-candidate scoring, a wiki-first store, generic production tools, or a full
-n8n-based backend.
+The deterministic suite runs six critical cases five times through the real
+database control plane. Live Claude trials use the same protocol only when an
+explicit credential and pinned model are present; otherwise the artifact says
+`not_run_missing_credentials` and `missing_proof`. Neither result authorizes
+production rollout, real candidate data, or broader tools.
 
 The rationale for treating the Wiki as an Agent-facing compiled knowledge layer
 is recorded in

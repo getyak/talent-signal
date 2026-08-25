@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  AgentRunResponseSchema,
   AnalysisProposalResponseSchema,
+  AppleLoginChallengeRequestSchema,
+  AppleLoginChallengeResponseSchema,
+  AppleLoginRequestSchema,
   ApproveActionRequestSchema,
   ApproveEffectReversalRequestSchema,
   ApprovalResponseSchema,
@@ -11,10 +15,14 @@ import {
   CaptureIdentityCorrectionRequestSchema,
   CaptureIdentityCorrectionResponseSchema,
   ChatTaskRequestSchema,
+  ChatTaskReadbackSchema,
   ChatTaskResponseSchema,
   CompileKnowledgeRequestSchema,
   CONTRACT_VERSION,
+  CompletePursuitActionRequestSchema,
+  CreatePursuitAgentRunRequestSchema,
   CreateCaptureRequestSchema,
+  CreatePursuitRequestSchema,
   DeleteCaptureRequestSchema,
   DeleteCaptureResponseSchema,
   DeletionLineageResponseSchema,
@@ -45,26 +53,43 @@ import {
   PersonMergeResponseSchema,
   PersonMergeReversalPreviewSchema,
   PersonMergeReversalRequestSchema,
+  PursuitProposalResponseSchema,
+  PursuitProposalListResponseSchema,
+  PursuitProposalReviewResponseSchema,
+  PursuitDetailResponseSchema,
+  PursuitListResponseSchema,
+  PursuitMutationResponseSchema,
+  PursuitOperationResponseSchema,
   PublicResearchRequestSchema,
   PublicResearchResponseSchema,
   KnowledgeSnapshotSchema,
+  CurrentSessionResponseSchema,
+  LogoutResponseSchema,
   ReviseActionRequestSchema,
+  RevisePursuitRequestSchema,
+  ReviewPursuitProposalRequestSchema,
   SessionResponseSchema,
   SimulatedLoginRequestSchema,
   SourceRetentionReceiptSchema,
   SourceAuthorizationDecisionRequestSchema,
   SourceAuthorizationDecisionResponseSchema,
+  StagePursuitProposalRequestSchema,
   SubmitAnalysisProposalRequestSchema,
   SyncResponseSchema,
   TemporalStateResponseSchema,
   WorkspaceReviewResponseSchema,
   type ApproveActionRequest,
+  type AppleLoginChallengeRequest,
+  type AppleLoginRequest,
   type ApproveEffectReversalRequest,
   type AssertionDecisionRequest,
   type CreateCaptureRequest,
+  type CreatePursuitRequest,
+  type CompletePursuitActionRequest,
   type CaptureIdentityCorrectionRequest,
   type ChatTaskRequest,
   type CompileKnowledgeRequest,
+  type CreatePursuitAgentRunRequest,
   type DeleteCaptureRequest,
   type ExecuteActionRequest,
   type ExecuteEffectReversalRequest,
@@ -78,8 +103,11 @@ import {
   type RevokeApprovalRequest,
   type RevokeCapabilityRequest,
   type ReviseActionRequest,
+  type RevisePursuitRequest,
+  type ReviewPursuitProposalRequest,
   type SimulatedLoginRequest,
   type SourceAuthorizationDecisionRequest,
+  type StagePursuitProposalRequest,
   type SubmitAnalysisProposalRequest,
 } from "@talent-signal/contracts";
 import cors from "@fastify/cors";
@@ -92,6 +120,10 @@ import type { Pool } from "pg";
 import type { BackendConfig } from "./config.js";
 import { ApiError } from "./lib/apiError.js";
 import type { AuthContext } from "./modules/auth.js";
+import {
+  createPursuitAgentRun,
+  getAgentRun,
+} from "./modules/agentRuns.js";
 import { getRelationshipAgentHistory } from "./modules/agentHistory.js";
 import {
   approveAction,
@@ -106,8 +138,13 @@ import {
   revokeEffectReversalApproval,
 } from "./modules/actions.js";
 import {
+  type AppleTokenVerifying,
+  createAppleLoginChallenge,
+  createAppleSession,
   createAuthGuard,
   createSimulatedSession,
+  currentSession,
+  revokeCurrentSession,
 } from "./modules/auth.js";
 import {
   createCapture,
@@ -117,7 +154,7 @@ import {
   getTemporalState,
 } from "./modules/captures.js";
 import { decideAssertion } from "./modules/decisions.js";
-import { createChatTask } from "./modules/chat.js";
+import { createChatTask, getChatTaskReadback } from "./modules/chat.js";
 import {
   decideIdentityResolutionCase,
   getIdentityResolutionCase,
@@ -139,6 +176,21 @@ import {
   listPeople,
   searchPeople,
 } from "./modules/people.js";
+import {
+  completePursuitAction,
+  createPursuit,
+  getPursuit,
+  getPursuitOperation,
+  listPursuits,
+  revisePursuit,
+} from "./modules/pursuits.js";
+import {
+  getPursuitProposal,
+  listPursuitProposals,
+  reviewPursuitProposal,
+  stagePursuitProposal,
+  type ProposalReviewConflict,
+} from "./modules/pursuitProposals.js";
 import { createResourceCapture } from "./modules/resourceIntake.js";
 import {
   getLatestPublicResearchTask,
@@ -224,6 +276,7 @@ const PersonContextParamsSchema = Type.Object(
 );
 
 export interface AppDependencies {
+  appleTokenVerifier?: AppleTokenVerifying;
   config: BackendConfig;
   pool: Pool;
 }
@@ -231,7 +284,7 @@ export interface AppDependencies {
 export async function buildApp(
   dependencies: AppDependencies,
 ): Promise<FastifyInstance> {
-  const { config, pool } = dependencies;
+  const { appleTokenVerifier, config, pool } = dependencies;
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
@@ -351,7 +404,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '019_effect_reversals'`,
+           WHERE version = '027_evidence_review_authority_chain'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -398,8 +451,379 @@ export async function buildApp(
       createSimulatedSession(pool, config, request.body),
   );
 
+  app.post<{ Body: AppleLoginChallengeRequest }>(
+    "/v1/auth/apple/challenges",
+    {
+      schema: {
+        tags: ["auth"],
+        body: AppleLoginChallengeRequestSchema,
+        response: {
+          201: AppleLoginChallengeResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(await createAppleLoginChallenge(pool, config, request.body)),
+  );
+
+  app.post<{ Body: AppleLoginRequest }>(
+    "/v1/auth/apple",
+    {
+      schema: {
+        tags: ["auth"],
+        body: AppleLoginRequestSchema,
+        response: {
+          200: SessionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      createAppleSession(
+        pool,
+        config,
+        request.body,
+        appleTokenVerifier,
+      ),
+  );
+
   const authenticate = createAuthGuard(pool);
   const security = [{ bearerSession: [] }];
+
+  app.get(
+    "/v1/auth/session",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["auth"],
+        security,
+        response: {
+          200: CurrentSessionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => currentSession(pool, request.auth),
+  );
+
+  app.post(
+    "/v1/auth/logout",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["auth"],
+        security,
+        response: {
+          200: LogoutResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => revokeCurrentSession(pool, request.auth),
+  );
+
+  app.get(
+    "/v1/pursuits",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits"],
+        security,
+        response: {
+          200: PursuitListResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => listPursuits(pool, request.auth),
+  );
+
+  app.post<{ Body: CreatePursuitRequest }>(
+    "/v1/pursuits",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits"],
+        security,
+        body: CreatePursuitRequestSchema,
+        response: {
+          201: PursuitMutationResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createPursuit(pool, request.auth, request.body);
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/pursuits/:id",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: PursuitDetailResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => getPursuit(pool, request.auth, request.params.id),
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: CreatePursuitAgentRunRequest;
+  }>(
+    "/v1/pursuits/:id/agent-runs",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits", "agent"],
+        security,
+        params: IdParamsSchema,
+        body: CreatePursuitAgentRunRequestSchema,
+        response: {
+          201: AgentRunResponseSchema,
+          "4xx": ErrorResponseSchema,
+          "5xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createPursuitAgentRun(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/agent-runs/:id",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["agent"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: AgentRunResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => getAgentRun(pool, request.auth, request.params.id),
+  );
+
+  app.get(
+    "/v1/pursuit-proposals",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits", "review"],
+        security,
+        response: {
+          200: PursuitProposalListResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => listPursuitProposals(pool, request.auth),
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: RevisePursuitRequest;
+  }>(
+    "/v1/pursuits/:id/revisions",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits"],
+        security,
+        params: IdParamsSchema,
+        body: RevisePursuitRequestSchema,
+        response: {
+          200: PursuitMutationResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await revisePursuit(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.post<{
+    Params: { pursuitId: string; actionId: string };
+    Body: CompletePursuitActionRequest;
+  }>(
+    "/v1/pursuits/:pursuitId/actions/:actionId/completions",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits", "actions"],
+        security,
+        params: Type.Object(
+          {
+            pursuitId: Type.String({ format: "uuid" }),
+            actionId: Type.String({ format: "uuid" }),
+          },
+          { additionalProperties: false },
+        ),
+        body: CompletePursuitActionRequestSchema,
+        response: {
+          200: PursuitMutationResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await completePursuitAction(
+        pool,
+        request.auth,
+        request.params.pursuitId,
+        request.params.actionId,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: StagePursuitProposalRequest;
+  }>(
+    "/v1/pursuits/:id/proposals",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits", "review"],
+        security,
+        params: IdParamsSchema,
+        body: StagePursuitProposalRequestSchema,
+        response: {
+          201: PursuitProposalResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await stagePursuitProposal(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/pursuit-proposals/:id",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits", "review"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: PursuitProposalResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getPursuitProposal(pool, request.auth, request.params.id),
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: ReviewPursuitProposalRequest;
+  }>(
+    "/v1/pursuit-proposals/:id/reviews",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits", "review"],
+        security,
+        params: IdParamsSchema,
+        body: ReviewPursuitProposalRequestSchema,
+        response: {
+          200: PursuitProposalReviewResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await reviewPursuitProposal(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      reply.header("idempotent-replayed", result.replayed);
+      if (result.status === 409) {
+        const conflict = result.body as ProposalReviewConflict;
+        throw new ApiError(
+          409,
+          "PURSUIT_PROPOSAL_REVIEW_CONFLICT",
+          "The Pursuit changed; review the current revision before applying this Proposal.",
+          conflict,
+        );
+      }
+      return reply.status(result.status).send(result.body);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/operations/:id",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["operations"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: PursuitOperationResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getPursuitOperation(pool, request.auth, request.params.id),
+  );
 
   app.post<{ Body: CreateCaptureRequest }>(
     "/v1/captures",
@@ -1037,6 +1461,24 @@ export async function buildApp(
         .status(result.status)
         .send(result.body);
     },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/chat/tasks/:id/readback",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["chat"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: ChatTaskReadbackSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getChatTaskReadback(pool, request.auth, request.params.id),
   );
 
   app.get<{ Params: { id: string } }>(

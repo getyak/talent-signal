@@ -41,6 +41,7 @@ branch protection does not depend on a changing list of individual contexts.
 | `Security` | pull request, `main` push, weekly, manual | CodeQL results | cancel stale run per branch or PR |
 | `Pull request labels` | pull request metadata | labels only | one short job |
 | `Release iOS` | successful `CI` run on `main`, explicit manual request | TestFlight, tag, prerelease, attestation | serialize all releases; never cancel |
+| `TestFlight Access` | explicit manual request on `main` | scoped tester group/build access and invitation | serialize access repair; never cancel |
 
 All third-party actions are pinned to full commit SHAs. Dependabot proposes
 weekly updates for GitHub Actions, pnpm, and Bundler.
@@ -66,6 +67,14 @@ internal testing group with automatic distribution enabled and at least one
 eligible App Store Connect user. A green workflow proves upload and processing;
 the App Store Connect group and an invited-device installation prove that the
 build is usable on a phone.
+
+`TestFlight Access` audits the active team user, pending team invitation,
+TestFlight tester state, internal group membership, and latest valid build
+without exposing the configured tester email. It repairs missing group or build
+relationships and resends an unaccepted invitation when requested. A result of
+`SERVER_ACCESS_READY` proves only the server-side access path; tester states
+`INVITED`, `ACCEPTED`, and `INSTALLED` remain distinct, and only the last one
+proves a device download.
 
 ## Required GitHub settings
 

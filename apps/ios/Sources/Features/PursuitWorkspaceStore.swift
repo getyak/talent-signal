@@ -1,0 +1,844 @@
+import CryptoKit
+import Foundation
+
+struct PersistedPursuitActionCompletion: Codable, Equatable {
+    let workspaceID: String
+    let pursuitID: String
+    let actionID: String
+    var expectedPursuitRevision: Int
+    var expectedActionRevision: Int
+    var outcomeSummary: String
+    var operationID: UUID?
+    var receipt: PursuitReviewReceipt?
+    var updatedAt: Date
+}
+
+protocol PursuitActionCompletionPersisting: AnyObject {
+    func entry(for actionID: String) throws -> PersistedPursuitActionCompletion?
+    func allEntries() throws -> [PersistedPursuitActionCompletion]
+    func save(_ entry: PersistedPursuitActionCompletion) throws
+    func remove(actionID: String) throws
+    func deleteAll() throws
+}
+
+final class UserDefaultsPursuitActionCompletionStore: PursuitActionCompletionPersisting {
+    private let defaults: UserDefaults
+    private let key = "talent-signal.pursuit-action-completions.v1"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        if ProcessInfo.processInfo.arguments.contains(
+            "--reset-pursuit-action-completions"
+        ) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    func entry(for actionID: String) -> PersistedPursuitActionCompletion? {
+        entries[actionID]
+    }
+
+    func allEntries() -> [PersistedPursuitActionCompletion] {
+        Array(entries.values)
+    }
+
+    func save(_ entry: PersistedPursuitActionCompletion) {
+        var next = entries
+        next[entry.actionID] = entry
+        if let data = try? JSONEncoder().encode(next) {
+            defaults.set(data, forKey: key)
+        }
+    }
+
+    func remove(actionID: String) {
+        var next = entries
+        next.removeValue(forKey: actionID)
+        if next.isEmpty {
+            defaults.removeObject(forKey: key)
+        } else if let data = try? JSONEncoder().encode(next) {
+            defaults.set(data, forKey: key)
+        }
+    }
+
+    func deleteAll() {
+        defaults.removeObject(forKey: key)
+    }
+
+    private var entries: [String: PersistedPursuitActionCompletion] {
+        guard let data = defaults.data(forKey: key),
+              let value = try? JSONDecoder().decode(
+                [String: PersistedPursuitActionCompletion].self,
+                from: data
+              ) else {
+            return [:]
+        }
+        return value
+    }
+}
+
+final class FilePursuitActionCompletionStore: PursuitActionCompletionPersisting {
+    private static let retention: TimeInterval = 30 * 24 * 60 * 60
+    private let fileURL: URL
+    private let deletionTombstoneURL: URL
+    private let now: () -> Date
+
+    init(
+        accountID: String,
+        rootURL: URL? = nil,
+        now: @escaping () -> Date = Date.init
+    ) {
+        let digest = SHA256.hash(data: Data(accountID.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let root = rootURL ?? FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+        fileURL = root
+            .appending(path: "TalentSignal/ActionCompletions", directoryHint: .isDirectory)
+            .appending(path: "\(digest).json")
+        deletionTombstoneURL = fileURL.appendingPathExtension("deletion-pending")
+        self.now = now
+    }
+
+    func entry(for actionID: String) throws -> PersistedPursuitActionCompletion? {
+        try entries()[actionID]
+    }
+
+    func allEntries() throws -> [PersistedPursuitActionCompletion] {
+        Array(try entries().values)
+    }
+
+    func save(_ entry: PersistedPursuitActionCompletion) throws {
+        var next = try entries()
+        next[entry.actionID] = entry
+        try write(next)
+    }
+
+    func remove(actionID: String) throws {
+        var next = try entries()
+        next.removeValue(forKey: actionID)
+        if next.isEmpty {
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                try FileManager.default.removeItem(at: fileURL)
+            }
+        } else {
+            try write(next)
+        }
+    }
+
+    func deleteAll() throws {
+        try writeProtected(Data("pending".utf8), to: deletionTombstoneURL)
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            try FileManager.default.removeItem(at: fileURL)
+        }
+        guard !FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        if FileManager.default.fileExists(atPath: deletionTombstoneURL.path) {
+            try FileManager.default.removeItem(at: deletionTombstoneURL)
+        }
+    }
+
+    private func entries() throws -> [String: PersistedPursuitActionCompletion] {
+        if FileManager.default.fileExists(atPath: deletionTombstoneURL.path) {
+            try deleteAll()
+            return [:]
+        }
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return [:]
+        }
+        let decoded = try JSONDecoder().decode(
+            [String: PersistedPursuitActionCompletion].self,
+            from: Data(contentsOf: fileURL)
+        )
+        let cutoff = now().addingTimeInterval(-Self.retention)
+        let retained = decoded.filter { $0.value.updatedAt > cutoff }
+        if retained.count != decoded.count {
+            if retained.isEmpty {
+                try FileManager.default.removeItem(at: fileURL)
+            } else {
+                try write(retained)
+            }
+        }
+        return retained
+    }
+
+    private func write(
+        _ entries: [String: PersistedPursuitActionCompletion]
+    ) throws {
+        try writeProtected(try JSONEncoder().encode(entries), to: fileURL)
+    }
+
+    private func writeProtected(_ data: Data, to destination: URL) throws {
+        let directory = destination.deletingLastPathComponent()
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var protectedDirectory = directory
+        try protectedDirectory.setResourceValues(values)
+        try data.write(
+            to: destination,
+            options: [.atomic, .completeFileProtectionUnlessOpen]
+        )
+    }
+}
+
+struct PursuitActionRecoveryItem: Equatable, Identifiable {
+    enum Status: Equatable {
+        case recovering
+        case recorded
+    }
+
+    let actionID: String
+    let pursuitID: String
+    let pursuitTitle: String
+    let actionTitle: String
+    let ownerDisplayName: String
+    let outcomeSummary: String
+    let updatedAt: Date
+    let status: Status
+
+    var id: String { actionID }
+}
+
+@MainActor
+final class PursuitWorkspaceStore: ObservableObject {
+    enum Phase: Equatable {
+        case preview(PursuitWorkspaceSnapshot)
+        case loading
+        case loaded(PursuitWorkspaceSnapshot)
+        case empty(PursuitWorkspaceSnapshot)
+        case failed(String)
+    }
+
+    enum ActionCompletionPhase: Equatable {
+        case idle
+        case editing
+        case confirming(operationID: UUID)
+        case unknownLocked(operationID: UUID)
+        case recorded(PursuitActionCompletionResult)
+        case conflict(String)
+        case failed(String)
+    }
+
+    @Published private(set) var phase: Phase
+    @Published private(set) var lastCanonicalRevisionByPursuit: [String: Int] = [:]
+    @Published private(set) var refreshNotice: String?
+    @Published private(set) var isReadInFlight = false
+    @Published private(set) var completedReadCount = 0
+    @Published private(set) var actionCompletionPhases: [String: ActionCompletionPhase] = [:]
+    @Published private(set) var actionOutcomeDrafts: [String: String] = [:]
+
+    let isCanonical: Bool
+    private let service: PursuitWorkspaceServing?
+    private let actionCompletions: PursuitActionCompletionPersisting
+    private let operationIDFactory: () -> UUID
+
+    init(
+        service: PursuitWorkspaceServing?,
+        actionCompletions: PursuitActionCompletionPersisting = UserDefaultsPursuitActionCompletionStore(),
+        operationIDFactory: @escaping () -> UUID = UUID.init
+    ) {
+        self.service = service
+        self.actionCompletions = actionCompletions
+        self.operationIDFactory = operationIDFactory
+        isCanonical = service != nil
+        phase = service == nil ? .preview(.preview) : .loading
+    }
+
+    func load() async {
+        guard let service else { return }
+        guard !isReadInFlight else { return }
+        isReadInFlight = true
+        defer {
+            isReadInFlight = false
+            completedReadCount += 1
+        }
+        let currentSnapshot = snapshot
+        let isRetryingFailure: Bool
+        if case .failed = phase {
+            isRetryingFailure = true
+        } else {
+            isRetryingFailure = false
+        }
+        if currentSnapshot == nil && !isRetryingFailure {
+            refreshNotice = nil
+            phase = .loading
+        }
+        do {
+            let snapshot = try await service.loadWorkspace()
+            refreshNotice = nil
+            let nextRevisions = Dictionary(
+                uniqueKeysWithValues: snapshot.pursuits.map { ($0.id, $0.revision) }
+            )
+            if !lastCanonicalRevisionByPursuit.isEmpty {
+                let removedCount = lastCanonicalRevisionByPursuit.keys.filter {
+                    nextRevisions[$0] == nil
+                }.count
+                let changedCount = lastCanonicalRevisionByPursuit.filter { current in
+                    nextRevisions[current.key].map { nextRevision in
+                        nextRevision != current.value
+                    } ?? false
+                }.count
+                if removedCount > 0 {
+                    refreshNotice = removedCount == 1
+                        ? "A Pursuit was removed from the canonical workspace. This view is current."
+                        : "\(removedCount) Pursuits were removed from the canonical workspace. This view is current."
+                } else if changedCount > 0 {
+                    refreshNotice = changedCount == 1
+                        ? "A Pursuit changed in the canonical workspace. This view was refreshed."
+                        : "\(changedCount) Pursuits changed in the canonical workspace. This view was refreshed."
+                }
+            }
+            lastCanonicalRevisionByPursuit = nextRevisions
+            phase = snapshot.pursuits.isEmpty && snapshot.people.isEmpty
+                ? .empty(snapshot)
+                : .loaded(snapshot)
+            await restoreSavedActionCompletions(in: snapshot)
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription
+                ?? "The canonical workspace could not be loaded."
+            if let currentSnapshot {
+                refreshNotice = "Refresh failed. Showing the last canonical read; retry to confirm it is current. \(message)"
+                phase = currentSnapshot.pursuits.isEmpty && currentSnapshot.people.isEmpty
+                    ? .empty(currentSnapshot)
+                    : .loaded(currentSnapshot)
+            } else {
+                phase = .failed(message)
+            }
+        }
+    }
+
+    func ask(
+        objective: String,
+        personID: String,
+        relationshipContextID: String,
+        idempotencyKey: String
+    ) async throws -> RelationshipAskResponse {
+        guard let service else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        return try await service.ask(
+            objective: objective,
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func revalidateAsk(
+        response: RelationshipAskResponse,
+        personID: String,
+        relationshipContextID: String
+    ) async throws {
+        guard let service else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        try await service.revalidateAsk(
+            response: response,
+            personID: personID,
+            relationshipContextID: relationshipContextID
+        )
+    }
+
+    func rejectEvidence(
+        fragmentID: String,
+        expectedReviewStatus: String,
+        expectedLastReviewID: String?,
+        reason: String,
+        idempotencyKey: String
+    ) async throws -> PursuitEvidenceReviewResult {
+        guard let service else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        let result = try await service.rejectEvidence(
+            fragmentID: fragmentID,
+            expectedReviewStatus: expectedReviewStatus,
+            expectedLastReviewID: expectedLastReviewID,
+            reason: reason,
+            idempotencyKey: idempotencyKey
+        )
+        await load()
+        return result
+    }
+
+    func reviewEvidence(
+        fragmentID: String,
+        expectedReviewStatus: String,
+        expectedLastReviewID: String?,
+        decision: String,
+        reason: String,
+        idempotencyKey: String
+    ) async throws -> PursuitEvidenceReviewResult {
+        guard let service else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        let result = try await service.reviewEvidence(
+            fragmentID: fragmentID,
+            expectedReviewStatus: expectedReviewStatus,
+            expectedLastReviewID: expectedLastReviewID,
+            decision: decision,
+            reason: reason,
+            idempotencyKey: idempotencyKey
+        )
+        await load()
+        return result
+    }
+
+    func prepareActionCompletion(
+        pursuit: WorkspacePursuit,
+        action: WorkspaceAction
+    ) async {
+        let savedEntry: PersistedPursuitActionCompletion?
+        do {
+            savedEntry = try actionCompletions.entry(for: action.id)
+        } catch {
+            actionCompletionPhases[action.id] = .failed(
+                "Protected action recovery could not be read. No outcome was sent."
+            )
+            return
+        }
+        guard let entry = savedEntry,
+              entry.workspaceID == pursuit.workspaceID,
+              entry.pursuitID == pursuit.id else {
+            actionOutcomeDrafts[action.id] = ""
+            actionCompletionPhases[action.id] = .editing
+            return
+        }
+        actionOutcomeDrafts[action.id] = entry.outcomeSummary
+        if let receipt = entry.receipt {
+            let result = PursuitActionCompletionResult(
+                pursuit: pursuit,
+                receipt: receipt
+            )
+            if trustedCompletion(
+                result,
+                entry: entry,
+                currentUserID: snapshot?.currentUserID
+            ) {
+                actionCompletionPhases[action.id] = .recorded(result)
+            } else if let operationID = entry.operationID {
+                actionCompletionPhases[action.id] = .unknownLocked(
+                    operationID: operationID
+                )
+                await reconcileActionCompletion(actionID: action.id)
+            }
+        } else if let operationID = entry.operationID {
+            actionCompletionPhases[action.id] = .unknownLocked(operationID: operationID)
+            await reconcileActionCompletion(actionID: action.id)
+        } else {
+            actionCompletionPhases[action.id] = .editing
+        }
+    }
+
+    func updateActionOutcomeDraft(
+        pursuit: WorkspacePursuit,
+        action: WorkspaceAction,
+        value: String
+    ) {
+        guard !isActionCompletionLocked(actionID: action.id) else { return }
+        let bounded = String(value.prefix(1_000))
+        actionOutcomeDrafts[action.id] = bounded
+        do {
+            try actionCompletions.save(
+                PersistedPursuitActionCompletion(
+                    workspaceID: pursuit.workspaceID,
+                    pursuitID: pursuit.id,
+                    actionID: action.id,
+                    expectedPursuitRevision: pursuit.revision,
+                    expectedActionRevision: action.revision,
+                    outcomeSummary: bounded,
+                    operationID: nil,
+                    receipt: nil,
+                    updatedAt: Date()
+                )
+            )
+            actionCompletionPhases[action.id] = .editing
+        } catch {
+            actionCompletionPhases[action.id] = .failed(
+                "This draft could not be protected on this device. No outcome was sent."
+            )
+        }
+    }
+
+    func cancelActionCompletion(actionID: String) {
+        guard !isActionCompletionLocked(actionID: actionID) else { return }
+        do {
+            try actionCompletions.remove(actionID: actionID)
+            actionOutcomeDrafts.removeValue(forKey: actionID)
+            actionCompletionPhases[actionID] = .idle
+        } catch {
+            actionCompletionPhases[actionID] = .failed(
+                "The protected draft could not be removed. Try again before leaving this device."
+            )
+        }
+    }
+
+    func submitActionCompletion(
+        pursuit: WorkspacePursuit,
+        action: WorkspaceAction
+    ) async {
+        guard let service else {
+            actionCompletionPhases[action.id] = .failed(
+                PursuitWorkspaceClientError.actionCompletionUnavailable.localizedDescription
+            )
+            return
+        }
+        let outcome = (actionOutcomeDrafts[action.id] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !outcome.isEmpty, !isActionCompletionLocked(actionID: action.id) else {
+            return
+        }
+        let operationID = operationIDFactory()
+        var entry = PersistedPursuitActionCompletion(
+            workspaceID: pursuit.workspaceID,
+            pursuitID: pursuit.id,
+            actionID: action.id,
+            expectedPursuitRevision: pursuit.revision,
+            expectedActionRevision: action.revision,
+            outcomeSummary: outcome,
+            operationID: operationID,
+            receipt: nil,
+            updatedAt: Date()
+        )
+        do {
+            try actionCompletions.save(entry)
+        } catch {
+            actionCompletionPhases[action.id] = .failed(
+                "This operation could not be protected on this device. No outcome was sent."
+            )
+            return
+        }
+        actionCompletionPhases[action.id] = .confirming(operationID: operationID)
+        do {
+            let result = try await service.completeAction(
+                pursuitID: pursuit.id,
+                actionID: action.id,
+                expectedPursuitRevision: pursuit.revision,
+                expectedActionRevision: action.revision,
+                outcomeSummary: outcome,
+                operationID: operationID
+            )
+            guard trustedCompletion(
+                result,
+                entry: entry,
+                currentUserID: snapshot?.currentUserID
+            ) else {
+                actionCompletionPhases[action.id] = .unknownLocked(
+                    operationID: operationID
+                )
+                return
+            }
+            entry.receipt = result.receipt
+            entry.updatedAt = Date()
+            do {
+                try actionCompletions.save(entry)
+            } catch {
+                actionCompletionPhases[action.id] = .unknownLocked(
+                    operationID: operationID
+                )
+                return
+            }
+            actionOutcomeDrafts[action.id] = outcome
+            actionCompletionPhases[action.id] = .recorded(result)
+            await load()
+        } catch let error as PursuitWorkspaceClientError {
+            if case let .backend(code, message) = error {
+                entry.operationID = nil
+                entry.updatedAt = Date()
+                do {
+                    try actionCompletions.save(entry)
+                    actionCompletionPhases[action.id] = .conflict("\(message) (\(code))")
+                } catch {
+                    actionCompletionPhases[action.id] = .unknownLocked(
+                        operationID: operationID
+                    )
+                }
+            } else {
+                actionCompletionPhases[action.id] = .unknownLocked(
+                    operationID: operationID
+                )
+            }
+        } catch {
+            actionCompletionPhases[action.id] = .unknownLocked(operationID: operationID)
+        }
+    }
+
+    func reconcileActionCompletion(actionID: String) async {
+        guard let service else { return }
+        let savedEntry: PersistedPursuitActionCompletion?
+        do {
+            savedEntry = try actionCompletions.entry(for: actionID)
+        } catch {
+            actionCompletionPhases[actionID] = .failed(
+                "Protected action recovery could not be read. No retry was sent."
+            )
+            return
+        }
+        guard var entry = savedEntry,
+              let operationID = entry.operationID else { return }
+        actionCompletionPhases[actionID] = .unknownLocked(operationID: operationID)
+        do {
+            let readback = try await service.readOperation(id: operationID)
+            if readback.operation.status == "applied",
+               let receipt = readback.receipt,
+               trustedReconciliation(readback, entry: entry, receipt: receipt) {
+                entry.receipt = receipt
+                entry.updatedAt = Date()
+                do {
+                    try actionCompletions.save(entry)
+                } catch {
+                    actionCompletionPhases[actionID] = .unknownLocked(
+                        operationID: operationID
+                    )
+                    return
+                }
+                actionOutcomeDrafts[actionID] = entry.outcomeSummary
+                actionCompletionPhases[actionID] = .recorded(
+                    PursuitActionCompletionResult(
+                        pursuit: readback.pursuit,
+                        receipt: receipt
+                    )
+                )
+                await load()
+            } else if readback.operation.status == "conflict" {
+                entry.operationID = nil
+                entry.updatedAt = Date()
+                do {
+                    try actionCompletions.save(entry)
+                    actionCompletionPhases[actionID] = .conflict(
+                        "Canonical state changed before this outcome could be recorded. Review the current action."
+                    )
+                    await load()
+                } catch {
+                    actionCompletionPhases[actionID] = .unknownLocked(
+                        operationID: operationID
+                    )
+                }
+            } else if readback.operation.status == "failed" {
+                entry.operationID = nil
+                entry.updatedAt = Date()
+                do {
+                    try actionCompletions.save(entry)
+                    actionCompletionPhases[actionID] = .failed(
+                        "Canonical readback proves that this outcome was not recorded. The draft remains available."
+                    )
+                    await load()
+                } catch {
+                    actionCompletionPhases[actionID] = .unknownLocked(
+                        operationID: operationID
+                    )
+                }
+            }
+        } catch let error as PursuitWorkspaceClientError {
+            if case let .backend(code, _) = error, code == "OPERATION_NOT_FOUND" {
+                entry.operationID = nil
+                entry.updatedAt = Date()
+                do {
+                    try actionCompletions.save(entry)
+                    actionCompletionPhases[actionID] = .editing
+                    refreshNotice = "Canonical readback found no action operation. The saved draft is safe to submit again."
+                    await load()
+                } catch {
+                    actionCompletionPhases[actionID] = .unknownLocked(
+                        operationID: operationID
+                    )
+                }
+            } else {
+                actionCompletionPhases[actionID] = .unknownLocked(
+                    operationID: operationID
+                )
+            }
+        } catch {
+            actionCompletionPhases[actionID] = .unknownLocked(operationID: operationID)
+        }
+    }
+
+    func actionCompletionPhase(actionID: String) -> ActionCompletionPhase {
+        actionCompletionPhases[actionID] ?? .idle
+    }
+
+    func hasSavedActionCompletion(actionID: String) -> Bool {
+        (try? actionCompletions.entry(for: actionID)) != nil
+    }
+
+    func latestActionRecovery(
+        in snapshot: PursuitWorkspaceSnapshot
+    ) -> PursuitActionRecoveryItem? {
+        guard let savedEntries = try? actionCompletions.allEntries() else {
+            return nil
+        }
+        for entry in savedEntries.sorted(by: {
+            $0.updatedAt > $1.updatedAt
+        }) where entry.workspaceID == snapshot.workspaceID
+            && (entry.operationID != nil || entry.receipt != nil) {
+            guard let pursuit = snapshot.pursuit(id: entry.pursuitID),
+                  let action = pursuit.actions.first(where: {
+                      $0.id == entry.actionID
+                  }) else { continue }
+            let status: PursuitActionRecoveryItem.Status
+            let canonicalAction: WorkspaceAction
+            if case let .recorded(result) = actionCompletionPhase(
+                actionID: entry.actionID
+            ), let recordedAction = result.pursuit.actions.first(where: {
+                $0.id == entry.actionID
+            }) {
+                status = .recorded
+                canonicalAction = recordedAction
+            } else {
+                status = .recovering
+                canonicalAction = action
+            }
+            return PursuitActionRecoveryItem(
+                actionID: entry.actionID,
+                pursuitID: entry.pursuitID,
+                pursuitTitle: pursuit.title,
+                actionTitle: canonicalAction.title,
+                ownerDisplayName: canonicalAction.ownerDisplayName,
+                outcomeSummary: entry.outcomeSummary,
+                updatedAt: entry.updatedAt,
+                status: status
+            )
+        }
+        return nil
+    }
+
+    private func restoreSavedActionCompletions(
+        in snapshot: PursuitWorkspaceSnapshot
+    ) async {
+        let savedEntries: [PersistedPursuitActionCompletion]
+        do {
+            savedEntries = try actionCompletions.allEntries()
+        } catch {
+            refreshNotice = "Protected action recovery could not be read. No outcome will be retried."
+            return
+        }
+        let entries = savedEntries
+            .filter { $0.workspaceID == snapshot.workspaceID }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        for entry in entries {
+            guard let pursuit = snapshot.pursuit(id: entry.pursuitID),
+                  let action = pursuit.actions.first(where: {
+                      $0.id == entry.actionID
+                  }) else { continue }
+            actionOutcomeDrafts[action.id] = entry.outcomeSummary
+            if let receipt = entry.receipt {
+                let result = PursuitActionCompletionResult(
+                    pursuit: pursuit,
+                    receipt: receipt
+                )
+                if trustedCompletion(
+                    result,
+                    entry: entry,
+                    currentUserID: snapshot.currentUserID
+                ) {
+                    actionCompletionPhases[action.id] = .recorded(result)
+                    continue
+                }
+            }
+            if let operationID = entry.operationID {
+                actionCompletionPhases[action.id] = .unknownLocked(
+                    operationID: operationID
+                )
+                await reconcileActionCompletion(actionID: action.id)
+            } else {
+                actionCompletionPhases[action.id] = .editing
+            }
+        }
+    }
+
+    func deleteSavedActionCompletions() -> Bool {
+        do {
+            try actionCompletions.deleteAll()
+            actionOutcomeDrafts = [:]
+            actionCompletionPhases = [:]
+            return true
+        } catch {
+            refreshNotice = "Protected action recovery could not be removed. Sign out was paused; try again."
+            return false
+        }
+    }
+
+    private func isActionCompletionLocked(actionID: String) -> Bool {
+        switch actionCompletionPhase(actionID: actionID) {
+        case .confirming, .unknownLocked, .recorded:
+            return true
+        case .idle, .editing, .conflict, .failed:
+            return false
+        }
+    }
+
+    private func trustedCompletion(
+        _ result: PursuitActionCompletionResult,
+        entry: PersistedPursuitActionCompletion,
+        currentUserID: String?
+    ) -> Bool {
+        guard let operationID = entry.operationID?.uuidString.lowercased(),
+              let action = result.pursuit.actions.first(where: {
+                $0.id == entry.actionID
+              }) else { return false }
+        return result.pursuit.id == entry.pursuitID
+            && result.pursuit.workspaceID == entry.workspaceID
+            && result.receipt.workspaceID == entry.workspaceID
+            && result.receipt.operationID == operationID
+            && result.receipt.operationKind == "revise_pursuit"
+            && result.receipt.status == "applied"
+            && result.receipt.proposalID == nil
+            && result.receipt.actorUserID == currentUserID
+            && result.receipt.outcome == "canonical_applied"
+            && result.receipt.entityRef.beforeRevision == entry.expectedPursuitRevision
+            && result.receipt.entityRef.afterRevision == entry.expectedPursuitRevision + 1
+            && result.receipt.entityRef.afterRevision == result.pursuit.revision
+            && Set(result.receipt.changedFields) == Set([
+                "actions.\(entry.actionID).status",
+                "actions.\(entry.actionID).outcome_summary",
+            ])
+            && result.receipt.externalEffects.isEmpty
+            && action.ownerUserID == currentUserID
+            && action.status == "completed"
+            && action.revision == entry.expectedActionRevision + 1
+            && action.outcomeSummary == entry.outcomeSummary
+            && action.externalEffects.isEmpty
+    }
+
+    private func trustedReconciliation(
+        _ readback: PursuitActionOperationReadback,
+        entry: PersistedPursuitActionCompletion,
+        receipt: PursuitReviewReceipt
+    ) -> Bool {
+        guard let operationID = entry.operationID?.uuidString.lowercased(),
+              let action = readback.pursuit.actions.first(where: {
+                $0.id == entry.actionID
+              }) else { return false }
+        let result = PursuitActionCompletionResult(
+            pursuit: readback.pursuit,
+            receipt: receipt
+        )
+        return readback.operation.id == operationID
+            && readback.operation.pursuitID == entry.pursuitID
+            && readback.operation.proposalID == nil
+            && readback.operation.operationKind == "revise_pursuit"
+            && readback.operation.status == "applied"
+            && readback.operation.beforeRevision == entry.expectedPursuitRevision
+            && readback.operation.afterRevision == receipt.entityRef.afterRevision
+            && action.ownerUserID == receipt.actorUserID
+            && trustedCompletion(
+                result,
+                entry: entry,
+                currentUserID: receipt.actorUserID
+            )
+    }
+
+    var snapshot: PursuitWorkspaceSnapshot? {
+        switch phase {
+        case let .preview(snapshot), let .loaded(snapshot), let .empty(snapshot):
+            return snapshot
+        case .loading, .failed:
+            return nil
+        }
+    }
+}

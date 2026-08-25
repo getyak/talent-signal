@@ -2,11 +2,30 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-check_project="talent-signal-backend-check"
-artifact_dir="$repo_root/docs/evaluations/overnight/backend"
+check_project="${BACKEND_CHECK_PROJECT:-talent-signal-backend-check-$$}"
+artifact_dir="${BACKEND_CHECK_ARTIFACT_DIR:-$repo_root/docs/evaluations/overnight/backend}"
+pursuit_domain_artifact_dir="${PURSUIT_DOMAIN_ARTIFACT_DIR:-$repo_root/docs/evaluations/2026-08-24-v1-prd-01}"
+pursuit_proposal_artifact_dir="${PURSUIT_PROPOSAL_ARTIFACT_DIR:-$repo_root/docs/evaluations/2026-08-24-v1-prd-04}"
+pursuit_evidence_artifact_dir="${PURSUIT_EVIDENCE_ARTIFACT_DIR:-$repo_root/docs/evaluations/2026-08-24-v1-prd-07}"
+agent_artifact_dir="${AGENT_CONTROL_PLANE_ARTIFACT_DIR:-$repo_root/docs/evaluations/2026-08-24-v1-prd-03}"
 
-export POSTGRES_PORT=55433
-export BACKEND_PORT=4318
+mkdir -p \
+  "$artifact_dir" \
+  "$pursuit_domain_artifact_dir" \
+  "$pursuit_proposal_artifact_dir" \
+  "$pursuit_evidence_artifact_dir" \
+  "$agent_artifact_dir"
+
+free_loopback_port() {
+  ruby -rsocket -e '
+    server = TCPServer.new("127.0.0.1", 0)
+    print server.addr[1]
+    server.close
+  '
+}
+
+export POSTGRES_PORT="${POSTGRES_PORT:-$(free_loopback_port)}"
+export BACKEND_PORT="${BACKEND_PORT:-$(free_loopback_port)}"
 export PNPM_CONFIG_IGNORE_SCRIPTS=true
 
 capture_service_evidence() {
@@ -51,7 +70,30 @@ docker compose \
   up --build --wait
 
 API_BASE_URL="http://127.0.0.1:$BACKEND_PORT" \
+DATABASE_URL="postgresql://talent_signal_local:talent_signal_local_only@127.0.0.1:$POSTGRES_PORT/talent_signal_local" \
+node "$repo_root/apps/backend/dist/evaluation/runEvidenceReviewAuthorityEvaluation.js" \
+  > "$artifact_dir/evidence-review-authority-runtime.json"
+
+API_BASE_URL="http://127.0.0.1:$BACKEND_PORT" \
 EVALUATION_ARTIFACT_DIR="$artifact_dir" \
 node "$repo_root/apps/backend/dist/evaluation/runEvaluation.js"
+
+API_BASE_URL="http://127.0.0.1:$BACKEND_PORT" \
+EVALUATION_ARTIFACT_DIR="$pursuit_domain_artifact_dir" \
+node "$repo_root/apps/backend/dist/evaluation/runPursuitDomainEvaluation.js"
+
+API_BASE_URL="http://127.0.0.1:$BACKEND_PORT" \
+EVALUATION_ARTIFACT_DIR="$pursuit_proposal_artifact_dir" \
+node "$repo_root/apps/backend/dist/evaluation/runPursuitProposalEvaluation.js"
+
+API_BASE_URL="http://127.0.0.1:$BACKEND_PORT" \
+DATABASE_URL="postgresql://talent_signal_local:talent_signal_local_only@127.0.0.1:$POSTGRES_PORT/talent_signal_local" \
+EVALUATION_ARTIFACT_DIR="$pursuit_evidence_artifact_dir" \
+node "$repo_root/apps/backend/dist/evaluation/runPursuitEvidenceIntegrityEvaluation.js"
+
+API_BASE_URL="http://127.0.0.1:$BACKEND_PORT" \
+EVALUATION_DATABASE_URL="postgresql://talent_signal_local:talent_signal_local_only@127.0.0.1:$POSTGRES_PORT/talent_signal_local" \
+EVALUATION_ARTIFACT_DIR="$agent_artifact_dir" \
+node "$repo_root/apps/backend/dist/evaluation/runAgentControlPlaneEvaluation.js"
 
 capture_service_evidence

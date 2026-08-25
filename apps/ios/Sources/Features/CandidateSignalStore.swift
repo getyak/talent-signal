@@ -469,6 +469,7 @@ struct AppLaunchConfiguration: Equatable {
     }
 
     static func parse(arguments: [String]) -> AppLaunchConfiguration {
+#if DEBUG
         let fixtureID = value(after: "--fixture-id", in: arguments)
         let scenarioValue = value(after: "--scenario", in: arguments)
         let endpoint = value(after: "--endpoint", in: arguments)
@@ -498,6 +499,13 @@ struct AppLaunchConfiguration: Equatable {
             endpoint: endpoint,
             backendEndpoint: backendEndpoint
         )
+#else
+        return AppLaunchConfiguration(
+            scenario: .idle,
+            endpoint: nil,
+            backendEndpoint: nil
+        )
+#endif
     }
 
     private static func value(after flag: String, in arguments: [String]) -> String? {
