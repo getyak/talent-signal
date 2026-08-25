@@ -7,8 +7,20 @@ REPOSITORY_ROOT = File.expand_path("..", __dir__)
 IOS_PROJECT = File.join(REPOSITORY_ROOT, "apps/ios/TalentSignal.xcodeproj")
 IOS_SCHEME = "TalentSignal"
 IOS_OUTPUT = File.join(REPOSITORY_ROOT, "build/ios")
+IOS_ENVIRONMENT_SCRIPT = File.join(
+  REPOSITORY_ROOT,
+  "scripts/ios/configure-build-environment.mjs"
+)
 DEFAULT_MATCH_GIT_URL = "git@github.com:getyak/talent-signal-certs.git"
 DEFAULT_MATCH_GIT_BRANCH = "main"
+
+def configure_ios_environment(configuration)
+  sh(
+    "node",
+    IOS_ENVIRONMENT_SCRIPT,
+    "--configuration", configuration
+  )
+end
 
 def release_changelog
   path = ENV["RELEASE_CHANGELOG_PATH"]
@@ -51,6 +63,7 @@ end
 platform :ios do
   desc "Compile the Release configuration without code signing"
   lane :build_only do
+    configure_ios_environment("Release")
     sh(
       "xcodebuild",
       "-project", IOS_PROJECT,
@@ -77,6 +90,7 @@ platform :ios do
   desc "Archive and upload an internal TestFlight build"
   lane :beta do
     setup_ci if ENV["CI"]
+    configure_ios_environment("Release")
 
     key = app_store_connect_key
     team_id = ENV.fetch("DEVELOPMENT_TEAM", "6RG2F8YY59")

@@ -25,6 +25,7 @@
     "eval:v1-atoms": "node scripts/evals/capture-v1-atomic-scores.mjs",
     "hooks:install": "./scripts/install-git-hooks.sh",
     "ios:check": "./scripts/ios/check.sh",
+    "ios:configure": "node scripts/ios/configure-build-environment.mjs --configuration Debug",
     "ios:generate": "./scripts/ios/generate.sh",
     "lint": "pnpm --filter @talent-signal/web lint",
     "typecheck": "pnpm --filter @talent-signal/web typecheck",

@@ -119,6 +119,7 @@
 		D137439B29C6808B301FD14C /* ReleaseBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseBoundaryTests.swift; sourceTree = "<group>"; };
 		D6A9699249B87A87A878D261 /* AudioSignalCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalCapture.swift; sourceTree = "<group>"; };
 		D91833FC9D20274A1A85C004 /* PursuitWorkspaceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitWorkspaceClient.swift; sourceTree = "<group>"; };
+		DA9C76EA5C3003ACBC256441 /* Environment.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Environment.xcconfig; sourceTree = "<group>"; };
 		DC6D8F6894923DD54E359F8E /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
 		E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalTests.swift; sourceTree = "<group>"; };
 		E43E2D32DD9913AC4F6E097A /* PendingCaptureInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingCaptureInbox.swift; sourceTree = "<group>"; };
@@ -131,6 +132,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		26E2674E91245DA8CC0A8495 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				DA9C76EA5C3003ACBC256441 /* Environment.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		5F3AB4552568EA1521E713B1 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
@@ -253,6 +262,7 @@
 		FC3E87D24265DCFBA4BEE614 = {
 			isa = PBXGroup;
 			children = (
+				26E2674E91245DA8CC0A8495 /* Config */,
 				CB5A598FB680E4FC5C5CE15C /* Resources */,
 				BBDC5D37D43F60DADC79F480 /* Sources */,
 				5F3AB4552568EA1521E713B1 /* Tests */,
@@ -461,32 +471,15 @@
 /* Begin XCBuildConfiguration section */
 		1A1A903134B3860421BE4234 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = DA9C76EA5C3003ACBC256441 /* Environment.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Resources/TalentSignal.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Distribution: Xiong Xinwei (6RG2F8YY59)";
 				CODE_SIGN_STYLE = Manual;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Talent Signal";
-				INFOPLIST_KEY_CFBundleIconName = AppIcon;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Talent Signal records audio only after you confirm authorization and tap Start while the app is in the foreground.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Talent Signal imports only the conversation screenshot you choose.";
-				INFOPLIST_KEY_TalentSignalAPIBaseURL = "$(TALENT_SIGNAL_API_BASE_URL)";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = (
-					UIInterfaceOrientationPortrait,
-					UIInterfaceOrientationPortraitUpsideDown,
-					UIInterfaceOrientationLandscapeLeft,
-					UIInterfaceOrientationLandscapeRight,
-				);
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
-					UIInterfaceOrientationPortrait,
-				);
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -683,32 +676,15 @@
 		};
 		D967CF76C8A3A8041B6AEA3A /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = DA9C76EA5C3003ACBC256441 /* Environment.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Resources/TalentSignal.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Talent Signal";
-				INFOPLIST_KEY_CFBundleIconName = AppIcon;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Talent Signal records audio only after you confirm authorization and tap Start while the app is in the foreground.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Talent Signal imports only the conversation screenshot you choose.";
-				INFOPLIST_KEY_TalentSignalAPIBaseURL = "$(TALENT_SIGNAL_API_BASE_URL)";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = (
-					UIInterfaceOrientationPortrait,
-					UIInterfaceOrientationPortraitUpsideDown,
-					UIInterfaceOrientationLandscapeLeft,
-					UIInterfaceOrientationLandscapeRight,
-				);
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
-					UIInterfaceOrientationPortrait,
-				);
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

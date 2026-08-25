@@ -29,28 +29,13 @@ targets:
         buildPhase: resources
         excludes:
           - TalentSignal.entitlements
+          - Info.plist
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Talent Signal
-        INFOPLIST_KEY_CFBundleIconName: AppIcon
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
-        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Talent Signal imports only the conversation screenshot you choose.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: Talent Signal records audio only after you confirm authorization and tap Start while the app is in the foreground.
-        INFOPLIST_KEY_TalentSignalAPIBaseURL: $(TALENT_SIGNAL_API_BASE_URL)
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone:
-          - UIInterfaceOrientationPortrait
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Resources/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.app
         PRODUCT_NAME: TalentSignal
         SUPPORTS_MACCATALYST: NO
@@ -62,6 +47,9 @@ targets:
           CODE_SIGN_IDENTITY: "iPhone Distribution: Xiong Xinwei (6RG2F8YY59)"
           CODE_SIGN_STYLE: Manual
           PROVISIONING_PROFILE_SPECIFIER: match AppStore com.talentsignal.app
+    configFiles:
+      Debug: Config/Environment.xcconfig
+      Release: Config/Environment.xcconfig
     scheme:
       gatherCoverageData: true
       testTargets:

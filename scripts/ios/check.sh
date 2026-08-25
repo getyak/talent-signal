@@ -24,6 +24,20 @@ cleanup_ios_derived_data() {
 }
 trap cleanup_ios_derived_data EXIT
 
+ios_build_api_url="${IOS_BUILD_TEST_API_BASE_URL:-https://api.example.invalid}"
+ios_build_config="$ios_derived_data/Environment.check.xcconfig"
+TALENT_SIGNAL_API_BASE_URL="$ios_build_api_url" \
+  node scripts/ios/configure-build-environment.mjs \
+  --configuration Release \
+  --output "$ios_build_config"
+ios_build_api_base64url="$(
+  sed -n 's/^TALENT_SIGNAL_API_BASE_URL_BASE64URL = //p' "$ios_build_config"
+)"
+if [ -z "$ios_build_api_base64url" ]; then
+  echo "Generated iOS build environment is missing its encoded API URL." >&2
+  exit 2
+fi
+
 xcodebuild \
   -project "$project_path" \
   -scheme "$scheme_name" \
@@ -31,7 +45,26 @@ xcodebuild \
   -destination "generic/platform=iOS Simulator" \
   -derivedDataPath "$ios_derived_data" \
   CODE_SIGNING_ALLOWED=NO \
+  "TALENT_SIGNAL_API_BASE_URL_BASE64URL=$ios_build_api_base64url" \
   clean build
+
+ios_compiled_info_plist="$ios_derived_data/Build/Products/Release-iphonesimulator/TalentSignal.app/Info.plist"
+ios_compiled_api_base64url="$(
+  plutil -extract TalentSignalAPIBaseURLBase64URL raw -o - "$ios_compiled_info_plist"
+)"
+if [ "$ios_compiled_api_base64url" != "$ios_build_api_base64url" ]; then
+  echo "Compiled iOS Info.plist does not contain the selected API URL." >&2
+  exit 2
+fi
+ios_compiled_api_url="$(
+  node -e \
+    'process.stdout.write(Buffer.from(process.argv[1], "base64url").toString("utf8"))' \
+    "$ios_compiled_api_base64url"
+)"
+if [ "$ios_compiled_api_url" != "$ios_build_api_url" ]; then
+  echo "Compiled iOS API URL does not match the selected build environment." >&2
+  exit 2
+fi
 
 simulator_id="${IOS_SIMULATOR_ID:-}"
 if [ -z "$simulator_id" ]; then
@@ -80,15 +113,41 @@ ios_text_signal_proxy_pid=""
 ios_backend_started="false"
 ios_check_project="talent-signal-ios-check-$$"
 
+signal_ios_process_tree() {
+  local signal_name="$1"
+  local process_id="$2"
+  local child_id
+  while IFS= read -r child_id; do
+    if [ -n "$child_id" ]; then
+      signal_ios_process_tree "$signal_name" "$child_id"
+    fi
+  done < <(pgrep -P "$process_id" 2>/dev/null || true)
+  kill "-$signal_name" "$process_id" >/dev/null 2>&1 || true
+}
+
+stop_ios_helper() {
+  local process_id="$1"
+  local attempt
+  [ -n "$process_id" ] || return 0
+
+  signal_ios_process_tree TERM "$process_id"
+  for ((attempt = 0; attempt < 20; attempt += 1)); do
+    if ! kill -0 "$process_id" >/dev/null 2>&1; then
+      wait "$process_id" >/dev/null 2>&1 || true
+      return 0
+    fi
+    sleep 0.1
+  done
+  signal_ios_process_tree KILL "$process_id"
+  wait "$process_id" >/dev/null 2>&1 || true
+}
+
 cleanup_ios_helpers() {
   for helper_pid in \
     "$ios_fixture_server_pid" \
     "$ios_response_loss_proxy_pid" \
     "$ios_text_signal_proxy_pid"; do
-    if [ -n "$helper_pid" ]; then
-      kill "$helper_pid" >/dev/null 2>&1 || true
-      wait "$helper_pid" >/dev/null 2>&1 || true
-    fi
+    stop_ios_helper "$helper_pid"
   done
   if [ "$ios_backend_started" = "true" ]; then
     docker compose \
@@ -190,6 +249,7 @@ test_arguments=(
   "TS_IOS_RESPONSE_LOSS_PROXY_URL=$TS_IOS_RESPONSE_LOSS_PROXY_URL"
   "TS_IOS_TEXT_SIGNAL_PROXY_URL=$TS_IOS_TEXT_SIGNAL_PROXY_URL"
   "TS_IOS_PURSUIT_FIXTURE_URL=$TS_IOS_PURSUIT_FIXTURE_URL"
+  "TALENT_SIGNAL_API_BASE_URL_BASE64URL=$ios_build_api_base64url"
 )
 
 if [ -n "${IOS_ONLY_TESTING:-}" ]; then

@@ -10,6 +10,7 @@ vendor/bundle/
 xcuserdata/
 *.ipa
 *.xcarchive
+apps/ios/Config/Environment.local.xcconfig
 node_modules/
 .next/
 .playwright-cli/
