@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "fastlane"
 require "fastlane_core"
 require "match"
 require "openssl"
