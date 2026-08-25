@@ -8,6 +8,7 @@ overrides:
 allowBuilds:
   esbuild: true
   sharp: true
+  unrs-resolver: true
 
 minimumReleaseAgeExclude:
   - '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.241'

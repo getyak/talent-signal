@@ -55,6 +55,12 @@ inputs. The `testflight` GitHub Environment permits only `main`; it intentionall
 has no required reviewer because internal TestFlight delivery is the continuous
 delivery target.
 
+CI and `Release iOS` use `scripts/ci/has-ios-changes.sh` as the shared source of
+truth for iOS change classification. The release-specific set includes product,
+Fastlane, signing dependency, versioning, classifier, and release-workflow
+changes. A change to the release decision itself therefore receives the same
+real TestFlight proof as an iOS product change.
+
 The release job checks required secret names without printing their values,
 writes signing material only under the runner temporary directory, verifies
 read access to the isolated private match repository, and removes those files
@@ -97,19 +103,19 @@ Review them after ownership, plan, or maintainer membership changes.
 
 ## Link checking policy
 
-Lychee checks committed Markdown. HTTP 202 is accepted because EUR-Lex uses it
-for reachable legal-document pages, and HTTP 429 is retried/accepted to avoid
-turning rate limiting into a false documentation failure. CAC URLs are excluded
-because that host is not reachable from GitHub-hosted runners; their sources
-remain in the documents and should be manually reviewed when edited. Three exact
-OpenAI documentation URLs are also excluded because their anti-automation layer
-returns HTTP 403 to GitHub-hosted runners; the rest of those domains are still
-checked.
+Repository-owned documentation integrity is a required gate. The deterministic
+documentation check verifies the knowledge map, required Agent guidance,
+canonical-document context budgets, local links, and the boundary that keeps
+implementation-level specifications out of foundational documents.
 
-The repository documentation check separately verifies the knowledge map,
-required Agent guidance, canonical-document context budgets, local links, and
-the boundary that keeps implementation-level specifications out of
-foundational documents.
+Lychee separately checks external HTTP links and publishes its findings in the
+job summary, but external reachability is advisory. A third-party timeout,
+connection reset, rate limit, or anti-automation response is not evidence that
+the tested revision is unsafe, so it cannot block CI or TestFlight delivery.
+Contributors should still repair confirmed broken destinations when editing the
+owning document. HTTP 202 and 429 remain accepted, while known runner-inaccessible
+CAC and exact OpenAI documentation URLs remain excluded to keep the report
+useful rather than noisy.
 
 ## Wiki compilation gate
 

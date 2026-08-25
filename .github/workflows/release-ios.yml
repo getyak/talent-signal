@@ -66,9 +66,8 @@ jobs:
               base_sha="$(git rev-parse "${RELEASE_SHA}^")"
             fi
 
-            if ! git diff --quiet "$base_sha" "$RELEASE_SHA" -- \
-              apps/ios fastlane scripts/ios scripts/ci/next-ios-version.sh \
-              .github/workflows/release-ios.yml Gemfile Gemfile.lock; then
+            if [ "$(./scripts/ci/has-ios-changes.sh \
+              "$base_sha" "$RELEASE_SHA" --release-files)" = "true" ]; then
               should_release=true
             fi
           fi

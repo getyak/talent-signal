@@ -81,6 +81,30 @@ install or update it through TestFlight.
   the focused audit ignores only those non-actionable system-edge records and
   retries only Xcode's exact accessibility-audit infrastructure timeout, while
   real recorded accessibility issues remain failures.
+- Later `main` runs
+  [32793005972](https://github.com/getyak/talent-signal/actions/runs/32793005972)
+  and [32777282841](https://github.com/getyak/talent-signal/actions/runs/32777282841)
+  completed their relevant iOS build and test work but failed the aggregate CI
+  gate when unrelated third-party documentation sites reset or rejected Lychee
+  requests. Their `Release iOS` runs correctly declined to publish because the
+  full CI conclusion was not successful. This exposed external reachability as
+  an invalid release authority rather than a signing or App Store Connect fault.
+- The dependency update merged in pull request 50 introduced
+  `unrs-resolver@1.12.2`, whose native-package verification is an install script.
+  Main CI run
+  [32797237652](https://github.com/getyak/talent-signal/actions/runs/32797237652)
+  then failed both JavaScript jobs because the repository's explicit pnpm build
+  allowlist had not been updated. The recovery explicitly authorizes that named
+  package rather than weakening the install-script policy.
+- That update also moved Next.js to 16.3.2. Its build verifies the standard
+  TypeScript API file, while the Web package's `typescript` name pointed at a
+  compatibility CLI-only package. Pull request 56's first Web run therefore
+  passed lint, typecheck, and 185 tests before failing `next build`. Registry
+  metadata also showed that the declared 16.3.2 Linux-musl SWC binary was not
+  published, which made installation platform-dependent. The recovery uses the
+  complete Next.js and ESLint-config 16.3.1 release and restores the standard
+  `typescript@6.0.3` API while retaining the separately named TypeScript 7
+  native compiler.
 
 ## Approach
 
@@ -142,6 +166,10 @@ install or update it through TestFlight.
    0.1.5 build, and absence of a pending team invitation. No relationship repair
    was needed. It resent the invitation and isolated the remaining state as
    `TESTFLIGHT_INVITATION_NOT_ACCEPTED`, with zero known devices.
+7. **Active — Release-gate recovery:** make external HTTP reachability advisory,
+   keep repository-owned documentation integrity required, unify CI and release
+   iOS change classification, and prove the correction through a new automatic
+   `main`-to-TestFlight delivery.
 
 ## Verification
 
@@ -160,10 +188,9 @@ install or update it through TestFlight.
 
 In progress. The isolated signing cutover and automatically triggered 0.1.5
 TestFlight delivery are proved end to end through App Store Connect processing
-and internal group distribution. The only remaining completion evidence is an
-invited physical phone accepting the invitation and installing or updating the
-build. The access-audit workflow distinguishes a pending App Store Connect user
-invitation from missing group/build access and an unaccepted TestFlight invite;
-the real audit proved that server access is ready and the invitation has not
-been accepted. No physical device is currently connected to this Mac, and App
-Store Connect has not yet recorded an install or session.
+and internal group distribution. The active reliability correction must produce
+a new automatic processed build after the external-link false failures. The
+remaining device-level evidence is still an invited physical phone accepting
+the invitation and installing or updating the build; no physical device is
+currently connected to this Mac, and App Store Connect has not yet recorded an
+install or session.
