@@ -41,15 +41,15 @@
     "@sinclair/typebox": "^0.34.41",
     "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
-    "fastify": "^5.5.0",
+    "fastify": "^5.12.1",
     "jose": "6.2.10",
-    "pg": "^8.16.3"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
-    "@types/pg": "^8.15.5",
-    "tsx": "^4.20.5",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.12",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^4.0.0"
+    "vitest": "^4.1.11"
   }
 }
