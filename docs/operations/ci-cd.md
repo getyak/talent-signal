@@ -76,7 +76,8 @@ repository. A maintainer first regenerates the profile for
 `com.talentsignal.app` in Apple Developer after enabling the required App ID
 capabilities. The workflow then downloads that existing profile through the
 scoped App Store Connect credential, verifies the bundle ID, profile name, and
-Sign in with Apple entitlement, and encrypts only that profile into match. It
+Sign in with Apple entitlement, verifies that the profile contains the isolated
+match distribution certificate, and encrypts only that profile into match. It
 does not archive or upload the app and shares the release concurrency lock.
 Remove the temporary environment secret and revoke its deploy key immediately
 after the refreshed profile has been proved by a successful release; ordinary
