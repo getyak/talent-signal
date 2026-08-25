@@ -1,0 +1,20 @@
+# Keep the real file outside Git at .env.testflight or another ignored path.
+TALENT_SIGNAL_API_BASE_URL=https://your-mac.your-tailnet.ts.net
+
+# PostgreSQL is reachable only from the Compose network.
+POSTGRES_DB=talent_signal_testflight
+POSTGRES_USER=talent_signal_testflight
+# Use a URL-safe generated value, for example: openssl rand -hex 24
+POSTGRES_PASSWORD=replace-with-generated-hex-value
+
+# Release authentication policy. Compose always disables simulated login.
+APPLE_SIGN_IN_AUDIENCES=com.talentsignal.app
+ALLOWED_ORIGINS=https://your-mac.your-tailnet.ts.net
+SESSION_TTL_SECONDS=28800
+RETENTION_SWEEP_INTERVAL_MS=60000
+LOG_LEVEL=info
+
+# The API is published on Mac loopback only; Tailscale terminates HTTPS.
+BACKEND_PORT=4317
+BACKEND_IMAGE=talent-signal-backend-local:testflight
+TS_PNPM_REGISTRY=https://registry.npmjs.org

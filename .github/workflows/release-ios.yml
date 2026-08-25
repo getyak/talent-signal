@@ -106,6 +106,8 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
         run: |
           missing=0
           for name in \
@@ -116,7 +118,9 @@ jobs:
             MATCH_DEPLOY_KEY \
             MATCH_GIT_URL \
             MATCH_KEYCHAIN_PASSWORD \
-            MATCH_PASSWORD; do
+            MATCH_PASSWORD \
+            TS_OAUTH_CLIENT_ID \
+            TS_OAUTH_SECRET; do
             if [ -z "${!name:-}" ]; then
               echo "::error::Missing required secret: $name"
               missing=1
@@ -129,11 +133,20 @@ jobs:
         with:
           node-version: 22
 
+      - name: Connect ephemeral runner to the TestFlight tailnet
+        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
       - name: Configure and verify iOS API
         env:
           TALENT_SIGNAL_API_BASE_URL: ${{ vars.TALENT_SIGNAL_API_BASE_URL }}
         run: |
           node scripts/ios/configure-build-environment.mjs --configuration Release
+          api_hostname="$(node -e 'process.stdout.write(new URL(process.env.TALENT_SIGNAL_API_BASE_URL).hostname)')"
+          tailscale ping --c 10 --timeout 10s --until-direct=false "$api_hostname"
           node scripts/ios/probe-auth-backend.mjs
 
       - name: Compute release version
