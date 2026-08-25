@@ -106,8 +106,12 @@ final class AppSessionStore: ObservableObject {
             phase = .signedIn(session)
         } catch {
             self.challenge = nil
-            notice = error.localizedDescription
+            let signInNotice = error.localizedDescription
+            isWorking = false
             await prepareChallenge()
+            if self.challenge != nil {
+                notice = signInNotice
+            }
         }
     }
 
