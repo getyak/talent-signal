@@ -72,11 +72,15 @@ point, not merely after transport upload.
 Provisioning-profile renewal is a separate maintenance operation. The
 `Refresh iOS signing` workflow requires explicit confirmation and a temporary
 `MATCH_MAINTENANCE_DEPLOY_KEY` with write access to the isolated match
-repository. It forces renewal for `com.talentsignal.app`, does not archive or
-upload the app, and shares the release concurrency lock. Remove the temporary
-environment secret and revoke its deploy key immediately after the refreshed
-profile has been proved by a successful release; ordinary TestFlight CI keeps
-using its dedicated read-only key.
+repository. A maintainer first regenerates the profile for
+`com.talentsignal.app` in Apple Developer after enabling the required App ID
+capabilities. The workflow then downloads that existing profile through the
+scoped App Store Connect credential, verifies the bundle ID, profile name, and
+Sign in with Apple entitlement, and encrypts only that profile into match. It
+does not archive or upload the app and shares the release concurrency lock.
+Remove the temporary environment secret and revoke its deploy key immediately
+after the refreshed profile has been proved by a successful release; ordinary
+TestFlight CI keeps using its dedicated read-only key.
 
 App Store Connect owns the last delivery hop. Talent Signal must have an
 internal testing group with automatic distribution enabled and at least one
@@ -149,10 +153,11 @@ again. The hook never mutates a commit during push.
 - A failed TestFlight upload creates no release tag. Rerun the failed workflow
   after correcting credentials or signing state.
 - If Xcode reports that the match profile lacks a required entitlement, enable
-  the capability for the App ID, provision a temporary write deploy key, run
-  `Refresh iOS signing` with explicit confirmation, revoke the temporary key,
-  and rerun the failed verified release. Do not remove a product capability to
-  fit a stale profile.
+  the capability for the App ID, regenerate the named profile in Apple
+  Developer, provision a temporary write deploy key, run `Refresh iOS signing`
+  with explicit confirmation, revoke the temporary key, and rerun the failed
+  verified release. App Manager API keys can read profiles but cannot create
+  them. Do not remove a product capability to fit a stale profile.
 - If TestFlight accepts an upload but processing or later metadata fails,
   verify the version and build number in App Store Connect before rerunning to
   avoid duplicate uploads.
