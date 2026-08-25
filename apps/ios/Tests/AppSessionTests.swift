@@ -4,6 +4,29 @@ import XCTest
 
 @MainActor
 final class AppSessionTests: XCTestCase {
+    func testFailedAppleSignInRefreshesChallengeWithoutAnotherTap() async {
+        let persistence = MemorySessionStore(session: nil)
+        let authentication = StubAuthentication(signInFailure: StubFailure.invalidToken)
+        let store = AppSessionStore(
+            baseURL: .fixtureBackend,
+            persistence: persistence,
+            client: authentication
+        )
+
+        await store.restore()
+        let firstChallengeID = store.challenge?.id
+        await store.signIn(
+            identityToken: Data("fixture-identity-token".utf8),
+            fullName: nil
+        )
+
+        XCTAssertEqual(store.phase, .signedOut)
+        XCTAssertEqual(authentication.challengeCallCount, 2)
+        XCTAssertNotEqual(store.challenge?.id, firstChallengeID)
+        XCTAssertFalse(store.isWorking)
+        XCTAssertTrue(store.notice?.contains("invalidToken") == true)
+    }
+
     func testRemoteLogoutFailureStillClearsProtectedLocalSession() async {
         let persistence = MemorySessionStore(session: .fixture)
         let authentication = StubAuthentication(logoutFailure: StubFailure.offline)
@@ -74,15 +97,22 @@ private final class MemorySessionStore: TalentSignalSessionPersisting {
 
 private final class StubAuthentication: AppAuthenticationServing {
     let logoutFailure: Error?
+    let signInFailure: Error?
+    private(set) var challengeCallCount = 0
 
-    init(logoutFailure: Error? = nil) {
+    init(
+        logoutFailure: Error? = nil,
+        signInFailure: Error? = nil
+    ) {
         self.logoutFailure = logoutFailure
+        self.signInFailure = signInFailure
     }
 
     func challenge() async throws -> AppleLoginChallenge {
-        AppleLoginChallenge(
+        challengeCallCount += 1
+        return AppleLoginChallenge(
             contractVersion: TalentSignalAPIContract.version,
-            id: "challenge",
+            id: "challenge-\(challengeCallCount)",
             nonce: "nonce",
             expiresAt: Date.now.addingTimeInterval(300)
         )
@@ -94,7 +124,8 @@ private final class StubAuthentication: AppAuthenticationServing {
         givenName: String?,
         familyName: String?
     ) async throws -> TalentSignalSession {
-        .fixture
+        if let signInFailure { throw signInFailure }
+        return .fixture
     }
 
     func validate(_ stored: TalentSignalSession) async throws -> TalentSignalSession {
@@ -106,9 +137,18 @@ private final class StubAuthentication: AppAuthenticationServing {
     }
 }
 
-private enum StubFailure: Error {
+private enum StubFailure: LocalizedError {
+    case invalidToken
     case offline
     case protectedStore
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidToken: "invalidToken"
+        case .offline: "offline"
+        case .protectedStore: "protectedStore"
+        }
+    }
 }
 
 private extension TalentSignalSession {
