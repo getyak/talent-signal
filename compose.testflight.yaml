@@ -70,6 +70,9 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     init: true
+    dns:
+      - ${TS_TESTFLIGHT_DNS_PRIMARY:-100.100.100.100}
+      - ${TS_TESTFLIGHT_DNS_FALLBACK:-114.114.114.114}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-4317}:4317"
     depends_on:

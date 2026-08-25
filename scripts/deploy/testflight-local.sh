@@ -78,6 +78,9 @@ fi
 "${compose[@]}" run --rm migrate
 "${compose[@]}" up --detach --wait --remove-orphans api
 
+"${compose[@]}" exec -T api node -e \
+  "fetch('https://appleid.apple.com/auth/keys').then(async response => { const body = await response.json(); if (!response.ok || !Array.isArray(body.keys) || body.keys.length === 0) process.exit(1); }).catch(() => process.exit(1))"
+
 published_endpoint="$("${compose[@]}" port api 4317)"
 if [[ "$published_endpoint" != 127.0.0.1:* ]]; then
   echo "Refusing to expose an API that is not bound to Mac loopback." >&2
