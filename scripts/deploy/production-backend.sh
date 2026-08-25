@@ -17,7 +17,10 @@ compose=(
 )
 
 "${compose[@]}" config --quiet
-"${compose[@]}" build api migrate
+# Both services use the same tagged image. Building only the API prevents
+# Compose from scheduling duplicate dependency installs on a small host; the
+# migration runner reuses the resulting image.
+"${compose[@]}" build api
 "${compose[@]}" up --detach --wait postgres
 "${compose[@]}" run --rm migrate
 "${compose[@]}" up --detach --wait --remove-orphans api caddy

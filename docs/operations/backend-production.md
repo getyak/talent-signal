@@ -32,9 +32,10 @@ TS_PRODUCTION_ENV_FILE=/etc/talent-signal/production.env \
 ```
 
 The script validates configuration without printing interpolated secrets,
-builds one backend image, starts PostgreSQL, runs forward migrations exactly
-once, and then starts the API and TLS proxy. It does not seed data. A failed
-migration stops before the API or proxy is replaced.
+builds one backend image for both the API and migration runner, starts
+PostgreSQL, runs forward migrations exactly once, and then starts the API and
+TLS proxy. It does not seed data. A failed migration stops before the API or
+proxy is replaced.
 
 ## Verify
 
