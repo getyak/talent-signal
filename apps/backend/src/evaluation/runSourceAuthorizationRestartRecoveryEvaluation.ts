@@ -106,6 +106,7 @@ async function run(): Promise<void> {
   await client.reviewEvidenceFragment(fragment.id, {
     idempotency_key: `restart-review:${randomUUID()}`,
     expected_review_status: "proposed",
+    expected_last_review_id: null,
     decision: "reviewed",
     reason:
       "Synthetic recruiter verified the contact field for restart recovery.",

@@ -404,7 +404,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '026_apple_auth'`,
+           WHERE version = '027_evidence_review_authority_chain'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");

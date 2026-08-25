@@ -208,6 +208,7 @@ async function run(): Promise<void> {
   await client.reviewEvidenceFragment(rootFragment.id, {
     idempotency_key: `identity-correction:${runId}:review-root`,
     expected_review_status: "proposed",
+    expected_last_review_id: null,
     decision: "reviewed",
     reason:
       "The synthetic recruiter compared the extracted current role with the visible source.",

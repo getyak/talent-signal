@@ -1,6 +1,6 @@
 {
   "evidence_id": "TS-V1-PRD-01-RUNTIME-01",
-  "contract_version": "2026-08-24.9",
+  "contract_version": "2026-08-24.10",
   "environment": "fresh synthetic PostgreSQL account-scoped backend",
   "requirements": [
     "V1-CRM-001",

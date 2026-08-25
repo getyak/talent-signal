@@ -53,6 +53,12 @@ struct PursuitWorkspaceSession: Equatable {
     }
 }
 
+struct PursuitEvidenceReviewResult: Equatable {
+    let reviewID: String
+    let priorReviewID: String?
+    let decidedAt: String
+}
+
 protocol PursuitWorkspaceServing {
     func loadWorkspace() async throws -> PursuitWorkspaceSnapshot
     func ask(
@@ -70,16 +76,18 @@ protocol PursuitWorkspaceServing {
     func rejectEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
+        expectedLastReviewID: String?,
         reason: String,
         idempotencyKey: String
-    ) async throws
+    ) async throws -> PursuitEvidenceReviewResult
     func reviewEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
+        expectedLastReviewID: String?,
         decision: String,
         reason: String,
         idempotencyKey: String
-    ) async throws
+    ) async throws -> PursuitEvidenceReviewResult
     func completeAction(
         pursuitID: String,
         actionID: String,
@@ -115,25 +123,28 @@ extension PursuitWorkspaceServing {
     func rejectEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
+        expectedLastReviewID: String?,
         reason: String,
         idempotencyKey: String
-    ) async throws {
+    ) async throws -> PursuitEvidenceReviewResult {
         throw PursuitWorkspaceClientError.askUnavailable
     }
 
     func reviewEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
+        expectedLastReviewID: String?,
         decision: String,
         reason: String,
         idempotencyKey: String
-    ) async throws {
+    ) async throws -> PursuitEvidenceReviewResult {
         guard decision == "rejected" else {
             throw PursuitWorkspaceClientError.askUnavailable
         }
-        try await rejectEvidence(
+        return try await rejectEvidence(
             fragmentID: fragmentID,
             expectedReviewStatus: expectedReviewStatus,
+            expectedLastReviewID: expectedLastReviewID,
             reason: reason,
             idempotencyKey: idempotencyKey
         )
@@ -338,12 +349,14 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
     func rejectEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
+        expectedLastReviewID: String?,
         reason: String,
         idempotencyKey: String
-    ) async throws {
+    ) async throws -> PursuitEvidenceReviewResult {
         try await reviewEvidence(
             fragmentID: fragmentID,
             expectedReviewStatus: expectedReviewStatus,
+            expectedLastReviewID: expectedLastReviewID,
             decision: "rejected",
             reason: reason,
             idempotencyKey: idempotencyKey
@@ -353,10 +366,11 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
     func reviewEvidence(
         fragmentID: String,
         expectedReviewStatus: String,
+        expectedLastReviewID: String?,
         decision: String,
         reason: String,
         idempotencyKey: String
-    ) async throws {
+    ) async throws -> PursuitEvidenceReviewResult {
         guard ["reviewed", "rejected"].contains(decision),
               authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
             throw PursuitWorkspaceClientError.loopbackOnly
@@ -368,15 +382,21 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             body: WorkspaceEvidenceReviewBody(
                 idempotencyKey: idempotencyKey,
                 expectedReviewStatus: expectedReviewStatus,
+                expectedLastReviewID: expectedLastReviewID,
                 decision: decision,
                 reason: reason
             )
         )
-        guard response.fragmentID == fragmentID,
-              response.reviewStatus == decision,
-              Self.isVerifiedTimestamp(response.decidedAt) else {
-            throw PursuitWorkspaceClientError.scopeReadbackMismatch
-        }
+        return try Self.validatedEvidenceReviewResult(
+            expectedFragmentID: fragmentID,
+            expectedLastReviewID: expectedLastReviewID,
+            expectedDecision: decision,
+            responseFragmentID: response.fragmentID,
+            responseReviewID: response.reviewID,
+            responsePriorReviewID: response.priorReviewID,
+            responseReviewStatus: response.reviewStatus,
+            responseDecidedAt: response.decidedAt
+        )
     }
 
     func completeAction(
@@ -519,6 +539,30 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             || ISO8601DateFormatter().date(from: value) != nil
     }
 
+    static func validatedEvidenceReviewResult(
+        expectedFragmentID: String,
+        expectedLastReviewID: String?,
+        expectedDecision: String,
+        responseFragmentID: String,
+        responseReviewID: String,
+        responsePriorReviewID: String?,
+        responseReviewStatus: String,
+        responseDecidedAt: String
+    ) throws -> PursuitEvidenceReviewResult {
+        guard responseFragmentID == expectedFragmentID,
+              responseReviewStatus == expectedDecision,
+              responsePriorReviewID == expectedLastReviewID,
+              !responseReviewID.isEmpty,
+              isVerifiedTimestamp(responseDecidedAt) else {
+            throw PursuitWorkspaceClientError.scopeReadbackMismatch
+        }
+        return PursuitEvidenceReviewResult(
+            reviewID: responseReviewID,
+            priorReviewID: responsePriorReviewID,
+            decidedAt: responseDecidedAt
+        )
+    }
+
     private func loginIfNeeded() async throws -> WorkspaceLoginResponse {
         if let authenticatedSession { return authenticatedSession }
         var request = URLRequest(url: baseURL.appending(path: "v1/auth/simulated-login"))
@@ -556,6 +600,11 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
     case actionCompletionUnavailable
     case askUnavailable
     case backend(code: String, message: String)
+
+    var isSupersededEvidenceReview: Bool {
+        guard case let .backend(code, _) = self else { return false }
+        return code == "EVIDENCE_REVIEW_AUTHORITY_STALE"
+    }
 
     var errorDescription: String? {
         switch self {
@@ -869,23 +918,42 @@ private struct RelationshipAskBody: Encodable {
 private struct WorkspaceEvidenceReviewBody: Encodable {
     let idempotencyKey: String
     let expectedReviewStatus: String
+    let expectedLastReviewID: String?
     let decision: String
     let reason: String
 
     enum CodingKeys: String, CodingKey {
         case idempotencyKey = "idempotency_key"
         case expectedReviewStatus = "expected_review_status"
+        case expectedLastReviewID = "expected_last_review_id"
         case decision, reason
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(idempotencyKey, forKey: .idempotencyKey)
+        try container.encode(expectedReviewStatus, forKey: .expectedReviewStatus)
+        if let expectedLastReviewID {
+            try container.encode(expectedLastReviewID, forKey: .expectedLastReviewID)
+        } else {
+            try container.encodeNil(forKey: .expectedLastReviewID)
+        }
+        try container.encode(decision, forKey: .decision)
+        try container.encode(reason, forKey: .reason)
     }
 }
 
 private struct WorkspaceEvidenceReviewResponse: Decodable {
     let fragmentID: String
+    let reviewID: String
+    let priorReviewID: String?
     let reviewStatus: String
     let decidedAt: String
 
     enum CodingKeys: String, CodingKey {
         case fragmentID = "fragment_id"
+        case reviewID = "review_id"
+        case priorReviewID = "prior_review_id"
         case reviewStatus = "review_status"
         case decidedAt = "decided_at"
     }

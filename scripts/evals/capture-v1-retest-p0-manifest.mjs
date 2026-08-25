@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -51,11 +51,41 @@ const sourceReplacements = new Map([
     `${evidenceRoot}/ios-full-suite-runtime.json`,
   ],
 ]);
+async function freezeDependency(relativePath) {
+  const normalized = relativePath.replace(/^docs\/evaluations\//, "");
+  const destination = `${evidenceRoot}/p0-dependencies/${normalized}`;
+  await mkdir(path.dirname(path.join(repositoryRoot, destination)), {
+    recursive: true,
+  });
+  await copyFile(
+    path.join(repositoryRoot, relativePath),
+    path.join(repositoryRoot, destination),
+  );
+  return destination;
+}
+
 for (const journey of manifest.journeys) {
-  journey.assertions = journey.assertions.map((expectation) => ({
-    ...expectation,
-    source: sourceReplacements.get(expectation.source) ?? expectation.source,
-  }));
+  const assertions = [];
+  for (const expectation of journey.assertions) {
+    const replaced = sourceReplacements.get(expectation.source)
+      ?? expectation.source;
+    assertions.push({
+      ...expectation,
+      source: replaced.startsWith(`${evidenceRoot}/`)
+        ? replaced
+        : await freezeDependency(replaced),
+    });
+  }
+  journey.assertions = assertions;
+  const frozenFiles = [];
+  for (const relativeFile of journey.files) {
+    frozenFiles.push(
+      relativeFile.startsWith(`${evidenceRoot}/`)
+        ? relativeFile
+        : await freezeDependency(relativeFile),
+    );
+  }
+  journey.files = frozenFiles;
 }
 
 function appendAssertion(journeyID, pathName, expectedValue) {
@@ -71,6 +101,11 @@ function appendAssertion(journeyID, pathName, expectedValue) {
 appendAssertion("P0-01", "checks.typed_signal_relaunch_stages_canonical_proposal", true);
 appendAssertion("P0-01", "checks.receipt_operation_binding", true);
 appendAssertion("P0-02", "checks.response_loss_reconciles_without_resubmit", true);
+appendAssertion(
+  "P0-02",
+  "checks.restored_evidence_review_requires_current_authority_readback",
+  true,
+);
 appendAssertion("P0-04", "checks.same_name_text_signal_identity_readback", true);
 appendAssertion("P0-06", "checks.canonical_review_and_action_outcome", true);
 appendAssertion("P0-08", "checks.pending_inbox_restores_reviewed_draft", true);
@@ -136,6 +171,11 @@ action.assertions.push(
     source: `${evidenceRoot}/ios-full-suite-runtime.json`,
     path: "checks.owned_action_response_loss_reconciles_without_second_post",
     equals: true,
+  },
+  {
+    source: `${evidenceRoot}/pursuit-domain/pursuit-domain-runtime.json`,
+    path: "results.action_revision_supersedes_open_proposal",
+    equals: "pass",
   },
 );
 

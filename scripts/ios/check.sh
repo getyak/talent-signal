@@ -67,6 +67,13 @@ if [ "${IOS_PRESERVE_SIMULATOR_UI:-false}" != "true" ]; then
   xcrun simctl ui "$simulator_id" appearance light
 fi
 
+# Test state must not inherit language, protected persistence, or launch state
+# from an interrupted prior run. Preserve the app container only for an
+# intentional live-debug session.
+if [ "${IOS_PRESERVE_APP_DATA:-false}" != "true" ]; then
+  xcrun simctl uninstall "$simulator_id" com.talentsignal.app >/dev/null 2>&1 || true
+fi
+
 ios_fixture_server_pid=""
 ios_response_loss_proxy_pid=""
 ios_text_signal_proxy_pid=""
