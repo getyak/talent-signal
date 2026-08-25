@@ -96,6 +96,15 @@ install or update it through TestFlight.
   then failed both JavaScript jobs because the repository's explicit pnpm build
   allowlist had not been updated. The recovery explicitly authorizes that named
   package rather than weakening the install-script policy.
+- That update also moved Next.js to 16.3.2. Its build verifies the standard
+  TypeScript API file, while the Web package's `typescript` name pointed at a
+  compatibility CLI-only package. Pull request 56's first Web run therefore
+  passed lint, typecheck, and 185 tests before failing `next build`. Registry
+  metadata also showed that the declared 16.3.2 Linux-musl SWC binary was not
+  published, which made installation platform-dependent. The recovery uses the
+  complete Next.js and ESLint-config 16.3.1 release and restores the standard
+  `typescript@6.0.3` API while retaining the separately named TypeScript 7
+  native compiler.
 
 ## Approach
 
