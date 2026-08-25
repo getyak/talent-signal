@@ -32,7 +32,7 @@ final class AppSessionStore: ObservableObject {
     func restore() async {
         guard let client else {
             phase = .signedOut
-            notice = "Set TalentSignalAPIBaseURL for this build."
+            notice = "Set TALENT_SIGNAL_API_BASE_URL for this build."
             return
         }
         do {

@@ -3,6 +3,50 @@ import XCTest
 
 @MainActor
 final class ReleaseBoundaryTests: XCTestCase {
+    func testCompiledAuthenticationURLAcceptsOnlyEncodedHTTPS() {
+        let validURL = "https://api.example.test/A~"
+        let encoded = base64URL(validURL)
+        XCTAssertTrue(encoded.contains("-"))
+
+        XCTAssertEqual(
+            TalentSignalAuthenticationConfiguration.baseURL(
+                arguments: ["TalentSignal"],
+                infoDictionary: ["TalentSignalAPIBaseURLBase64URL": encoded]
+            ),
+            URL(string: validURL)
+        )
+        XCTAssertNil(
+            TalentSignalAuthenticationConfiguration.baseURL(
+                arguments: ["TalentSignal"],
+                infoDictionary: [
+                    "TalentSignalAPIBaseURLBase64URL": base64URL(
+                        "http://127.0.0.1:4317"
+                    ),
+                ]
+            )
+        )
+        XCTAssertNil(
+            TalentSignalAuthenticationConfiguration.baseURL(
+                arguments: ["TalentSignal"],
+                infoDictionary: ["TalentSignalAPIBaseURLBase64URL": "not base64"]
+            )
+        )
+        XCTAssertNil(
+            TalentSignalAuthenticationConfiguration.baseURL(
+                arguments: ["TalentSignal"],
+                infoDictionary: ["TalentSignalAPIBaseURL": validURL]
+            )
+        )
+    }
+
+    private func base64URL(_ value: String) -> String {
+        Data(value.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
 #if DEBUG
     func testAuthenticationDebugRouteAllowsOnlyLoopbackHTTP() {
         XCTAssertTrue(
@@ -26,7 +70,8 @@ final class ReleaseBoundaryTests: XCTestCase {
                     "TalentSignal",
                     "--auth-backend-url",
                     "http://example.com",
-                ]
+                ],
+                infoDictionary: [:]
             )
         )
     }

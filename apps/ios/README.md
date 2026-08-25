@@ -47,13 +47,21 @@ of Release; a Release-specific test verifies those arguments are inert.
 ## Generate and run
 
 ```sh
+cp .env.example .env
 pnpm ios:generate
 open apps/ios/TalentSignal.xcodeproj
 ```
 
-Select the `TalentSignal` scheme and an iOS 16+ simulator or device.
+Set `TALENT_SIGNAL_API_BASE_URL` in the ignored root `.env`, then select the
+`TalentSignal` scheme and an iOS 16+ simulator or device. `ios:generate` parses
+the value as data, validates it, and writes an ignored
+`apps/ios/Config/Environment.local.xcconfig`; it never sources `.env` as shell
+code. Re-run `pnpm ios:configure` after changing the URL without regenerating
+the Xcode project. Add `--show-login` to the Debug scheme launch arguments when
+testing the account-scoped login flow; deterministic fixture routes remain the
+default for local UI development.
 
-Release builds require a backend HTTPS URL in `TalentSignalAPIBaseURL` and use
+Release builds require an HTTPS `TALENT_SIGNAL_API_BASE_URL` and use
 Sign in with Apple before opening the workspace. Configure the App ID capability
 and set the backend's `APPLE_SIGN_IN_AUDIENCES` to the same client identifier.
 The backend verifies the Apple assertion and issues the application session;
@@ -96,6 +104,9 @@ bundle exec fastlane ios beta
 in read-only mode, waits for App Store Connect to finish processing the build,
 and then creates the matching release tag. Uploads require:
 
+- the public `TALENT_SIGNAL_API_BASE_URL` Actions variable in the `testflight`
+  GitHub Environment;
+
 - `APP_STORE_CONNECT_API_KEY_ID`
 - `APP_STORE_CONNECT_ISSUER_ID`
 - `APP_STORE_CONNECT_API_KEY_CONTENT`
@@ -104,6 +115,11 @@ and then creates the matching release tag. Uploads require:
 - `MATCH_GIT_URL`
 - `MATCH_KEYCHAIN_PASSWORD`
 - `MATCH_PASSWORD`
+
+The release job validates the URL, requests a current Apple authentication
+challenge with the repository contract, and only then begins signing. The API
+origin is public app metadata and must stay an Actions variable. Credentials,
+tokens, database URLs, and provider keys must never be compiled into the app.
 
 Signing assets remain encrypted through Fastlane Match. Never commit the
 API key, match password, deploy key, certificates, or provisioning profiles to

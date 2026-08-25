@@ -162,6 +162,29 @@ test("automatic releases call the shared release classifier", () => {
     releaseWorkflow,
     /has-ios-changes\.sh \\\n+\s+"\$base_sha" "\$RELEASE_SHA" --release-files/,
   );
+  assert.match(
+    releaseWorkflow,
+    /TALENT_SIGNAL_API_BASE_URL: \$\{\{ vars\.TALENT_SIGNAL_API_BASE_URL \}\}/,
+  );
+  assert.match(releaseWorkflow, /probe-auth-backend\.mjs/);
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /TALENT_SIGNAL_API_BASE_URL: \$\{\{ secrets\./,
+  );
+});
+
+test("manual Fastlane builds require the same Release environment", () => {
+  const fastfile = readFileSync(join(repositoryRoot, "fastlane/Fastfile"), "utf8");
+
+  assert.match(fastfile, /configure-build-environment\.mjs/);
+  assert.match(
+    fastfile,
+    /lane :build_only do\n\s+configure_ios_environment\("Release"\)/,
+  );
+  assert.match(
+    fastfile,
+    /lane :beta do[\s\S]*?configure_ios_environment\("Release"\)/,
+  );
 });
 
 test("signing refresh is explicit, entitlement-checked, and separately authorized", () => {

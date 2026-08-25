@@ -63,7 +63,10 @@ changes. A change to the release decision itself therefore receives the same
 real TestFlight proof as an iOS product change.
 
 The release job checks required secret names without printing their values,
-writes signing material only under the runner temporary directory, verifies
+writes the validated public `TALENT_SIGNAL_API_BASE_URL` from the `testflight`
+Environment into the app build configuration, verifies a current Apple
+authentication challenge before signing, writes signing material only under
+the runner temporary directory, verifies
 read access to the isolated private match repository, and removes those files
 even after failure. Fastlane waits for App Store Connect build processing. The
 tag and GitHub prerelease are created only after that stronger acceptance
@@ -108,6 +111,8 @@ proves a device download.
 - `main`: pull request required, force-push and deletion blocked, `CI required`
   and `Security required` required.
 - `testflight`: only `main`, without a required reviewer.
+- `testflight` variable `TALENT_SIGNAL_API_BASE_URL`: stable production HTTPS
+  origin with a reachable, contract-current Apple authentication challenge.
 - Private match repository: `getyak/talent-signal-certs`, with only encrypted
   Talent Signal signing assets and a dedicated read-only CI deploy key.
 - Public App Store submission remains an explicit promotion after metadata,
@@ -153,6 +158,9 @@ again. The hook never mutates a commit during push.
   to inspect or retry checks.
 - A failed TestFlight upload creates no release tag. Rerun the failed workflow
   after correcting credentials or signing state.
+- A missing, non-HTTPS, redirected, unreachable, or contract-stale iOS API URL
+  fails before signing. Repair the `testflight` Environment variable or backend
+  deployment; never substitute the marketing site or a Release fixture.
 - If Xcode reports that the match profile lacks a required entitlement, enable
   the capability for the App ID, regenerate the named profile in Apple
   Developer, provision a temporary write deploy key, run `Refresh iOS signing`

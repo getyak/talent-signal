@@ -124,6 +124,18 @@ jobs:
           done
           exit "$missing"
 
+      - name: Set up Node.js for iOS configuration
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: Configure and verify iOS API
+        env:
+          TALENT_SIGNAL_API_BASE_URL: ${{ vars.TALENT_SIGNAL_API_BASE_URL }}
+        run: |
+          node scripts/ios/configure-build-environment.mjs --configuration Release
+          node scripts/ios/probe-auth-backend.mjs
+
       - name: Compute release version
         id: version
         env:
@@ -194,6 +206,7 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          TALENT_SIGNAL_API_BASE_URL: ${{ vars.TALENT_SIGNAL_API_BASE_URL }}
           RELEASE_CHANGELOG_PATH: ${{ steps.release_notes.outputs.path }}
           RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
           FASTLANE_SKIP_UPDATE_CHECK: "1"

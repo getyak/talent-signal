@@ -149,7 +149,10 @@ enum TalentSignalAuthenticationConfiguration {
 #endif
     }
 
-    static func baseURL(arguments: [String]) -> URL? {
+    static func baseURL(
+        arguments: [String],
+        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:]
+    ) -> URL? {
 #if DEBUG
         if let value = value(after: "--auth-backend-url", in: arguments),
            let url = URL(string: value),
@@ -157,11 +160,9 @@ enum TalentSignalAuthenticationConfiguration {
             return url
         }
 #endif
-        guard let value = Bundle.main.object(
-            forInfoDictionaryKey: "TalentSignalAPIBaseURL"
-        ) as? String,
-              !value.isEmpty,
-              !value.contains("$("),
+        guard let encoded = infoDictionary["TalentSignalAPIBaseURLBase64URL"] as? String,
+              let data = decodeBase64URL(encoded),
+              let value = String(data: data, encoding: .utf8),
               let url = URL(string: value),
               permitted(url, allowsLoopbackHTTP: false) else {
             return nil
@@ -169,7 +170,26 @@ enum TalentSignalAuthenticationConfiguration {
         return url
     }
 
+    private static func decodeBase64URL(_ value: String) -> Data? {
+        var normalized = value
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = normalized.count % 4
+        guard remainder != 1 else { return nil }
+        if remainder > 0 {
+            normalized += String(repeating: "=", count: 4 - remainder)
+        }
+        return Data(base64Encoded: normalized)
+    }
+
     private static func permitted(_ url: URL, allowsLoopbackHTTP: Bool) -> Bool {
+        guard url.host != nil,
+              url.user == nil,
+              url.password == nil,
+              url.query == nil,
+              url.fragment == nil else {
+            return false
+        }
         if url.scheme == "https" { return true }
         guard allowsLoopbackHTTP, url.scheme == "http" else { return false }
         return ["127.0.0.1", "localhost", "::1"].contains(url.host)
