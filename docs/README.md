@@ -61,6 +61,8 @@ updated.
 ## Operations and evaluation
 
 - [`operations/`](operations/) contains recurring operational expectations.
+- [Production backend operations](operations/backend-production.md) defines the
+  no-seed PostgreSQL, migration, API, and HTTPS deployment boundary.
 - [`evaluations/`](evaluations/) contains dated review evidence and generated
   findings.
 - Editable architecture sources and rendered diagrams live beside the
