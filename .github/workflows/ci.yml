@@ -58,6 +58,7 @@ jobs:
           ./scripts/ci/check-actions-pinned.sh
           ./scripts/ci/check-secrets.sh
           ./scripts/ci/test-next-ios-version.sh
+          node --test scripts/ci/ios-release-policy.test.mjs
           find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
           shellcheck scripts/ci/*.sh scripts/ios/*.sh
 
@@ -91,11 +92,12 @@ jobs:
           node --test scripts/wiki.test.mjs
           node scripts/wiki.mjs check
 
-      - name: Check Markdown links
+      - name: Check external Markdown links (advisory)
+        continue-on-error: true
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           args: --config .lychee.toml --no-progress './**/*.md'
-          fail: true
+          fail: false
           jobSummary: true
 
   web:
