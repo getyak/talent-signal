@@ -28,6 +28,7 @@ The TestFlight Compose boundary differs from synthetic development:
 - no synthetic seed runs;
 - PostgreSQL is internal-only;
 - the API publishes only on `127.0.0.1`;
+- the API has explicit runtime DNS for Apple public-key verification;
 - Docker logs rotate locally.
 
 ## Start and verify
@@ -42,8 +43,10 @@ TS_TESTFLIGHT_ENV_FILE=.env.testflight \
 The script validates that the configured URL exactly matches the Mac's current
 MagicDNS hostname, builds one API image, starts PostgreSQL, applies migrations,
 starts the API, configures Tailscale Serve, and verifies the Apple authentication
-challenge through HTTPS. It stops before GitHub or TestFlight configuration if
-any boundary fails.
+challenge through HTTPS. Before reporting success, it also requires the API
+container to retrieve a non-empty Apple public-key set; this catches a Docker
+or Colima DNS failure that local database health checks cannot detect. It stops
+before GitHub or TestFlight configuration if any boundary fails.
 
 For an ordinary restart with an already verified local image, skip the network
 build without changing the runtime boundary:
