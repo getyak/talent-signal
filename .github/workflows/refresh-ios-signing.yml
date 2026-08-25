@@ -112,6 +112,7 @@ jobs:
             "provisioning_name:match AppStore com.talentsignal.app" \
             ignore_profiles_with_different_name:true \
             readonly:true \
+            skip_certificate_verification:true \
             skip_install:true \
             "output_path:$RUNNER_TEMP" \
             filename:TalentSignal.mobileprovision \

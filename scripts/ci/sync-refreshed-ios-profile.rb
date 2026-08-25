@@ -4,6 +4,7 @@
 require "fileutils"
 require "fastlane_core"
 require "match"
+require "openssl"
 
 APP_IDENTIFIER = "com.talentsignal.app"
 PROFILE_NAME = "match AppStore #{APP_IDENTIFIER}"
@@ -51,6 +52,22 @@ begin
     force_legacy_encryption: params[:force_legacy_encryption]
   )
   encryption.decrypt_files if encryption
+
+  match_certificates = Dir[
+    File.join(storage.prefixed_working_directory, "certs", "distribution", "*.cer")
+  ]
+  raise "Expected exactly one match distribution certificate" unless match_certificates.one?
+
+  profile_certificate_fingerprints = profile.fetch("DeveloperCertificates", []).map do |certificate|
+    bytes = certificate.respond_to?(:string) ? certificate.string : certificate.to_s
+    OpenSSL::Digest::SHA256.hexdigest(OpenSSL::X509::Certificate.new(bytes).to_der)
+  end
+  match_certificate_fingerprint = OpenSSL::Digest::SHA256.hexdigest(
+    OpenSSL::X509::Certificate.new(File.binread(match_certificates.first)).to_der
+  )
+  unless profile_certificate_fingerprints.include?(match_certificate_fingerprint)
+    raise "Refreshed profile does not contain the isolated match certificate"
+  end
 
   destination = File.join(storage.prefixed_working_directory, PROFILE_RELATIVE_PATH)
   raise "Expected match profile is missing: #{PROFILE_RELATIVE_PATH}" unless File.file?(destination)
