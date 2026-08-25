@@ -41,6 +41,7 @@ branch protection does not depend on a changing list of individual contexts.
 | `Security` | pull request, `main` push, weekly, manual | CodeQL results | cancel stale run per branch or PR |
 | `Pull request labels` | pull request metadata | labels only | one short job |
 | `Release iOS` | successful `CI` run on `main`, explicit manual request | TestFlight, tag, prerelease, attestation | serialize all releases; never cancel |
+| `Refresh iOS signing` | explicit manual confirmation on `main` | App Store profile in the isolated match repository | serialize with releases; never cancel |
 | `TestFlight Access` | explicit manual request on `main` | scoped tester group/build access and invitation | serialize access repair; never cancel |
 
 All third-party actions are pinned to full commit SHAs. Dependabot proposes
@@ -67,6 +68,15 @@ read access to the isolated private match repository, and removes those files
 even after failure. Fastlane waits for App Store Connect build processing. The
 tag and GitHub prerelease are created only after that stronger acceptance
 point, not merely after transport upload.
+
+Provisioning-profile renewal is a separate maintenance operation. The
+`Refresh iOS signing` workflow requires explicit confirmation and a temporary
+`MATCH_MAINTENANCE_DEPLOY_KEY` with write access to the isolated match
+repository. It forces renewal for `com.talentsignal.app`, does not archive or
+upload the app, and shares the release concurrency lock. Remove the temporary
+environment secret and revoke its deploy key immediately after the refreshed
+profile has been proved by a successful release; ordinary TestFlight CI keeps
+using its dedicated read-only key.
 
 App Store Connect owns the last delivery hop. Talent Signal must have an
 internal testing group with automatic distribution enabled and at least one
@@ -138,6 +148,11 @@ again. The hook never mutates a commit during push.
   to inspect or retry checks.
 - A failed TestFlight upload creates no release tag. Rerun the failed workflow
   after correcting credentials or signing state.
+- If Xcode reports that the match profile lacks a required entitlement, enable
+  the capability for the App ID, provision a temporary write deploy key, run
+  `Refresh iOS signing` with explicit confirmation, revoke the temporary key,
+  and rerun the failed verified release. Do not remove a product capability to
+  fit a stale profile.
 - If TestFlight accepts an upload but processing or later metadata fails,
   verify the version and build number in App Store Connect before rerunning to
   avoid duplicate uploads.

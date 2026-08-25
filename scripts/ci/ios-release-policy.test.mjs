@@ -163,3 +163,20 @@ test("automatic releases call the shared release classifier", () => {
     /has-ios-changes\.sh \\\n+\s+"\$base_sha" "\$RELEASE_SHA" --release-files/,
   );
 });
+
+test("signing refresh is explicit, force-renewing, and separately authorized", () => {
+  const refreshWorkflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/refresh-ios-signing.yml"),
+    "utf8",
+  );
+
+  assert.match(refreshWorkflow, /workflow_dispatch:/);
+  assert.doesNotMatch(refreshWorkflow, /workflow_run:/);
+  assert.match(refreshWorkflow, /confirm_profile_refresh:/);
+  assert.match(refreshWorkflow, /environment:\n\s+name: testflight/);
+  assert.match(refreshWorkflow, /MATCH_MAINTENANCE_DEPLOY_KEY/);
+  assert.match(refreshWorkflow, /MATCH_FORCE: "true"/);
+  assert.match(refreshWorkflow, /fastlane ios prepare_signing/);
+  assert.doesNotMatch(refreshWorkflow, /fastlane ios beta/);
+  assert.match(refreshWorkflow, /Remove temporary signing material/);
+});

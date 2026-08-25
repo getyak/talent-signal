@@ -105,6 +105,15 @@ install or update it through TestFlight.
   complete Next.js and ESLint-config 16.3.1 release and restores the standard
   `typescript@6.0.3` API while retaining the separately named TypeScript 7
   native compiler.
+- Pull request 56 restored every required check and merged as
+  `8d790f867b4d9a49d2059077e5a96d970ebaf5ff`. Main CI run
+  [32800735453](https://github.com/getyak/talent-signal/actions/runs/32800735453)
+  passed, and its successful `workflow_run` automatically started Release iOS
+  run [32802481210](https://github.com/getyak/talent-signal/actions/runs/32802481210).
+  The release selected version 0.1.6 and reached archive, where Xcode proved
+  the stored `match AppStore com.talentsignal.app` profile lacks the
+  `com.apple.developer.applesignin` entitlement required by the shipped Sign in
+  with Apple flow. No IPA was uploaded and no v0.1.6 tag was created.
 
 ## Approach
 
@@ -170,6 +179,11 @@ install or update it through TestFlight.
    keep repository-owned documentation integrity required, unify CI and release
    iOS change classification, and prove the correction through a new automatic
    `main`-to-TestFlight delivery.
+8. **Active — Signing-profile repair:** use an explicit main-only maintenance
+   workflow and a short-lived write deploy key to force-renew the App Store
+   profile, then revoke the key and rerun the already verified automatic
+   release. Completion requires App Store Connect processing, not merely a
+   successful match commit.
 
 ## Verification
 

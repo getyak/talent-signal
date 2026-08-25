@@ -1,0 +1,115 @@
+name: Refresh iOS signing
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_profile_refresh:
+        description: Recreate the App Store profile for com.talentsignal.app
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-ios
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh App Store profile
+    runs-on: macos-26
+    timeout-minutes: 30
+    environment:
+      name: testflight
+      url: https://developer.apple.com/account/resources/profiles/list
+    steps:
+      - name: Require explicit profile refresh
+        env:
+          CONFIRM_PROFILE_REFRESH: ${{ inputs.confirm_profile_refresh }}
+        run: |
+          if [ "$CONFIRM_PROFILE_REFRESH" != "true" ]; then
+            echo "::error::confirm_profile_refresh must be explicitly enabled"
+            exit 1
+          fi
+
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Validate maintenance secrets
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_MAINTENANCE_DEPLOY_KEY: ${{ secrets.MATCH_MAINTENANCE_DEPLOY_KEY }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: |
+          missing=0
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            MATCH_GIT_URL \
+            MATCH_MAINTENANCE_DEPLOY_KEY \
+            MATCH_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Configure temporary signing credentials
+        env:
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          MATCH_MAINTENANCE_DEPLOY_KEY: ${{ secrets.MATCH_MAINTENANCE_DEPLOY_KEY }}
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/match-maintenance-ssh"
+          printf '%s\n' "$MATCH_MAINTENANCE_DEPLOY_KEY" > "$RUNNER_TEMP/match-maintenance-ssh/key"
+          chmod 600 "$RUNNER_TEMP/match-maintenance-ssh/key"
+          printf '%s\n' "$API_KEY_CONTENT" > "$RUNNER_TEMP/asc_key.p8"
+          chmod 600 "$RUNNER_TEMP/asc_key.p8"
+
+      - name: Verify isolated signing repository access
+        env:
+          GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+        run: git ls-remote --exit-code "$MATCH_GIT_URL" HEAD
+
+      - name: Recreate App Store profile
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+          MATCH_FORCE: "true"
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: bundle exec fastlane ios prepare_signing
+
+      - name: Summarize signing refresh
+        run: |
+          {
+            echo "### App Store profile refreshed"
+            echo ""
+            echo "- App identifier: \`com.talentsignal.app\`"
+            echo "- Profile type: \`appstore\`"
+            echo "- Forced renewal: \`true\`"
+            echo "- Next proof: rerun the verified TestFlight release"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/asc_key.p8"
+          rm -f "$RUNNER_TEMP/match-maintenance-ssh/key"
