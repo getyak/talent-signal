@@ -164,7 +164,7 @@ test("automatic releases call the shared release classifier", () => {
   );
 });
 
-test("signing refresh is explicit, force-renewing, and separately authorized", () => {
+test("signing refresh is explicit, entitlement-checked, and separately authorized", () => {
   const refreshWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/refresh-ios-signing.yml"),
     "utf8",
@@ -175,8 +175,11 @@ test("signing refresh is explicit, force-renewing, and separately authorized", (
   assert.match(refreshWorkflow, /confirm_profile_refresh:/);
   assert.match(refreshWorkflow, /environment:\n\s+name: testflight/);
   assert.match(refreshWorkflow, /MATCH_MAINTENANCE_DEPLOY_KEY/);
-  assert.match(refreshWorkflow, /MATCH_FORCE: "true"/);
-  assert.match(refreshWorkflow, /fastlane ios prepare_signing/);
+  assert.match(refreshWorkflow, /fastlane run sigh/);
+  assert.match(refreshWorkflow, /readonly:true/);
+  assert.match(refreshWorkflow, /sync-refreshed-ios-profile\.rb/);
+  assert.doesNotMatch(refreshWorkflow, /MATCH_FORCE/);
+  assert.doesNotMatch(refreshWorkflow, /fastlane ios prepare_signing/);
   assert.doesNotMatch(refreshWorkflow, /fastlane ios beta/);
   assert.match(refreshWorkflow, /Remove temporary signing material/);
 });
