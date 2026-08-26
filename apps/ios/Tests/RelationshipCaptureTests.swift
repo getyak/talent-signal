@@ -231,6 +231,17 @@ final class RelationshipCaptureTests: XCTestCase {
             30 * 60,
             accuracy: 0.1
         )
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: proposal.startDate
+        )
+        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.month, 9)
+        XCTAssertEqual(components.day, 3)
+        XCTAssertEqual(components.hour, 15)
+        XCTAssertEqual(components.minute, 0)
         XCTAssertEqual(proposal.detectedDateText, "2027年9月3日下午3点")
     }
 

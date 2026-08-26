@@ -15,6 +15,11 @@ struct DeviceCalendarProposal: Identifiable, Equatable {
 }
 
 enum DeviceCalendarProposalDetector {
+    private struct DetectedDate {
+        let date: Date
+        let range: NSRange
+    }
+
     private static let meetingTerms = [
         "面试", "会谈", "会议", "视频", "电话聊", "聊聊", "沟通",
         "interview", "meeting", "meet", "video call", "phone call",
@@ -44,22 +49,12 @@ enum DeviceCalendarProposalDetector {
             return nil
         }
 
-        guard let detector = try? NSDataDetector(
-            types: NSTextCheckingResult.CheckingType.date.rawValue
-        ) else {
-            return nil
-        }
-        let matches = detector.matches(
-            in: text,
-            range: NSRange(text.startIndex..., in: text)
-        )
         let earliestAllowedDate = max(capturedAt, now).addingTimeInterval(-300)
-        guard let match = matches.first(where: {
-            guard let date = $0.date else { return false }
-            return date >= earliestAllowedDate
-        }), let startDate = match.date else {
+        guard let match = detectedDates(in: text, timeZone: timeZone)
+            .first(where: { $0.date >= earliestAllowedDate }) else {
             return nil
         }
+        let startDate = match.date
 
         let duration = explicitDuration(in: text)
         let eventDuration = duration?.seconds ?? 30 * 60
@@ -86,6 +81,126 @@ enum DeviceCalendarProposalDetector {
             detectedDateText: (text as NSString).substring(with: match.range),
             durationWasExplicit: duration != nil
         )
+    }
+
+    private static func detectedDates(
+        in text: String,
+        timeZone: TimeZone
+    ) -> [DetectedDate] {
+        let chineseDates = chineseDetectedDates(in: text, timeZone: timeZone)
+        guard let detector = try? NSDataDetector(
+            types: NSTextCheckingResult.CheckingType.date.rawValue
+        ) else {
+            return chineseDates
+        }
+        let detectorDates = detector.matches(
+            in: text,
+            range: NSRange(text.startIndex..., in: text)
+        ).compactMap { match -> DetectedDate? in
+            guard !chineseDates.contains(where: {
+                NSIntersectionRange($0.range, match.range).length > 0
+            }), let date = dateFromDetectorMatch(match, timeZone: timeZone) else {
+                return nil
+            }
+            return DetectedDate(date: date, range: match.range)
+        }
+        return (chineseDates + detectorDates).sorted {
+            $0.range.location < $1.range.location
+        }
+    }
+
+    private static func dateFromDetectorMatch(
+        _ match: NSTextCheckingResult,
+        timeZone: TimeZone
+    ) -> Date? {
+        guard let date = match.date else { return nil }
+        if match.timeZone != nil {
+            return date
+        }
+
+        // NSDataDetector interprets wall-clock text in the runner's timezone.
+        // Rebuild those components in the capture timezone so CI and devices
+        // produce the same proposal for text that does not name a timezone.
+        var detectorCalendar = Calendar(identifier: .gregorian)
+        detectorCalendar.timeZone = .current
+        let components = detectorCalendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: date
+        )
+        var captureCalendar = Calendar(identifier: .gregorian)
+        captureCalendar.timeZone = timeZone
+        return captureCalendar.date(from: components)
+    }
+
+    private static func chineseDetectedDates(
+        in text: String,
+        timeZone: TimeZone
+    ) -> [DetectedDate] {
+        let pattern = #"(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日?\s*(上午|下午|晚上|中午|凌晨)?\s*(\d{1,2})(?:点|时)(?:(\d{1,2})分?)?"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else {
+            return []
+        }
+        let fullRange = NSRange(text.startIndex..., in: text)
+        return expression.matches(in: text, range: fullRange).compactMap { match in
+            guard let year = integerCapture(1, from: match, in: text),
+                  let month = integerCapture(2, from: match, in: text),
+                  let day = integerCapture(3, from: match, in: text),
+                  var hour = integerCapture(5, from: match, in: text) else {
+                return nil
+            }
+            let minute = integerCapture(6, from: match, in: text) ?? 0
+            if let period = stringCapture(4, from: match, in: text) {
+                if ["下午", "晚上", "中午"].contains(period), hour < 12 {
+                    hour += 12
+                } else if ["上午", "凌晨"].contains(period), hour == 12 {
+                    hour = 0
+                }
+            }
+
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = timeZone
+            var components = DateComponents()
+            components.timeZone = timeZone
+            components.year = year
+            components.month = month
+            components.day = day
+            components.hour = hour
+            components.minute = minute
+            guard let date = calendar.date(from: components) else { return nil }
+            let validated = calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: date
+            )
+            guard validated.year == year,
+                  validated.month == month,
+                  validated.day == day,
+                  validated.hour == hour,
+                  validated.minute == minute else {
+                return nil
+            }
+            return DetectedDate(date: date, range: match.range)
+        }
+    }
+
+    private static func integerCapture(
+        _ index: Int,
+        from match: NSTextCheckingResult,
+        in text: String
+    ) -> Int? {
+        guard let value = stringCapture(index, from: match, in: text) else {
+            return nil
+        }
+        return Int(value)
+    }
+
+    private static func stringCapture(
+        _ index: Int,
+        from match: NSTextCheckingResult,
+        in text: String
+    ) -> String? {
+        let range = match.range(at: index)
+        guard range.location != NSNotFound else { return nil }
+        return (text as NSString).substring(with: range)
     }
 
     private static func explicitDuration(
