@@ -115,8 +115,9 @@ export function parseIdentityHandleQuery(
   }
   const url = normalizeUrl(normalized);
   if (url) {
+    const hostname = new URL(url).hostname;
     return {
-      type: new URL(url).hostname.includes("linkedin.com")
+      type: hostname === "linkedin.com" || hostname.endsWith(".linkedin.com")
         ? "linkedin_url"
         : "public_profile_url",
       value: normalized,

@@ -75,7 +75,8 @@ describe("bounded public research content handling", () => {
     const html = new TextEncoder().encode(`
       <main>
         <p>&amp;lt;reviewed evidence&amp;gt;</p>
-        <script>hidden script content</script >
+        <script>hidden script content</script
+          data-test="malformed">
         <style>hidden style content</style >
         <noscript>hidden fallback content</noscript >
       </main>

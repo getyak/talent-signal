@@ -152,16 +152,24 @@ test("external link reachability is advisory to the release gate", () => {
   assert.match(advisoryStep[1], /fail: false/);
 });
 
-test("automatic releases call the shared release classifier", () => {
+test("automatic releases classify the verified default-branch tip without executing repository code", () => {
   const releaseWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/release-ios.yml"),
     "utf8",
   );
-
-  assert.match(
-    releaseWorkflow,
-    /has-ios-changes\.sh \\\n+\s+"\$base_sha" "\$RELEASE_SHA" --release-files/,
+  const prepareJob = releaseWorkflow.match(
+    /  prepare:\n([\s\S]*?)(?=\n  testflight:)/,
   );
+
+  assert.ok(prepareJob, "expected the release preparation job");
+  assert.match(prepareJob[1], /actions\/github-script@[0-9a-f]{40} # v8/);
+  assert.match(prepareJob[1], /process\.env\.VERIFIED_SHA !== releaseSha/);
+  assert.match(prepareJob[1], /compareCommitsWithBasehead/);
+  assert.match(prepareJob[1], /"apps\/ios\/"/);
+  assert.match(prepareJob[1], /"\.github\/workflows\/release-ios\.yml"/);
+  assert.doesNotMatch(prepareJob[1], /actions\/checkout/);
+  assert.doesNotMatch(prepareJob[1], /\.\/scripts\/ci\/has-ios-changes\.sh/);
+
   assert.match(
     releaseWorkflow,
     /TALENT_SIGNAL_API_BASE_URL: \$\{\{ vars\.TALENT_SIGNAL_API_BASE_URL \}\}/,

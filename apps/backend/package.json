@@ -44,6 +44,7 @@
     "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
     "fastify": "^5.12.1",
+    "htmlparser2": "^12.0.0",
     "jose": "6.2.10",
     "pg": "^8.23.0"
   },

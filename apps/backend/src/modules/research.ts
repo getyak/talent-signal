@@ -9,6 +9,7 @@ import {
   type PublicResearchResponse,
   type ResourceCaptureRequest,
 } from "@talent-signal/contracts";
+import { Parser } from "htmlparser2";
 import type { Pool } from "pg";
 
 import { inTransaction } from "../database/pool.js";
@@ -318,36 +319,6 @@ async function assertRobotsAllowed(
   }
 }
 
-function decodeHtmlEntities(value: string): string {
-  return value.replace(
-    /&(?:nbsp|amp|lt|gt|quot|apos|#39|#\d+);/gi,
-    (entity) => {
-      const normalized = entity.toLowerCase();
-      if (normalized === "&nbsp;") {
-        return " ";
-      }
-      if (normalized === "&amp;") {
-        return "&";
-      }
-      if (normalized === "&lt;") {
-        return "<";
-      }
-      if (normalized === "&gt;") {
-        return ">";
-      }
-      if (normalized === "&quot;") {
-        return '"';
-      }
-      if (normalized === "&apos;" || normalized === "&#39;") {
-        return "'";
-      }
-      return String.fromCodePoint(
-        Number(normalized.slice(2, -1)),
-      );
-    },
-  );
-}
-
 export function extractResearchPage(
   canonical: URL,
   contentType: string,
@@ -365,33 +336,81 @@ export function extractResearchPage(
     };
   }
   const links = new Set<string>();
-  for (const match of decoded.matchAll(
-    /<a\b[^>]*\bhref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi,
-  )) {
-    const href = match[1] ?? match[2] ?? match[3];
-    if (!href) {
-      continue;
-    }
-    try {
-      const link = new URL(href, canonical);
-      link.hash = "";
-      if (
-        link.protocol === "https:" &&
-        link.hostname.toLowerCase() === allowedHostname
-      ) {
-        links.add(link.toString());
-      }
-    } catch {
-      // Ignore malformed page links while preserving the fetched page.
-    }
-  }
-  const text = decodeHtmlEntities(
-    decoded
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, " ")
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, " ")
-      .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi, " ")
-      .replace(/<[^>]+>/g, "\n"),
-  )
+  const textParts: string[] = [];
+  const ignoredTags = new Set(["noscript", "script", "style"]);
+  const lineBreakTags = new Set([
+    "article",
+    "aside",
+    "blockquote",
+    "br",
+    "div",
+    "footer",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "header",
+    "li",
+    "main",
+    "nav",
+    "p",
+    "section",
+    "table",
+    "td",
+    "th",
+    "tr",
+  ]);
+  let ignoredDepth = 0;
+  const parser = new Parser(
+    {
+      onopentag(name, attributes) {
+        if (ignoredTags.has(name)) {
+          ignoredDepth += 1;
+          return;
+        }
+        if (ignoredDepth > 0) {
+          return;
+        }
+        if (name === "a" && attributes.href) {
+          try {
+            const link = new URL(attributes.href, canonical);
+            link.hash = "";
+            if (
+              link.protocol === "https:" &&
+              link.hostname.toLowerCase() === allowedHostname
+            ) {
+              links.add(link.toString());
+            }
+          } catch {
+            // Ignore malformed page links while preserving the fetched page.
+          }
+        }
+        if (lineBreakTags.has(name)) {
+          textParts.push("\n");
+        }
+      },
+      ontext(value) {
+        if (ignoredDepth === 0) {
+          textParts.push(value);
+        }
+      },
+      onclosetag(name) {
+        if (ignoredTags.has(name)) {
+          ignoredDepth = Math.max(0, ignoredDepth - 1);
+          return;
+        }
+        if (ignoredDepth === 0 && lineBreakTags.has(name)) {
+          textParts.push("\n");
+        }
+      },
+    },
+    { decodeEntities: true },
+  );
+  parser.end(decoded);
+  const text = textParts
+    .join("")
     .normalize("NFKC")
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
