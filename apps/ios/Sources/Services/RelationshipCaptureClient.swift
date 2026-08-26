@@ -44,6 +44,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         draft: RecognizedCaptureDraft
     ) async throws -> ResourceCaptureResult {
         let clientResourceID = "ios-share:\(seed.id.uuidString.lowercased())"
+        let reviewedSpeaker = draft.speaker ?? .unknown
         let body = ResourceCaptureBody(
             contractVersion: TalentSignalAPIContract.version,
             idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):capture",
@@ -93,8 +94,10 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                         speakerSide: "unknown"
                     ),
                     attribution: .init(
-                        actorKind: "unknown",
-                        status: "proposed"
+                        actorKind: reviewedSpeaker.rawValue,
+                        status: draft.speaker == nil
+                            ? "proposed"
+                            : reviewedSpeaker.attributionStatus
                     ),
                     reviewStatus: "reviewed",
                     parser: .init(

@@ -15,6 +15,7 @@ struct RelationshipArchiveView: View {
     @State private var intakePresentation: AgentIntakePresentation?
     @State private var deferredIntakePresentation: AgentIntakePresentation?
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
+    @State private var deferredCapturePresentation: RelationshipCapturePresentation?
     private let reviewBaseURL: URL?
     private let authenticatedAccessToken: String?
     private let onSignOut: (() async -> Void)?
@@ -78,7 +79,9 @@ struct RelationshipArchiveView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             RelationshipGuideRail(
-                onGuide: { capturePresentation = .ask(sessionID: nil) },
+                onGuide: {
+                    capturePresentation = .ask(sessionID: nil, seed: nil)
+                },
                 onCapture: {
                     intakePresentation = .init(initialDestination: nil)
                 }
@@ -152,7 +155,7 @@ struct RelationshipArchiveView: View {
             onDismiss: completeDeferredTransition
         ) { presentation in
             switch presentation {
-            case let .ask(sessionID):
+            case let .ask(sessionID, seed):
                 if let snapshot = workspaceStore.snapshot {
                     RelationshipAskView(
                         snapshot: snapshot,
@@ -160,6 +163,7 @@ struct RelationshipArchiveView: View {
                         workspaceStore: workspaceStore,
                         sessionStore: sessionStore,
                         sessionID: sessionID,
+                        initialSeed: seed,
                         ask: { objective, personID, contextID, idempotencyKey in
                             try await workspaceStore.ask(
                                 objective: objective,
@@ -204,7 +208,8 @@ struct RelationshipArchiveView: View {
                     backendURL: reviewBaseURL,
                     accessToken: authenticatedAccessToken,
                     workspaceID: workspaceStore.snapshot?.workspaceID,
-                    onClose: { capturePresentation = nil }
+                    onClose: { capturePresentation = nil },
+                    onContinueInAgent: continueCaptureInAgent
                 )
             }
         }
@@ -215,13 +220,17 @@ struct RelationshipArchiveView: View {
                 await revalidateSessionEvidence()
             }
         }
-        .sheet(item: $intakePresentation) { presentation in
+        .sheet(
+            item: $intakePresentation,
+            onDismiss: completeDeferredTransition
+        ) { presentation in
             SignalCaptureHubView(
                 backendURL: reviewBaseURL,
                 accessToken: authenticatedAccessToken,
                 workspaceID: workspaceStore.snapshot?.workspaceID,
                 initialDestination: presentation.initialDestination,
-                onDismiss: { intakePresentation = nil }
+                onDismiss: { intakePresentation = nil },
+                onContinueInAgent: continueCaptureInAgent
             )
         }
         .onReceive(captureHandoff.$pendingSeed) { seed in
@@ -292,7 +301,7 @@ struct RelationshipArchiveView: View {
                     persistenceNotice: sessionStore.persistenceNotice,
                     onOpen: openSession,
                     onNewSession: {
-                        capturePresentation = .ask(sessionID: nil)
+                        capturePresentation = .ask(sessionID: nil, seed: nil)
                     },
                     onMarkUnread: sessionStore.markUnread,
                     onDelete: sessionStore.delete
@@ -319,7 +328,7 @@ struct RelationshipArchiveView: View {
 
     private func openSession(_ session: AgentSession) {
         sessionStore.markRead(session.id)
-        capturePresentation = .ask(sessionID: session.id)
+        capturePresentation = .ask(sessionID: session.id, seed: nil)
     }
 
     private func revalidateSessionEvidence() async {
@@ -338,6 +347,10 @@ struct RelationshipArchiveView: View {
     }
 
     private func completeDeferredTransition() {
+        if let deferredCapturePresentation {
+            capturePresentation = deferredCapturePresentation
+            self.deferredCapturePresentation = nil
+        }
         if let deferredArchiveSheet {
             presentedSheet = deferredArchiveSheet
             self.deferredArchiveSheet = nil
@@ -345,6 +358,25 @@ struct RelationshipArchiveView: View {
         if let deferredIntakePresentation {
             intakePresentation = deferredIntakePresentation
             self.deferredIntakePresentation = nil
+        }
+    }
+
+    private func continueCaptureInAgent(
+        _ completion: RelationshipCaptureCompletion
+    ) {
+        guard let personID = completion.personID,
+              let relationshipContextID = completion.relationshipContextID else {
+            return
+        }
+        let seed = AgentSessionSeed.reviewedCapture(
+            personID: personID,
+            relationshipContextID: relationshipContextID
+        )
+        Task {
+            await workspaceStore.load()
+            deferredCapturePresentation = .ask(sessionID: nil, seed: seed)
+            capturePresentation = nil
+            intakePresentation = nil
         }
     }
 
@@ -407,13 +439,18 @@ struct RelationshipArchiveView: View {
 }
 
 private enum RelationshipCapturePresentation: Identifiable {
-    case ask(sessionID: UUID?)
+    case ask(sessionID: UUID?, seed: AgentSessionSeed?)
     case screenshot
 
     var id: String {
         switch self {
-        case let .ask(sessionID):
-            return "ask-\(sessionID?.uuidString ?? "new")"
+        case let .ask(sessionID, seed):
+            return [
+                "ask",
+                sessionID?.uuidString ?? "new",
+                seed?.personID ?? "unscoped",
+                seed?.relationshipContextID ?? "unscoped",
+            ].joined(separator: "-")
         case .screenshot:
             return "screenshot"
         }

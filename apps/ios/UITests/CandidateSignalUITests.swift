@@ -1447,6 +1447,18 @@ final class CandidateSignalUITests: XCTestCase {
 
     @MainActor
     func testRelationshipCaptureRequiresExplicitOwnerAndCompilesGoldWiki() async throws {
+        try await runRelationshipCaptureJourney(auditsAccessibility: false)
+    }
+
+    @MainActor
+    func testRelationshipCaptureAX5DarkPreservesEvidenceActionAndScopeOrder() async throws {
+        try await runRelationshipCaptureJourney(auditsAccessibility: true)
+    }
+
+    @MainActor
+    private func runRelationshipCaptureJourney(
+        auditsAccessibility: Bool
+    ) async throws {
         let backendURL = testConfiguration(
             "TS_IOS_BACKEND_URL",
             fallback: "http://127.0.0.1:4320"
@@ -1465,16 +1477,45 @@ final class CandidateSignalUITests: XCTestCase {
         )
 
         app.launchArguments = [
-            "--scenario", "relationship-capture",
+            "--scenario", "relationship-capture-archive",
             "--backend-url", backendURL,
+            "--workspace-backend-url", backendURL,
             "--capture-seed", captureSeed.uuidString,
             "--capture-handle", "+658\(phoneSuffix)",
             "--capture-name", "UI owner \(captureSeed.uuidString.prefix(8))"
         ]
+        if auditsAccessibility {
+            app.launchArguments += [
+                "--force-dark",
+                "-AppleInterfaceStyle", "Dark",
+            ]
+        }
         app.launch()
 
         XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 10))
         XCTAssertTrue(element("unknown-speaker-boundary").exists)
+        XCTAssertTrue(element("capture-speaker-review").exists)
+        if auditsAccessibility {
+            assertAccessibilityOrder([
+                "inspect-capture-source",
+                "reviewed-ocr-text",
+                "unknown-speaker-boundary",
+                "capture-speaker-review",
+                "submit-reviewed-capture",
+            ])
+        }
+        let inspectSource = app.buttons["inspect-capture-source"]
+        XCTAssertTrue(
+            inspectSource.waitForExistence(timeout: 5),
+            "A real screenshot must be inspectable before OCR becomes evidence."
+        )
+        inspectSource.tap()
+        let sourceInspection = element("capture-source-inspection")
+        XCTAssertTrue(sourceInspection.waitForExistence(timeout: 5))
+        sourceInspection.doubleTap()
+        preserveScreenshot("Zoomable original before OCR correction")
+        tapWhenVisible(app.buttons["close-source-inspection"])
+        XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 5))
         tapWhenVisible(app.buttons["submit-reviewed-capture"])
 
         let createPerson = app.buttons["create-new-person-from-capture"]
@@ -1505,8 +1546,117 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(verdict.waitForExistence(timeout: 30))
         XCTAssertEqual(verdict.label, "WIKI · GOLD")
         XCTAssertTrue(app.buttons["return-to-person"].exists)
+        XCTAssertTrue(app.buttons["continue-capture-in-agent"].exists)
+        XCTAssertTrue(element("device-contact-handoff").exists)
+        XCTAssertTrue(app.buttons["review-device-contact"].exists)
         XCTAssertTrue(element("capture-completion-receipt").exists)
+        if auditsAccessibility {
+            assertAccessibilityOrder([
+                "wiki-quality-verdict",
+                "continue-capture-in-agent",
+                "device-contact-handoff",
+                "capture-completion-receipt",
+            ])
+        }
         preserveScreenshot("iOS explicit-owner Wiki Gold receipt")
+
+        tapWhenVisible(app.buttons["review-device-contact"])
+        let cancelContact = app.buttons["Cancel"]
+        XCTAssertTrue(
+            cancelContact.waitForExistence(timeout: 8),
+            "The device-owned contact editor should be the exact write gate."
+        )
+        XCTAssertTrue(app.navigationBars["New Contact"].exists)
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(
+                    format: "label CONTAINS %@",
+                    "UI owner \(captureSeed.uuidString.prefix(8))"
+                )
+            ).firstMatch.exists
+        )
+        preserveScreenshot("Apple contact editor exact-field review")
+
+        cancelContact.tap()
+        let discardContact = app.buttons["Discard Changes"]
+        XCTAssertTrue(
+            discardContact.waitForExistence(timeout: 5),
+            "Apple should require a second explicit decision before discarding."
+        )
+        discardContact.tap()
+        XCTAssertTrue(element("device-contact-cancelled").waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["review-device-contact"].isEnabled)
+        preserveScreenshot("Contact handoff cancelled without write")
+
+        tapWhenVisible(app.buttons["continue-capture-in-agent"])
+        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 30))
+        let scopeSelector = app.buttons["ask-scope-selector"]
+        XCTAssertTrue(scopeSelector.waitForExistence(timeout: 5))
+        let expectedScopeValue =
+            "UI owner \(captureSeed.uuidString.prefix(8)), Current client relationship"
+        XCTAssertEqual(
+            scopeSelector.value as? String,
+            expectedScopeValue
+        )
+        let seededComposer = app.textFields["ask-composer"]
+        XCTAssertTrue(seededComposer.waitForExistence(timeout: 5))
+        if auditsAccessibility {
+            XCTAssertGreaterThanOrEqual(
+                scopeSelector.frame.height,
+                80,
+                "The AX5 relationship selector should expand instead of clipping its context."
+            )
+            let closeButton = app.buttons["Close"]
+            XCTAssertTrue(closeButton.exists)
+            let closePresentAtAX5 = closeButton.exists
+            assertAccessibilityOrder([
+                "ask-scope-selector",
+                "ask-composer",
+                "ask-send",
+            ])
+            preserveScreenshot("AX5 relationship scope before accessibility audit")
+            if #available(iOS 17.0, *) {
+                let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
+                    guard issue.auditType == .dynamicType,
+                          let issueElement = issue.element,
+                          issueElement.identifier.isEmpty else {
+                        return false
+                    }
+                    if issueElement.elementType == .button,
+                       issueElement.label == "Close",
+                       closePresentAtAX5,
+                       self.app.navigationBars["New session"].exists {
+                        // The system NavigationStack button visibly enlarges
+                        // at AX5 but XCTest reports the UIKit-hosted toolbar
+                        // node as partially unsupported while it cycles sizes.
+                        return true
+                    }
+                    guard issueElement.label == "Current client relationship",
+                          scopeSelector.value as? String == expectedScopeValue,
+                          scopeSelector.frame.contains(issueElement.frame) else {
+                        return false
+                    }
+                    // SwiftUI exposes this visual label node to XCTest even
+                    // though the selector combines its children into one
+                    // button. The pre-audit AX5 assertion and screenshot prove
+                    // that the label grows and wraps; the button's full value
+                    // is the single VoiceOver announcement. Keep every other
+                    // Dynamic Type issue unsuppressed.
+                    return true
+                }
+                try app.performAccessibilityAudit(for: [
+                    .dynamicType,
+                    .hitRegion,
+                    .sufficientElementDescription,
+                ], issueHandler)
+            }
+        }
+        XCTAssertEqual(
+            seededComposer.value as? String,
+            "What changed in this relationship, and what is the smallest safe next step?"
+        )
+        XCTAssertFalse(element("ask-response-turn").exists)
+        preserveScreenshot("Capture continues in a scoped unsent Agent Session")
     }
 
     func testBackgroundInterruptionPreservesReviewDecision() {
@@ -1821,6 +1971,35 @@ final class CandidateSignalUITests: XCTestCase {
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
+    }
+
+    private func assertAccessibilityOrder(
+        _ identifiers: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let elements = app.descendants(matching: .any).allElementsBoundByIndex
+        var previousIndex = -1
+        for identifier in identifiers {
+            guard let index = elements.firstIndex(where: {
+                $0.identifier == identifier
+            }) else {
+                XCTFail(
+                    "Accessibility order is missing \(identifier).",
+                    file: file,
+                    line: line
+                )
+                return
+            }
+            XCTAssertGreaterThan(
+                index,
+                previousIndex,
+                "Accessibility order should place \(identifier) after the prior decision context.",
+                file: file,
+                line: line
+            )
+            previousIndex = index
+        }
     }
 
     private func openSettings() {

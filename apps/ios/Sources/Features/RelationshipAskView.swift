@@ -7,6 +7,7 @@ struct RelationshipAskView: View {
     @ObservedObject var workspaceStore: PursuitWorkspaceStore
     @ObservedObject var sessionStore: AgentSessionStore
     let sessionID: UUID?
+    var initialSeed: AgentSessionSeed? = nil
     let ask: (
         _ objective: String,
         _ personID: String,
@@ -29,6 +30,7 @@ struct RelationshipAskView: View {
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.sizeCategory) private var sizeCategory
+    @ScaledMetric(relativeTo: .caption2) private var scopeContextFontSize: CGFloat = 11
     @State private var selectedScope: AskScope?
     @State private var scopeQuery = ""
     @State private var isChoosingScope = false
@@ -183,10 +185,21 @@ struct RelationshipAskView: View {
                         && $0.context.id == session.relationshipContextID
                 }
                 sessionStore.markRead(session.id)
+            } else if let initialSeed {
+                selectedScope = availableScopes.first {
+                    $0.person.id == initialSeed.personID
+                        && $0.context.id == initialSeed.relationshipContextID
+                }
+                if selectedScope == nil {
+                    errorMessage = appLanguage.text(
+                        "The reviewed relationship is not available in the current workspace.",
+                        zhHans: "当前工作区中找不到刚审阅的关系。"
+                    )
+                }
             } else if selectedScope == nil {
                 selectedScope = availableScopes.first
             }
-            restoreDraft()
+            restoreDraft(preferred: initialSeed?.suggestedObjective)
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(60))
@@ -233,6 +246,22 @@ struct RelationshipAskView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(
+                appLanguage.text("Selected relationship", zhHans: "已选择的关系")
+            )
+            .accessibilityValue(
+                selectedScope.map {
+                    "\($0.person.displayLabel), \($0.context.displayLabel)"
+                } ?? appLanguage.text("None", zhHans: "未选择")
+            )
+            .accessibilityHint(
+                appLanguage.text(
+                    "Choose a different person or relationship.",
+                    zhHans: "选择其他人物或关系。"
+                )
+            )
             .accessibilityIdentifier("ask-scope-selector")
 
             if isChoosingScope {
@@ -290,7 +319,7 @@ struct RelationshipAskView: View {
     }
 
     private func scopeChip(_ scope: AskScope) -> some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
             if !dynamicTypeSize.isAccessibilitySize && !sizeCategory.isAccessibilityCategory {
                 Circle()
                     .fill(Color.tsVermilion.opacity(0.14))
@@ -306,11 +335,15 @@ struct RelationshipAskView: View {
                 Text(scope.person.displayLabel)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
-                Text(scope.context.displayLabel)
-                    .font(.caption2)
-                    .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(scope.context.displayLabel)
+                    .font(.system(size: scopeContextFontSize))
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
             Image(systemName: "chevron.down")
                 .font(.caption.weight(.semibold))
@@ -678,12 +711,15 @@ struct RelationshipAskView: View {
         return String(parts.prefix(2).compactMap(\.first)).uppercased()
     }
 
-    private func restoreDraft() {
+    private func restoreDraft(preferred: String? = nil) {
         guard let selectedScope else { return }
-        draft = sessionStore.draft(
+        let saved = sessionStore.draft(
             personID: selectedScope.person.id,
             relationshipContextID: selectedScope.context.id
         )
+        draft = saved.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? preferred ?? ""
+            : saved
     }
 
     private func reviewIdempotencyKey(

@@ -24,7 +24,7 @@ import {
 } from "@talent-signal/contracts";
 import type { Pool, PoolClient } from "pg";
 
-import { inTransaction } from "../database/pool.js";
+import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
 import {
@@ -296,6 +296,52 @@ export function configuredAgentProvider(): AgentProvider {
     );
   }
   return new ClaudeAgentSDKProvider(model);
+}
+
+export async function assertRemoteProviderDataBoundary(
+  client: DatabaseClient,
+  auth: AuthContext,
+  provider: AgentProvider,
+  captureID: string,
+  evidenceRefs: readonly string[],
+): Promise<void> {
+  if (provider.id !== "claude-agent-sdk") return;
+  const result = await client.query<{
+    fragment_count: number;
+    synthetic_only: boolean | null;
+  }>(
+    `SELECT
+       COUNT(*)::int AS fragment_count,
+       BOOL_AND(
+         resources.source_locator LIKE 'synthetic:%'
+         AND fragments.parser_name LIKE 'synthetic%'
+       ) AS synthetic_only
+     FROM evidence_fragments fragments
+     JOIN source_resources resources
+       ON resources.account_id = fragments.account_id
+      AND resources.id = fragments.resource_id
+     WHERE fragments.account_id = $1
+       AND fragments.capture_id = $2
+       AND fragments.status = 'active'
+       AND (
+         cardinality($3::uuid[]) = 0
+         OR fragments.id = ANY($3::uuid[])
+       )`,
+    [auth.accountId, captureID, evidenceRefs],
+  );
+  const classification = result.rows[0];
+  const expectedCount = evidenceRefs.length;
+  const exactSelection =
+    expectedCount === 0
+      ? (classification?.fragment_count ?? 0) > 0
+      : classification?.fragment_count === expectedCount;
+  if (!exactSelection || classification?.synthetic_only !== true) {
+    throw new ApiError(
+      422,
+      "AGENT_REMOTE_PROVIDER_SYNTHETIC_ONLY",
+      "Remote Agent providers are admitted only for explicitly synthetic evaluation evidence. Private conversation evidence was not sent.",
+    );
+  }
 }
 
 class DatabaseAgentRunJournal implements AgentRunJournal {
@@ -648,6 +694,13 @@ export async function createPursuitAgentRun(
       objective: request.objective,
       evidenceRefs: request.evidence_refs,
     });
+    await assertRemoteProviderDataBoundary(
+      client,
+      auth,
+      provider,
+      request.capture_id,
+      request.evidence_refs,
+    );
     return { idempotency, scope };
   });
   if (prepared.idempotency.replay) {
