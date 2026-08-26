@@ -12,7 +12,9 @@ import {
 } from "@talent-signal/contracts";
 import { Plus, ShieldCheck } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+import { backendSessionRecoveryHref } from "@/lib/backend-session";
 
 import {
   GovernedCaptureDeletion,
@@ -43,7 +45,10 @@ import {
 import { RelationshipWikiPanel } from "./relationship-workspace/relationship-wiki-panel";
 import { RelationshipWorkspaceStatus } from "./relationship-workspace/relationship-workspace-status";
 import { useRelationshipAgentController } from "./relationship-workspace/use-relationship-agent-controller";
-import { useRelationshipWorkspaceReadback } from "./relationship-workspace/use-relationship-workspace-readback";
+import {
+  relationshipReadbackSessionExpired,
+  useRelationshipWorkspaceReadback,
+} from "./relationship-workspace/use-relationship-workspace-readback";
 
 type Props = {
   initialAccountId: string | null;
@@ -89,6 +94,9 @@ export function RelationshipWorkspaceApp({
     initialAccountId ??
     initialWorkspace?.account_id ?? initialKnowledgeSnapshot?.account_id ?? null;
   const [error, setError] = useState(initialError ?? "");
+  const [sessionRecoveryHref, setSessionRecoveryHref] = useState(
+    initialSessionRecoveryHref,
+  );
   const [busy, setBusy] = useState("");
   const [captureOpen, setCaptureOpen] = useState(initialCaptureOpen);
   const [personMergeRequested, setPersonMergeRequested] = useState(false);
@@ -117,6 +125,13 @@ export function RelationshipWorkspaceApp({
       }
     : relationshipScope;
   const activeCaptureId = workspace?.capture.id ?? null;
+  const beginSessionRecovery = useCallback(() => {
+    const callbackUrl =
+      typeof window === "undefined"
+        ? "/workspace?surface=desk"
+        : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    setSessionRecoveryHref(backendSessionRecoveryHref(callbackUrl));
+  }, []);
   const {
     acceptWorkspaceReadback,
     agentHistory,
@@ -128,6 +143,7 @@ export function RelationshipWorkspaceApp({
     activeCaptureId,
     activeScope,
     initialHistory: initialAgentHistory,
+    onSessionExpired: beginSessionRecovery,
     onWorkspaceReadback: setWorkspace,
   });
 
@@ -163,6 +179,7 @@ export function RelationshipWorkspaceApp({
   const pendingCount = assertions.filter(
     (assertion) => assertion.review_status === "pending",
   ).length;
+
   const relationshipAgent = useRelationshipAgentController({
     accountId,
     onAnnouncement: setAnnouncement,
@@ -206,6 +223,9 @@ export function RelationshipWorkspaceApp({
         },
       );
       if (!result.ok) {
+        if (result.code === "backend_session_expired") {
+          beginSessionRecovery();
+        }
         throw new Error(result.message);
       }
       const next = result.workspace;
@@ -396,7 +416,10 @@ export function RelationshipWorkspaceApp({
       );
       const payload = (await response.json()) as
         | IdentityResolutionCase
-        | { message?: string };
+        | { code?: string; message?: string };
+      if (relationshipReadbackSessionExpired(response.status, payload)) {
+        beginSessionRecovery();
+      }
       if (!response.ok || !("candidates" in payload)) {
         throw new Error(
           "message" in payload && payload.message
@@ -617,7 +640,10 @@ export function RelationshipWorkspaceApp({
       );
       const payload = (await response.json()) as
         | PersonMergeReversalPreview
-        | { message?: string };
+        | { code?: string; message?: string };
+      if (relationshipReadbackSessionExpired(response.status, payload)) {
+        beginSessionRecovery();
+      }
       if (!response.ok || !("operation_id" in payload)) {
         throw new Error(
           "message" in payload && payload.message
@@ -726,7 +752,7 @@ export function RelationshipWorkspaceApp({
             busy={busy}
             error={error}
             onDismissError={() => setError("")}
-            sessionRecoveryHref={initialSessionRecoveryHref}
+            sessionRecoveryHref={sessionRecoveryHref}
           />
 
           {!workspace && !relationshipScope ? (

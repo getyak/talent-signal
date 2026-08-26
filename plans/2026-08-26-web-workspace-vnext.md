@@ -303,3 +303,36 @@ brief is recorded”, “Receipt only”, and “not the answer body” without 
 metadata replay. All inspected relationship routes returned 200. The browser
 finished on Today with six mounted Pursuits, 76 quieter items behind the full
 queue, and no loading state.
+
+### Canonical readback and session-recovery follow-on
+
+Completed on 2026-08-27:
+
+- the signed account ID now crosses the server/client boundary even when only a
+  relationship scope is open, so account-scoped Agent draft recovery no longer
+  downgrades to volatile memory after source or relationship removal;
+- account identity is an invariant rather than mutable relationship state. A
+  valid-shaped readback from another account or capture is rejected and the
+  prior verified workspace remains visible;
+- one relationship readback controller owns Agent-history and workspace-review
+  refreshes, aborts superseded requests, validates person/context/capture
+  identity, and ignores late responses after a scope switch;
+- expired backend credentials now preserve their distinct 401
+  `backend_session_expired` meaning through local integration routes instead of
+  becoming a generic 503;
+- Today, Agent, People, and Pursuit routes now offer or route to a sign-in-again
+  path that retains the exact safe callback location. The login page renders
+  that recovery state even while the stale outer Web session still exists, so
+  retry no longer loops back to another unavailable read;
+- relationship loading/error presentation moved behind a feature-owned status
+  component, and the remaining orchestrator fell from 1,000 to 974 lines.
+
+Verification after this follow-on: 235 Web tests passed with one skipped; Web
+lint, typecheck, and the production build passed. Documentation and Wiki checks
+passed. Read-only browser proof showed the expired-session recovery link on
+Today, Agent, and People, preserved each callback URL, opened the login recovery
+state without a redirect loop, and observed `/api/local-integration/people`
+return 401 instead of 503. The architecture check initially encountered
+unrelated merge markers in concurrent backend, iOS, compose, environment, and
+script work. Another process resolved and committed those files without this
+slice touching them; the final architecture rerun passed all three diagrams.

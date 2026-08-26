@@ -8,7 +8,7 @@ type WorkspaceMutationEnvelope = {
 
 export type RelationshipWorkspaceMutationResult =
   | { ok: true; workspace: WorkspaceReviewResponse }
-  | { message: string; ok: false };
+  | { code?: string; message: string; ok: false };
 
 export type RelationshipWorkspaceReadbackBoundary = {
   expectedAccountId?: string | null;
@@ -60,6 +60,9 @@ export async function requestRelationshipWorkspaceMutation(
       | WorkspaceReviewResponse;
     if (!response.ok) {
       return {
+        ...("code" in payload && payload.code
+          ? { code: payload.code }
+          : {}),
         message:
           "message" in payload && payload.message
             ? payload.message

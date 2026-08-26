@@ -28,6 +28,7 @@ import {
   relationshipAgentHistoryMatchesScope,
   relationshipHistoryScopeKey,
   relationshipReadbackRequestIsCurrent,
+  relationshipReadbackSessionExpired,
 } from "@/components/relationship-workspace/use-relationship-workspace-readback";
 
 function workspaceFixture({
@@ -157,6 +158,16 @@ describe("relationship governed projection", () => {
         aborted: false,
         activeKey: "person-2:context-2",
         requestKey: "person-1:context-1",
+      }),
+    ).toBe(false);
+    expect(
+      relationshipReadbackSessionExpired(401, {
+        code: "backend_session_expired",
+      }),
+    ).toBe(true);
+    expect(
+      relationshipReadbackSessionExpired(503, {
+        code: "backend_session_expired",
       }),
     ).toBe(false);
   });
@@ -301,6 +312,29 @@ describe("relationship governed projection", () => {
         })) as typeof fetch,
     );
     expect(result).toEqual({ message: "Version is stale.", ok: false });
+  });
+
+  it("preserves an expired-session code for a recoverable client path", async () => {
+    const result = await requestRelationshipWorkspaceMutation(
+      "/mutation",
+      { method: "POST" },
+      (async () =>
+        new Response(
+          JSON.stringify({
+            code: "backend_session_expired",
+            message: "Sign in again.",
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 401,
+          },
+        )) as typeof fetch,
+    );
+    expect(result).toEqual({
+      code: "backend_session_expired",
+      message: "Sign in again.",
+      ok: false,
+    });
   });
 
   it("requires both canonical deletion and lineage receipts before clearing the page", () => {

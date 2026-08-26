@@ -35,8 +35,11 @@ type UseRelationshipWorkspaceReadbackInput = {
   activeCaptureId: string | null;
   activeScope: ActiveRelationshipScope | null;
   initialHistory: RelationshipAgentHistory | null;
+  onSessionExpired: () => void;
   onWorkspaceReadback: (workspace: WorkspaceReviewResponse) => void;
 };
+
+type ReadbackError = { code?: string; message?: string };
 
 export function relationshipHistoryScopeKey(
   personId: string | null | undefined,
@@ -66,6 +69,19 @@ export function relationshipReadbackRequestIsCurrent(input: {
   return !input.aborted && input.activeKey === input.requestKey;
 }
 
+export function relationshipReadbackSessionExpired(
+  status: number,
+  payload: unknown,
+): boolean {
+  return (
+    status === 401 &&
+    payload !== null &&
+    typeof payload === "object" &&
+    "code" in payload &&
+    payload.code === "backend_session_expired"
+  );
+}
+
 function taggedHistory(
   history: RelationshipAgentHistory | null,
 ): TaggedHistory {
@@ -85,6 +101,7 @@ export function useRelationshipWorkspaceReadback({
   activeCaptureId,
   activeScope,
   initialHistory,
+  onSessionExpired,
   onWorkspaceReadback,
 }: UseRelationshipWorkspaceReadbackInput) {
   const activeScopeKey = relationshipHistoryScopeKey(
@@ -156,7 +173,10 @@ export function useRelationshipWorkspaceReadback({
         );
         const payload = (await response.json()) as
           | RelationshipAgentHistory
-          | { message?: string };
+          | ReadbackError;
+        if (relationshipReadbackSessionExpired(response.status, payload)) {
+          onSessionExpired();
+        }
         if (
           !response.ok ||
           !("operations" in payload) ||
@@ -180,7 +200,7 @@ export function useRelationshipWorkspaceReadback({
         return false;
       }
     },
-    [activeScope],
+    [activeScope, onSessionExpired],
   );
 
   const acceptWorkspaceReadback = useCallback(
@@ -222,7 +242,10 @@ export function useRelationshipWorkspaceReadback({
         );
         const payload = (await response.json()) as
           | WorkspaceReviewResponse
-          | { message?: string };
+          | ReadbackError;
+        if (relationshipReadbackSessionExpired(response.status, payload)) {
+          onSessionExpired();
+        }
         if (
           !response.ok ||
           !("capture" in payload) ||
@@ -236,7 +259,7 @@ export function useRelationshipWorkspaceReadback({
         return false;
       }
     },
-    [acceptWorkspaceReadback],
+    [acceptWorkspaceReadback, onSessionExpired],
   );
 
   const initialHistoryState = taggedHistory(initialHistory);
