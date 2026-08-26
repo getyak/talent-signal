@@ -324,10 +324,14 @@ Completed on 2026-08-27:
   path that retains the exact safe callback location. The login page renders
   that recovery state even while the stale outer Web session still exists, so
   retry no longer loops back to another unavailable read;
+- an already-open relationship now preserves the structured 401 code from a
+  mutation, history refresh, workspace readback, identity review, or merge
+  reversal preview and immediately exposes the same returnable sign-in path;
 - relationship loading/error presentation moved behind a feature-owned status
-  component, and the remaining orchestrator fell from 1,000 to 974 lines.
+  component. After adding the dynamic recovery boundary, the remaining
+  orchestrator stays at 1,000 lines.
 
-Verification after this follow-on: 235 Web tests passed with one skipped; Web
+Verification after this follow-on: 236 Web tests passed with one skipped; Web
 lint, typecheck, and the production build passed. Documentation and Wiki checks
 passed. Read-only browser proof showed the expired-session recovery link on
 Today, Agent, and People, preserved each callback URL, opened the login recovery
