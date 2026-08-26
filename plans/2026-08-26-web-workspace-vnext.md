@@ -327,11 +327,39 @@ Completed on 2026-08-27:
 - an already-open relationship now preserves the structured 401 code from a
   mutation, history refresh, workspace readback, identity review, or merge
   reversal preview and immediately exposes the same returnable sign-in path;
+- every Relationship Workspace feature request now crosses one integration
+  boundary. Only a verified 401 `backend_session_expired` response broadcasts
+  recovery; ordinary authorization, validation, conflict, and availability
+  failures remain with their owning feature;
+- the same request and recovery boundary now covers already-open Pursuit Today
+  Agent runs and Proposal reviews, including the Pursuit routes' nested error
+  envelope. The last verified Today projection and local review decisions stay
+  visible while new governed writes are paused behind one sign-in path;
+- a resource's “Continue fact review” path no longer hard-reloads `/workspace`
+  to reinitialize client state. A governed in-place capture switch now verifies
+  account, capture, person, relationship context, and request currency before
+  replacing the visible review and URL; failed or late readback keeps the prior
+  relationship visible;
+- refreshed Today focus and Pursuit review state are keyed to canonical Pursuit
+  and Proposal identity, so an objective, local decision, or receipt cannot
+  drift into the next object. A reviewed Proposal stays excluded locally while
+  canonical refresh settles, and the next Proposal can open without a manual
+  page reload;
+- source identity correction no longer refreshes the old relationship and then
+  pushes the browser to the new scope. After the governed write, a controlled
+  readback must match the explicit target person and relationship as well as
+  account, capture, and origin request currency before state and URL move
+  together. A committed correction with unavailable readback is reported as
+  committed-but-unread rather than as a failed write;
+- the shared session-recovery hook now reconciles changed Server Component
+  props after a soft refresh without erasing an already-observed client 401
+  when the server prop did not change. Server-added and server-cleared recovery
+  links therefore stay aligned with the current rendered projection;
 - relationship loading/error presentation moved behind a feature-owned status
-  component. After adding the dynamic recovery boundary, the remaining
-  orchestrator stays at 1,000 lines.
+  component, while session-event ownership moved into a dedicated hook. The
+  remaining orchestrator is 991 lines.
 
-Verification after this follow-on: 236 Web tests passed with one skipped; Web
+Verification after this follow-on: 243 Web tests passed with one skipped; Web
 lint, typecheck, and the production build passed. Documentation and Wiki checks
 passed. Read-only browser proof showed the expired-session recovery link on
 Today, Agent, and People, preserved each callback URL, opened the login recovery
@@ -340,3 +368,6 @@ return 401 instead of 503. The architecture check initially encountered
 unrelated merge markers in concurrent backend, iOS, compose, environment, and
 script work. Another process resolved and committed those files without this
 slice touching them; the final architecture rerun passed all three diagrams.
+The after-load Pursuit mutation path remains ready for browser proof after the
+account owner restores the expired session; no credentials were entered during
+this implementation pass.

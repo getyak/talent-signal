@@ -19,6 +19,11 @@ import {
   type PursuitTodayItem,
   type PursuitTodayProjection,
 } from "@/lib/pursuitToday";
+import { useWorkspaceSessionRecovery } from "./use-workspace-session-recovery";
+import {
+  workspaceSessionExpired,
+  workspaceSessionFetch,
+} from "./workspace-session-request";
 import styles from "./pursuit-today-page.module.css";
 
 type Props = {
@@ -82,9 +87,11 @@ function kindCopy(item: PursuitTodayItem): string {
 function AgentComposer({
   item,
   providerMode,
+  sessionRecoveryHref,
 }: {
   item: PursuitTodayItem;
   providerMode: Props["providerMode"];
+  sessionRecoveryHref: string | null;
 }) {
   const router = useRouter();
   const defaultObjective = useMemo(
@@ -98,12 +105,19 @@ function AgentComposer({
   const [result, setResult] = useState<AgentResult | null>(null);
 
   async function runAgent() {
-    if (!item.agentContext || submitting || !objective.trim()) return;
+    if (
+      !item.agentContext ||
+      submitting ||
+      sessionRecoveryHref ||
+      !objective.trim()
+    ) {
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setResult(null);
     try {
-      const response = await fetch("/api/pursuit-agent-runs", {
+      const response = await workspaceSessionFetch("/api/pursuit-agent-runs", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -126,6 +140,7 @@ function AgentComposer({
         };
         error?: { message?: string };
       };
+      if (workspaceSessionExpired(response.status, payload)) return;
       if (!response.ok || !payload.run?.terminal_receipt) {
         throw new Error(
           payload.error?.message ??
@@ -192,7 +207,9 @@ function AgentComposer({
               Output remains a Proposal or no_action.
             </p>
             <button
-              disabled={submitting || !objective.trim()}
+              disabled={
+                submitting || Boolean(sessionRecoveryHref) || !objective.trim()
+              }
               onClick={runAgent}
               type="button"
             >
@@ -256,9 +273,11 @@ function AgentComposer({
 function FocusItem({
   item,
   providerMode,
+  sessionRecoveryHref,
 }: {
   item: PursuitTodayItem;
   providerMode: Props["providerMode"];
+  sessionRecoveryHref: string | null;
 }) {
   return (
     <article className={styles.focus} data-evidence-state={item.evidenceState}>
@@ -332,7 +351,11 @@ function FocusItem({
         <span>No state changes from opening this view.</span>
       </div>
 
-      <AgentComposer item={item} providerMode={providerMode} />
+      <AgentComposer
+        item={item}
+        providerMode={providerMode}
+        sessionRecoveryHref={sessionRecoveryHref}
+      />
     </article>
   );
 }
@@ -368,6 +391,8 @@ export function PursuitTodayPage({
   providerMode,
   sessionRecoveryHref,
 }: Props) {
+  const { sessionRecoveryHref: activeSessionRecoveryHref } =
+    useWorkspaceSessionRecovery(sessionRecoveryHref);
   const focus = projection?.items[0] ?? null;
   const continuations = projection?.items.slice(1) ?? [];
   const hiddenAttentionCount = Math.max(
@@ -399,15 +424,35 @@ export function PursuitTodayPage({
           </div>
         </header>
 
+        {activeSessionRecoveryHref && !error ? (
+          <section
+            className={`${styles.pageError} ${styles.sessionRecovery}`}
+            role="alert"
+          >
+            <WarningCircle aria-hidden="true" size={23} />
+            <div>
+              <h2>Sign in to continue this Pursuit.</h2>
+              <p>
+                The last verified Today projection remains visible. New Agent
+                and review writes are paused until the account session is
+                restored.
+              </p>
+              <Link href={activeSessionRecoveryHref}>Sign in again</Link>
+            </div>
+          </section>
+        ) : null}
+
         {error ? (
           <section className={styles.pageError} role="alert">
             <WarningCircle aria-hidden="true" size={23} />
             <div>
               <h2>Canonical readback is unavailable.</h2>
               <p>{error}</p>
-              <a href={sessionRecoveryHref ?? "/workspace/today"}>
-                {sessionRecoveryHref ? "Sign in again" : "Retry readback"}
-              </a>
+              <Link href={activeSessionRecoveryHref ?? "/workspace/today"}>
+                {activeSessionRecoveryHref
+                  ? "Sign in again"
+                  : "Retry readback"}
+              </Link>
             </div>
           </section>
         ) : focus ? (
@@ -416,7 +461,12 @@ export function PursuitTodayPage({
               <p className={styles.sectionLabel} id="focus-heading">
                 Focus
               </p>
-              <FocusItem item={focus} providerMode={providerMode} />
+              <FocusItem
+                item={focus}
+                key={focus.pursuitId}
+                providerMode={providerMode}
+                sessionRecoveryHref={activeSessionRecoveryHref}
+              />
             </section>
             <aside aria-labelledby="continue-heading">
               <p className={styles.sectionLabel} id="continue-heading">

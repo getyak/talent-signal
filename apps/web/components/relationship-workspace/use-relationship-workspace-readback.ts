@@ -14,6 +14,10 @@ import {
 } from "react";
 
 import { relationshipWorkspaceReadbackBoundaryError } from "./relationship-workspace-command";
+import {
+  relationshipIntegrationFetch,
+  workspaceSessionExpired,
+} from "@/components/workspace-session-request";
 
 type ActiveRelationshipScope = Pick<
   RelationshipScope,
@@ -40,6 +44,10 @@ type UseRelationshipWorkspaceReadbackInput = {
 };
 
 type ReadbackError = { code?: string; message?: string };
+
+type WorkspaceOpenResult =
+  | { ok: true; workspace: WorkspaceReviewResponse }
+  | { message?: string; ok: false; sessionExpired?: boolean };
 
 export function relationshipHistoryScopeKey(
   personId: string | null | undefined,
@@ -69,18 +77,7 @@ export function relationshipReadbackRequestIsCurrent(input: {
   return !input.aborted && input.activeKey === input.requestKey;
 }
 
-export function relationshipReadbackSessionExpired(
-  status: number,
-  payload: unknown,
-): boolean {
-  return (
-    status === 401 &&
-    payload !== null &&
-    typeof payload === "object" &&
-    "code" in payload &&
-    payload.code === "backend_session_expired"
-  );
-}
+export const relationshipReadbackSessionExpired = workspaceSessionExpired;
 
 function taggedHistory(
   history: RelationshipAgentHistory | null,
@@ -163,7 +160,7 @@ export function useRelationshipWorkspaceReadback({
       const controller = new AbortController();
       historyRequestRef.current = { controller, key: requestKey };
       try {
-        const response = await fetch(
+        const response = await relationshipIntegrationFetch(
           `/api/local-integration/people/${encodeURIComponent(
             resolvedPersonId,
           )}/contexts/${encodeURIComponent(
@@ -234,7 +231,7 @@ export function useRelationshipWorkspaceReadback({
       const controller = new AbortController();
       workspaceRequestRef.current = { controller, key: captureId };
       try {
-        const response = await fetch(
+        const response = await relationshipIntegrationFetch(
           `/api/local-integration/workspace?capture_id=${encodeURIComponent(
             captureId,
           )}`,
@@ -262,6 +259,103 @@ export function useRelationshipWorkspaceReadback({
     [acceptWorkspaceReadback, onSessionExpired],
   );
 
+  const openWorkspaceReview = useCallback(
+    async (
+      captureId: string,
+      expectedScope?: {
+        personId: string;
+        relationshipContextId: string;
+      },
+    ): Promise<WorkspaceOpenResult> => {
+      const originScopeKey = activeScopeKey;
+      const targetScopeKey = expectedScope
+        ? relationshipHistoryScopeKey(
+            expectedScope.personId,
+            expectedScope.relationshipContextId,
+          )
+        : originScopeKey;
+      if (!accountId || !activeScope || !originScopeKey || !targetScopeKey) {
+        return {
+          message:
+            "A verified account and relationship are required before opening this capture.",
+          ok: false,
+        };
+      }
+
+      workspaceRequestRef.current?.controller.abort();
+      const controller = new AbortController();
+      workspaceRequestRef.current = { controller, key: captureId };
+      try {
+        const response = await relationshipIntegrationFetch(
+          `/api/local-integration/workspace?capture_id=${encodeURIComponent(
+            captureId,
+          )}`,
+          { cache: "no-store", signal: controller.signal },
+        );
+        const payload = (await response.json()) as
+          | WorkspaceReviewResponse
+          | ReadbackError;
+        if (relationshipReadbackSessionExpired(response.status, payload)) {
+          onSessionExpired();
+          return { ok: false, sessionExpired: true };
+        }
+        if (!response.ok || !("capture" in payload)) {
+          return {
+            message:
+              "message" in payload && payload.message
+                ? payload.message
+                : "The requested capture review could not be opened.",
+            ok: false,
+          };
+        }
+        const boundaryError = relationshipWorkspaceReadbackBoundaryError(
+          payload,
+          {
+            expectedAccountId: accountId,
+            expectedCaptureId: captureId,
+          },
+        );
+        if (boundaryError) return { message: boundaryError, ok: false };
+        if (
+          relationshipHistoryScopeKey(
+            payload.subject.id,
+            payload.assignment.id,
+          ) !== targetScopeKey
+        ) {
+          return {
+            message:
+              "The requested capture does not belong to the expected relationship. Prior verified state remains visible.",
+            ok: false,
+          };
+        }
+        if (
+          !relationshipReadbackRequestIsCurrent({
+            aborted: controller.signal.aborted,
+            activeKey: activeScopeKeyRef.current,
+            requestKey: originScopeKey,
+          })
+        ) {
+          return {
+            message:
+              "The relationship changed before this capture opened. Its late readback was ignored.",
+            ok: false,
+          };
+        }
+        onWorkspaceReadback(payload);
+        return { ok: true, workspace: payload };
+      } catch (caught) {
+        return {
+          message:
+            caught instanceof Error && caught.name === "AbortError"
+              ? "The capture changed before this review opened. Prior verified state remains visible."
+              : "The requested capture review could not be opened.",
+          ok: false,
+        };
+      }
+    },
+    [accountId, activeScope, activeScopeKey, onSessionExpired, onWorkspaceReadback],
+  );
+
   const initialHistoryState = taggedHistory(initialHistory);
   const agentHistory =
     historyState.scopeKey === activeScopeKey
@@ -274,6 +368,7 @@ export function useRelationshipWorkspaceReadback({
     acceptWorkspaceReadback,
     agentHistory,
     clearAgentHistory,
+    openWorkspaceReview,
     refreshAgentHistory,
     refreshWorkspaceReview,
   };

@@ -7,7 +7,9 @@ export function RelationshipResourceSection({
   open,
   onCommitted,
   onEvidenceChanged,
+  onIdentityCorrected,
   onOpen,
+  onReviewCapture,
   onScreenshot,
   personId,
   relationshipContextId,
@@ -19,7 +21,14 @@ export function RelationshipResourceSection({
     announcement?: string,
     relationshipRemoved?: boolean,
   ) => void | Promise<void>;
+  onIdentityCorrected: (input: {
+    captureId: string;
+    captureIdsRebound: number;
+    personId: string;
+    relationshipContextId: string;
+  }) => Promise<"opened" | "session_expired" | "unavailable">;
   onOpen: () => void;
+  onReviewCapture: (captureId: string) => void | Promise<void>;
   onScreenshot: () => void;
   personId: string;
   relationshipContextId: string;
@@ -30,6 +39,8 @@ export function RelationshipResourceSection({
       <RelationshipResourceComposer
         onCommitted={onCommitted}
         onEvidenceChanged={onEvidenceChanged}
+        onIdentityCorrected={onIdentityCorrected}
+        onReviewCapture={onReviewCapture}
         onScreenshot={onScreenshot}
         personId={personId}
         relationshipContextId={relationshipContextId}

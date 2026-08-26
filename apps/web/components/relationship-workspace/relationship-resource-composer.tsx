@@ -27,12 +27,15 @@ import {
   Warning,
   X,
 } from "@phosphor-icons/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import type { ConversationTranscriptMessage } from "@/lib/conversation-transcript";
 import { ConversationTranscriptComposer } from "./conversation-transcript-composer";
 import { fieldLabel, formatDate, reviewLabel } from "./relationship-display";
+import {
+  relationshipIntegrationFetch,
+  relationshipIntegrationSessionExpired,
+} from "@/components/workspace-session-request";
 
 type ResourceMode = "conversation" | "note" | "document" | "url";
 
@@ -56,9 +59,10 @@ export function loadRelationshipResourceList(
     return existing;
   }
 
-  const request = fetch(`/api/local-integration/resources?${query}`, {
-    cache: "no-store",
-  }).then(async (response) => {
+  const request = relationshipIntegrationFetch(
+    `/api/local-integration/resources?${query}`,
+    { cache: "no-store" },
+  ).then(async (response) => {
     const payload = (await response.json()) as
       | { resources: RelationshipResourceListItem[] }
       | { message?: string };
@@ -90,6 +94,8 @@ export function RelationshipResourceComposer({
   scopeLabel,
   onCommitted,
   onEvidenceChanged,
+  onIdentityCorrected,
+  onReviewCapture,
   onScreenshot,
 }: {
   personId: string;
@@ -100,9 +106,15 @@ export function RelationshipResourceComposer({
     announcement?: string,
     relationshipRemoved?: boolean,
   ) => void | Promise<void>;
+  onIdentityCorrected: (input: {
+    captureId: string;
+    captureIdsRebound: number;
+    personId: string;
+    relationshipContextId: string;
+  }) => Promise<"opened" | "session_expired" | "unavailable">;
+  onReviewCapture: (captureId: string) => void | Promise<void>;
   onScreenshot: () => void;
 }) {
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const requestIdRef = useRef<string | null>(null);
   const requestCapturedAtRef = useRef<string | null>(null);
@@ -194,9 +206,10 @@ export function RelationshipResourceComposer({
     setIdentityPeopleLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/local-integration/people", {
-        cache: "no-store",
-      });
+      const response = await relationshipIntegrationFetch(
+        "/api/local-integration/people",
+        { cache: "no-store" },
+      );
       const payload = (await response.json()) as
         | { people: PersonDirectoryItem[] }
         | { message?: string };
@@ -286,7 +299,7 @@ export function RelationshipResourceComposer({
     setError("");
     identityCorrectionRequestRef.current ??= crypto.randomUUID();
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/captures/${selectedResource.resource.capture_id}/identity-corrections`,
         {
           method: "POST",
@@ -314,6 +327,11 @@ export function RelationshipResourceComposer({
             relationship_context_id: string;
           }
         | { message?: string };
+      if (
+        relationshipIntegrationSessionExpired(response.status, payload)
+      ) {
+        return;
+      }
       if (!response.ok || !("person_id" in payload)) {
         throw new Error(
           "message" in payload && payload.message
@@ -321,19 +339,17 @@ export function RelationshipResourceComposer({
             : "The source identity could not be corrected.",
         );
       }
-      onEvidenceChanged();
-      setSelectedResource(null);
-      setIdentityCorrectionOpen(false);
-      await loadResources();
-      router.push(
-        `/workspace?person=${encodeURIComponent(
-          payload.person_id,
-        )}&context=${encodeURIComponent(
-          payload.relationship_context_id,
-        )}&identity_corrected=${encodeURIComponent(
-          String(payload.capture_ids_rebound.length),
-        )}`,
-      );
+      const readback = await onIdentityCorrected({
+        captureId: selectedResource.resource.capture_id,
+        captureIdsRebound: payload.capture_ids_rebound.length,
+        personId: payload.person_id,
+        relationshipContextId: payload.relationship_context_id,
+      });
+      if (readback === "unavailable") {
+        setError(
+          "The identity correction was recorded, but the corrected relationship could not be read back. Reload before another decision.",
+        );
+      }
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -396,7 +412,7 @@ export function RelationshipResourceComposer({
   async function openResource(resourceId: string) {
     setError("");
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/resources?resource_id=${encodeURIComponent(
           resourceId,
         )}`,
@@ -458,7 +474,7 @@ export function RelationshipResourceComposer({
     const query = new URLSearchParams({
       seed_resource_id: seedResourceId,
     });
-    const response = await fetch(
+    const response = await relationshipIntegrationFetch(
       `/api/local-integration/research?${query}`,
       { cache: "no-store" },
     );
@@ -526,11 +542,13 @@ export function RelationshipResourceComposer({
     setError("");
     setResearchResult(null);
     try {
-      const response = await fetch("/api/local-integration/research", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const response = await relationshipIntegrationFetch(
+        "/api/local-integration/research",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
           request_id: crypto.randomUUID(),
           person_id: personId,
           relationship_context_id: relationshipContextId,
@@ -540,8 +558,9 @@ export function RelationshipResourceComposer({
           allowed_domain: domain,
           maximum_page_count: researchPageCount,
           maximum_link_depth: researchLinkDepth,
-        }),
-      });
+          }),
+        },
+      );
       const payload = (await response.json()) as
         | PublicResearchResponse
         | { message?: string };
@@ -575,7 +594,7 @@ export function RelationshipResourceComposer({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/evidence-fragments/${fragmentId}/reviews`,
         {
           method: "POST",
@@ -631,7 +650,7 @@ export function RelationshipResourceComposer({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/resource-claims/${claim.id}/decisions`,
         {
           method: "POST",
@@ -674,7 +693,7 @@ export function RelationshipResourceComposer({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/captures/${selectedResource.resource.capture_id}/deletion`,
         {
           method: "POST",
@@ -745,7 +764,7 @@ export function RelationshipResourceComposer({
     setError("");
     sourceAuthorizationRequestRef.current ??= crypto.randomUUID();
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/captures/${selectedResource.resource.capture_id}/source-authorization`,
         {
           method: "POST",
@@ -870,17 +889,22 @@ export function RelationshipResourceComposer({
           saveDiscoveredLinks ? "true" : "false",
         );
         form.set("file", file);
-        response = await fetch("/api/local-integration/resources", {
-          method: "POST",
-          body: form,
-          cache: "no-store",
-        });
+        response = await relationshipIntegrationFetch(
+          "/api/local-integration/resources",
+          {
+            method: "POST",
+            body: form,
+            cache: "no-store",
+          },
+        );
       } else {
-        response = await fetch("/api/local-integration/resources", {
-          method: "POST",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        response = await relationshipIntegrationFetch(
+          "/api/local-integration/resources",
+          {
+            method: "POST",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
             request_id: requestIdRef.current,
             captured_at: capturedAt,
             person_id: personId,
@@ -894,8 +918,9 @@ export function RelationshipResourceComposer({
                   attribution_reviewed: transcriptAttributionReviewed,
                 }
               : {}),
-          }),
-        });
+            }),
+          },
+        );
       }
       const payload = (await response.json()) as
         | {
@@ -1889,13 +1914,18 @@ export function RelationshipResourceComposer({
                   </small>
                 </p>
               </div>
-              <a
+              <button
                 className="context-secondary-button"
-                href={`/workspace?capture=${selectedResource.resource.capture_id}#proposed-changes`}
+                onClick={() =>
+                  void onReviewCapture(
+                    selectedResource.resource.capture_id,
+                  )
+                }
+                type="button"
               >
                 Continue fact review
                 <ArrowRight aria-hidden="true" size={15} />
-              </a>
+              </button>
             </section>
           ) : null}
           {selectedResource.claim_proposals.length > 0 ? (

@@ -20,6 +20,8 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
+
 export type PersonMergeWorkflowResponse = PersonMergeResponse & {
   compilations: Array<{
     relationship_context_id: string;
@@ -118,7 +120,7 @@ export function PersonMergeReview({
       return;
     }
     const controller = new AbortController();
-    void fetch("/api/local-integration/people", {
+    void relationshipIntegrationFetch("/api/local-integration/people", {
       cache: "no-store",
       signal: controller.signal,
     })
@@ -191,7 +193,7 @@ export function PersonMergeReview({
     const controller = new AbortController();
     searchControllerRef.current = controller;
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         "/api/local-integration/people/search",
         {
           method: "POST",
@@ -245,7 +247,7 @@ export function PersonMergeReview({
         source_person_id: person.id,
         target_person_id: currentPerson.id,
       });
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/person-merges?${parameters.toString()}`,
         { cache: "no-store" },
       );
@@ -292,7 +294,7 @@ export function PersonMergeReview({
     setBusy("Merging people");
     setError("");
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         "/api/local-integration/person-merges",
         {
           method: "POST",
@@ -353,7 +355,7 @@ export function PersonMergeReview({
     setBusy("Reversing merge");
     setError("");
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/person-merges/${operationId}/reversal`,
         {
           method: "POST",

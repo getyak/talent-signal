@@ -148,7 +148,7 @@ export default async function PursuitRoomPage({
             </section>
           </div>
 
-          <PursuitReviewGate proposals={proposals} />
+          <PursuitReviewGate key={pursuit.id} proposals={proposals} />
         </div>
       </main>
     </div>

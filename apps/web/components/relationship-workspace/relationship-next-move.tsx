@@ -15,6 +15,8 @@ import {
 } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
+import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
+
 export type RelationshipWorkspaceMutator = (
   path: string,
   options: RequestInit,
@@ -99,7 +101,7 @@ export function RelationshipNextMove({
       "Reading the current destination before reversal review.",
     );
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/effects/${effect.attempt_id}/reversal`,
         { cache: "no-store" },
       );

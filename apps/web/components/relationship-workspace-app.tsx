@@ -12,9 +12,7 @@ import {
 } from "@talent-signal/contracts";
 import { Plus, ShieldCheck } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-
-import { backendSessionRecoveryHref } from "@/lib/backend-session";
+import { useEffect, useState } from "react";
 
 import {
   GovernedCaptureDeletion,
@@ -49,6 +47,8 @@ import {
   relationshipReadbackSessionExpired,
   useRelationshipWorkspaceReadback,
 } from "./relationship-workspace/use-relationship-workspace-readback";
+import { useWorkspaceSessionRecovery } from "./use-workspace-session-recovery";
+import { workspaceSessionFetch } from "./workspace-session-request";
 
 type Props = {
   initialAccountId: string | null;
@@ -94,9 +94,6 @@ export function RelationshipWorkspaceApp({
     initialAccountId ??
     initialWorkspace?.account_id ?? initialKnowledgeSnapshot?.account_id ?? null;
   const [error, setError] = useState(initialError ?? "");
-  const [sessionRecoveryHref, setSessionRecoveryHref] = useState(
-    initialSessionRecoveryHref,
-  );
   const [busy, setBusy] = useState("");
   const [captureOpen, setCaptureOpen] = useState(initialCaptureOpen);
   const [personMergeRequested, setPersonMergeRequested] = useState(false);
@@ -125,17 +122,13 @@ export function RelationshipWorkspaceApp({
       }
     : relationshipScope;
   const activeCaptureId = workspace?.capture.id ?? null;
-  const beginSessionRecovery = useCallback(() => {
-    const callbackUrl =
-      typeof window === "undefined"
-        ? "/workspace?surface=desk"
-        : `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    setSessionRecoveryHref(backendSessionRecoveryHref(callbackUrl));
-  }, []);
+  const { beginSessionRecovery, sessionRecoveryHref } =
+    useWorkspaceSessionRecovery(initialSessionRecoveryHref);
   const {
     acceptWorkspaceReadback,
     agentHistory,
     clearAgentHistory,
+    openWorkspaceReview,
     refreshAgentHistory,
     refreshWorkspaceReview,
   } = useRelationshipWorkspaceReadback({
@@ -225,6 +218,10 @@ export function RelationshipWorkspaceApp({
       if (!result.ok) {
         if (result.code === "backend_session_expired") {
           beginSessionRecovery();
+          setAnnouncement(
+            "Account session expired. Prior verified state remains visible.",
+          );
+          return null;
         }
         throw new Error(result.message);
       }
@@ -410,7 +407,7 @@ export function RelationshipWorkspaceApp({
     setBusy("Opening identity review");
     setError("");
     try {
-      const response = await fetch(
+      const response = await workspaceSessionFetch(
         `/api/local-integration/identity-resolution-cases/${caseId}`,
         { cache: "no-store" },
       );
@@ -418,7 +415,7 @@ export function RelationshipWorkspaceApp({
         | IdentityResolutionCase
         | { code?: string; message?: string };
       if (relationshipReadbackSessionExpired(response.status, payload)) {
-        beginSessionRecovery();
+        return;
       }
       if (!response.ok || !("candidates" in payload)) {
         throw new Error(
@@ -632,7 +629,7 @@ export function RelationshipWorkspaceApp({
     setBusy("Reviewing merge history");
     setError("");
     try {
-      const response = await fetch(
+      const response = await workspaceSessionFetch(
         `/api/local-integration/person-merges/${encodeURIComponent(
           operationId,
         )}/reversal`,
@@ -642,7 +639,7 @@ export function RelationshipWorkspaceApp({
         | PersonMergeReversalPreview
         | { code?: string; message?: string };
       if (relationshipReadbackSessionExpired(response.status, payload)) {
-        beginSessionRecovery();
+        return;
       }
       if (!response.ok || !("operation_id" in payload)) {
         throw new Error(
@@ -690,6 +687,93 @@ export function RelationshipWorkspaceApp({
   function openResourceComposer() {
     setResourceComposerOpen(true);
     window.setTimeout(() => scrollWorkspaceTo("relationship-resources"), 0);
+  }
+
+  async function handleOpenCaptureReview(captureId: string) {
+    setBusy("Opening the selected capture review");
+    setError("");
+    const result = await openWorkspaceReview(captureId);
+    setBusy("");
+    if (!result.ok) {
+      if (!result.sessionExpired) {
+        setError(
+          result.message ?? "The requested capture review could not be opened.",
+        );
+      }
+      return;
+    }
+
+    relationshipAgent.clearGeneratedArtifacts();
+    setKnowledgeSnapshot(null);
+    setResourceComposerOpen(false);
+    window.history.replaceState(
+      null,
+      "",
+      `/workspace?person=${encodeURIComponent(
+        result.workspace.subject.id,
+      )}&context=${encodeURIComponent(
+        result.workspace.assignment.id,
+      )}&capture=${encodeURIComponent(captureId)}#proposed-changes`,
+    );
+    setAnnouncement(
+      "Selected capture review opened without reloading the relationship workspace.",
+    );
+    window.requestAnimationFrame(() =>
+      scrollWorkspaceTo("proposed-changes"),
+    );
+  }
+
+  async function handleIdentityCorrected(input: {
+    captureId: string;
+    captureIdsRebound: number;
+    personId: string;
+    relationshipContextId: string;
+  }) {
+    setBusy("Opening the corrected relationship");
+    setError("");
+    const result = await openWorkspaceReview(input.captureId, {
+      personId: input.personId,
+      relationshipContextId: input.relationshipContextId,
+    });
+    setBusy("");
+    if (!result.ok) {
+      return result.sessionExpired ? "session_expired" : "unavailable";
+    }
+
+    const correctedScope: RelationshipScope = {
+      contract_version: CONTRACT_VERSION,
+      person: {
+        id: result.workspace.subject.id,
+        display_label: result.workspace.subject.display_label,
+      },
+      relationship_context: {
+        id: result.workspace.assignment.id,
+        display_label: result.workspace.assignment.display_label,
+      },
+    };
+    setRelationshipScope(correctedScope);
+    relationshipAgent.clearGeneratedArtifacts();
+    setKnowledgeSnapshot(null);
+    clearAgentHistory();
+    setResourceComposerOpen(false);
+    window.history.replaceState(
+      null,
+      "",
+      `/workspace?person=${encodeURIComponent(
+        input.personId,
+      )}&context=${encodeURIComponent(
+        input.relationshipContextId,
+      )}&capture=${encodeURIComponent(
+        input.captureId,
+      )}&identity_corrected=${encodeURIComponent(
+        String(input.captureIdsRebound),
+      )}#proposed-changes`,
+    );
+    setAnnouncement(
+      "Source identity corrected. The verified target relationship is now open without reloading.",
+    );
+    void refreshAgentHistory(input.personId, input.relationshipContextId);
+    return "opened";
   }
 
 
@@ -751,6 +835,7 @@ export function RelationshipWorkspaceApp({
           <RelationshipWorkspaceStatus
             busy={busy}
             error={error}
+            hasVerifiedState={Boolean(workspace || relationshipScope)}
             onDismissError={() => setError("")}
             sessionRecoveryHref={sessionRecoveryHref}
           />
@@ -835,7 +920,9 @@ export function RelationshipWorkspaceApp({
                     relationshipScope.relationship_context.id,
                   );
                 }}
+                onIdentityCorrected={handleIdentityCorrected}
                 onOpen={openResourceComposer}
+                onReviewCapture={handleOpenCaptureReview}
                 onScreenshot={() => setCaptureOpen(true)}
                 open={resourceComposerOpen}
                 personId={relationshipScope.person.id}
@@ -940,7 +1027,9 @@ export function RelationshipWorkspaceApp({
                     workspace.assignment.id,
                   );
                 }}
+                onIdentityCorrected={handleIdentityCorrected}
                 onOpen={openResourceComposer}
+                onReviewCapture={handleOpenCaptureReview}
                 onScreenshot={() => setCaptureOpen(true)}
                 open={resourceComposerOpen}
                 personId={workspace.subject.id}

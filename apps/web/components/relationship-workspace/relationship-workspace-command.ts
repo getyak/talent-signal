@@ -1,5 +1,7 @@
 import type { WorkspaceReviewResponse } from "@talent-signal/contracts";
 
+import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
+
 type WorkspaceMutationEnvelope = {
   code?: string;
   message?: string;
@@ -47,14 +49,14 @@ export async function requestRelationshipWorkspaceMutation(
   boundary: RelationshipWorkspaceReadbackBoundary = {},
 ): Promise<RelationshipWorkspaceMutationResult> {
   try {
-    const response = await request(path, {
+    const response = await relationshipIntegrationFetch(path, {
       cache: "no-store",
       ...options,
       headers: {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...options.headers,
       },
-    });
+    }, request);
     const payload = (await response.json()) as
       | WorkspaceMutationEnvelope
       | WorkspaceReviewResponse;

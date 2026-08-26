@@ -609,6 +609,11 @@
   margin-top: 8px;
 }
 
+.sessionRecovery {
+  margin-top: 28px;
+  max-width: none;
+}
+
 @media (max-width: 1080px) {
   .todayGrid {
     grid-template-columns: minmax(0, 1fr);

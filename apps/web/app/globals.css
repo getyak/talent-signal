@@ -4594,6 +4594,12 @@ p {
   padding: 13px 14px;
 }
 
+.context-page-alert--session {
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--line));
+  color: var(--warning);
+}
+
 .context-page-alert > div {
   display: grid;
   flex: 1;

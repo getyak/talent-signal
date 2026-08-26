@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { reconcileWorkspaceSessionRecoveryHref } from "@/components/use-workspace-session-recovery";
 import {
   BackendSessionExpiredError,
   backendSessionRecoveryHref,
@@ -29,5 +30,34 @@ describe("backend session boundary", () => {
     ).toBe(
       "/login?callbackUrl=%2Fworkspace%3Fsurface%3Ddesk&reason=backend_session_expired",
     );
+  });
+
+  it("reconciles a soft server refresh without erasing a client expiry event", () => {
+    const clientRecovery =
+      "/login?callbackUrl=%2Fworkspace%2Ftoday&reason=backend_session_expired";
+    const serverRecovery =
+      "/login?callbackUrl=%2Fworkspace%2Fpeople&reason=backend_session_expired";
+
+    expect(
+      reconcileWorkspaceSessionRecoveryHref({
+        currentHref: clientRecovery,
+        nextInitialHref: null,
+        previousInitialHref: null,
+      }),
+    ).toBe(clientRecovery);
+    expect(
+      reconcileWorkspaceSessionRecoveryHref({
+        currentHref: null,
+        nextInitialHref: serverRecovery,
+        previousInitialHref: null,
+      }),
+    ).toBe(serverRecovery);
+    expect(
+      reconcileWorkspaceSessionRecoveryHref({
+        currentHref: serverRecovery,
+        nextInitialHref: null,
+        previousInitialHref: serverRecovery,
+      }),
+    ).toBeNull();
   });
 });

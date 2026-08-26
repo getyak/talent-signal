@@ -33,6 +33,7 @@ import {
   mergePersonDirectoryMatches,
   personIdentityTemporalRole,
 } from "@/lib/agent-person-resolution";
+import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
 
 function identityHandleLabel(type: IdentityHandleType) {
   switch (type) {
@@ -156,7 +157,7 @@ export function AgentCreatePersonCard({
     const timer = window.setTimeout(() => {
       void Promise.all(
         queries.map(async (query) => {
-          const response = await fetch(
+          const response = await relationshipIntegrationFetch(
             "/api/local-integration/people/search",
             {
               method: "POST",
@@ -217,11 +218,13 @@ export function AgentCreatePersonCard({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/local-integration/resources", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const response = await relationshipIntegrationFetch(
+        "/api/local-integration/resources",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
           request_id: requestIdRef.current,
           ...agentPersonScopeFields(target, name, contextLabel),
           type: "note",
@@ -230,8 +233,9 @@ export function AgentCreatePersonCard({
               ? "First recruiter-provided context"
               : "Agent-attached recruiter context",
           value: firstNote.trim(),
-        }),
-      });
+          }),
+        },
+      );
       const payload = (await response.json()) as
         | { receipts: ResourceCaptureResponse[] }
         | { message?: string };
@@ -254,7 +258,7 @@ export function AgentCreatePersonCard({
       const receipts = [...payload.receipts];
       if (identityClueConfirmed && parsedIdentityClue) {
         handleRequestIdRef.current ??= crypto.randomUUID();
-        const handleResponse = await fetch(
+        const handleResponse = await relationshipIntegrationFetch(
           "/api/local-integration/resources",
           {
             method: "POST",
@@ -330,11 +334,13 @@ export function AgentCreatePersonCard({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/local-integration/resources", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const response = await relationshipIntegrationFetch(
+        "/api/local-integration/resources",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
           request_id: requestIdRef.current,
           scope_mode: "identity_candidates",
           candidate_person_ids: matches.map((person) => person.id),
@@ -343,8 +349,9 @@ export function AgentCreatePersonCard({
           type: "note",
           title: "Recruiter source awaiting identity",
           value: firstNote.trim(),
-        }),
-      });
+          }),
+        },
+      );
       const payload = (await response.json()) as
         | { receipts: ResourceCaptureResponse[] }
         | { message?: string };

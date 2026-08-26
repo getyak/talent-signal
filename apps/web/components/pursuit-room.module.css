@@ -427,6 +427,16 @@
   line-height: 1.5;
 }
 
+.reviewError a {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 760;
+  min-height: 38px;
+  padding: 9px 13px;
+}
+
 .receipt {
   background: color-mix(in srgb, var(--success) 11%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--success) 24%, var(--line));
@@ -448,6 +458,20 @@
 .receipt span {
   color: var(--muted-strong);
   font-size: 0.7rem;
+}
+
+.receipt > button {
+  align-self: center;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: inherit;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 760;
+  margin-left: auto;
+  min-height: 38px;
+  padding: 9px 13px;
 }
 
 .history {
@@ -522,6 +546,19 @@
   .proposal {
     border-radius: 15px;
     padding: 23px 18px;
+  }
+
+  .receipt {
+    flex-wrap: wrap;
+  }
+
+  .receipt > div {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .receipt > button {
+    margin-left: 36px;
   }
 
   .beforeAfter {

@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { ConversationTranscriptMessage } from "@/lib/conversation-transcript";
 import { ConversationTranscriptComposer } from "./conversation-transcript-composer";
+import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
 import { initials, personContextSummary } from "./relationship-display";
 
 type ResourceMode = "conversation" | "note" | "document" | "url";
@@ -80,7 +81,7 @@ export function StartRelationshipPanel({
       () => {
         setPeopleLoading(true);
         setPeopleLookupFailed(false);
-        void fetch(
+        void relationshipIntegrationFetch(
           query
             ? "/api/local-integration/people/search"
             : "/api/local-integration/people",
@@ -219,17 +220,22 @@ export function StartRelationshipPanel({
           saveDiscoveredLinks ? "true" : "false",
         );
         form.set("file", file);
-        response = await fetch("/api/local-integration/resources", {
-          method: "POST",
-          body: form,
-          cache: "no-store",
-        });
+        response = await relationshipIntegrationFetch(
+          "/api/local-integration/resources",
+          {
+            method: "POST",
+            body: form,
+            cache: "no-store",
+          },
+        );
       } else {
-        response = await fetch("/api/local-integration/resources", {
-          method: "POST",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        response = await relationshipIntegrationFetch(
+          "/api/local-integration/resources",
+          {
+            method: "POST",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
             request_id: requestId,
             captured_at: capturedAt,
             scope_mode: scopeMode,
@@ -246,8 +252,9 @@ export function StartRelationshipPanel({
                   attribution_reviewed: transcriptAttributionReviewed,
                 }
               : {}),
-          }),
-        });
+            }),
+          },
+        );
       }
       const payload = (await response.json()) as
         | { receipts: ResourceCaptureResponse[] }

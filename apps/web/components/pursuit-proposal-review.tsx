@@ -7,8 +7,14 @@ import {
   ShieldCheck,
   WarningCircle,
 } from "@phosphor-icons/react";
+import Link from "next/link";
 import { useState } from "react";
 
+import { useWorkspaceSessionRecovery } from "./use-workspace-session-recovery";
+import {
+  workspaceSessionExpired,
+  workspaceSessionFetch,
+} from "./workspace-session-request";
 import styles from "./pursuit-room.module.css";
 
 type Decision = "confirm" | "edit" | "reject" | "keep_unresolved";
@@ -50,6 +56,7 @@ function initialEditValue(value: unknown): string {
 }
 
 export function PursuitProposalReview({ onReviewed, proposal }: Props) {
+  const { sessionRecoveryHref } = useWorkspaceSessionRecovery(null);
   const [decisions, setDecisions] = useState<
     Record<string, { decision: Decision; editedValue: string }>
   >({});
@@ -71,7 +78,9 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
   }
 
   async function submitReview() {
-    if (!allDecided || !reason.trim() || submitting) return;
+    if (!allDecided || !reason.trim() || submitting || sessionRecoveryHref) {
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -98,7 +107,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
         };
       });
       const operationId = crypto.randomUUID();
-      const response = await fetch(
+      const response = await workspaceSessionFetch(
         `/api/pursuit-proposals/${proposal.id}/reviews`,
         {
           method: "POST",
@@ -120,6 +129,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
         };
         error?: { message?: string };
       };
+      if (workspaceSessionExpired(response.status, payload)) return;
       if (!response.ok || !payload.receipt) {
         throw new Error(
           payload.error?.message ??
@@ -286,7 +296,12 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
             Submission applies only confirmed or edited items and returns canonical readback.
           </p>
           <button
-            disabled={!allDecided || !reason.trim() || submitting}
+            disabled={
+              !allDecided ||
+              !reason.trim() ||
+              submitting ||
+              Boolean(sessionRecoveryHref)
+            }
             onClick={submitReview}
             type="button"
           >
@@ -294,6 +309,20 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
           </button>
         </div>
       </div>
+
+      {sessionRecoveryHref ? (
+        <div className={styles.reviewError} role="alert">
+          <WarningCircle aria-hidden="true" size={20} />
+          <p>
+            <strong>Sign in before reviewing this Proposal</strong>
+            <span>
+              Your decisions remain visible on this page, but no canonical
+              write can be attempted until the account session is restored.
+            </span>
+          </p>
+          <Link href={sessionRecoveryHref}>Sign in again</Link>
+        </div>
+      ) : null}
 
       {error ? (
         <div className={styles.reviewError} role="alert">

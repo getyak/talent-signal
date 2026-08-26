@@ -19,6 +19,11 @@ import { relationshipEvidenceProjectionState } from "@/components/relationship-w
 import { relationshipCurrentDependency } from "@/components/relationship-workspace/relationship-contact-header";
 import { relationshipBriefContinuityReceipt } from "@/components/relationship-workspace/relationship-history";
 import {
+  relationshipIntegrationFetch,
+  relationshipIntegrationSessionExpired,
+  workspaceSessionExpired,
+} from "@/components/workspace-session-request";
+import {
   relationshipAgentConversationKey,
   relationshipAgentDraftStorageKey,
   relationshipAgentResponseIsCurrent,
@@ -334,6 +339,46 @@ describe("relationship governed projection", () => {
       code: "backend_session_expired",
       message: "Sign in again.",
       ok: false,
+    });
+  });
+
+  it("detects expired local-integration responses without consuming them", async () => {
+    expect(
+      relationshipIntegrationSessionExpired(401, {
+        code: "backend_session_expired",
+      }),
+    ).toBe(true);
+    expect(
+      relationshipIntegrationSessionExpired(401, {
+        code: "authentication_required",
+      }),
+    ).toBe(false);
+    expect(
+      workspaceSessionExpired(401, {
+        error: { code: "backend_session_expired" },
+      }),
+    ).toBe(true);
+    expect(
+      workspaceSessionExpired(401, {
+        error: { code: "authentication_required" },
+      }),
+    ).toBe(false);
+
+    const response = await relationshipIntegrationFetch(
+      "/local-read",
+      { cache: "no-store" },
+      (async () =>
+        new Response(
+          JSON.stringify({ code: "backend_session_expired" }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 401,
+          },
+        )) as typeof fetch,
+    );
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      code: "backend_session_expired",
     });
   });
 

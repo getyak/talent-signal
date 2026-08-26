@@ -125,4 +125,97 @@ describe("relationship workspace initial read", () => {
     );
     expect(login).toContain("no cached relationship state was substituted");
   });
+
+  it("funnels relationship feature requests through one expiry boundary", () => {
+    const root = read("components/relationship-workspace-app.tsx");
+    const request = read(
+      "components/workspace-session-request.ts",
+    );
+    const recovery = read(
+      "components/use-workspace-session-recovery.ts",
+    );
+    const status = read(
+      "components/relationship-workspace/relationship-workspace-status.tsx",
+    );
+
+    expect(root).toContain("beginSessionRecovery");
+    expect(root).not.toContain("await fetch(");
+    expect(root).toContain("workspaceSessionFetch(");
+    expect(recovery).toContain("WORKSPACE_SESSION_EXPIRED_EVENT");
+    expect(request).toContain('response.clone().json()');
+    expect(request).toContain(
+      'responseCode(payload) === "backend_session_expired"',
+    );
+    expect(status).toContain("Sign in to continue this relationship");
+    expect(status).toContain("last verified relationship remains visible");
+    expect(status).toContain("No relationship state was substituted");
+    expect(status).toContain("busy && !sessionRecoveryHref");
+  });
+
+  it("opens a related capture review without a same-route hard reload", () => {
+    const root = read("components/relationship-workspace-app.tsx");
+    const resources = read(
+      "components/relationship-workspace/relationship-resource-composer.tsx",
+    );
+    const readback = read(
+      "components/relationship-workspace/use-relationship-workspace-readback.ts",
+    );
+
+    expect(resources).toContain("onReviewCapture(");
+    expect(resources).not.toContain("href={`/workspace?capture=");
+    expect(root).toContain("openWorkspaceReview(captureId)");
+    expect(root).toContain("Selected capture review opened without reloading");
+    expect(readback).toContain("expectedCaptureId: captureId");
+    expect(readback).toContain("payload.subject.id");
+    expect(readback).toContain("activeScopeKeyRef.current");
+  });
+
+  it("moves a corrected source only after target relationship readback", () => {
+    const root = read("components/relationship-workspace-app.tsx");
+    const resources = read(
+      "components/relationship-workspace/relationship-resource-composer.tsx",
+    );
+    const readback = read(
+      "components/relationship-workspace/use-relationship-workspace-readback.ts",
+    );
+
+    expect(resources).toContain("await onIdentityCorrected({");
+    expect(resources).not.toContain("router.push(");
+    expect(resources).toContain("identity correction was recorded");
+    expect(root).toContain("openWorkspaceReview(input.captureId");
+    expect(root).toContain("setRelationshipScope(correctedScope)");
+    expect(root).toContain("now open without reloading");
+    expect(readback).toContain("expectedScope.relationshipContextId");
+    expect(readback).toContain("targetScopeKey");
+    expect(readback).toContain("originScopeKey");
+  });
+
+  it("pauses Pursuit writes without hiding the last verified projection", () => {
+    const today = read("components/pursuit-today-page.tsx");
+    const proposal = read("components/pursuit-proposal-review.tsx");
+
+    for (const source of [today, proposal]) {
+      expect(source).toContain("workspaceSessionFetch(");
+      expect(source).toContain("workspaceSessionExpired(");
+      expect(source).toContain("useWorkspaceSessionRecovery(");
+      expect(source).toContain("Boolean(sessionRecoveryHref)");
+      expect(source).toContain("Sign in again");
+    }
+    expect(today).toContain("last verified Today projection remains visible");
+    expect(today).toContain("New Agent");
+    expect(proposal).toContain("Your decisions remain visible on this page");
+    expect(proposal).toContain("no canonical");
+  });
+
+  it("binds refreshed Pursuit state to its canonical object identity", () => {
+    const today = read("components/pursuit-today-page.tsx");
+    const reviewGate = read("components/pursuit-review-gate.tsx");
+    const room = read("app/workspace/pursuits/[id]/page.tsx");
+
+    expect(today).toContain("key={focus.pursuitId}");
+    expect(room).toContain("key={pursuit.id}");
+    expect(reviewGate).toContain("reviewedProposalIds");
+    expect(reviewGate).toContain("key={pending.id}");
+    expect(reviewGate).toContain("Review next Proposal");
+  });
 });

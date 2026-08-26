@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { resolveAgentUiCommand } from "@/lib/agent-ui-command";
+import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
 
 const DEFAULT_OBJECTIVE =
   "What should I remember and do before the next conversation?";
@@ -406,18 +407,21 @@ export function useRelationshipAgentController({
     requestAbortRef.current = controller;
 
     try {
-      const responseResult = await fetch("/api/local-integration/chat", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          request_id: requestRef.current.requestId,
-          person_id: requestScope.person.id,
-          relationship_context_id: requestScope.relationship_context.id,
-          objective: submitted,
-        }),
-      });
+      const responseResult = await relationshipIntegrationFetch(
+        "/api/local-integration/chat",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            request_id: requestRef.current.requestId,
+            person_id: requestScope.person.id,
+            relationship_context_id: requestScope.relationship_context.id,
+            objective: submitted,
+          }),
+        },
+      );
       const payload = (await responseResult.json()) as
         | ChatTaskResponse
         | { message?: string };

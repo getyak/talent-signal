@@ -16,6 +16,8 @@ import {
 } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
+import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
+
 type IdentityWorkflowResponse = {
   decision: IdentityResolutionDecisionResponse;
   identity_case: IdentityResolutionCase;
@@ -101,7 +103,7 @@ export function AgentIdentityReviewCard({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/identity-resolution-cases/${identityCase.id}/decisions`,
         {
           method: "POST",

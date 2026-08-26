@@ -3,6 +3,8 @@
 import { Trash } from "@phosphor-icons/react";
 import { useState } from "react";
 
+import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
+
 export type GovernedCaptureDeletionReceipt = {
   derivatives: number;
   lineage: number;
@@ -45,7 +47,7 @@ export function GovernedCaptureDeletion({
     onBusyChange("Deleting governed source");
     onError("");
     try {
-      const response = await fetch(
+      const response = await relationshipIntegrationFetch(
         `/api/local-integration/captures/${captureId}/deletion`,
         { method: "POST" },
       );

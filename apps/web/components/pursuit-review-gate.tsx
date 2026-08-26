@@ -18,13 +18,19 @@ export function PursuitReviewGate({
 }) {
   const router = useRouter();
   const [receipt, setReceipt] = useState<PursuitReviewReceipt | null>(null);
-  const visible = receipt
-    ? proposals.filter((proposal) => proposal.id !== receipt.proposalId)
-    : proposals;
+  const [reviewedProposalIds, setReviewedProposalIds] = useState<string[]>([]);
+  const visible = proposals.filter(
+    (proposal) => !reviewedProposalIds.includes(proposal.id),
+  );
   const pending = visible.find((proposal) => proposal.status === "needs_review");
   const recovery = visible.filter((proposal) => proposal.id !== pending?.id);
 
   function recordReceipt(canonicalReceipt: PursuitReviewReceipt) {
+    setReviewedProposalIds((current) =>
+      current.includes(canonicalReceipt.proposalId)
+        ? current
+        : [...current, canonicalReceipt.proposalId],
+    );
     setReceipt(canonicalReceipt);
     router.refresh();
   }
@@ -63,9 +69,18 @@ export function PursuitReviewGate({
               {receipt.changedFields.length} changed fields · {receipt.externalEffects} external effects
             </span>
           </div>
+          {pending ? (
+            <button onClick={() => setReceipt(null)} type="button">
+              Review next Proposal
+            </button>
+          ) : null}
         </div>
       ) : pending ? (
-        <PursuitProposalReview onReviewed={recordReceipt} proposal={pending} />
+        <PursuitProposalReview
+          key={pending.id}
+          onReviewed={recordReceipt}
+          proposal={pending}
+        />
       ) : recovery.length > 0 ? (
         <div className={styles.receipt}>
           <ShieldCheck aria-hidden="true" size={24} weight="fill" />
