@@ -201,7 +201,7 @@ struct TodayRelationshipCalendarPeek: View {
             Text(dateWeekday)
                 .font(.caption2.weight(.bold))
                 .tracking(0.8)
-                .foregroundStyle(Color.tsVermilion)
+                .foregroundStyle(Color.tsInk)
             Text(dateDay)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(Color.tsInk)

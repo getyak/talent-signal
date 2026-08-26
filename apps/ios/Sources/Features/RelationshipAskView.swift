@@ -480,6 +480,11 @@ struct RelationshipAskView: View {
                 }
             }
             .buttonStyle(.plain)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: scopeSelectorMinimumHeight,
+                alignment: .leading
+            )
             .accessibilityElement(children: .ignore)
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(
@@ -584,7 +589,16 @@ struct RelationshipAskView: View {
                 .foregroundStyle(Color.tsMutedInk)
                 .frame(width: 32, height: 32)
         }
+        .frame(
+            maxWidth: .infinity,
+            minHeight: scopeSelectorMinimumHeight,
+            alignment: .leading
+        )
         .contentShape(Rectangle())
+    }
+
+    private var scopeSelectorMinimumHeight: CGFloat {
+        selectedScope == nil ? 44 : 80
     }
 
     private var conversation: some View {

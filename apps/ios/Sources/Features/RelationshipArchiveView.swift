@@ -323,7 +323,9 @@ struct RelationshipArchiveView: View {
             ) {
                 Task { await workspaceStore.load() }
             }
-        case let .empty(snapshot), let .preview(snapshot), let .loaded(snapshot):
+        case .empty:
+            PursuitWorkspaceEmptyView(selectedPage: selectedPage)
+        case let .preview(snapshot), let .loaded(snapshot):
             TabView(selection: $selectedPage) {
                 PursuitTodayView(
                     snapshot: snapshot,
@@ -645,6 +647,7 @@ private struct RelationshipArchiveHeader: View {
                                     selectedPage == page ? .semibold : .regular
                                 ))
                                 .foregroundStyle(Color.tsInk)
+                                .accessibilityHidden(true)
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 38)
@@ -654,6 +657,7 @@ private struct RelationshipArchiveHeader: View {
                     .accessibilityAddTraits(
                         selectedPage == page ? .isSelected : []
                     )
+                    .accessibilityLabel(page.title(in: appLanguage))
                     .accessibilityIdentifier(
                         "archive-tab-\(page.accessibilityIdentifier)"
                     )

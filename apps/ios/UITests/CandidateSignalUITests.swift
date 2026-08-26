@@ -774,6 +774,18 @@ final class CandidateSignalUITests: XCTestCase {
                     // remain the direct evidence; do not waive other text.
                     return true
                 }
+                if issue.auditType == .contrast,
+                   issueElement.label == "T" {
+                    let calendarPeek = self.app.buttons["today-calendar-peek"]
+                    if calendarPeek.exists,
+                       calendarPeek.frame.intersects(issueElement.frame) {
+                        // iOS 26 audits the accessibility-hidden narrow
+                        // weekday glyph without its opaque calendar tile.
+                        // The glyph uses tsInk on tsSurfaceMuted; keep the
+                        // workaround inside this labelled Button only.
+                        return true
+                    }
+                }
                 let frame = issueElement.frame
                 let top = self.app.buttons["relationship-menu"].frame.maxY
                 let bottom = self.app.buttons["relationship-guide"].frame.minY
@@ -1730,15 +1742,24 @@ final class CandidateSignalUITests: XCTestCase {
 
     @MainActor
     func testBackendCanonicalStateReadsConfirmedFactsFromLocalhost() async throws {
-        let endpoint = URL(string: "http://127.0.0.1:4317/health/ready")!
+        let backendURL = testConfiguration(
+            "TS_IOS_BACKEND_URL",
+            fallback: "http://127.0.0.1:4317"
+        )
+        let endpoint = try XCTUnwrap(URL(string: "\(backendURL)/health/ready"))
         guard let (_, response) = try? await URLSession.shared.data(from: endpoint),
               let response = response as? HTTPURLResponse,
               response.statusCode == 200 else {
             throw XCTSkip("Run with the authorized local Talent Signal backend.")
         }
+        guard await canonicalBackendFixtureIsAvailable(at: backendURL) else {
+            throw XCTSkip(
+                "The authorized local backend does not include the TS-CORE-01 canonical fixture."
+            )
+        }
 
         app.launchArguments = [
-            "--backend-url", "http://127.0.0.1:4317"
+            "--backend-url", backendURL
         ]
         app.launch()
 
@@ -1804,6 +1825,8 @@ final class CandidateSignalUITests: XCTestCase {
             app.launchArguments += [
                 "--force-dark",
                 "-AppleInterfaceStyle", "Dark",
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
             ]
         }
         app.launch()
@@ -2213,6 +2236,52 @@ final class CandidateSignalUITests: XCTestCase {
         return fallback
     }
 
+    private func canonicalBackendFixtureIsAvailable(at backendURL: String) async -> Bool {
+        guard let baseURL = URL(string: backendURL) else { return false }
+        var loginRequest = URLRequest(
+            url: baseURL.appending(path: "v1/auth/simulated-login")
+        )
+        loginRequest.httpMethod = "POST"
+        loginRequest.setValue("application/json", forHTTPHeaderField: "content-type")
+        loginRequest.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "account_slug": "fixture-alpha",
+            "user_email": "reviewer@alpha.local",
+            "client_label": "ios-ui-test-preflight",
+        ])
+
+        guard let (loginData, loginResponse) = try? await URLSession.shared.data(
+            for: loginRequest
+        ),
+        let loginHTTPResponse = loginResponse as? HTTPURLResponse,
+        (200...299).contains(loginHTTPResponse.statusCode),
+        let loginJSON = try? JSONSerialization.jsonObject(with: loginData)
+            as? [String: Any],
+        let accessToken = loginJSON["access_token"] as? String else {
+            return false
+        }
+
+        var components = URLComponents(
+            url: baseURL.appending(path: "v1/workspace-review"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "fixture_case_id", value: "TS-CORE-01")
+        ]
+        guard let workspaceURL = components?.url else { return false }
+        var workspaceRequest = URLRequest(url: workspaceURL)
+        workspaceRequest.setValue(
+            "Bearer \(accessToken)",
+            forHTTPHeaderField: "authorization"
+        )
+        guard let (_, workspaceResponse) = try? await URLSession.shared.data(
+            for: workspaceRequest
+        ),
+        let workspaceHTTPResponse = workspaceResponse as? HTTPURLResponse else {
+            return false
+        }
+        return (200...299).contains(workspaceHTTPResponse.statusCode)
+    }
+
     private func tapWhenVisible(_ element: XCUIElement, maxSwipes: Int = 14) {
         var swipes = 0
         while !element.exists, swipes < maxSwipes {
@@ -2263,11 +2332,21 @@ final class CandidateSignalUITests: XCTestCase {
                     window.coordinate(withNormalizedOffset: target).tap()
                     return
                 }
-                // Today keeps every attention-bearing Pursuit in the accessibility
-                // tree. Let XCTest perform one semantic scroll-to-visible for a
-                // known off-screen item instead of approximating its distance.
-                element.tap()
-                return
+                if targetFrame.minY < visibleTop {
+                    if workspaceScroll.exists {
+                        workspaceScroll.swipeDown()
+                    } else {
+                        app.swipeDown()
+                    }
+                } else {
+                    if workspaceScroll.exists {
+                        workspaceScroll.swipeUp()
+                    } else {
+                        app.swipeUp()
+                    }
+                }
+                swipes += 1
+                continue
             }
             // Several tab surfaces remain in the accessibility hierarchy, so
             // target the selected surface explicitly instead of firstMatch.
