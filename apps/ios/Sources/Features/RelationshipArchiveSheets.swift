@@ -569,7 +569,9 @@ struct RelationshipDetailView: View {
 struct RelationshipMenuView: View {
     let isCanonical: Bool
     let workspaceID: String?
+    let workspaceLabel: String?
     let accountName: String?
+    let accountEmail: String?
     let proposals: [WorkspaceProposal]
     let signOutNotice: String?
     let onOpenProposal: (WorkspaceProposal) -> Void
@@ -578,7 +580,8 @@ struct RelationshipMenuView: View {
     @Environment(\.appLanguage) private var appLanguage
     @AppStorage(AppLanguage.storageKey) private var storedLanguage =
         AppLanguage.system.rawValue
-    @State private var isSigningOut = false
+    @AppStorage(TalentSignalSetupPreference.actionButtonCompleteKey)
+    private var isActionButtonSetupComplete = false
     @State private var selectedDetent: PresentationDetent = .medium
 
     private var selectedLanguage: AppLanguage {
@@ -589,129 +592,122 @@ struct RelationshipMenuView: View {
         NavigationStack {
             List {
                 Section {
-                    HStack(spacing: 12) {
-                        RelationshipSignalOrb()
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(accountName ?? "Talent Signal")
-                                .font(.custom("Georgia", size: 20, relativeTo: .headline))
-                            Text(
-                                isCanonical
-                                    ? appLanguage.text(
-                                        "Canonical workspace",
-                                        zhHans: "权威工作区"
-                                    )
-                                    : appLanguage.text(
-                                        "Synthetic preview",
-                                        zhHans: "合成预览"
-                                    )
-                            )
-                                .font(.caption)
-                                .foregroundStyle(Color.tsMutedInk)
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-
-                Section {
-                    if proposals.isEmpty {
-                        Label(
-                            appLanguage.text(
-                                "No Proposal needs review",
-                                zhHans: "没有需要审阅的提议"
-                            ),
-                            systemImage: "checkmark.circle"
-                        )
-                            .foregroundStyle(Color.tsMutedInk)
-                    } else {
-                        ForEach(proposals) { proposal in
-                            Button {
-                                dismiss()
-                                Task { @MainActor in
-                                    await Task.yield()
-                                    onOpenProposal(proposal)
-                                }
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(proposal.summary)
-                                        .foregroundStyle(Color.tsInk)
-                                    Text("\(proposal.subjectDisplayLabel) · \(proposal.status.replacingOccurrences(of: "_", with: " "))")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.tsMutedInk)
-                                }
-                            }
-                            .accessibilityIdentifier("inbox-proposal-\(proposal.id)")
-                        }
-                    }
-                } header: {
-                    Text(appLanguage.text("Review inbox", zhHans: "审阅收件箱"))
-                }
-
-                Section {
                     NavigationLink {
-                        AppSettingsView()
-                            .onAppear { selectedDetent = .large }
-                            .onDisappear { selectedDetent = .medium }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Label(
-                                appLanguage.text("Settings", zhHans: "设置"),
-                                systemImage: "gearshape"
+                        expandedDestination(
+                            AccountSettingsView(
+                                isCanonical: isCanonical,
+                                workspaceID: workspaceID,
+                                workspaceLabel: workspaceLabel,
+                                accountName: accountName,
+                                accountEmail: accountEmail,
+                                signOutNotice: signOutNotice,
+                                onSignOut: wrappedSignOut
                             )
-                            Spacer(minLength: 10)
-                            Text(selectedLanguage.displayName(in: appLanguage))
-                                .font(.caption)
-                                .foregroundStyle(Color.tsMutedInk)
+                        )
+                    } label: {
+                        RelationshipMenuAccountRow(
+                            accountName: accountName ?? "Talent Signal",
+                            subtitle: accountSubtitle
+                        )
+                    }
+                    .accessibilityIdentifier("open-account-settings")
+                }
+
+                if !isActionButtonSetupComplete {
+                    Section {
+                        NavigationLink {
+                            expandedDestination(ActionButtonSetupView())
+                        } label: {
+                            RelationshipMenuSetupRow()
                         }
+                        .accessibilityIdentifier("open-action-button-onboarding")
+                    }
+                }
+
+                Section {
+                    if !proposals.isEmpty {
+                        NavigationLink {
+                            expandedDestination(
+                                RelationshipProposalInboxView(
+                                    proposals: proposals,
+                                    onOpenProposal: openProposal
+                                )
+                            )
+                        } label: {
+                            RelationshipMenuUtilityRow(
+                                systemImage: "checkmark.bubble",
+                                title: appLanguage.text("Review inbox"),
+                                detail: appLanguage.text(
+                                    "Open exact evidence and proposed changes."
+                                ),
+                                value: "\(proposals.count)"
+                            )
+                        }
+                        .accessibilityIdentifier("open-review-inbox")
+                    }
+
+                    NavigationLink {
+                        expandedDestination(ActionButtonSetupView())
+                    } label: {
+                        RelationshipMenuUtilityRow(
+                            systemImage: "button.programmable",
+                            title: appLanguage.text("Action Button & Shortcuts"),
+                            detail: appLanguage.text(
+                                "Capture, record, or review from the system."
+                            ),
+                            value: isActionButtonSetupComplete
+                                ? appLanguage.text("Set up")
+                                : nil
+                        )
+                    }
+                    .accessibilityIdentifier("open-action-button-settings")
+
+                    NavigationLink {
+                        expandedDestination(AppSettingsView())
+                    } label: {
+                        RelationshipMenuUtilityRow(
+                            systemImage: "globe",
+                            title: appLanguage.text("Interface language"),
+                            detail: appLanguage.text(
+                                "Choose the language used for controls and guidance."
+                            ),
+                            value: selectedLanguage.displayName(in: appLanguage)
+                        )
                     }
                     .accessibilityIdentifier("open-settings")
 
+                    NavigationLink {
+                        expandedDestination(ApprovalSettingsView())
+                    } label: {
+                        RelationshipMenuUtilityRow(
+                            systemImage: "lock.shield",
+                            title: appLanguage.text("Approval & data"),
+                            detail: appLanguage.text(
+                                "Every consequential action stays reviewable."
+                            )
+                        )
+                    }
+                    .accessibilityIdentifier("open-approval-settings")
                 } header: {
-                    Text(appLanguage.text("Product", zhHans: "产品"))
-                }
-
-                Section {
-                    Label(boundaryCopy, systemImage: "lock.shield")
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                    if let signOutNotice {
-                        Label(signOutNotice, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(Color.tsMutedInk)
-                            .accessibilityIdentifier("sign-out-local-deletion-notice")
-                    }
-                    if let onSignOut {
-                        Button(role: .destructive) {
-                            guard !isSigningOut else { return }
-                            isSigningOut = true
-                            Task {
-                                let didSignOut = await onSignOut()
-                                isSigningOut = false
-                                if didSignOut { dismiss() }
-                            }
-                        } label: {
-                            HStack {
-                                Label(
-                                    appLanguage.text("Sign out", zhHans: "退出登录"),
-                                    systemImage: "rectangle.portrait.and.arrow.right"
-                                )
-                                Spacer()
-                                if isSigningOut { ProgressView() }
-                            }
-                        }
-                        .disabled(isSigningOut)
-                        .accessibilityIdentifier("sign-out")
-                    }
+                    Text(appLanguage.text("Workspace tools"))
                 }
             }
+            .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .background(Color.tsSurface)
-            .navigationTitle(Text("Talent Signal"))
+            .navigationTitle(appLanguage.text("Workspace"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(appLanguage.text("Close", zhHans: "关闭")) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel(appLanguage.text("Close"))
                     .accessibilityIdentifier("close-relationship-menu")
                 }
             }
@@ -720,17 +716,168 @@ struct RelationshipMenuView: View {
         .presentationDetents([.medium, .large], selection: $selectedDetent)
     }
 
-    private var boundaryCopy: String {
-        if isCanonical {
-            return appLanguage.text(
-                "This workspace is read from canonical account scope. Proposals carry no execution authority until item review and readback.",
-                zhHans: "此工作区读取自权威账户范围。提议在逐项审阅并回读前不具备执行权限。"
-            )
+    private var accountSubtitle: String {
+        if let accountEmail {
+            return accountEmail
         }
         return appLanguage.text(
-            "No candidate data is stored in this synthetic preview. Generated proposals carry no execution authority.",
-            zhHans: "此合成预览不会存储候选人数据。生成的提议不具备执行权限。"
+            isCanonical ? "Canonical workspace" : "Synthetic preview"
         )
+    }
+
+    private var wrappedSignOut: (() async -> Bool)? {
+        onSignOut.map { signOut in
+            {
+                let didSignOut = await signOut()
+                if didSignOut { dismiss() }
+                return didSignOut
+            }
+        }
+    }
+
+    private func openProposal(_ proposal: WorkspaceProposal) {
+        dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            onOpenProposal(proposal)
+        }
+    }
+
+    private func expandedDestination<Destination: View>(
+        _ destination: Destination
+    ) -> some View {
+        destination
+            .onAppear { selectedDetent = .large }
+            .onDisappear { selectedDetent = .medium }
+    }
+}
+
+private struct RelationshipMenuAccountRow: View {
+    let accountName: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            AccountInitialsAvatar(label: accountName, size: 44)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(accountName)
+                    .font(.headline)
+                    .foregroundStyle(Color.tsInk)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(1)
+            }
+        }
+        .frame(minHeight: 58)
+    }
+}
+
+private struct RelationshipMenuSetupRow: View {
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "button.programmable")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                .frame(width: 34, height: 34)
+                .background(Color.tsCanvas, in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(appLanguage.text("Set up quick capture"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                    Spacer(minLength: 8)
+                    Text(appLanguage.text("1 minute"))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.tsMutedInk)
+                }
+                Text(
+                    appLanguage.text(
+                        "Use the iPhone Action Button or Shortcuts without hunting through the app."
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 5)
+    }
+}
+
+private struct RelationshipMenuUtilityRow: View {
+    let systemImage: String
+    let title: String
+    let detail: String
+    var value: String?
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.medium))
+                .foregroundStyle(Color.tsMutedInk)
+                .frame(width: 28)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.tsInk)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            if let value {
+                Text(value)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsMutedInk)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+        .frame(minHeight: 52)
+    }
+}
+
+private struct RelationshipProposalInboxView: View {
+    let proposals: [WorkspaceProposal]
+    let onOpenProposal: (WorkspaceProposal) -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        List(proposals) { proposal in
+            Button {
+                onOpenProposal(proposal)
+            } label: {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(proposal.summary)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.tsInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "\(proposal.subjectDisplayLabel) · \(proposal.status.replacingOccurrences(of: "_", with: " "))"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                }
+                .frame(minHeight: 52, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("inbox-proposal-\(proposal.id)")
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.tsSurface)
+        .navigationTitle(appLanguage.text("Review inbox"))
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("review-inbox")
     }
 }
 

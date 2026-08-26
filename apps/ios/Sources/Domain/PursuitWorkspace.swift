@@ -296,7 +296,24 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
     let captureCount: Int
     let confirmedIdentityCount: Int
     let lastActivityAt: String
+    let profile: Profile?
     let contexts: [Context]
+
+    struct Profile: Decodable, Equatable {
+        let headline: String
+        let summary: String
+        let provenanceKind: String
+        let authoredByUserID: String
+        let revision: Int
+        let updatedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case headline, summary, revision
+            case provenanceKind = "provenance_kind"
+            case authoredByUserID = "authored_by_user_id"
+            case updatedAt = "updated_at"
+        }
+    }
 
     struct Context: Decodable, Equatable, Identifiable {
         let id: String
@@ -317,6 +334,7 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
         case captureCount = "capture_count"
         case confirmedIdentityCount = "confirmed_identity_count"
         case lastActivityAt = "last_activity_at"
+        case profile
         case contexts
     }
 }
@@ -532,6 +550,7 @@ fileprivate extension WorkspacePerson {
         captureCount: 1,
         confirmedIdentityCount: 1,
         lastActivityAt: "2026-08-23T18:00:00.000Z",
+        profile: nil,
         contexts: [
             .init(
                 id: "21000000-0000-4000-8000-000000000001",
@@ -548,6 +567,7 @@ fileprivate extension WorkspacePerson {
         captureCount: 1,
         confirmedIdentityCount: 1,
         lastActivityAt: "2026-08-23T15:00:00.000Z",
+        profile: nil,
         contexts: [
             .init(
                 id: "21000000-0000-4000-8000-000000000002",

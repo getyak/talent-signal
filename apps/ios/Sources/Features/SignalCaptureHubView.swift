@@ -15,6 +15,7 @@ struct SignalCaptureHubView: View {
     let workspaceID: String?
     let initialDestination: CaptureIntentDestination?
     let onDismiss: () -> Void
+    let onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var appLanguage
@@ -26,13 +27,15 @@ struct SignalCaptureHubView: View {
         accessToken: String? = nil,
         workspaceID: String? = nil,
         initialDestination: CaptureIntentDestination? = nil,
-        onDismiss: @escaping () -> Void = {}
+        onDismiss: @escaping () -> Void = {},
+        onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)? = nil
     ) {
         self.backendURL = backendURL
         self.accessToken = accessToken
         self.workspaceID = workspaceID
         self.initialDestination = initialDestination
         self.onDismiss = onDismiss
+        self.onContinueInAgent = onContinueInAgent
     }
 
     var body: some View {
@@ -40,13 +43,12 @@ struct SignalCaptureHubView: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .center, spacing: 16) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(appLanguage.text("Capture for the Agent", zhHans: "为 Agent 记录"))
+                        Text(appLanguage.text("Capture for the Agent"))
                             .font(.custom("Georgia", size: 28, relativeTo: .title2))
                             .foregroundStyle(Color.tsInk)
                         Text(
                             appLanguage.text(
-                                "Preserve the source now. Available parsing follows scope review.",
-                                zhHans: "先保留原始内容；确认范围后，才会进入可用的解析流程。"
+                                "Preserve the source now. Available parsing follows scope review."
                             )
                         )
                         .font(.subheadline)
@@ -65,7 +67,7 @@ struct SignalCaptureHubView: View {
                             .background(Color.tsCanvas, in: Circle())
                     }
                     .accessibilityLabel(
-                        appLanguage.text("Close input", zhHans: "关闭输入")
+                        appLanguage.text("Close input")
                     )
                     .accessibilityIdentifier("close-capture-hub")
                 }
@@ -81,8 +83,7 @@ struct SignalCaptureHubView: View {
 
                 Label(
                     appLanguage.text(
-                        "Nothing here confirms identity, facts, or an external write.",
-                        zhHans: "这里不会确认身份、事实，也不会写入外部系统。"
+                        "Nothing here confirms identity, facts, or an external write."
                     ),
                     systemImage: "checkmark.shield"
                 )
@@ -105,7 +106,14 @@ struct SignalCaptureHubView: View {
                     backendURL: backendURL,
                     accessToken: accessToken,
                     workspaceID: workspaceID,
-                    onClose: { destination = nil }
+                    onClose: { destination = nil },
+                    onContinueInAgent: { completion in
+                        destination = nil
+                        Task { @MainActor in
+                            await Task.yield()
+                            onContinueInAgent?(completion)
+                        }
+                    }
                 )
             case .audio:
                 AudioSignalCaptureView(onDismiss: { destination = nil })
@@ -125,20 +133,20 @@ struct SignalCaptureHubView: View {
     @ViewBuilder
     private var captureOptions: some View {
         captureRow(
-            title: appLanguage.text("Text", zhHans: "文本"),
-            detail: appLanguage.text("Type or paste", zhHans: "输入或粘贴"),
+            title: appLanguage.text("Text"),
+            detail: appLanguage.text("Type or paste"),
             symbol: "text.quote",
             identifier: "capture-hub-text"
         ) { destination = .text }
         captureRow(
-            title: appLanguage.text("Photo", zhHans: "图片"),
-            detail: appLanguage.text("Choose one", zhHans: "选择一张"),
+            title: appLanguage.text("Photo"),
+            detail: appLanguage.text("Choose one"),
             symbol: "photo",
             identifier: "capture-hub-screenshot"
         ) { destination = .screenshot }
         captureRow(
-            title: appLanguage.text("Voice", zhHans: "语音"),
-            detail: appLanguage.text("Record now", zhHans: "现在录制"),
+            title: appLanguage.text("Voice"),
+            detail: appLanguage.text("Record now"),
             symbol: "waveform",
             identifier: "capture-hub-audio"
         ) { destination = .audio }

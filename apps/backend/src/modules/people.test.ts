@@ -63,6 +63,7 @@ describe("people directory", () => {
         capture_count: 4,
         confirmed_identity_count: 1,
         last_activity_at: "2026-08-06T10:00:00.000Z",
+        profile: null,
         contexts: [
           {
             id: "55555555-5555-4555-8555-555555555555",
@@ -73,6 +74,50 @@ describe("people directory", () => {
         identity_matches: [{ kind: "name" }],
       },
     ]);
+  });
+
+  it("returns a user-authored profile without turning it into evidence", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          display_label: "cubxxw",
+          context_count: 0,
+          capture_count: 0,
+          confirmed_identity_count: 0,
+          last_activity_at: new Date("2026-08-26T10:00:00.000Z"),
+          name_match: false,
+          matched_handle_status: null,
+          matched_handle_type: null,
+          matched_handle_hint: null,
+          matched_handle_source_resource_id: null,
+          matched_handle_valid_until: null,
+          profile_headline: "Talent Signal 创建者",
+          profile_summary: "由工作区所有者明确写入的人物介绍。",
+          profile_provenance_kind: "user_authored",
+          profile_authored_by_user_id: auth.userId,
+          profile_revision: 1,
+          profile_updated_at: new Date("2026-08-26T10:00:00.000Z"),
+          contexts: [],
+        },
+      ],
+    });
+
+    const response = await listPeople({ query } as unknown as Pool, auth);
+
+    expect(response.people[0]).toMatchObject({
+      display_label: "cubxxw",
+      capture_count: 0,
+      confirmed_identity_count: 0,
+      profile: {
+        headline: "Talent Signal 创建者",
+        summary: "由工作区所有者明确写入的人物介绍。",
+        provenance_kind: "user_authored",
+        authored_by_user_id: auth.userId,
+        revision: 1,
+        updated_at: "2026-08-26T10:00:00.000Z",
+      },
+    });
   });
 
   it("finds a person by a confirmed handle without putting raw data in SQL parameters", async () => {

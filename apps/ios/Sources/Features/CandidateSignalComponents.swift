@@ -895,13 +895,8 @@ struct SectionLabel: View {
 
 private struct SignalMark: View {
     var body: some View {
-        HStack(alignment: .bottom, spacing: 3) {
-            Capsule().fill(Color.tsInk).frame(width: 4, height: 9)
-            Capsule().fill(Color.tsInk).frame(width: 4, height: 18)
-            Capsule().fill(Color.tsVermilion).frame(width: 4, height: 13)
-        }
-        .frame(width: 22, height: 20)
-        .accessibilityHidden(true)
+        TalentSignalBrandMark()
+            .frame(width: 24, height: 24)
     }
 }
 

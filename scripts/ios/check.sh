@@ -7,6 +7,8 @@ scheme_name="TalentSignal"
 
 cd "$repository_root"
 
+node scripts/ios/check-localization.mjs
+
 ios_derived_data_owned="false"
 ios_derived_data="${IOS_DERIVED_DATA_PATH:-}"
 if [ -z "$ios_derived_data" ]; then

@@ -3,25 +3,17 @@ import {
   AddressBook,
   ArrowRight,
   ChatCircleDots,
-  FileImage,
-  House,
   MagnifyingGlass,
-  Plus,
-  ShieldCheck,
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 
-import { ThemeToggle } from "./theme-toggle";
 import styles from "./people-directory-app.module.css";
 
 type Props = {
   error: string | null;
   people: PersonDirectoryItem[];
   query: string;
-  user: {
-    email?: string | null;
-    name?: string | null;
-  };
+  sessionRecoveryHref: string | null;
 };
 
 function initials(label: string) {
@@ -73,82 +65,15 @@ function identityMatchLabel(
   return `Historical ${match.handle_type}: ${match.display_hint}`;
 }
 
-export function PeopleDirectoryApp({ error, people, query, user }: Props) {
-  const accountLabel = user.name ?? "Recruiter";
-
+export function PeopleDirectoryApp({
+  error,
+  people,
+  query,
+  sessionRecoveryHref,
+}: Props) {
   return (
-    <div className={`context-workspace ${styles.shell}`}>
-      <aside className="context-sidebar">
-        <Link
-          aria-label="Talent Signal home"
-          className="context-brand"
-          href="/"
-        >
-          <span aria-hidden="true">TS</span>
-          <strong>Talent Signal</strong>
-        </Link>
-
-        <nav aria-label="Workspace navigation" className="context-nav">
-          <Link aria-label="Relationship Agent" href="/workspace">
-            <House aria-hidden="true" size={19} weight="duotone" />
-            Agent
-          </Link>
-          <Link
-            aria-current="page"
-            aria-label="People directory"
-            href="/workspace/people"
-          >
-            <AddressBook aria-hidden="true" size={19} weight="duotone" />
-            People
-          </Link>
-          <Link
-            aria-label="Governed sources"
-            href="/workspace#relationship-resources"
-          >
-            <FileImage aria-hidden="true" size={19} weight="duotone" />
-            Sources
-          </Link>
-        </nav>
-
-        <Link
-          aria-label="Add a governed source"
-          className="context-new-capture"
-          href="/workspace"
-        >
-          <Plus aria-hidden="true" size={18} />
-          Add source
-        </Link>
-
-        <div className="context-sidebar__section">
-          <div>
-            <span>Directory</span>
-          </div>
-          <p className="context-sidebar__empty">
-            Account-scoped people and their active relationship contexts.
-          </p>
-        </div>
-
-        <div className="context-sidebar__account">
-          <span>{initials(accountLabel)}</span>
-          <p>
-            <strong>{accountLabel}</strong>
-            <small>{user.email ?? "Authenticated account"}</small>
-          </p>
-          <ThemeToggle />
-        </div>
-      </aside>
-
+    <div className={styles.shell}>
       <main className={styles.main} id="main-content">
-        <header className={styles.topbar}>
-          <p>
-            Workspace <span>/</span> People
-          </p>
-          <div>
-            <ShieldCheck aria-hidden="true" size={16} weight="duotone" />
-            Account only
-          </div>
-        </header>
-
         <div className={styles.page}>
           <section className={styles.hero}>
             <div>
@@ -194,6 +119,9 @@ export function PeopleDirectoryApp({ error, people, query, user }: Props) {
                   <strong>Directory temporarily unavailable</strong>
                   <p>{error}</p>
                 </div>
+                {sessionRecoveryHref ? (
+                  <Link href={sessionRecoveryHref}>Sign in again</Link>
+                ) : null}
               </div>
             ) : people.length === 0 ? (
               <div className={styles.empty}>

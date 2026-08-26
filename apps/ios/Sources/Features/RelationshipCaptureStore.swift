@@ -194,8 +194,11 @@ final class RelationshipCaptureStore: ObservableObject {
             try? await PendingCaptureInbox.shared.remove(id: seed.id)
             stage = .completed(
                 RelationshipCaptureCompletion(
+                    captureID: result.captureID,
                     personID: nil,
+                    personDisplayLabel: nil,
                     relationshipContextID: nil,
+                    relationshipDisplayLabel: nil,
                     resourceID: result.resource.id,
                     decision: "unresolved",
                     wiki: nil
@@ -235,6 +238,7 @@ final class RelationshipCaptureStore: ObservableObject {
 
     private func decide(_ decision: IdentityDecision) {
         guard let identityCase,
+              let captureID = captureResult?.captureID,
               let resourceID = captureResult?.resource.id else {
             return
         }
@@ -262,8 +266,11 @@ final class RelationshipCaptureStore: ObservableObject {
                 try? await PendingCaptureInbox.shared.remove(id: seed.id)
                 stage = .completed(
                     RelationshipCaptureCompletion(
+                        captureID: captureID,
                         personID: nil,
+                        personDisplayLabel: nil,
                         relationshipContextID: nil,
+                        relationshipDisplayLabel: nil,
                         resourceID: resourceID,
                         decision: result.decision,
                         wiki: nil
@@ -284,7 +291,8 @@ final class RelationshipCaptureStore: ObservableObject {
     }
 
     private func compileWiki(personID: String, contextID: String) {
-        guard let resourceID = captureResult?.resource.id else { return }
+        guard let captureID = captureResult?.captureID,
+              let resourceID = captureResult?.resource.id else { return }
         task?.cancel()
         stage = .compilingWiki
         task = Task { [weak self] in
@@ -299,8 +307,11 @@ final class RelationshipCaptureStore: ObservableObject {
                 try? await PendingCaptureInbox.shared.remove(id: seed.id)
                 stage = .completed(
                     RelationshipCaptureCompletion(
+                        captureID: captureID,
                         personID: personID,
+                        personDisplayLabel: resolvedPersonDisplayLabel,
                         relationshipContextID: contextID,
+                        relationshipDisplayLabel: resolvedRelationshipDisplayLabel,
                         resourceID: resourceID,
                         decision: pendingDecision.map(Self.decisionLabel) ?? "already_bound",
                         wiki: wiki
@@ -330,7 +341,22 @@ final class RelationshipCaptureStore: ObservableObject {
             return "leave_unresolved"
         }
     }
+
+    private var resolvedPersonDisplayLabel: String? {
+        if case let .bind(candidate, _) = pendingDecision {
+            return candidate.displayLabel
+        }
+        return draft.displayNameHint.nonEmpty
+    }
+
+    private var resolvedRelationshipDisplayLabel: String? {
+        if case let .bind(_, context) = pendingDecision, let context {
+            return context.displayLabel
+        }
+        return draft.relationshipLabel.nonEmpty
+    }
 }
+
 
 private extension String {
     var nonEmpty: String? {

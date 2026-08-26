@@ -2,6 +2,13 @@ import Foundation
 
 @MainActor
 final class AudioSignalCaptureStore: ObservableObject {
+    enum MissingRequirement: Equatable {
+        case purpose
+        case authorizingParty
+        case authorizationBasis
+        case authorizationAttestation
+    }
+
     enum Phase: Equatable {
         case idle
         case requestingPermission
@@ -19,12 +26,14 @@ final class AudioSignalCaptureStore: ObservableObject {
     @Published var authorizationConfirmed = false
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var notice: String?
+    @Published private(set) var microphonePermission: AudioSignalPermission
 
     private let recorder: AudioSignalRecordingServing
     private var activeID = UUID()
 
     init(recorder: AudioSignalRecordingServing) {
         self.recorder = recorder
+        microphonePermission = recorder.permissionStatus()
     }
 
     convenience init() {
@@ -32,16 +41,29 @@ final class AudioSignalCaptureStore: ObservableObject {
     }
 
     var canStart: Bool {
-        guard authorizationConfirmed,
-              !purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !authorizationBasis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !authorizingParty.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard missingRequirement == nil else {
             return false
         }
         switch phase {
         case .idle, .failed, .deleted: return true
         default: return false
         }
+    }
+
+    var missingRequirement: MissingRequirement? {
+        if purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .purpose
+        }
+        if authorizingParty.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .authorizingParty
+        }
+        if authorizationBasis.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .authorizationBasis
+        }
+        if !authorizationConfirmed {
+            return .authorizationAttestation
+        }
+        return nil
     }
 
     var isRecording: Bool {
@@ -51,6 +73,7 @@ final class AudioSignalCaptureStore: ObservableObject {
 
     func restore() {
         guard phase == .idle else { return }
+        refreshPermissionStatus()
         do {
             if let receipt = try recorder.latestReceipt() {
                 phase = .saved(receipt)
@@ -60,8 +83,32 @@ final class AudioSignalCaptureStore: ObservableObject {
         }
     }
 
+    func refreshPermissionStatus() {
+        microphonePermission = recorder.permissionStatus()
+    }
+
+    func explainMissingRequirement() {
+        guard let missingRequirement else {
+            notice = nil
+            return
+        }
+        switch missingRequirement {
+        case .purpose:
+            notice = "Add the purpose for this recording before the microphone starts."
+        case .authorizingParty:
+            notice = "Name the person or accountable party who authorized this recording."
+        case .authorizationBasis:
+            notice = "Record how authorization was given, such as direct verbal permission."
+        case .authorizationAttestation:
+            notice = "Confirm that the recorded authorization covers the purpose above."
+        }
+    }
+
     func start(sceneIsActive: Bool) async {
-        guard canStart else { return }
+        guard canStart else {
+            explainMissingRequirement()
+            return
+        }
         guard sceneIsActive else {
             phase = .failed("Open Talent Signal in the foreground before recording. No recording started.")
             return
@@ -72,6 +119,7 @@ final class AudioSignalCaptureStore: ObservableObject {
             phase = .requestingPermission
             permission = await recorder.requestPermission()
         }
+        microphonePermission = permission
         guard permission == .granted else {
             phase = .failed("Microphone permission was not granted. No recording started.")
             return
@@ -128,6 +176,7 @@ final class AudioSignalCaptureStore: ObservableObject {
             authorizationBasis = ""
             authorizingParty = ""
             authorizationConfirmed = false
+            refreshPermissionStatus()
             notice = nil
             phase = .deleted
         } catch {

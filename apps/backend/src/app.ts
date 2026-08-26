@@ -65,6 +65,8 @@ import {
   KnowledgeSnapshotSchema,
   CurrentSessionResponseSchema,
   LogoutResponseSchema,
+  PasswordLoginRequestSchema,
+  PasswordRegistrationRequestSchema,
   ReviseActionRequestSchema,
   RevisePursuitRequestSchema,
   ReviewPursuitProposalRequestSchema,
@@ -97,6 +99,8 @@ import {
   type IdentityResolutionDecisionRequest,
   type PersonMergeRequest,
   type PersonMergeReversalRequest,
+  type PasswordLoginRequest,
+  type PasswordRegistrationRequest,
   type ReconcileEffectRequest,
   type PublicResearchRequest,
   type ResourceCaptureRequest,
@@ -142,8 +146,10 @@ import {
   createAppleLoginChallenge,
   createAppleSession,
   createAuthGuard,
+  createPasswordSession,
   createSimulatedSession,
   currentSession,
+  registerPasswordSession,
   revokeCurrentSession,
 } from "./modules/auth.js";
 import {
@@ -212,6 +218,11 @@ import {
   getSourceRetentionReceiptByLocator,
 } from "./modules/sourceRetention.js";
 import { getWorkspaceReview } from "./modules/workspace.js";
+import {
+  EnvironmentDoubaoVoiceTranscriber,
+  type VoiceTranscriptionServing,
+  voiceTranscriptionLimits,
+} from "./modules/voiceTranscription.js";
 
 const IdParamsSchema = Type.Object(
   { id: Type.String({ format: "uuid" }) },
@@ -274,25 +285,58 @@ const PersonContextParamsSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+const VoiceTranscriptionRequestSchema = Type.Object(
+  {
+    audio_base64: Type.String({
+      minLength: 60,
+      maxLength: voiceTranscriptionLimits.maxBase64Characters,
+      pattern: "^[A-Za-z0-9+/]+={0,2}$",
+    }),
+    client_request_id: Type.String({ format: "uuid" }),
+    mime_type: Type.Literal("audio/wav"),
+  },
+  { additionalProperties: false },
+);
+const VoiceTranscriptionResponseSchema = Type.Object(
+  {
+    audio_duration_ms: Type.Optional(Type.Number({ minimum: 0 })),
+    client_request_id: Type.String({ format: "uuid" }),
+    model: Type.String({ minLength: 1 }),
+    provider: Type.Literal("doubao"),
+    provider_request_id: Type.String({ format: "uuid" }),
+    status: Type.Literal("draft"),
+    temporary_audio_stored_by_talent_signal: Type.Literal(false),
+    transcript: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
 
 export interface AppDependencies {
   appleTokenVerifier?: AppleTokenVerifying;
   config: BackendConfig;
   pool: Pool;
+  voiceTranscriber?: VoiceTranscriptionServing;
 }
 
 export async function buildApp(
   dependencies: AppDependencies,
 ): Promise<FastifyInstance> {
   const { appleTokenVerifier, config, pool } = dependencies;
+  const voiceTranscriber =
+    dependencies.voiceTranscriber ?? new EnvironmentDoubaoVoiceTranscriber();
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
       redact: {
         paths: [
           "req.headers.authorization",
+          "req.body.password",
+          "req.body.audio_base64",
           "headers.authorization",
+          "body.password",
+          "body.audio_base64",
           "access_token",
+          "password_scrypt",
         ],
         censor: "[redacted]",
       },
@@ -354,7 +398,7 @@ export async function buildApp(
       void reply.status(429).send({
         error: {
           code: "RATE_LIMITED",
-          message: "Too many readiness probes. Retry after the current window.",
+          message: "Too many requests. Retry after the current window.",
           request_id: request.id,
         },
       });
@@ -404,7 +448,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '027_evidence_review_authority_chain'`,
+           WHERE version = '030_person_profiles'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -449,6 +493,51 @@ export async function buildApp(
     },
     async (request) =>
       createSimulatedSession(pool, config, request.body),
+  );
+
+  app.post<{ Body: PasswordLoginRequest }>(
+    "/v1/auth/password/login",
+    {
+      config: {
+        rateLimit: {
+          max: 12,
+          timeWindow: "1 minute",
+        },
+      },
+      schema: {
+        tags: ["auth"],
+        body: PasswordLoginRequestSchema,
+        response: {
+          200: SessionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => createPasswordSession(pool, config, request.body),
+  );
+
+  app.post<{ Body: PasswordRegistrationRequest }>(
+    "/v1/auth/password/register",
+    {
+      config: {
+        rateLimit: {
+          max: 6,
+          timeWindow: "1 hour",
+        },
+      },
+      schema: {
+        tags: ["auth"],
+        body: PasswordRegistrationRequestSchema,
+        response: {
+          201: SessionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(await registerPasswordSession(pool, config, request.body)),
   );
 
   app.post<{ Body: AppleLoginChallengeRequest }>(
@@ -523,6 +612,42 @@ export async function buildApp(
       },
     },
     async (request) => revokeCurrentSession(pool, request.auth),
+  );
+
+  app.post<{
+    Body: {
+      audio_base64: string;
+      client_request_id: string;
+      mime_type: "audio/wav";
+    };
+  }>(
+    "/v1/voice-transcriptions",
+    {
+      bodyLimit: 3_800_000,
+      config: {
+        rateLimit: {
+          max: 12,
+          timeWindow: "1 minute",
+        },
+      },
+      preHandler: authenticate,
+      schema: {
+        tags: ["voice", "agent"],
+        security,
+        body: VoiceTranscriptionRequestSchema,
+        response: {
+          200: VoiceTranscriptionResponseSchema,
+          "4xx": ErrorResponseSchema,
+          "5xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      voiceTranscriber.transcribe({
+        audioBase64: request.body.audio_base64,
+        clientRequestId: request.body.client_request_id,
+        mimeType: request.body.mime_type,
+      }),
   );
 
   app.get(

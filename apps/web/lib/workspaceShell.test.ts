@@ -1,0 +1,128 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const webRoot = resolve(import.meta.dirname, "..");
+
+function read(relativePath: string) {
+  return readFileSync(resolve(webRoot, relativePath), "utf8");
+}
+
+describe("persistent workspace shell", () => {
+  it("owns account chrome and route-aware product navigation in one layout", () => {
+    const layout = read("app/workspace/layout.tsx");
+    const navigation = read("components/workspace-shell-nav.tsx");
+
+    expect(layout).toContain("<WorkspaceShellNav />");
+    expect(layout).toContain('id="workspace-content"');
+    expect(layout).toContain("<AccountControls");
+    expect(layout).toContain("fixtureWorkspace");
+    expect(layout).toContain(
+      "Synthetic fixture workspace — evaluation data, not live recruiter records",
+    );
+    expect(navigation).toContain('aria-label="Workspace navigation"');
+    expect(navigation).toContain('aria-current={current ? "page" : undefined}');
+    expect(navigation).toContain('href: "/workspace/today"');
+    expect(navigation).toContain('href: "/workspace?surface=desk"');
+    expect(navigation).toContain('href: "/workspace/people"');
+  });
+
+  it("leaves global account and navigation controls out of product surfaces", () => {
+    for (const relativePath of [
+      "components/pursuit-today-page.tsx",
+      "components/people-directory-app.tsx",
+      "components/relationship-workspace-app.tsx",
+    ]) {
+      const source = read(relativePath);
+      expect(source).not.toContain("signOutOfWorkspace");
+      expect(source).not.toContain("<ThemeToggle");
+      expect(source).not.toContain('aria-label="Workspace navigation"');
+    }
+  });
+
+  it("uses a route-neutral local loading state inside the persistent shell", () => {
+    const loading = read("app/workspace/loading.tsx");
+
+    expect(loading).toContain("Opening the current workspace");
+    expect(loading).toContain("Navigation and account controls remain available");
+    expect(loading).not.toContain("Opening evidence review");
+    expect(loading).not.toContain("review-loading__rail");
+  });
+
+  it("visually exempts the standalone boundary evaluator from product chrome", () => {
+    const shellStyles = read("components/workspace-shell.module.css");
+    const boundaryPage = read("app/workspace/boundaries/page.tsx");
+
+    expect(boundaryPage).toContain("<WorkspaceApp");
+    expect(shellStyles).toContain(
+      ".shell:has(.stage > :global(.review-workspace)) > .rail",
+    );
+    expect(shellStyles).toContain(
+      ".shell:has(.stage > :global(.review-workspace)) > .stage",
+    );
+  });
+
+  it("opens capture from a same-route shell transition and clears the intent on close", () => {
+    const navigation = read("components/workspace-shell-nav.tsx");
+    const workspace = read("components/relationship-workspace-app.tsx");
+
+    expect(navigation).toContain(
+      'window.dispatchEvent(new Event("talent-signal:open-capture"))',
+    );
+    expect(workspace).toContain(
+      'window.addEventListener("talent-signal:open-capture", openCapture)',
+    );
+    expect(workspace).toContain('location.searchParams.delete("intent")');
+    expect(workspace).toContain("onClose={closeCapture}");
+  });
+});
+
+describe("relationship workspace initial read", () => {
+  it("owns primary reads once and settles independent readbacks concurrently", () => {
+    const source = read("lib/server/localBackend.ts");
+    const start = source.indexOf(
+      "export async function loadRelationshipWorkspaceInitialRead",
+    );
+    const end = source.indexOf(
+      "export type IdentityResolutionWorkflowResult",
+      start,
+    );
+    const loader = source.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(loader.match(/authenticatedClient\(/g)).toHaveLength(1);
+    expect(loader).toContain("await Promise.all([");
+    expect(loader).toContain("await Promise.allSettled([");
+    expect(loader).toContain("client.getRelationshipAgentHistory(");
+    expect(loader).toContain("client.getKnowledge(");
+    expect(loader).toContain("accountId: session.account.id");
+    expect(loader).toContain("warnings");
+  });
+
+  it("passes the signed account boundary even when no review is open", () => {
+    const page = read("app/workspace/page.tsx");
+    const workspace = read("components/relationship-workspace-app.tsx");
+
+    expect(page).toContain(
+      "initialAccountId={initialRead?.accountId ?? null}",
+    );
+    expect(workspace).toContain("initialAccountId ??");
+    expect(workspace).not.toContain("setAccountId(");
+  });
+
+  it("routes an expired backend session to a returnable sign-in state", () => {
+    const login = read("app/login/page.tsx");
+    const today = read("app/workspace/today/page.tsx");
+    const people = read("app/workspace/people/page.tsx");
+    const workspace = read("app/workspace/page.tsx");
+
+    for (const source of [today, people, workspace]) {
+      expect(source).toContain("isBackendSessionExpiredError");
+      expect(source).toContain("backendSessionRecoveryHref");
+    }
+    expect(login).toContain(
+      'parameters.reason === "backend_session_expired"',
+    );
+    expect(login).toContain("no cached relationship state was substituted");
+  });
+});

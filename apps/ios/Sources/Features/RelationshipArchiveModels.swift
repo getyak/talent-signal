@@ -33,6 +33,36 @@ struct AgentSessionTurn: Identifiable, Equatable {
     let requiresRefresh: Bool
 }
 
+struct AgentSessionSeed: Equatable {
+    let personID: String
+    let relationshipContextID: String
+    let suggestedObjective: String
+
+    static func reviewedCapture(
+        personID: String,
+        relationshipContextID: String
+    ) -> AgentSessionSeed {
+        AgentSessionSeed(
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            suggestedObjective:
+                "What changed in this relationship, and what is the smallest safe next step?"
+        )
+    }
+
+    static func meetingPreparation(
+        personID: String,
+        relationshipContextID: String,
+        suggestedObjective: String
+    ) -> AgentSessionSeed {
+        AgentSessionSeed(
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            suggestedObjective: suggestedObjective
+        )
+    }
+}
+
 struct AgentSession: Identifiable, Equatable {
     let id: UUID
     let personID: String

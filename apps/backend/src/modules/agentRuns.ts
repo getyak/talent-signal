@@ -4,6 +4,7 @@ import {
   AGENT_TOOL_NAMES,
   ClaudeAgentSDKProvider,
   DEFAULT_AGENT_BUDGET,
+  OpenRouterAgentProvider,
   fingerprint,
   runBoundedAgent,
   type AgentJournalEvent,
@@ -24,7 +25,7 @@ import {
 } from "@talent-signal/contracts";
 import type { Pool, PoolClient } from "pg";
 
-import { inTransaction } from "../database/pool.js";
+import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
 import {
@@ -284,7 +285,8 @@ class SafeDeterministicAgentProvider implements AgentProvider {
 }
 
 export function configuredAgentProvider(): AgentProvider {
-  if (process.env.TALENT_SIGNAL_AGENT_PROVIDER !== "claude") {
+  const provider = process.env.TALENT_SIGNAL_AGENT_PROVIDER ?? "deterministic";
+  if (provider === "deterministic") {
     return new SafeDeterministicAgentProvider();
   }
   const model = process.env.TALENT_SIGNAL_AGENT_MODEL;
@@ -292,10 +294,96 @@ export function configuredAgentProvider(): AgentProvider {
     throw new ApiError(
       503,
       "AGENT_MODEL_NOT_CONFIGURED",
-      "Claude Agent execution requires one explicitly pinned model.",
+      "Live Agent execution requires one explicitly pinned model.",
     );
   }
-  return new ClaudeAgentSDKProvider(model);
+  if (provider === "claude") return new ClaudeAgentSDKProvider(model);
+  if (provider === "openrouter") {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      throw new ApiError(
+        503,
+        "AGENT_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
+        "OpenRouter Agent execution requires a server-side API key.",
+      );
+    }
+    try {
+      return new OpenRouterAgentProvider({
+        apiKey,
+        model,
+        ...(process.env.OPENROUTER_BASE_URL
+          ? { baseUrl: process.env.OPENROUTER_BASE_URL }
+          : {}),
+        ...(process.env.TALENT_SIGNAL_AGENT_REFERER
+          ? { referer: process.env.TALENT_SIGNAL_AGENT_REFERER }
+          : {}),
+      });
+    } catch (error) {
+      throw new ApiError(
+        503,
+        "AGENT_PROVIDER_CONFIGURATION_INVALID",
+        error instanceof Error
+          ? error.message
+          : "The OpenRouter Agent configuration is invalid.",
+      );
+    }
+  }
+  throw new ApiError(
+    503,
+    "AGENT_PROVIDER_UNSUPPORTED",
+    "The configured Agent provider is not supported.",
+  );
+}
+
+const REMOTE_PROVIDER_IDS = new Set([
+  "claude-agent-sdk",
+  "openrouter-chat-completions",
+]);
+
+export async function assertRemoteProviderDataBoundary(
+  client: DatabaseClient,
+  auth: AuthContext,
+  provider: AgentProvider,
+  captureID: string,
+  evidenceRefs: readonly string[],
+): Promise<void> {
+  if (!REMOTE_PROVIDER_IDS.has(provider.id)) return;
+  const result = await client.query<{
+    fragment_count: number;
+    synthetic_only: boolean | null;
+  }>(
+    `SELECT
+       COUNT(*)::int AS fragment_count,
+       BOOL_AND(
+         resources.source_locator LIKE 'synthetic:%'
+         AND fragments.parser_name LIKE 'synthetic%'
+       ) AS synthetic_only
+     FROM evidence_fragments fragments
+     JOIN source_resources resources
+       ON resources.account_id = fragments.account_id
+      AND resources.id = fragments.resource_id
+     WHERE fragments.account_id = $1
+       AND fragments.capture_id = $2
+       AND fragments.status = 'active'
+       AND (
+         cardinality($3::uuid[]) = 0
+         OR fragments.id = ANY($3::uuid[])
+       )`,
+    [auth.accountId, captureID, evidenceRefs],
+  );
+  const classification = result.rows[0];
+  const expectedCount = evidenceRefs.length;
+  const exactSelection =
+    expectedCount === 0
+      ? (classification?.fragment_count ?? 0) > 0
+      : classification?.fragment_count === expectedCount;
+  if (!exactSelection || classification?.synthetic_only !== true) {
+    throw new ApiError(
+      422,
+      "AGENT_REMOTE_PROVIDER_SYNTHETIC_ONLY",
+      "Remote Agent providers are admitted only for explicitly synthetic evaluation evidence. Private conversation evidence was not sent.",
+    );
+  }
 }
 
 class DatabaseAgentRunJournal implements AgentRunJournal {
@@ -648,6 +736,13 @@ export async function createPursuitAgentRun(
       objective: request.objective,
       evidenceRefs: request.evidence_refs,
     });
+    await assertRemoteProviderDataBoundary(
+      client,
+      auth,
+      provider,
+      request.capture_id,
+      request.evidence_refs,
+    );
     return { idempotency, scope };
   });
   if (prepared.idempotency.replay) {

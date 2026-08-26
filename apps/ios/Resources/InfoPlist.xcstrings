@@ -1,0 +1,30 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSCalendarsUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal opens Apple's Calendar editor only after you review the exact event title and time." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 只会在你审阅确切的日程标题和时间后，打开 Apple 日历编辑器。" } }
+      }
+    },
+    "NSContactsUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal opens Apple's contact editor only after you review the exact fields you want to add." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 只会在你审阅要添加的确切字段后，打开 Apple 通讯录编辑器。" } }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal records audio only after you confirm authorization and tap Start while the app is in the foreground." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有在你确认授权并于应用前台点按开始后，Talent Signal 才会录制音频。" } }
+      }
+    },
+    "NSPhotoLibraryUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal imports only the conversation image you choose." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 只会导入你主动选择的对话图片。" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

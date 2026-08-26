@@ -9,6 +9,23 @@ export const emailSignInSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+export const passwordSignInSchema = z.object({
+  identifier: z.string().trim().min(1).max(320),
+  password: z.string().min(1).max(128),
+});
+
+export const passwordRegistrationSchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(3)
+    .max(40)
+    .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/),
+  email: z.string().trim().email().max(320),
+  displayName: z.string().trim().min(1).max(100),
+  password: z.string().min(8).max(128),
+});
+
 export type DefaultAccount = {
   email: string;
   emailPasswordEnabled: boolean;
@@ -93,6 +110,14 @@ export function getAuthAvailability(
         environment.AUTH_GOOGLE_ID?.trim() &&
           environment.AUTH_GOOGLE_SECRET?.trim(),
       ),
+    password:
+      environment.TALENT_SIGNAL_PASSWORD_AUTH_ENABLED === "true" ||
+      (environment.NODE_ENV !== "production" &&
+        environment.TALENT_SIGNAL_PASSWORD_AUTH_ENABLED !== "false"),
+    registration:
+      environment.TALENT_SIGNAL_PASSWORD_REGISTRATION_ENABLED === "true" ||
+      (environment.NODE_ENV !== "production" &&
+        environment.TALENT_SIGNAL_PASSWORD_REGISTRATION_ENABLED !== "false"),
   };
 }
 

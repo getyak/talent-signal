@@ -8,6 +8,15 @@ import {
 } from "@talent-signal/contracts";
 
 const baseUrl = process.env.API_BASE_URL ?? "http://127.0.0.1:4317";
+const fixturePursuitTitles = new Set([
+  "Chief Product Officer · Meridian Labs",
+  "VP Engineering · Northstar",
+  "Synthetic same-name search",
+]);
+
+export function isIOSPursuitProposalFixtureTitle(title: string): boolean {
+  return fixturePursuitTitles.has(title);
+}
 
 async function createFixture(
   client: TalentSignalClient,
@@ -303,6 +312,52 @@ export interface IOSPursuitProposalFixture {
   same_name_second_role_id: string;
 }
 
+async function cancelActiveFixturePursuits(
+  client: TalentSignalClient,
+  pursuitIds: readonly string[],
+): Promise<number> {
+  let cancelled = 0;
+  for (const pursuitId of pursuitIds) {
+    const current = await client.getPursuit(pursuitId);
+    if (![
+      "draft",
+      "active",
+      "paused",
+    ].includes(current.pursuit.status)) {
+      continue;
+    }
+    await client.revisePursuit(pursuitId, {
+      idempotency_key: `ios-fixture-retire:${pursuitId}:${current.pursuit.revision}`,
+      expected_revision: current.pursuit.revision,
+      reason:
+        "Retire the completed synthetic iOS journey before preparing the next isolated journey.",
+      status: "cancelled",
+    });
+    cancelled += 1;
+  }
+  return cancelled;
+}
+
+export async function retireStaleIOSPursuitProposalFixtures(
+  fixtureBaseUrl = baseUrl,
+): Promise<number> {
+  const client = new TalentSignalClient(fixtureBaseUrl);
+  await client.login({
+    account_slug: "fixture-alpha",
+    user_email: "recruiter@alpha.local",
+    client_label: "ios-pursuit-proposal-stale-fixture-retirement",
+  });
+  const pursuits = await client.listPursuits();
+  return cancelActiveFixturePursuits(
+    client,
+    pursuits.pursuits
+      .filter((pursuit) =>
+        isIOSPursuitProposalFixtureTitle(pursuit.title),
+      )
+      .map((pursuit) => pursuit.id),
+  );
+}
+
 export async function retireIOSPursuitProposalFixture(
   fixture: IOSPursuitProposalFixture,
   fixtureBaseUrl = baseUrl,
@@ -314,27 +369,17 @@ export async function retireIOSPursuitProposalFixture(
     client_label: "ios-pursuit-proposal-ui-fixture-retirement",
   });
 
-  for (const pursuitId of [
+  await cancelActiveFixturePursuits(client, [
     fixture.pursuit_id,
     fixture.recovery_pursuit_id,
     fixture.same_name_pursuit_id,
-  ]) {
-    const current = await client.getPursuit(pursuitId);
-    if (!["draft", "active", "paused"].includes(current.pursuit.status)) {
-      continue;
-    }
-    await client.revisePursuit(pursuitId, {
-      idempotency_key: `ios-fixture-retire:${pursuitId}:${current.pursuit.revision}`,
-      expected_revision: current.pursuit.revision,
-      reason: "Retire the completed synthetic iOS journey before preparing the next isolated journey.",
-      status: "cancelled",
-    });
-  }
+  ]);
 }
 
 export async function prepareIOSPursuitProposalFixture(
   fixtureBaseUrl = baseUrl,
 ): Promise<IOSPursuitProposalFixture> {
+  await retireStaleIOSPursuitProposalFixtures(fixtureBaseUrl);
   const client = new TalentSignalClient(fixtureBaseUrl);
   const login = await client.login({
     account_slug: "fixture-alpha",

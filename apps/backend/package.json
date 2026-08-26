@@ -13,6 +13,8 @@
     "migrate:built": "node dist/database/migrate.js",
     "seed": "tsx src/database/seed.ts",
     "seed:built": "node dist/database/seed.js",
+    "profile:owner": "tsx src/database/upsertOwnerProfile.ts",
+    "profile:owner:built": "node dist/database/upsertOwnerProfile.js",
     "test": "vitest run",
     "test:integration": "tsx src/evaluation/runEvaluation.ts",
     "test:pursuits": "tsx src/evaluation/runPursuitDomainEvaluation.ts",

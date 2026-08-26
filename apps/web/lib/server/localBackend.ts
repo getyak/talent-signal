@@ -56,6 +56,7 @@ import {
   type ScreenshotCaptureDraft,
 } from "../screenshot-capture";
 import { verifyScreenshotAnalysisReceipt } from "./screenshot-analysis-receipt";
+import { authenticatedBackendClient as signedInBackendClient } from "./backendAuth";
 
 const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
 const UUID =
@@ -148,6 +149,11 @@ async function readWorkspace(
 }
 
 async function authenticatedClient(clientLabel: string) {
+  const signedIn = await signedInBackendClient();
+  if (signedIn) {
+    const session = await signedIn.currentSession();
+    return { client: signedIn, session };
+  }
   const client = new TalentSignalClient(backendBaseUrl());
   const session = await client.login({
     account_slug: LOCAL_ACCOUNT_SLUG,
@@ -421,6 +427,111 @@ export async function loadIdentityResolutionCase(
     "web-identity-resolution-case",
   );
   return client.getIdentityResolutionCase(caseId);
+}
+
+export type RelationshipWorkspaceInitialRead = {
+  accountId: string;
+  workspace: WorkspaceReviewResponse | null;
+  relationshipScope: RelationshipScope | null;
+  identityResolutionCase: IdentityResolutionCase | null;
+  agentHistory: RelationshipAgentHistory | null;
+  knowledgeSnapshot: KnowledgeSnapshot | null;
+  warnings: string[];
+};
+
+export async function loadRelationshipWorkspaceInitialRead(input: {
+  captureId?: string;
+  personId?: string;
+  relationshipContextId?: string;
+  identityCaseId?: string;
+}): Promise<RelationshipWorkspaceInitialRead> {
+  const { client, session } = await authenticatedClient(
+    "web-relationship-workspace-initial-read",
+  );
+  const hasRelationshipScope = Boolean(
+    input.personId && input.relationshipContextId && !input.captureId,
+  );
+  const shouldReadWorkspace = Boolean(
+    input.captureId || !input.identityCaseId,
+  ) && !hasRelationshipScope;
+
+  const [workspace, relationshipScope, identityResolutionCase] =
+    await Promise.all([
+      shouldReadWorkspace
+        ? readWorkspace(client, input.captureId)
+        : Promise.resolve(null),
+      hasRelationshipScope
+        ? client.getRelationshipScope(
+            input.personId as string,
+            input.relationshipContextId as string,
+          )
+        : Promise.resolve(null),
+      input.identityCaseId
+        ? client.getIdentityResolutionCase(input.identityCaseId)
+        : Promise.resolve(null),
+    ]);
+
+  const historyScope = relationshipScope
+    ? {
+        personId: relationshipScope.person.id,
+        relationshipContextId: relationshipScope.relationship_context.id,
+      }
+    : workspace
+      ? {
+          personId: workspace.subject.id,
+          relationshipContextId: workspace.assignment.id,
+        }
+      : null;
+
+  if (!historyScope) {
+    return {
+      accountId: session.account.id,
+      workspace,
+      relationshipScope,
+      identityResolutionCase,
+      agentHistory: null,
+      knowledgeSnapshot: null,
+      warnings: [],
+    };
+  }
+
+  const [historyRead, knowledgeRead] = await Promise.allSettled([
+    client.getRelationshipAgentHistory(
+      historyScope.personId,
+      historyScope.relationshipContextId,
+    ),
+    client.getKnowledge(
+      historyScope.personId,
+      historyScope.relationshipContextId,
+    ),
+  ]);
+  const warnings: string[] = [];
+  if (historyRead.status === "rejected") {
+    warnings.push(
+      "The contact loaded, but its durable Agent history is temporarily unavailable.",
+    );
+  }
+  if (
+    knowledgeRead.status === "rejected" &&
+    (!(knowledgeRead.reason instanceof TalentSignalHttpError) ||
+      knowledgeRead.reason.status !== 404)
+  ) {
+    warnings.push(
+      "The contact loaded, but its latest relationship Wiki is temporarily unavailable.",
+    );
+  }
+
+  return {
+    accountId: session.account.id,
+    workspace,
+    relationshipScope,
+    identityResolutionCase,
+    agentHistory:
+      historyRead.status === "fulfilled" ? historyRead.value : null,
+    knowledgeSnapshot:
+      knowledgeRead.status === "fulfilled" ? knowledgeRead.value : null,
+    warnings,
+  };
 }
 
 export type IdentityResolutionWorkflowResult = {

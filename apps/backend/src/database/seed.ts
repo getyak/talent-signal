@@ -7,15 +7,19 @@ import {
 
 import { loadConfig } from "../config.js";
 import { createPool, inTransaction } from "./pool.js";
+import { encodePasswordCredential } from "../modules/passwordCredential.js";
 
 const IDS = {
   alphaAccount: "10000000-0000-4000-8000-000000000001",
   alphaRecruiter: "10000000-0000-4000-8000-000000000011",
   alphaReviewer: "10000000-0000-4000-8000-000000000012",
+  alphaAdmin: "10000000-0000-4000-8000-000000000013",
   alphaRecruiterGrant: "10000000-0000-4000-8000-000000000021",
   alphaReviewerGrant: "10000000-0000-4000-8000-000000000022",
+  alphaAdminGrant: "10000000-0000-4000-8000-000000000023",
   alphaRecruiterReversalGrant: "10000000-0000-4000-8000-000000000031",
   alphaReviewerReversalGrant: "10000000-0000-4000-8000-000000000032",
+  alphaAdminReversalGrant: "10000000-0000-4000-8000-000000000033",
   betaAccount: "20000000-0000-4000-8000-000000000001",
   betaRecruiter: "20000000-0000-4000-8000-000000000011",
   betaGrant: "20000000-0000-4000-8000-000000000021",
@@ -24,6 +28,10 @@ const IDS = {
 
 export async function seed(): Promise<void> {
   const pool = createPool(loadConfig());
+  const adminPassword = await encodePasswordCredential(
+    "cubxxw",
+    "6375627878772d6c6f63616c2d61646d",
+  );
   try {
     await inTransaction(pool, async (client) => {
       await client.query(
@@ -41,10 +49,12 @@ export async function seed(): Promise<void> {
          VALUES
            ($1, $2, 'recruiter@alpha.local', 'Alpha Recruiter', 'simulated_human', 'active'),
            ($3, $2, 'reviewer@alpha.local', 'Alpha Reviewer', 'simulated_human', 'active'),
-           ($4, $5, 'recruiter@beta.local', 'Beta Recruiter', 'simulated_human', 'active')
+           ($4, $5, 'recruiter@beta.local', 'Beta Recruiter', 'simulated_human', 'active'),
+           ($6, $2, 'cubxxw@talentsignal.local', 'Cubxxw', 'password_human', 'active')
          ON CONFLICT (id) DO UPDATE SET
            email = EXCLUDED.email,
            display_name = EXCLUDED.display_name,
+           kind = EXCLUDED.kind,
            status = 'active'`,
         [
           IDS.alphaRecruiter,
@@ -52,7 +62,25 @@ export async function seed(): Promise<void> {
           IDS.alphaReviewer,
           IDS.betaRecruiter,
           IDS.betaAccount,
+          IDS.alphaAdmin,
         ],
+      );
+      await client.query(
+        `UPDATE users
+         SET username = 'cubxxw', account_role = 'admin'
+         WHERE id = $1 AND account_id = $2`,
+        [IDS.alphaAdmin, IDS.alphaAccount],
+      );
+      await client.query(
+        `INSERT INTO password_credentials(
+           account_id, user_id, password_scrypt
+         ) VALUES ($1, $2, $3)
+         ON CONFLICT (account_id, user_id) DO UPDATE SET
+           password_scrypt = EXCLUDED.password_scrypt,
+           failed_attempts = 0,
+           locked_until = NULL,
+           password_changed_at = now()`,
+        [IDS.alphaAccount, IDS.alphaAdmin, adminPassword],
       );
       await client.query(
         `INSERT INTO capability_grants(
@@ -78,6 +106,27 @@ export async function seed(): Promise<void> {
           SIMULATED_REVERSAL_CAPABILITY,
           IDS.betaAccount,
           IDS.betaRecruiter,
+        ],
+      );
+      await client.query(
+        `INSERT INTO capability_grants(
+           id, account_id, user_id, capability, status, version, expires_at
+         ) VALUES
+           ($1, $2, $3, $4, 'active', 1, '2099-01-01T00:00:00Z'),
+           ($5, $2, $3, $6, 'active', 1, '2099-01-01T00:00:00Z')
+         ON CONFLICT (account_id, user_id, capability) DO UPDATE SET
+           status = 'active',
+           revoked_at = NULL,
+           revocation_reason = NULL,
+           expires_at = EXCLUDED.expires_at,
+           version = capability_grants.version + 1`,
+        [
+          IDS.alphaAdminGrant,
+          IDS.alphaAccount,
+          IDS.alphaAdmin,
+          SIMULATED_CAPABILITY,
+          IDS.alphaAdminReversalGrant,
+          SIMULATED_REVERSAL_CAPABILITY,
         ],
       );
       await client.query(

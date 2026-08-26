@@ -61,3 +61,49 @@ struct AudioSignalCaptureSession: Equatable {
         return arguments[index + 1]
     }
 }
+
+struct VoiceDictationPayload: Equatable, Sendable {
+    let id: UUID
+    let fileURL: URL
+    let byteCount: Int
+    let durationSeconds: TimeInterval
+    let mimeType: String
+}
+
+struct VoiceTranscriptionDraft: Decodable, Equatable, Sendable {
+    let audioDurationMilliseconds: Double?
+    let clientRequestID: UUID
+    let model: String
+    let provider: String
+    let providerRequestID: UUID
+    let status: String
+    let temporaryAudioStoredByTalentSignal: Bool
+    let transcript: String
+
+    enum CodingKeys: String, CodingKey {
+        case audioDurationMilliseconds = "audio_duration_ms"
+        case clientRequestID = "client_request_id"
+        case model
+        case provider
+        case providerRequestID = "provider_request_id"
+        case status
+        case temporaryAudioStoredByTalentSignal =
+            "temporary_audio_stored_by_talent_signal"
+        case transcript
+    }
+}
+
+@MainActor
+protocol VoiceDictationRecordingServing: AnyObject {
+    func permissionStatus() -> AudioSignalPermission
+    func requestPermission() async -> AudioSignalPermission
+    func start(recordID: UUID) throws
+    func stop() throws -> VoiceDictationPayload
+    func cancel() throws
+    func delete(_ payload: VoiceDictationPayload) throws
+}
+
+protocol VoiceTranscriptionServing: Sendable {
+    func transcribe(_ payload: VoiceDictationPayload) async throws
+        -> VoiceTranscriptionDraft
+}

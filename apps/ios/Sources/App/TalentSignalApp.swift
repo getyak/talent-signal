@@ -37,6 +37,19 @@ struct TalentSignalApp: App {
         )
     }
 
+    private var calendarHandoffScenarioRoot: AnyView? {
+#if DEBUG
+        guard TalentSignalRootRoute.opensCalendarHandoff(
+            arguments: ProcessInfo.processInfo.arguments
+        ) else {
+            return nil
+        }
+        return AnyView(DeviceCalendarHandoffScenarioView())
+#else
+        return nil
+#endif
+    }
+
     private var pursuitReviewSession: PursuitProposalReviewSession? {
         PursuitProposalReviewSession.configured(
             arguments: ProcessInfo.processInfo.arguments
@@ -73,6 +86,8 @@ struct TalentSignalApp: App {
                     arguments: ProcessInfo.processInfo.arguments
                 ) {
                     authenticatedRoot
+                } else if let calendarHandoffScenarioRoot {
+                    calendarHandoffScenarioRoot
                 } else if let audioSignalStore {
                     AudioSignalCaptureView(store: audioSignalStore)
                 } else if let textSignalSession {
@@ -216,9 +231,29 @@ enum TalentSignalRootRoute {
 
     static func opensReviewWorkbench(arguments: [String]) -> Bool {
 #if DEBUG
-        !reviewArguments.isDisjoint(with: Set(arguments))
+        if value(after: "--scenario", in: arguments)
+            == "relationship-capture-archive" {
+            return false
+        }
+        return !reviewArguments.isDisjoint(with: Set(arguments))
 #else
         false
 #endif
+    }
+
+    static func opensCalendarHandoff(arguments: [String]) -> Bool {
+#if DEBUG
+        value(after: "--scenario", in: arguments) == "calendar-handoff"
+#else
+        false
+#endif
+    }
+
+    private static func value(after argument: String, in arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: argument),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return arguments[index + 1]
     }
 }

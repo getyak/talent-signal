@@ -21,6 +21,7 @@ const person: PersonDirectoryItem = {
   capture_count: 3,
   confirmed_identity_count: 0,
   last_activity_at: "2026-08-07T00:00:00.000Z",
+  profile: null,
   identity_matches: [{ kind: "name" }],
   contexts: [
     {

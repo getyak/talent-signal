@@ -13,10 +13,14 @@ struct RelationshipArchiveView: View {
     @State private var presentedSheet: RelationshipArchiveSheet?
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
+    @State private var isRelationshipCalendarPresented = false
     @State private var deferredIntakePresentation: AgentIntakePresentation?
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
+    @State private var deferredCapturePresentation: RelationshipCapturePresentation?
     private let reviewBaseURL: URL?
     private let authenticatedAccessToken: String?
+    private let accountEmail: String?
+    private let workspaceLabel: String?
     private let onSignOut: (() async -> Void)?
 
     init(
@@ -54,6 +58,8 @@ struct RelationshipArchiveView: View {
         )
         reviewBaseURL = session?.baseURL
         authenticatedAccessToken = session?.accessToken
+        accountEmail = session?.userEmail
+        workspaceLabel = session?.accountSlug
         self.onSignOut = onSignOut
     }
 
@@ -78,7 +84,9 @@ struct RelationshipArchiveView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             RelationshipGuideRail(
-                onGuide: { capturePresentation = .ask(sessionID: nil) },
+                onGuide: {
+                    capturePresentation = .ask(sessionID: nil, seed: nil)
+                },
                 onCapture: {
                     intakePresentation = .init(initialDestination: nil)
                 }
@@ -125,7 +133,9 @@ struct RelationshipArchiveView: View {
                 RelationshipMenuView(
                     isCanonical: workspaceStore.isCanonical,
                     workspaceID: workspaceStore.snapshot?.workspaceID,
+                    workspaceLabel: workspaceLabel,
                     accountName: workspaceStore.snapshot?.currentUserName,
+                    accountEmail: accountEmail,
                     proposals: workspaceStore.snapshot?.openProposals ?? [],
                     signOutNotice: sessionStore.persistenceNotice,
                     onOpenProposal: { proposal in
@@ -152,7 +162,7 @@ struct RelationshipArchiveView: View {
             onDismiss: completeDeferredTransition
         ) { presentation in
             switch presentation {
-            case let .ask(sessionID):
+            case let .ask(sessionID, seed):
                 if let snapshot = workspaceStore.snapshot {
                     RelationshipAskView(
                         snapshot: snapshot,
@@ -160,6 +170,7 @@ struct RelationshipArchiveView: View {
                         workspaceStore: workspaceStore,
                         sessionStore: sessionStore,
                         sessionID: sessionID,
+                        initialSeed: seed,
                         ask: { objective, personID, contextID, idempotencyKey in
                             try await workspaceStore.ask(
                                 objective: objective,
@@ -191,10 +202,13 @@ struct RelationshipArchiveView: View {
                             deferredArchiveSheet = .proposal(proposal)
                             capturePresentation = nil
                         },
-                        onCapture: {
-                            deferredIntakePresentation = .init(initialDestination: nil)
+                        onCapture: { destination in
+                            deferredIntakePresentation = .init(
+                                initialDestination: destination
+                            )
                             capturePresentation = nil
-                        }
+                        },
+                        voiceTranscriber: composerVoiceTranscriber
                     )
                 } else {
                     PursuitWorkspaceLoadingView()
@@ -204,8 +218,27 @@ struct RelationshipArchiveView: View {
                     backendURL: reviewBaseURL,
                     accessToken: authenticatedAccessToken,
                     workspaceID: workspaceStore.snapshot?.workspaceID,
-                    onClose: { capturePresentation = nil }
+                    onClose: { capturePresentation = nil },
+                    onContinueInAgent: continueCaptureInAgent
                 )
+            }
+        }
+        .fullScreenCover(
+            isPresented: $isRelationshipCalendarPresented,
+            onDismiss: completeDeferredTransition
+        ) {
+            if let snapshot = workspaceStore.snapshot {
+                RelationshipCalendarView(
+                    snapshot: snapshot,
+                    isPreview: !workspaceStore.isCanonical,
+                    initialActivities: RelationshipCalendarProjection.activities(
+                        snapshot: snapshot,
+                        isPreview: !workspaceStore.isCanonical
+                    ),
+                    onPrepare: stageCalendarPreparation
+                )
+            } else {
+                PursuitWorkspaceLoadingView()
             }
         }
         .onChange(of: scenePhase) { phase in
@@ -215,19 +248,30 @@ struct RelationshipArchiveView: View {
                 await revalidateSessionEvidence()
             }
         }
-        .sheet(item: $intakePresentation) { presentation in
+        .sheet(
+            item: $intakePresentation,
+            onDismiss: completeDeferredTransition
+        ) { presentation in
             SignalCaptureHubView(
                 backendURL: reviewBaseURL,
                 accessToken: authenticatedAccessToken,
                 workspaceID: workspaceStore.snapshot?.workspaceID,
                 initialDestination: presentation.initialDestination,
-                onDismiss: { intakePresentation = nil }
+                onDismiss: { intakePresentation = nil },
+                onContinueInAgent: continueCaptureInAgent
             )
         }
         .onReceive(captureHandoff.$pendingSeed) { seed in
-            if seed != nil {
-                capturePresentation = .screenshot
+            guard let seed else { return }
+            if intakePresentation != nil {
+                if seed.origin == .appShortcut {
+                    deferredCapturePresentation = .screenshot
+                    intakePresentation = nil
+                }
+                return
             }
+            guard capturePresentation == nil else { return }
+            capturePresentation = .screenshot
         }
         .onReceive(captureIntentRouter.$request) { request in
             guard let request else { return }
@@ -250,6 +294,22 @@ struct RelationshipArchiveView: View {
         .tint(.tsVermilion)
     }
 
+    private var composerVoiceTranscriber: (any VoiceTranscriptionServing)? {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--deterministic-voice-input") {
+            return DeterministicVoiceTranscriber()
+        }
+#endif
+        return reviewBaseURL.flatMap { baseURL in
+            authenticatedAccessToken.map { accessToken in
+                URLVoiceTranscriptionClient(
+                    baseURL: baseURL,
+                    accessToken: accessToken
+                )
+            }
+        }
+    }
+
     @ViewBuilder
     private var pageContent: some View {
         switch workspaceStore.phase {
@@ -263,18 +323,23 @@ struct RelationshipArchiveView: View {
             ) {
                 Task { await workspaceStore.load() }
             }
-        case .empty:
-            PursuitWorkspaceEmptyView(selectedPage: selectedPage)
-        case let .preview(snapshot), let .loaded(snapshot):
+        case let .empty(snapshot), let .preview(snapshot), let .loaded(snapshot):
             TabView(selection: $selectedPage) {
                 PursuitTodayView(
                     snapshot: snapshot,
                     isPreview: !workspaceStore.isCanonical,
+                    calendarActivities: RelationshipCalendarProjection.activities(
+                        snapshot: snapshot,
+                        isPreview: !workspaceStore.isCanonical
+                    ),
                     unreadSessions: sessionStore.unreadSessions,
                     actionRecovery: workspaceStore.latestActionRecovery(
                         in: snapshot
                     ),
                     onOpenSession: openSession,
+                    onOpenCalendar: {
+                        isRelationshipCalendarPresented = true
+                    },
                     onOpenAttention: openAttention,
                     onOpenPursuit: { presentedSheet = .pursuit($0) },
                     onOpenActionRecovery: { pursuitID in
@@ -292,7 +357,7 @@ struct RelationshipArchiveView: View {
                     persistenceNotice: sessionStore.persistenceNotice,
                     onOpen: openSession,
                     onNewSession: {
-                        capturePresentation = .ask(sessionID: nil)
+                        capturePresentation = .ask(sessionID: nil, seed: nil)
                     },
                     onMarkUnread: sessionStore.markUnread,
                     onDelete: sessionStore.delete
@@ -319,7 +384,61 @@ struct RelationshipArchiveView: View {
 
     private func openSession(_ session: AgentSession) {
         sessionStore.markRead(session.id)
-        capturePresentation = .ask(sessionID: session.id)
+        capturePresentation = .ask(sessionID: session.id, seed: nil)
+    }
+
+    private func stageCalendarPreparation(
+        _ activity: RelationshipCalendarActivity
+    ) {
+        let objective = String(
+            format: appLanguage.text(
+                "Prepare for the %1$@ %2$@ with %3$@. Clarify the objective, unresolved evidence, and the three questions that matter most."
+            ),
+            locale: appLanguage.locale,
+            timeText(activity.startDate),
+            activity.kind.title(in: appLanguage).lowercased(),
+            activity.personDisplayLabel
+        )
+        let existingDraft = sessionStore.draft(
+            personID: activity.personID,
+            relationshipContextID: activity.relationshipContextID
+        )
+        if existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sessionStore.saveDraft(
+                objective,
+                personID: activity.personID,
+                relationshipContextID: activity.relationshipContextID
+            )
+        }
+
+        let matchingSession = sessionStore.sessions.first {
+            $0.personID == activity.personID
+                && $0.relationshipContextID == activity.relationshipContextID
+        }
+        if let matchingSession {
+            deferredCapturePresentation = .ask(
+                sessionID: matchingSession.id,
+                seed: nil
+            )
+        } else {
+            deferredCapturePresentation = .ask(
+                sessionID: nil,
+                seed: .meetingPreparation(
+                    personID: activity.personID,
+                    relationshipContextID: activity.relationshipContextID,
+                    suggestedObjective: objective
+                )
+            )
+        }
+    }
+
+    private func timeText(_ date: Date) -> String {
+        date.formatted(
+            Date.FormatStyle()
+                .hour()
+                .minute()
+                .locale(appLanguage.locale)
+        )
     }
 
     private func revalidateSessionEvidence() async {
@@ -338,6 +457,10 @@ struct RelationshipArchiveView: View {
     }
 
     private func completeDeferredTransition() {
+        if let deferredCapturePresentation {
+            capturePresentation = deferredCapturePresentation
+            self.deferredCapturePresentation = nil
+        }
         if let deferredArchiveSheet {
             presentedSheet = deferredArchiveSheet
             self.deferredArchiveSheet = nil
@@ -345,6 +468,25 @@ struct RelationshipArchiveView: View {
         if let deferredIntakePresentation {
             intakePresentation = deferredIntakePresentation
             self.deferredIntakePresentation = nil
+        }
+    }
+
+    private func continueCaptureInAgent(
+        _ completion: RelationshipCaptureCompletion
+    ) {
+        guard let personID = completion.personID,
+              let relationshipContextID = completion.relationshipContextID else {
+            return
+        }
+        let seed = AgentSessionSeed.reviewedCapture(
+            personID: personID,
+            relationshipContextID: relationshipContextID
+        )
+        Task {
+            await workspaceStore.load()
+            deferredCapturePresentation = .ask(sessionID: nil, seed: seed)
+            capturePresentation = nil
+            intakePresentation = nil
         }
     }
 
@@ -407,13 +549,18 @@ struct RelationshipArchiveView: View {
 }
 
 private enum RelationshipCapturePresentation: Identifiable {
-    case ask(sessionID: UUID?)
+    case ask(sessionID: UUID?, seed: AgentSessionSeed?)
     case screenshot
 
     var id: String {
         switch self {
-        case let .ask(sessionID):
-            return "ask-\(sessionID?.uuidString ?? "new")"
+        case let .ask(sessionID, seed):
+            return [
+                "ask",
+                sessionID?.uuidString ?? "new",
+                seed?.personID ?? "unscoped",
+                seed?.relationshipContextID ?? "unscoped",
+            ].joined(separator: "-")
         case .screenshot:
             return "screenshot"
         }
@@ -528,9 +675,11 @@ private struct RelationshipArchiveHeader: View {
 private struct PursuitTodayView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
+    let calendarActivities: [RelationshipCalendarActivity]
     let unreadSessions: [AgentSession]
     let actionRecovery: PursuitActionRecoveryItem?
     let onOpenSession: (AgentSession) -> Void
+    let onOpenCalendar: () -> Void
     let onOpenAttention: (PursuitAttentionItem) -> Void
     let onOpenPursuit: (WorkspacePursuit) -> Void
     let onOpenActionRecovery: (String) -> Void
@@ -558,6 +707,12 @@ private struct PursuitTodayView: View {
                     PursuitPreviewBoundary()
                         .padding(.top, 22)
                 }
+
+                TodayRelationshipCalendarPeek(
+                    activities: calendarActivities,
+                    onOpen: onOpenCalendar
+                )
+                    .padding(.top, isPreview ? 16 : 22)
 
                 if let unread = unreadSessions.first {
                     Text(
@@ -1594,6 +1749,12 @@ private struct WorkspacePersonRow: View {
                 Text(person.displayLabel)
                     .font(.custom("Georgia", size: 19, relativeTo: .headline))
                     .foregroundStyle(Color.tsInk)
+                if let profile = person.profile {
+                    Text(profile.headline)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.tsMutedInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if roles.isEmpty {
                     Text(
                         appLanguage.text(
@@ -2365,12 +2526,13 @@ private struct WorkspacePersonDetailView: View {
     let person: WorkspacePerson
     let roles: [WorkspacePersonRole]
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    RelationshipEyebrow("Stable person identity")
+                    RelationshipEyebrow(appLanguage.text("Stable person identity"))
                         .padding(.top, 26)
                     Text(person.displayLabel)
                         .font(.custom("Georgia", size: 38, relativeTo: .largeTitle))
@@ -2378,16 +2540,41 @@ private struct WorkspacePersonDetailView: View {
                         .tracking(-0.8)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
-                    Text("Roles below are contextual. They do not redefine identity or rank this person.")
+                    Text(
+                        appLanguage.text(
+                            "Roles below are contextual. They do not redefine identity or rank this person."
+                        )
+                    )
                         .font(.body)
                         .foregroundStyle(Color.tsMutedInk)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 12)
 
-                    RelationshipEyebrow("Pursuit roles")
+                    if let profile = person.profile {
+                        RelationshipEyebrow(appLanguage.text("About"))
+                            .padding(.top, 30)
+                        Text(profile.headline)
+                            .font(.headline)
+                            .foregroundStyle(Color.tsInk)
+                            .padding(.top, 12)
+                        Text(profile.summary)
+                            .font(.body)
+                            .foregroundStyle(Color.tsInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 8)
+                        Label(
+                            appLanguage.text("Written by the workspace owner"),
+                            systemImage: "person.crop.circle.badge.checkmark"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .padding(.top, 10)
+                    }
+
+                    RelationshipEyebrow(appLanguage.text("Pursuit roles"))
                         .padding(.top, 30)
                     if roles.isEmpty {
-                        Text("No active Pursuit role is recorded.")
+                        Text(appLanguage.text("No active Pursuit role is recorded."))
                             .font(.subheadline)
                             .foregroundStyle(Color.tsMutedInk)
                             .padding(.top, 12)
@@ -2414,11 +2601,11 @@ private struct WorkspacePersonDetailView: View {
                     }
 
                     PursuitDefinitionSection(
-                        title: "Governed identity",
+                        title: appLanguage.text("Governed identity"),
                         rows: [
-                            ("Sources", "\(person.captureCount)"),
-                            ("Identity clues", "\(person.confirmedIdentityCount)"),
-                            ("Contexts", "\(person.contextCount)"),
+                            (appLanguage.text("Sources"), "\(person.captureCount)"),
+                            (appLanguage.text("Identity clues"), "\(person.confirmedIdentityCount)"),
+                            (appLanguage.text("Contexts"), "\(person.contextCount)"),
                         ]
                     )
                 }
@@ -2426,11 +2613,11 @@ private struct WorkspacePersonDetailView: View {
                 .padding(.bottom, 40)
             }
             .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle("Person")
+            .navigationTitle(appLanguage.text("Person"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Close", action: dismiss.callAsFunction)
+                    Button(appLanguage.text("Close"), action: dismiss.callAsFunction)
                 }
             }
         }
@@ -2686,15 +2873,7 @@ private struct RelationshipCollectionLabel: View {
 
 struct RelationshipSignalOrb: View {
     var body: some View {
-        HStack(alignment: .bottom, spacing: 3) {
-            Capsule().fill(Color.tsSurface).frame(width: 3, height: 8)
-            Capsule().fill(Color.tsSurface).frame(width: 3, height: 16)
-            Capsule().fill(Color.tsVermilion).frame(width: 3, height: 12)
-        }
-        .frame(width: 34, height: 34)
-        .background(Color.tsInk, in: Circle())
-        .shadow(color: Color.tsInk.opacity(0.16), radius: 5, y: 3)
-        .accessibilityHidden(true)
+        TalentSignalBrandMark()
     }
 }
 

@@ -5,9 +5,12 @@ import type { BackendConfig } from "../config.js";
 import {
   createAppleLoginChallenge,
   createAppleSession,
+  createPasswordSession,
+  registerPasswordSession,
   type AppleIdentityToken,
   type AppleTokenVerifying,
 } from "./auth.js";
+import { encodePasswordCredential } from "./passwordCredential.js";
 
 const config: BackendConfig = {
   allowedOrigins: [],
@@ -15,6 +18,8 @@ const config: BackendConfig = {
   appleSignInEnabled: true,
   databaseUrl: "postgresql://synthetic-only",
   host: "127.0.0.1",
+  passwordAuthEnabled: true,
+  passwordRegistrationEnabled: true,
   port: 4317,
   retentionSweepIntervalMs: 60_000,
   sessionTtlSeconds: 28_800,
@@ -182,5 +187,144 @@ describe("Apple authentication", () => {
     expect(session.access_token.length).toBeGreaterThanOrEqual(32);
     expect(insertedSession).toHaveLength(1);
     expect(client.release).toHaveBeenCalledOnce();
+  });
+});
+
+describe("password authentication", () => {
+  it("opens an account-scoped session for a verified username", async () => {
+    const passwordScrypt = await encodePasswordCredential(
+      "quiet-context",
+      "00112233445566778899aabbccddeeff",
+    );
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql === "BEGIN" || sql === "COMMIT") return { rows: [] };
+        if (sql.includes("FROM users") && sql.includes("password_credentials")) {
+          return {
+            rows: [
+              {
+                account_id: "10000000-0000-4000-8000-000000000001",
+                account_name: "Fixture Alpha Search",
+                account_role: "admin",
+                account_slug: "fixture-alpha",
+                display_name: "Cubxxw",
+                failed_attempts: 0,
+                locked_until: null,
+                password_scrypt: passwordScrypt,
+                user_email: "cubxxw@talentsignal.local",
+                user_id: "10000000-0000-4000-8000-000000000013",
+                username: "cubxxw",
+              },
+            ],
+          };
+        }
+        if (sql.includes("UPDATE password_credentials")) return { rows: [] };
+        if (sql.includes("INSERT INTO sessions")) return { rows: [] };
+        throw new Error(`Unexpected query: ${sql}`);
+      }),
+      release: vi.fn(),
+    } as unknown as PoolClient;
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+    } as unknown as Pool;
+
+    const session = await createPasswordSession(pool, config, {
+      identifier: "CUBXXW",
+      password: "quiet-context",
+      client_label: "web",
+    });
+
+    expect(session.account.slug).toBe("fixture-alpha");
+    expect(session.user).toMatchObject({
+      kind: "password_human",
+      role: "admin",
+      username: "cubxxw",
+    });
+    expect(session.access_token.length).toBeGreaterThanOrEqual(32);
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it("records a failed attempt and returns one non-enumerating error", async () => {
+    const passwordScrypt = await encodePasswordCredential(
+      "quiet-context",
+      "00112233445566778899aabbccddeeff",
+    );
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql === "BEGIN" || sql === "COMMIT") return { rows: [] };
+        if (sql.includes("FROM users") && sql.includes("password_credentials")) {
+          return {
+            rows: [
+              {
+                account_id: "10000000-0000-4000-8000-000000000001",
+                account_name: "Fixture Alpha Search",
+                account_role: "admin",
+                account_slug: "fixture-alpha",
+                display_name: "Cubxxw",
+                failed_attempts: 0,
+                locked_until: null,
+                password_scrypt: passwordScrypt,
+                user_email: "cubxxw@talentsignal.local",
+                user_id: "10000000-0000-4000-8000-000000000013",
+                username: "cubxxw",
+              },
+            ],
+          };
+        }
+        if (sql.includes("UPDATE password_credentials")) return { rows: [] };
+        throw new Error(`Unexpected query: ${sql}`);
+      }),
+      release: vi.fn(),
+    } as unknown as PoolClient;
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+    } as unknown as Pool;
+
+    await expect(
+      createPasswordSession(pool, config, {
+        identifier: "cubxxw",
+        password: "wrong-context",
+        client_label: "web",
+      }),
+    ).rejects.toMatchObject({
+      code: "PASSWORD_SIGN_IN_FAILED",
+      message: "The username, email, or password is not recognized.",
+    });
+    expect(
+      (client.query as ReturnType<typeof vi.fn>).mock.calls.some(([sql]) =>
+        String(sql).includes("failed_attempts = failed_attempts + 1"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects duplicate registration without creating a second account", async () => {
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql === "BEGIN" || sql === "ROLLBACK") return { rows: [] };
+        if (sql.includes("SELECT 1") && sql.includes("FROM users")) {
+          return { rows: [{ exists: 1 }] };
+        }
+        throw new Error(`Unexpected query: ${sql}`);
+      }),
+      release: vi.fn(),
+    } as unknown as PoolClient;
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+    } as unknown as Pool;
+
+    await expect(
+      registerPasswordSession(pool, config, {
+        username: "cubxxw",
+        email: "other@example.test",
+        display_name: "Other",
+        password: "quiet-context",
+        client_label: "web",
+      }),
+    ).rejects.toMatchObject({ code: "PASSWORD_ACCOUNT_EXISTS" });
+    expect(
+      (client.query as ReturnType<typeof vi.fn>).mock.calls.some(([sql]) =>
+        String(sql).includes("INSERT INTO accounts"),
+      ),
+    ).toBe(false);
   });
 });

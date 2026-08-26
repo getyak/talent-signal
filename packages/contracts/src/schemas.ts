@@ -45,6 +45,30 @@ export const SimulatedLoginRequestSchema = Type.Object(
   { $id: "SimulatedLoginRequest", additionalProperties: false },
 );
 
+export const PasswordLoginRequestSchema = Type.Object(
+  {
+    identifier: Type.String({ minLength: 1, maxLength: 320 }),
+    password: Type.String({ minLength: 1, maxLength: 128 }),
+    client_label: Type.String({ minLength: 1, maxLength: 80 }),
+  },
+  { $id: "PasswordLoginRequest", additionalProperties: false },
+);
+
+export const PasswordRegistrationRequestSchema = Type.Object(
+  {
+    username: Type.String({
+      minLength: 3,
+      maxLength: 40,
+      pattern: "^[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+    }),
+    email: Type.String({ format: "email", maxLength: 320 }),
+    display_name: Type.String({ minLength: 1, maxLength: 100 }),
+    password: Type.String({ minLength: 8, maxLength: 128 }),
+    client_label: Type.String({ minLength: 1, maxLength: 80 }),
+  },
+  { $id: "PasswordRegistrationRequest", additionalProperties: false },
+);
+
 export const AppleLoginChallengeRequestSchema = Type.Object(
   {
     client_label: Type.String({ minLength: 1, maxLength: 80 }),
@@ -90,7 +114,10 @@ export const SessionResponseSchema = Type.Object(
       kind: Type.Union([
         Type.Literal("simulated_human"),
         Type.Literal("apple_human"),
+        Type.Literal("password_human"),
       ]),
+      role: Type.Union([Type.Literal("admin"), Type.Literal("member")]),
+      username: Type.Union([Type.String(), Type.Null()]),
     }),
   },
   { $id: "SessionResponse", additionalProperties: false },
@@ -112,7 +139,10 @@ export const CurrentSessionResponseSchema = Type.Object(
       kind: Type.Union([
         Type.Literal("simulated_human"),
         Type.Literal("apple_human"),
+        Type.Literal("password_human"),
       ]),
+      role: Type.Union([Type.Literal("admin"), Type.Literal("member")]),
+      username: Type.Union([Type.String(), Type.Null()]),
     }),
   },
   { $id: "CurrentSessionResponse", additionalProperties: false },
@@ -1084,6 +1114,10 @@ export const RevokeCapabilityRequestSchema = Type.Object(
 
 export type SimulatedLoginRequest = Static<
   typeof SimulatedLoginRequestSchema
+>;
+export type PasswordLoginRequest = Static<typeof PasswordLoginRequestSchema>;
+export type PasswordRegistrationRequest = Static<
+  typeof PasswordRegistrationRequestSchema
 >;
 export type SessionResponse = Static<typeof SessionResponseSchema>;
 export type AppleLoginChallengeRequest = Static<

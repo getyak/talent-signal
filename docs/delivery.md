@@ -18,6 +18,11 @@ production rollout: live identity-provider configuration, storage region,
 provider credentials, real-device privacy behavior, and design-partner outcomes
 remain separate release decisions.
 
+Stateful evaluators must use a disposable workspace or retire only their own
+explicitly classified active fixtures before recreating them. Product
+projections may bound evaluator noise, but must not relabel it as recruiter
+state or conceal its synthetic origin.
+
 ## Delivery sequence
 
 ### 1. Pursuit contract and governed evidence

@@ -5,12 +5,12 @@ import { auth } from "@/auth";
 import { RelationshipWorkspaceApp } from "@/components/relationship-workspace-app";
 import { WorkspaceApp } from "@/components/workspace-app";
 import {
+  backendSessionRecoveryHref,
+  isBackendSessionExpiredError,
+} from "@/lib/backend-session";
+import {
   isIntegrationMode,
-  loadBackendWorkspace,
-  loadIdentityResolutionCase,
-  loadRelationshipAgentHistory,
-  loadRelationshipScope,
-  loadRelationshipWiki,
+  loadRelationshipWorkspaceInitialRead,
 } from "@/lib/server/localBackend";
 import { loadCandidateWorkspace } from "@/lib/server/candidateWorkspace";
 import WorkspaceLoading from "./loading";
@@ -34,6 +34,7 @@ export default async function WorkspacePage({
     capture?: string;
     context?: string;
     identity_case?: string;
+    intent?: string;
     person?: string;
     surface?: string;
   }>;
@@ -78,43 +79,35 @@ export default async function WorkspacePage({
     redirect(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
 
+  if (
+    isIntegrationMode() &&
+    !requestedCapture &&
+    !requestedPerson &&
+    !requestedContext &&
+    !requestedIdentityCase &&
+    !parameters.surface
+  ) {
+    redirect("/workspace/today");
+  }
+
   if (isIntegrationMode()) {
     const { surface } = parameters;
     if (surface === "loading") {
       return <WorkspaceLoading />;
     }
-    let workspace: Awaited<ReturnType<typeof loadBackendWorkspace>> | null =
-      null;
-    let relationshipScope: Awaited<
-      ReturnType<typeof loadRelationshipScope>
-    > | null = null;
-    let identityResolutionCase: Awaited<
-      ReturnType<typeof loadIdentityResolutionCase>
-    > | null = null;
-    let agentHistory: Awaited<
-      ReturnType<typeof loadRelationshipAgentHistory>
-    > | null = null;
-    let knowledgeSnapshot: Awaited<
-      ReturnType<typeof loadRelationshipWiki>
+    let initialRead: Awaited<
+      ReturnType<typeof loadRelationshipWorkspaceInitialRead>
     > | null = null;
     let integrationError: string | null = null;
+    let sessionRecoveryHref: string | null = null;
     try {
-      if (requestedPerson && requestedContext && !requestedCapture) {
-        relationshipScope = await loadRelationshipScope(
-          requestedPerson,
-          requestedContext,
-        );
-      } else if (requestedCapture || !requestedIdentityCase) {
-        workspace = await loadBackendWorkspace(
-          "web-workspace",
-          requestedCapture,
-        );
-      }
-      if (requestedIdentityCase) {
-        identityResolutionCase = await loadIdentityResolutionCase(
-          requestedIdentityCase,
-        );
-      }
+      initialRead = await loadRelationshipWorkspaceInitialRead({
+        captureId: requestedCapture,
+        personId: requestedPerson,
+        relationshipContextId: requestedContext,
+        identityCaseId: requestedIdentityCase,
+      });
+      integrationError = initialRead.warnings.join(" ") || null;
     } catch (caught) {
       if (
         caught instanceof TalentSignalHttpError &&
@@ -140,67 +133,50 @@ export default async function WorkspacePage({
           );
         }
       }
-      const status =
-        caught &&
-        typeof caught === "object" &&
-        "status" in caught &&
-        typeof caught.status === "number"
-          ? caught.status
-          : null;
-      if (status !== 404) {
-        integrationError =
-          "The account-scoped localhost backend could not be reached. No verified state is claimed.";
-      }
-    }
-    const historyScope = relationshipScope
-      ? {
-          personId: relationshipScope.person.id,
-          relationshipContextId:
-            relationshipScope.relationship_context.id,
+      if (isBackendSessionExpiredError(caught)) {
+        integrationError = caught.message;
+        const callbackParameters = new URLSearchParams();
+        if (requestedCapture) {
+          callbackParameters.set("capture", requestedCapture);
+        } else if (requestedPerson && requestedContext) {
+          callbackParameters.set("person", requestedPerson);
+          callbackParameters.set("context", requestedContext);
+        } else {
+          callbackParameters.set("surface", "desk");
         }
-      : workspace
-        ? {
-            personId: workspace.subject.id,
-            relationshipContextId: workspace.assignment.id,
-          }
-        : null;
-    if (historyScope) {
-      try {
-        agentHistory = await loadRelationshipAgentHistory(
-          historyScope.personId,
-          historyScope.relationshipContextId,
+        if (requestedIdentityCase) {
+          callbackParameters.set("identity_case", requestedIdentityCase);
+        }
+        sessionRecoveryHref = backendSessionRecoveryHref(
+          `/workspace?${callbackParameters.toString()}`,
         );
-      } catch {
-        integrationError ??=
-          "The contact loaded, but its durable Agent history is temporarily unavailable.";
-      }
-      try {
-        knowledgeSnapshot = await loadRelationshipWiki(
-          historyScope.personId,
-          historyScope.relationshipContextId,
-        );
-      } catch (caught) {
-        if (
-          !(caught instanceof TalentSignalHttpError) ||
-          caught.status !== 404
-        ) {
-          integrationError ??=
-            "The contact loaded, but its latest relationship Wiki is temporarily unavailable.";
+      } else {
+        const status =
+          caught &&
+          typeof caught === "object" &&
+          "status" in caught &&
+          typeof caught.status === "number"
+            ? caught.status
+            : null;
+        if (status !== 404) {
+          integrationError =
+            "The account-scoped localhost backend could not be reached. No verified state is claimed.";
         }
       }
     }
     return (
       <RelationshipWorkspaceApp
-        initialAgentHistory={agentHistory}
-        initialIdentityResolutionCase={identityResolutionCase}
-        initialKnowledgeSnapshot={knowledgeSnapshot}
-        initialRelationshipScope={relationshipScope}
-        initialWorkspace={workspace}
+        initialAccountId={initialRead?.accountId ?? null}
+        initialAgentHistory={initialRead?.agentHistory ?? null}
+        initialCaptureOpen={parameters.intent === "capture"}
+        initialIdentityResolutionCase={
+          initialRead?.identityResolutionCase ?? null
+        }
+        initialKnowledgeSnapshot={initialRead?.knowledgeSnapshot ?? null}
+        initialRelationshipScope={initialRead?.relationshipScope ?? null}
+        initialWorkspace={initialRead?.workspace ?? null}
         initialError={integrationError}
-        user={{
-          email: session.user.email,
-          name: session.user.name,
-        }}
+        initialSessionRecoveryHref={sessionRecoveryHref}
       />
     );
   }

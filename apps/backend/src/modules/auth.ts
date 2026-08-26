@@ -7,6 +7,8 @@ import {
   type AppleLoginRequest,
   type CurrentSessionResponse,
   type LogoutResponse,
+  type PasswordLoginRequest,
+  type PasswordRegistrationRequest,
   type SessionResponse,
   type SimulatedLoginRequest,
 } from "@talent-signal/contracts";
@@ -17,13 +19,21 @@ import type { Pool, PoolClient } from "pg";
 import type { BackendConfig } from "../config.js";
 import { ApiError } from "../lib/apiError.js";
 import { sha256 } from "../lib/hash.js";
+import {
+  consumeDummyPasswordWork,
+  encodePasswordCredential,
+  verifyPasswordCredential,
+} from "./passwordCredential.js";
+
+type UserKind = "simulated_human" | "apple_human" | "password_human";
+type UserRole = "admin" | "member";
 
 export interface AuthContext {
   accountId: string;
   accountSlug: string;
   userId: string;
   userEmail: string;
-  userKind: "simulated_human" | "apple_human";
+  userKind: UserKind;
   sessionId: string;
 }
 
@@ -110,9 +120,11 @@ async function insertSession(
     accountName: string;
     accountSlug: string;
     displayName: string;
+    role: UserRole;
     userEmail: string;
     userId: string;
-    userKind: "simulated_human" | "apple_human";
+    userKind: UserKind;
+    username: string | null;
   },
   clientLabel: string,
 ): Promise<SessionResponse> {
@@ -146,6 +158,8 @@ async function insertSession(
       email: identity.userEmail,
       display_name: identity.displayName,
       kind: identity.userKind,
+      role: identity.role,
+      username: identity.username,
     },
   };
 }
@@ -271,7 +285,9 @@ export async function createAppleSession(
       account_id: string;
       account_name: string;
       account_slug: string;
+      account_role: UserRole;
       display_name: string;
+      username: string | null;
       user_email: string;
       user_id: string;
     }>(
@@ -279,7 +295,9 @@ export async function createAppleSession(
          auth_identities.account_id,
          accounts.name AS account_name,
          accounts.slug AS account_slug,
+         users.account_role,
          users.display_name,
+         users.username,
          users.email AS user_email,
          auth_identities.user_id
        FROM auth_identities
@@ -321,7 +339,9 @@ export async function createAppleSession(
         account_id: accountId,
         account_name: `${displayName}'s workspace`,
         account_slug: accountSlug,
+        account_role: "member",
         display_name: displayName,
+        username: null,
         user_email: email,
         user_id: userId,
       };
@@ -342,9 +362,11 @@ export async function createAppleSession(
         accountName: identity.account_name,
         accountSlug: identity.account_slug,
         displayName: identity.display_name,
+        role: identity.account_role ?? "member",
         userEmail: identity.user_email,
         userId: identity.user_id,
         userKind: "apple_human",
+        username: identity.username ?? null,
       },
       request.client_label,
     );
@@ -375,17 +397,21 @@ export async function createSimulatedSession(
     account_id: string;
     account_name: string;
     account_slug: string;
+    account_role: UserRole;
     user_id: string;
     user_email: string;
     display_name: string;
+    username: string | null;
   }>(
     `SELECT
        accounts.id AS account_id,
        accounts.name AS account_name,
        accounts.slug AS account_slug,
+       users.account_role,
        users.id AS user_id,
        users.email AS user_email,
-       users.display_name
+       users.display_name,
+       users.username
      FROM accounts
      JOIN users ON users.account_id = accounts.id
      WHERE accounts.slug = $1
@@ -411,12 +437,249 @@ export async function createSimulatedSession(
       accountName: identity.account_name,
       accountSlug: identity.account_slug,
       displayName: identity.display_name,
+      role: identity.account_role,
       userEmail: identity.user_email,
       userId: identity.user_id,
       userKind: "simulated_human",
+      username: identity.username,
     },
     request.client_label,
   );
+}
+
+type PasswordIdentityRow = {
+  account_id: string;
+  account_name: string;
+  account_role: UserRole;
+  account_slug: string;
+  display_name: string;
+  failed_attempts: number;
+  locked_until: Date | null;
+  password_scrypt: string;
+  user_email: string;
+  user_id: string;
+  username: string;
+};
+
+function requirePasswordAuth(config: BackendConfig): void {
+  if (!config.passwordAuthEnabled) {
+    throw new ApiError(
+      404,
+      "PASSWORD_AUTH_DISABLED",
+      "Username and password sign-in is not configured for this service.",
+    );
+  }
+}
+
+export async function createPasswordSession(
+  pool: Pool,
+  config: BackendConfig,
+  request: PasswordLoginRequest,
+): Promise<SessionResponse> {
+  requirePasswordAuth(config);
+  const identifier = request.identifier.trim().toLowerCase();
+  const client = await pool.connect();
+  let transactionOpen = false;
+
+  try {
+    await client.query("BEGIN");
+    transactionOpen = true;
+    const result = await client.query<PasswordIdentityRow>(
+      `SELECT
+         accounts.id AS account_id,
+         accounts.name AS account_name,
+         accounts.slug AS account_slug,
+         users.id AS user_id,
+         users.email AS user_email,
+         users.username,
+         users.display_name,
+         users.account_role,
+         password_credentials.password_scrypt,
+         password_credentials.failed_attempts,
+         password_credentials.locked_until
+       FROM users
+       JOIN accounts ON accounts.id = users.account_id
+       JOIN password_credentials
+         ON password_credentials.account_id = users.account_id
+        AND password_credentials.user_id = users.id
+       WHERE users.kind = 'password_human'
+         AND users.status = 'active'
+         AND (
+           lower(users.username) = $1 OR lower(users.email) = $1
+         )
+       FOR UPDATE OF password_credentials`,
+      [identifier],
+    );
+    const identity = result.rows[0];
+    if (!identity) {
+      await consumeDummyPasswordWork(request.password);
+      await client.query("COMMIT");
+      transactionOpen = false;
+      throw new ApiError(
+        401,
+        "PASSWORD_SIGN_IN_FAILED",
+        "The username, email, or password is not recognized.",
+      );
+    }
+
+    const passwordMatches = await verifyPasswordCredential(
+      request.password,
+      identity.password_scrypt,
+    );
+    const isLocked =
+      identity.locked_until !== null && identity.locked_until > new Date();
+    if (!passwordMatches || isLocked) {
+      if (!isLocked) {
+        await client.query(
+          `UPDATE password_credentials
+           SET
+             failed_attempts = failed_attempts + 1,
+             locked_until = CASE
+               WHEN failed_attempts + 1 >= 6
+                 THEN now() + interval '15 minutes'
+               ELSE NULL
+             END
+           WHERE account_id = $1 AND user_id = $2`,
+          [identity.account_id, identity.user_id],
+        );
+      }
+      await client.query("COMMIT");
+      transactionOpen = false;
+      throw new ApiError(
+        401,
+        "PASSWORD_SIGN_IN_FAILED",
+        "The username, email, or password is not recognized.",
+      );
+    }
+
+    await client.query(
+      `UPDATE password_credentials
+       SET failed_attempts = 0, locked_until = NULL
+       WHERE account_id = $1 AND user_id = $2`,
+      [identity.account_id, identity.user_id],
+    );
+    const session = await insertSession(
+      client,
+      config,
+      {
+        accountId: identity.account_id,
+        accountName: identity.account_name,
+        accountSlug: identity.account_slug,
+        displayName: identity.display_name,
+        role: identity.account_role,
+        userEmail: identity.user_email,
+        userId: identity.user_id,
+        userKind: "password_human",
+        username: identity.username,
+      },
+      request.client_label,
+    );
+    await client.query("COMMIT");
+    transactionOpen = false;
+    return session;
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query("ROLLBACK");
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function registerPasswordSession(
+  pool: Pool,
+  config: BackendConfig,
+  request: PasswordRegistrationRequest,
+): Promise<SessionResponse> {
+  requirePasswordAuth(config);
+  if (!config.passwordRegistrationEnabled) {
+    throw new ApiError(
+      404,
+      "PASSWORD_REGISTRATION_DISABLED",
+      "Account registration is not open on this service.",
+    );
+  }
+
+  const username = request.username.trim().toLowerCase();
+  const email = request.email.trim().toLowerCase();
+  const displayName = request.display_name.trim();
+  const passwordScrypt = await encodePasswordCredential(request.password);
+  const accountId = randomUUID();
+  const userId = randomUUID();
+  const accountSlug = `personal-${username}-${randomUUID().slice(0, 8)}`;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const duplicate = await client.query(
+      `SELECT 1
+       FROM users
+       WHERE kind = 'password_human'
+         AND (lower(username) = $1 OR lower(email) = $2)
+       LIMIT 1`,
+      [username, email],
+    );
+    if (duplicate.rows[0]) {
+      throw new ApiError(
+        409,
+        "PASSWORD_ACCOUNT_EXISTS",
+        "An account already uses that username or email.",
+      );
+    }
+
+    await client.query(
+      `INSERT INTO accounts(id, slug, name) VALUES ($1, $2, $3)`,
+      [accountId, accountSlug, `${displayName}'s workspace`],
+    );
+    await client.query(
+      `INSERT INTO users(
+         id, account_id, email, username, display_name, kind, account_role
+       ) VALUES ($1, $2, $3, $4, $5, 'password_human', 'member')`,
+      [userId, accountId, email, username, displayName],
+    );
+    await client.query(
+      `INSERT INTO password_credentials(
+         account_id, user_id, password_scrypt
+       ) VALUES ($1, $2, $3)`,
+      [accountId, userId, passwordScrypt],
+    );
+    const session = await insertSession(
+      client,
+      config,
+      {
+        accountId,
+        accountName: `${displayName}'s workspace`,
+        accountSlug,
+        displayName,
+        role: "member",
+        userEmail: email,
+        userId,
+        userKind: "password_human",
+        username,
+      },
+      request.client_label,
+    );
+    await client.query("COMMIT");
+    return session;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "23505"
+    ) {
+      throw new ApiError(
+        409,
+        "PASSWORD_ACCOUNT_EXISTS",
+        "An account already uses that username or email.",
+      );
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function currentSession(
@@ -424,19 +687,23 @@ export async function currentSession(
   auth: AuthContext,
 ): Promise<CurrentSessionResponse> {
   const result = await pool.query<{
+    account_role: UserRole;
     account_name: string;
     account_slug: string;
     display_name: string;
     expires_at: Date;
     user_email: string;
-    user_kind: "simulated_human" | "apple_human";
+    user_kind: UserKind;
+    username: string | null;
   }>(
     `SELECT
        accounts.name AS account_name,
        accounts.slug AS account_slug,
+       users.account_role,
        users.display_name,
        users.email AS user_email,
        users.kind AS user_kind,
+       users.username,
        sessions.expires_at
      FROM sessions
      JOIN accounts ON accounts.id = sessions.account_id
@@ -467,6 +734,8 @@ export async function currentSession(
       email: session.user_email,
       display_name: session.display_name,
       kind: session.user_kind,
+      role: session.account_role,
+      username: session.username,
     },
   };
 }
@@ -509,7 +778,7 @@ export function createAuthGuard(pool: Pool): preHandlerHookHandler {
       account_slug: string;
       user_id: string;
       user_email: string;
-      user_kind: "simulated_human" | "apple_human";
+      user_kind: UserKind;
       session_id: string;
     }>(
       `SELECT

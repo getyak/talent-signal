@@ -1,5 +1,8 @@
 import CryptoKit
 import Foundation
+#if DEBUG
+import UIKit
+#endif
 
 actor PendingCaptureInbox {
     static let shared = PendingCaptureInbox()
@@ -76,9 +79,12 @@ actor PendingCaptureInbox {
     func saveDraft(_ draft: RecognizedCaptureDraft, for id: UUID) throws {
         try prepareQueue()
         guard try load(id: id) != nil else { return }
-        try JSONEncoder.captureEncoder.encode(
-            SavedDraft(seedID: id, draft: draft)
-        ).write(to: draftURL(for: id), options: .atomic)
+        try writeProtected(
+            JSONEncoder.captureEncoder.encode(
+                SavedDraft(seedID: id, draft: draft)
+            ),
+            to: draftURL(for: id)
+        )
     }
 
     func loadDraft(for id: UUID) throws -> RecognizedCaptureDraft? {
@@ -97,22 +103,61 @@ actor PendingCaptureInbox {
     private func prepareQueue() throws {
         try FileManager.default.createDirectory(
             at: capturesDirectoryURL,
-            withIntermediateDirectories: true
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete]
+        )
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: capturesDirectoryURL.path
         )
         try migrateLegacyCaptureIfNeeded()
+        for url in try FileManager.default.contentsOfDirectory(
+            at: capturesDirectoryURL,
+            includingPropertiesForKeys: nil
+        ) {
+            try FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.complete],
+                ofItemAtPath: url.path
+            )
+        }
     }
 
     private func persist(
         _ seed: PendingCaptureSeed,
         contentFingerprint: String
     ) throws {
-        try seed.imageData.write(to: imageURL(for: seed.id), options: .atomic)
-        try JSONEncoder.captureEncoder.encode(
-            PendingMetadata(
-                seed: seed,
-                contentFingerprint: contentFingerprint
-            )
-        ).write(to: metadataURL(for: seed.id), options: .atomic)
+        try writeProtected(seed.imageData, to: imageURL(for: seed.id))
+        try writeProtected(
+            JSONEncoder.captureEncoder.encode(
+                PendingMetadata(
+                    seed: seed,
+                    contentFingerprint: contentFingerprint
+                )
+            ),
+            to: metadataURL(for: seed.id)
+        )
+    }
+
+    func fileProtections(for id: UUID) throws -> [FileProtectionType?] {
+        try prepareQueue()
+        return try [metadataURL(for: id), imageURL(for: id), draftURL(for: id)]
+            .map { url in
+                guard FileManager.default.fileExists(atPath: url.path) else {
+                    return nil
+                }
+                let attributes = try FileManager.default.attributesOfItem(
+                    atPath: url.path
+                )
+                return attributes[.protectionKey] as? FileProtectionType
+            }
+    }
+
+    private func writeProtected(_ data: Data, to url: URL) throws {
+        try data.write(to: url, options: [.atomic, .completeFileProtection])
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: url.path
+        )
     }
 
     private func load(id: UUID) throws -> PendingCaptureSeed? {
@@ -294,24 +339,27 @@ final class CaptureHandoffStore: ObservableObject {
     @discardableResult
     func configureDeterministicLaunch(arguments: [String]) -> Bool {
 #if DEBUG
-        guard Self.value(after: "--scenario", in: arguments)
-                == "relationship-capture" else {
+        guard let scenario = Self.value(after: "--scenario", in: arguments),
+              ["relationship-capture", "relationship-capture-archive"]
+                .contains(scenario) else {
             return false
         }
+        let captureName = Self.value(
+            after: "--capture-name",
+            in: arguments
+        ) ?? "Current owner 080e5531"
+        let captureHandle = Self.value(
+            after: "--capture-handle",
+            in: arguments
+        ) ?? "+6580805531"
         var draft = RecognizedCaptureDraft.empty
         draft.reviewedText = Self.value(
             after: "--capture-text",
             in: arguments
         ) ?? "Phone: +6580805531\nPlease keep this conversation with the current relationship."
-        draft.displayNameHint = Self.value(
-            after: "--capture-name",
-            in: arguments
-        ) ?? "Current owner 080e5531"
+        draft.displayNameHint = captureName
         draft.handleType = .phone
-        draft.handleValue = Self.value(
-            after: "--capture-handle",
-            in: arguments
-        ) ?? "+6580805531"
+        draft.handleValue = captureHandle
         draft.relationshipLabel = Self.value(
             after: "--capture-relationship",
             in: arguments
@@ -328,7 +376,11 @@ final class CaptureHandoffStore: ObservableObject {
                         in: arguments
                     ) ?? "A1A1A1A1-A1A1-41A1-81A1-A1A1A1A1A1A1"
                 ) ?? UUID(uuidString: "A1A1A1A1-A1A1-41A1-81A1-A1A1A1A1A1A1")!,
-                imageData: Data(),
+                imageData: Self.deterministicCaptureImageData(
+                    displayName: captureName,
+                    handle: captureHandle,
+                    message: draft.reviewedText
+                ),
                 fileName: "recycled-phone-conversation.png",
                 mediaType: "image/png",
                 origin: .deterministicTest
@@ -340,6 +392,60 @@ final class CaptureHandoffStore: ObservableObject {
         return false
 #endif
     }
+
+#if DEBUG
+    private static func deterministicCaptureImageData(
+        displayName: String,
+        handle: String,
+        message: String
+    ) -> Data {
+        let size = CGSize(width: 1_080, height: 1_920)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            UIColor(red: 0.94, green: 0.95, blue: 0.93, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: size.width, height: 180))
+            displayName.draw(
+                in: CGRect(x: 70, y: 74, width: 940, height: 72),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 44, weight: .semibold),
+                    .foregroundColor: UIColor.black,
+                ]
+            )
+
+            let bubble = UIBezierPath(
+                roundedRect: CGRect(x: 70, y: 300, width: 860, height: 410),
+                cornerRadius: 34
+            )
+            UIColor.white.setFill()
+            bubble.fill()
+            "Synthetic conversation fixture\n\n\(handle)\n\n\(message)".draw(
+                in: CGRect(x: 110, y: 345, width: 780, height: 330),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 35),
+                    .foregroundColor: UIColor.black,
+                ]
+            )
+
+            let boundary = UIBezierPath(
+                roundedRect: CGRect(x: 250, y: 870, width: 760, height: 220),
+                cornerRadius: 34
+            )
+            UIColor(red: 0.72, green: 0.91, blue: 0.62, alpha: 1).setFill()
+            boundary.fill()
+            "Review the original before saving OCR as evidence.".draw(
+                in: CGRect(x: 295, y: 930, width: 670, height: 120),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 34, weight: .medium),
+                    .foregroundColor: UIColor.black,
+                ]
+            )
+        }
+        return image.pngData() ?? Data()
+    }
+#endif
 
     func keepForLater() {
         pendingSeed = nil

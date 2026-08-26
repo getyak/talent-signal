@@ -10,6 +10,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { AccountAccessForm } from "@/components/account-access-form";
 import { BrandMark } from "@/components/brand-mark";
 import { EmailSignInForm } from "@/components/email-sign-in-form";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -52,12 +53,14 @@ export default async function LoginPage({
   searchParams: Promise<{
     callbackUrl?: string;
     error?: string;
+    reason?: string;
   }>;
 }) {
   const session = await auth();
   const parameters = await searchParams;
   const callbackUrl = safeRedirectTarget(parameters.callbackUrl);
-  if (session?.user) {
+  const sessionExpired = parameters.reason === "backend_session_expired";
+  if (session?.user && !sessionExpired) {
     redirect(callbackUrl);
   }
 
@@ -70,7 +73,10 @@ export default async function LoginPage({
     : "";
   const hasOAuth = availability.google || availability.apple;
   const hasConfiguredSignIn =
-    hasOAuth || availability.email || availability.defaultAccount;
+    hasOAuth ||
+    availability.password ||
+    availability.email ||
+    availability.defaultAccount;
 
   return (
     <main id="main-content" className="auth-page">
@@ -114,6 +120,13 @@ export default async function LoginPage({
               next move.
             </span>
           </header>
+
+          {sessionExpired ? (
+            <p className="auth-error" role="alert">
+              Your secure workspace session expired. Sign in again to return
+              to the same page; no cached relationship state was substituted.
+            </p>
+          ) : null}
 
           {oauthError && (
             <p className="auth-error" role="alert">
@@ -165,13 +178,18 @@ export default async function LoginPage({
                 </div>
               ) : null}
 
-              {hasOAuth && availability.email ? (
+              {hasOAuth && (availability.password || availability.email) ? (
                 <div className="auth-divider">
-                  <span>or use email</span>
+                  <span>or use your account</span>
                 </div>
               ) : null}
 
-              {availability.email ? (
+              {availability.password ? (
+                <AccountAccessForm
+                  callbackUrl={callbackUrl}
+                  registrationEnabled={availability.registration}
+                />
+              ) : availability.email ? (
                 <EmailSignInForm callbackUrl={callbackUrl} enabled />
               ) : null}
             </>

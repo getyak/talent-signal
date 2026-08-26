@@ -1,4 +1,193 @@
 import SwiftUI
+import UIKit
+
+@MainActor
+final class VoiceInputStore: ObservableObject {
+    enum Phase: Equatable {
+        case idle
+        case requestingPermission
+        case recording(startedAt: Date)
+        case transcribing
+        case failed(String)
+    }
+
+    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var microphonePermission: AudioSignalPermission
+    @Published private(set) var transcript: String?
+
+    private let recorder: VoiceDictationRecordingServing
+    private var activePayload: VoiceDictationPayload?
+    private var transcriber: (any VoiceTranscriptionServing)?
+    private var limitTask: Task<Void, Never>?
+    private var transcriptionOperation: Task<VoiceTranscriptionDraft, Error>?
+
+    init(recorder: VoiceDictationRecordingServing? = nil) {
+        let resolvedRecorder: VoiceDictationRecordingServing
+        if let recorder {
+            resolvedRecorder = recorder
+        } else {
+#if DEBUG
+            resolvedRecorder = ProcessInfo.processInfo.arguments.contains(
+                "--deterministic-voice-input"
+            )
+                ? DeterministicVoiceDictationRecorder()
+                : VoiceDictationRecorder()
+#else
+            resolvedRecorder = VoiceDictationRecorder()
+#endif
+        }
+        self.recorder = resolvedRecorder
+        microphonePermission = resolvedRecorder.permissionStatus()
+    }
+
+    deinit {
+        limitTask?.cancel()
+        transcriptionOperation?.cancel()
+    }
+
+    var isRecording: Bool {
+        if case .recording = phase { return true }
+        return false
+    }
+
+    var isBusy: Bool {
+        switch phase {
+        case .requestingPermission, .recording, .transcribing:
+            return true
+        case .idle, .failed:
+            return false
+        }
+    }
+
+    func refreshPermissionStatus() {
+        microphonePermission = recorder.permissionStatus()
+    }
+
+    func start(
+        sceneIsActive: Bool,
+        transcriber: any VoiceTranscriptionServing
+    ) async {
+        guard !isBusy else { return }
+        guard sceneIsActive else {
+            phase = .failed(
+                "Keep Talent Signal in the foreground to use voice input."
+            )
+            return
+        }
+        transcript = nil
+        var permission = recorder.permissionStatus()
+        if permission == .undetermined {
+            phase = .requestingPermission
+            permission = await recorder.requestPermission()
+        }
+        microphonePermission = permission
+        guard permission == .granted else {
+            phase = .failed(
+                "Microphone permission was not granted. No audio was recorded."
+            )
+            return
+        }
+        do {
+            let recordID = UUID()
+            try recorder.start(recordID: recordID)
+            self.transcriber = transcriber
+            phase = .recording(startedAt: Date())
+            limitTask?.cancel()
+            limitTask = Task { [weak self] in
+                do {
+                    try await Task.sleep(for: .seconds(60))
+                } catch {
+                    return
+                }
+                await self?.stopAndTranscribe(triggeredByLimit: true)
+            }
+        } catch {
+            try? recorder.cancel()
+            phase = .failed(
+                (error as? LocalizedError)?.errorDescription
+                    ?? "Voice input could not start the microphone."
+            )
+        }
+    }
+
+    func stopAndTranscribe(triggeredByLimit: Bool = false) async {
+        guard isRecording, let transcriber else { return }
+        if !triggeredByLimit {
+            limitTask?.cancel()
+            limitTask = nil
+        }
+        do {
+            let payload = try recorder.stop()
+            activePayload = payload
+            phase = .transcribing
+            defer {
+                try? recorder.delete(payload)
+                activePayload = nil
+                self.transcriber = nil
+                if triggeredByLimit { limitTask = nil }
+            }
+            let operation = Task {
+                try await transcriber.transcribe(payload)
+            }
+            transcriptionOperation = operation
+            defer { transcriptionOperation = nil }
+            let draft = try await operation.value
+            try Task.checkCancellation()
+            transcript = draft.transcript.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            phase = .idle
+        } catch is CancellationError {
+            if case .failed = phase {
+                // Foreground loss keeps its explicit recovery message.
+            } else {
+                phase = .idle
+            }
+        } catch {
+            phase = .failed(
+                (error as? LocalizedError)?.errorDescription
+                    ?? "Voice transcription failed. Your text draft is unchanged."
+            )
+        }
+    }
+
+    func consumeTranscript() {
+        transcript = nil
+    }
+
+    func cancel() {
+        limitTask?.cancel()
+        limitTask = nil
+        transcriptionOperation?.cancel()
+        transcriptionOperation = nil
+        try? recorder.cancel()
+        if let activePayload { try? recorder.delete(activePayload) }
+        activePayload = nil
+        transcriber = nil
+        transcript = nil
+        phase = .idle
+    }
+
+    func stopForForegroundLoss() {
+        guard isBusy else { return }
+        let wasTranscribing: Bool
+        if case .transcribing = phase {
+            wasTranscribing = true
+        } else {
+            wasTranscribing = false
+        }
+        cancel()
+        phase = .failed(
+            wasTranscribing
+                ? "Voice transcription was interrupted. The temporary recording was deleted; the provider result is unavailable."
+                : "Voice input stopped when Talent Signal left the foreground. No audio was sent."
+        )
+    }
+
+    func dismissFailure() {
+        if case .failed = phase { phase = .idle }
+    }
+}
 
 @MainActor
 struct RelationshipAskView: View {
@@ -7,6 +196,7 @@ struct RelationshipAskView: View {
     @ObservedObject var workspaceStore: PursuitWorkspaceStore
     @ObservedObject var sessionStore: AgentSessionStore
     let sessionID: UUID?
+    var initialSeed: AgentSessionSeed? = nil
     let ask: (
         _ objective: String,
         _ personID: String,
@@ -23,12 +213,16 @@ struct RelationshipAskView: View {
     ) async throws -> PursuitEvidenceReviewResult
     let revalidateSessions: () async -> Void
     let onOpenProposal: (WorkspaceProposal) -> Void
-    let onCapture: () -> Void
+    let onCapture: (CaptureIntentDestination?) -> Void
+    let voiceTranscriber: (any VoiceTranscriptionServing)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.sizeCategory) private var sizeCategory
+    @ScaledMetric(relativeTo: .caption2) private var scopeContextFontSize: CGFloat = 11
     @State private var selectedScope: AskScope?
     @State private var scopeQuery = ""
     @State private var isChoosingScope = false
@@ -41,6 +235,11 @@ struct RelationshipAskView: View {
     @State private var reinstatementOperation: AgentEvidenceReviewOperation?
     @State private var reinstatementReason = ""
     @State private var reviewPreparationError: String?
+    @State private var isVoiceDisclosurePresented = false
+    @State private var voiceOperation: Task<Void, Never>?
+    @StateObject private var voiceInput = VoiceInputStore()
+    @AppStorage("voice-input-cloud-disclosure-v1")
+    private var hasAcceptedVoiceDisclosure = false
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -183,10 +382,21 @@ struct RelationshipAskView: View {
                         && $0.context.id == session.relationshipContextID
                 }
                 sessionStore.markRead(session.id)
+            } else if let initialSeed {
+                selectedScope = availableScopes.first {
+                    $0.person.id == initialSeed.personID
+                        && $0.context.id == initialSeed.relationshipContextID
+                }
+                if selectedScope == nil {
+                    errorMessage = appLanguage.text(
+                        "The reviewed relationship is not available in the current workspace.",
+                        zhHans: "当前工作区中找不到刚审阅的关系。"
+                    )
+                }
             } else if selectedScope == nil {
                 selectedScope = availableScopes.first
             }
-            restoreDraft()
+            restoreDraft(preferred: initialSeed?.suggestedObjective)
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(60))
@@ -205,6 +415,43 @@ struct RelationshipAskView: View {
                 value,
                 personID: selectedScope.person.id,
                 relationshipContextID: selectedScope.context.id
+            )
+        }
+        .onChange(of: voiceInput.transcript) { transcript in
+            guard let transcript, !transcript.isEmpty else { return }
+            insertVoiceTranscript(transcript)
+            voiceInput.consumeTranscript()
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                voiceInput.refreshPermissionStatus()
+            } else {
+                voiceOperation?.cancel()
+                voiceOperation = nil
+                voiceInput.stopForForegroundLoss()
+            }
+        }
+        .onDisappear {
+            voiceOperation?.cancel()
+            voiceOperation = nil
+            voiceInput.cancel()
+        }
+        .confirmationDialog(
+            appLanguage.text("Use Doubao voice transcription?"),
+            isPresented: $isVoiceDisclosurePresented,
+            titleVisibility: .visible
+        ) {
+            Button(appLanguage.text("Start voice input")) {
+                hasAcceptedVoiceDisclosure = true
+                startVoiceInput()
+            }
+            .accessibilityIdentifier("confirm-voice-input-disclosure")
+            Button(appLanguage.text("Cancel"), role: .cancel) {}
+        } message: {
+            Text(
+                appLanguage.text(
+                    "After you stop, this temporary recording is sent to Doubao for transcription. The words stay editable here and are not sent to the Agent until you tap Send. Talent Signal deletes its temporary audio after the response; provider handling follows your service agreement."
+                )
             )
         }
         .accessibilityIdentifier("relationship-ask-sheet")
@@ -233,6 +480,22 @@ struct RelationshipAskView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(
+                appLanguage.text("Selected relationship", zhHans: "已选择的关系")
+            )
+            .accessibilityValue(
+                selectedScope.map {
+                    "\($0.person.displayLabel), \($0.context.displayLabel)"
+                } ?? appLanguage.text("None", zhHans: "未选择")
+            )
+            .accessibilityHint(
+                appLanguage.text(
+                    "Choose a different person or relationship.",
+                    zhHans: "选择其他人物或关系。"
+                )
+            )
             .accessibilityIdentifier("ask-scope-selector")
 
             if isChoosingScope {
@@ -290,7 +553,7 @@ struct RelationshipAskView: View {
     }
 
     private func scopeChip(_ scope: AskScope) -> some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
             if !dynamicTypeSize.isAccessibilitySize && !sizeCategory.isAccessibilityCategory {
                 Circle()
                     .fill(Color.tsVermilion.opacity(0.14))
@@ -306,11 +569,15 @@ struct RelationshipAskView: View {
                 Text(scope.person.displayLabel)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
-                Text(scope.context.displayLabel)
-                    .font(.caption2)
-                    .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(scope.context.displayLabel)
+                    .font(.system(size: scopeContextFontSize))
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: 8)
             Image(systemName: "chevron.down")
                 .font(.caption.weight(.semibold))
@@ -521,85 +788,260 @@ struct RelationshipAskView: View {
     }
 
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            Button(action: onCapture) {
-                Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.tsInk)
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel(
-                appLanguage.text(
-                    "Add text, photo, or voice",
-                    zhHans: "添加文本、图片或语音"
-                )
-            )
+        VStack(spacing: 8) {
+            voiceInputStatus
 
-            TextField(
-                appLanguage.text("Ask anything", zhHans: "问点什么"),
-                text: $draft,
-                axis: .vertical
-            )
-            .focused($composerFocused)
-            .lineLimit(1...5)
-            .padding(.horizontal, 15)
-            .padding(.vertical, 12)
-            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 20))
-            .accessibilityIdentifier("ask-composer")
-
-            Button {
-                if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    onCapture()
-                } else {
-                    send(draft)
+            HStack(alignment: .bottom, spacing: 8) {
+                Button { onCapture(nil) } label: {
+                    Image(systemName: "paperclip")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                        .frame(width: 44, height: 44)
+                        .background(Color.tsCanvas, in: Circle())
                 }
-            } label: {
-                Image(
-                    systemName: draft.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    ).isEmpty ? "waveform" : "arrow.up"
+                .disabled(voiceInput.isBusy)
+                .accessibilityLabel(
+                    appLanguage.text("Add text, photo, or voice")
                 )
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(
-                        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? Color.tsInk
-                            : Color.tsSurface
-                    )
+
+                TextField(
+                    appLanguage.text("Ask anything"),
+                    text: $draft,
+                    axis: .vertical
+                )
+                .focused($composerFocused)
+                .lineLimit(1...5)
+                .disabled(voiceInput.isBusy)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 12)
+                .background(
+                    Color.tsCanvas,
+                    in: RoundedRectangle(cornerRadius: 20)
+                )
+                .accessibilityIdentifier("ask-composer")
+
+                Button(action: composerPrimaryAction) {
+                    Group {
+                        if voiceInput.phase == .transcribing {
+                            ProgressView()
+                                .tint(Color.tsSurface)
+                        } else {
+                            Image(systemName: composerPrimarySymbol)
+                                .font(.body.weight(.semibold))
+                        }
+                    }
+                    .foregroundStyle(composerPrimaryForeground)
                     .frame(width: 44, height: 44)
-                    .background(
-                        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? Color.tsCanvas
-                            : Color.tsInk,
-                        in: Circle()
-                    )
+                    .background(composerPrimaryBackground, in: Circle())
+                }
+                .disabled(composerPrimaryDisabled)
+                .opacity(composerPrimaryDisabled ? 0.35 : 1)
+                .accessibilityLabel(composerPrimaryAccessibilityLabel)
+                .accessibilityIdentifier(
+                    trimmedDraft.isEmpty ? "ask-voice" : "ask-send"
+                )
+                .accessibilityHint(composerPrimaryAccessibilityHint)
             }
-            .disabled(
-                selectedScope == nil
-                    || isSending
-                    || !isCanonical
-            )
-            .opacity(
-                selectedScope == nil || !isCanonical ? 0.35 : 1
-            )
-            .accessibilityLabel(
-                draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? appLanguage.text("Record voice", zhHans: "记录语音")
-                    : appLanguage.text("Send", zhHans: "发送")
-            )
-            .accessibilityIdentifier("ask-send")
-            .accessibilityHint(
-                isCanonical
-                    ? ""
-                    : appLanguage.text(
-                        "Connect a workspace to send this question.",
-                        zhHans: "连接工作区后才能发送这个问题。"
-                    )
-            )
         }
         .padding(.horizontal, 14)
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(Color.tsSurface.opacity(0.98))
+    }
+
+    @ViewBuilder
+    private var voiceInputStatus: some View {
+        switch voiceInput.phase {
+        case .idle:
+            EmptyView()
+        case .requestingPermission:
+            HStack(spacing: 10) {
+                ProgressView()
+                Text(appLanguage.text("Waiting for microphone permission…"))
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                Spacer(minLength: 8)
+            }
+            .accessibilityIdentifier("ask-voice-requesting-permission")
+        case let .recording(startedAt):
+            HStack(spacing: 10) {
+                Image(systemName: "waveform")
+                    .foregroundStyle(Color.tsVermilion)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(appLanguage.text("Listening"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                    Text(
+                        appLanguage.text(
+                            "Tap stop to transcribe with Doubao · 1 minute max"
+                        )
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Text(startedAt, style: .timer)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Color.tsInk)
+                Button(appLanguage.text("Cancel")) {
+                    cancelVoiceInput()
+                }
+                .font(.caption.weight(.semibold))
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("ask-voice-cancel")
+            }
+            .accessibilityIdentifier("ask-voice-recording")
+        case .transcribing:
+            HStack(spacing: 10) {
+                ProgressView()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(appLanguage.text("Creating an editable transcript…"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                    Text(
+                        appLanguage.text(
+                            "Nothing is sent to the Agent until you tap Send."
+                        )
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(Color.tsMutedInk)
+                }
+                Spacer(minLength: 8)
+                Button(appLanguage.text("Cancel")) {
+                    cancelVoiceInput()
+                }
+                .font(.caption.weight(.semibold))
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("ask-voice-cancel-transcription")
+            }
+            .accessibilityIdentifier("ask-voice-transcribing")
+        case let .failed(message):
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.circle")
+                    .foregroundStyle(Color.tsVermilion)
+                    .accessibilityHidden(true)
+                Text(appLanguage.text(message))
+                    .font(.caption)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                if voiceInput.microphonePermission == .denied {
+                    Button(appLanguage.text("Settings")) {
+                        guard let url = URL(
+                            string: UIApplication.openSettingsURLString
+                        ) else { return }
+                        openURL(url)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("ask-voice-open-settings")
+                } else {
+                    Button(appLanguage.text("Dismiss")) {
+                        voiceInput.dismissFailure()
+                    }
+                    .font(.caption.weight(.semibold))
+                    .frame(minHeight: 44)
+                }
+            }
+            .accessibilityIdentifier("ask-voice-failed")
+        }
+    }
+
+    private var composerPrimarySymbol: String {
+        if !trimmedDraft.isEmpty { return "arrow.up" }
+        return voiceInput.isRecording ? "stop.fill" : "waveform"
+    }
+
+    private var composerPrimaryForeground: Color {
+        if !trimmedDraft.isEmpty || voiceInput.isRecording { return .tsSurface }
+        return .tsInk
+    }
+
+    private var composerPrimaryBackground: Color {
+        if !trimmedDraft.isEmpty { return .tsInk }
+        if voiceInput.isRecording { return .tsVermilion }
+        return .tsCanvas
+    }
+
+    private var composerPrimaryDisabled: Bool {
+        if !trimmedDraft.isEmpty { return !canSendDraft }
+        if voiceInput.phase == .transcribing
+            || voiceInput.phase == .requestingPermission {
+            return true
+        }
+        return isSending
+    }
+
+    private var composerPrimaryAccessibilityLabel: String {
+        if !trimmedDraft.isEmpty { return appLanguage.text("Send") }
+        if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
+        if voiceTranscriber == nil { return appLanguage.text("Record voice") }
+        return appLanguage.text("Start voice input")
+    }
+
+    private var composerPrimaryAccessibilityHint: String {
+        if !trimmedDraft.isEmpty { return "" }
+        guard voiceTranscriber != nil else { return "" }
+        if voiceInput.isRecording {
+            return appLanguage.text(
+                "Stops recording and sends the temporary audio to Doubao for transcription."
+            )
+        }
+        return appLanguage.text(
+            "Records your voice in the foreground. The transcript remains editable before Send."
+        )
+    }
+
+    private func composerPrimaryAction() {
+        if !trimmedDraft.isEmpty {
+            send(draft)
+            return
+        }
+        if voiceInput.isRecording {
+            voiceOperation?.cancel()
+            voiceOperation = Task {
+                await voiceInput.stopAndTranscribe()
+                voiceOperation = nil
+            }
+            return
+        }
+        guard voiceTranscriber != nil else {
+            onCapture(.foregroundAudio)
+            return
+        }
+        guard hasAcceptedVoiceDisclosure else {
+            isVoiceDisclosurePresented = true
+            return
+        }
+        startVoiceInput()
+    }
+
+    private func startVoiceInput() {
+        guard let voiceTranscriber else { return }
+        composerFocused = false
+        voiceInput.dismissFailure()
+        voiceOperation?.cancel()
+        voiceOperation = Task {
+            await voiceInput.start(
+                sceneIsActive: scenePhase == .active,
+                transcriber: voiceTranscriber
+            )
+            voiceOperation = nil
+        }
+    }
+
+    private func cancelVoiceInput() {
+        voiceOperation?.cancel()
+        voiceOperation = nil
+        voiceInput.cancel()
+    }
+
+    private func insertVoiceTranscript(_ transcript: String) {
+        let current = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft = current.isEmpty ? transcript : "\(current) \(transcript)"
+        composerFocused = true
     }
 
     private var availableScopes: [AskScope] {
@@ -608,6 +1050,14 @@ struct RelationshipAskView: View {
                 AskScope(person: person, context: context)
             }
         }
+    }
+
+    private var trimmedDraft: String {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSendDraft: Bool {
+        selectedScope != nil && !isSending && isCanonical
     }
 
     private var filteredScopes: [AskScope] {
@@ -678,12 +1128,15 @@ struct RelationshipAskView: View {
         return String(parts.prefix(2).compactMap(\.first)).uppercased()
     }
 
-    private func restoreDraft() {
+    private func restoreDraft(preferred: String? = nil) {
         guard let selectedScope else { return }
-        draft = sessionStore.draft(
+        let saved = sessionStore.draft(
             personID: selectedScope.person.id,
             relationshipContextID: selectedScope.context.id
         )
+        draft = saved.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? preferred ?? ""
+            : saved
     }
 
     private func reviewIdempotencyKey(

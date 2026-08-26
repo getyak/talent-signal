@@ -9,6 +9,70 @@ final class CandidateSignalUITests: XCTestCase {
         app = XCUIApplication()
     }
 
+    func testCalendarProposalOpensSystemEditorAndDismissesWithoutWriting() {
+        app.launchArguments = [
+            "--scenario", "calendar-handoff",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let handoff = element("device-calendar-handoff")
+        let add = app.buttons["add-calendar-proposal"]
+        let dismiss = app.buttons["dismiss-calendar-proposal"]
+        XCTAssertTrue(handoff.waitForExistence(timeout: 8))
+        XCTAssertTrue(add.exists)
+        XCTAssertTrue(dismiss.exists)
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(dismiss.frame.height, 44)
+        preserveScreenshot("Calendar proposal before device write")
+
+        add.tap()
+        let systemCancel = app.buttons["cancel-button"]
+        XCTAssertTrue(systemCancel.waitForExistence(timeout: 8))
+        preserveScreenshot("Apple Calendar final approval")
+        systemCancel.tap()
+        let discardChanges = app.buttons["Discard Changes"]
+        if discardChanges.waitForExistence(timeout: 3) {
+            discardChanges.tap()
+        }
+        XCTAssertTrue(element("calendar-editor-cancelled").waitForExistence(timeout: 5))
+
+        dismiss.tap()
+        let restore = app.buttons["restore-calendar-proposal"]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        XCTAssertFalse(add.exists)
+        preserveScreenshot("Calendar proposal dismissed without write")
+        restore.tap()
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+    }
+
+    func testCalendarProposalSavesOnlyThroughSystemEditor() throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"]
+                == "Talent Signal Calendar Save Proof",
+            "Runs only on a disposable Simulator that is deleted after proof."
+        )
+        app.launchArguments = [
+            "--scenario", "calendar-handoff",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let addProposal = app.buttons["add-calendar-proposal"]
+        XCTAssertTrue(addProposal.waitForExistence(timeout: 8))
+        addProposal.tap()
+
+        let systemAdd = app.buttons["add-button"]
+        XCTAssertTrue(systemAdd.waitForExistence(timeout: 8))
+        systemAdd.tap()
+
+        XCTAssertTrue(element("calendar-saved").waitForExistence(timeout: 8))
+        XCTAssertFalse(addProposal.exists)
+        preserveScreenshot("Calendar saved through Apple approval")
+    }
+
     func testDefaultLaunchShowsEditorialToday() {
         app.launch()
 
@@ -21,6 +85,168 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("no-action-summary").exists)
         XCTAssertFalse(app.staticTexts["90-second product loop"].exists)
         preserveScreenshot("Editorial Today default return surface")
+    }
+
+    func testTodayCalendarOpensAgendaAndReturnsToLinkedAgentSession() {
+        app.launch()
+
+        let peek = app.buttons["today-calendar-peek"]
+        XCTAssertTrue(peek.waitForExistence(timeout: 8))
+        XCTAssertGreaterThanOrEqual(peek.frame.height, 44)
+        peek.tap()
+
+        XCTAssertTrue(element("relationship-calendar").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("calendar-preview-boundary").exists)
+        XCTAssertTrue(app.buttons["calendar-add-activity"].exists)
+        let activity = app.buttons["calendar-activity-preview-calendar-primary"]
+        XCTAssertTrue(activity.waitForExistence(timeout: 5))
+        preserveScreenshot("Relationship calendar agenda")
+        activity.tap()
+
+        XCTAssertTrue(element("calendar-activity-detail").waitForExistence(timeout: 5))
+        let prepare = app.buttons["calendar-prepare-agent"]
+        XCTAssertTrue(prepare.exists)
+        XCTAssertGreaterThanOrEqual(prepare.frame.height, 44)
+        XCTAssertFalse(app.buttons["Open route"].exists)
+        prepare.tap()
+
+        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-response-turn").exists)
+        let composer = element("ask-composer")
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertTrue((composer.value as? String)?.contains("Prepare for the") == true)
+        preserveScreenshot("Meeting preparation returned to Session")
+    }
+
+    func testRelationshipCalendarAddActivityUsesAppleFinalEditorAndCancelIsTruthful() {
+        app.launch()
+
+        let peek = app.buttons["today-calendar-peek"]
+        XCTAssertTrue(peek.waitForExistence(timeout: 8))
+        peek.tap()
+        let add = app.buttons["calendar-add-activity"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+
+        XCTAssertTrue(
+            element("relationship-calendar-composer").waitForExistence(timeout: 5)
+        )
+        let review = app.buttons["calendar-review-in-apple"]
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        XCTAssertTrue(review.isEnabled)
+        review.tap()
+
+        let systemCancel = app.buttons["cancel-button"]
+        XCTAssertTrue(systemCancel.waitForExistence(timeout: 8))
+        preserveScreenshot("Relationship activity Apple approval")
+        systemCancel.tap()
+        let discardChanges = app.buttons["Discard Changes"]
+        if discardChanges.waitForExistence(timeout: 3) {
+            discardChanges.tap()
+        }
+        XCTAssertTrue(
+            element("calendar-composer-unchanged").waitForExistence(timeout: 5)
+        )
+    }
+
+    func testRelationshipCalendarRemainsReachableInDarkModeAtAX5() {
+        app.launchArguments = [
+            "--force-dark",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+        ]
+        app.launch()
+
+        let peek = app.buttons["today-calendar-peek"]
+        XCTAssertTrue(peek.waitForExistence(timeout: 8))
+        XCTAssertGreaterThanOrEqual(peek.frame.height, 44)
+        peek.tap()
+
+        XCTAssertTrue(element("relationship-calendar").waitForExistence(timeout: 5))
+        let add = app.buttons["calendar-add-activity"]
+        XCTAssertTrue(add.exists)
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44)
+        let activity = app.buttons["calendar-activity-preview-calendar-primary"]
+        XCTAssertTrue(activity.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(activity.frame.height, 44)
+        activity.tap()
+
+        let prepare = app.buttons["calendar-prepare-agent"]
+        XCTAssertTrue(prepare.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(prepare.frame.height, 44)
+        preserveScreenshot("Relationship calendar dark AX5")
+    }
+
+    func testWorkspaceMenuLeadsWithAccountSetupAndRealUtilities() {
+        app.launchArguments = [
+            "-talent-signal.setup.action-button-complete",
+            "NO",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-menu"].tap()
+
+        XCTAssertTrue(
+            app.buttons["close-relationship-menu"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["open-account-settings"].exists)
+        XCTAssertTrue(app.buttons["open-action-button-onboarding"].exists)
+        XCTAssertTrue(app.buttons["open-action-button-settings"].exists)
+        XCTAssertFalse(app.staticTexts["Talent Signal"].exists)
+        preserveScreenshot("Quiet workspace menu")
+
+        app.buttons["open-action-button-onboarding"].tap()
+        XCTAssertTrue(element("action-button-settings").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("open-app-shortcuts").exists)
+        preserveScreenshot("Action Button setup")
+        let setupConfirmation = app.buttons["confirm-action-button-setup"]
+        scrollToVisible(setupConfirmation)
+        XCTAssertTrue(setupConfirmation.exists)
+    }
+
+    func testWorkspaceMenuRoutesCompactReviewInboxToExactProposal() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-menu"].tap()
+
+        let reviewInbox = app.buttons["open-review-inbox"]
+        XCTAssertTrue(reviewInbox.waitForExistence(timeout: 5))
+        reviewInbox.tap()
+        XCTAssertTrue(element("review-inbox").waitForExistence(timeout: 5))
+
+        let proposal = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "inbox-proposal-")
+        ).firstMatch
+        XCTAssertTrue(proposal.waitForExistence(timeout: 5))
+        proposal.tap()
+
+        XCTAssertTrue(element("review-exact-evidence").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-review-status").exists)
+        XCTAssertFalse(app.buttons["confirm-relationship-change"].exists)
+    }
+
+    func testWorkspaceMenuRemainsLegibleInDarkModeAtAX5() {
+        app.launchArguments = [
+            "--force-dark",
+            "-UICTContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL",
+            "-talent-signal.setup.action-button-complete",
+            "NO",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-menu"].tap()
+
+        let account = app.buttons["open-account-settings"]
+        let onboarding = app.buttons["open-action-button-onboarding"]
+        XCTAssertTrue(account.waitForExistence(timeout: 5))
+        XCTAssertTrue(onboarding.exists)
+        XCTAssertGreaterThanOrEqual(account.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(onboarding.frame.height, 44)
+        preserveScreenshot("Workspace menu dark AX5")
     }
 
     func testSwipeOpensSessionsAndReopensAgentWork() {
@@ -42,6 +268,25 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-response-turn").exists)
         preserveScreenshot("Session-first Agent retrieval")
+    }
+
+    func testPagingMovesAcrossTodaySessionsAndPeopleInBothDirections() {
+        app.launch()
+
+        let today = element("editorial-today")
+        XCTAssertTrue(today.waitForExistence(timeout: 8))
+        today.swipeLeft()
+
+        let sessions = element("agent-session-list")
+        XCTAssertTrue(sessions.waitForExistence(timeout: 5))
+        sessions.swipeLeft()
+
+        let people = element("relationship-people")
+        XCTAssertTrue(people.waitForExistence(timeout: 5))
+        people.swipeRight()
+        XCTAssertTrue(sessions.waitForExistence(timeout: 5))
+        sessions.swipeRight()
+        XCTAssertTrue(today.waitForExistence(timeout: 5))
     }
 
     func testReducedMotionKeepsSessionNavigationReachable() {
@@ -73,10 +318,46 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Prepare questions"].exists)
         XCTAssertTrue(app.buttons["Do nothing?"].exists)
         XCTAssertTrue(app.buttons["Add text, photo, or voice"].exists)
+        XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
         XCTAssertFalse(element("ask-scope-search").exists)
         XCTAssertFalse(app.staticTexts["A quieter Agent"].exists)
         XCTAssertFalse(app.staticTexts["Draft authority only"].exists)
         preserveScreenshot("Conversation-first Ask with embedded tools")
+    }
+
+    func testVoiceInputInsertsAnEditableDraftWithoutSending() {
+        app.launchArguments = [
+            "--deterministic-voice-input",
+            "-voice-input-cloud-disclosure-v1", "NO",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let ask = app.buttons["relationship-guide"]
+        XCTAssertTrue(ask.waitForExistence(timeout: 5))
+        ask.tap()
+
+        let voice = app.buttons["ask-voice"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 5))
+        voice.tap()
+
+        let start = app.buttons.matching(
+            identifier: "confirm-voice-input-disclosure"
+        ).firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.tap()
+        XCTAssertTrue(element("ask-voice-recording").waitForExistence(timeout: 5))
+
+        voice.tap()
+
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 5))
+        XCTAssertEqual(composer.value as? String, "What changed in this search?")
+        XCTAssertFalse(element("ask-response-turn").exists)
+        preserveScreenshot("Voice input remains an editable Agent draft")
     }
 
     func testCanonicalAskSearchesWorkspaceAndReturnsEvidenceBoundResponse() async throws {
@@ -224,11 +505,11 @@ final class CandidateSignalUITests: XCTestCase {
         let chinese = element("language-option-zh-Hans")
         XCTAssertTrue(chinese.waitForExistence(timeout: 5))
         chinese.tap()
-        XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["语言"].waitForExistence(timeout: 5))
         XCTAssertEqual(chinese.value as? String, "已选择")
         preserveScreenshot("Simplified Chinese language settings")
 
-        app.navigationBars["设置"].buttons.element(boundBy: 0).tap()
+        app.navigationBars["语言"].buttons.element(boundBy: 0).tap()
         app.buttons["close-relationship-menu"].tap()
         XCTAssertEqual(app.buttons["archive-tab-today"].label, "今天")
         XCTAssertEqual(app.buttons["archive-tab-sessions"].label, "会话")
@@ -254,10 +535,10 @@ final class CandidateSignalUITests: XCTestCase {
         }
         XCTAssertTrue(english.waitForExistence(timeout: 5))
         english.tap()
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Language"].waitForExistence(timeout: 5))
         XCTAssertEqual(english.value as? String, "Selected")
 
-        app.navigationBars["Settings"].buttons.element(boundBy: 0).tap()
+        app.navigationBars["Language"].buttons.element(boundBy: 0).tap()
         app.buttons["close-relationship-menu"].tap()
         XCTAssertEqual(app.buttons["archive-tab-today"].label, "Today")
     }
@@ -367,6 +648,9 @@ final class CandidateSignalUITests: XCTestCase {
             element("canonical-pursuit-today").waitForExistence(timeout: 15)
         )
         app.buttons["relationship-menu"].tap()
+        let reviewInbox = app.buttons["open-review-inbox"]
+        XCTAssertTrue(reviewInbox.waitForExistence(timeout: 8))
+        reviewInbox.tap()
         let inboxProposal = app.buttons["inbox-proposal-\(fixture.proposalID)"]
         XCTAssertTrue(inboxProposal.waitForExistence(timeout: 8))
         inboxProposal.tap()
@@ -1317,6 +1601,38 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(app.otherElements.matching(NSPredicate(format: "identifier BEGINSWITH 'fact-card-'")).count, 0)
     }
 
+    func testPhotoPickerStagesSelectedImageForReview() {
+        app.launch()
+
+        tapWhenVisible(app.buttons["capture-relationship-moment"])
+        XCTAssertTrue(element("signal-capture-hub").waitForExistence(timeout: 5))
+        tapWhenVisible(app.buttons["capture-hub-screenshot"])
+        XCTAssertTrue(app.buttons["choose-image"].waitForExistence(timeout: 5))
+        tapWhenVisible(app.buttons["choose-image"])
+
+        XCTAssertTrue(app.staticTexts["Loading..."].waitForNonExistence(timeout: 10))
+        let onboardingClose = app.buttons["Close"].firstMatch
+        if onboardingClose.exists {
+            onboardingClose.tap()
+        }
+        let firstPhoto = app.images.matching(
+            identifier: "PXGGridLayout-Info"
+        ).firstMatch
+        XCTAssertTrue(firstPhoto.waitForExistence(timeout: 5))
+        firstPhoto.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ).tap()
+
+        XCTAssertTrue(element("inspect-capture-source").waitForExistence(timeout: 15))
+        XCTAssertFalse(app.navigationBars["Photos"].exists)
+        XCTAssertFalse(app.staticTexts["Unrelated image selected"].exists)
+        preserveScreenshot("Selected photo reaches governed source review")
+
+        tapWhenVisible(app.buttons["close-capture-review"])
+        tapWhenVisible(app.buttons["Discard capture"])
+        XCTAssertFalse(element("inspect-capture-source").waitForExistence(timeout: 2))
+    }
+
     func testProhibitedFitRequestIsRefused() {
         launch(fixtureID: "TS-BOUND-01")
 
@@ -1447,6 +1763,18 @@ final class CandidateSignalUITests: XCTestCase {
 
     @MainActor
     func testRelationshipCaptureRequiresExplicitOwnerAndCompilesGoldWiki() async throws {
+        try await runRelationshipCaptureJourney(auditsAccessibility: false)
+    }
+
+    @MainActor
+    func testRelationshipCaptureAX5DarkPreservesEvidenceActionAndScopeOrder() async throws {
+        try await runRelationshipCaptureJourney(auditsAccessibility: true)
+    }
+
+    @MainActor
+    private func runRelationshipCaptureJourney(
+        auditsAccessibility: Bool
+    ) async throws {
         let backendURL = testConfiguration(
             "TS_IOS_BACKEND_URL",
             fallback: "http://127.0.0.1:4320"
@@ -1465,16 +1793,45 @@ final class CandidateSignalUITests: XCTestCase {
         )
 
         app.launchArguments = [
-            "--scenario", "relationship-capture",
+            "--scenario", "relationship-capture-archive",
             "--backend-url", backendURL,
+            "--workspace-backend-url", backendURL,
             "--capture-seed", captureSeed.uuidString,
             "--capture-handle", "+658\(phoneSuffix)",
             "--capture-name", "UI owner \(captureSeed.uuidString.prefix(8))"
         ]
+        if auditsAccessibility {
+            app.launchArguments += [
+                "--force-dark",
+                "-AppleInterfaceStyle", "Dark",
+            ]
+        }
         app.launch()
 
         XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 10))
         XCTAssertTrue(element("unknown-speaker-boundary").exists)
+        XCTAssertTrue(element("capture-speaker-review").exists)
+        if auditsAccessibility {
+            assertAccessibilityOrder([
+                "inspect-capture-source",
+                "reviewed-ocr-text",
+                "unknown-speaker-boundary",
+                "capture-speaker-review",
+                "submit-reviewed-capture",
+            ])
+        }
+        let inspectSource = app.buttons["inspect-capture-source"]
+        XCTAssertTrue(
+            inspectSource.waitForExistence(timeout: 5),
+            "A real screenshot must be inspectable before OCR becomes evidence."
+        )
+        inspectSource.tap()
+        let sourceInspection = element("capture-source-inspection")
+        XCTAssertTrue(sourceInspection.waitForExistence(timeout: 5))
+        sourceInspection.doubleTap()
+        preserveScreenshot("Zoomable original before OCR correction")
+        tapWhenVisible(app.buttons["close-source-inspection"])
+        XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 5))
         tapWhenVisible(app.buttons["submit-reviewed-capture"])
 
         let createPerson = app.buttons["create-new-person-from-capture"]
@@ -1505,8 +1862,117 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(verdict.waitForExistence(timeout: 30))
         XCTAssertEqual(verdict.label, "WIKI · GOLD")
         XCTAssertTrue(app.buttons["return-to-person"].exists)
+        XCTAssertTrue(app.buttons["continue-capture-in-agent"].exists)
+        XCTAssertTrue(element("device-contact-handoff").exists)
+        XCTAssertTrue(app.buttons["review-device-contact"].exists)
         XCTAssertTrue(element("capture-completion-receipt").exists)
+        if auditsAccessibility {
+            assertAccessibilityOrder([
+                "wiki-quality-verdict",
+                "continue-capture-in-agent",
+                "device-contact-handoff",
+                "capture-completion-receipt",
+            ])
+        }
         preserveScreenshot("iOS explicit-owner Wiki Gold receipt")
+
+        tapWhenVisible(app.buttons["review-device-contact"])
+        let cancelContact = app.buttons["Cancel"]
+        XCTAssertTrue(
+            cancelContact.waitForExistence(timeout: 8),
+            "The device-owned contact editor should be the exact write gate."
+        )
+        XCTAssertTrue(app.navigationBars["New Contact"].exists)
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(
+                    format: "label CONTAINS %@",
+                    "UI owner \(captureSeed.uuidString.prefix(8))"
+                )
+            ).firstMatch.exists
+        )
+        preserveScreenshot("Apple contact editor exact-field review")
+
+        cancelContact.tap()
+        let discardContact = app.buttons["Discard Changes"]
+        XCTAssertTrue(
+            discardContact.waitForExistence(timeout: 5),
+            "Apple should require a second explicit decision before discarding."
+        )
+        discardContact.tap()
+        XCTAssertTrue(element("device-contact-cancelled").waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["review-device-contact"].isEnabled)
+        preserveScreenshot("Contact handoff cancelled without write")
+
+        tapWhenVisible(app.buttons["continue-capture-in-agent"])
+        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 30))
+        let scopeSelector = app.buttons["ask-scope-selector"]
+        XCTAssertTrue(scopeSelector.waitForExistence(timeout: 5))
+        let expectedScopeValue =
+            "UI owner \(captureSeed.uuidString.prefix(8)), Current client relationship"
+        XCTAssertEqual(
+            scopeSelector.value as? String,
+            expectedScopeValue
+        )
+        let seededComposer = app.textFields["ask-composer"]
+        XCTAssertTrue(seededComposer.waitForExistence(timeout: 5))
+        if auditsAccessibility {
+            XCTAssertGreaterThanOrEqual(
+                scopeSelector.frame.height,
+                80,
+                "The AX5 relationship selector should expand instead of clipping its context."
+            )
+            let closeButton = app.buttons["Close"]
+            XCTAssertTrue(closeButton.exists)
+            let closePresentAtAX5 = closeButton.exists
+            assertAccessibilityOrder([
+                "ask-scope-selector",
+                "ask-composer",
+                "ask-send",
+            ])
+            preserveScreenshot("AX5 relationship scope before accessibility audit")
+            if #available(iOS 17.0, *) {
+                let issueHandler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
+                    guard issue.auditType == .dynamicType,
+                          let issueElement = issue.element,
+                          issueElement.identifier.isEmpty else {
+                        return false
+                    }
+                    if issueElement.elementType == .button,
+                       issueElement.label == "Close",
+                       closePresentAtAX5,
+                       self.app.navigationBars["New session"].exists {
+                        // The system NavigationStack button visibly enlarges
+                        // at AX5 but XCTest reports the UIKit-hosted toolbar
+                        // node as partially unsupported while it cycles sizes.
+                        return true
+                    }
+                    guard issueElement.label == "Current client relationship",
+                          scopeSelector.value as? String == expectedScopeValue,
+                          scopeSelector.frame.contains(issueElement.frame) else {
+                        return false
+                    }
+                    // SwiftUI exposes this visual label node to XCTest even
+                    // though the selector combines its children into one
+                    // button. The pre-audit AX5 assertion and screenshot prove
+                    // that the label grows and wraps; the button's full value
+                    // is the single VoiceOver announcement. Keep every other
+                    // Dynamic Type issue unsuppressed.
+                    return true
+                }
+                try app.performAccessibilityAudit(for: [
+                    .dynamicType,
+                    .hitRegion,
+                    .sufficientElementDescription,
+                ], issueHandler)
+            }
+        }
+        XCTAssertEqual(
+            seededComposer.value as? String,
+            "What changed in this relationship, and what is the smallest safe next step?"
+        )
+        XCTAssertFalse(element("ask-response-turn").exists)
+        preserveScreenshot("Capture continues in a scoped unsent Agent Session")
     }
 
     func testBackgroundInterruptionPreservesReviewDecision() {
@@ -1529,7 +1995,13 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("audio-signal-capture").waitForExistence(timeout: 8))
         XCTAssertTrue(element("audio-signal-idle").exists)
         XCTAssertFalse(element("audio-signal-recording").exists)
-        XCTAssertFalse(app.buttons["start-audio-signal"].isEnabled)
+        XCTAssertTrue(app.buttons["start-audio-signal"].isEnabled)
+        tapWhenVisible(app.buttons["start-audio-signal"])
+        XCTAssertTrue(
+            app.staticTexts[
+                "Name the person or accountable party who authorized this recording."
+            ].waitForExistence(timeout: 3)
+        )
         preserveScreenshot("Audio Signal starts truthfully idle")
 
         let authorizingParty = app.textFields["audio-signal-authorizing-party"]
@@ -1821,6 +2293,35 @@ final class CandidateSignalUITests: XCTestCase {
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
+    }
+
+    private func assertAccessibilityOrder(
+        _ identifiers: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let elements = app.descendants(matching: .any).allElementsBoundByIndex
+        var previousIndex = -1
+        for identifier in identifiers {
+            guard let index = elements.firstIndex(where: {
+                $0.identifier == identifier
+            }) else {
+                XCTFail(
+                    "Accessibility order is missing \(identifier).",
+                    file: file,
+                    line: line
+                )
+                return
+            }
+            XCTAssertGreaterThan(
+                index,
+                previousIndex,
+                "Accessibility order should place \(identifier) after the prior decision context.",
+                file: file,
+                line: line
+            )
+            previousIndex = index
+        }
     }
 
     private func openSettings() {

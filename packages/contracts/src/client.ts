@@ -22,6 +22,8 @@ import type {
   ExecuteActionRequest,
   ReconcileEffectRequest,
   LogoutResponse,
+  PasswordLoginRequest,
+  PasswordRegistrationRequest,
   ReviseActionRequest,
   SessionResponse,
   SimulatedLoginRequest,
@@ -122,6 +124,28 @@ export class TalentSignalClient {
   async login(request: SimulatedLoginRequest): Promise<SessionResponse> {
     const response = await this.request<SessionResponse>(
       "/v1/auth/simulated-login",
+      { method: "POST", body: request, authenticated: false },
+    );
+    this.setAccessToken(response.access_token);
+    return response;
+  }
+
+  async signInWithPassword(
+    request: PasswordLoginRequest,
+  ): Promise<SessionResponse> {
+    const response = await this.request<SessionResponse>(
+      "/v1/auth/password/login",
+      { method: "POST", body: request, authenticated: false },
+    );
+    this.setAccessToken(response.access_token);
+    return response;
+  }
+
+  async registerWithPassword(
+    request: PasswordRegistrationRequest,
+  ): Promise<SessionResponse> {
+    const response = await this.request<SessionResponse>(
+      "/v1/auth/password/register",
       { method: "POST", body: request, authenticated: false },
     );
     this.setAccessToken(response.access_token);

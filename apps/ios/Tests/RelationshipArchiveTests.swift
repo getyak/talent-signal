@@ -2,6 +2,69 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    func testReviewedCaptureSeedsOneEditableScopedAgentQuestion() {
+        let seed = AgentSessionSeed.reviewedCapture(
+            personID: "person-1",
+            relationshipContextID: "context-1"
+        )
+
+        XCTAssertEqual(seed.personID, "person-1")
+        XCTAssertEqual(seed.relationshipContextID, "context-1")
+        XCTAssertEqual(
+            seed.suggestedObjective,
+            "What changed in this relationship, and what is the smallest safe next step?"
+        )
+    }
+
+    func testMeetingPreparationSeedsOneEditableScopedAgentQuestion() {
+        let seed = AgentSessionSeed.meetingPreparation(
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            suggestedObjective: "Prepare for the 3:00 PM interview."
+        )
+
+        XCTAssertEqual(seed.personID, "person-1")
+        XCTAssertEqual(seed.relationshipContextID, "context-1")
+        XCTAssertEqual(
+            seed.suggestedObjective,
+            "Prepare for the 3:00 PM interview."
+        )
+    }
+
+    func testPreviewCalendarProjectsRelationshipMomentsWithoutReadingDeviceCalendar() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_787_738_400)
+
+        let activities = RelationshipCalendarProjection.activities(
+            snapshot: .preview,
+            isPreview: true,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(activities.count, 2)
+        XCTAssertEqual(activities.first?.source, .preview)
+        XCTAssertEqual(
+            activities.first?.personID,
+            PursuitWorkspaceSnapshot.preview.people.first?.id
+        )
+        XCTAssertTrue(activities.allSatisfy { $0.eventIdentifier == nil })
+        XCTAssertEqual(
+            RelationshipCalendarProjection.next(in: activities, now: now)?.id,
+            activities.first?.id
+        )
+    }
+
+    func testCanonicalCalendarDoesNotInventActivitiesFromPeopleOrTargets() {
+        XCTAssertTrue(
+            RelationshipCalendarProjection.activities(
+                snapshot: .preview,
+                isPreview: false
+            ).isEmpty
+        )
+    }
+
     func testStoredLanguageFallsBackToSystemForUnknownValues() {
         XCTAssertEqual(AppLanguage.stored(nil), .system)
         XCTAssertEqual(AppLanguage.stored("fr"), .system)
@@ -33,6 +96,24 @@ final class RelationshipArchiveTests: XCTestCase {
                 preferredLanguages: ["en-US"]
             ),
             "设置"
+        )
+    }
+
+    func testCatalogOwnsInterfaceAndWorkspaceVocabulary() {
+        XCTAssertEqual(
+            AppLanguage.simplifiedChinese.text(
+                "Record voice",
+                preferredLanguages: ["en-US"]
+            ),
+            "记录语音"
+        )
+        XCTAssertEqual(
+            AppLanguage.simplifiedChinese.workspaceTerm("Evidence-backed gap"),
+            "有证据支持的缺口"
+        )
+        XCTAssertEqual(
+            AppLanguage.english.workspaceTerm("Evidence-backed gap"),
+            "Evidence-backed gap"
         )
     }
 
@@ -1088,6 +1169,16 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertTrue(
             TalentSignalRootRoute.opensReviewWorkbench(
                 arguments: ["TalentSignal", "--scenario", "relationship-capture"]
+            )
+        )
+        XCTAssertFalse(
+            TalentSignalRootRoute.opensReviewWorkbench(
+                arguments: [
+                    "TalentSignal",
+                    "--scenario", "relationship-capture-archive",
+                    "--backend-url", "http://127.0.0.1:4317",
+                    "--workspace-backend-url", "http://127.0.0.1:4317",
+                ]
             )
         )
     }

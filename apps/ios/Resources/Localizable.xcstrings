@@ -1,0 +1,756 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@, %d activities" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@，%d 项活动" } } }
+    },
+    "%d min" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%d 分钟" } } }
+    },
+    "30 min" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "30 分钟" } } }
+    },
+    "45 min" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "45 分钟" } } }
+    },
+    "60 min" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "60 分钟" } } }
+    },
+    "Activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动" } } }
+    },
+    "Add activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加活动" } } }
+    },
+    "Add one exact moment, then approve it in Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加一个明确的时间，再到 Apple 日历中确认。" } } }
+    },
+    "Apple Calendar shows the final title and time before saving. Talent Signal does not read the rest of your calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple 日历会在保存前显示最终标题与时间。Talent Signal 不会读取你的其他日历内容。" } } }
+    },
+    "Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历" } } }
+    },
+    "Calendar. Next: %@, %@, %@." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历。下一项：%@，%@，%@。" } } }
+    },
+    "Calendar. No linked moments." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历。暂无关联活动。" } } }
+    },
+    "Conversation" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会谈" } } }
+    },
+    "Duration" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时长" } } }
+    },
+    "Interview" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "面试" } } }
+    },
+    "Linked relationship activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已关联的关系活动" } } }
+    },
+    "Meeting" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会议" } } }
+    },
+    "No confirmed relationship is available." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无可用的已确认关系。" } } }
+    },
+    "No linked activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无关联活动" } } }
+    },
+    "No linked moments" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无关联活动" } } }
+    },
+    "Open to add an activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开后可添加活动" } } }
+    },
+    "Opens Apple's final event editor. Nothing is saved yet." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Apple 的最终事件编辑器，目前尚未保存。" } } }
+    },
+    "Opens activity details." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开活动详情。" } } }
+    },
+    "Opens an editable Session draft · no automatic action" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开可编辑的会话草稿 · 不会自动执行" } } }
+    },
+    "Opens the relationship calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开关系日历。" } } }
+    },
+    "Person and context" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人物与情境" } } }
+    },
+    "Prepare for the %1$@ %2$@ with %3$@. Clarify the objective, unresolved evidence, and the three questions that matter most." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为 %1$@ 与 %3$@ 的这次%2$@做准备：明确会面目标、未决证据和最重要的三个问题。" } } }
+    },
+    "Prepare for this %@ with Agent" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用 Agent 为这次%@做准备" } } }
+    },
+    "Prepare with Agent" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用 Agent 做会前准备" } } }
+    },
+    "Preview only · no Calendar data was read" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅为预览 · 未读取系统日历数据" } } }
+    },
+    "Relationship" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系" } } }
+    },
+    "Relationship calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系日历" } } }
+    },
+    "Relationship moments" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系活动" } } }
+    },
+    "Returns to the linked Session with an editable draft. Nothing is sent yet." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回关联会话并放入可编辑草稿，暂不会发送。" } } }
+    },
+    "Review in Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在日历中确认" } } }
+    },
+    "Saved through Apple Calendar in this visit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本次访问中已通过 Apple 日历保存" } } }
+    },
+    "Scope" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "范围" } } }
+    },
+    "Source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源" } } }
+    },
+    "Starts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始时间" } } }
+    },
+    "Synthetic preview · not in Apple Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "合成预览 · 不在 Apple 日历中" } } }
+    },
+    "Title" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标题" } } }
+    },
+    "User-authored relationship calendar activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户创建的关系日历活动" } } }
+    },
+    "When" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时间" } } }
+    },
+    "Account-scoped · no automatic messages" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账户范围内 · 不会自动发送消息" } } }
+    },
+    "About" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关于" } } }
+    },
+    "Add text, photo, or voice" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加文本、图片或语音" } } }
+    },
+    "Add the purpose for this recording before the microphone starts." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先填写录音用途，再启动麦克风。" } } }
+    },
+    "Ask anything" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "问点什么" } } }
+    },
+    "Audio remains local and untranscribed. It creates no Proposal, confirmed state, message, meeting, or external write." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频仅保留在本机且不会转写；它不会创建提议、已确认状态、消息、会议或外部写入。" } } }
+    },
+    "Audio Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音记录" } } }
+    },
+    "AUTHORIZATION BASIS" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "授权依据" } } }
+    },
+    "AUTHORIZING PARTY" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "授权方" } } }
+    },
+    "Authorization basis" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "授权依据" } } }
+    },
+    "Bring one source into review." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "带一份来源进入审阅。" } } }
+    },
+    "Capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录" } } }
+    },
+    "Capture for the Agent" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为 Agent 记录" } } }
+    },
+    "Check permission again" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新检查权限" } } }
+    },
+    "Choose a different person or relationship." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择其他人物或关系。" } } }
+    },
+    "Choose a person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一个人物" } } }
+    },
+    "Choose a relationship" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一段关系" } } }
+    },
+    "Choose one" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一张" } } }
+    },
+    "Choose one conversation image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一张对话图片" } } }
+    },
+    "Close" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭" } } }
+    },
+    "Close audio Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭语音记录" } } }
+    },
+    "Close input" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭输入" } } }
+    },
+    "Confirm that the recorded authorization covers the purpose above." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请确认已记录的授权覆盖上述用途。" } } }
+    },
+    "Connect a workspace to send this question." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接工作区后才能发送这个问题。" } } }
+    },
+    "Contexts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "情境" } } }
+    },
+    "Dismiss" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭" } } }
+    },
+    "Do nothing?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可以不行动吗？" } } }
+    },
+    "Done" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } } }
+    },
+    "Follow System" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } } }
+    },
+    "FOREGROUND ONLY" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅限前台" } } }
+    },
+    "I attest that this authorization covers the purpose above." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我确认该授权覆盖上述用途。" } } }
+    },
+    "Governed identity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "受治理的身份" } } }
+    },
+    "Identity clues" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份线索" } } }
+    },
+    "Keep Talent Signal in the foreground. Leaving the app stops and seals the local payload." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请让 Talent Signal 保持在前台；离开应用会停止录音并封存本地内容。" } } }
+    },
+    "Local recording deleted" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地录音已删除" } } }
+    },
+    "Name or accountable party" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "姓名或责任方" } } }
+    },
+    "Name the person or accountable party who authorized this recording." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请填写授权此次录音的人或责任方。" } } }
+    },
+    "New session" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新会话" } } }
+    },
+    "No active Pursuit role" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无活跃目标角色" } } }
+    },
+    "No active Pursuit role is recorded." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未记录活跃的目标角色。" } } }
+    },
+    "No microphone session or local audio payload exists." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前没有麦克风会话或本地音频内容。" } } }
+    },
+    "None" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未选择" } } }
+    },
+    "Not recording" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未在录音" } } }
+    },
+    "Nothing here confirms identity, facts, or an external write." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这里不会确认身份、事实，也不会写入外部系统。" } } }
+    },
+    "Open Microphone Settings" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开麦克风设置" } } }
+    },
+    "Open Talent Signal menu" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Talent Signal 菜单" } } }
+    },
+    "Opening this page does not start the microphone. A visible recording state appears only after the audio session succeeds." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开此页面不会启动麦克风；只有音频会话成功后，界面才会显示正在录音。" } } }
+    },
+    "People" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人物" } } }
+    },
+    "Person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人物" } } }
+    },
+    "Person or context" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人物或情境" } } }
+    },
+    "Photo" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片" } } }
+    },
+    "Prepare questions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "准备问题" } } }
+    },
+    "Pursuit roles" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标中的角色" } } }
+    },
+    "Preparing microphone" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备麦克风" } } }
+    },
+    "Preserve the source now. Available parsing follows scope review." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先保留原始内容；确认范围后才进入可用的解析流程。" } } }
+    },
+    "PURPOSE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用途" } } }
+    },
+    "Read failed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "读取失败" } } }
+    },
+    "Reading the record…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在读取记录…" } } }
+    },
+    "Record how authorization was given, such as direct verbal permission." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请记录授权方式，例如直接口头许可。" } } }
+    },
+    "Record only after permission and authorization." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在获得系统权限和明确授权后录音。" } } }
+    },
+    "Record voice" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录语音" } } }
+    },
+    "Record now" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "现在录制" } } }
+    },
+    "Recording has not started." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录音尚未开始。" } } }
+    },
+    "Recording is not presented as active until the audio session succeeds." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有音频会话成功后才会显示为正在录音。" } } }
+    },
+    "Recording now" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在录音" } } }
+    },
+    "Relationships, in context." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "让关系始终在情境之中。" } } }
+    },
+    "Retry" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试" } } }
+    },
+    "Review authorization to record" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查授权后录音" } } }
+    },
+    "Review on-device text, compare identity evidence, then attach it to one relationship Wiki." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先审阅本机识别的文字并比较身份依据，再附加到一段关系的 Wiki。" } } }
+    },
+    "Roles below are contextual. They do not redefine identity or rank this person." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下方角色只属于具体情境；它们不会重新定义身份，也不会给这个人排序。" } } }
+    },
+    "Saved only on this device" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅保存在本机" } } }
+    },
+    "Selected relationship" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择的关系" } } }
+    },
+    "Send" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发送" } } }
+    },
+    "Session" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会话" } } }
+    },
+    "Sessions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会话" } } }
+    },
+    "Start foreground recording" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始前台录音" } } }
+    },
+    "Stable person identity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "稳定的人物身份" } } }
+    },
+    "Stop and save locally" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止并保存到本机" } } }
+    },
+    "Sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源" } } }
+    },
+    "Text" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文本" } } }
+    },
+    "Today" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今天" } } }
+    },
+    "Type or paste" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入或粘贴" } } }
+    },
+    "Voice" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音" } } }
+    },
+    "Waiting for permission" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在等待权限" } } }
+    },
+    "What changed?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发生了什么变化？" } } }
+    },
+    "Who authorized this recording?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "谁授权了此次录音？" } } }
+    },
+    "Written by the workspace owner" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "由工作区所有者撰写" } } }
+    },
+    "Authorized by" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "授权方" } } }
+    },
+    "attested by" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认人" } } }
+    },
+    "basis" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "依据" } } }
+    },
+    "Deleting local payload" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在删除本地内容" } } }
+    },
+    "For example, direct verbal permission" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "例如：已获得直接口头许可" } } }
+    },
+    "No upload or external write is being attempted." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前不会尝试上传或写入外部系统。" } } }
+    },
+    "Revoke authorization and delete recording" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "撤销授权并删除录音" } } }
+    },
+    "scope" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "范围" } } }
+    },
+    "The audio payload and its local metadata were removed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频内容及其本地元数据已删除。" } } }
+    },
+    "Match the language selected on this iPhone." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "与这台 iPhone 的系统语言保持一致。" } } }
+    },
+    "Use English for Talent Signal controls and guidance." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 的控件与引导使用英文。" } } }
+    },
+    "Use Simplified Chinese for Talent Signal controls and guidance." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 的控件与引导使用简体中文。" } } }
+    },
+    "Due action · review context" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "到期行动 · 查看背景" } } }
+    },
+    "Review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待审阅" } } }
+    },
+    "Review interrupted" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅已中断" } } }
+    },
+    "Evidence-backed gap" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有证据支持的缺口" } } }
+    },
+    "Evidence partly unavailable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分证据不可用" } } }
+    },
+    "Recruiter-authored" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "招聘顾问记录" } } }
+    },
+    "Evidence unavailable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据不可用" } } }
+    },
+    "Owned action" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已负责的行动" } } }
+    },
+    "Current gap" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前缺口" } } }
+    },
+    "Review proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅提议" } } }
+    },
+    "Record owned action outcome" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录行动结果" } } }
+    },
+    "Open Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开目标" } } }
+    },
+    "1 minute" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1 分钟" } } }
+    },
+    "A success state appears only after canonical readback confirms the result." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在权威回读确认结果后，界面才会显示成功状态。" } } }
+    },
+    "Account" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账户" } } }
+    },
+    "Account details" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "账户详情" } } }
+    },
+    "Account identity is read-only on this device." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此设备上的账户身份为只读。" } } }
+    },
+    "Action Button & Shortcuts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作按钮与快捷指令" } } }
+    },
+    "Approval & data" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审批与数据" } } }
+    },
+    "Available shortcuts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可用快捷指令" } } }
+    },
+    "Candidate names, quoted evidence, and source-authored content stay in their original language." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "候选人姓名、引用证据与来源原文会保留其原始语言。" } } }
+    },
+    "Canonical workspace" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "权威工作区" } } }
+    },
+    "Capture Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录 Signal" } } }
+    },
+    "Capture, record, or review from the system." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从系统直接记录、录音或进入审阅。" } } }
+    },
+    "Changes apply immediately and remain on this device." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更改会立即生效，并保存在这台设备上。" } } }
+    },
+    "Choose text, photo, or foreground voice in the app." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在应用中选择文本、照片或前台录音。" } } }
+    },
+    "Choose the language used for controls and guidance." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择控件与引导所使用的语言。" } } }
+    },
+    "Confirm or correct evidence before it becomes current relationship state." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据成为当前关系状态前，需先确认或更正。" } } }
+    },
+    "Email" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "邮箱" } } }
+    },
+    "Every consequential action stays reviewable." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每一项有后果的操作都保持可审阅。" } } }
+    },
+    "Evidence boundary" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据边界" } } }
+    },
+    "Evidence review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据审阅" } } }
+    },
+    "External actions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "外部操作" } } }
+    },
+    "Fast capture, on your terms" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按你的方式，快速记录" } } }
+    },
+    "Fixed product boundary" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "固定产品边界" } } }
+    },
+    "I set up the Action Button" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我已设置操作按钮" } } }
+    },
+    "Interface language" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "界面语言" } } }
+    },
+    "Interface language only" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅更改界面语言" } } }
+    },
+    "Language" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语言" } } }
+    },
+    "Show setup reminder again" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "再次显示设置提醒" } } }
+    },
+    "Messages, meetings, contacts, notifications, ATS, and CRM writes require a separate exact-effect approval." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "消息、会议、联系人、通知、ATS 与 CRM 写入都需要单独确认确切影响。" } } }
+    },
+    "Name" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "姓名" } } }
+    },
+    "No candidate data is stored in this synthetic preview. Nothing shown here has execution authority." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此合成预览不会存储候选人数据，所显示内容均不具备执行权限。" } } }
+    },
+    "Not selected" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未选择" } } }
+    },
+    "Open exact evidence and proposed changes." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开确切证据与拟议变更。" } } }
+    },
+    "Open foreground recording; the microphone does not start automatically." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开前台录音；麦克风不会自动启动。" } } }
+    },
+    "Open Settings and choose Action Button." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开系统设置并选择操作按钮。" } } }
+    },
+    "Privacy & approvals" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐私与审批" } } }
+    },
+    "Record Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录制 Signal" } } }
+    },
+    "Relationship changes stay in account scope. Every external effect requires separate approval and verified readback." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系变更保留在账户范围内；每项外部影响都需要单独审批并验证回读。" } } }
+    },
+    "Review inbox" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅收件箱" } } }
+    },
+    "Review screenshot" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅截图" } } }
+    },
+    "Safety boundary" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安全边界" } } }
+    },
+    "Sign out" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出登录" } } }
+    },
+    "Save one image locally for later text and identity review." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在本地保存一张图片，稍后审阅文字与身份。" } } }
+    },
+    "Choose Talent Signal, then select Capture Signal, Record Signal, or Review screenshot." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择 Talent Signal，然后选择记录 Signal、录制 Signal 或审阅截图。" } } }
+    },
+    "Selected" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择" } } }
+    },
+    "Set up" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已设置" } } }
+    },
+    "Set up quick capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置快速记录" } } }
+    },
+    "Set up your iPhone" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置你的 iPhone" } } }
+    },
+    "Setup status is confirmed by you because iOS does not expose the current Action Button binding to this app." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置状态由你确认，因为 iOS 不会向此应用公开当前操作按钮绑定。" } } }
+    },
+    "Swipe to Shortcut, then choose a shortcut." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "滑动到快捷指令，然后选择一个快捷指令。" } } }
+    },
+    "Synthetic preview" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "合成预览" } } }
+    },
+    "Talent Signal offers three focused shortcuts. Choosing one never confirms a fact or sends anything." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 提供三个聚焦的快捷指令；选择任一项都不会确认事实或发送内容。" } } }
+    },
+    "These safeguards cannot be disabled in settings." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这些安全措施无法在设置中关闭。" } } }
+    },
+    "These shortcuts open or stage review. They do not confirm candidate facts, send messages, create meetings, or write to an ATS or CRM." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这些快捷指令只会打开或暂存审阅，不会确认候选人事实、发送消息、创建会议，也不会写入 ATS 或 CRM。" } } }
+    },
+    "Use the iPhone Action Button or Shortcuts without hunting through the app." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用 iPhone 操作按钮或快捷指令，无需在应用中层层查找。" } } }
+    },
+    "Verified results" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已验证结果" } } }
+    },
+    "Workspace" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工作区" } } }
+    },
+    "Workspace scope" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工作区范围" } } }
+    },
+    "Workspace tools" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工作区工具" } } }
+    },
+    "Add to Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "加入日历" } } }
+    },
+    "Add event" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "加入日历" } } }
+    },
+    "Agent proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 提议" } } }
+    },
+    "Calendar proposal dismissed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已放弃日程提议" } } }
+    },
+    "Cancel" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } } }
+    },
+    "Calendar unchanged" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历未更改" } } }
+    },
+    "Dismiss proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放弃" } } }
+    },
+    "Dismiss" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放弃" } } }
+    },
+    "Editable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可修改" } } }
+    },
+    "Hide source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起依据" } } }
+    },
+    "Only title and time" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只写入标题与时间" } } }
+    },
+    "Opens Apple's editor with this title and time." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用这个标题和时间打开 Apple 编辑器。" } } }
+    },
+    "Restore" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复" } } }
+    },
+    "Receipt" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回执" } } }
+    },
+    "Saved to Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入日历" } } }
+    },
+    "Screenshot reviewed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "截图已审阅" } } }
+    },
+    "View source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看依据" } } }
+    },
+    "After you stop, this temporary recording is sent to Doubao for transcription. The words stay editable here and are not sent to the Agent until you tap Send. Talent Signal deletes its temporary audio after the response; provider handling follows your service agreement." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止录音后，这段临时音频会发送给豆包进行转写。文字会先留在输入框中供你编辑，只有点击发送后才会交给 Agent。Talent Signal 会在收到响应后删除本地临时音频；服务商如何处理数据以你的服务协议为准。" } } }
+    },
+    "Connect a workspace to use voice input." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接工作区后即可使用语音输入。" } } }
+    },
+    "Creating an editable transcript…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在生成可编辑的转写…" } } }
+    },
+    "Keep Talent Signal in the foreground to use voice input." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用语音输入时，请让 Talent Signal 保持在前台。" } } }
+    },
+    "Listening" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在聆听" } } }
+    },
+    "Microphone permission was not granted. No audio was recorded." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未获得麦克风权限，因此没有录制任何音频。" } } }
+    },
+    "Nothing is sent to the Agent until you tap Send." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "点击发送前，任何内容都不会交给 Agent。" } } }
+    },
+    "Records your voice in the foreground. The transcript remains editable before Send." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在前台录下你的口述；发送前，转写文字始终可以编辑。" } } }
+    },
+    "Settings" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置" } } }
+    },
+    "Start voice input" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始语音输入" } } }
+    },
+    "Stop and transcribe" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止并转写" } } }
+    },
+    "Stops recording and sends the temporary audio to Doubao for transcription." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止录音，并将临时音频发送给豆包进行转写。" } } }
+    },
+    "Tap stop to transcribe with Doubao · 1 minute max" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "点击停止后由豆包转写 · 最长 1 分钟" } } }
+    },
+    "Use Doubao voice transcription?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用豆包语音转写？" } } }
+    },
+    "Voice input could not start the microphone." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音输入无法启动麦克风。" } } }
+    },
+    "Voice input stopped when Talent Signal left the foreground. No audio was sent." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 离开前台时，语音输入已停止；没有发送任何音频。" } } }
+    },
+    "Voice transcription was interrupted. The temporary recording was deleted; the provider result is unavailable." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音转写被中断；临时录音已删除，无法取得服务商结果。" } } }
+    },
+    "Voice transcription failed. Your text draft is unchanged." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音转写失败；你的文字草稿没有改变。" } } }
+    },
+    "Waiting for microphone permission…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在等待麦克风权限…" } } }
+    },
+    "Why is this recording needed?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为什么需要这段录音？" } } }
+    }
+  },
+  "version" : "1.0"
+}

@@ -3053,6 +3053,51 @@ p {
   gap: 15px;
 }
 
+.account-access {
+  margin-top: 32px;
+}
+
+.auth-divider + .account-access {
+  margin-top: 0;
+}
+
+.auth-mode-switch {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.auth-mode-switch button {
+  background: transparent;
+  border: 0;
+  color: var(--muted-strong);
+  font-size: 0.68rem;
+  font-weight: 730;
+  padding: 0 0 10px;
+  position: relative;
+}
+
+.auth-mode-switch button[aria-selected="true"] {
+  color: var(--ink);
+}
+
+.auth-mode-switch button[aria-selected="true"]::after {
+  background: var(--accent-strong);
+  bottom: -1px;
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.auth-fields-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .auth-field {
   display: grid;
   gap: 7px;
@@ -3120,6 +3165,16 @@ p {
   color: var(--muted);
   font-size: 0.61rem;
   line-height: 1.55;
+}
+
+.auth-account-note {
+  color: var(--muted);
+  font-size: 0.59rem;
+  line-height: 1.55;
+}
+
+.auth-account-note strong {
+  color: var(--ink-soft);
 }
 
 .auth-access-state {
@@ -4145,6 +4200,10 @@ p {
     padding-left: 44px;
   }
 
+  .auth-fields-grid {
+    grid-template-columns: 1fr;
+  }
+
   .workspace-tools {
     align-items: stretch;
     flex-direction: column;
@@ -4548,6 +4607,16 @@ p {
 .context-page-alert p {
   color: var(--ink-soft);
   font-size: 0.74rem;
+}
+
+.context-page-alert > a {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 760;
+  min-height: 38px;
+  padding: 9px 13px;
 }
 
 .context-busy {
@@ -12012,6 +12081,19 @@ p {
   width: 100%;
 }
 
+.context-agent-page-update[data-kind="continuity"] {
+  border-color: var(--line-strong);
+}
+
+.context-agent-page-update[data-kind="continuity"] > header > span {
+  background: var(--surface-soft);
+  color: var(--muted-strong);
+}
+
+.context-agent-page-update[data-kind="continuity"] i {
+  color: var(--muted);
+}
+
 .context-agent-create {
   background: var(--background);
   border: 1px solid var(--line-strong);
@@ -14160,5 +14242,46 @@ article[data-state="unresolved"]
   .context-chat--standalone .context-agent-thread {
     flex: 0 0 auto;
     overflow: visible;
+  }
+}
+
+/* The vNext Workspace Shell owns product navigation and account scope. */
+.context-workspace--embedded .context-chat {
+  left: 84px;
+}
+
+.context-workspace--embedded .context-main {
+  margin-left: 344px;
+}
+
+@media (min-width: 841px) and (max-width: 1180px) {
+  .context-workspace--embedded .context-chat {
+    left: 84px;
+  }
+
+  .context-workspace--embedded .context-main {
+    margin-left: 324px;
+  }
+}
+
+@media (max-width: 840px) {
+  .context-workspace--embedded {
+    padding-bottom: 0;
+  }
+
+  .context-workspace--embedded .context-chat {
+    left: auto;
+  }
+
+  .context-workspace--embedded .context-chat--standalone {
+    margin-top: 0;
+  }
+
+  .context-workspace--embedded .context-main {
+    margin-left: 0;
+  }
+
+  .context-workspace--embedded .context-topbar {
+    top: 56px;
   }
 }

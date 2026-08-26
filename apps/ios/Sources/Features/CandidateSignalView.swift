@@ -1,6 +1,32 @@
+import CoreTransferable
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
+
+struct SelectedConversationImage: Transferable, Equatable {
+    let data: Data
+
+    init(importedData: Data) throws {
+        guard !importedData.isEmpty, UIImage(data: importedData) != nil else {
+            throw SelectedConversationImageError.unreadableImage
+        }
+        data = importedData
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(importedContentType: .image) { data in
+            try SelectedConversationImage(importedData: data)
+        }
+    }
+}
+
+enum SelectedConversationImageError: LocalizedError, Equatable {
+    case unreadableImage
+
+    var errorDescription: String? {
+        "The selected item is not a readable image. No review state changed."
+    }
+}
 
 @MainActor
 struct CandidateSignalView: View {
@@ -14,6 +40,7 @@ struct CandidateSignalView: View {
     @State private var pendingTextSignal: TextSignalOutboxRecord?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let onClose: (() -> Void)?
+    private let onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)?
     private let showsFixtureTools: Bool
     private let authenticatedBackendURL: URL?
     private let authenticatedAccessToken: String?
@@ -23,10 +50,12 @@ struct CandidateSignalView: View {
         backendURL: URL? = nil,
         accessToken: String? = nil,
         workspaceID: String? = nil,
-        onClose: (() -> Void)? = nil
+        onClose: (() -> Void)? = nil,
+        onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)? = nil
     ) {
         _store = StateObject(wrappedValue: CandidateSignalStore())
         self.onClose = onClose
+        self.onContinueInAgent = onContinueInAgent
         authenticatedBackendURL = backendURL
         authenticatedAccessToken = accessToken
         authenticatedWorkspaceID = workspaceID
@@ -38,6 +67,7 @@ struct CandidateSignalView: View {
     init(store: CandidateSignalStore, onClose: (() -> Void)? = nil) {
         _store = StateObject(wrappedValue: store)
         self.onClose = onClose
+        onContinueInAgent = nil
         authenticatedBackendURL = nil
         authenticatedAccessToken = nil
         authenticatedWorkspaceID = nil
@@ -160,6 +190,11 @@ struct CandidateSignalView: View {
                 case .discard, .finished:
                     Task {
                         await captureHandoff.advanceToNextCapture()
+                    }
+                case let .continueInAgent(completion):
+                    Task {
+                        await captureHandoff.advanceToNextCapture()
+                        onContinueInAgent?(completion)
                     }
                 }
             }
@@ -520,19 +555,21 @@ struct CandidateSignalView: View {
         store.beginSelectedImageImport()
         photoImportTask = Task {
             do {
-                guard let data = try await item.loadTransferable(type: Data.self),
-                      UIImage(data: data) != nil else {
+                guard let imported = try await item.loadTransferable(
+                    type: SelectedConversationImage.self
+                ) else {
                     store.failSelectedImageImport(
-                        message: "The selected item could not be read as an image. No review state changed."
+                        message: "The selected item did not provide image data. No review state changed."
                     )
                     return
                 }
                 try Task.checkCancellation()
-                let mediaType = item.supportedContentTypes.first?
-                    .preferredMIMEType ?? "image/*"
+                let contentType = item.supportedContentTypes.first ?? .image
+                let mediaType = contentType.preferredMIMEType ?? "image/*"
+                let fileExtension = contentType.preferredFilenameExtension ?? "image"
                 let seed = try await PendingCaptureInbox.shared.stage(
-                    imageData: data,
-                    fileName: "conversation-\(Int(Date().timeIntervalSince1970)).jpg",
+                    imageData: imported.data,
+                    fileName: "conversation-\(Int(Date().timeIntervalSince1970)).\(fileExtension)",
                     mediaType: mediaType,
                     origin: .photosPicker
                 )

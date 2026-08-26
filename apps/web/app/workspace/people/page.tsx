@@ -4,6 +4,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { PeopleDirectoryApp } from "@/components/people-directory-app";
 import {
+  backendSessionRecoveryHref,
+  isBackendSessionExpiredError,
+} from "@/lib/backend-session";
+import {
   isIntegrationMode,
   loadPeopleDirectory,
   searchPeopleDirectory,
@@ -36,15 +40,25 @@ export default async function PeoplePage({
   const query = (parameters.query ?? "").normalize("NFKC").trim().slice(0, 160);
   let people: Awaited<ReturnType<typeof loadPeopleDirectory>>["people"] = [];
   let error: string | null = null;
+  let sessionRecoveryHref: string | null = null;
   try {
     people = (
       await (query
         ? searchPeopleDirectory(query)
         : loadPeopleDirectory())
     ).people;
-  } catch {
-    error =
-      "The account-scoped backend could not be reached. No relationship state is inferred from stale data.";
+  } catch (caught) {
+    if (isBackendSessionExpiredError(caught)) {
+      error = caught.message;
+      sessionRecoveryHref = backendSessionRecoveryHref(
+        query
+          ? `/workspace/people?query=${encodeURIComponent(query)}`
+          : "/workspace/people",
+      );
+    } else {
+      error =
+        "The account-scoped backend could not be reached. No relationship state is inferred from stale data.";
+    }
   }
 
   return (
@@ -52,7 +66,7 @@ export default async function PeoplePage({
       error={error}
       people={people}
       query={query}
-      user={{ email: session.user.email, name: session.user.name }}
+      sessionRecoveryHref={sessionRecoveryHref}
     />
   );
 }

@@ -26,6 +26,12 @@ interface PersonDirectoryRow {
   matched_handle_hint: string | null;
   matched_handle_source_resource_id: string | null;
   matched_handle_valid_until: Date | null;
+  profile_headline: string | null;
+  profile_summary: string | null;
+  profile_provenance_kind: "user_authored" | null;
+  profile_authored_by_user_id: string | null;
+  profile_revision: number | null;
+  profile_updated_at: Date | null;
   contexts: Array<{
     id: string;
     display_label: string;
@@ -53,6 +59,12 @@ async function queryPeople(
     `SELECT
        subjects.id,
        subjects.display_label,
+       person_profiles.headline AS profile_headline,
+       person_profiles.summary AS profile_summary,
+       person_profiles.provenance_kind AS profile_provenance_kind,
+       person_profiles.authored_by_user_id AS profile_authored_by_user_id,
+       person_profiles.revision AS profile_revision,
+       person_profiles.updated_at AS profile_updated_at,
        ($2 <> '' AND lower(subjects.display_label) LIKE '%' || $2 || '%')
          AS name_match,
        matched_handle.handle_type AS matched_handle_type,
@@ -144,6 +156,9 @@ async function queryPeople(
          '[]'::jsonb
        ) AS contexts
      FROM subjects
+     LEFT JOIN person_profiles
+       ON person_profiles.account_id = subjects.account_id
+      AND person_profiles.subject_id = subjects.id
      LEFT JOIN LATERAL (
        SELECT
          handles.handle_type,
@@ -263,6 +278,22 @@ async function queryPeople(
         capture_count: person.capture_count,
         confirmed_identity_count: person.confirmed_identity_count,
         last_activity_at: person.last_activity_at.toISOString(),
+        profile:
+          person.profile_headline &&
+          person.profile_summary &&
+          person.profile_provenance_kind &&
+          person.profile_authored_by_user_id &&
+          person.profile_revision &&
+          person.profile_updated_at
+            ? {
+                headline: person.profile_headline,
+                summary: person.profile_summary,
+                provenance_kind: person.profile_provenance_kind,
+                authored_by_user_id: person.profile_authored_by_user_id,
+                revision: person.profile_revision,
+                updated_at: person.profile_updated_at.toISOString(),
+              }
+            : null,
         contexts: person.contexts.map((context) => ({
           id: context.id,
           display_label: context.display_label,

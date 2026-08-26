@@ -163,6 +163,7 @@ describe("multichannel relationship-resource contracts", () => {
           capture_count: 4,
           confirmed_identity_count: 1,
           last_activity_at: "2026-08-06T10:00:00.000Z",
+          profile: null,
           contexts: [
             {
               id: contextId,
@@ -189,6 +190,7 @@ describe("multichannel relationship-resource contracts", () => {
           capture_count: 3,
           confirmed_identity_count: 0,
           last_activity_at: "2026-08-07T10:00:00.000Z",
+          profile: null,
           contexts: [
             {
               id: contextId,

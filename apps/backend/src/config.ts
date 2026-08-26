@@ -4,6 +4,8 @@ export interface BackendConfig {
   appleSignInEnabled: boolean;
   databaseUrl: string;
   host: string;
+  passwordAuthEnabled: boolean;
+  passwordRegistrationEnabled: boolean;
   port: number;
   retentionSweepIntervalMs: number;
   sessionTtlSeconds: number;
@@ -35,6 +37,19 @@ export function loadConfig(): BackendConfig {
   if (nodeEnvironment === "production" && simulatedAuthEnabled) {
     throw new Error("Simulated authentication cannot run in production.");
   }
+  const passwordAuthEnabled = parseBoolean(
+    process.env.PASSWORD_AUTH_ENABLED,
+    nodeEnvironment !== "production",
+  );
+  const passwordRegistrationEnabled = parseBoolean(
+    process.env.PASSWORD_REGISTRATION_ENABLED,
+    nodeEnvironment !== "production",
+  );
+  if (passwordRegistrationEnabled && !passwordAuthEnabled) {
+    throw new Error(
+      "PASSWORD_AUTH_ENABLED is required when password registration is enabled.",
+    );
+  }
   const appleSignInAudiences = (process.env.APPLE_SIGN_IN_AUDIENCES ?? "")
     .split(",")
     .map((audience) => audience.trim())
@@ -61,6 +76,8 @@ export function loadConfig(): BackendConfig {
     appleSignInEnabled,
     databaseUrl: requireValue("DATABASE_URL"),
     host: process.env.HOST ?? "0.0.0.0",
+    passwordAuthEnabled,
+    passwordRegistrationEnabled,
     port: Number.parseInt(process.env.PORT ?? "4317", 10),
     retentionSweepIntervalMs: Math.max(
       1_000,

@@ -1575,6 +1575,18 @@ export const PersonDirectoryIdentityMatchSchema = Type.Union([
   ),
 ]);
 
+export const PersonDirectoryProfileSchema = Type.Object(
+  {
+    headline: Type.String({ minLength: 1, maxLength: 240 }),
+    summary: Type.String({ minLength: 1, maxLength: 4_000 }),
+    provenance_kind: Type.Literal("user_authored"),
+    authored_by_user_id: Id,
+    revision: Type.Integer({ minimum: 1 }),
+    updated_at: Timestamp,
+  },
+  { additionalProperties: false },
+);
+
 export const PersonDirectoryItemSchema = Type.Object(
   {
     id: Id,
@@ -1583,6 +1595,7 @@ export const PersonDirectoryItemSchema = Type.Object(
     capture_count: Type.Integer({ minimum: 0 }),
     confirmed_identity_count: Type.Integer({ minimum: 0 }),
     last_activity_at: Timestamp,
+    profile: Type.Union([PersonDirectoryProfileSchema, Type.Null()]),
     contexts: Type.Array(PersonDirectoryContextSchema, {
       maxItems: 20,
     }),

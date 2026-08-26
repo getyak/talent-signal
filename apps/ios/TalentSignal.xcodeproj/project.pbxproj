@@ -8,13 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		0579CDAB80FE992D88E870AF /* PursuitProposalReviewClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */; };
+		06DFE9BCC7F707007A3A47A3 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 571E43C7E25C147610C6614C /* Localizable.xcstrings */; };
 		0AC9981F2E565E9986EE1040 /* CaptureAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A9FCA23A5C5E97951C4D39 /* CaptureAppIntents.swift */; };
 		0D98ADDD6C6472265ADDD384 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F949D7FD6FC90553A6E5BBC /* AppLanguage.swift */; };
 		0F66097E97A12D5433BD6CBE /* PursuitWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */; };
+		11C0F6747910DC2616DB4931 /* DeviceContactHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F92CDD8245AFCCF10A4CFD3 /* DeviceContactHandoffView.swift */; };
 		14CBE52224646433A28484EB /* PendingCaptureInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43E2D32DD9913AC4F6E097A /* PendingCaptureInbox.swift */; };
 		151197801AAA0BD6501466C2 /* ReleaseBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D137439B29C6808B301FD14C /* ReleaseBoundaryTests.swift */; };
 		19879CA4D7C15E17BD4FAAD2 /* RelationshipArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8740830A52A1650A3FF8B41A /* RelationshipArchiveView.swift */; };
 		1F026D22636BADFB28C6ED7F /* AudioSignalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08F6E4EC1E24E8888C85C5A /* AudioSignalCaptureView.swift */; };
+		21A1875ED3B627C962BFBE51 /* DeviceCalendarProposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F22F52432BB9263F4F8D29 /* DeviceCalendarProposal.swift */; };
 		23D654970274564EA7623632 /* AppSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */; };
 		3030219A987894DFC181C6EE /* CandidateSignalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */; };
 		344B5467E2BD111985A44EA1 /* HeroLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744427491C9864B09CAF13DD /* HeroLoopTests.swift */; };
@@ -33,16 +36,20 @@
 		7230D7E787C6A595BE24845E /* AppSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6D8F6894923DD54E359F8E /* AppSession.swift */; };
 		72B340A984815C3C9D0858BB /* CandidateSignalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */; };
 		78E69431CCB66C1BFA7EFDDF /* RelationshipCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */; };
+		82F626089258164A29855376 /* RelationshipCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */; };
 		83A4A3CE04DF7FFBCC223E1F /* RelationshipArchiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBD9D5361A32C8957D22B4E /* RelationshipArchiveTests.swift */; };
 		855BD6D5CC0D965D2DB61D81 /* FixtureSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */; };
 		8CBFB9AE9F1F7B22F53A20B7 /* RelationshipCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1B56C282E5480FFC9368B0 /* RelationshipCaptureTests.swift */; };
 		9399BE568B566B35A27873C0 /* AudioSignalRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C7FFDCFE8722F56DF1F6EA /* AudioSignalRecorder.swift */; };
+		9AB40CE436A39B3AE399478A /* TalentSignalBrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8A42CBB4A5B1229D5BCC0D /* TalentSignalBrandMark.swift */; };
 		9BFF4FE9255A2B018D330A10 /* AudioSignalCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */; };
 		9E9FCCE762A1387B509C2685 /* PursuitProposalReviewStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */; };
+		A46CF9C1DC36A0DCA941B5B6 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2796745F45891838868FEA7B /* InfoPlist.xcstrings */; };
 		A4B50D55CF2FD1DB578106DC /* RelationshipArchiveModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D60444BD109DBAA3780F88D /* RelationshipArchiveModels.swift */; };
 		A8C31D8E27A8BB40971F0064 /* TextSignalCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DBD7EB9582B085CB7D1063C /* TextSignalCaptureTests.swift */; };
 		AD08E92344FA0B6C172C1F68 /* CandidateSignalComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */; };
 		BB3580A3464A58431968556E /* TextSignalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA3B1B8042B74DA1B5D1670 /* TextSignalCaptureView.swift */; };
+		C2CD13773507FE9D6E9311FE /* DeviceCalendarHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382034DC80F815EB41351067 /* DeviceCalendarHandoffView.swift */; };
 		C4F842118E9C6C983BD8F36C /* RelationshipArchiveSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */; };
 		CA175C232670CAEE11B52CC8 /* ConversationTextRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63953A0F31800DC886749C51 /* ConversationTextRecognizer.swift */; };
 		D08C2E84FC404988E0F82AE0 /* PursuitWorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */; };
@@ -79,20 +86,27 @@
 		00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalCaptureTests.swift; sourceTree = "<group>"; };
 		0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewStore.swift; sourceTree = "<group>"; };
 		080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitWorkspaceStore.swift; sourceTree = "<group>"; };
+		0F92CDD8245AFCCF10A4CFD3 /* DeviceContactHandoffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceContactHandoffView.swift; sourceTree = "<group>"; };
 		0FBD9D5361A32C8957D22B4E /* RelationshipArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipArchiveTests.swift; sourceTree = "<group>"; };
 		1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalStore.swift; sourceTree = "<group>"; };
 		20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitWorkspace.swift; sourceTree = "<group>"; };
+		2796745F45891838868FEA7B /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		2C8A42CBB4A5B1229D5BCC0D /* TalentSignalBrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalBrandMark.swift; sourceTree = "<group>"; };
 		2E1DC0CB9D729B8B77463673 /* CandidateSignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignal.swift; sourceTree = "<group>"; };
 		314171A5678C6A592D77C852 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		382034DC80F815EB41351067 /* DeviceCalendarHandoffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCalendarHandoffView.swift; sourceTree = "<group>"; };
 		3CA3B1B8042B74DA1B5D1670 /* TextSignalCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalCaptureView.swift; sourceTree = "<group>"; };
 		4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalOutbox.swift; sourceTree = "<group>"; };
 		52A9FCA23A5C5E97951C4D39 /* CaptureAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAppIntents.swift; sourceTree = "<group>"; };
+		5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCalendarView.swift; sourceTree = "<group>"; };
 		54258A90B16E34F5EE3E5D6E /* TextSignalCaptureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalCaptureStore.swift; sourceTree = "<group>"; };
 		56E964E1942AD295B505F9A3 /* AppSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsView.swift; sourceTree = "<group>"; };
+		571E43C7E25C147610C6614C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalUITests.swift; sourceTree = "<group>"; };
 		5B1750D9C713D5C7F54F4423 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5DBD7EB9582B085CB7D1063C /* TextSignalCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalCaptureTests.swift; sourceTree = "<group>"; };
 		63953A0F31800DC886749C51 /* ConversationTextRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationTextRecognizer.swift; sourceTree = "<group>"; };
+		71F22F52432BB9263F4F8D29 /* DeviceCalendarProposal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCalendarProposal.swift; sourceTree = "<group>"; };
 		744427491C9864B09CAF13DD /* HeroLoopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroLoopTests.swift; sourceTree = "<group>"; };
 		7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAskView.swift; sourceTree = "<group>"; };
 		77C6AFD36C53DCE168525B5F /* TalentSignalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalApp.swift; sourceTree = "<group>"; };
@@ -162,6 +176,7 @@
 				9F949D7FD6FC90553A6E5BBC /* AppLanguage.swift */,
 				52A9FCA23A5C5E97951C4D39 /* CaptureAppIntents.swift */,
 				77C6AFD36C53DCE168525B5F /* TalentSignalApp.swift */,
+				2C8A42CBB4A5B1229D5BCC0D /* TalentSignalBrandMark.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -189,6 +204,8 @@
 			isa = PBXGroup;
 			children = (
 				5B1750D9C713D5C7F54F4423 /* Assets.xcassets */,
+				2796745F45891838868FEA7B /* InfoPlist.xcstrings */,
+				571E43C7E25C147610C6614C /* Localizable.xcstrings */,
 				314171A5678C6A592D77C852 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
@@ -231,12 +248,15 @@
 				F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */,
 				1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */,
 				F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */,
+				382034DC80F815EB41351067 /* DeviceCalendarHandoffView.swift */,
+				0F92CDD8245AFCCF10A4CFD3 /* DeviceContactHandoffView.swift */,
 				0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */,
 				080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */,
 				7D60444BD109DBAA3780F88D /* RelationshipArchiveModels.swift */,
 				A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */,
 				8740830A52A1650A3FF8B41A /* RelationshipArchiveView.swift */,
 				7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */,
+				5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */,
 				91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */,
 				7FAEBC372E2477E425197A45 /* RelationshipCaptureView.swift */,
 				E68ADCA955185ACDD422B618 /* SignalCaptureHubView.swift */,
@@ -252,6 +272,7 @@
 				D6A9699249B87A87A878D261 /* AudioSignalCapture.swift */,
 				8806D300F51296BE8C1CECE3 /* CandidateMomentumLoop.swift */,
 				2E1DC0CB9D729B8B77463673 /* CandidateSignal.swift */,
+				71F22F52432BB9263F4F8D29 /* DeviceCalendarProposal.swift */,
 				20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */,
 				BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */,
 				CFF3826B0FFB3CF750AA89BC /* TextSignalCapture.swift */,
@@ -357,6 +378,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
 			);
 			mainGroup = FC3E87D24265DCFBA4BEE614;
 			minimizedProjectReferenceProxies = 1;
@@ -378,6 +400,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C34F2CBF98A408B15499182 /* Assets.xcassets in Resources */,
+				A46CF9C1DC36A0DCA941B5B6 /* InfoPlist.xcstrings in Resources */,
+				06DFE9BCC7F707007A3A47A3 /* Localizable.xcstrings in Resources */,
 				365E77E8A50219E17D683328 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -428,6 +452,9 @@
 				72B340A984815C3C9D0858BB /* CandidateSignalView.swift in Sources */,
 				0AC9981F2E565E9986EE1040 /* CaptureAppIntents.swift in Sources */,
 				CA175C232670CAEE11B52CC8 /* ConversationTextRecognizer.swift in Sources */,
+				C2CD13773507FE9D6E9311FE /* DeviceCalendarHandoffView.swift in Sources */,
+				21A1875ED3B627C962BFBE51 /* DeviceCalendarProposal.swift in Sources */,
+				11C0F6747910DC2616DB4931 /* DeviceContactHandoffView.swift in Sources */,
 				855BD6D5CC0D965D2DB61D81 /* FixtureSyncClient.swift in Sources */,
 				14CBE52224646433A28484EB /* PendingCaptureInbox.swift in Sources */,
 				0579CDAB80FE992D88E870AF /* PursuitProposalReviewClient.swift in Sources */,
@@ -439,12 +466,14 @@
 				C4F842118E9C6C983BD8F36C /* RelationshipArchiveSheets.swift in Sources */,
 				19879CA4D7C15E17BD4FAAD2 /* RelationshipArchiveView.swift in Sources */,
 				FA2154B29466D7C1BF4C6347 /* RelationshipAskView.swift in Sources */,
+				82F626089258164A29855376 /* RelationshipCalendarView.swift in Sources */,
 				78E69431CCB66C1BFA7EFDDF /* RelationshipCapture.swift in Sources */,
 				EC03818C4A0DC080E11CF0F2 /* RelationshipCaptureClient.swift in Sources */,
 				D4A62460F620C32CA5059986 /* RelationshipCaptureStore.swift in Sources */,
 				401A888C1F4714CCFB39EEB2 /* RelationshipCaptureView.swift in Sources */,
 				3DE4CA95E9E9CF0B692A19B0 /* SignalCaptureHubView.swift in Sources */,
 				71C2191A8B9F500124E59F7D /* TalentSignalApp.swift in Sources */,
+				9AB40CE436A39B3AE399478A /* TalentSignalBrandMark.swift in Sources */,
 				59BEBA6B0A3C418442E59C03 /* TextSignalCapture.swift in Sources */,
 				F864B401A294FBA71D6C93C2 /* TextSignalCaptureStore.swift in Sources */,
 				BB3580A3464A58431968556E /* TextSignalCaptureView.swift in Sources */,

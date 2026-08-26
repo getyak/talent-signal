@@ -10,6 +10,10 @@ final class AudioSignalCaptureTests: XCTestCase {
         XCTAssertFalse(store.canStart)
         await store.start(sceneIsActive: true)
         XCTAssertEqual(recorder.startCalls, 0)
+        XCTAssertEqual(
+            store.notice,
+            "Name the person or accountable party who authorized this recording."
+        )
 
         store.authorizationConfirmed = true
         store.authorizingParty = "Candidate participant"
@@ -38,6 +42,7 @@ final class AudioSignalCaptureTests: XCTestCase {
         XCTAssertFalse(store.isRecording)
         XCTAssertEqual(recorder.permissionRequestCalls, 1)
         XCTAssertEqual(recorder.startCalls, 0)
+        XCTAssertEqual(store.microphonePermission, .denied)
         XCTAssertEqual(
             store.phase,
             .failed("Microphone permission was not granted. No recording started.")
@@ -138,6 +143,123 @@ final class AudioSignalCaptureTests: XCTestCase {
         XCTAssertNil(router.request)
     }
 
+    func testVoiceInputReturnsEditableDraftAndDeletesTemporaryAudio() async {
+        let recorder = VoiceDictationRecordingSpy(permission: .granted)
+        let transcriber = VoiceTranscriptionSpy(
+            result: .success(
+                VoiceTranscriptionDraft(
+                    audioDurationMilliseconds: 1_200,
+                    clientRequestID: recorder.payload.id,
+                    model: "bigmodel",
+                    provider: "doubao",
+                    providerRequestID: UUID(),
+                    status: "draft",
+                    temporaryAudioStoredByTalentSignal: false,
+                    transcript: "  What changed in this search?  "
+                )
+            )
+        )
+        let store = VoiceInputStore(recorder: recorder)
+
+        await store.start(sceneIsActive: true, transcriber: transcriber)
+        XCTAssertTrue(store.isRecording)
+        XCTAssertEqual(recorder.startCalls, 1)
+
+        await store.stopAndTranscribe()
+
+        XCTAssertEqual(store.phase, .idle)
+        XCTAssertEqual(store.transcript, "What changed in this search?")
+        XCTAssertEqual(recorder.deletedPayload, recorder.payload)
+        let transcriptionCalls = await transcriber.callCount
+        XCTAssertEqual(transcriptionCalls, 1)
+    }
+
+    func testVoiceInputFailureDeletesAudioAndKeepsFailureRecoverable() async {
+        let recorder = VoiceDictationRecordingSpy(permission: .granted)
+        let transcriber = VoiceTranscriptionSpy(
+            result: .failure(
+                VoiceTranscriptionClientError.backend(
+                    "Voice transcription is busy. Your text draft is unchanged; try again."
+                )
+            )
+        )
+        let store = VoiceInputStore(recorder: recorder)
+
+        await store.start(sceneIsActive: true, transcriber: transcriber)
+        await store.stopAndTranscribe()
+
+        XCTAssertEqual(
+            store.phase,
+            .failed(
+                "Voice transcription is busy. Your text draft is unchanged; try again."
+            )
+        )
+        XCTAssertNil(store.transcript)
+        XCTAssertEqual(recorder.deletedPayload, recorder.payload)
+
+        store.dismissFailure()
+        XCTAssertEqual(store.phase, .idle)
+    }
+
+    func testVoiceInputForegroundLossCancelsWithoutTranscription() async {
+        let recorder = VoiceDictationRecordingSpy(permission: .granted)
+        let transcriber = VoiceTranscriptionSpy(
+            result: .success(
+                VoiceTranscriptionDraft(
+                    audioDurationMilliseconds: nil,
+                    clientRequestID: recorder.payload.id,
+                    model: "bigmodel",
+                    provider: "doubao",
+                    providerRequestID: UUID(),
+                    status: "draft",
+                    temporaryAudioStoredByTalentSignal: false,
+                    transcript: "Should not be returned"
+                )
+            )
+        )
+        let store = VoiceInputStore(recorder: recorder)
+
+        await store.start(sceneIsActive: true, transcriber: transcriber)
+        store.stopForForegroundLoss()
+
+        XCTAssertEqual(recorder.cancelCalls, 1)
+        XCTAssertEqual(
+            store.phase,
+            .failed(
+                "Voice input stopped when Talent Signal left the foreground. No audio was sent."
+            )
+        )
+        let transcriptionCalls = await transcriber.callCount
+        XCTAssertEqual(transcriptionCalls, 0)
+    }
+
+    func testForegroundLossInterruptsInFlightVoiceTranscription() async {
+        let recorder = VoiceDictationRecordingSpy(permission: .granted)
+        let transcriber = BlockingVoiceTranscriptionSpy()
+        let store = VoiceInputStore(recorder: recorder)
+
+        await store.start(sceneIsActive: true, transcriber: transcriber)
+        let transcription = Task { await store.stopAndTranscribe() }
+        for _ in 0 ..< 50 {
+            if await transcriber.callCount == 1 { break }
+            await Task.yield()
+        }
+        let transcriptionCalls = await transcriber.callCount
+        XCTAssertEqual(transcriptionCalls, 1)
+        XCTAssertEqual(store.phase, .transcribing)
+
+        store.stopForForegroundLoss()
+        await transcription.value
+
+        XCTAssertEqual(
+            store.phase,
+            .failed(
+                "Voice transcription was interrupted. The temporary recording was deleted; the provider result is unavailable."
+            )
+        )
+        XCTAssertEqual(recorder.deletedPayload, recorder.payload)
+    }
+
     private func readyStore(
         recorder: AudioSignalRecordingSpy
     ) -> AudioSignalCaptureStore {
@@ -147,6 +269,97 @@ final class AudioSignalCaptureTests: XCTestCase {
         store.authorizationBasis = "Direct verbal permission"
         store.purpose = "Authorized source"
         return store
+    }
+}
+
+@MainActor
+private final class VoiceDictationRecordingSpy: VoiceDictationRecordingServing {
+    var permission: AudioSignalPermission
+    var requestedPermission: AudioSignalPermission
+    var startCalls = 0
+    var stopCalls = 0
+    var cancelCalls = 0
+    var deletedPayload: VoiceDictationPayload?
+    var isRecording = false
+    let payload = VoiceDictationPayload(
+        id: UUID(),
+        fileURL: URL(fileURLWithPath: "/tmp/synthetic-voice-input.wav"),
+        byteCount: 1_024,
+        durationSeconds: 1.2,
+        mimeType: "audio/wav"
+    )
+
+    init(
+        permission: AudioSignalPermission,
+        requestedPermission: AudioSignalPermission = .granted
+    ) {
+        self.permission = permission
+        self.requestedPermission = requestedPermission
+    }
+
+    func permissionStatus() -> AudioSignalPermission { permission }
+
+    func requestPermission() async -> AudioSignalPermission {
+        permission = requestedPermission
+        return requestedPermission
+    }
+
+    func start(recordID: UUID) throws {
+        startCalls += 1
+        isRecording = true
+    }
+
+    func stop() throws -> VoiceDictationPayload {
+        guard isRecording else { throw VoiceDictationRecorderError.notRecording }
+        stopCalls += 1
+        isRecording = false
+        return payload
+    }
+
+    func cancel() throws {
+        cancelCalls += 1
+        isRecording = false
+    }
+
+    func delete(_ payload: VoiceDictationPayload) throws {
+        deletedPayload = payload
+    }
+}
+
+private actor VoiceTranscriptionSpy: VoiceTranscriptionServing {
+    private(set) var callCount = 0
+    let result: Result<VoiceTranscriptionDraft, Error>
+
+    init(result: Result<VoiceTranscriptionDraft, Error>) {
+        self.result = result
+    }
+
+    func transcribe(
+        _ payload: VoiceDictationPayload
+    ) async throws -> VoiceTranscriptionDraft {
+        callCount += 1
+        return try result.get()
+    }
+}
+
+private actor BlockingVoiceTranscriptionSpy: VoiceTranscriptionServing {
+    private(set) var callCount = 0
+
+    func transcribe(
+        _ payload: VoiceDictationPayload
+    ) async throws -> VoiceTranscriptionDraft {
+        callCount += 1
+        try await Task.sleep(for: .seconds(60))
+        return VoiceTranscriptionDraft(
+            audioDurationMilliseconds: nil,
+            clientRequestID: payload.id,
+            model: "bigmodel",
+            provider: "doubao",
+            providerRequestID: UUID(),
+            status: "draft",
+            temporaryAudioStoredByTalentSignal: false,
+            transcript: "Unavailable"
+        )
     }
 }
 

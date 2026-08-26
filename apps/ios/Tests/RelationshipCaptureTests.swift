@@ -1,8 +1,58 @@
 import Foundation
+import UIKit
 import XCTest
 @testable import TalentSignal
 
 final class RelationshipCaptureTests: XCTestCase {
+    func testSelectedConversationImageAcceptsImageDataAndRejectsOtherPayloads() throws {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 32))
+        let image = renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
+        }
+        let imageData = try XCTUnwrap(image.pngData())
+
+        XCTAssertEqual(
+            try SelectedConversationImage(importedData: imageData).data,
+            imageData
+        )
+        XCTAssertThrowsError(
+            try SelectedConversationImage(importedData: Data("not an image".utf8))
+        ) { error in
+            XCTAssertEqual(
+                error as? SelectedConversationImageError,
+                .unreadableImage
+            )
+        }
+    }
+
+    @MainActor
+    func testVisionRecognizerReadsSyntheticConversationImageOnDevice() async throws {
+        let renderer = UIGraphicsImageRenderer(
+            size: CGSize(width: 1_200, height: 520)
+        )
+        let image = renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1_200, height: 520))
+            let text = "WeChat: alex_test_2026\nNext Thursday works"
+            text.draw(
+                in: CGRect(x: 70, y: 80, width: 1_060, height: 360),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 72, weight: .semibold),
+                    .foregroundColor: UIColor.black,
+                ]
+            )
+        }
+        let imageData = try XCTUnwrap(image.pngData())
+
+        let recognized = try await VisionConversationTextRecognizer()
+            .recognizeText(in: imageData)
+            .lowercased()
+
+        XCTAssertTrue(recognized.contains("wechat"))
+        XCTAssertTrue(recognized.contains("thursday"))
+    }
+
     func testDraftBuilderExtractsEmailBeforePhone() {
         let draft = CaptureDraftBuilder.makeDraft(
             from: """
@@ -15,6 +65,7 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertEqual(draft.handleType, .email)
         XCTAssertEqual(draft.handleValue, "lin.wei@example.com")
         XCTAssertTrue(draft.reviewedText.contains("+65 9123 4567"))
+        XCTAssertNil(draft.speaker)
     }
 
     func testDraftBuilderNormalizesPhoneWithoutInventingAttribution() {
@@ -58,6 +109,7 @@ final class RelationshipCaptureTests: XCTestCase {
         )
         var draft = RecognizedCaptureDraft.empty
         draft.reviewedText = "Reviewed evidence"
+        draft.speaker = .candidate
         draft.displayNameHint = "Lin Wei"
         try await inbox.saveDraft(draft, for: seed.id)
 
@@ -66,13 +118,205 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertEqual(restored?.imageData, seed.imageData)
         XCTAssertEqual(restored?.fileName, seed.fileName)
         let restoredDraft = try await inbox.loadDraft(for: seed.id)
+        let protections = try await inbox.fileProtections(for: seed.id)
         XCTAssertEqual(restoredDraft, draft)
+#if targetEnvironment(simulator)
+        XCTAssertTrue(
+            protections.allSatisfy { $0 == nil || $0 == .complete },
+            "Simulator filesystems may not expose the device Data Protection class."
+        )
+#else
+        XCTAssertTrue(protections.allSatisfy { $0 == .complete })
+#endif
 
         try await inbox.remove(id: seed.id)
         let removed = try await inbox.load()
         let removedDraft = try await inbox.loadDraft(for: seed.id)
         XCTAssertNil(removed)
         XCTAssertNil(removedDraft)
+    }
+
+    func testContactDraftMapsOnlyReviewedContactFields() {
+        let phone = DeviceContactDraft(
+            sourceID: "capture-1",
+            displayName: " Alex Chen ",
+            handleType: .phone,
+            handleValue: " +65 9123 4567 "
+        )
+        let email = DeviceContactDraft(
+            sourceID: "capture-2",
+            displayName: "Lin Wei",
+            handleType: .email,
+            handleValue: "lin@example.com"
+        )
+        let wechat = DeviceContactDraft(
+            sourceID: "capture-3",
+            displayName: "周宁",
+            handleType: .wechat,
+            handleValue: "zhou_synthetic"
+        )
+
+        XCTAssertEqual(phone.displayName, "Alex Chen")
+        XCTAssertEqual(phone.makeContact().phoneNumbers.first?.value.stringValue, "+65 9123 4567")
+        XCTAssertEqual(email.makeContact().emailAddresses.first?.value as String?, "lin@example.com")
+        XCTAssertEqual(wechat.makeContact().socialProfiles.first?.value.username, "zhou_synthetic")
+    }
+
+    func testCandidateMeetingEvidenceCreatesCalendarProposal() throws {
+        var draft = RecognizedCaptureDraft.empty
+        draft.speaker = .candidate
+        draft.reviewedText = "Interview September 3, 2027 at 3:00 PM for 45 minutes."
+        let reference = try XCTUnwrap(
+            ISO8601DateFormatter().date(from: "2026-08-26T09:00:00+08:00")
+        )
+        let timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Singapore"))
+
+        let proposal = try XCTUnwrap(
+            DeviceCalendarProposalDetector.detect(
+                draft: draft,
+                personDisplayName: "Leila Hassan",
+                sourceID: "capture-calendar-1",
+                capturedAt: reference,
+                now: reference,
+                timeZone: timeZone
+            )
+        )
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: proposal.startDate
+        )
+
+        XCTAssertEqual(proposal.title, "Interview · Leila Hassan")
+        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.month, 9)
+        XCTAssertEqual(components.day, 3)
+        XCTAssertEqual(components.hour, 15)
+        XCTAssertEqual(components.minute, 0)
+        XCTAssertEqual(
+            proposal.endDate.timeIntervalSince(proposal.startDate),
+            45 * 60,
+            accuracy: 0.1
+        )
+        XCTAssertTrue(proposal.durationWasExplicit)
+        XCTAssertEqual(proposal.detectedDateText, "September 3, 2027 at 3:00 PM")
+        XCTAssertTrue(proposal.evidenceQuote.contains("Interview"))
+    }
+
+    func testChineseMeetingEvidenceCreatesEditableDefaultDuration() throws {
+        var draft = RecognizedCaptureDraft.empty
+        draft.speaker = .candidate
+        draft.reviewedText = "2027年9月3日下午3点面试，我们视频聊。"
+        let reference = try XCTUnwrap(
+            ISO8601DateFormatter().date(from: "2026-08-26T09:00:00+08:00")
+        )
+        let timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+
+        let proposal = try XCTUnwrap(
+            DeviceCalendarProposalDetector.detect(
+                draft: draft,
+                personDisplayName: "李娜",
+                sourceID: "capture-calendar-zh",
+                capturedAt: reference,
+                now: reference,
+                timeZone: timeZone
+            )
+        )
+
+        XCTAssertEqual(proposal.title, "面试 · 李娜")
+        XCTAssertFalse(proposal.durationWasExplicit)
+        XCTAssertEqual(
+            proposal.endDate.timeIntervalSince(proposal.startDate),
+            30 * 60,
+            accuracy: 0.1
+        )
+        XCTAssertEqual(proposal.detectedDateText, "2027年9月3日下午3点")
+    }
+
+    func testCalendarProposalAbstainsWithoutMeetingConsentOrCandidateAttribution() throws {
+        let reference = try XCTUnwrap(
+            ISO8601DateFormatter().date(from: "2026-08-26T09:00:00+08:00")
+        )
+        var draft = RecognizedCaptureDraft.empty
+        draft.speaker = .candidate
+        draft.reviewedText = "Tuesday September 7, 2027 at 3 PM is open on my side."
+
+        XCTAssertNil(
+            DeviceCalendarProposalDetector.detect(
+                draft: draft,
+                personDisplayName: "Leila Hassan",
+                sourceID: "availability-only",
+                capturedAt: reference,
+                now: reference
+            )
+        )
+
+        draft.reviewedText = "Interview September 7, 2027 at 3 PM works for me."
+        draft.speaker = .recruiter
+        XCTAssertNil(
+            DeviceCalendarProposalDetector.detect(
+                draft: draft,
+                personDisplayName: "Leila Hassan",
+                sourceID: "wrong-speaker",
+                capturedAt: reference,
+                now: reference
+            )
+        )
+
+        draft.speaker = .candidate
+        draft.reviewedText = "Let's schedule an interview after the portfolio review."
+        XCTAssertNil(
+            DeviceCalendarProposalDetector.detect(
+                draft: draft,
+                personDisplayName: "Leila Hassan",
+                sourceID: "missing-date",
+                capturedAt: reference,
+                now: reference
+            )
+        )
+
+        draft.reviewedText = "Interview September 7, 2025 at 3 PM works for me."
+        XCTAssertNil(
+            DeviceCalendarProposalDetector.detect(
+                draft: draft,
+                personDisplayName: "Leila Hassan",
+                sourceID: "past-date",
+                capturedAt: reference,
+                now: reference
+            )
+        )
+    }
+
+    func testCalendarReceiptStoreKeepsOneSavedResultPerCapture() throws {
+        let suiteName = "calendar-receipt-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = DeviceCalendarReceiptStore(defaults: defaults)
+        let firstDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let secondDate = firstDate.addingTimeInterval(60)
+
+        XCTAssertNil(store.receipt(for: "capture-1"))
+        store.recordSaved(
+            sourceID: "capture-1",
+            eventIdentifier: "event-1",
+            savedAt: firstDate
+        )
+        store.recordSaved(
+            sourceID: "capture-1",
+            eventIdentifier: "event-2",
+            savedAt: secondDate
+        )
+
+        XCTAssertEqual(
+            store.receipt(for: "capture-1"),
+            DeviceCalendarWriteReceipt(
+                sourceID: "capture-1",
+                eventIdentifier: "event-2",
+                savedAt: secondDate
+            )
+        )
+        XCTAssertNil(store.receipt(for: "capture-2"))
     }
 
     func testPendingInboxQueuesDistinctCapturesAndDeduplicatesExactRetry() async throws {
@@ -264,6 +508,12 @@ final class RelationshipCaptureTests: XCTestCase {
             return XCTFail("Expected an explicit bind decision.")
         }
         XCTAssertEqual(candidate.personID, Self.currentPersonID)
+        guard case let .completed(completion) = store.stage else {
+            return XCTFail("Expected a completed capture.")
+        }
+        XCTAssertEqual(completion.captureID, "99999999-9999-4999-8999-999999999999")
+        XCTAssertEqual(completion.personDisplayLabel, "Current owner 080e5531")
+        XCTAssertEqual(completion.relationshipDisplayLabel, "Current client relationship")
     }
 
     @MainActor

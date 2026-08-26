@@ -39,19 +39,44 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 
     func text(
+        _ key: String,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) -> String {
+        let localization = usesSimplifiedChinese(
+            preferredLanguages: preferredLanguages
+        ) ? "zh-Hans" : "en"
+        guard let path = Bundle.main.path(
+            forResource: localization,
+            ofType: "lproj"
+        ), let bundle = Bundle(path: path) else {
+            return key
+        }
+        return bundle.localizedString(forKey: key, value: key, table: nil)
+    }
+
+    /// Transitional compatibility for the original inline bilingual calls.
+    /// New interface copy belongs in `Localizable.xcstrings` and uses
+    /// `text(_:preferredLanguages:)` without a second sentence in the view.
+    func text(
         _ english: String,
         zhHans: String,
         preferredLanguages: [String] = Locale.preferredLanguages
     ) -> String {
-        usesSimplifiedChinese(preferredLanguages: preferredLanguages)
-            ? zhHans
-            : english
+        let localized = text(
+            english,
+            preferredLanguages: preferredLanguages
+        )
+        guard usesSimplifiedChinese(preferredLanguages: preferredLanguages),
+              localized == english else {
+            return localized
+        }
+        return zhHans
     }
 
     func displayName(in interfaceLanguage: AppLanguage) -> String {
         switch self {
         case .system:
-            return interfaceLanguage.text("Follow System", zhHans: "跟随系统")
+            return interfaceLanguage.text("Follow System")
         case .english:
             return "English"
         case .simplifiedChinese:
@@ -63,39 +88,21 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .system:
             return interfaceLanguage.text(
-                "Match the language selected on this iPhone.",
-                zhHans: "与这台 iPhone 的系统语言保持一致。"
+                "Match the language selected on this iPhone."
             )
         case .english:
             return interfaceLanguage.text(
-                "Use English for Talent Signal controls and guidance.",
-                zhHans: "Talent Signal 的控件与引导使用英文。"
+                "Use English for Talent Signal controls and guidance."
             )
         case .simplifiedChinese:
             return interfaceLanguage.text(
-                "Use Simplified Chinese for Talent Signal controls and guidance.",
-                zhHans: "Talent Signal 的控件与引导使用简体中文。"
+                "Use Simplified Chinese for Talent Signal controls and guidance."
             )
         }
     }
 
     func workspaceTerm(_ english: String) -> String {
-        guard usesSimplifiedChinese() else { return english }
-        switch english {
-        case "Due action · review context": return "到期行动 · 查看背景"
-        case "Review": return "待审阅"
-        case "Review interrupted": return "审阅已中断"
-        case "Evidence-backed gap": return "有证据支持的缺口"
-        case "Evidence partly unavailable": return "部分证据不可用"
-        case "Recruiter-authored": return "招聘顾问记录"
-        case "Evidence unavailable": return "证据不可用"
-        case "Owned action": return "已负责的行动"
-        case "Current gap": return "当前缺口"
-        case "Review proposal": return "审阅提议"
-        case "Record owned action outcome": return "记录行动结果"
-        case "Open Pursuit": return "打开目标"
-        default: return english
-        }
+        text(english)
     }
 }
 

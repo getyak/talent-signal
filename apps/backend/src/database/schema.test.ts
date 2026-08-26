@@ -3,6 +3,51 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("authority schema", () => {
+  it("keeps user-authored person profiles separate from evidence", async () => {
+    const sql = await readFile(
+      new URL("./030_person_profiles.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE TABLE person_profiles");
+    expect(sql).toContain("provenance_kind = 'user_authored'");
+    expect(sql).toContain(
+      "FOREIGN KEY (account_id, subject_id)\n    REFERENCES subjects(account_id, id)",
+    );
+    expect(sql).toContain(
+      "FOREIGN KEY (account_id, authored_by_user_id)\n    REFERENCES users(account_id, id)",
+    );
+    expect(sql).not.toContain("evidence_items");
+    expect(sql).not.toContain("confirmed_states");
+  });
+
+  it("keeps password identity server-owned and account-scoped", async () => {
+    const sql = await readFile(
+      new URL("./028_password_auth.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE TABLE password_credentials");
+    expect(sql).toContain("users_password_username_unique_idx");
+    expect(sql).toContain("users_password_email_unique_idx");
+    expect(sql).toContain("'password_human'");
+    expect(sql).toContain("account_role IN ('admin', 'member')");
+    expect(sql).toContain(
+      "FOREIGN KEY (account_id, user_id) REFERENCES users(account_id, id)",
+    );
+  });
+
+  it("accepts the versioned scrypt delimiter without rewriting migration history", async () => {
+    const sql = await readFile(
+      new URL("./029_password_credential_constraint.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain(
+      "^scrypt[$]v1[$][a-f0-9]{32,128}[$][a-f0-9]{128}$",
+    );
+    expect(sql).toContain(
+      "DROP CONSTRAINT password_credentials_password_scrypt_check",
+    );
+  });
+
   it("keeps lifecycle records in separate tables", async () => {
     const sql = await readFile(
       new URL("./001_authority.sql", import.meta.url),
