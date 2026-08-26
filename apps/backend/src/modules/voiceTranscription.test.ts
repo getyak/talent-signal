@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EnvironmentDoubaoVoiceTranscriber,
   type VoiceTranscriptionInput,
+  voiceTranscriptionLimits,
 } from "./voiceTranscription.js";
 
 const request: VoiceTranscriptionInput = {
@@ -118,6 +119,36 @@ describe("Doubao voice transcription", () => {
     ).rejects.toMatchObject({
       code: "VOICE_AUDIO_FORMAT_UNSUPPORTED",
       statusCode: 415,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("bounds and validates base64 before decoding or contacting the provider", async () => {
+    const fetchImpl = vi.fn();
+    const transcriber = new EnvironmentDoubaoVoiceTranscriber(
+      environment(),
+      fetchImpl,
+    );
+
+    await expect(
+      transcriber.transcribe({
+        ...request,
+        audioBase64: "A===",
+      }),
+    ).rejects.toMatchObject({
+      code: "VOICE_AUDIO_INVALID",
+      statusCode: 400,
+    });
+    await expect(
+      transcriber.transcribe({
+        ...request,
+        audioBase64: "A".repeat(
+          voiceTranscriptionLimits.maxBase64Characters + 1,
+        ),
+      }),
+    ).rejects.toMatchObject({
+      code: "VOICE_AUDIO_TOO_LARGE",
+      statusCode: 413,
     });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

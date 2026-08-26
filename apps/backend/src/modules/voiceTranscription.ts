@@ -6,6 +6,7 @@ const DEFAULT_DOUBAO_BASE_URL = "https://openspeech.bytedance.com";
 const DEFAULT_DOUBAO_RESOURCE_ID = "volc.bigasr.auc_turbo";
 const DOUBAO_MODEL = "bigmodel";
 const MAX_AUDIO_BYTES = 2_500_000;
+const MAX_BASE64_AUDIO_CHARACTERS = Math.ceil(MAX_AUDIO_BYTES / 3) * 4;
 
 export interface VoiceTranscriptionInput {
   audioBase64: string;
@@ -76,12 +77,49 @@ function doubaoBaseUrl(environment: NodeJS.ProcessEnv): string {
   return parsed.origin;
 }
 
+function trimBase64Padding(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 61) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
+function isBase64AlphabetCharacter(characterCode: number): boolean {
+  return (
+    (characterCode >= 48 && characterCode <= 57) ||
+    (characterCode >= 65 && characterCode <= 90) ||
+    (characterCode >= 97 && characterCode <= 122) ||
+    characterCode === 43 ||
+    characterCode === 47
+  );
+}
+
+function hasValidBase64Characters(value: string): boolean {
+  const normalized = trimBase64Padding(value);
+  const paddingLength = value.length - normalized.length;
+  if (normalized.length === 0 || paddingLength > 2) return false;
+  for (let index = 0; index < normalized.length; index += 1) {
+    if (!isBase64AlphabetCharacter(normalized.charCodeAt(index))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function decodeWaveAudio(value: string): Buffer {
-  const normalized = value.replace(/=+$/, "");
+  if (value.length > MAX_BASE64_AUDIO_CHARACTERS) {
+    throw new ApiError(
+      413,
+      "VOICE_AUDIO_TOO_LARGE",
+      "Voice input is limited to one short recording.",
+    );
+  }
+  const normalized = trimBase64Padding(value);
   if (
     value.length === 0 ||
     value.length % 4 === 1 ||
-    !/^[A-Za-z0-9+/]+={0,2}$/.test(value)
+    !hasValidBase64Characters(value)
   ) {
     throw new ApiError(
       400,
@@ -90,7 +128,7 @@ function decodeWaveAudio(value: string): Buffer {
     );
   }
   const audio = Buffer.from(value, "base64");
-  if (audio.toString("base64").replace(/=+$/, "") !== normalized) {
+  if (trimBase64Padding(audio.toString("base64")) !== normalized) {
     throw new ApiError(
       400,
       "VOICE_AUDIO_INVALID",
@@ -268,5 +306,5 @@ export class EnvironmentDoubaoVoiceTranscriber
 
 export const voiceTranscriptionLimits = {
   maxAudioBytes: MAX_AUDIO_BYTES,
-  maxBase64Characters: 3_400_000,
+  maxBase64Characters: MAX_BASE64_AUDIO_CHARACTERS,
 } as const;
