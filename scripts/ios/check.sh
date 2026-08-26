@@ -4,10 +4,45 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 project_path="$repository_root/apps/ios/TalentSignal.xcodeproj"
 scheme_name="TalentSignal"
+ios_automation_lock_file="${IOS_AUTOMATION_LOCK_FILE:-/tmp/ios-automation.xcodebuild.lock}"
+ios_automation_lock_timeout="${IOS_AUTOMATION_LOCK_TIMEOUT_SECONDS:-7200}"
+ios_automation_lock_owned="false"
 
 cd "$repository_root"
 
-node scripts/ios/check-localization.mjs
+acquire_ios_automation_lock() {
+  local waited=0
+  local waiting_reported="false"
+  local owner_pid=""
+
+  until /usr/bin/shlock -f "$ios_automation_lock_file" -p "$$"; do
+    if [ "$waiting_reported" != "true" ]; then
+      owner_pid="$(sed -n '1p' "$ios_automation_lock_file" 2>/dev/null || true)"
+      echo "Waiting for the active iOS build (pid ${owner_pid:-unknown})..." >&2
+      waiting_reported="true"
+    fi
+    if [ "$waited" -ge "$ios_automation_lock_timeout" ]; then
+      echo "Timed out waiting for the machine-wide iOS build lock." >&2
+      exit 75
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  ios_automation_lock_owned="true"
+  export IOS_AUTOMATION_LOCK_HELD="true"
+}
+
+release_ios_automation_lock() {
+  local current_owner=""
+  if [ "$ios_automation_lock_owned" = "true" ]; then
+    current_owner="$(sed -n '1p' "$ios_automation_lock_file" 2>/dev/null || true)"
+    if [ "$current_owner" = "$$" ]; then
+      rm -f -- "$ios_automation_lock_file"
+    fi
+    ios_automation_lock_owned="false"
+  fi
+}
 
 ios_derived_data_owned="false"
 ios_derived_data="${IOS_DERIVED_DATA_PATH:-}"
@@ -22,9 +57,18 @@ cleanup_ios_derived_data() {
     [ -d "$ios_derived_data" ]; then
     rm -rf -- "$ios_derived_data"
   fi
+  release_ios_automation_lock
   return 0
 }
 trap cleanup_ios_derived_data EXIT
+
+acquire_ios_automation_lock
+
+# The machine-wide build lock makes all previously booted iOS devices stale.
+# Start from zero so this 16 GB host never retains multiple Simulator runtimes.
+xcrun simctl shutdown all >/dev/null 2>&1 || true
+
+node scripts/ios/check-localization.mjs
 
 ios_build_api_url="${IOS_BUILD_TEST_API_BASE_URL:-https://api.example.invalid}"
 ios_build_config="$ios_derived_data/Environment.check.xcconfig"
@@ -41,6 +85,7 @@ if [ -z "$ios_build_api_base64url" ]; then
 fi
 
 xcodebuild \
+  -jobs "${IOS_XCODE_JOBS:-4}" \
   -project "$project_path" \
   -scheme "$scheme_name" \
   -configuration Release \
@@ -242,6 +287,8 @@ if curl --fail --silent --show-error "$ios_backend_url/health/live" >/dev/null 2
 fi
 
 test_arguments=(
+  -jobs "${IOS_XCODE_JOBS:-4}"
+  -maximum-concurrent-test-simulator-destinations "${IOS_MAX_CONCURRENT_TEST_SIMULATORS:-1}"
   -project "$project_path"
   -scheme "$scheme_name"
   -destination "platform=iOS Simulator,id=$simulator_id"

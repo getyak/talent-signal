@@ -1,5 +1,11 @@
 name: talent-signal-backend
 
+x-default-logging: &default-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:18-alpine
@@ -9,7 +15,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-talent_signal_local_only}
       PGDATA: /var/lib/postgresql/18/docker
     ports:
-      - "${POSTGRES_PORT:-55432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
     volumes:
       - talent_signal_postgres:/var/lib/postgresql
     healthcheck:
@@ -23,6 +29,10 @@ services:
       retries: 12
       start_period: 15s
     restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 768m
+    pids_limit: 256
+    logging: *default-logging
 
   migrate:
     image: ${BACKEND_IMAGE:-talent-signal-backend-local:dev}
@@ -43,6 +53,10 @@ services:
         condition: service_healthy
         restart: true
     restart: "no"
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 256
+    logging: *default-logging
 
   seed:
     image: ${BACKEND_IMAGE:-talent-signal-backend-local:dev}
@@ -65,6 +79,10 @@ services:
       migrate:
         condition: service_completed_successfully
     restart: "no"
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 256
+    logging: *default-logging
 
   api:
     image: ${BACKEND_IMAGE:-talent-signal-backend-local:dev}
@@ -101,7 +119,7 @@ services:
       DOUBAO_ASR_SECRET_KEY: ${DOUBAO_ASR_SECRET_KEY:-}
     init: true
     ports:
-      - "${BACKEND_PORT:-4317}:4317"
+      - "127.0.0.1:${BACKEND_PORT:-4317}:4317"
     depends_on:
       postgres:
         condition: service_healthy
@@ -123,6 +141,10 @@ services:
       retries: 12
       start_period: 10s
     restart: unless-stopped
+    cpus: 1.5
+    mem_limit: 1536m
+    pids_limit: 256
+    logging: *default-logging
 
 volumes:
   talent_signal_postgres:
