@@ -492,9 +492,7 @@ function build() {
   for (const [target, content] of expected) {
     const absolutePath = resolve(root, target);
     mkdirSync(dirname(absolutePath), { recursive: true });
-    if (!existsSync(absolutePath) || readFileSync(absolutePath, "utf8") !== content) {
-      writeFileSync(absolutePath, content);
-    }
+    writeFileSync(absolutePath, content);
   }
   for (const target of changes.removed) {
     rmSync(resolve(root, target));

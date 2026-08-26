@@ -40,41 +40,69 @@ jobs:
       release_sha: ${{ steps.decision.outputs.release_sha }}
       should_release: ${{ steps.decision.outputs.should_release }}
     steps:
-      - name: Check out verified revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 2
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
       - name: Evaluate release policy
         id: decision
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          BASE_SHA: ${{ github.event.workflow_run.pull_requests[0].base.sha || '' }}
           EVENT_NAME: ${{ github.event_name }}
           PUBLISH_TESTFLIGHT: ${{ inputs.publish_testflight || false }}
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-        run: |
-          should_release=false
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const repository = await github.rest.repos.get({ owner, repo });
+            const branch = await github.rest.repos.getBranch({
+              owner,
+              repo,
+              branch: repository.data.default_branch,
+            });
+            const releaseSha = branch.data.commit.sha;
+            let shouldRelease = false;
 
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            should_release="$PUBLISH_TESTFLIGHT"
-          else
-            # BASE_SHA is injected through the step environment.
-            # shellcheck disable=SC2153
-            base_sha="$BASE_SHA"
-            if ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
-              base_sha="$(git rev-parse "${RELEASE_SHA}^")"
-            fi
+            if (process.env.EVENT_NAME === "workflow_dispatch") {
+              shouldRelease = process.env.PUBLISH_TESTFLIGHT === "true";
+            } else if (process.env.VERIFIED_SHA !== releaseSha) {
+              core.notice(
+                "The verified CI revision is no longer the current default-branch tip; a newer CI run will decide its release.",
+              );
+            } else {
+              const commit = await github.rest.repos.getCommit({
+                owner,
+                repo,
+                ref: releaseSha,
+              });
+              const parentSha = commit.data.parents[0]?.sha;
+              if (!parentSha) {
+                shouldRelease = true;
+              } else {
+                const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                  owner,
+                  repo,
+                  basehead: `${parentSha}...${releaseSha}`,
+                  per_page: 100,
+                });
+                const files = comparison.data.files ?? [];
+                const exactReleaseFiles = new Set([
+                  "Gemfile",
+                  "Gemfile.lock",
+                  ".github/workflows/release-ios.yml",
+                  "scripts/ci/has-ios-changes.sh",
+                  "scripts/ci/next-ios-version.sh",
+                ]);
+                const releasePrefixes = ["apps/ios/", "fastlane/", "scripts/ios/"];
+                shouldRelease =
+                  files.length >= 300 ||
+                  files.some(
+                    ({ filename }) =>
+                      exactReleaseFiles.has(filename) ||
+                      releasePrefixes.some((prefix) => filename.startsWith(prefix)),
+                  );
+              }
+            }
 
-            if [ "$(./scripts/ci/has-ios-changes.sh \
-              "$base_sha" "$RELEASE_SHA" --release-files)" = "true" ]; then
-              should_release=true
-            fi
-          fi
-
-          echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
-          echo "should_release=$should_release" >> "$GITHUB_OUTPUT"
-          echo "TestFlight release required: $should_release"
+            core.setOutput("release_sha", releaseSha);
+            core.setOutput("should_release", shouldRelease ? "true" : "false");
+            core.info(`TestFlight release required: ${shouldRelease}`);
 
   testflight:
     name: Publish TestFlight
