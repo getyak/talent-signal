@@ -1642,7 +1642,9 @@ final class CandidateSignalUITests: XCTestCase {
 
         tapWhenVisible(app.buttons["close-capture-review"])
         tapWhenVisible(app.buttons["Discard capture"])
-        XCTAssertFalse(element("inspect-capture-source").waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            element("inspect-capture-source").waitForNonExistence(timeout: 5)
+        )
     }
 
     func testProhibitedFitRequestIsRefused() {
