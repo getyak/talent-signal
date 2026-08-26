@@ -73,25 +73,40 @@ Rejected alternatives:
 
 ## Milestones
 
-1. **In progress — provider boundary and local configuration**
-   - add ignored local values without printing them;
-   - implement and unit-test the Doubao adapter and authenticated route;
-   - pass variables into the local backend runtime.
-2. **Pending — iOS recording and composer interaction**
-   - add protected temporary WAV recording and ASR client;
-   - add one-tap composer control, consent, progress, cancel, errors, and draft
-     insertion;
-   - preserve the existing draft and Audio Signal flow.
-3. **Pending — real-surface verification and safety review**
-   - run focused tests, build, localization, and docs checks;
-   - exercise the flow on Simulator with synthetic speech when possible;
-   - review privacy, accessibility, interruption, and no-auto-send behavior.
+1. **Complete — provider boundary and local configuration**
+   - ignored local values are configured with owner-only permissions and do not
+     appear in Git;
+   - the Doubao adapter and authenticated, rate-limited API route have focused
+     passing tests;
+   - the local Compose environment receives the server-side ASR variables.
+2. **Complete — iOS recording and composer interaction**
+   - foreground-only, temporary protected WAV recording and the authenticated
+     iOS transcription client are implemented;
+   - one compact composer control presents the cloud boundary once, then shows
+     listening, stop, transcribing, cancellation, permission, and error states;
+   - the result inserts into the editable draft, while the pre-existing Audio
+     Signal capture remains the fallback for a preview workspace.
+3. **Complete — targeted real-surface verification and safety review**
+   - focused backend and iOS checks, build, localization, docs, and the new
+     simulator UI journey pass;
+   - a 100ms silent synthetic WAV reached Doubao and received the expected
+     no-speech response, proving the configured credential/resource path
+     without sending speech or candidate data;
+   - the full `pnpm ios:check` isolated run reached every discovered UI selector;
+     the focused voice journey also passed independently with an inspectable
+     simulator result.
 
 ## Important unknowns
 
 - The supplied account must have `volc.bigasr.auc_turbo` enabled. A configured
-  credential alone does not prove entitlement.
+  credential alone does not prove entitlement. The no-speech provider response
+  now confirms that this resource accepts the configured request path.
 - Provider-side retention/deletion terms may depend on the customer's service
   agreement. This implementation does not claim an exact interval.
 - Simulator microphone and host audio routing may limit live ASR proof; mocked
   provider tests remain deterministic.
+- The shared worktree currently has an unrelated duplicate
+  `assertRemoteProviderDataBoundary` declaration in `agentRuns.ts`. It blocks
+  a fresh Docker image build but does not affect the focused source tests or
+  the direct silent-WAV provider verification. Do not overwrite it from this
+  plan's scope.
