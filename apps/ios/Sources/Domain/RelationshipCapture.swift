@@ -63,6 +63,7 @@ enum IdentityHandleType: String, CaseIterable, Codable, Identifiable {
 
 struct RecognizedCaptureDraft: Codable, Equatable {
     var reviewedText: String
+    var speaker: TextSignalSpeaker?
     var displayNameHint: String
     var handleType: IdentityHandleType
     var handleValue: String
@@ -72,6 +73,7 @@ struct RecognizedCaptureDraft: Codable, Equatable {
 
     static let empty = RecognizedCaptureDraft(
         reviewedText: "",
+        speaker: nil,
         displayNameHint: "",
         handleType: .phone,
         handleValue: "",
@@ -296,8 +298,11 @@ struct WikiQualityReceipt: Decodable, Equatable {
 }
 
 struct RelationshipCaptureCompletion: Equatable {
+    let captureID: String
     let personID: String?
+    let personDisplayLabel: String?
     let relationshipContextID: String?
+    let relationshipDisplayLabel: String?
     let resourceID: String
     let decision: String
     let wiki: WikiCompilationReceipt?

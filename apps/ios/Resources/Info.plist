@@ -33,9 +33,11 @@
         <key>NSAllowsLocalNetworking</key>
         <true/>
     </dict>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Talent Signal records audio only after you confirm authorization and tap Start while the app is in the foreground.</string>
-    <key>NSPhotoLibraryUsageDescription</key>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Talent Signal records audio only after you confirm authorization and tap Start while the app is in the foreground.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Talent Signal opens Apple&apos;s contact editor only after you review the exact fields you want to add.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
     <string>Talent Signal imports only the conversation screenshot you choose.</string>
     <key>TalentSignalAPIBaseURLBase64URL</key>
     <string>$(TALENT_SIGNAL_API_BASE_URL_BASE64URL)</string>

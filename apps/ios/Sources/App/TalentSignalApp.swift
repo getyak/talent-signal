@@ -216,9 +216,21 @@ enum TalentSignalRootRoute {
 
     static func opensReviewWorkbench(arguments: [String]) -> Bool {
 #if DEBUG
-        !reviewArguments.isDisjoint(with: Set(arguments))
+        if value(after: "--scenario", in: arguments)
+            == "relationship-capture-archive" {
+            return false
+        }
+        return !reviewArguments.isDisjoint(with: Set(arguments))
 #else
         false
 #endif
+    }
+
+    private static func value(after argument: String, in arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: argument),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return arguments[index + 1]
     }
 }

@@ -15,6 +15,7 @@ struct SignalCaptureHubView: View {
     let workspaceID: String?
     let initialDestination: CaptureIntentDestination?
     let onDismiss: () -> Void
+    let onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var appLanguage
@@ -26,13 +27,15 @@ struct SignalCaptureHubView: View {
         accessToken: String? = nil,
         workspaceID: String? = nil,
         initialDestination: CaptureIntentDestination? = nil,
-        onDismiss: @escaping () -> Void = {}
+        onDismiss: @escaping () -> Void = {},
+        onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)? = nil
     ) {
         self.backendURL = backendURL
         self.accessToken = accessToken
         self.workspaceID = workspaceID
         self.initialDestination = initialDestination
         self.onDismiss = onDismiss
+        self.onContinueInAgent = onContinueInAgent
     }
 
     var body: some View {
@@ -105,7 +108,14 @@ struct SignalCaptureHubView: View {
                     backendURL: backendURL,
                     accessToken: accessToken,
                     workspaceID: workspaceID,
-                    onClose: { destination = nil }
+                    onClose: { destination = nil },
+                    onContinueInAgent: { completion in
+                        destination = nil
+                        Task { @MainActor in
+                            await Task.yield()
+                            onContinueInAgent?(completion)
+                        }
+                    }
                 )
             case .audio:
                 AudioSignalCaptureView(onDismiss: { destination = nil })

@@ -14,6 +14,7 @@ struct CandidateSignalView: View {
     @State private var pendingTextSignal: TextSignalOutboxRecord?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let onClose: (() -> Void)?
+    private let onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)?
     private let showsFixtureTools: Bool
     private let authenticatedBackendURL: URL?
     private let authenticatedAccessToken: String?
@@ -23,10 +24,12 @@ struct CandidateSignalView: View {
         backendURL: URL? = nil,
         accessToken: String? = nil,
         workspaceID: String? = nil,
-        onClose: (() -> Void)? = nil
+        onClose: (() -> Void)? = nil,
+        onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)? = nil
     ) {
         _store = StateObject(wrappedValue: CandidateSignalStore())
         self.onClose = onClose
+        self.onContinueInAgent = onContinueInAgent
         authenticatedBackendURL = backendURL
         authenticatedAccessToken = accessToken
         authenticatedWorkspaceID = workspaceID
@@ -38,6 +41,7 @@ struct CandidateSignalView: View {
     init(store: CandidateSignalStore, onClose: (() -> Void)? = nil) {
         _store = StateObject(wrappedValue: store)
         self.onClose = onClose
+        onContinueInAgent = nil
         authenticatedBackendURL = nil
         authenticatedAccessToken = nil
         authenticatedWorkspaceID = nil
@@ -160,6 +164,11 @@ struct CandidateSignalView: View {
                 case .discard, .finished:
                     Task {
                         await captureHandoff.advanceToNextCapture()
+                    }
+                case let .continueInAgent(completion):
+                    Task {
+                        await captureHandoff.advanceToNextCapture()
+                        onContinueInAgent?(completion)
                     }
                 }
             }

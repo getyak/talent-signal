@@ -2,6 +2,20 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    func testReviewedCaptureSeedsOneEditableScopedAgentQuestion() {
+        let seed = AgentSessionSeed.reviewedCapture(
+            personID: "person-1",
+            relationshipContextID: "context-1"
+        )
+
+        XCTAssertEqual(seed.personID, "person-1")
+        XCTAssertEqual(seed.relationshipContextID, "context-1")
+        XCTAssertEqual(
+            seed.suggestedObjective,
+            "What changed in this relationship, and what is the smallest safe next step?"
+        )
+    }
+
     func testStoredLanguageFallsBackToSystemForUnknownValues() {
         XCTAssertEqual(AppLanguage.stored(nil), .system)
         XCTAssertEqual(AppLanguage.stored("fr"), .system)
@@ -1088,6 +1102,16 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertTrue(
             TalentSignalRootRoute.opensReviewWorkbench(
                 arguments: ["TalentSignal", "--scenario", "relationship-capture"]
+            )
+        )
+        XCTAssertFalse(
+            TalentSignalRootRoute.opensReviewWorkbench(
+                arguments: [
+                    "TalentSignal",
+                    "--scenario", "relationship-capture-archive",
+                    "--backend-url", "http://127.0.0.1:4317",
+                    "--workspace-backend-url", "http://127.0.0.1:4317",
+                ]
             )
         )
     }

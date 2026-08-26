@@ -17,6 +17,8 @@
     "dev": "pnpm --filter @talent-signal/web dev",
     "build": "pnpm --filter @talent-signal/web build",
     "docs:check": "node scripts/check-docs.mjs && node scripts/wiki.mjs check && pnpm architecture:check",
+    "env:sync-agent": "node scripts/sync-local-agent-env.mjs",
+    "env:sync-agent:test": "node --test scripts/sync-local-agent-env.test.mjs",
     "eval:core": "node scripts/evals/validate-candidate-momentum.mjs",
     "eval:v1-p0": "node scripts/evals/validate-v1-p0-journeys.mjs",
     "eval:ios-full": "node scripts/evals/capture-ios-full-suite.mjs",
@@ -34,6 +36,6 @@
     "wiki:build": "node scripts/wiki.mjs build",
     "wiki:check": "node scripts/wiki.mjs check",
     "wiki:test": "node --test scripts/wiki.test.mjs",
-    "check": "pnpm brand:check && pnpm docs:check && pnpm agent:check && pnpm lint && pnpm typecheck && pnpm test && ./apps/backend/scripts/ci.sh && pnpm build"
+    "check": "pnpm brand:check && pnpm env:sync-agent:test && pnpm docs:check && pnpm agent:check && pnpm lint && pnpm typecheck && pnpm test && ./apps/backend/scripts/ci.sh && pnpm build"
   }
 }
