@@ -68,6 +68,7 @@ struct StandaloneOnboardingView: View {
                         .padding(.top, 24)
                         .padding(.bottom, 40)
                 }
+                .id(store.state.route)
                 .scrollDismissesKeyboard(.interactively)
             }
         }
@@ -528,6 +529,14 @@ struct StandaloneOnboardingView: View {
 
     private var textCapture: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text(localized(
+                store.state.captureDraft?.sharedPayloadKind == nil
+                    ? "SIGNAL · EDITABLE"
+                    : "WORKING SIGNAL · EDITABLE"
+            ))
+            .font(.caption.weight(.bold))
+            .tracking(1)
+            .foregroundStyle(Color.tsMutedInk)
             TextEditor(
                 text: Binding(
                     get: { store.state.captureDraft?.text ?? "" },
@@ -627,10 +636,22 @@ struct StandaloneOnboardingView: View {
                 demoBadge(proposal.engineLabel.uppercased())
                 reviewSection("SOURCE", icon: "quote.opening") {
                     Text(proposal.sourceSummary).font(.headline)
-                    Text(store.state.captureDraft?.text ?? "")
-                        .font(.body)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .textSelection(.enabled)
+                    if store.state.captureDraft?.sharedPayloadKind == nil {
+                        Text(store.state.captureDraft?.text ?? "")
+                            .font(.body)
+                            .foregroundStyle(Color.tsMutedInk)
+                            .textSelection(.enabled)
+                    } else {
+                        sharedProvenanceDetails
+                        if let workingSignal = store.state.captureDraft?.text,
+                           !workingSignal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            provenanceText(
+                                label: "WORKING SIGNAL USED FOR PROPOSAL",
+                                value: workingSignal,
+                                icon: "doc.text.magnifyingglass"
+                            )
+                        }
+                    }
                 }
                 reviewSection("MATCHED PURSUIT", icon: "scope") {
                     Text(store.state.pursuit?.outcome ?? "Unknown Pursuit").font(.headline)
@@ -745,13 +766,13 @@ struct StandaloneOnboardingView: View {
     }
 
     private var today: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: sizeCategory.isAccessibilityCategory ? 16 : 22) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(localized("Today"))
-                        .font(sizeCategory.isAccessibilityCategory ? .title.bold() : .largeTitle.bold())
+                        .font(sizeCategory.isAccessibilityCategory ? .title2.bold() : .largeTitle.bold())
                     Text(localized("One supported move, with its evidence still attached."))
-                        .font(sizeCategory.isAccessibilityCategory ? .subheadline : .body)
+                        .font(sizeCategory.isAccessibilityCategory ? .footnote : .body)
                         .foregroundStyle(Color.tsMutedInk)
                 }
                 Spacer()
@@ -763,8 +784,39 @@ struct StandaloneOnboardingView: View {
                 .accessibilityLabel(localized("Settings"))
             }
             if let pursuit = store.state.pursuit, let progress = store.state.progress {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text(pursuit.outcome).font(.title2.bold())
+                VStack(alignment: .leading, spacing: sizeCategory.isAccessibilityCategory ? 14 : 18) {
+                    Text(pursuit.outcome)
+                        .font(sizeCategory.isAccessibilityCategory ? .headline.bold() : .title2.bold())
+                        .accessibilityIdentifier("standalone-today-primary-card")
+                    Button { todayDetail = .source } label: {
+                        HStack(alignment: sizeCategory.isAccessibilityCategory ? .center : .top, spacing: 12) {
+                            Image(systemName: "quote.opening")
+                                .frame(width: 26)
+                                .foregroundStyle(Color.tsConfirmed)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(localized(sizeCategory.isAccessibilityCategory ? "SOURCE" : "SOURCE EVIDENCE"))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.tsMutedInk)
+                                Text(todaySourceEvidenceTitle(for: progress))
+                                    .font(.body.weight(.semibold))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                            if !sizeCategory.isAccessibilityCategory {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.tsMutedInk)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .buttonStyle(.plain)
+                    .dynamicTypeSize(.xSmall ... .accessibility1)
+                    .accessibilityLabel(localized("Source evidence, \(progress.sourceSummary)"))
+                    .accessibilityHint(localized("Opens the retained source"))
+                    .accessibilityIdentifier("standalone-today-evidence-link")
                     ForEach(progress.confirmedFacts.prefix(1)) { fact in
                         summaryRow(label: "Verified progress", value: fact.proposedValue, icon: "checkmark.seal")
                     }
@@ -774,13 +826,8 @@ struct StandaloneOnboardingView: View {
                     if let action = progress.acceptedActions.first ?? store.state.proposal?.nextActions.first {
                         summaryRow(label: "Next action", value: action.title, icon: "arrow.right.circle")
                     }
-                    Text(localized("PROVENANCE")).font(.caption.weight(.bold)).tracking(1)
-                    Text(progress.sourceSummary)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.tsMutedInk)
                 }
                 .tsCard()
-                .accessibilityIdentifier("standalone-today-primary-card")
                 LazyVGrid(
                     columns: Array(
                         repeating: GridItem(.flexible(), spacing: 10),
@@ -837,7 +884,12 @@ struct StandaloneOnboardingView: View {
                         Text(localized("Activation: \(store.state.activationStatus.rawValue)"))
                     case .source:
                         pageTitle(store.state.progress?.sourceSummary ?? "Source", eyebrow: "SOURCE")
-                        Text(store.state.selectedMeeting?.isDemo == true ? "Demo Meeting" : "User-selected source")
+                        if store.state.captureDraft?.sharedPayloadKind == nil {
+                            Text(store.state.selectedMeeting?.isDemo == true ? "Demo Meeting" : "User-selected source")
+                        } else {
+                            sharedProvenanceDetails
+                            sharedImagePreview
+                        }
                     case .signal:
                         pageTitle("Captured Signal", eyebrow: "SIGNAL")
                         Text(store.state.captureDraft?.text ?? "Unavailable").textSelection(.enabled)
@@ -883,6 +935,18 @@ struct StandaloneOnboardingView: View {
         }
     }
 
+    private func todaySourceEvidenceTitle(for progress: StandaloneVerifiedProgress) -> String {
+        guard sizeCategory.isAccessibilityCategory else {
+            return progress.sourceSummary
+        }
+        if let kind = store.state.captureDraft?.sharedPayloadKind {
+            return localized("Shared \(kind.rawValue.capitalized)")
+        }
+        return store.state.selectedMeeting?.isDemo == true
+            ? localized("Demo meeting")
+            : localized("Selected meeting")
+    }
+
     @ViewBuilder
     private var sourceSummary: some View {
         if let kind = store.state.captureDraft?.sharedPayloadKind {
@@ -893,6 +957,7 @@ struct StandaloneOnboardingView: View {
                     title: "Shared \(kind.rawValue.capitalized)",
                     body: "Imported through the App Group inbox · original source retained locally"
                 )
+                sharedProvenanceDetails
                 sharedImagePreview
             }
         } else if let meeting = store.state.selectedMeeting {
@@ -910,6 +975,49 @@ struct StandaloneOnboardingView: View {
                 body: "Draft \(store.state.captureDraft?.id.uuidString.prefix(8) ?? "pending") · saved before permission or processing"
             )
         }
+    }
+
+    @ViewBuilder
+    private var sharedProvenanceDetails: some View {
+        if let sourceText = store.state.captureDraft?.sharedSourceText,
+           !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            provenanceText(
+                label: "SHARED SOURCE TEXT",
+                value: sourceText,
+                icon: "doc.text"
+            )
+        }
+        if let recruiterNote = store.state.captureDraft?.sharedRecruiterNote,
+           !recruiterNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            provenanceText(
+                label: "RECRUITER NOTE",
+                value: recruiterNote,
+                icon: "pencil.line"
+            )
+        }
+        if let sourceURL = store.state.captureDraft?.sharedSourceURL {
+            provenanceText(
+                label: "SHARED URL",
+                value: sourceURL.absoluteString,
+                icon: "link"
+            )
+        }
+    }
+
+    private func provenanceText(label: String, value: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(localized(label), systemImage: icon)
+                .font(.caption.weight(.bold))
+                .tracking(0.8)
+                .foregroundStyle(Color.tsMutedInk)
+            Text(value)
+                .font(.body)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay { RoundedRectangle(cornerRadius: 14).stroke(Color.tsLine) }
     }
 
     private var calendarStatus: some View {

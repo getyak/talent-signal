@@ -97,6 +97,9 @@ struct StandaloneCaptureDraft: Codable, Equatable, Identifiable {
     var sharedEnvelopeID: UUID? = nil
     var sharedPayloadKind: SharedCapturePayloadKind? = nil
     var sharedPayloadFileName: String? = nil
+    var sharedSourceText: String? = nil
+    var sharedRecruiterNote: String? = nil
+    var sharedSourceURL: URL? = nil
     var state: StandaloneCaptureState
     var processingGeneration: Int
     let createdAt: Date
@@ -408,20 +411,17 @@ struct StandaloneOnboardingState: Codable, Equatable {
         _ envelope: SharedCaptureEnvelope,
         now: Date = Date()
     ) -> Bool {
-        guard envelope.schemaVersion == SharedCaptureEnvelope.schemaVersion,
+        guard SharedCaptureEnvelope.supportedSchemaVersions.contains(envelope.schemaVersion),
               !importedSharedEnvelopeIDs.contains(envelope.id),
               let pursuit else { return false }
         let initialText: String
         switch envelope.kind {
         case .image:
-            initialText = envelope.text ?? ""
+            initialText = envelope.recruiterNote ?? ""
         case .text:
-            initialText = envelope.text ?? ""
+            initialText = envelope.sourceText ?? envelope.recruiterNote ?? ""
         case .url:
-            initialText = [envelope.text, envelope.url?.absoluteString]
-                .compactMap { $0 }
-                .filter { !$0.isEmpty }
-                .joined(separator: "\n\n")
+            initialText = envelope.recruiterNote ?? envelope.url?.absoluteString ?? ""
         }
         selectedSource = .text
         selectedMeeting = nil
@@ -439,6 +439,9 @@ struct StandaloneOnboardingState: Codable, Equatable {
             sharedEnvelopeID: envelope.id,
             sharedPayloadKind: envelope.kind,
             sharedPayloadFileName: envelope.payloadFileName,
+            sharedSourceText: envelope.sourceText,
+            sharedRecruiterNote: envelope.recruiterNote,
+            sharedSourceURL: envelope.url,
             state: initialText.isEmpty ? .draftCreated : .readyToProcess,
             processingGeneration: 0,
             createdAt: now
@@ -673,7 +676,10 @@ enum StandaloneDemoProposalCatalog {
         if facts.isEmpty {
             facts.append(.init(
                 id: UUID(), field: "Conversation update", proposedValue: text,
-                evidenceExcerpt: text, confidenceBand: "Recruiter-authored Signal"
+                evidenceExcerpt: text,
+                confidenceBand: draft.sharedSourceText == nil
+                    ? "Recruiter-authored Signal"
+                    : "Shared source text"
             ))
         }
         let hasVisa = lowered.contains("visa")

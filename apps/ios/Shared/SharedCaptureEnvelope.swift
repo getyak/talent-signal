@@ -17,14 +17,16 @@ enum SharedCapturePayloadKind: String, Codable, CaseIterable, Sendable {
 }
 
 struct SharedCaptureEnvelope: Codable, Equatable, Identifiable, Sendable {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
+    static let supportedSchemaVersions: Set<Int> = [1, schemaVersion]
 
     let id: UUID
     let schemaVersion: Int
     let kind: SharedCapturePayloadKind
     let createdAt: Date
     let sourceApplication: String?
-    let text: String?
+    let sourceText: String?
+    let recruiterNote: String?
     let url: URL?
     let payloadFileName: String?
     let mediaType: String?
@@ -34,7 +36,8 @@ struct SharedCaptureEnvelope: Codable, Equatable, Identifiable, Sendable {
         kind: SharedCapturePayloadKind,
         createdAt: Date = Date(),
         sourceApplication: String? = nil,
-        text: String? = nil,
+        sourceText: String? = nil,
+        recruiterNote: String? = nil,
         url: URL? = nil,
         payloadFileName: String? = nil,
         mediaType: String? = nil
@@ -44,10 +47,67 @@ struct SharedCaptureEnvelope: Codable, Equatable, Identifiable, Sendable {
         self.kind = kind
         self.createdAt = createdAt
         self.sourceApplication = sourceApplication
-        self.text = text
+        self.sourceText = sourceText
+        self.recruiterNote = recruiterNote
         self.url = url
         self.payloadFileName = payloadFileName
         self.mediaType = mediaType
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case schemaVersion
+        case kind
+        case createdAt
+        case sourceApplication
+        case sourceText
+        case recruiterNote
+        case legacyText = "text"
+        case url
+        case payloadFileName
+        case mediaType
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        kind = try container.decode(SharedCapturePayloadKind.self, forKey: .kind)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        sourceApplication = try container.decodeIfPresent(String.self, forKey: .sourceApplication)
+        url = try container.decodeIfPresent(URL.self, forKey: .url)
+        payloadFileName = try container.decodeIfPresent(String.self, forKey: .payloadFileName)
+        mediaType = try container.decodeIfPresent(String.self, forKey: .mediaType)
+
+        let legacyText = try container.decodeIfPresent(String.self, forKey: .legacyText)
+        if let explicitSource = try container.decodeIfPresent(String.self, forKey: .sourceText) {
+            sourceText = explicitSource
+        } else if schemaVersion == 1, kind == .text {
+            sourceText = legacyText
+        } else {
+            sourceText = nil
+        }
+        if let explicitNote = try container.decodeIfPresent(String.self, forKey: .recruiterNote) {
+            recruiterNote = explicitNote
+        } else if schemaVersion == 1, kind != .text {
+            recruiterNote = legacyText
+        } else {
+            recruiterNote = nil
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(sourceApplication, forKey: .sourceApplication)
+        try container.encodeIfPresent(sourceText, forKey: .sourceText)
+        try container.encodeIfPresent(recruiterNote, forKey: .recruiterNote)
+        try container.encodeIfPresent(url, forKey: .url)
+        try container.encodeIfPresent(payloadFileName, forKey: .payloadFileName)
+        try container.encodeIfPresent(mediaType, forKey: .mediaType)
     }
 }
 
@@ -80,6 +140,7 @@ struct SharedCaptureInbox {
     @discardableResult
     func appendText(
         _ text: String,
+        note: String? = nil,
         sourceApplication: String? = nil,
         now: Date = Date()
     ) throws -> SharedCaptureEnvelope {
@@ -89,7 +150,8 @@ struct SharedCaptureInbox {
             kind: .text,
             createdAt: now,
             sourceApplication: sourceApplication,
-            text: trimmed
+            sourceText: trimmed,
+            recruiterNote: note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         )
         try append(envelope)
         return envelope
@@ -109,7 +171,7 @@ struct SharedCaptureInbox {
             kind: .url,
             createdAt: now,
             sourceApplication: sourceApplication,
-            text: note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+            recruiterNote: note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
             url: url
         )
         try append(envelope)
@@ -140,7 +202,7 @@ struct SharedCaptureInbox {
             kind: .image,
             createdAt: now,
             sourceApplication: sourceApplication,
-            text: note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+            recruiterNote: note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
             payloadFileName: payloadFileName,
             mediaType: mediaType
         )
@@ -165,7 +227,7 @@ struct SharedCaptureInbox {
                 from: Data(contentsOf: url)
             )
         }
-        .filter { $0.schemaVersion == SharedCaptureEnvelope.schemaVersion }
+        .filter { SharedCaptureEnvelope.supportedSchemaVersions.contains($0.schemaVersion) }
         .sorted {
             if $0.createdAt == $1.createdAt { return $0.id.uuidString < $1.id.uuidString }
             return $0.createdAt < $1.createdAt

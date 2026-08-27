@@ -182,6 +182,30 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertEqual(restored.route, .capture)
     }
 
+    func testFilePersistenceProtectsSensitiveSessionWhileDeviceIsLocked() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let fileURL = directory.appending(path: "session.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = FileStandaloneOnboardingStore(fileURL: fileURL)
+        var state = readyForSourceChoice()
+        XCTAssertTrue(state.chooseSource(.text))
+        state.updateDraftText("Synthetic private Signal")
+
+        try persistence.save(state)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let protection = attributes[.protectionKey] as? FileProtectionType
+#if targetEnvironment(simulator)
+        XCTAssertTrue(
+            protection == nil || protection == .complete,
+            "Simulator filesystems may not expose the device Data Protection class."
+        )
+#else
+        XCTAssertEqual(protection, .complete)
+#endif
+    }
+
     func testRelaunchRecoversInterruptedProcessingWithoutLosingDraft() throws {
         var state = readyForSourceChoice()
         XCTAssertTrue(state.chooseSource(.text))
@@ -323,14 +347,22 @@ final class StandaloneOnboardingTests: XCTestCase {
         )
         let text = try inbox.appendText(
             "Remote preference confirmed.",
+            note: "Recruiter should verify the working location.",
             now: Date(timeIntervalSince1970: 2)
         )
         let url = try inbox.appendURL(
             URL(string: "https://example.com/brief")!,
+            note: "Recruiter-provided context",
             now: Date(timeIntervalSince1970: 3)
         )
 
         XCTAssertEqual(try inbox.pending().map(\.id), [image.id, text.id, url.id])
+        XCTAssertNil(image.sourceText)
+        XCTAssertEqual(image.recruiterNote, "Candidate shared a written update.")
+        XCTAssertEqual(text.sourceText, "Remote preference confirmed.")
+        XCTAssertEqual(text.recruiterNote, "Recruiter should verify the working location.")
+        XCTAssertNil(url.sourceText)
+        XCTAssertEqual(url.recruiterNote, "Recruiter-provided context")
         XCTAssertNotNil(inbox.payloadURL(for: image))
         let temporaryFiles = try FileManager.default.contentsOfDirectory(
             at: directory.appending(path: "Temporary"),
@@ -364,13 +396,18 @@ final class StandaloneOnboardingTests: XCTestCase {
         let envelope = SharedCaptureEnvelope(
             id: UUID(uuidString: "51515151-5151-4515-8515-515151515151")!,
             kind: .text,
-            text: "Remote preference confirmed. Visa status remains unclear."
+            sourceText: "Remote preference confirmed. Visa status remains unclear.",
+            recruiterNote: "Recruiter wants to confirm the work-authorization detail."
         )
 
         XCTAssertTrue(state.importSharedCapture(envelope))
         XCTAssertEqual(state.route, .capture)
         XCTAssertEqual(state.captureDraft?.sharedEnvelopeID, envelope.id)
         XCTAssertEqual(state.captureDraft?.idempotencyKey, envelope.id)
+        XCTAssertEqual(state.captureDraft?.sharedSourceText, envelope.sourceText)
+        XCTAssertEqual(state.captureDraft?.sharedRecruiterNote, envelope.recruiterNote)
+        XCTAssertEqual(state.captureDraft?.text, envelope.sourceText)
+        XCTAssertFalse(state.captureDraft?.text.contains("Recruiter wants") == true)
         XCTAssertFalse(state.importSharedCapture(envelope))
 
         let generation = try XCTUnwrap(state.beginProcessing())
@@ -380,6 +417,39 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertTrue(state.receiveProposal(proposal, generation: generation))
         XCTAssertEqual(state.route, .proposalReview)
         XCTAssertTrue(proposal.sourceSummary.contains("Share Sheet"))
+    }
+
+    func testLegacySharedCapturePreservesTheOnlyRecoverableProvenanceRole() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let legacyText = Data("""
+        {
+          "id": "51515151-5151-4515-8515-515151515152",
+          "schemaVersion": 1,
+          "kind": "text",
+          "createdAt": "1970-01-01T00:00:00Z",
+          "text": "Legacy shared source"
+        }
+        """.utf8)
+        let legacyImage = Data("""
+        {
+          "id": "51515151-5151-4515-8515-515151515153",
+          "schemaVersion": 1,
+          "kind": "image",
+          "createdAt": "1970-01-01T00:00:00Z",
+          "text": "Legacy recruiter note",
+          "payloadFileName": "legacy.png",
+          "mediaType": "image/png"
+        }
+        """.utf8)
+
+        let textEnvelope = try decoder.decode(SharedCaptureEnvelope.self, from: legacyText)
+        let imageEnvelope = try decoder.decode(SharedCaptureEnvelope.self, from: legacyImage)
+
+        XCTAssertEqual(textEnvelope.sourceText, "Legacy shared source")
+        XCTAssertNil(textEnvelope.recruiterNote)
+        XCTAssertNil(imageEnvelope.sourceText)
+        XCTAssertEqual(imageEnvelope.recruiterNote, "Legacy recruiter note")
     }
 
     func testLiveActivityStopRequestIsDraftScopedAndConsumedOnce() throws {

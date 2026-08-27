@@ -81,11 +81,7 @@ final class ShareViewController: SLComposeServiceViewController {
             return
         }
         let sharedText = try await provider.loadText()
-        let combined = [sharedText, note]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n\n")
-        _ = try inbox.appendText(combined)
+        _ = try inbox.appendText(sharedText, note: note)
     }
 }
 

@@ -9,6 +9,7 @@ final class StandaloneOnboardingUITests: XCTestCase {
             "--standalone-demo",
             "--demo-proposal-engine",
             "--simulate-action-button",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
         app.launch()
 
@@ -38,8 +39,21 @@ final class StandaloneOnboardingUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["Hire a VP of Engineering"].exists)
+        let evidenceLink = app.buttons["standalone-today-evidence-link"]
+        XCTAssertTrue(evidenceLink.waitForExistence(timeout: 5))
+        XCTAssertTrue(evidenceLink.isHittable, "Source evidence should be reachable in the initial Today viewport")
+        XCTAssertGreaterThanOrEqual(evidenceLink.frame.minY, app.frame.minY)
+        XCTAssertLessThanOrEqual(
+            evidenceLink.frame.maxY,
+            app.frame.maxY,
+            "Source evidence should be fully visible without inheriting the prior route's scroll offset"
+        )
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Remote preferred'")).firstMatch.exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'visa'")).firstMatch.exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Standalone Today with source evidence"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 
     @MainActor
