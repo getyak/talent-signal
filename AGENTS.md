@@ -24,6 +24,18 @@ work through [`REVIEW.md`](REVIEW.md).
 - Rank work attention, never a person's worth, personality, protected traits,
   culture fit, or acceptance probability.
 
+## Code Review Rules
+
+- Flag any path that promotes interpretation to confirmed state, ranks a
+  person, or triggers an external action without message-level evidence,
+  provenance, and explicit human authorization.
+- Flag any candidate-data path that broadens collection, retention, model
+  exposure, or logging beyond the stated purpose, especially when raw
+  conversations or screenshots can escape their authorized boundary.
+- Flag state transitions, retries, merges, or deletion flows that can lose
+  identity, time, idempotency, reversibility, or the evidence required to audit
+  the resulting state.
+
 ## Work to proof
 
 1. Define one outcome, its boundary, and observable completion evidence.
