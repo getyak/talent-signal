@@ -135,6 +135,7 @@ struct SharedCaptureInbox {
             throw SharedCaptureInboxError.appGroupUnavailable
         }
         try prepareDirectories()
+        try recoverPendingDeletions()
         try recoverPendingTransactions()
     }
 
@@ -181,6 +182,7 @@ struct SharedCaptureInbox {
 
     @discardableResult
     func appendImage(
+        id: UUID = UUID(),
         data: Data,
         fileExtension: String,
         mediaType: String,
@@ -190,7 +192,6 @@ struct SharedCaptureInbox {
         now: Date = Date()
     ) throws -> SharedCaptureEnvelope {
         guard !data.isEmpty else { throw SharedCaptureInboxError.emptyPayload }
-        let id = UUID()
         let safeExtension = fileExtension
             .lowercased()
             .filter { $0.isLetter || $0.isNumber }
@@ -259,6 +260,22 @@ struct SharedCaptureInbox {
         }
     }
 
+    func envelope(id: UUID) throws -> SharedCaptureEnvelope? {
+        for directory in [inboxDirectory, importedDirectory] {
+            let url = envelopeURL(for: id, in: directory)
+            guard fileManager.fileExists(atPath: url.path) else { continue }
+            let envelope = try Self.decoder.decode(
+                SharedCaptureEnvelope.self,
+                from: Data(contentsOf: url)
+            )
+            guard SharedCaptureEnvelope.supportedSchemaVersions.contains(envelope.schemaVersion) else {
+                throw SharedCaptureInboxError.unsupportedSchema(envelope.schemaVersion)
+            }
+            return envelope
+        }
+        return nil
+    }
+
     func markImported(_ id: UUID) throws {
         let source = envelopeURL(for: id, in: inboxDirectory)
         guard fileManager.fileExists(atPath: source.path) else { return }
@@ -268,6 +285,86 @@ struct SharedCaptureInbox {
         } else {
             try fileManager.moveItem(at: source, to: destination)
         }
+    }
+
+    func stageDeletion(_ id: UUID) throws -> SharedCaptureDeletionTransaction {
+        guard let envelope = try envelope(id: id) else {
+            throw SharedCaptureInboxError.captureNotFound(id)
+        }
+        let directoryName = id.uuidString.lowercased()
+        let transactionDirectory = deletingDirectory.appending(
+            path: directoryName,
+            directoryHint: .isDirectory
+        )
+        if fileManager.fileExists(atPath: transactionDirectory.path) {
+            try recoverDeletion(at: transactionDirectory)
+        }
+        try fileManager.createDirectory(
+            at: transactionDirectory,
+            withIntermediateDirectories: false,
+            attributes: [.protectionKey: FileProtectionType.complete]
+        )
+        var sourcePaths = [
+            "Inbox/\(id.uuidString.lowercased()).json",
+            "Imported/\(id.uuidString.lowercased()).json",
+            "Temporary/\(id.uuidString.lowercased()).json.tmp",
+        ]
+        if let payloadFileName = envelope.payloadFileName {
+            sourcePaths.append("Payloads/\(payloadFileName)")
+            sourcePaths.append("Temporary/\(payloadFileName).tmp")
+        }
+        let moves = sourcePaths.enumerated().compactMap { index, relativePath -> DeletionMove? in
+            let source = rootURL.appending(path: relativePath)
+            guard fileManager.fileExists(atPath: source.path) else { return nil }
+            return DeletionMove(
+                sourceRelativePath: relativePath,
+                stagedFileName: "\(index)-\(source.lastPathComponent)"
+            )
+        }
+        guard !moves.isEmpty else {
+            try fileManager.removeItem(at: transactionDirectory)
+            throw SharedCaptureInboxError.captureNotFound(id)
+        }
+        let manifest = DeletionManifest(id: id, moves: moves)
+        let manifestURL = transactionDirectory.appending(path: "manifest.json")
+        do {
+            try Self.encoder.encode(manifest).write(
+                to: manifestURL,
+                options: [.atomic, .completeFileProtection]
+            )
+            for move in moves {
+                try fileManager.moveItem(
+                    at: rootURL.appending(path: move.sourceRelativePath),
+                    to: transactionDirectory.appending(path: move.stagedFileName)
+                )
+            }
+        } catch {
+            try? recoverDeletion(at: transactionDirectory)
+            throw error
+        }
+        return SharedCaptureDeletionTransaction(id: id, directoryName: directoryName)
+    }
+
+    func commitDeletion(_ transaction: SharedCaptureDeletionTransaction) throws {
+        let directory = deletingDirectory.appending(
+            path: transaction.directoryName,
+            directoryHint: .isDirectory
+        )
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        try Data().write(
+            to: directory.appending(path: "committed"),
+            options: [.atomic, .completeFileProtection]
+        )
+        try fileManager.removeItem(at: directory)
+    }
+
+    func rollbackDeletion(_ transaction: SharedCaptureDeletionTransaction) throws {
+        try recoverDeletion(
+            at: deletingDirectory.appending(
+                path: transaction.directoryName,
+                directoryHint: .isDirectory
+            )
+        )
     }
 
     func reset() throws {
@@ -302,13 +399,62 @@ struct SharedCaptureInbox {
     }
 
     private func prepareDirectories() throws {
-        for directory in [rootURL, inboxDirectory, importedDirectory, payloadsDirectory, temporaryDirectory] {
+        for directory in [
+            rootURL,
+            inboxDirectory,
+            importedDirectory,
+            payloadsDirectory,
+            temporaryDirectory,
+            deletingDirectory,
+        ] {
             try fileManager.createDirectory(
                 at: directory,
                 withIntermediateDirectories: true,
                 attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
             )
         }
+    }
+
+    private func recoverPendingDeletions() throws {
+        for directory in try fileManager.contentsOfDirectory(
+            at: deletingDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        ) where (try? directory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            if fileManager.fileExists(atPath: directory.appending(path: "committed").path) {
+                try fileManager.removeItem(at: directory)
+            } else {
+                try recoverDeletion(at: directory)
+            }
+        }
+    }
+
+    private func recoverDeletion(at directory: URL) throws {
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        let manifestURL = directory.appending(path: "manifest.json")
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            if try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ).isEmpty {
+                try fileManager.removeItem(at: directory)
+                return
+            }
+            throw SharedCaptureInboxError.corruptDeletionTransaction(directory.lastPathComponent)
+        }
+        let manifest = try Self.decoder.decode(
+            DeletionManifest.self,
+            from: Data(contentsOf: manifestURL)
+        )
+        for move in manifest.moves.reversed() {
+            let staged = directory.appending(path: move.stagedFileName)
+            guard fileManager.fileExists(atPath: staged.path) else { continue }
+            let source = rootURL.appending(path: move.sourceRelativePath)
+            guard !fileManager.fileExists(atPath: source.path) else {
+                throw SharedCaptureInboxError.deletionRollbackConflict(move.sourceRelativePath)
+            }
+            try fileManager.moveItem(at: staged, to: source)
+        }
+        try fileManager.removeItem(at: directory)
     }
 
     private func recoverPendingTransactions() throws {
@@ -370,6 +516,10 @@ struct SharedCaptureInbox {
         rootURL.appending(path: "Temporary", directoryHint: .isDirectory)
     }
 
+    private var deletingDirectory: URL {
+        rootURL.appending(path: "Deleting", directoryHint: .isDirectory)
+    }
+
     private func envelopeURL(for id: UUID, in directory: URL) -> URL {
         directory.appending(path: "\(id.uuidString.lowercased()).json")
     }
@@ -390,6 +540,21 @@ struct SharedCaptureInbox {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
+
+    private struct DeletionManifest: Codable {
+        let id: UUID
+        let moves: [DeletionMove]
+    }
+
+    private struct DeletionMove: Codable {
+        let sourceRelativePath: String
+        let stagedFileName: String
+    }
+}
+
+struct SharedCaptureDeletionTransaction {
+    let id: UUID
+    fileprivate let directoryName: String
 }
 
 private extension String {
@@ -405,6 +570,9 @@ enum SharedCaptureInboxError: LocalizedError {
     case incompleteTransaction(UUID)
     case emptyPayload
     case unsupportedURL
+    case captureNotFound(UUID)
+    case corruptDeletionTransaction(String)
+    case deletionRollbackConflict(String)
 
     var errorDescription: String? {
         switch self {
@@ -424,6 +592,12 @@ enum SharedCaptureInboxError: LocalizedError {
             return "The shared item is empty."
         case .unsupportedURL:
             return "Only http and https links can be shared."
+        case let .captureNotFound(id):
+            return "Shared capture \(id.uuidString) was not found. Nothing was deleted."
+        case let .corruptDeletionTransaction(name):
+            return "Shared capture deletion \(name) cannot be verified. The staged files were retained."
+        case let .deletionRollbackConflict(path):
+            return "Shared capture deletion could not roll back because \(path) already exists. Both copies were retained for recovery."
         }
     }
 }

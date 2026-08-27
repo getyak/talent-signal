@@ -62,6 +62,12 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
         return false
     }
 
+    func reconcileOrphanedLiveActivities() async {
+        if isRecording { return }
+        if case .transcribing = phase { return }
+        await activityCoordinator.reconcileOrphans()
+    }
+
     func start(draftID: UUID, authorizationConfirmed: Bool) async {
         guard !isRecording else { return }
         guard authorizationConfirmed else {

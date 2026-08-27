@@ -1,6 +1,36 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Available now: Share Extension · Later: Contacts · Gmail" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "现在可用：分享扩展 · 稍后提供：通讯录 · Gmail" } } }
+    },
+    "Choose a calendar to begin" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一个日历以开始" } } }
+    },
+    "Delete Imported Source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除已导入来源" } } }
+    },
+    "Delete Source and Derived State" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除来源及其派生状态" } } }
+    },
+    "Delete imported source?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除已导入的来源？" } } }
+    },
+    "No events have been read. Select only the calendar needed for this Pursuit, or continue with a Demo Meeting, Voice, or Text." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未读取任何日程。仅选择此 Pursuit 所需的日历，或使用演示会议、语音或文本继续。" } } }
+    },
+    "Process On Device" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在设备端处理" } } }
+    },
+    "Review Without AI" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不使用 AI 审阅" } } }
+    },
+    "The Source and Draft are already saved locally. Either route creates a Proposal, not a fact; the manual route copies your exact Signal without model interpretation." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源和草稿已在本地保存。任一路径都只会创建 Proposal，不会直接成为事实；手动路径会原样复制你的 Signal，不进行模型解读。" } } }
+    },
+    "This removes the retained Share or Shortcut item and the local Draft, Proposal, and verified progress derived from it. It does not delete the original item from the source app." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会删除保留的分享或快捷指令项目，以及由其派生的本地草稿、Proposal 和已验证进展。不会删除来源 App 中的原始项目。" } } }
+    },
     "Allow Calendar Access" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "允许访问日历" } } }
     },

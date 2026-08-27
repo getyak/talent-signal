@@ -430,6 +430,25 @@ for ios_ui_test in "${ios_ui_tests[@]}"; do
   run_ios_test_part "$ios_ui_test" "${ios_ui_test##*/}"
 done
 
+ruby -rjson -e '
+  totals = {"total" => 0, "passed" => 0, "failed" => 0, "skipped" => 0}
+  ARGV.each do |path|
+    summary = JSON.parse(
+      IO.popen(
+        ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", path, "--format", "json"],
+        &:read
+      )
+    )
+    totals["total"] += summary.fetch("totalTestCount", 0)
+    totals["passed"] += summary.fetch("passedTests", 0)
+    totals["failed"] += summary.fetch("failedTests", 0)
+    totals["skipped"] += summary.fetch("skippedTests", 0)
+  end
+  puts "Isolated iOS UI evidence: total=#{totals.fetch("total")} " \
+    "passed=#{totals.fetch("passed")} failed=#{totals.fetch("failed")} " \
+    "skipped=#{totals.fetch("skipped")}"
+' "${ios_result_parts[@]:1}"
+
 if [ -n "${RESULT_BUNDLE_PATH:-}" ]; then
   if [ "${#ios_result_parts[@]}" -lt 2 ]; then
     echo "Not enough result bundle parts were produced to merge." >&2

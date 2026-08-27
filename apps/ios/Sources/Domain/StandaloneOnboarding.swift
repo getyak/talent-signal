@@ -576,6 +576,25 @@ struct StandaloneOnboardingState: Codable, Equatable {
         lastRecoverableError = "The Proposal was discarded. Your local Signal draft is still available."
     }
 
+    @discardableResult
+    mutating func discardImportedCapture(_ envelopeID: UUID) -> Bool {
+        guard captureDraft?.sharedEnvelopeID == envelopeID else { return false }
+        importedSharedEnvelopeIDs.remove(envelopeID)
+        selectedSource = nil
+        selectedMeeting = nil
+        captureDraft = nil
+        proposal = nil
+        selectedFactIDs = []
+        acceptedActionIDs = []
+        progress = nil
+        activationStatus = .notStarted
+        actionPracticeState = .notOffered
+        introCompleted = false
+        route = pursuit == nil ? .pursuit : .sourceChoice
+        lastRecoverableError = nil
+        return true
+    }
+
     mutating func showLatestProposal() {
         guard proposal != nil else { return }
         route = .proposalReview

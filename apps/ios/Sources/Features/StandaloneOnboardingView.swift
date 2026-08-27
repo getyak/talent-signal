@@ -20,6 +20,7 @@ struct StandaloneOnboardingView: View {
     @StateObject private var store: StandaloneOnboardingStore
     @StateObject private var calendarService = StandaloneCalendarService()
     @StateObject private var voiceService = StandaloneVoiceCaptureService()
+    @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @ObservedObject private var intentRouter = CaptureIntentRouter.shared
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -35,6 +36,7 @@ struct StandaloneOnboardingView: View {
     @State private var captureAuthorized = false
     @State private var todayDetail: TodayDetail?
     @State private var showsSettings = false
+    @State private var showsDeleteImportedSourceConfirmation = false
     @State private var sharedCaptureNotice: String?
 
     private let forceDemoEngine: Bool
@@ -107,6 +109,9 @@ struct StandaloneOnboardingView: View {
                 captureMode = .text
             }
         }
+        .onChange(of: captureHandoff.pendingSeed?.id) { _ in
+            Task { await importPendingIntentCapture() }
+        }
         .onChange(of: voiceService.elapsedSeconds) { _ in
             consumeLiveActivityStopRequestIfNeeded()
         }
@@ -144,13 +149,19 @@ struct StandaloneOnboardingView: View {
             if phase == .active {
                 importNextSharedCapture()
                 consumeLiveActivityStopRequestIfNeeded()
-                Task { await calendarService.refresh() }
+                Task {
+                    await voiceService.reconcileOrphanedLiveActivities()
+                    await calendarService.refresh()
+                }
             } else if phase != .active, voiceService.isRecording {
                 voiceService.stopForInterruption()
             }
         }
         .task {
             importNextSharedCapture()
+            await CaptureHandoffStore.shared.restorePendingCapture()
+            await importPendingIntentCapture()
+            await voiceService.reconcileOrphanedLiveActivities()
             calendarService.restoreSelection(Set(store.state.selectedCalendarIDs))
             await calendarService.refresh()
             if let initialURL { handleDeepLink(initialURL) }
@@ -160,6 +171,21 @@ struct StandaloneOnboardingView: View {
         }
         .sheet(isPresented: $showsSettings) {
             standaloneSettings
+        }
+        .alert(
+            localized("Delete imported source?"),
+            isPresented: $showsDeleteImportedSourceConfirmation
+        ) {
+            Button(localized("Cancel"), role: .cancel) {}
+            Button(localized("Delete Source and Derived State"), role: .destructive) {
+                do {
+                    store.deleteImportedCapture(using: try SharedCaptureInbox())
+                } catch {
+                    sharedCaptureNotice = "The imported source was not deleted: \(error.localizedDescription)"
+                }
+            }
+        } message: {
+            Text(localized("This removes the retained Share or Shortcut item and the local Draft, Proposal, and verified progress derived from it. It does not delete the original item from the source app."))
         }
         .onOpenURL { url in
             handleDeepLink(url)
@@ -384,7 +410,7 @@ struct StandaloneOnboardingView: View {
                 captureMode = .text
                 store.chooseSource(.text)
             }
-            Text(localized("Later: Share Extension · Contacts · Gmail"))
+            Text(localized("Available now: Share Extension · Later: Contacts · Gmail"))
                 .font(.footnote)
                 .foregroundStyle(Color.tsMutedInk)
         }
@@ -478,6 +504,11 @@ struct StandaloneOnboardingView: View {
             }
             if calendarService.isLoading {
                 ProgressView("Reading the bounded Calendar window…")
+            } else if calendarService.selectedCalendarIDs.isEmpty {
+                emptyState(
+                    title: localized("Choose a calendar to begin"),
+                    body: localized("No events have been read. Select only the calendar needed for this Pursuit, or continue with a Demo Meeting, Voice, or Text.")
+                )
             } else if calendarService.meetings.isEmpty {
                 emptyState(
                     title: "No meeting needs choosing",
@@ -516,7 +547,7 @@ struct StandaloneOnboardingView: View {
             .disabled(voiceService.isRecording)
             if captureMode == .voice { voiceCapture } else { textCapture }
             notice
-            Button(localized("Process This Signal")) {
+            Button(localized("Process On Device")) {
                 Task {
                     await store.process(
                         using: AdaptiveStandaloneProposalEngine(forceDemo: forceDemoEngine)
@@ -531,7 +562,20 @@ struct StandaloneOnboardingView: View {
                         .isEmpty != false
             )
             .accessibilityIdentifier("standalone-process-signal")
-            Text(localized("The Source and Draft are already saved locally. Processing creates a Proposal, not a fact."))
+            Button(localized("Review Without AI")) {
+                Task {
+                    await store.process(using: ManualStandaloneProposalEngine())
+                }
+            }
+            .buttonStyle(TSSecondaryButtonStyle())
+            .disabled(
+                voiceService.isRecording
+                    || store.state.captureDraft?.text
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty != false
+            )
+            .accessibilityIdentifier("standalone-review-without-ai")
+            Text(localized("The Source and Draft are already saved locally. Either route creates a Proposal, not a fact; the manual route copies your exact Signal without model interpretation."))
                 .font(.footnote)
                 .foregroundStyle(Color.tsMutedInk)
         }
@@ -882,6 +926,12 @@ struct StandaloneOnboardingView: View {
                         store.resetDemoData()
                         showsSettings = false
                     }
+                    if store.state.captureDraft?.sharedEnvelopeID != nil {
+                        Button(localized("Delete Imported Source"), role: .destructive) {
+                            showsSettings = false
+                            showsDeleteImportedSourceConfirmation = true
+                        }
+                    }
                 }
                 Section("Boundary") {
                     Text(localized("Reset removes only standalone local onboarding records. It does not change Calendar permissions or user events."))
@@ -1108,6 +1158,29 @@ struct StandaloneOnboardingView: View {
             sharedCaptureNotice = nil
         } catch {
             sharedCaptureNotice = "A shared item is still safely queued and will retry: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func importPendingIntentCapture() async {
+        guard let seed = captureHandoff.pendingSeed else { return }
+        guard store.state.pursuit != nil else {
+            sharedCaptureNotice = "A Shortcut screenshot is safely queued. Create a Pursuit before importing it."
+            return
+        }
+        do {
+            let inbox = try SharedCaptureInbox()
+            let envelope = try StandaloneShortcutCaptureBridge.stage(seed, in: inbox)
+            if !store.state.importedSharedEnvelopeIDs.contains(envelope.id) {
+                guard store.importSharedCapture(envelope) else { return }
+            }
+            try inbox.markImported(envelope.id)
+            try await PendingCaptureInbox.shared.remove(id: seed.id)
+            await captureHandoff.advanceToNextCapture()
+            captureHandoff.resume()
+            sharedCaptureNotice = nil
+        } catch {
+            sharedCaptureNotice = "The Shortcut screenshot remains queued and will retry: \(error.localizedDescription)"
         }
     }
 

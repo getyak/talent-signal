@@ -77,6 +77,40 @@ final class StandaloneOnboardingUITests: XCTestCase {
     }
 
     @MainActor
+    func testStandaloneArbitraryTextCompletesThroughManualNoModelReview() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--standalone-onboarding-reset",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        tap("standalone-demo-user", in: app)
+        tap("standalone-create-pursuit", in: app)
+        tap("standalone-finish-demo", in: app)
+        tap("standalone-source-type-a-signal", in: app)
+        let signal = app.textViews["standalone-signal-text"]
+        XCTAssertTrue(signal.waitForExistence(timeout: 5))
+        signal.tap()
+        signal.typeText("Candidate requested a four-day week; compensation remains unresolved.")
+        app.swipeUp()
+        app.swipeUp()
+        tap("standalone-review-without-ai", in: app)
+
+        XCTAssertTrue(app.staticTexts["MANUAL STRUCTURE · NO MODEL"].waitForExistence(timeout: 8))
+        let factToggle = app.switches["Confirm this sourced change"].firstMatch
+        if !factToggle.waitForExistence(timeout: 2) { app.swipeUp() }
+        XCTAssertTrue(factToggle.waitForExistence(timeout: 5))
+        factToggle.tap()
+        tap("standalone-confirm-proposal", in: app)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["standalone-offer-action-button"]
+                .waitForExistence(timeout: 5)
+        )
+    }
+
+    @MainActor
     private func tap(_ identifier: String, in app: XCUIApplication) {
         let element = app.descendants(matching: .any)[identifier]
         XCTAssertTrue(element.waitForExistence(timeout: 5), "Missing \(identifier)")

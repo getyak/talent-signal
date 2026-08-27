@@ -98,9 +98,11 @@ final class StandaloneCalendarService: ObservableObject {
         let selected = eventCalendars.filter { selectedCalendarIDs.contains($0.calendarIdentifier) }
         guard !selected.isEmpty else {
             meetings = []
-            permission = .connectedEmpty
+            permission = .fullAccess
+            notice = "Choose at least one calendar. No events have been read yet."
             return
         }
+        notice = nil
         let interval = window.interval(now: now)
         let predicate = eventStore.predicateForEvents(
             withStart: interval.start,

@@ -41,6 +41,37 @@ struct DeterministicStandaloneProposalEngine: StandaloneProposalGenerating {
     }
 }
 
+protocol StandaloneDemoDataResetting {
+    func resetAncillaryDemoData() throws
+}
+
+struct LocalStandaloneDemoDataResetter: StandaloneDemoDataResetting {
+    func resetAncillaryDemoData() throws {
+#if DEBUG
+        try LiveActivityStopRequestBridge.reset()
+#endif
+    }
+}
+
+enum StandaloneShortcutCaptureBridge {
+    static func stage(
+        _ seed: PendingCaptureSeed,
+        in inbox: SharedCaptureInbox
+    ) throws -> SharedCaptureEnvelope {
+        if let existing = try inbox.envelope(id: seed.id) {
+            return existing
+        }
+        return try inbox.appendImage(
+            id: seed.id,
+            data: seed.imageData,
+            fileExtension: URL(fileURLWithPath: seed.fileName).pathExtension,
+            mediaType: seed.mediaType,
+            sourceApplication: seed.origin.label,
+            now: seed.createdAt
+        )
+    }
+}
+
 @MainActor
 final class StandaloneOnboardingStore: ObservableObject {
     @Published private(set) var state: StandaloneOnboardingState
@@ -48,15 +79,27 @@ final class StandaloneOnboardingStore: ObservableObject {
 
     private let persistence: StandaloneOnboardingPersisting
     private let accountClient: StandaloneAccountClient
+    private let demoDataResetter: StandaloneDemoDataResetting
 
     init(
         persistence: StandaloneOnboardingPersisting = FileStandaloneOnboardingStore(),
         accountClient: StandaloneAccountClient = LocalStandaloneAccountClient(),
+        demoDataResetter: StandaloneDemoDataResetting = LocalStandaloneDemoDataResetter(),
         reset: Bool = false
     ) {
         self.persistence = persistence
         self.accountClient = accountClient
-        if reset { try? persistence.reset() }
+        self.demoDataResetter = demoDataResetter
+        if reset {
+            do {
+                try persistence.reset()
+                state = .fresh()
+            } catch {
+                state = .fresh()
+                persistenceNotice = "The requested clean launch could not remove the previous local session. Prior evidence is hidden; retry Reset before using this device: \(error.localizedDescription)"
+            }
+            return
+        }
         do {
             if var restored = try persistence.load(),
                restored.version == StandaloneOnboardingState.flowVersion {
@@ -192,6 +235,33 @@ final class StandaloneOnboardingStore: ObservableObject {
         mutate { $0.discardProposal() }
     }
 
+    func deleteImportedCapture(using inbox: SharedCaptureInbox) {
+        guard let envelopeID = state.captureDraft?.sharedEnvelopeID else { return }
+        do {
+            let transaction = try inbox.stageDeletion(envelopeID)
+            var next = state
+            guard next.discardImportedCapture(envelopeID) else {
+                try inbox.rollbackDeletion(transaction)
+                return
+            }
+            if commit(next) {
+                do {
+                    try inbox.commitDeletion(transaction)
+                } catch {
+                    persistenceNotice = "The imported source is no longer referenced and its protected deletion is queued for recovery: \(error.localizedDescription)"
+                }
+            } else {
+                do {
+                    try inbox.rollbackDeletion(transaction)
+                } catch {
+                    persistenceNotice = "The session change was not saved and the imported source deletion could not roll back cleanly: \(error.localizedDescription)"
+                }
+            }
+        } catch {
+            persistenceNotice = "The imported source was not deleted: \(error.localizedDescription)"
+        }
+    }
+
     func showLatestProposal() {
         mutate { $0.showLatestProposal() }
     }
@@ -241,18 +311,11 @@ final class StandaloneOnboardingStore: ObservableObject {
             resetErrors.append("local session: \(error.localizedDescription)")
         }
 
-#if DEBUG
         do {
-            try SharedCaptureInbox().reset()
-        } catch {
-            resetErrors.append("shared captures: \(error.localizedDescription)")
-        }
-        do {
-            try LiveActivityStopRequestBridge.reset()
+            try demoDataResetter.resetAncillaryDemoData()
         } catch {
             resetErrors.append("Live Activity requests: \(error.localizedDescription)")
         }
-#endif
 
         guard resetErrors.isEmpty else {
             persistenceNotice = "Demo data could not be fully reset (\(resetErrors.joined(separator: "; "))). Retry before leaving this device."
