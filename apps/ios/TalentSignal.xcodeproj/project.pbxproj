@@ -7,53 +7,71 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0314D8056DFF292BFD22CB4E /* SharedCaptureEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */; };
 		0579CDAB80FE992D88E870AF /* PursuitProposalReviewClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */; };
 		06DFE9BCC7F707007A3A47A3 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 571E43C7E25C147610C6614C /* Localizable.xcstrings */; };
 		0AC9981F2E565E9986EE1040 /* CaptureAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A9FCA23A5C5E97951C4D39 /* CaptureAppIntents.swift */; };
+		0ACF1A298280F98A2E195CEE /* SignalRecordingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D3DFA665A94517E53A0FA4 /* SignalRecordingActivity.swift */; };
 		0D98ADDD6C6472265ADDD384 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F949D7FD6FC90553A6E5BBC /* AppLanguage.swift */; };
 		0F66097E97A12D5433BD6CBE /* PursuitWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */; };
 		11C0F6747910DC2616DB4931 /* DeviceContactHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F92CDD8245AFCCF10A4CFD3 /* DeviceContactHandoffView.swift */; };
 		14CBE52224646433A28484EB /* PendingCaptureInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43E2D32DD9913AC4F6E097A /* PendingCaptureInbox.swift */; };
 		151197801AAA0BD6501466C2 /* ReleaseBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D137439B29C6808B301FD14C /* ReleaseBoundaryTests.swift */; };
 		19879CA4D7C15E17BD4FAAD2 /* RelationshipArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8740830A52A1650A3FF8B41A /* RelationshipArchiveView.swift */; };
+		1E3CA18B2F6F1443CBB61725 /* StandaloneOnboardingPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477706244A63791F58675F88 /* StandaloneOnboardingPersistence.swift */; };
 		1F026D22636BADFB28C6ED7F /* AudioSignalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08F6E4EC1E24E8888C85C5A /* AudioSignalCaptureView.swift */; };
 		21A1875ED3B627C962BFBE51 /* DeviceCalendarProposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F22F52432BB9263F4F8D29 /* DeviceCalendarProposal.swift */; };
 		23D654970274564EA7623632 /* AppSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */; };
 		3030219A987894DFC181C6EE /* CandidateSignalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */; };
 		344B5467E2BD111985A44EA1 /* HeroLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744427491C9864B09CAF13DD /* HeroLoopTests.swift */; };
+		3657B5F1EAB4954E86EA6F04 /* StandaloneVoiceCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E9E39D69232B7E4E068B600 /* StandaloneVoiceCaptureService.swift */; };
 		365E77E8A50219E17D683328 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 314171A5678C6A592D77C852 /* PrivacyInfo.xcprivacy */; };
 		373EC4428F3966B754C33E6F /* PursuitWorkspaceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91833FC9D20274A1A85C004 /* PursuitWorkspaceClient.swift */; };
+		39C0CF02D7A7CEAD47876007 /* StandaloneOnboardingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC6A81331A906C3C93033158 /* StandaloneOnboardingStore.swift */; };
 		3DE4CA95E9E9CF0B692A19B0 /* SignalCaptureHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E68ADCA955185ACDD422B618 /* SignalCaptureHubView.swift */; };
 		401A888C1F4714CCFB39EEB2 /* RelationshipCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FAEBC372E2477E425197A45 /* RelationshipCaptureView.swift */; };
+		4A2648576BDB4F58D214B9B1 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53009CC49DC5605049F9E6A /* ShareViewController.swift */; };
 		4C34F2CBF98A408B15499182 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B1750D9C713D5C7F54F4423 /* Assets.xcassets */; };
+		4EBB98C5EBDCBD205612B067 /* StandaloneOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FA231C87096FBA3A535B8C /* StandaloneOnboarding.swift */; };
+		5163A916AB205784B98D6BEA /* TalentSignalLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB35C452EFE107B189275BF /* TalentSignalLiveActivity.swift */; };
 		59BEBA6B0A3C418442E59C03 /* TextSignalCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF3826B0FFB3CF750AA89BC /* TextSignalCapture.swift */; };
 		5AB53512D99F0073F3911B6E /* CandidateSignalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */; };
+		5AB6B6339FC04C894DCD1E6D /* StandaloneRecordingActivityCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D83870AC6BF272A562706B /* StandaloneRecordingActivityCoordinator.swift */; };
 		5DA957CEE37AF61DFF8F2076 /* AudioSignalCaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86268F86835A658E3431C11B /* AudioSignalCaptureStore.swift */; };
+		61A9FCA9306146EBB8B4D618 /* StandaloneOnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18DB19A9B630FFFC327395CB /* StandaloneOnboardingTests.swift */; };
 		61C6EB2AE6DFAA4CC58A1DEE /* TextSignalOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */; };
+		6301D1E69B8E5C7A596D63B0 /* StandaloneCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C66F4083C1349A570FEBEC26 /* StandaloneCalendarService.swift */; };
 		7014831C5B18487CAD449AEE /* AppSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E964E1942AD295B505F9A3 /* AppSettingsView.swift */; };
 		706A5D1C083A3CDD32642F00 /* PursuitProposalReviewStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78788A89F71A15312E2EC139 /* PursuitProposalReviewStoreTests.swift */; };
 		71C2191A8B9F500124E59F7D /* TalentSignalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C6AFD36C53DCE168525B5F /* TalentSignalApp.swift */; };
 		7230D7E787C6A595BE24845E /* AppSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6D8F6894923DD54E359F8E /* AppSession.swift */; };
 		72B340A984815C3C9D0858BB /* CandidateSignalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */; };
+		74230B00F95395AE5436FA30 /* TalentSignalLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3F004990C36E6DDFE34C78F1 /* TalentSignalLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		78E69431CCB66C1BFA7EFDDF /* RelationshipCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */; };
+		795D834D75384A22249627F7 /* SignalRecordingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D3DFA665A94517E53A0FA4 /* SignalRecordingActivity.swift */; };
 		82F626089258164A29855376 /* RelationshipCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */; };
 		83A4A3CE04DF7FFBCC223E1F /* RelationshipArchiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBD9D5361A32C8957D22B4E /* RelationshipArchiveTests.swift */; };
 		855BD6D5CC0D965D2DB61D81 /* FixtureSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */; };
 		8CBFB9AE9F1F7B22F53A20B7 /* RelationshipCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1B56C282E5480FFC9368B0 /* RelationshipCaptureTests.swift */; };
 		9399BE568B566B35A27873C0 /* AudioSignalRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C7FFDCFE8722F56DF1F6EA /* AudioSignalRecorder.swift */; };
+		979C6931BDD7C417EB1FA9EF /* StandaloneProposalEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA61B70184C18544D0719F83 /* StandaloneProposalEngine.swift */; };
 		9AB40CE436A39B3AE399478A /* TalentSignalBrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8A42CBB4A5B1229D5BCC0D /* TalentSignalBrandMark.swift */; };
 		9BFF4FE9255A2B018D330A10 /* AudioSignalCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */; };
 		9E9FCCE762A1387B509C2685 /* PursuitProposalReviewStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */; };
 		A46CF9C1DC36A0DCA941B5B6 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2796745F45891838868FEA7B /* InfoPlist.xcstrings */; };
 		A4B50D55CF2FD1DB578106DC /* RelationshipArchiveModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D60444BD109DBAA3780F88D /* RelationshipArchiveModels.swift */; };
 		A8C31D8E27A8BB40971F0064 /* TextSignalCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DBD7EB9582B085CB7D1063C /* TextSignalCaptureTests.swift */; };
+		AA99245C7C678EA2D4C35023 /* StandaloneOnboardingUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53BCE51454FF92655D32B728 /* StandaloneOnboardingUITests.swift */; };
+		ACCF73276C146F5561CD23D7 /* SharedCaptureEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */; };
 		AD08E92344FA0B6C172C1F68 /* CandidateSignalComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */; };
+		B3FCB11A82FE832BEF7B6B06 /* StandaloneOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */; };
 		BB3580A3464A58431968556E /* TextSignalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA3B1B8042B74DA1B5D1670 /* TextSignalCaptureView.swift */; };
 		C2CD13773507FE9D6E9311FE /* DeviceCalendarHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382034DC80F815EB41351067 /* DeviceCalendarHandoffView.swift */; };
 		C4F842118E9C6C983BD8F36C /* RelationshipArchiveSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */; };
 		CA175C232670CAEE11B52CC8 /* ConversationTextRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63953A0F31800DC886749C51 /* ConversationTextRecognizer.swift */; };
 		D08C2E84FC404988E0F82AE0 /* PursuitWorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */; };
 		D4A62460F620C32CA5059986 /* RelationshipCaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */; };
+		D631C86A5EED28CC60D37E74 /* SharedCaptureEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */; };
 		DDB0F17C3A014370AA4C8CC1 /* CandidateMomentumLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8806D300F51296BE8C1CECE3 /* CandidateMomentumLoop.swift */; };
 		E5D75A0095F3C32C3AAA9E0D /* CandidateSignalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */; };
 		EA6EA4AEAC8EDD736735E7A8 /* CandidateSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E1DC0CB9D729B8B77463673 /* CandidateSignal.swift */; };
@@ -61,11 +79,26 @@
 		ED720A2BC5113E7BE3DA5AAA /* AppAuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6709D57D3A6344F855B478F /* AppAuthenticationView.swift */; };
 		F29414196CFB77B16AEF2319 /* TextSignalSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11262DED3E38696377856A6 /* TextSignalSyncClient.swift */; };
 		F864B401A294FBA71D6C93C2 /* TextSignalCaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54258A90B16E34F5EE3E5D6E /* TextSignalCaptureStore.swift */; };
+		F99D87ADB719E827B646BECB /* TalentSignalShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C016B1623AC9D14699F323A /* TalentSignalShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FA2154B29466D7C1BF4C6347 /* RelationshipAskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */; };
 		FB785570BB8B32E21F21850E /* AudioSignalCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A9699249B87A87A878D261 /* AudioSignalCapture.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		297DCC9C337C5E2C2DA18AF8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5C7B84FBD86399226040C604 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 76E68CE7B8C33205DD28BB5D;
+			remoteInfo = TalentSignalShare;
+		};
+		5FFA465CCB2D88EDA5FE4CF0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5C7B84FBD86399226040C604 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E24E32EDDA79DA017C952559;
+			remoteInfo = TalentSignalLiveActivity;
+		};
 		B780431B2B9128D1A0EC66C1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 5C7B84FBD86399226040C604 /* Project object */;
@@ -82,6 +115,21 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		DCE80710BF74CF8750665B7B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				74230B00F95395AE5436FA30 /* TalentSignalLiveActivity.appex in Embed Foundation Extensions */,
+				F99D87ADB719E827B646BECB /* TalentSignalShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalCaptureTests.swift; sourceTree = "<group>"; };
 		0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewStore.swift; sourceTree = "<group>"; };
@@ -89,23 +137,32 @@
 		0F92CDD8245AFCCF10A4CFD3 /* DeviceContactHandoffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceContactHandoffView.swift; sourceTree = "<group>"; };
 		0FBD9D5361A32C8957D22B4E /* RelationshipArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipArchiveTests.swift; sourceTree = "<group>"; };
 		1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalStore.swift; sourceTree = "<group>"; };
+		18DB19A9B630FFFC327395CB /* StandaloneOnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingTests.swift; sourceTree = "<group>"; };
 		20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitWorkspace.swift; sourceTree = "<group>"; };
 		2796745F45891838868FEA7B /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		2C8A42CBB4A5B1229D5BCC0D /* TalentSignalBrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalBrandMark.swift; sourceTree = "<group>"; };
 		2E1DC0CB9D729B8B77463673 /* CandidateSignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignal.swift; sourceTree = "<group>"; };
 		314171A5678C6A592D77C852 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		382034DC80F815EB41351067 /* DeviceCalendarHandoffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCalendarHandoffView.swift; sourceTree = "<group>"; };
+		39D83870AC6BF272A562706B /* StandaloneRecordingActivityCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneRecordingActivityCoordinator.swift; sourceTree = "<group>"; };
+		3C016B1623AC9D14699F323A /* TalentSignalShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TalentSignalShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3CA3B1B8042B74DA1B5D1670 /* TextSignalCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalCaptureView.swift; sourceTree = "<group>"; };
+		3F004990C36E6DDFE34C78F1 /* TalentSignalLiveActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TalentSignalLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		477706244A63791F58675F88 /* StandaloneOnboardingPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingPersistence.swift; sourceTree = "<group>"; };
+		4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedCaptureEnvelope.swift; sourceTree = "<group>"; };
 		4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalOutbox.swift; sourceTree = "<group>"; };
 		52A9FCA23A5C5E97951C4D39 /* CaptureAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAppIntents.swift; sourceTree = "<group>"; };
 		5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCalendarView.swift; sourceTree = "<group>"; };
+		53BCE51454FF92655D32B728 /* StandaloneOnboardingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingUITests.swift; sourceTree = "<group>"; };
 		54258A90B16E34F5EE3E5D6E /* TextSignalCaptureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalCaptureStore.swift; sourceTree = "<group>"; };
 		56E964E1942AD295B505F9A3 /* AppSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsView.swift; sourceTree = "<group>"; };
 		571E43C7E25C147610C6614C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalUITests.swift; sourceTree = "<group>"; };
 		5B1750D9C713D5C7F54F4423 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5DBD7EB9582B085CB7D1063C /* TextSignalCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalCaptureTests.swift; sourceTree = "<group>"; };
+		5E9E39D69232B7E4E068B600 /* StandaloneVoiceCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneVoiceCaptureService.swift; sourceTree = "<group>"; };
 		63953A0F31800DC886749C51 /* ConversationTextRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationTextRecognizer.swift; sourceTree = "<group>"; };
+		69FA231C87096FBA3A535B8C /* StandaloneOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboarding.swift; sourceTree = "<group>"; };
 		71F22F52432BB9263F4F8D29 /* DeviceCalendarProposal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCalendarProposal.swift; sourceTree = "<group>"; };
 		744427491C9864B09CAF13DD /* HeroLoopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroLoopTests.swift; sourceTree = "<group>"; };
 		7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAskView.swift; sourceTree = "<group>"; };
@@ -118,6 +175,7 @@
 		8806D300F51296BE8C1CECE3 /* CandidateMomentumLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateMomentumLoop.swift; sourceTree = "<group>"; };
 		8E1B56C282E5480FFC9368B0 /* RelationshipCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureTests.swift; sourceTree = "<group>"; };
 		91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureStore.swift; sourceTree = "<group>"; };
+		92D3DFA665A94517E53A0FA4 /* SignalRecordingActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalRecordingActivity.swift; sourceTree = "<group>"; };
 		9974BB03ADAB6E9F626E0388 /* TalentSignalTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TalentSignalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F949D7FD6FC90553A6E5BBC /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
 		A011F41DFE4C6D032707B858 /* TalentSignalUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TalentSignalUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -125,12 +183,18 @@
 		A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipArchiveSheets.swift; sourceTree = "<group>"; };
 		A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionTests.swift; sourceTree = "<group>"; };
 		AA2B7831196A17D268065375 /* RelationshipCaptureClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureClient.swift; sourceTree = "<group>"; };
+		AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingView.swift; sourceTree = "<group>"; };
 		BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCapture.swift; sourceTree = "<group>"; };
 		C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewClient.swift; sourceTree = "<group>"; };
+		C66F4083C1349A570FEBEC26 /* StandaloneCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneCalendarService.swift; sourceTree = "<group>"; };
 		C6709D57D3A6344F855B478F /* AppAuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAuthenticationView.swift; sourceTree = "<group>"; };
+		CA61B70184C18544D0719F83 /* StandaloneProposalEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneProposalEngine.swift; sourceTree = "<group>"; };
+		CBB35C452EFE107B189275BF /* TalentSignalLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalLiveActivity.swift; sourceTree = "<group>"; };
+		CC6A81331A906C3C93033158 /* StandaloneOnboardingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingStore.swift; sourceTree = "<group>"; };
 		CFF3826B0FFB3CF750AA89BC /* TextSignalCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalCapture.swift; sourceTree = "<group>"; };
 		D08F6E4EC1E24E8888C85C5A /* AudioSignalCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalCaptureView.swift; sourceTree = "<group>"; };
 		D137439B29C6808B301FD14C /* ReleaseBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseBoundaryTests.swift; sourceTree = "<group>"; };
+		D53009CC49DC5605049F9E6A /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		D6A9699249B87A87A878D261 /* AudioSignalCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalCapture.swift; sourceTree = "<group>"; };
 		D91833FC9D20274A1A85C004 /* PursuitWorkspaceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitWorkspaceClient.swift; sourceTree = "<group>"; };
 		DA9C76EA5C3003ACBC256441 /* Environment.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Environment.xcconfig; sourceTree = "<group>"; };
@@ -165,9 +229,35 @@
 				0FBD9D5361A32C8957D22B4E /* RelationshipArchiveTests.swift */,
 				8E1B56C282E5480FFC9368B0 /* RelationshipCaptureTests.swift */,
 				D137439B29C6808B301FD14C /* ReleaseBoundaryTests.swift */,
+				18DB19A9B630FFFC327395CB /* StandaloneOnboardingTests.swift */,
 				5DBD7EB9582B085CB7D1063C /* TextSignalCaptureTests.swift */,
 			);
 			path = Tests;
+			sourceTree = "<group>";
+		};
+		7FD836AA9D0C855C795C982E /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */,
+				92D3DFA665A94517E53A0FA4 /* SignalRecordingActivity.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		AFD4968826FB89B25DE79949 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				D53009CC49DC5605049F9E6A /* ShareViewController.swift */,
+			);
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
+		B4411FAA4554EB31C0452C9D /* LiveActivityExtension */ = {
+			isa = PBXGroup;
+			children = (
+				CBB35C452EFE107B189275BF /* TalentSignalLiveActivity.swift */,
+			);
+			path = LiveActivityExtension;
 			sourceTree = "<group>";
 		};
 		B6B247646EF67B2E1643E203 /* App */ = {
@@ -196,6 +286,7 @@
 			isa = PBXGroup;
 			children = (
 				59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */,
+				53BCE51454FF92655D32B728 /* StandaloneOnboardingUITests.swift */,
 			);
 			path = UITests;
 			sourceTree = "<group>";
@@ -222,6 +313,11 @@
 				C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */,
 				D91833FC9D20274A1A85C004 /* PursuitWorkspaceClient.swift */,
 				AA2B7831196A17D268065375 /* RelationshipCaptureClient.swift */,
+				C66F4083C1349A570FEBEC26 /* StandaloneCalendarService.swift */,
+				477706244A63791F58675F88 /* StandaloneOnboardingPersistence.swift */,
+				CA61B70184C18544D0719F83 /* StandaloneProposalEngine.swift */,
+				39D83870AC6BF272A562706B /* StandaloneRecordingActivityCoordinator.swift */,
+				5E9E39D69232B7E4E068B600 /* StandaloneVoiceCaptureService.swift */,
 				4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */,
 				A11262DED3E38696377856A6 /* TextSignalSyncClient.swift */,
 			);
@@ -232,6 +328,8 @@
 			isa = PBXGroup;
 			children = (
 				EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */,
+				3F004990C36E6DDFE34C78F1 /* TalentSignalLiveActivity.appex */,
+				3C016B1623AC9D14699F323A /* TalentSignalShare.appex */,
 				9974BB03ADAB6E9F626E0388 /* TalentSignalTests.xctest */,
 				A011F41DFE4C6D032707B858 /* TalentSignalUITests.xctest */,
 			);
@@ -260,6 +358,8 @@
 				91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */,
 				7FAEBC372E2477E425197A45 /* RelationshipCaptureView.swift */,
 				E68ADCA955185ACDD422B618 /* SignalCaptureHubView.swift */,
+				CC6A81331A906C3C93033158 /* StandaloneOnboardingStore.swift */,
+				AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */,
 				54258A90B16E34F5EE3E5D6E /* TextSignalCaptureStore.swift */,
 				3CA3B1B8042B74DA1B5D1670 /* TextSignalCaptureView.swift */,
 			);
@@ -275,6 +375,7 @@
 				71F22F52432BB9263F4F8D29 /* DeviceCalendarProposal.swift */,
 				20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */,
 				BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */,
+				69FA231C87096FBA3A535B8C /* StandaloneOnboarding.swift */,
 				CFF3826B0FFB3CF750AA89BC /* TextSignalCapture.swift */,
 			);
 			path = Domain;
@@ -284,7 +385,10 @@
 			isa = PBXGroup;
 			children = (
 				26E2674E91245DA8CC0A8495 /* Config */,
+				B4411FAA4554EB31C0452C9D /* LiveActivityExtension */,
 				CB5A598FB680E4FC5C5CE15C /* Resources */,
+				7FD836AA9D0C855C795C982E /* Shared */,
+				AFD4968826FB89B25DE79949 /* ShareExtension */,
 				BBDC5D37D43F60DADC79F480 /* Sources */,
 				5F3AB4552568EA1521E713B1 /* Tests */,
 				C44A1D05CD0EA51DDD875F43 /* UITests */,
@@ -295,6 +399,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		76E68CE7B8C33205DD28BB5D /* TalentSignalShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 60F25B4B68F317C549613F0E /* Build configuration list for PBXNativeTarget "TalentSignalShare" */;
+			buildPhases = (
+				9FE74168E0BCBE1C94DCF425 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TalentSignalShare;
+			packageProductDependencies = (
+			);
+			productName = TalentSignalShare;
+			productReference = 3C016B1623AC9D14699F323A /* TalentSignalShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		7A1E5332413A7E18BB45A742 /* TalentSignalTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 79203FE62FCB1A768BB14631 /* Build configuration list for PBXNativeTarget "TalentSignalTests" */;
@@ -319,10 +440,13 @@
 			buildPhases = (
 				F1FF3CD7EC8417977129DD78 /* Sources */,
 				BFE1103C47A5CF786FD3202D /* Resources */,
+				DCE80710BF74CF8750665B7B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D32E3418A08FD7FD0E5445CB /* PBXTargetDependency */,
+				3AB5F0274877DECBAC5E03BF /* PBXTargetDependency */,
 			);
 			name = TalentSignal;
 			packageProductDependencies = (
@@ -349,6 +473,23 @@
 			productReference = A011F41DFE4C6D032707B858 /* TalentSignalUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		E24E32EDDA79DA017C952559 /* TalentSignalLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 15C5F34B5AD58024B272DCFB /* Build configuration list for PBXNativeTarget "TalentSignalLiveActivity" */;
+			buildPhases = (
+				53AB1EFB9BA46D31C29B1993 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TalentSignalLiveActivity;
+			packageProductDependencies = (
+			);
+			productName = TalentSignalLiveActivity;
+			productReference = 3F004990C36E6DDFE34C78F1 /* TalentSignalLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -358,6 +499,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					76E68CE7B8C33205DD28BB5D = {
+						DevelopmentTeam = 6RG2F8YY59;
+						ProvisioningStyle = Automatic;
+					};
 					7A1E5332413A7E18BB45A742 = {
 						DevelopmentTeam = 6RG2F8YY59;
 						ProvisioningStyle = Automatic;
@@ -369,6 +514,10 @@
 						DevelopmentTeam = 6RG2F8YY59;
 						ProvisioningStyle = Automatic;
 						TestTargetID = 7EF5E514C35D7F87373ACE73;
+					};
+					E24E32EDDA79DA017C952559 = {
+						DevelopmentTeam = 6RG2F8YY59;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -388,6 +537,8 @@
 			projectRoot = "";
 			targets = (
 				7EF5E514C35D7F87373ACE73 /* TalentSignal */,
+				E24E32EDDA79DA017C952559 /* TalentSignalLiveActivity */,
+				76E68CE7B8C33205DD28BB5D /* TalentSignalShare */,
 				7A1E5332413A7E18BB45A742 /* TalentSignalTests */,
 				DF0FB815C41430500ED5DB07 /* TalentSignalUITests */,
 			);
@@ -409,6 +560,16 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		53AB1EFB9BA46D31C29B1993 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D631C86A5EED28CC60D37E74 /* SharedCaptureEnvelope.swift in Sources */,
+				0ACF1A298280F98A2E195CEE /* SignalRecordingActivity.swift in Sources */,
+				5163A916AB205784B98D6BEA /* TalentSignalLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		59CA6F3037E5972C3462E746 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -421,6 +582,7 @@
 				83A4A3CE04DF7FFBCC223E1F /* RelationshipArchiveTests.swift in Sources */,
 				8CBFB9AE9F1F7B22F53A20B7 /* RelationshipCaptureTests.swift in Sources */,
 				151197801AAA0BD6501466C2 /* ReleaseBoundaryTests.swift in Sources */,
+				61A9FCA9306146EBB8B4D618 /* StandaloneOnboardingTests.swift in Sources */,
 				A8C31D8E27A8BB40971F0064 /* TextSignalCaptureTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -430,6 +592,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				5AB53512D99F0073F3911B6E /* CandidateSignalUITests.swift in Sources */,
+				AA99245C7C678EA2D4C35023 /* StandaloneOnboardingUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9FE74168E0BCBE1C94DCF425 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A2648576BDB4F58D214B9B1 /* ShareViewController.swift in Sources */,
+				ACCF73276C146F5561CD23D7 /* SharedCaptureEnvelope.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -471,7 +643,17 @@
 				EC03818C4A0DC080E11CF0F2 /* RelationshipCaptureClient.swift in Sources */,
 				D4A62460F620C32CA5059986 /* RelationshipCaptureStore.swift in Sources */,
 				401A888C1F4714CCFB39EEB2 /* RelationshipCaptureView.swift in Sources */,
+				0314D8056DFF292BFD22CB4E /* SharedCaptureEnvelope.swift in Sources */,
 				3DE4CA95E9E9CF0B692A19B0 /* SignalCaptureHubView.swift in Sources */,
+				795D834D75384A22249627F7 /* SignalRecordingActivity.swift in Sources */,
+				6301D1E69B8E5C7A596D63B0 /* StandaloneCalendarService.swift in Sources */,
+				4EBB98C5EBDCBD205612B067 /* StandaloneOnboarding.swift in Sources */,
+				1E3CA18B2F6F1443CBB61725 /* StandaloneOnboardingPersistence.swift in Sources */,
+				39C0CF02D7A7CEAD47876007 /* StandaloneOnboardingStore.swift in Sources */,
+				B3FCB11A82FE832BEF7B6B06 /* StandaloneOnboardingView.swift in Sources */,
+				979C6931BDD7C417EB1FA9EF /* StandaloneProposalEngine.swift in Sources */,
+				5AB6B6339FC04C894DCD1E6D /* StandaloneRecordingActivityCoordinator.swift in Sources */,
+				3657B5F1EAB4954E86EA6F04 /* StandaloneVoiceCaptureService.swift in Sources */,
 				71C2191A8B9F500124E59F7D /* TalentSignalApp.swift in Sources */,
 				9AB40CE436A39B3AE399478A /* TalentSignalBrandMark.swift in Sources */,
 				59BEBA6B0A3C418442E59C03 /* TextSignalCapture.swift in Sources */,
@@ -485,6 +667,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		3AB5F0274877DECBAC5E03BF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 76E68CE7B8C33205DD28BB5D /* TalentSignalShare */;
+			targetProxy = 297DCC9C337C5E2C2DA18AF8 /* PBXContainerItemProxy */;
+		};
 		6DF94ABD34B7ADAEB5FEE12B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 7EF5E514C35D7F87373ACE73 /* TalentSignal */;
@@ -494,6 +681,11 @@
 			isa = PBXTargetDependency;
 			target = 7EF5E514C35D7F87373ACE73 /* TalentSignal */;
 			targetProxy = B780431B2B9128D1A0EC66C1 /* PBXContainerItemProxy */;
+		};
+		D32E3418A08FD7FD0E5445CB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E24E32EDDA79DA017C952559 /* TalentSignalLiveActivity */;
+			targetProxy = 5FFA465CCB2D88EDA5FE4CF0 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -521,6 +713,50 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		23B6834E6A564997CF8C533B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/TalentSignalShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.app.share;
+				PRODUCT_NAME = TalentSignalShare;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		438DA243C18B3BE9FF84AB20 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = LiveActivityExtension/TalentSignalLiveActivity.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LiveActivityExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.talentsignal.app.live-activity";
+				PRODUCT_NAME = TalentSignalLiveActivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
 		};
 		5048CD84F7069EFC329B6659 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -618,6 +854,28 @@
 				TEST_TARGET_NAME = TalentSignal;
 			};
 			name = Debug;
+		};
+		92ED9649860EFDEDE7F6F2D0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/TalentSignalShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.app.share;
+				PRODUCT_NAME = TalentSignalShare;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
 		};
 		9A5103871C7FD4F9B835CC71 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -744,6 +1002,28 @@
 			};
 			name = Release;
 		};
+		FB18EA6044CB6B2AEDE16820 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = LiveActivityExtension/TalentSignalLiveActivity.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LiveActivityExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.talentsignal.app.live-activity";
+				PRODUCT_NAME = TalentSignalLiveActivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -752,6 +1032,24 @@
 			buildConfigurations = (
 				7A52FAE0ECB3D9069865DCCF /* Debug */,
 				70F237BCE1B3A60626A0D33D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		15C5F34B5AD58024B272DCFB /* Build configuration list for PBXNativeTarget "TalentSignalLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				438DA243C18B3BE9FF84AB20 /* Debug */,
+				FB18EA6044CB6B2AEDE16820 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		60F25B4B68F317C549613F0E /* Build configuration list for PBXNativeTarget "TalentSignalShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				23B6834E6A564997CF8C533B /* Debug */,
+				92ED9649860EFDEDE7F6F2D0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
