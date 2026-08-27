@@ -21,13 +21,26 @@ struct AdaptiveStandaloneProposalEngine: StandaloneProposalGenerating {
             }
 #endif
         }
+        guard forceDemo,
+              StandaloneDemoProposalCatalog.isShowcaseFixture(draft.text) else {
+            throw StandaloneProposalEngineError.onDeviceIntelligenceUnavailable
+        }
         return StandaloneDemoProposalCatalog.proposal(
             for: draft,
             pursuit: pursuit,
-            engineLabel: forceDemo
-                ? "Demo Engine · fixture v1"
-                : "Demo Engine · device fallback v1"
+            engineLabel: "Demo Engine · fixture v1"
         )
+    }
+}
+
+enum StandaloneProposalEngineError: LocalizedError, Equatable {
+    case onDeviceIntelligenceUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .onDeviceIntelligenceUnavailable:
+            return "On-device intelligence is unavailable. The Draft remains saved; continue editing or use the explicitly labeled showcase fixture."
+        }
     }
 }
 

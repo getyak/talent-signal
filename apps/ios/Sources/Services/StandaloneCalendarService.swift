@@ -9,9 +9,19 @@ struct StandaloneCalendarChoice: Identifiable, Equatable {
 enum StandaloneCalendarWindow: String, Codable, CaseIterable, Identifiable {
     case recent = "Past 14 days"
     case upcoming = "Next 14 days"
-    case recentAndUpcoming = "Past + next 14 days"
+    case recentAndUpcoming = "Past + next 14 days (28 days total)"
 
     var id: String { rawValue }
+
+    func interval(now: Date, calendar: Calendar = .current) -> DateInterval {
+        let start = self == .upcoming
+            ? now
+            : (calendar.date(byAdding: .day, value: -14, to: now) ?? now)
+        let end = self == .recent
+            ? now
+            : (calendar.date(byAdding: .day, value: 14, to: now) ?? now)
+        return DateInterval(start: start, end: end)
+    }
 }
 
 @MainActor
@@ -22,7 +32,7 @@ final class StandaloneCalendarService: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var notice: String?
     @Published var selectedCalendarIDs: Set<String> = []
-    @Published private(set) var window: StandaloneCalendarWindow = .recentAndUpcoming
+    @Published private(set) var window: StandaloneCalendarWindow = .upcoming
 
     private let eventStore: EKEventStore
     private var eventStoreObserver: NSObjectProtocol?
@@ -90,15 +100,10 @@ final class StandaloneCalendarService: ObservableObject {
             selectedCalendarIDs.formIntersection(Set(calendars.map(\.id)))
         }
         let selected = eventCalendars.filter { selectedCalendarIDs.contains($0.calendarIdentifier) }
-        let start = window == .upcoming
-            ? now
-            : (Calendar.current.date(byAdding: .day, value: -14, to: now) ?? now)
-        let end = window == .recent
-            ? now
-            : (Calendar.current.date(byAdding: .day, value: 14, to: now) ?? now)
+        let interval = window.interval(now: now)
         let predicate = eventStore.predicateForEvents(
-            withStart: start,
-            end: end,
+            withStart: interval.start,
+            end: interval.end,
             calendars: selected
         )
         meetings = eventStore.events(matching: predicate)

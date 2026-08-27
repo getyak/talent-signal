@@ -200,7 +200,7 @@ struct StandaloneOnboardingState: Codable, Equatable {
     var lastRecoverableError: String?
     var importedSharedEnvelopeIDs: Set<UUID> = []
     var unassignedSystemCaptureID: UUID? = nil
-    var calendarWindow: StandaloneCalendarWindow = .recentAndUpcoming
+    var calendarWindow: StandaloneCalendarWindow = .upcoming
 
     static func fresh() -> StandaloneOnboardingState {
         StandaloneOnboardingState(
@@ -631,6 +631,7 @@ struct StandaloneOnboardingState: Codable, Equatable {
     }
 
     mutating func enterToday() {
+        guard isActivated else { return }
         introCompleted = true
         route = .today
     }
@@ -642,6 +643,12 @@ struct StandaloneOnboardingState: Codable, Equatable {
 }
 
 enum StandaloneDemoProposalCatalog {
+    static let showcaseSignal = "Mina prefers remote, could start in three weeks, and wants to understand the team size. Visa status is still unclear."
+
+    static func isShowcaseFixture(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines) == showcaseSignal
+    }
+
     static func proposal(
         for draft: StandaloneCaptureDraft,
         pursuit: StandalonePursuit,

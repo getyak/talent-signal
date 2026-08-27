@@ -130,4 +130,12 @@ final class ReleaseBoundaryTests: XCTestCase {
         )
 #endif
     }
+
+    func testStandaloneSystemSurfacesMatchTheCompiledConfiguration() {
+#if DEBUG
+        XCTAssertTrue(StandaloneSharedCaptureConfiguration.isEnabled)
+#else
+        XCTAssertFalse(StandaloneSharedCaptureConfiguration.isEnabled)
+#endif
+    }
 }

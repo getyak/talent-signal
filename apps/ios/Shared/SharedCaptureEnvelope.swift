@@ -1,5 +1,15 @@
 import Foundation
 
+enum StandaloneSharedCaptureConfiguration {
+    static var isEnabled: Bool {
+#if DEBUG
+        true
+#else
+        false
+#endif
+    }
+}
+
 enum SharedCapturePayloadKind: String, Codable, CaseIterable, Sendable {
     case image
     case text
@@ -173,6 +183,12 @@ struct SharedCaptureInbox {
         }
     }
 
+    func reset() throws {
+        if fileManager.fileExists(atPath: rootURL.path) {
+            try fileManager.removeItem(at: rootURL)
+        }
+    }
+
     func payloadURL(for envelope: SharedCaptureEnvelope) -> URL? {
         guard let payloadFileName = envelope.payloadFileName else { return nil }
         return payloadURL(fileName: payloadFileName)
@@ -248,6 +264,7 @@ private extension String {
 
 enum SharedCaptureInboxError: LocalizedError {
     case appGroupUnavailable
+    case unavailableInRelease
     case duplicateEnvelope
     case emptyPayload
     case unsupportedURL
@@ -256,6 +273,8 @@ enum SharedCaptureInboxError: LocalizedError {
         switch self {
         case .appGroupUnavailable:
             return "The shared capture container is unavailable."
+        case .unavailableInRelease:
+            return "Standalone Share capture is unavailable in this Release build."
         case .duplicateEnvelope:
             return "This capture envelope already exists."
         case .emptyPayload:

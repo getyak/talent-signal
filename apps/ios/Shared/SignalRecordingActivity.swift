@@ -55,16 +55,11 @@ struct LiveActivityStopRequestBridge {
         now: Date = Date()
     ) throws {
         let directory = try resolvedDirectory(rootURL: rootURL)
-        let temporaryURL = directory.appending(path: "stop-request.json.tmp")
         let finalURL = directory.appending(path: "stop-request.json")
         let data = try JSONEncoder().encode(
             StopRequest(draftID: draftID, requestedAt: now)
         )
-        try data.write(to: temporaryURL, options: [.completeFileProtection])
-        if FileManager.default.fileExists(atPath: finalURL.path) {
-            try FileManager.default.removeItem(at: finalURL)
-        }
-        try FileManager.default.moveItem(at: temporaryURL, to: finalURL)
+        try data.write(to: finalURL, options: [.atomic, .completeFileProtection])
     }
 
     static func consume(
@@ -81,6 +76,14 @@ struct LiveActivityStopRequestBridge {
         guard request.draftID == draftID else { return false }
         try FileManager.default.removeItem(at: finalURL)
         return true
+    }
+
+    static func reset(rootURL: URL? = nil) throws {
+        let directory = try resolvedDirectory(rootURL: rootURL)
+        let finalURL = directory.appending(path: "stop-request.json")
+        if FileManager.default.fileExists(atPath: finalURL.path) {
+            try FileManager.default.removeItem(at: finalURL)
+        }
     }
 
     private static func resolvedDirectory(rootURL: URL?) throws -> URL {

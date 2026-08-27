@@ -132,8 +132,8 @@ final class StandaloneOnboardingStore: ObservableObject {
     @discardableResult
     func importSharedCapture(_ envelope: SharedCaptureEnvelope) -> Bool {
         var imported = false
-        mutate { imported = $0.importSharedCapture(envelope) }
-        return imported
+        let durablySaved = mutate { imported = $0.importSharedCapture(envelope) }
+        return imported && durablySaved
     }
 
     func updateCaptureState(
@@ -161,7 +161,7 @@ final class StandaloneOnboardingStore: ObservableObject {
         } catch {
             mutate {
                 $0.failProcessing(
-                    "The Signal is still saved. Edit it or retry with the visible Demo Engine: \(error.localizedDescription)",
+                    "The Signal is still saved. \(error.localizedDescription)",
                     generation: generation
                 )
             }
@@ -233,11 +233,37 @@ final class StandaloneOnboardingStore: ObservableObject {
     }
 
     func resetDemoData() {
+        var resetErrors: [String] = []
+
         do {
             try persistence.reset()
-            state = .fresh()
+        } catch {
+            resetErrors.append("local session: \(error.localizedDescription)")
+        }
+
+#if DEBUG
+        do {
+            try SharedCaptureInbox().reset()
+        } catch {
+            resetErrors.append("shared captures: \(error.localizedDescription)")
+        }
+        do {
+            try LiveActivityStopRequestBridge.reset()
+        } catch {
+            resetErrors.append("Live Activity requests: \(error.localizedDescription)")
+        }
+#endif
+
+        guard resetErrors.isEmpty else {
+            persistenceNotice = "Demo data could not be fully reset (\(resetErrors.joined(separator: "; "))). Retry before leaving this device."
+            return
+        }
+
+        do {
+            let freshState = StandaloneOnboardingState.fresh()
+            try persistence.save(freshState)
+            state = freshState
             persistenceNotice = nil
-            try persistence.save(state)
         } catch {
             persistenceNotice = "Demo data could not be fully reset: \(error.localizedDescription)"
         }
@@ -246,28 +272,29 @@ final class StandaloneOnboardingStore: ObservableObject {
     private func beginProcessing() -> Int? {
         var next = state
         guard let generation = next.beginProcessing() else {
-            state = next
-            persist()
+            _ = commit(next)
             return nil
         }
-        state = next
-        persist()
-        return generation
+        return commit(next) ? generation : nil
     }
 
-    private func mutate(_ change: (inout StandaloneOnboardingState) -> Void) {
+    @discardableResult
+    private func mutate(_ change: (inout StandaloneOnboardingState) -> Void) -> Bool {
         var next = state
         change(&next)
-        state = next
-        persist()
+        return commit(next)
     }
 
-    private func persist() {
+    @discardableResult
+    private func commit(_ next: StandaloneOnboardingState) -> Bool {
         do {
-            try persistence.save(state)
+            try persistence.save(next)
+            state = next
             persistenceNotice = nil
+            return true
         } catch {
-            persistenceNotice = "This step is visible but has not been durably saved: \(error.localizedDescription)"
+            persistenceNotice = "This step was not applied because it could not be durably saved. Retry when local storage is available: \(error.localizedDescription)"
+            return false
         }
     }
 }

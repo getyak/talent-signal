@@ -4,15 +4,25 @@ import UniformTypeIdentifiers
 final class ShareViewController: SLComposeServiceViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Save Signal Source"
-        placeholder = "Optional note about what changed"
+        title = StandaloneSharedCaptureConfiguration.isEnabled
+            ? "Save Signal Source"
+            : "Standalone capture unavailable"
+        placeholder = StandaloneSharedCaptureConfiguration.isEnabled
+            ? "Optional note about what changed"
+            : "Use the signed-in Talent Signal app."
     }
 
     override func isContentValid() -> Bool {
-        supportedProvider != nil || !contentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard StandaloneSharedCaptureConfiguration.isEnabled else { return false }
+        return supportedProvider != nil
+            || !contentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     override func didSelectPost() {
+        guard StandaloneSharedCaptureConfiguration.isEnabled else {
+            extensionContext?.cancelRequest(withError: SharedCaptureInboxError.unavailableInRelease)
+            return
+        }
         let note = contentText.trimmingCharacters(in: .whitespacesAndNewlines)
         Task { @MainActor in
             do {
