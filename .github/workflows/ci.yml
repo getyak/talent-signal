@@ -133,6 +133,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Run candidate momentum Eval
+        run: pnpm eval:core
+
       - name: Build
         env:
           # Enables production-mode route evaluation in CI only; deployments use
