@@ -23,8 +23,11 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        com.apple.security.application-groups:
+          - group.com.talentsignal.app
     sources:
       - path: Sources
+      - path: Shared
       - path: Resources
         buildPhase: resources
         excludes:
@@ -50,11 +53,67 @@ targets:
     configFiles:
       Debug: Config/Environment.xcconfig
       Release: Config/Environment.xcconfig
+    dependencies:
+      - target: TalentSignalLiveActivity
+        embed: true
+      - target: TalentSignalShare
+        embed: true
     scheme:
       gatherCoverageData: true
       testTargets:
         - TalentSignalTests
         - TalentSignalUITests
+
+  TalentSignalLiveActivity:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    entitlements:
+      path: LiveActivityExtension/TalentSignalLiveActivity.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.talentsignal.app
+    sources:
+      - path: LiveActivityExtension
+        excludes:
+          - Info.plist
+          - TalentSignalLiveActivity.entitlements
+      - path: Shared/SharedCaptureEnvelope.swift
+      - path: Shared/SignalRecordingActivity.swift
+    settings:
+      base:
+        APPLICATION_EXTENSION_API_ONLY: YES
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: LiveActivityExtension/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.app.live-activity
+        PRODUCT_NAME: TalentSignalLiveActivity
+        SKIP_INSTALL: YES
+
+  TalentSignalShare:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    entitlements:
+      path: ShareExtension/TalentSignalShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.talentsignal.app
+    sources:
+      - path: ShareExtension
+        excludes:
+          - Info.plist
+          - TalentSignalShare.entitlements
+      - path: Shared/SharedCaptureEnvelope.swift
+    settings:
+      base:
+        APPLICATION_EXTENSION_API_ONLY: YES
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: ShareExtension/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.app.share
+        PRODUCT_NAME: TalentSignalShare
+        SKIP_INSTALL: YES
 
   TalentSignalTests:
     type: bundle.unit-test
