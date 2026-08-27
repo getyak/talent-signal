@@ -38,6 +38,7 @@ struct PursuitEntityQuery: EntityQuery {
     }
 
     private func availableEntities() throws -> [PursuitEntity] {
+        guard StandaloneSharedCaptureConfiguration.isEnabled else { return [] }
         guard let state = try FileStandaloneOnboardingStore().load(),
               let pursuit = state.pursuit else { return [] }
         return [

@@ -115,7 +115,8 @@ struct StandaloneOnboardingView: View {
         .onChange(of: intentRouter.request) { request in
             guard let request else { return }
             if store.state.route == .actionButtonPractice,
-               store.state.actionPracticeState == .practiceWindowOpened {
+               store.state.actionPracticeState == .practiceWindowOpened,
+               request.destination == .hub {
                 store.completePractice(simulated: false)
             } else {
                 switch request.destination {
@@ -136,16 +137,14 @@ struct StandaloneOnboardingView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 importNextSharedCapture()
-                if store.state.route == .calendarExplanation
-                    || store.state.route == .meetingSelection {
-                    Task { await calendarService.refresh() }
-                }
+                Task { await calendarService.refresh() }
             } else if phase != .active, voiceService.isRecording {
                 voiceService.stopForInterruption()
             }
         }
         .task {
             importNextSharedCapture()
+            await calendarService.refresh()
             if let initialURL { handleDeepLink(initialURL) }
         }
         .sheet(item: $todayDetail) { detail in
@@ -543,9 +542,7 @@ struct StandaloneOnboardingView: View {
             .accessibilityLabel(localized("Signal text"))
             .accessibilityIdentifier("standalone-signal-text")
             Button(localized("Use the showcase Signal")) {
-                store.updateDraftText(
-                    "Mina prefers remote, could start in three weeks, and wants to understand the team size. Visa status is still unclear."
-                )
+                store.updateDraftText(StandaloneDemoProposalCatalog.showcaseSignal)
             }
             .buttonStyle(TSTextButtonStyle())
             .accessibilityIdentifier("standalone-use-example-signal")
@@ -751,8 +748,10 @@ struct StandaloneOnboardingView: View {
         VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(localized("Today")).font(.largeTitle.bold())
+                    Text(localized("Today"))
+                        .font(sizeCategory.isAccessibilityCategory ? .title.bold() : .largeTitle.bold())
                     Text(localized("One supported move, with its evidence still attached."))
+                        .font(sizeCategory.isAccessibilityCategory ? .subheadline : .body)
                         .foregroundStyle(Color.tsMutedInk)
                 }
                 Spacer()

@@ -2,6 +2,28 @@ import XCTest
 @testable import TalentSignal
 
 final class StandaloneOnboardingTests: XCTestCase {
+    func testDefaultCalendarDisclosureIsExactlyFourteenUpcomingDays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let state = StandaloneOnboardingState.fresh()
+        let interval = state.calendarWindow.interval(now: now, calendar: calendar)
+
+        XCTAssertEqual(state.calendarWindow, .upcoming)
+        XCTAssertEqual(interval.start, now)
+        XCTAssertEqual(interval.duration, 14 * 24 * 60 * 60)
+        XCTAssertTrue(StandaloneCalendarWindow.recentAndUpcoming.rawValue.contains("28 days total"))
+    }
+
+    func testTodayCannotOpenBeforeVerifiedActivation() {
+        var state = readyForSourceChoice()
+
+        state.enterToday()
+
+        XCTAssertFalse(state.introCompleted)
+        XCTAssertEqual(state.route, .sourceChoice)
+    }
+
     func testVoiceChoiceCreatesDraftBeforePermissionOrRecording() throws {
         var state = readyForSourceChoice()
 
@@ -80,6 +102,35 @@ final class StandaloneOnboardingTests: XCTestCase {
 
         XCTAssertFalse(grounded.facts.contains { $0.field == "Acceptance probability" })
         XCTAssertTrue(grounded.unknowns.contains { $0.question.contains("acceptance probability") })
+    }
+
+    func testDemoEngineRejectsArbitraryPrivateTextOutsideShowcaseFixture() async throws {
+        var state = readyForSourceChoice()
+        XCTAssertTrue(state.chooseSource(.text))
+        state.updateDraftText("A private candidate note that is not the showcase fixture.")
+        let draft = try XCTUnwrap(state.captureDraft)
+        let pursuit = try XCTUnwrap(state.pursuit)
+
+        do {
+            _ = try await AdaptiveStandaloneProposalEngine(forceDemo: true)
+                .generate(draft: draft, pursuit: pursuit)
+            XCTFail("Arbitrary text must not receive deterministic Demo output")
+        } catch let error as StandaloneProposalEngineError {
+            XCTAssertEqual(error, .onDeviceIntelligenceUnavailable)
+        }
+    }
+
+    func testDemoEngineAcceptsOnlyTheExplicitShowcaseFixture() async throws {
+        var state = readyForSourceChoice()
+        XCTAssertTrue(state.chooseSource(.text))
+        state.updateDraftText(StandaloneDemoProposalCatalog.showcaseSignal)
+        let draft = try XCTUnwrap(state.captureDraft)
+        let pursuit = try XCTUnwrap(state.pursuit)
+
+        let proposal = try await AdaptiveStandaloneProposalEngine(forceDemo: true)
+            .generate(draft: draft, pursuit: pursuit)
+
+        XCTAssertEqual(proposal.engineLabel, "Demo Engine · fixture v1")
     }
 
     func testExplicitlyAcceptedActionCanCreateProgressWhileUnknownRemains() throws {
@@ -225,6 +276,38 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: unrelatedURL.path))
     }
 
+    @MainActor
+    func testPersistenceFailureNeverPublishesVerifiedProgressOrToday() throws {
+        let persistence = ControlledStandalonePersistence(state: try proposalReadyState())
+        let store = StandaloneOnboardingStore(persistence: persistence)
+        let fact = try XCTUnwrap(store.state.proposal?.facts.first)
+        store.selectFact(fact.id, selected: true)
+        persistence.rejectSaves = true
+
+        store.confirm()
+
+        XCTAssertEqual(store.state.route, .proposalReview)
+        XCTAssertNil(store.state.progress)
+        XCTAssertEqual(store.state.activationStatus, .notStarted)
+        XCTAssertNotNil(store.persistenceNotice)
+        XCTAssertNil(persistence.state?.progress)
+    }
+
+    @MainActor
+    func testResetSaveFailureDoesNotPublishAnUnsavedFreshState() {
+        let originalState = readyForSourceChoice()
+        let persistence = ControlledStandalonePersistence(state: originalState)
+        let store = StandaloneOnboardingStore(persistence: persistence)
+        persistence.rejectSaves = true
+
+        store.resetDemoData()
+
+        XCTAssertEqual(store.state.sessionID, originalState.sessionID)
+        XCTAssertEqual(store.state.route, originalState.route)
+        XCTAssertNotNil(store.persistenceNotice)
+        XCTAssertNil(persistence.state)
+    }
+
     func testSharedCaptureInboxAtomicallyQueuesImageTextAndURL() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
@@ -257,6 +340,23 @@ final class StandaloneOnboardingTests: XCTestCase {
 
         try inbox.markImported(image.id)
         XCTAssertEqual(try inbox.pending().map(\.id), [text.id, url.id])
+    }
+
+    func testSharedCaptureResetDeletesEnvelopesAndPayloads() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        _ = try inbox.appendImage(
+            data: Data("synthetic-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        _ = try inbox.appendText("Synthetic candidate note")
+
+        try inbox.reset()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
     func testSharedCaptureImportsIdempotentlyIntoTheSameReviewFlow() throws {
@@ -314,6 +414,20 @@ final class StandaloneOnboardingTests: XCTestCase {
         )
     }
 
+    func testLiveActivityStopRequestAtomicallyReplacesAnOlderRequest() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let first = UUID()
+        let latest = UUID()
+
+        try LiveActivityStopRequestBridge.write(draftID: first, rootURL: directory)
+        try LiveActivityStopRequestBridge.write(draftID: latest, rootURL: directory)
+
+        XCTAssertFalse(try LiveActivityStopRequestBridge.consume(draftID: first, rootURL: directory))
+        XCTAssertTrue(try LiveActivityStopRequestBridge.consume(draftID: latest, rootURL: directory))
+    }
+
     func testSystemCaptureUsesOneUnassignedInboxItemUntilPursuitExists() throws {
         var state = StandaloneOnboardingState.fresh()
 
@@ -366,4 +480,26 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertTrue(state.receiveProposal(proposal, generation: generation))
         return state
     }
+}
+
+private final class ControlledStandalonePersistence: StandaloneOnboardingPersisting {
+    var state: StandaloneOnboardingState?
+    var rejectSaves = false
+
+    init(state: StandaloneOnboardingState?) {
+        self.state = state
+    }
+
+    func load() throws -> StandaloneOnboardingState? { state }
+
+    func save(_ state: StandaloneOnboardingState) throws {
+        if rejectSaves { throw ControlledPersistenceError.saveRejected }
+        self.state = state
+    }
+
+    func reset() throws { state = nil }
+}
+
+private enum ControlledPersistenceError: Error {
+    case saveRejected
 }
