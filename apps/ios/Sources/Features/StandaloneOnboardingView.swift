@@ -65,7 +65,10 @@ struct StandaloneOnboardingView: View {
                     routeContent
                         .frame(maxWidth: 620, alignment: .leading)
                         .padding(.horizontal, 22)
-                        .padding(.top, 24)
+                        .padding(
+                            .top,
+                            store.state.route == .today && sizeCategory.isAccessibilityCategory ? 12 : 24
+                        )
                         .padding(.bottom, 40)
                 }
                 .id(store.state.route)
@@ -81,6 +84,12 @@ struct StandaloneOnboardingView: View {
                 selectedCalendarIDs: Array(calendarService.selectedCalendarIDs).sorted()
             )
         }
+        .onChange(of: calendarService.selectedCalendarIDs) { selectedCalendarIDs in
+            store.observeCalendar(
+                calendarService.permission,
+                selectedCalendarIDs: Array(selectedCalendarIDs).sorted()
+            )
+        }
         .onChange(of: voiceService.phase) { phase in
             switch phase {
             case .idle: break
@@ -88,6 +97,7 @@ struct StandaloneOnboardingView: View {
                 store.updateCaptureState(.requestingPermission)
             case .recording:
                 store.updateCaptureState(.recording)
+                consumeLiveActivityStopRequestIfNeeded()
             case .transcribing:
                 store.updateCaptureState(.transcribing)
             case let .ready(fileName):
@@ -98,12 +108,7 @@ struct StandaloneOnboardingView: View {
             }
         }
         .onChange(of: voiceService.elapsedSeconds) { _ in
-            guard voiceService.isRecording,
-                  let draftID = store.state.captureDraft?.id,
-                  (try? LiveActivityStopRequestBridge.consume(draftID: draftID)) == true else {
-                return
-            }
-            Task { await finishVoiceRecording() }
+            consumeLiveActivityStopRequestIfNeeded()
         }
         .onChange(of: store.state.route) { route in
             if route != .capture, voiceService.isRecording {
@@ -138,6 +143,7 @@ struct StandaloneOnboardingView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 importNextSharedCapture()
+                consumeLiveActivityStopRequestIfNeeded()
                 Task { await calendarService.refresh() }
             } else if phase != .active, voiceService.isRecording {
                 voiceService.stopForInterruption()
@@ -145,6 +151,7 @@ struct StandaloneOnboardingView: View {
         }
         .task {
             importNextSharedCapture()
+            calendarService.restoreSelection(Set(store.state.selectedCalendarIDs))
             await calendarService.refresh()
             if let initialURL { handleDeepLink(initialURL) }
         }
@@ -454,6 +461,9 @@ struct StandaloneOnboardingView: View {
             if !calendarService.calendars.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(localized("Calendars")).font(.subheadline.weight(.semibold))
+                    Text(localized("Choose only the calendars needed for this Pursuit. No events are read until you select one."))
+                        .font(.footnote)
+                        .foregroundStyle(Color.tsMutedInk)
                     ForEach(calendarService.calendars) { calendar in
                         Toggle(
                             calendar.title,
@@ -771,9 +781,11 @@ struct StandaloneOnboardingView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(localized("Today"))
                         .font(sizeCategory.isAccessibilityCategory ? .title2.bold() : .largeTitle.bold())
-                    Text(localized("One supported move, with its evidence still attached."))
-                        .font(sizeCategory.isAccessibilityCategory ? .footnote : .body)
+                    if !sizeCategory.isAccessibilityCategory {
+                        Text(localized("One supported move, with its evidence still attached."))
+                            .font(.body)
                         .foregroundStyle(Color.tsMutedInk)
+                    }
                 }
                 Spacer()
                 Button { showsSettings = true } label: {
@@ -789,31 +801,42 @@ struct StandaloneOnboardingView: View {
                         .font(sizeCategory.isAccessibilityCategory ? .headline.bold() : .title2.bold())
                         .accessibilityIdentifier("standalone-today-primary-card")
                     Button { todayDetail = .source } label: {
-                        HStack(alignment: sizeCategory.isAccessibilityCategory ? .center : .top, spacing: 12) {
-                            Image(systemName: "quote.opening")
-                                .frame(width: 26)
-                                .foregroundStyle(Color.tsConfirmed)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(localized(sizeCategory.isAccessibilityCategory ? "SOURCE" : "SOURCE EVIDENCE"))
+                        if sizeCategory.isAccessibilityCategory {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(localized("SOURCE EVIDENCE"))
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.tsMutedInk)
-                                Text(todaySourceEvidenceTitle(for: progress))
-                                    .font(.body.weight(.semibold))
+                                Text(progress.sourceSummary)
+                                    .font(.footnote.weight(.semibold))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
-                            Spacer(minLength: 0)
-                            if !sizeCategory.isAccessibilityCategory {
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 14))
+                        } else {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "quote.opening")
+                                    .frame(width: 26)
+                                    .foregroundStyle(Color.tsConfirmed)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(localized("SOURCE EVIDENCE"))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color.tsMutedInk)
+                                    Text(progress.sourceSummary)
+                                        .font(.body.weight(.semibold))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 0)
                                 Image(systemName: "chevron.right")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(Color.tsMutedInk)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 14))
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 14))
                     }
                     .buttonStyle(.plain)
-                    .dynamicTypeSize(.xSmall ... .accessibility1)
                     .accessibilityLabel(localized("Source evidence, \(progress.sourceSummary)"))
                     .accessibilityHint(localized("Opens the retained source"))
                     .accessibilityIdentifier("standalone-today-evidence-link")
@@ -823,7 +846,7 @@ struct StandaloneOnboardingView: View {
                     ForEach(progress.unresolved.prefix(1)) { unknown in
                         summaryRow(label: "Unresolved", value: unknown.question, icon: "questionmark.circle")
                     }
-                    if let action = progress.acceptedActions.first ?? store.state.proposal?.nextActions.first {
+                    if let action = progress.acceptedActions.first {
                         summaryRow(label: "Next action", value: action.title, icon: "arrow.right.circle")
                     }
                 }
@@ -935,18 +958,6 @@ struct StandaloneOnboardingView: View {
         }
     }
 
-    private func todaySourceEvidenceTitle(for progress: StandaloneVerifiedProgress) -> String {
-        guard sizeCategory.isAccessibilityCategory else {
-            return progress.sourceSummary
-        }
-        if let kind = store.state.captureDraft?.sharedPayloadKind {
-            return localized("Shared \(kind.rawValue.capitalized)")
-        }
-        return store.state.selectedMeeting?.isDemo == true
-            ? localized("Demo meeting")
-            : localized("Selected meeting")
-    }
-
     @ViewBuilder
     private var sourceSummary: some View {
         if let kind = store.state.captureDraft?.sharedPayloadKind {
@@ -982,7 +993,9 @@ struct StandaloneOnboardingView: View {
         if let sourceText = store.state.captureDraft?.sharedSourceText,
            !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             provenanceText(
-                label: "SHARED SOURCE TEXT",
+                label: store.state.captureDraft?.sharedPayloadKind == .image
+                    ? "EXTRACTED SOURCE TEXT · VERIFY AGAINST IMAGE"
+                    : "SHARED SOURCE TEXT",
                 value: sourceText,
                 icon: "doc.text"
             )
@@ -1071,6 +1084,10 @@ struct StandaloneOnboardingView: View {
                 .frame(maxHeight: 220)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
                 .accessibilityLabel(localized("Shared image retained as source evidence"))
+                .accessibilityValue(localized(
+                    store.state.captureDraft?.sharedSourceText
+                        ?? "No text equivalent was extracted. Do not confirm image-based facts without inspecting the retained source."
+                ))
         }
     }
 
@@ -1097,6 +1114,17 @@ struct StandaloneOnboardingView: View {
     private func finishVoiceRecording() async {
         if let transcript = await voiceService.stopAndTranscribe() {
             store.updateDraftText(transcript)
+        }
+    }
+
+    private func consumeLiveActivityStopRequestIfNeeded() {
+        guard voiceService.isRecording,
+              let draftID = store.state.captureDraft?.id else { return }
+        do {
+            guard try LiveActivityStopRequestBridge.consume(draftID: draftID) else { return }
+            Task { await finishVoiceRecording() }
+        } catch {
+            sharedCaptureNotice = "The lock-screen Stop request could not be read. Recording remains under foreground control: \(error.localizedDescription)"
         }
     }
 

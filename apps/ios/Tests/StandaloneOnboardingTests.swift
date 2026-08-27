@@ -69,6 +69,7 @@ final class StandaloneOnboardingTests: XCTestCase {
         let first = try XCTUnwrap(state.progress)
         XCTAssertEqual(state.activationStatus, .verifiedProgress)
         XCTAssertEqual(first.confirmedFacts.map(\.id), [fact.id])
+        XCTAssertTrue(first.acceptedActions.isEmpty)
 
         XCTAssertTrue(state.confirm(now: Date(timeIntervalSince1970: 80)))
         XCTAssertEqual(state.progress?.id, first.id)
@@ -180,6 +181,24 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertEqual(restored.captureDraft?.idempotencyKey, state.captureDraft?.idempotencyKey)
         XCTAssertEqual(restored.captureDraft?.text, state.captureDraft?.text)
         XCTAssertEqual(restored.route, .capture)
+    }
+
+    func testFilePersistenceRestoresExplicitCalendarScope() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let fileURL = directory.appending(path: "session.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = FileStandaloneOnboardingStore(fileURL: fileURL)
+        var state = readyForSourceChoice()
+        state.observeCalendar(
+            .connectedWithMeetings,
+            selectedCalendarIDs: ["work-calendar", "search-calendar"]
+        )
+
+        try persistence.save(state)
+        let restored = try XCTUnwrap(persistence.load())
+
+        XCTAssertEqual(restored.selectedCalendarIDs, ["work-calendar", "search-calendar"])
     }
 
     func testFilePersistenceProtectsSensitiveSessionWhileDeviceIsLocked() throws {
@@ -342,6 +361,7 @@ final class StandaloneOnboardingTests: XCTestCase {
             data: Data("image".utf8),
             fileExtension: "png",
             mediaType: "image/png",
+            sourceText: "Candidate says remote only.",
             note: "Candidate shared a written update.",
             now: Date(timeIntervalSince1970: 1)
         )
@@ -357,7 +377,7 @@ final class StandaloneOnboardingTests: XCTestCase {
         )
 
         XCTAssertEqual(try inbox.pending().map(\.id), [image.id, text.id, url.id])
-        XCTAssertNil(image.sourceText)
+        XCTAssertEqual(image.sourceText, "Candidate says remote only.")
         XCTAssertEqual(image.recruiterNote, "Candidate shared a written update.")
         XCTAssertEqual(text.sourceText, "Remote preference confirmed.")
         XCTAssertEqual(text.recruiterNote, "Recruiter should verify the working location.")
@@ -391,6 +411,89 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
+    func testSharedImageTransactionRecoversEnvelopeAndPayloadAfterInterruption() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        _ = try SharedCaptureInbox(rootURL: directory)
+        let id = UUID(uuidString: "61616161-6161-4616-8616-616161616161")!
+        let payloadFileName = "\(id.uuidString.lowercased()).png"
+        let envelope = SharedCaptureEnvelope(
+            id: id,
+            kind: .image,
+            recruiterNote: "Synthetic recovery note",
+            payloadFileName: payloadFileName,
+            mediaType: "image/png"
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let temporaryDirectory = directory.appending(path: "Temporary", directoryHint: .isDirectory)
+        try encoder.encode(envelope).write(
+            to: temporaryDirectory.appending(path: "\(id.uuidString.lowercased()).json.tmp"),
+            options: .atomic
+        )
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(
+            to: temporaryDirectory.appending(path: "\(payloadFileName).tmp"),
+            options: .atomic
+        )
+
+        let recoveredInbox = try SharedCaptureInbox(rootURL: directory)
+        let recovered = try XCTUnwrap(recoveredInbox.pending().first)
+
+        XCTAssertEqual(recovered.id, envelope.id)
+        XCTAssertEqual(recovered.kind, envelope.kind)
+        XCTAssertEqual(recovered.recruiterNote, envelope.recruiterNote)
+        XCTAssertEqual(recovered.payloadFileName, envelope.payloadFileName)
+        XCTAssertEqual(recovered.mediaType, envelope.mediaType)
+        XCTAssertNotNil(recoveredInbox.payloadURL(for: recovered))
+        XCTAssertTrue(
+            try FileManager.default.contentsOfDirectory(
+                at: temporaryDirectory,
+                includingPropertiesForKeys: nil
+            ).isEmpty
+        )
+    }
+
+    func testCorruptSharedEnvelopeIsVisibleInsteadOfSilentlyDiscarded() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let corruptURL = directory
+            .appending(path: "Inbox", directoryHint: .isDirectory)
+            .appending(path: "corrupt.json")
+        try Data("not-json".utf8).write(to: corruptURL, options: .atomic)
+
+        XCTAssertThrowsError(try inbox.pending()) { error in
+            guard case let SharedCaptureInboxError.corruptEnvelope(fileName) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertEqual(fileName, "corrupt.json")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: corruptURL.path))
+        }
+    }
+
+    func testUnsupportedSharedEnvelopeRemainsVisibleForRecoveryOrReset() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let envelopeURL = directory
+            .appending(path: "Inbox", directoryHint: .isDirectory)
+            .appending(path: "future.json")
+        let futureEnvelope = """
+        {"schemaVersion":999,"id":"71717171-7171-4717-8717-717171717171","kind":"text","createdAt":"2026-08-28T00:00:00Z","sourceText":"Future schema evidence"}
+        """
+        try Data(futureEnvelope.utf8).write(to: envelopeURL, options: .atomic)
+
+        XCTAssertThrowsError(try inbox.pending()) { error in
+            guard case SharedCaptureInboxError.unsupportedSchema(999) = error else {
+                return XCTFail("Expected unsupported schema error, got \(error)")
+            }
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: envelopeURL.path))
+    }
+
     func testSharedCaptureImportsIdempotentlyIntoTheSameReviewFlow() throws {
         var state = readyForSourceChoice()
         let envelope = SharedCaptureEnvelope(
@@ -417,6 +520,24 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertTrue(state.receiveProposal(proposal, generation: generation))
         XCTAssertEqual(state.route, .proposalReview)
         XCTAssertTrue(proposal.sourceSummary.contains("Share Sheet"))
+    }
+
+    func testSharedImageUsesExtractedSourceTextWithoutMergingRecruiterNote() throws {
+        var state = readyForSourceChoice()
+        let envelope = SharedCaptureEnvelope(
+            kind: .image,
+            sourceText: "Candidate prefers remote work.",
+            recruiterNote: "Recruiter should confirm time zone.",
+            payloadFileName: "synthetic.png",
+            mediaType: "image/png"
+        )
+
+        XCTAssertTrue(state.importSharedCapture(envelope))
+
+        XCTAssertEqual(state.captureDraft?.text, "Candidate prefers remote work.")
+        XCTAssertEqual(state.captureDraft?.sharedSourceText, "Candidate prefers remote work.")
+        XCTAssertEqual(state.captureDraft?.sharedRecruiterNote, "Recruiter should confirm time zone.")
+        XCTAssertFalse(state.captureDraft?.text.contains("Recruiter should") == true)
     }
 
     func testLegacySharedCapturePreservesTheOnlyRecoverableProvenanceRole() throws {
@@ -452,7 +573,7 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertEqual(imageEnvelope.recruiterNote, "Legacy recruiter note")
     }
 
-    func testLiveActivityStopRequestIsDraftScopedAndConsumedOnce() throws {
+    func testMismatchedLiveActivityStopRequestIsDiscardedAsStale() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -470,18 +591,25 @@ final class StandaloneOnboardingTests: XCTestCase {
                 rootURL: directory
             )
         )
-        XCTAssertTrue(
-            try LiveActivityStopRequestBridge.consume(
-                draftID: requestedDraftID,
-                rootURL: directory
-            )
-        )
         XCTAssertFalse(
             try LiveActivityStopRequestBridge.consume(
                 draftID: requestedDraftID,
                 rootURL: directory
             )
         )
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
+    func testMatchingLiveActivityStopRequestIsConsumedOnce() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let draftID = UUID()
+
+        try LiveActivityStopRequestBridge.write(draftID: draftID, rootURL: directory)
+
+        XCTAssertTrue(try LiveActivityStopRequestBridge.consume(draftID: draftID, rootURL: directory))
+        XCTAssertFalse(try LiveActivityStopRequestBridge.consume(draftID: draftID, rootURL: directory))
     }
 
     func testLiveActivityStopRequestAtomicallyReplacesAnOlderRequest() throws {
@@ -494,8 +622,8 @@ final class StandaloneOnboardingTests: XCTestCase {
         try LiveActivityStopRequestBridge.write(draftID: first, rootURL: directory)
         try LiveActivityStopRequestBridge.write(draftID: latest, rootURL: directory)
 
-        XCTAssertFalse(try LiveActivityStopRequestBridge.consume(draftID: first, rootURL: directory))
         XCTAssertTrue(try LiveActivityStopRequestBridge.consume(draftID: latest, rootURL: directory))
+        XCTAssertFalse(try LiveActivityStopRequestBridge.consume(draftID: first, rootURL: directory))
     }
 
     func testSystemCaptureUsesOneUnassignedInboxItemUntilPursuitExists() throws {

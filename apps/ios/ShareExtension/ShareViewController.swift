@@ -1,5 +1,6 @@
 import Social
 import UniformTypeIdentifiers
+import Vision
 
 final class ShareViewController: SLComposeServiceViewController {
     override func viewDidLoad() {
@@ -64,6 +65,7 @@ final class ShareViewController: SLComposeServiceViewController {
     ) async throws {
         if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
             let data = try await provider.loadImageData()
+            let sourceText = try? await recognizeText(in: data)
             let registeredType = provider.registeredTypeIdentifiers
                 .compactMap(UTType.init)
                 .first { $0.conforms(to: .image) }
@@ -71,6 +73,7 @@ final class ShareViewController: SLComposeServiceViewController {
                 data: data,
                 fileExtension: registeredType?.preferredFilenameExtension ?? "image",
                 mediaType: registeredType?.preferredMIMEType ?? "image/*",
+                sourceText: sourceText,
                 note: note
             )
             return
@@ -82,6 +85,31 @@ final class ShareViewController: SLComposeServiceViewController {
         }
         let sharedText = try await provider.loadText()
         _ = try inbox.appendText(sharedText, note: note)
+    }
+
+    private func recognizeText(in data: Data) async throws -> String? {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let request = VNRecognizeTextRequest { request, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    let text = (request.results as? [VNRecognizedTextObservation])?
+                        .compactMap { $0.topCandidates(1).first?.string }
+                        .joined(separator: "\n")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    continuation.resume(returning: text?.isEmpty == false ? text : nil)
+                }
+                request.recognitionLevel = .accurate
+                request.usesLanguageCorrection = true
+                do {
+                    try VNImageRequestHandler(data: data, options: [:]).perform([request])
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 }
 

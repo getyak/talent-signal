@@ -417,7 +417,7 @@ struct StandaloneOnboardingState: Codable, Equatable {
         let initialText: String
         switch envelope.kind {
         case .image:
-            initialText = envelope.recruiterNote ?? ""
+            initialText = envelope.sourceText ?? envelope.recruiterNote ?? ""
         case .text:
             initialText = envelope.sourceText ?? envelope.recruiterNote ?? ""
         case .url:

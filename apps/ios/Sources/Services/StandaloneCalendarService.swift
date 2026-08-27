@@ -94,12 +94,13 @@ final class StandaloneCalendarService: ObservableObject {
         calendars = eventCalendars.map {
             StandaloneCalendarChoice(id: $0.calendarIdentifier, title: $0.title)
         }
-        if selectedCalendarIDs.isEmpty {
-            selectedCalendarIDs = Set(calendars.map(\.id))
-        } else {
-            selectedCalendarIDs.formIntersection(Set(calendars.map(\.id)))
-        }
+        selectedCalendarIDs.formIntersection(Set(calendars.map(\.id)))
         let selected = eventCalendars.filter { selectedCalendarIDs.contains($0.calendarIdentifier) }
+        guard !selected.isEmpty else {
+            meetings = []
+            permission = .connectedEmpty
+            return
+        }
         let interval = window.interval(now: now)
         let predicate = eventStore.predicateForEvents(
             withStart: interval.start,
@@ -136,6 +137,10 @@ final class StandaloneCalendarService: ObservableObject {
             selectedCalendarIDs.insert(id)
         }
         await refresh()
+    }
+
+    func restoreSelection(_ ids: Set<String>) {
+        selectedCalendarIDs = ids
     }
 
     func setWindow(_ window: StandaloneCalendarWindow) async {

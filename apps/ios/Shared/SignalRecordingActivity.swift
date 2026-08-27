@@ -73,7 +73,10 @@ struct LiveActivityStopRequestBridge {
             StopRequest.self,
             from: Data(contentsOf: finalURL)
         )
-        guard request.draftID == draftID else { return false }
+        guard request.draftID == draftID else {
+            try FileManager.default.removeItem(at: finalURL)
+            return false
+        }
         try FileManager.default.removeItem(at: finalURL)
         return true
     }

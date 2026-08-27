@@ -135,6 +135,7 @@ struct SharedCaptureInbox {
             throw SharedCaptureInboxError.appGroupUnavailable
         }
         try prepareDirectories()
+        try recoverPendingTransactions()
     }
 
     @discardableResult
@@ -183,6 +184,7 @@ struct SharedCaptureInbox {
         data: Data,
         fileExtension: String,
         mediaType: String,
+        sourceText: String? = nil,
         note: String? = nil,
         sourceApplication: String? = nil,
         now: Date = Date()
@@ -194,21 +196,36 @@ struct SharedCaptureInbox {
             .filter { $0.isLetter || $0.isNumber }
         let payloadFileName = "\(id.uuidString.lowercased()).\(safeExtension.isEmpty ? "image" : safeExtension)"
         let finalURL = payloadsDirectory.appending(path: payloadFileName)
-        let temporaryURL = temporaryDirectory.appending(path: "\(payloadFileName).tmp")
-        try data.write(to: temporaryURL, options: [.completeFileProtection])
-        try fileManager.moveItem(at: temporaryURL, to: finalURL)
         let envelope = SharedCaptureEnvelope(
             id: id,
             kind: .image,
             createdAt: now,
             sourceApplication: sourceApplication,
+            sourceText: sourceText?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
             recruiterNote: note?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
             payloadFileName: payloadFileName,
             mediaType: mediaType
         )
+        let temporaryPayloadURL = temporaryDirectory.appending(path: "\(payloadFileName).tmp")
+        let temporaryEnvelopeURL = transactionEnvelopeURL(for: id)
+        let finalEnvelopeURL = envelopeURL(for: id, in: inboxDirectory)
         do {
-            try append(envelope)
+            guard !fileManager.fileExists(atPath: finalEnvelopeURL.path) else {
+                throw SharedCaptureInboxError.duplicateEnvelope
+            }
+            try Self.encoder.encode(envelope).write(
+                to: temporaryEnvelopeURL,
+                options: [.atomic, .completeFileProtection]
+            )
+            try data.write(
+                to: temporaryPayloadURL,
+                options: [.atomic, .completeFileProtection]
+            )
+            try fileManager.moveItem(at: temporaryPayloadURL, to: finalURL)
+            try fileManager.moveItem(at: temporaryEnvelopeURL, to: finalEnvelopeURL)
         } catch {
+            try? fileManager.removeItem(at: temporaryEnvelopeURL)
+            try? fileManager.removeItem(at: temporaryPayloadURL)
             try? fileManager.removeItem(at: finalURL)
             throw error
         }
@@ -221,13 +238,21 @@ struct SharedCaptureInbox {
             includingPropertiesForKeys: nil
         )
         .filter { $0.pathExtension == "json" }
-        .compactMap { url in
-            try? Self.decoder.decode(
-                SharedCaptureEnvelope.self,
-                from: Data(contentsOf: url)
-            )
+        .map { url in
+            let envelope: SharedCaptureEnvelope
+            do {
+                envelope = try Self.decoder.decode(
+                    SharedCaptureEnvelope.self,
+                    from: Data(contentsOf: url)
+                )
+            } catch {
+                throw SharedCaptureInboxError.corruptEnvelope(url.lastPathComponent)
+            }
+            guard SharedCaptureEnvelope.supportedSchemaVersions.contains(envelope.schemaVersion) else {
+                throw SharedCaptureInboxError.unsupportedSchema(envelope.schemaVersion)
+            }
+            return envelope
         }
-        .filter { SharedCaptureEnvelope.supportedSchemaVersions.contains($0.schemaVersion) }
         .sorted {
             if $0.createdAt == $1.createdAt { return $0.id.uuidString < $1.id.uuidString }
             return $0.createdAt < $1.createdAt
@@ -286,6 +311,49 @@ struct SharedCaptureInbox {
         }
     }
 
+    private func recoverPendingTransactions() throws {
+        let transactionURLs = try fileManager.contentsOfDirectory(
+            at: temporaryDirectory,
+            includingPropertiesForKeys: nil
+        )
+        .filter { $0.lastPathComponent.hasSuffix(".json.tmp") }
+
+        for transactionURL in transactionURLs {
+            let envelope: SharedCaptureEnvelope
+            do {
+                envelope = try Self.decoder.decode(
+                    SharedCaptureEnvelope.self,
+                    from: Data(contentsOf: transactionURL)
+                )
+            } catch {
+                throw SharedCaptureInboxError.corruptEnvelope(transactionURL.lastPathComponent)
+            }
+            guard SharedCaptureEnvelope.supportedSchemaVersions.contains(envelope.schemaVersion) else {
+                throw SharedCaptureInboxError.unsupportedSchema(envelope.schemaVersion)
+            }
+            let finalEnvelopeURL = envelopeURL(for: envelope.id, in: inboxDirectory)
+            if fileManager.fileExists(atPath: finalEnvelopeURL.path) {
+                try fileManager.removeItem(at: transactionURL)
+                continue
+            }
+            if envelope.kind == .image {
+                guard let payloadFileName = envelope.payloadFileName else {
+                    throw SharedCaptureInboxError.incompleteTransaction(envelope.id)
+                }
+                let temporaryPayloadURL = temporaryDirectory.appending(path: "\(payloadFileName).tmp")
+                let finalPayloadURL = payloadsDirectory.appending(path: payloadFileName)
+                if !fileManager.fileExists(atPath: finalPayloadURL.path),
+                   fileManager.fileExists(atPath: temporaryPayloadURL.path) {
+                    try fileManager.moveItem(at: temporaryPayloadURL, to: finalPayloadURL)
+                }
+                guard fileManager.fileExists(atPath: finalPayloadURL.path) else {
+                    throw SharedCaptureInboxError.incompleteTransaction(envelope.id)
+                }
+            }
+            try fileManager.moveItem(at: transactionURL, to: finalEnvelopeURL)
+        }
+    }
+
     private var inboxDirectory: URL {
         rootURL.appending(path: "Inbox", directoryHint: .isDirectory)
     }
@@ -304,6 +372,10 @@ struct SharedCaptureInbox {
 
     private func envelopeURL(for id: UUID, in directory: URL) -> URL {
         directory.appending(path: "\(id.uuidString.lowercased()).json")
+    }
+
+    private func transactionEnvelopeURL(for id: UUID) -> URL {
+        temporaryDirectory.appending(path: "\(id.uuidString.lowercased()).json.tmp")
     }
 
     private static let encoder: JSONEncoder = {
@@ -328,6 +400,9 @@ enum SharedCaptureInboxError: LocalizedError {
     case appGroupUnavailable
     case unavailableInRelease
     case duplicateEnvelope
+    case corruptEnvelope(String)
+    case unsupportedSchema(Int)
+    case incompleteTransaction(UUID)
     case emptyPayload
     case unsupportedURL
 
@@ -339,6 +414,12 @@ enum SharedCaptureInboxError: LocalizedError {
             return "Standalone Share capture is unavailable in this Release build."
         case .duplicateEnvelope:
             return "This capture envelope already exists."
+        case let .corruptEnvelope(fileName):
+            return "Shared capture metadata \(fileName) is damaged. The item was not discarded; Reset can remove it safely."
+        case let .unsupportedSchema(version):
+            return "Shared capture metadata uses unsupported schema version \(version). The item remains queued."
+        case let .incompleteTransaction(id):
+            return "Shared capture \(id.uuidString) is incomplete. The item remains queued for recovery or Reset."
         case .emptyPayload:
             return "The shared item is empty."
         case .unsupportedURL:

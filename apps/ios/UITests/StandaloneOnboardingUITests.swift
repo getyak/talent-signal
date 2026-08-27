@@ -50,6 +50,10 @@ final class StandaloneOnboardingUITests: XCTestCase {
         )
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Remote preferred'")).firstMatch.exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'visa'")).firstMatch.exists)
+        XCTAssertFalse(
+            app.staticTexts["Clarify the open dependency"].exists,
+            "An unaccepted Proposal action must not be presented as Today's current next action"
+        )
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Standalone Today with source evidence"
         screenshot.lifetime = .keepAlways
