@@ -8,6 +8,7 @@ struct TalentSignalApp: App {
     @AppStorage(AppLanguage.storageKey) private var storedLanguage =
         AppLanguage.system.rawValue
     @StateObject private var appSessionStore: AppSessionStore
+    @State private var standaloneOpenURL: URL?
 
     init() {
         _appSessionStore = StateObject(
@@ -34,6 +35,20 @@ struct TalentSignalApp: App {
     private var opensReviewWorkbenchDirectly: Bool {
         TalentSignalRootRoute.opensReviewWorkbench(
             arguments: ProcessInfo.processInfo.arguments
+        )
+    }
+
+    private var standaloneOnboardingRoot: AnyView? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard StandaloneOnboardingConfiguration.isEnabled(arguments: arguments)
+                || StandaloneOnboardingConfiguration.opens(url: standaloneOpenURL) else {
+            return nil
+        }
+        return AnyView(
+            StandaloneOnboardingView(
+                arguments: arguments,
+                initialURL: standaloneOpenURL
+            )
         )
     }
 
@@ -82,7 +97,9 @@ struct TalentSignalApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if TalentSignalAuthenticationConfiguration.requiresAuthentication(
+                if let standaloneOnboardingRoot {
+                    standaloneOnboardingRoot
+                } else if TalentSignalAuthenticationConfiguration.requiresAuthentication(
                     arguments: ProcessInfo.processInfo.arguments
                 ) {
                     authenticatedRoot
@@ -130,6 +147,10 @@ struct TalentSignalApp: App {
                         await CaptureHandoffStore.shared.restorePendingCapture()
                     }
                 }
+                .onOpenURL { url in
+                    guard StandaloneOnboardingConfiguration.opens(url: url) else { return }
+                    standaloneOpenURL = url
+                }
         }
     }
 
@@ -151,6 +172,25 @@ struct TalentSignalApp: App {
             )
             .id(session.account.id)
         }
+    }
+}
+
+enum StandaloneOnboardingConfiguration {
+    static func isEnabled(arguments: [String]) -> Bool {
+#if DEBUG
+        arguments.contains("--standalone-onboarding")
+            || arguments.contains("--standalone-onboarding-reset")
+#else
+        false
+#endif
+    }
+
+    static func opens(url: URL?) -> Bool {
+#if DEBUG
+        url?.scheme == "talentsignal" && url?.host == "standalone"
+#else
+        false
+#endif
     }
 }
 

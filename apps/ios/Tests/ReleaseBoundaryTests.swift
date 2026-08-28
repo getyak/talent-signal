@@ -84,6 +84,16 @@ final class ReleaseBoundaryTests: XCTestCase {
                 arguments: ["TalentSignal", "--fixture-id", "TS-CORE-01"]
             )
         )
+        XCTAssertTrue(
+            StandaloneOnboardingConfiguration.isEnabled(
+                arguments: ["TalentSignal", "--standalone-onboarding-reset"]
+            )
+        )
+        XCTAssertTrue(
+            StandaloneOnboardingConfiguration.opens(
+                url: URL(string: "talentsignal://standalone")
+            )
+        )
 #else
         let arguments = [
             "TalentSignal",
@@ -93,6 +103,10 @@ final class ReleaseBoundaryTests: XCTestCase {
             "--workspace-backend-url", "http://127.0.0.1:4320",
             "--pursuit-proposal-id", "00000000-0000-4000-8000-000000000001",
             "--text-signal-seed", "00000000-0000-4000-8000-000000000002",
+            "--standalone-onboarding-reset",
+            "--standalone-demo",
+            "--demo-proposal-engine",
+            "--simulate-action-button",
         ]
 
         XCTAssertFalse(TalentSignalRootRoute.opensReviewWorkbench(arguments: arguments))
@@ -106,6 +120,22 @@ final class ReleaseBoundaryTests: XCTestCase {
                 arguments: arguments
             )
         )
+        XCTAssertFalse(
+            StandaloneOnboardingConfiguration.isEnabled(arguments: arguments)
+        )
+        XCTAssertFalse(
+            StandaloneOnboardingConfiguration.opens(
+                url: URL(string: "talentsignal://standalone")
+            )
+        )
+#endif
+    }
+
+    func testStandaloneSystemSurfacesMatchTheCompiledConfiguration() {
+#if DEBUG
+        XCTAssertTrue(StandaloneSharedCaptureConfiguration.isEnabled)
+#else
+        XCTAssertFalse(StandaloneSharedCaptureConfiguration.isEnabled)
 #endif
     }
 }

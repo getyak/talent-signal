@@ -1,0 +1,68 @@
+import XCTest
+
+final class StandaloneOnboardingUITests: XCTestCase {
+    @MainActor
+    func testStandaloneDemoMeetingJourneyCreatesVerifiedToday() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--standalone-onboarding-reset",
+            "--standalone-demo",
+            "--demo-proposal-engine",
+            "--simulate-action-button",
+        ]
+        app.launch()
+
+        tap("standalone-demo-user", in: app)
+        tap("standalone-create-pursuit", in: app)
+        tap("standalone-finish-demo", in: app)
+        tap("standalone-source-calendar", in: app)
+        tap("standalone-calendar-demo-meeting", in: app)
+
+        app.buttons["Text"].tap()
+        tap("standalone-use-example-signal", in: app)
+        tap("standalone-process-signal", in: app)
+
+        let confirm = app.buttons["standalone-confirm-proposal"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 8))
+        let factToggle = app.switches["Confirm this sourced change"].firstMatch
+        XCTAssertTrue(factToggle.waitForExistence(timeout: 5))
+        factToggle.tap()
+        confirm.tap()
+        tap("standalone-offer-action-button", in: app)
+        tap("standalone-practice-capture", in: app)
+        tap("standalone-simulate-action-button", in: app)
+        tap("standalone-enter-today", in: app)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["standalone-today-primary-card"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.staticTexts["Hire a VP of Engineering"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Remote preferred'")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'visa'")).firstMatch.exists)
+    }
+
+    @MainActor
+    func testStandaloneCalendarExplainsPurposeBeforeSystemPrompt() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--standalone-onboarding-reset", "--standalone-demo"]
+        app.launch()
+
+        tap("standalone-demo-user", in: app)
+        tap("standalone-create-pursuit", in: app)
+        tap("standalone-finish-demo", in: app)
+        tap("standalone-source-calendar", in: app)
+
+        XCTAssertTrue(app.staticTexts["Connect the conversation to the right moment."].exists)
+        XCTAssertTrue(app.staticTexts["No Calendar writes"].exists)
+        XCTAssertTrue(app.buttons["standalone-allow-calendar"].exists)
+    }
+
+    @MainActor
+    private func tap(_ identifier: String, in app: XCUIApplication) {
+        let element = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(element.waitForExistence(timeout: 5), "Missing \(identifier)")
+        if !element.isHittable { app.swipeUp() }
+        element.tap()
+    }
+}
