@@ -124,6 +124,38 @@ describe("private screenshot analysis provider", () => {
     ).rejects.toThrow(/not configured/i);
   });
 
+  it("uses BigModel only when it is selected explicitly", async () => {
+    vi.stubEnv("TALENT_SIGNAL_AI_ENABLED", "true");
+    vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "true");
+    vi.stubEnv("TALENT_SIGNAL_SCREENSHOT_PROVIDER", "zhipu");
+    vi.stubEnv("ZHIPU_API_KEY", "test-key");
+    vi.stubEnv("ARK_API_KEY", "an-ark-key-that-must-not-win");
+    vi.stubEnv("OPENROUTER_API_KEY", "an-openrouter-key-that-must-not-win");
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          id: "bigmodel-request-2",
+          model: "glm-5.3-flash",
+          choices: [{ message: { content: modelPayload() } }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const result = await analyzeScreenshot({
+      bytes: new Uint8Array([1, 2, 3]),
+      mimeType: "image/png",
+      contactName: "Synthetic Candidate",
+      assignmentLabel: "Synthetic search",
+      screenshotOwner: "unknown",
+      sourceSha256,
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    expect(result.meta.provider).toBe("Zhipu BigModel");
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it("propagates caller cancellation to the configured vision provider", async () => {
     vi.stubEnv("TALENT_SIGNAL_AI_ENABLED", "true");
     vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "true");
