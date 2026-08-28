@@ -76,18 +76,15 @@ struct PursuitWorkspaceSnapshot: Equatable {
                 title: title,
                 reason: reason,
                 targetOutcome: pursuit.targetOutcome.workspacePhrase,
-                targetDate: WorkspaceDate.short(pursuit.targetDate),
+                targetDate: pursuit.targetDate,
                 blocker: gap.map {
                     "\($0.title) · \($0.basis.evidenceState.explanation) · close when \($0.closeCondition)"
                 },
-                evidenceFreshness: proposal?.latestEvidence.map {
-                    WorkspaceDate.evidenceFreshness(
-                        observedAt: $0.observedAt,
-                        sourceTimezone: $0.sourceTimezone
-                    )
-                } ?? gap.map { $0.basis.evidenceState.explanation },
+                evidenceObservedAt: proposal?.latestEvidence?.observedAt,
+                evidenceSourceTimezone: proposal?.latestEvidence?.sourceTimezone,
+                evidenceState: proposal?.evidenceState ?? gap?.basis.evidenceState,
                 owner: action?.ownerDisplayName,
-                due: action?.dueAt.map(WorkspaceDate.short),
+                due: action?.dueAt,
                 proposedAction: action?.title,
                 actionLabel: kind == .review
                     ? "Review proposal"
@@ -298,6 +295,23 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
     let lastActivityAt: String
     let profile: Profile?
     let contexts: [Context]
+    var identityMatches: [IdentityMatch] = []
+
+    struct IdentityMatch: Decodable, Equatable {
+        let kind: String
+        let handleType: String?
+        let displayHint: String?
+        let sourceResourceID: String?
+        let expiredAt: String?
+
+        enum CodingKeys: String, CodingKey {
+            case kind
+            case handleType = "handle_type"
+            case displayHint = "display_hint"
+            case sourceResourceID = "source_resource_id"
+            case expiredAt = "expired_at"
+        }
+    }
 
     struct Profile: Decodable, Equatable {
         let headline: String
@@ -336,6 +350,7 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
         case lastActivityAt = "last_activity_at"
         case profile
         case contexts
+        case identityMatches = "identity_matches"
     }
 }
 
@@ -476,7 +491,9 @@ struct PursuitAttentionItem: Equatable, Identifiable {
     let targetOutcome: String
     let targetDate: String
     let blocker: String?
-    let evidenceFreshness: String?
+    let evidenceObservedAt: String?
+    let evidenceSourceTimezone: String?
+    let evidenceState: WorkspaceEvidenceState?
     let owner: String?
     let due: String?
     let proposedAction: String?

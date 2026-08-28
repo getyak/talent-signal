@@ -78,10 +78,11 @@ export function PeopleDirectoryApp({
           <section className={styles.hero}>
             <div>
               <p className={styles.eyebrow}>Living relationship directory</p>
-              <h1>People, with the context still attached.</h1>
+              <h1>People</h1>
               <p className={styles.intro}>
-                Find the person, see the relationship in motion, and reopen the
-                exact evidence. No lead score. No personality label.
+                Relationships, with context attached. Find the person and
+                reopen the exact evidence—never a lead score or personality
+                label.
               </p>
             </div>
 

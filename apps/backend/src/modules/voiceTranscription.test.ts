@@ -24,7 +24,7 @@ function waveAudio(): Buffer {
 
 function environment(): NodeJS.ProcessEnv {
   return {
-    TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: "true",
+    TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION: "true",
     VOICE_ASR_PROVIDER: "doubao",
     DOUBAO_ASR_APP_ID: "synthetic-app",
     DOUBAO_ASR_ACCESS_TOKEN: "synthetic-token",
@@ -39,8 +39,25 @@ describe("Doubao voice transcription", () => {
     const transcriber = new EnvironmentDoubaoVoiceTranscriber(
       {
         ...environment(),
-        TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: "false",
+        TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION: "false",
       },
+      fetchImpl,
+    );
+
+    await expect(transcriber.transcribe(request)).rejects.toMatchObject({
+      code: "REMOTE_TRANSCRIPTION_NOT_ADMITTED",
+      statusCode: 503,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("does not treat the generic sensitive-AI gate as voice admission", async () => {
+    const fetchImpl = vi.fn();
+    const voiceEnvironment = environment();
+    delete voiceEnvironment.TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION;
+    voiceEnvironment.TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING = "true";
+    const transcriber = new EnvironmentDoubaoVoiceTranscriber(
+      voiceEnvironment,
       fetchImpl,
     );
 

@@ -6,6 +6,9 @@ import {
   TalentSignalClient,
   type ResourceCaptureRequest,
 } from "@talent-signal/contracts";
+import { Pool } from "pg";
+
+import { sweepDueIdentityHandles } from "../modules/identityHandles.js";
 
 const baseUrl = process.env.API_BASE_URL ?? "http://127.0.0.1:4317";
 const fixturePursuitTitles = new Set([
@@ -295,8 +298,154 @@ async function createSameNameFixture(
   };
 }
 
+async function createContactIdentityFixture(
+  client: TalentSignalClient,
+): Promise<{
+  noMatchEmail: string;
+  singleEmail: string;
+  singlePersonId: string;
+  singleContextId: string;
+  conflictEmail: string;
+  conflictCurrentPersonId: string;
+  conflictCurrentContextId: string;
+  conflictHistoricalPersonId: string;
+}> {
+  const runId = randomUUID();
+  const noMatchEmail = `ios-no-match-${runId}@example.test`;
+  const singleEmail = `ios-single-${runId}@example.test`;
+  const conflictEmail = `ios-recycled-${runId}@example.test`;
+
+  const createContact = async (
+    fixtureKey: string,
+    displayLabel: string,
+    email: string,
+  ) => {
+    const observedAt = new Date().toISOString();
+    const clientResourceId = `ios-contact-identity:${fixtureKey}:${runId}`;
+    const captured = await client.createResourceCapture({
+      contract_version: CONTRACT_VERSION,
+      idempotency_key: `ios-contact-identity:${fixtureKey}:${runId}:capture`,
+      channel: "chat",
+      purpose: "Synthetic iOS contact identity review proof",
+      captured_at: observedAt,
+      source_timezone: "Asia/Shanghai",
+      person_scope: {
+        status: "new_person",
+        display_label: displayLabel,
+        relationship_context: {
+          status: "proposed",
+          label: "Synthetic contact search",
+          purpose: "Verify bounded iOS contact attachment",
+          role: "Candidate",
+        },
+        binding_basis:
+          "The synthetic evaluator explicitly created this isolated contact identity.",
+      },
+      resource: {
+        client_resource_id: clientResourceId,
+        kind: "contact_record",
+        display_name: "Synthetic iOS contact record",
+        media_type: "text/plain",
+        observed_at: observedAt,
+        source_timezone: "Asia/Shanghai",
+        source_locator: `synthetic:ios-contact:${fixtureKey}:${runId}`,
+        retention: {
+          requested_mode: "ephemeral",
+          source_scope: "reviewed_selected_text",
+        },
+      },
+      confirmed_identity_handles: [
+        {
+          type: "email",
+          value: email,
+          source_client_resource_id: clientResourceId,
+        },
+      ],
+      fragments: [
+        {
+          client_resource_id: clientResourceId,
+          kind: "contact_field",
+          sequence: 0,
+          text: `${displayLabel} · ${email}`,
+          locator: {
+            kind: "contact_field",
+            field: "source_note",
+            source_record_version: "1",
+          },
+          attribution: { actor_kind: "recruiter", status: "confirmed" },
+          review_status: "reviewed",
+          parser: { name: "synthetic-ios-contact-fixture", version: "1.0.0" },
+        },
+      ],
+    });
+    if (!captured.identity.person_id || !captured.identity.relationship_context_id) {
+      throw new Error(`Contact identity ${fixtureKey} did not bind.`);
+    }
+    return {
+      personId: captured.identity.person_id,
+      contextId: captured.identity.relationship_context_id,
+      resourceId: captured.resource.id,
+    };
+  };
+
+  const single = await createContact("single", "Samira Current", singleEmail);
+  const historical = await createContact(
+    "historical",
+    "Robin Historical",
+    conflictEmail,
+  );
+
+  const databaseUrl =
+    process.env.DATABASE_URL ??
+    `postgresql://${process.env.POSTGRES_USER ?? "talent_signal_local"}:${process.env.POSTGRES_PASSWORD ?? "talent_signal_local_only"}@127.0.0.1:${process.env.POSTGRES_PORT ?? "55432"}/${process.env.POSTGRES_DB ?? "talent_signal_local"}`;
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    application_name: "talent-signal-ios-contact-fixture",
+    max: 2,
+  });
+  try {
+    const due = await pool.query<{ id: string }>(
+      `UPDATE identity_handles
+       SET valid_until = now() - interval '1 second',
+           updated_at = now()
+       WHERE source_resource_id = $1
+         AND handle_type = 'email'
+         AND status = 'confirmed'
+       RETURNING id`,
+      [historical.resourceId],
+    );
+    if (!due.rows[0]) {
+      throw new Error("The historical contact handle could not be prepared.");
+    }
+    const expiredIds = await sweepDueIdentityHandles(pool, new Date());
+    if (!expiredIds.includes(due.rows[0].id)) {
+      throw new Error("The historical contact handle did not expire.");
+    }
+  } finally {
+    await pool.end();
+  }
+
+  const current = await createContact(
+    "current",
+    "Robin Current",
+    conflictEmail,
+  );
+
+  return {
+    noMatchEmail,
+    singleEmail,
+    singlePersonId: single.personId,
+    singleContextId: single.contextId,
+    conflictEmail,
+    conflictCurrentPersonId: current.personId,
+    conflictCurrentContextId: current.contextId,
+    conflictHistoricalPersonId: historical.personId,
+  };
+}
+
 export interface IOSPursuitProposalFixture {
   backend_url: string;
+  account_id: string;
   proposal_id: string;
   pursuit_id: string;
   person_id: string;
@@ -310,6 +459,14 @@ export interface IOSPursuitProposalFixture {
   same_name_second_person_id: string;
   same_name_second_context_id: string;
   same_name_second_role_id: string;
+  contact_no_match_email?: string;
+  contact_single_email?: string;
+  contact_single_person_id?: string;
+  contact_single_context_id?: string;
+  contact_conflict_email?: string;
+  contact_conflict_current_person_id?: string;
+  contact_conflict_current_context_id?: string;
+  contact_conflict_historical_person_id?: string;
 }
 
 async function cancelActiveFixturePursuits(
@@ -401,9 +558,20 @@ export async function prepareIOSPursuitProposalFixture(
     ownerUserId: login.user.id,
   });
   const sameName = await createSameNameFixture(client);
+  let contactIdentity:
+    | Awaited<ReturnType<typeof createContactIdentityFixture>>
+    | undefined;
+  try {
+    contactIdentity = await createContactIdentityFixture(client);
+  } catch (error) {
+    process.stderr.write(
+      `iOS contact identity fixture unavailable: ${error instanceof Error ? error.message : "unknown error"}\n`,
+    );
+  }
 
   return {
     backend_url: fixtureBaseUrl,
+    account_id: login.account.id,
     proposal_id: canonical.proposalId,
     pursuit_id: canonical.pursuitId,
     person_id: canonical.personId,
@@ -417,6 +585,21 @@ export async function prepareIOSPursuitProposalFixture(
     same_name_second_person_id: sameName.secondPersonId,
     same_name_second_context_id: sameName.secondContextId,
     same_name_second_role_id: sameName.secondRoleId,
+    ...(contactIdentity
+      ? {
+          contact_no_match_email: contactIdentity.noMatchEmail,
+          contact_single_email: contactIdentity.singleEmail,
+          contact_single_person_id: contactIdentity.singlePersonId,
+          contact_single_context_id: contactIdentity.singleContextId,
+          contact_conflict_email: contactIdentity.conflictEmail,
+          contact_conflict_current_person_id:
+            contactIdentity.conflictCurrentPersonId,
+          contact_conflict_current_context_id:
+            contactIdentity.conflictCurrentContextId,
+          contact_conflict_historical_person_id:
+            contactIdentity.conflictHistoricalPersonId,
+        }
+      : {}),
   };
 }
 

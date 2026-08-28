@@ -82,16 +82,17 @@
 }
 
 .capture {
-  background: var(--accent);
-  box-shadow: var(--shadow-accent);
-  color: var(--accent-ink);
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
   margin-top: 1px;
   width: 100%;
 }
 
 .capture:hover {
-  background: var(--accent-strong);
-  transform: translateY(-1px);
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--ink);
 }
 
 .account {

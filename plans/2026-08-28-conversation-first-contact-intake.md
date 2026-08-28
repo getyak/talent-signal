@@ -255,6 +255,26 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
 - Confirmed-person attachment and unknown-outcome response-loss recovery pass
   the same dismiss, relaunch, Sessions, and restored-receipt checks in
   `/tmp/talent-signal-contact-receipt-retry-ui.xcresult`.
+- Removed the restored-receipt dead end without adding another navigation
+  system. A bound receipt now dismisses the focused Agent surface, selects the
+  existing People page, and opens the exact current Person while preserving the
+  established top navigation and bottom global Agent input.
+- Kept the route canonical and fail-closed. The action resolves only a stored
+  Person ID against the current workspace snapshot and never falls back to a
+  name. Identity-review receipts and receipts whose Person is no longer present
+  expose no Person action; the latter explains that the cached reference is no
+  longer available.
+- Standard fixture-backed create and identity-review journeys pass process
+  termination, Session recovery, exact-Person navigation, and no-action
+  verification in
+  `/tmp/talent-signal-contact-receipt-people-ui.xcresult`.
+- Simplified Chinese, dark appearance, AX5 Dynamic Type, and Reduce Motion pass
+  the same create, relaunch, receipt, 44-point action, and People-detail path in
+  `/tmp/talent-signal-contact-receipt-people-ax5-zh.xcresult`.
+- Focused unit coverage for exact current Person resolution, missing-Person
+  refusal, minimal receipt persistence, unresolved scope, idempotent retry, and
+  version 3 migration passes in
+  `/tmp/talent-signal-contact-receipt-people-model.xcresult`.
 - Replaced the iOS canonical Person sheet with an inline People detail so the
   original Today / Sessions / People navigation and bottom global Agent input
   remain present while inspecting a stable identity. The obsolete sheet route
@@ -469,6 +489,24 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   clarification/no-match, Chinese dark AX5, and contextual Session coverage as
   six passes with zero failures in
   `/tmp/talent-signal-progressive-scope-final-ui.xcresult`.
+- Continued direct screenshot semantics inside the focused Ask composer. A
+  global, unscoped paperclip now opens the native Photos picker and the existing
+  governed conversation-screenshot review; a relationship-scoped Session keeps
+  the same paperclip as the existing up-to-ten task-image attachment control.
+- Kept the routing boundary local to Ask instead of expanding the system App
+  Intent destination enum. The parent archive maps `screenshotReview` to the
+  governed capture surface and `foregroundAudio` to the existing foreground
+  intake, so standalone onboarding does not inherit an unrelated state.
+- Proved interruption recovery with an exact draft: type, open the native
+  picker, cancel, inspect the screenshot-review state, close to Today, reopen
+  the unchanged bottom global input, and recover the same unscoped message.
+  The focused proof passed in
+  `/tmp/talent-signal-global-paperclip-recovery-ui-retry.xcresult`.
+- Five empty, typing, contextual Session, Simplified Chinese dark AX5, and
+  direct screenshot journeys passed with zero failures in
+  `/tmp/talent-signal-global-paperclip-ui.xcresult`. The selected visual
+  evidence is exported under
+  `/tmp/talent-signal-global-paperclip-artifacts.NKemaU/`.
 - Removed the last command-language dependency from the iOS global input and
   Web contact parser. A concise note such as `Maya Chen, maya@example.com,
   Chief Product Officer` or `陈晓 xiao.chen@example.com，产品负责人搜索` now stages

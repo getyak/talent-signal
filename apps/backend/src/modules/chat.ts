@@ -19,13 +19,18 @@ import {
   completeIdempotency,
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
+import type {
+  RemoteChatAnswerProviding,
+  RemoteChatAnswerResult,
+  RemoteChatContextBlock,
+} from "./chatAnswerProvider.js";
 import {
   bindChatMediaToManifest,
   listManifestChatMedia,
 } from "./chatMedia.js";
 import { loadSnapshot } from "./wiki.js";
 
-const CHAT_POLICY_VERSION = "chat-context.v1";
+const CHAT_POLICY_VERSION = "chat-context.v2";
 
 export interface ChatTaskMutationResult {
   body: ChatTaskResponse;
@@ -67,6 +72,65 @@ function citations(blocks: KnowledgeBlock[]): string[] {
         .map((itemDependency) => itemDependency.id),
     ),
   );
+}
+
+function remoteContextBlock(block: KnowledgeBlock): RemoteChatContextBlock {
+  return {
+    block_id: block.id,
+    block_key: block.block_key,
+    type: block.type,
+    status: block.status,
+    headline: block.content.headline.slice(0, 1_000),
+    summary: (block.content.summary ?? "").slice(0, 1_500),
+    items: block.content.items.slice(0, 8).map((item) => item.slice(0, 500)),
+    evidence_fragment_ids: citations([block]),
+  };
+}
+
+function remoteAnswerBlock(answer: RemoteChatAnswerResult): ChatResponseBlock {
+  return {
+    id: randomUUID(),
+    kind: answer.kind,
+    title: `Zhipu AI · ${answer.title}`.slice(0, 240),
+    body: answer.body,
+    status:
+      answer.kind === "question_set"
+        ? "proposed"
+        : answer.kind === "clarification"
+          ? "needs_review"
+          : "informational",
+    citation_dependency_ids: answer.citation_ids,
+    requires_user_decision: answer.kind === "clarification",
+  };
+}
+
+function remoteFailureBlock(
+  title: string,
+  body: string,
+): ChatResponseBlock {
+  return {
+    id: randomUUID(),
+    kind: "failure_recovery",
+    title,
+    body,
+    status: "failed",
+    citation_dependency_ids: [],
+    requires_user_decision: false,
+  };
+}
+
+function insertAfterPersonBrief(
+  blocks: ChatResponseBlock[],
+  block: ChatResponseBlock,
+): ChatResponseBlock[] {
+  if (blocks.length >= 20) return blocks;
+  const personBriefIndex = blocks.findIndex((item) => item.kind === "person_brief");
+  const insertionIndex = personBriefIndex < 0 ? 0 : personBriefIndex + 1;
+  return [
+    ...blocks.slice(0, insertionIndex),
+    block,
+    ...blocks.slice(insertionIndex),
+  ];
 }
 
 export interface ChatManifestRow {
@@ -692,6 +756,7 @@ export async function createChatTask(
   pool: Pool,
   auth: AuthContext,
   request: ChatTaskRequest,
+  remoteChatProvider: RemoteChatAnswerProviding | null = null,
 ): Promise<ChatTaskMutationResult> {
   return inTransaction(pool, async (client) => {
     const idempotency = await claimIdempotency(
@@ -832,9 +897,49 @@ export async function createChatTask(
       request.person_id,
       request.relationship_context_id,
     );
-    const blocks = responseBlocks(selectedBlocks, activeAttention);
+    let blocks = responseBlocks(selectedBlocks, activeAttention);
+    let remoteChatStatus:
+      | "disabled"
+      | "completed"
+      | "fallback"
+      | "media_not_sent" = "disabled";
+    let remoteChatResult: RemoteChatAnswerResult | null = null;
+    if (remoteChatProvider && mediaIds.length === 0) {
+      try {
+        remoteChatResult = await remoteChatProvider.answer({
+          objective: request.objective,
+          context_blocks: selectedBlocks.map(remoteContextBlock),
+          allowed_citation_ids: evidenceFragmentIds,
+        });
+        const nextBlocks = insertAfterPersonBrief(
+          blocks,
+          remoteAnswerBlock(remoteChatResult),
+        );
+        remoteChatStatus = nextBlocks === blocks ? "fallback" : "completed";
+        blocks = nextBlocks;
+      } catch {
+        remoteChatStatus = "fallback";
+        blocks = insertAfterPersonBrief(
+          blocks,
+          remoteFailureBlock(
+            "AI answer unavailable",
+            "Zhipu AI did not complete this turn. The governed relationship summary remains available below; ask again to retry. No action was taken.",
+          ),
+        );
+      }
+    } else if (remoteChatProvider && mediaIds.length > 0) {
+      remoteChatStatus = "media_not_sent";
+      blocks = insertAfterPersonBrief(
+        blocks,
+        remoteFailureBlock(
+          "Attachments were not sent to remote AI",
+          "This turn uses the governed relationship summary only. Talent Signal did not send the attached images to Zhipu AI, and no action was taken.",
+        ),
+      );
+    }
     const action = blocks.find((item) => item.kind === "action_proposal");
     const noAction = blocks.find((item) => item.kind === "no_action");
+    const clarification = blocks.find((item) => item.kind === "clarification");
     const response: ChatTaskResponse = {
       contract_version: CONTRACT_VERSION,
       task_id: taskId,
@@ -842,6 +947,8 @@ export async function createChatTask(
       knowledge_snapshot_id: snapshot.id,
       disposition: action
         ? "propose_action"
+        : clarification
+          ? "clarify"
         : noAction
           ? "no_action"
           : "answer",
@@ -864,6 +971,13 @@ export async function createChatTask(
         included_evidence_count: evidenceFragmentIds.length,
         included_media_count: media.length,
         disposition: response.disposition,
+        remote_chat_status: remoteChatStatus,
+        remote_chat_provider_id: remoteChatResult?.provider_id ?? null,
+        remote_chat_model: remoteChatResult?.model ?? null,
+        remote_chat_provider_request_id:
+          remoteChatResult?.provider_request_id ?? null,
+        remote_chat_input_tokens: remoteChatResult?.input_tokens ?? 0,
+        remote_chat_output_tokens: remoteChatResult?.output_tokens ?? 0,
       },
     );
     await completeIdempotency(client, idempotency, 201, response);

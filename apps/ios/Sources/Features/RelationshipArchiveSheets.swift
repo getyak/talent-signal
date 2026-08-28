@@ -5,6 +5,7 @@ struct RelationshipChangeReviewView: View {
     let actorDisplayName: String
     let sourceTimezone: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
     @StateObject private var reviewStore: PursuitProposalReviewStore
 
     init(
@@ -32,26 +33,15 @@ struct RelationshipChangeReviewView: View {
     private var displayedEvidence: String {
         guard let proposal = reviewStore.proposal else { return person.evidence }
         return proposal.reviewContext.evidence.first?.text
-            ?? "No reviewable evidence text is available for this Proposal."
+            ?? appLanguage.text("No reviewable evidence text is available for this Proposal.")
     }
 
-    private var displayedProvenance: String {
+    private var evidenceSourceSummary: String {
         guard let proposal = reviewStore.proposal,
               let evidence = proposal.reviewContext.evidence.first else {
             return person.provenance
         }
-        let roles = proposal.reviewContext.subject.contextualRoles
-            .map { $0.roleType.replacingOccurrences(of: "_", with: " ").capitalized }
-            .joined(separator: ", ")
-        let actor = evidence.attributedActor
-            .replacingOccurrences(of: "_", with: " ")
-            .capitalized
-        let channel = evidence.inputChannel == "ios_share"
-            ? "iOS Share"
-            : evidence.inputChannel
-                .replacingOccurrences(of: "_", with: " ")
-                .capitalized
-        return "Person: \(subjectName) · Role: \(roles) · Speaker: \(actor) · Source: \(evidence.sourceDisplayName) · Channel: \(channel) · \(evidenceTimeContext(evidence)) · Attribution: \(evidence.attributionStatus) · Review: \(evidence.reviewStatus)"
+        return "\(evidence.sourceDisplayName) · \(appLanguage.evidenceFreshness(observedAt: evidence.observedAt, sourceTimezone: evidence.sourceTimezone))"
     }
 
     private var relativeDateWarning: String? {
@@ -63,7 +53,7 @@ struct RelationshipChangeReviewView: View {
             "this friday", "this weekend",
         ]
         guard relativePhrases.contains(where: normalized.contains) else { return nil }
-        return "This evidence contains a relative date. It remains quoted context, not a scheduled date; confirm the absolute date and timezone before creating a due Action."
+        return appLanguage.text("This evidence contains a relative date. It remains quoted context, not a scheduled date; confirm the absolute date and timezone before creating a due Action.")
     }
 
     private var proposalHeadline: String {
@@ -74,30 +64,15 @@ struct RelationshipChangeReviewView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    RelationshipModalEyebrow("Why this is here")
+                    RelationshipModalEyebrow(appLanguage.text("Evidence"))
                         .padding(.top, 34)
 
-                    VStack(alignment: .leading, spacing: 18) {
-                        Image(systemName: "quote.opening")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(Color.tsVermilion)
-                        Text("“\(displayedEvidence)”")
-                            .font(.custom("Georgia", size: 25, relativeTo: .title2))
-                            .foregroundStyle(Color.tsInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(displayedProvenance)
-                            .font(.caption)
-                            .foregroundStyle(Color.tsMutedInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(18)
-                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(Color.tsLine, lineWidth: 1)
-                    }
+                    RelationshipExactEvidenceSection(
+                        text: displayedEvidence,
+                        sourceSummary: evidenceSourceSummary,
+                        proposal: reviewStore.proposal
+                    )
                     .padding(.top, 18)
-                    .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("review-exact-evidence")
 
                     RelationshipCausalSeam()
@@ -105,7 +80,7 @@ struct RelationshipChangeReviewView: View {
 
                     if let relativeDateWarning {
                         RelationshipReviewStatusCard(
-                            title: "Relative time remains unresolved",
+                            title: appLanguage.text("Relative time remains unresolved"),
                             detail: relativeDateWarning,
                             systemImage: "calendar.badge.exclamationmark"
                         )
@@ -114,8 +89,8 @@ struct RelationshipChangeReviewView: View {
 
                     RelationshipModalEyebrow(
                         reviewStore.proposal.map {
-                            "Pursuit · \($0.reviewContext.pursuit.title)"
-                        } ?? "Proposed change"
+                            "\(appLanguage.text("Pursuit")) · \($0.reviewContext.pursuit.title)"
+                        } ?? appLanguage.text("Proposed change")
                     )
 
                     Text(proposalHeadline)
@@ -125,7 +100,7 @@ struct RelationshipChangeReviewView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 12)
 
-                    Text("Only a reviewed backend operation can change this Pursuit. It cannot send a message or write to an external system.")
+                    Text(appLanguage.text("Review each change below. Applying it updates only canonical Pursuit state—no message or external write."))
                         .font(.subheadline)
                         .foregroundStyle(Color.tsMutedInk)
                         .fixedSize(horizontal: false, vertical: true)
@@ -134,77 +109,34 @@ struct RelationshipChangeReviewView: View {
                     if let proposal = reviewStore.proposal,
                        proposal.evidenceState.availability != "available" {
                         RelationshipReviewStatusCard(
-                            title: proposal.evidenceState.attentionLabel,
-                            detail: proposal.evidenceState.explanation,
+                            title: appLanguage.evidenceAttentionLabel(proposal.evidenceState),
+                            detail: appLanguage.evidenceExplanation(proposal.evidenceState),
                             systemImage: "exclamationmark.shield"
                         )
                         .padding(.top, 18)
                     }
 
                     if let proposal = reviewStore.proposal {
-                        VStack(alignment: .leading, spacing: 14) {
-                            ForEach(proposal.items) { item in
-                                VStack(alignment: .leading, spacing: 10) {
-                                    RelationshipModalEyebrow(
-                                        item.epistemicStatus.replacingOccurrences(
-                                            of: "_",
-                                            with: " "
-                                        )
-                                    )
-                                    RelationshipDefinitionRow(
-                                        label: "Before",
-                                        value: item.beforeValue.displayText
-                                    )
-                                    RelationshipDefinitionRow(
-                                        label: "Proposed",
-                                        value: item.proposedValue.displayText
-                                    )
-                                    RelationshipDefinitionRow(
-                                        label: "Reason",
-                                        value: item.reason
-                                    )
-                                    RelationshipDefinitionRow(
-                                        label: "Effect",
-                                        value: item.effectSummary
-                                    )
-                                    Text(item.evidenceState.explanation)
-                                        .font(.caption)
-                                        .foregroundStyle(
-                                            item.evidenceState.availability == "available"
-                                                ? Color.tsMutedInk
-                                                : Color.tsVermilion
-                                        )
-
-                                    if reviewStore.phase == .ready,
-                                       let draft = reviewStore.drafts[item.id] {
-                                        RelationshipProposalItemDecisionEditor(
-                                            item: item,
-                                            draft: draft,
-                                            validationMessage: reviewStore.editValidationMessage(for: item),
-                                            onSelect: { choice in
-                                                reviewStore.select(choice, for: item.id)
-                                            },
-                                            onEdit: { field, value in
-                                                reviewStore.updateEditedField(
-                                                    field,
-                                                    value: value,
-                                                    for: item.id
-                                                )
-                                            }
+                        VStack(alignment: .leading, spacing: 34) {
+                            ForEach(Array(proposal.items.enumerated()), id: \.element.id) { index, item in
+                                RelationshipProposalReviewItemView(
+                                    item: item,
+                                    index: index,
+                                    totalCount: proposal.items.count,
+                                    draft: reviewStore.phase == .ready
+                                        ? reviewStore.drafts[item.id]
+                                        : nil,
+                                    validationMessage: reviewStore.editValidationMessage(for: item)
+                                        .map { appLanguage.text($0) },
+                                    onSelect: { reviewStore.select($0, for: item.id) },
+                                    onEdit: { field, value in
+                                        reviewStore.updateEditedField(
+                                            field,
+                                            value: value,
+                                            for: item.id
                                         )
                                     }
-                                }
-                                .padding(16)
-                                .background(
-                                    Color.tsCanvas,
-                                    in: RoundedRectangle(cornerRadius: 16)
                                 )
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.tsLine, lineWidth: 1)
-                                }
-                                .accessibilityElement(children: .contain)
-                                .accessibilityIdentifier("proposal-item-\(item.id)")
                             }
                         }
                         .padding(.top, 24)
@@ -213,15 +145,15 @@ struct RelationshipChangeReviewView: View {
                     switch reviewStore.phase {
                     case .previewOnly:
                         RelationshipReviewStatusCard(
-                            title: "Canonical review not connected",
-                            detail: "This synthetic preview has no Proposal ID, so no confirmation control is available and nothing can be presented as applied.",
+                            title: appLanguage.text("Canonical review not connected"),
+                            detail: appLanguage.text("This synthetic preview has no Proposal ID, so no confirmation control is available and nothing can be presented as applied."),
                             systemImage: "lock.shield"
                         )
                         .padding(.top, 22)
                     case .loading:
                         HStack(spacing: 12) {
                             ProgressView()
-                            Text("Loading canonical Proposal…")
+                            Text(appLanguage.text("Loading canonical Proposal…"))
                                 .font(.subheadline)
                                 .foregroundStyle(Color.tsMutedInk)
                         }
@@ -229,47 +161,55 @@ struct RelationshipChangeReviewView: View {
                     case .ready:
                         VStack(alignment: .leading, spacing: 12) {
                             if let notice = reviewStore.notice {
-                                Label(notice, systemImage: "checkmark.shield")
+                                Label(appLanguage.text(notice), systemImage: "checkmark.shield")
                                     .font(.caption)
                                     .foregroundStyle(Color.tsMutedInk)
                             }
 
                             Text(
-                                "\(reviewStore.decidedItemCount)/\(reviewStore.proposal?.items.count ?? 0) item decisions complete"
+                                String(
+                                    format: appLanguage.text("%1$lld of %2$lld decisions complete"),
+                                    locale: appLanguage.locale,
+                                    reviewStore.decidedItemCount,
+                                    reviewStore.proposal?.items.count ?? 0
+                                )
                             )
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.tsMutedInk)
 
                             if let evidenceBlock = reviewStore.evidenceBlockingMessage {
                                 RelationshipReviewStatusCard(
-                                    title: "Evidence no longer reviewable",
-                                    detail: evidenceBlock,
+                                    title: appLanguage.text("Evidence no longer reviewable"),
+                                    detail: appLanguage.text(evidenceBlock),
                                     systemImage: "exclamationmark.shield"
                                 )
                             }
 
-                            Button("Record reviewed decisions") {
+                            Button(appLanguage.text("Apply reviewed decisions")) {
                                 Task { await reviewStore.submit() }
                             }
-                            .buttonStyle(RelationshipUnderlinedDecisionStyle())
+                            .buttonStyle(.borderedProminent)
+                            .tint(.tsInk)
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .disabled(!reviewStore.canSubmit)
                             .accessibilityHint(
                                 reviewStore.canSubmit
-                                    ? "Records these decisions in canonical Pursuit state. No external action is performed."
-                                    : "Choose a valid decision for every Proposal item first."
+                                    ? appLanguage.text("Records these decisions in canonical Pursuit state. No external action is performed.")
+                                    : appLanguage.text("Choose a valid decision for every Proposal item first.")
                             )
                             .accessibilityIdentifier("confirm-relationship-change")
                         }
                         .padding(.top, 22)
                     case .confirming:
                         RelationshipReviewStatusCard(
-                            title: "Confirming with canonical state",
-                            detail: "One recovery reference is saved until canonical readback finishes. Do not submit this review again.",
+                            title: appLanguage.text("Confirming with canonical state"),
+                            detail: appLanguage.text("One recovery reference is saved until canonical readback finishes. Do not submit this review again."),
                             systemImage: "arrow.triangle.2.circlepath"
                         )
                         .padding(.top, 22)
                     case let .recorded(result):
-                        RelationshipReviewReceipt(
+                            RelationshipReviewReceipt(
                             result: result,
                             actorDisplayName: actorDisplayName,
                             sourceTimezone: sourceTimezone
@@ -277,24 +217,24 @@ struct RelationshipChangeReviewView: View {
                             .padding(.top, 22)
                     case let .conflict(message):
                         RelationshipReviewStatusCard(
-                            title: "Pursuit changed",
-                            detail: "\(message) Nothing from this review was applied.",
+                            title: appLanguage.text("Pursuit changed"),
+                            detail: "\(appLanguage.text(message)) \(appLanguage.text("Nothing from this review was applied."))",
                             systemImage: "arrow.triangle.branch"
                         )
                         .padding(.top, 22)
                     case let .unknownLocked(operationID):
                         VStack(alignment: .leading, spacing: 12) {
                             RelationshipReviewStatusCard(
-                                title: "Outcome unknown — operation locked",
-                                detail: "The saved review may or may not have applied. Check canonical readback before trying again; the same recovery reference will be used.",
+                                title: appLanguage.text("Outcome unknown — operation locked"),
+                                detail: appLanguage.text("The saved review may or may not have applied. Check canonical readback before trying again; the same recovery reference will be used."),
                                 systemImage: "questionmark.diamond"
                             )
-                            DisclosureGroup("Audit details") {
-                                Text("Recovery reference \(operationID.uuidString.lowercased())")
+                            DisclosureGroup(appLanguage.text("Audit details")) {
+                                Text("\(appLanguage.text("Recovery reference")) \(operationID.uuidString.lowercased())")
                                     .font(.caption2)
                                     .foregroundStyle(Color.tsMutedInk)
                             }
-                            Button("Check canonical status") {
+                            Button(appLanguage.text("Check canonical status")) {
                                 Task { await reviewStore.reconcile() }
                             }
                             .font(.subheadline.weight(.semibold))
@@ -305,11 +245,11 @@ struct RelationshipChangeReviewView: View {
                     case let .failed(message):
                         VStack(alignment: .leading, spacing: 12) {
                             RelationshipReviewStatusCard(
-                                title: "Review not applied",
-                                detail: message,
+                                title: appLanguage.text("Review not applied"),
+                                detail: appLanguage.text(message),
                                 systemImage: "exclamationmark.triangle"
                             )
-                            Button("Retry loading Proposal") {
+                            Button(appLanguage.text("Retry loading Proposal")) {
                                 Task { await reviewStore.load() }
                             }
                             .font(.subheadline.weight(.semibold))
@@ -321,11 +261,11 @@ struct RelationshipChangeReviewView: View {
                     if reviewStore.proposal == nil {
                         VStack(spacing: 0) {
                             RelationshipDefinitionRow(
-                                label: "Before",
+                                label: appLanguage.text("Current"),
                                 value: person.previousState
                             )
                             RelationshipDefinitionRow(
-                                label: "Proposed",
+                                label: appLanguage.text("Proposed"),
                                 value: person.proposedState
                             )
                         }
@@ -337,7 +277,7 @@ struct RelationshipChangeReviewView: View {
             }
             .scrollIndicators(.hidden)
             .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle("Review change")
+            .navigationTitle(appLanguage.text("Review change"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -346,7 +286,7 @@ struct RelationshipChangeReviewView: View {
                     } label: {
                         Image(systemName: "arrow.left")
                     }
-                    .accessibilityLabel("Close relationship review")
+                    .accessibilityLabel(appLanguage.text("Close relationship review"))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     RelationshipReviewIdentityAvatar(label: subjectName)
@@ -362,36 +302,94 @@ struct RelationshipChangeReviewView: View {
         }
     }
 
-    private func evidenceTimeContext(
-        _ evidence: PursuitProposalSnapshot.ReviewContext.Evidence
-    ) -> String {
-        guard let date = ISO8601DateFormatter().date(from: evidence.observedAt) else {
-            return "Observed: \(evidence.observedAt)\(evidence.sourceTimezone.map { " · source timezone \($0)" } ?? "")"
-        }
-        let sourceFormatter = DateFormatter()
-        sourceFormatter.locale = Locale(identifier: "en_US_POSIX")
-        sourceFormatter.calendar = Calendar(identifier: .gregorian)
-        sourceFormatter.timeZone = evidence.sourceTimezone.flatMap(TimeZone.init(identifier:))
-            ?? TimeZone(secondsFromGMT: 0)
-        sourceFormatter.dateFormat = "MMM d, yyyy h:mm a z"
+}
 
-        let recruiterFormatter = DateFormatter()
-        recruiterFormatter.locale = Locale(identifier: "en_US_POSIX")
-        recruiterFormatter.calendar = Calendar(identifier: .gregorian)
-        recruiterFormatter.timeZone = .current
-        recruiterFormatter.dateFormat = "MMM d, yyyy h:mm a z"
+private struct RelationshipExactEvidenceSection: View {
+    let text: String
+    let sourceSummary: String
+    let proposal: PursuitProposalSnapshot?
+    @Environment(\.appLanguage) private var appLanguage
 
-        let relative = RelativeDateTimeFormatter().localizedString(
-            for: date,
-            relativeTo: Date()
-        )
-        let source = sourceFormatter.string(from: date)
-        let recruiter = recruiterFormatter.string(from: date)
-        let zone = evidence.sourceTimezone ?? "UTC"
-        if source == recruiter {
-            return "Observed \(relative): \(source) · source timezone \(zone)"
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Image(systemName: "quote.opening")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(Color.tsVermilion)
+
+            Text("“\(text)”")
+                .font(.custom("Georgia", size: 22, relativeTo: .body))
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Label(sourceSummary, systemImage: "link")
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let proposal,
+               let evidence = proposal.reviewContext.evidence.first {
+                DisclosureGroup(appLanguage.text("Source details")) {
+                    VStack(spacing: 0) {
+                        evidenceDetail(
+                            appLanguage.text("Person"),
+                            proposal.reviewContext.subject.displayLabel
+                        )
+                        evidenceDetail(
+                            appLanguage.text("Role"),
+                            proposal.reviewContext.subject.contextualRoles
+                                .map { appLanguage.workspaceValue($0.roleType) }
+                                .joined(separator: ", ")
+                        )
+                        evidenceDetail(
+                            appLanguage.text("Speaker"),
+                            appLanguage.workspaceValue(evidence.attributedActor)
+                        )
+                        evidenceDetail(
+                            appLanguage.text("Channel"),
+                            evidence.inputChannel == "ios_share"
+                                ? appLanguage.text("iOS Share")
+                                : appLanguage.workspaceValue(evidence.inputChannel)
+                        )
+                        evidenceDetail(
+                            appLanguage.text("Attribution"),
+                            appLanguage.workspaceValue(evidence.attributionStatus)
+                        )
+                        evidenceDetail(
+                            appLanguage.text("Review"),
+                            appLanguage.workspaceValue(evidence.reviewStatus)
+                        )
+                        evidenceDetail(
+                            appLanguage.text("Reference"),
+                            evidence.fragmentID
+                        )
+                    }
+                    .padding(.top, 8)
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                .accessibilityIdentifier("review-source-details")
+            }
         }
-        return "Observed \(relative): \(source) · source timezone \(zone) · recruiter time \(recruiter)"
+        .padding(18)
+        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func evidenceDetail(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.semibold))
+                .tracking(0.5)
+                .foregroundStyle(Color.tsMutedInk)
+                .frame(minWidth: 76, alignment: .leading)
+            Text(value)
+                .font(.caption)
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
     }
 }
 
@@ -904,12 +902,92 @@ private struct RelationshipReviewIdentityAvatar: View {
     }
 }
 
+private struct RelationshipProposalReviewItemView: View {
+    let item: PursuitProposalSnapshot.Item
+    let index: Int
+    let totalCount: Int
+    let draft: PursuitProposalDecisionDraft?
+    let validationMessage: String?
+    let onSelect: (PursuitProposalReviewChoice) -> Void
+    let onEdit: (String, String) -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RelationshipModalEyebrow(changeLabel)
+
+            RelationshipDefinitionRow(
+                label: appLanguage.text("Current"),
+                value: appLanguage.workspaceTerm(item.beforeValue.displayText),
+                accessibilityIdentifier: "proposal-current-\(item.id)"
+            )
+            RelationshipDefinitionRow(
+                label: appLanguage.text("Proposed"),
+                value: appLanguage.workspaceTerm(item.proposedValue.displayText),
+                accessibilityIdentifier: "proposal-proposed-\(item.id)"
+            )
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(appLanguage.text("Why it was suggested"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                Text(appLanguage.workspaceTerm(item.reason))
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsMutedInk)
+                Text(appLanguage.workspaceTerm(item.effectSummary))
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("proposal-reason-\(item.id)")
+
+            Label(
+                appLanguage.evidenceExplanation(item.evidenceState),
+                systemImage: item.evidenceState.availability == "available"
+                    ? "checkmark.shield"
+                    : "exclamationmark.shield"
+            )
+            .font(.caption)
+            .foregroundStyle(
+                item.evidenceState.availability == "available"
+                    ? Color.tsMutedInk
+                    : Color.tsVermilion
+            )
+
+            if let draft {
+                RelationshipProposalItemDecisionEditor(
+                    item: item,
+                    draft: draft,
+                    validationMessage: validationMessage,
+                    onSelect: onSelect,
+                    onEdit: onEdit
+                )
+            }
+        }
+        .padding(.top, 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("proposal-item-\(item.id)")
+    }
+
+    private var changeLabel: String {
+        String(
+            format: appLanguage.text("Change %1$lld of %2$lld · %3$@"),
+            locale: appLanguage.locale,
+            index + 1,
+            totalCount,
+            appLanguage.workspaceValue(item.epistemicStatus)
+        )
+    }
+}
+
 private struct RelationshipProposalItemDecisionEditor: View {
     let item: PursuitProposalSnapshot.Item
     let draft: PursuitProposalDecisionDraft
     let validationMessage: String?
     let onSelect: (PursuitProposalReviewChoice) -> Void
     let onEdit: (String, String) -> Void
+    @Environment(\.appLanguage) private var appLanguage
 
     private var availableChoices: [PursuitProposalReviewChoice] {
         PursuitProposalReviewChoice.allCases.filter { choice in
@@ -919,40 +997,47 @@ private struct RelationshipProposalItemDecisionEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Your decision")
+            Text(appLanguage.text("Your decision"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
+                .accessibilityIdentifier("proposal-decision-heading-\(item.id)")
 
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 8),
-                    GridItem(.flexible(), spacing: 8),
-                ],
-                spacing: 8
-            ) {
+            VStack(spacing: 8) {
                 ForEach(availableChoices) { choice in
                     Button {
                         onSelect(choice)
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(alignment: .top, spacing: 12) {
                             Image(
                                 systemName: draft.choice == choice
                                     ? "checkmark.circle.fill"
                                     : "circle"
                             )
-                            Text(choice.label)
+                            .font(.title3)
+                            .foregroundStyle(
+                                draft.choice == choice ? Color.tsInk : Color.tsMutedInk
+                            )
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(appLanguage.text(choice.label))
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.tsInk)
+                                Text(choice.detail(in: appLanguage))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.tsMutedInk)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                             Spacer(minLength: 0)
                         }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.tsInk)
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
                         .background(
                             draft.choice == choice ? Color.tsCanvas : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 10)
+                            in: RoundedRectangle(cornerRadius: 14)
                         )
                         .overlay {
-                            RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: 14)
                                 .stroke(
                                     draft.choice == choice ? Color.tsInk : Color.tsLine,
                                     lineWidth: 1
@@ -960,8 +1045,11 @@ private struct RelationshipProposalItemDecisionEditor: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(choice.label)
-                    .accessibilityValue(draft.choice == choice ? "Selected" : "Not selected")
+                    .accessibilityLabel(appLanguage.text(choice.label))
+                    .accessibilityHint(choice.detail(in: appLanguage))
+                    .accessibilityValue(
+                        appLanguage.text(draft.choice == choice ? "Selected" : "Not selected")
+                    )
                     .accessibilityIdentifier("proposal-decision-\(choice.rawValue)-\(item.id)")
                 }
             }
@@ -972,14 +1060,14 @@ private struct RelationshipProposalItemDecisionEditor: View {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(
                                 field == "value"
-                                    ? "Corrected value"
-                                    : field.replacingOccurrences(of: "_", with: " ").capitalized
+                                    ? appLanguage.text("Corrected value")
+                                    : appLanguage.workspaceValue(field)
                             )
                             .font(.caption)
                             .foregroundStyle(Color.tsMutedInk)
 
                             TextField(
-                                "Required",
+                                appLanguage.text("Required"),
                                 text: Binding(
                                     get: { draft.editedFields[field, default: ""] },
                                     set: { onEdit(field, $0) }
@@ -1003,23 +1091,39 @@ private struct RelationshipProposalItemDecisionEditor: View {
     }
 }
 
+private extension PursuitProposalReviewChoice {
+    func detail(in language: AppLanguage) -> String {
+        switch self {
+        case .confirm:
+            return language.text("Use the proposed value")
+        case .edit:
+            return language.text("Correct it before applying")
+        case .reject:
+            return language.text("Keep the current value")
+        case .keepUnresolved:
+            return language.text("Leave this for later review")
+        }
+    }
+}
+
 private struct RelationshipReviewReceipt: View {
     let result: PursuitProposalReviewResult
     let actorDisplayName: String
     let sourceTimezone: String
+    @Environment(\.appLanguage) private var appLanguage
 
     private var title: String {
         switch result.receipt.outcome {
         case "canonical_applied":
-            return "Canonical Pursuit updated"
+            return appLanguage.text("Canonical Pursuit updated")
         case "mixed_applied":
-            return "Applied items recorded; unresolved items remain"
+            return appLanguage.text("Applied items recorded; unresolved items remain")
         case "kept_unresolved":
-            return "Proposal remains unresolved"
+            return appLanguage.text("Proposal remains unresolved")
         case "rejected":
-            return "Proposal rejected"
+            return appLanguage.text("Proposal rejected")
         default:
-            return "Canonical review recorded"
+            return appLanguage.text("Canonical review recorded")
         }
     }
 
@@ -1035,7 +1139,17 @@ private struct RelationshipReviewReceipt: View {
             .foregroundStyle(Color.tsInk)
 
             Text(
-                "Revision \(result.receipt.entityRef.beforeRevision) → \(result.receipt.entityRef.afterRevision) · \(result.receipt.changedFields.count) changed field\(result.receipt.changedFields.count == 1 ? "" : "s")"
+                String(
+                    format: appLanguage.text(
+                        result.receipt.changedFields.count == 1
+                            ? "Revision %1$lld → %2$lld · %3$lld changed field"
+                            : "Revision %1$lld → %2$lld · %3$lld changed fields"
+                    ),
+                    locale: appLanguage.locale,
+                    result.receipt.entityRef.beforeRevision,
+                    result.receipt.entityRef.afterRevision,
+                    result.receipt.changedFields.count
+                )
             )
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Color.tsInk)
@@ -1045,21 +1159,21 @@ private struct RelationshipReviewReceipt: View {
                 .foregroundStyle(Color.tsMutedInk)
 
             Text(
-                "\(actorDisplayName) · \(WorkspaceDate.recorded(at: result.receipt.occurredAt, sourceTimezone: sourceTimezone))"
+                "\(appLanguage.text(actorDisplayName)) · \(appLanguage.recordedDate(at: result.receipt.occurredAt, sourceTimezone: sourceTimezone))"
             )
             .font(.caption)
             .foregroundStyle(Color.tsMutedInk)
 
-            DisclosureGroup("Audit details") {
+            DisclosureGroup(appLanguage.text("Audit details")) {
                 Text(
-                    "Operation \(result.receipt.operationID) · receipt \(result.receipt.id) · actor \(result.receipt.actorUserID)"
+                    "\(appLanguage.text("Operation")) \(result.receipt.operationID) · \(appLanguage.text("receipt")) \(result.receipt.id) · \(appLanguage.text("actor")) \(result.receipt.actorUserID)"
                 )
                 .font(.caption2)
                 .foregroundStyle(Color.tsMutedInk)
             }
 
             Label(
-                "No message was sent and external effects are empty.",
+                appLanguage.text("No message was sent and external effects are empty."),
                 systemImage: "lock.shield"
             )
             .font(.caption)
@@ -1121,6 +1235,7 @@ private struct RelationshipCausalSeam: View {
 private struct RelationshipDefinitionRow: View {
     let label: String
     let value: String
+    var accessibilityIdentifier: String? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -1142,6 +1257,7 @@ private struct RelationshipDefinitionRow: View {
         .padding(.vertical, 16)
         .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
 
     private var labelView: some View {

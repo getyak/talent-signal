@@ -18,6 +18,8 @@ struct RelationshipArchiveView: View {
     @State private var deferredIntakePresentation: AgentIntakePresentation?
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
     @State private var deferredCapturePresentation: RelationshipCapturePresentation?
+    @State private var deferredPeoplePersonID: String?
+    @State private var selectedPeoplePersonID: String?
     private let reviewBaseURL: URL?
     private let authenticatedAccessToken: String?
     private let accountEmail: String?
@@ -53,15 +55,18 @@ struct RelationshipArchiveView: View {
         let usesPersistentPreview = ProcessInfo.processInfo.arguments.contains(
             "--persist-preview-agent"
         )
-#else
-        let usesPersistentPreview = false
-#endif
         if resolvedService == nil, usesPersistentPreview {
-            resolvedSessionStore = AgentSessionStore(
+            let previewStore = AgentSessionStore(
                 persistence: FileAgentSessionPersistence(
                     accountID: "ui-test-preview-agent"
                 )
             )
+            if ProcessInfo.processInfo.arguments.contains(
+                "--reset-preview-agent"
+            ) {
+                _ = previewStore.deleteAll()
+            }
+            resolvedSessionStore = previewStore
         } else if resolvedService == nil {
             resolvedSessionStore = AgentSessionStore.preview(snapshot: .preview)
         } else {
@@ -71,6 +76,17 @@ struct RelationshipArchiveView: View {
                 }
             )
         }
+#else
+        if resolvedService == nil {
+            resolvedSessionStore = AgentSessionStore.preview(snapshot: .preview)
+        } else {
+            resolvedSessionStore = AgentSessionStore(
+                persistence: session?.accountID.map {
+                    FileAgentSessionPersistence(accountID: $0)
+                }
+            )
+        }
+#endif
         _sessionStore = StateObject(wrappedValue: resolvedSessionStore)
         reviewBaseURL = session?.baseURL
         authenticatedAccessToken = session?.accessToken
@@ -218,9 +234,18 @@ struct RelationshipArchiveView: View {
                             capturePresentation = nil
                         },
                         onCapture: { destination in
-                            deferredIntakePresentation = .init(
-                                initialDestination: destination
-                            )
+                            switch destination {
+                            case .screenshotReview:
+                                deferredCapturePresentation = .screenshot
+                            case .foregroundAudio:
+                                deferredIntakePresentation = .init(
+                                    initialDestination: .foregroundAudio
+                                )
+                            }
+                            capturePresentation = nil
+                        },
+                        onOpenPerson: { personID in
+                            deferredPeoplePersonID = personID
                             capturePresentation = nil
                         },
                         voiceTranscriber: composerVoiceTranscriber
@@ -335,6 +360,15 @@ struct RelationshipArchiveView: View {
         if ProcessInfo.processInfo.arguments.contains("--deterministic-voice-input") {
             return DeterministicVoiceTranscriber()
         }
+        if let baseURL = reviewBaseURL,
+           URLFixtureLoader.isLoopback(baseURL),
+           authenticatedAccessToken == nil {
+            return URLSimulatedVoiceTranscriptionClient(
+                baseURL: baseURL,
+                accountSlug: workspaceLabel ?? "fixture-alpha",
+                userEmail: accountEmail ?? "recruiter@alpha.local"
+            )
+        }
 #endif
         return reviewBaseURL.flatMap { baseURL in
             authenticatedAccessToken.map { accessToken in
@@ -404,6 +438,7 @@ struct RelationshipArchiveView: View {
                         snapshot: snapshot,
                         isPreview: !workspaceStore.isCanonical,
                         roles: { roles(for: $0, in: snapshot) },
+                        selectedPersonID: $selectedPeoplePersonID,
                         onOpenPursuit: openPursuit
                     )
                     .tag(RelationshipArchivePage.people)
@@ -518,6 +553,11 @@ struct RelationshipArchiveView: View {
     }
 
     private func completeDeferredTransition() {
+        if let deferredPeoplePersonID {
+            selectedPage = .people
+            selectedPeoplePersonID = deferredPeoplePersonID
+            self.deferredPeoplePersonID = nil
+        }
         if let deferredCapturePresentation {
             capturePresentation = deferredCapturePresentation
             self.deferredCapturePresentation = nil
@@ -1052,11 +1092,13 @@ private struct TodayUnreadSessionRow: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(session.title)
+                    Text(session.displayTitle(in: appLanguage))
                         .font(.headline)
                         .foregroundStyle(Color.tsInk)
                         .lineLimit(1)
-                    Text("\(session.personDisplayLabel) · \(session.contextDisplayLabel)")
+                    Text(
+                        "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
+                    )
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
                         .lineLimit(1)
@@ -1080,8 +1122,8 @@ private struct TodayUnreadSessionRow: View {
         .buttonStyle(.plain)
         .accessibilityLabel(
             appLanguage.text(
-                "Unread session: \(session.title), \(session.personDisplayLabel)",
-                zhHans: "未读会话：\(session.title)，\(session.personDisplayLabel)"
+                "Unread session: \(session.displayTitle(in: appLanguage)), \(session.personDisplayLabel)",
+                zhHans: "未读会话：\(session.displayTitle(in: appLanguage))，\(session.personDisplayLabel)"
             )
         )
         .accessibilityIdentifier("today-unread-session")
@@ -1433,8 +1475,7 @@ private struct AgentSessionListView: View {
                         .foregroundStyle(Color.tsInk)
                     Text(
                         appLanguage.text(
-                            "Ask from the bottom field. A successful Agent response will appear here without becoming relationship truth.",
-                            zhHans: "从底部输入框开始提问。Agent 成功回复后会出现在这里，但不会因此成为关系事实。"
+                            "Use the bottom field. Successful Agent responses and confirmed tool receipts appear here without becoming relationship truth."
                         )
                     )
                     .font(.subheadline)
@@ -1456,7 +1497,7 @@ private struct AgentSessionListView: View {
                     Section {
                         ForEach(filteredSessions) { session in
                             Button { onOpen(session) } label: {
-                                AgentSessionRow(session: session)
+                AgentSessionRow(session: session)
                             }
                             .buttonStyle(.plain)
                             .listRowBackground(Color.tsSurface)
@@ -1506,10 +1547,10 @@ private struct AgentSessionListView: View {
         guard !needle.isEmpty else { return sessions }
         return sessions.filter { session in
             [
-                session.title,
+                session.displayTitle(in: appLanguage),
                 session.personDisplayLabel,
-                session.contextDisplayLabel,
-                session.latestPreview,
+                session.displayContextLabel(in: appLanguage),
+                session.latestPreview(in: appLanguage),
             ]
             .joined(separator: " ")
             .localizedCaseInsensitiveContains(needle)
@@ -1525,12 +1566,24 @@ private struct AgentSessionRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             if !dynamicTypeSize.isAccessibilitySize {
-                RelationshipInitials(
-                    initials: relationshipInitials(session.personDisplayLabel),
-                    size: 46,
-                    isEmphasized: session.isUnread
-                )
-                .accessibilityHidden(true)
+                if session.isIdentityReview {
+                    ZStack {
+                        Circle()
+                            .fill(Color.tsVermilion.opacity(0.12))
+                            .frame(width: 46, height: 46)
+                        Image(systemName: "person.crop.circle.badge.questionmark")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.tsVermilion)
+                    }
+                    .accessibilityHidden(true)
+                } else {
+                    RelationshipInitials(
+                        initials: relationshipInitials(session.personDisplayLabel),
+                        size: 46,
+                        isEmphasized: session.isUnread
+                    )
+                    .accessibilityHidden(true)
+                }
             }
 
             VStack(alignment: .leading, spacing: 5) {
@@ -1550,7 +1603,7 @@ private struct AgentSessionRow: View {
                             .foregroundStyle(Color.tsVermilion)
                         }
                     }
-                    Text(session.title)
+                    Text(session.displayTitle(in: appLanguage))
                         .font(.headline)
                         .foregroundStyle(Color.tsInk)
                         .lineLimit(nil)
@@ -1560,7 +1613,7 @@ private struct AgentSessionRow: View {
                         )
                 } else {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(session.title)
+                        Text(session.displayTitle(in: appLanguage))
                             .font(.headline)
                             .foregroundStyle(Color.tsInk)
                             .lineLimit(2)
@@ -1578,16 +1631,14 @@ private struct AgentSessionRow: View {
                             )
                     }
                 }
-                Text("\(session.personDisplayLabel) · \(session.contextDisplayLabel)")
+                Text(
+                    "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
+                )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(
-                    session.turns.isEmpty
-                        ? appLanguage.text("No response yet")
-                        : session.latestPreview
-                )
+                Text(session.latestPreview(in: appLanguage))
                     .font(.subheadline)
                     .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
@@ -1744,9 +1795,9 @@ private struct WorkspacePeopleView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
     let roles: (String) -> [WorkspacePersonRole]
+    @Binding var selectedPersonID: String?
     let onOpenPursuit: (WorkspacePursuit) -> Void
     @State private var query = ""
-    @State private var selectedPersonID: String?
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
@@ -1766,6 +1817,11 @@ private struct WorkspacePeopleView: View {
             } else {
                 directory
             }
+        }
+        .onChange(of: snapshot.people.map(\.id)) { currentPersonIDs in
+            guard let selectedPersonID,
+                  !currentPersonIDs.contains(selectedPersonID) else { return }
+            self.selectedPersonID = nil
         }
     }
 

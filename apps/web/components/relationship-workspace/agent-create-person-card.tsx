@@ -34,6 +34,7 @@ import {
   personIdentityTemporalRole,
 } from "@/lib/agent-person-resolution";
 import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
+import type { AgentContactDraft } from "@/lib/agent-contact-intake";
 
 function identityHandleLabel(type: IdentityHandleType) {
   switch (type) {
@@ -64,10 +65,15 @@ function personInitials(value: string) {
 }
 
 export function AgentCreatePersonCard({
+  currentPersonId,
+  initialDraft,
   onCancel,
   onCommitted,
   onDeferred,
+  onReviewDuplicates,
 }: {
+  currentPersonId?: string;
+  initialDraft?: AgentContactDraft | null;
   onCancel: () => void;
   onCommitted: (
     scope: RelationshipScope,
@@ -78,25 +84,41 @@ export function AgentCreatePersonCard({
       | "reused_relationship",
   ) => void;
   onDeferred: (caseId: string) => void;
+  onReviewDuplicates?: () => void;
 }) {
   const requestIdRef = useRef<string | null>(null);
   const handleRequestIdRef = useRef<string | null>(null);
-  const [name, setName] = useState("");
-  const [identityClue, setIdentityClue] = useState("");
+  const [name, setName] = useState(initialDraft?.name ?? "");
+  const [identityClue, setIdentityClue] = useState(
+    initialDraft?.identityClue ?? "",
+  );
   const [identityClueConfirmed, setIdentityClueConfirmed] =
     useState(false);
-  const [contextLabel, setContextLabel] = useState("");
-  const [firstNote, setFirstNote] = useState("");
+  const [contextLabel, setContextLabel] = useState(
+    initialDraft?.relationshipContext ?? "",
+  );
+  const [firstNote, setFirstNote] = useState(
+    initialDraft?.sourceNote ?? "",
+  );
   const [matches, setMatches] = useState<PersonDirectoryItem[]>([]);
   const [lookupState, setLookupState] = useState<
     "error" | "idle" | "loading" | "ready"
-  >("idle");
+  >(initialDraft?.name || initialDraft?.identityClue ? "loading" : "idle");
   const [lookupRevision, setLookupRevision] = useState(0);
   const [target, setTarget] = useState<AgentPersonTarget>({
     mode: "new_person",
   });
   const [differentPersonConfirmed, setDifferentPersonConfirmed] =
     useState(false);
+  const [identityDetailsOpen, setIdentityDetailsOpen] = useState(
+    !initialDraft || !initialDraft.name || !initialDraft.relationshipContext,
+  );
+  const [sourceDetailsOpen, setSourceDetailsOpen] = useState(
+    !initialDraft ||
+      !initialDraft.relationshipContext ||
+      !initialDraft.sourceNote,
+  );
+  const [showAllMatches, setShowAllMatches] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const parsedIdentityClue = useMemo(
@@ -110,9 +132,16 @@ export function AgentCreatePersonCard({
       )
     : null;
   const exactMatches = exactPersonNameMatches(name, matches);
+  const currentPersonMatches = currentPersonId
+    ? exactMatches.some((person) => person.id === currentPersonId)
+    : false;
+  const duplicateMatches = currentPersonMatches
+    ? exactMatches.filter((person) => person.id !== currentPersonId)
+    : [];
   const confirmedHandleMatches =
     confirmedHandlePersonMatches(matches);
   const expiredHandleMatches = expiredHandlePersonMatches(matches);
+  const visibleMatches = showAllMatches ? matches : matches.slice(0, 3);
   const newPersonAllowed = canCreateDistinctPerson({
     differentPersonConfirmed,
     lookupState,
@@ -392,11 +421,12 @@ export function AgentCreatePersonCard({
         </span>
         <div>
           <strong id="agent-create-title">
-            Resolve the person before creating
+            {initialDraft ? "New contact draft" : "Resolve the person before creating"}
           </strong>
           <p>
-            Find an existing identity first, then bind one relationship and
-            source.
+            {initialDraft
+              ? "Agent extracted a proposal from your message. Review the identity result before anything changes."
+              : "Find an existing identity first, then bind one relationship and source."}
           </p>
         </div>
         <button
@@ -409,7 +439,25 @@ export function AgentCreatePersonCard({
           <X aria-hidden="true" size={15} />
         </button>
       </header>
+      {initialDraft ? (
+        <div className="context-agent-create__draft-summary">
+          <p>
+            <strong>{name || "Name needed"}</strong>
+            <span>{contextLabel || "Relationship context needed"}</span>
+          </p>
+          <small>{firstNote}</small>
+          <i>Proposed only · nothing has changed</i>
+        </div>
+      ) : null}
       {error ? <p className="context-agent-create__error">{error}</p> : null}
+      <details
+        className="context-agent-create__details"
+        onToggle={(event) =>
+          setIdentityDetailsOpen(event.currentTarget.open)
+        }
+        open={identityDetailsOpen}
+      >
+        <summary>{initialDraft ? "Edit extracted details" : "Contact details"}</summary>
       <label>
         <span>Person</span>
         <input
@@ -428,6 +476,7 @@ export function AgentCreatePersonCard({
             );
             setTarget({ mode: "new_person" });
             setDifferentPersonConfirmed(false);
+            setShowAllMatches(false);
             requestIdRef.current = null;
             handleRequestIdRef.current = null;
           }}
@@ -455,6 +504,7 @@ export function AgentCreatePersonCard({
             );
             setTarget({ mode: "new_person" });
             setDifferentPersonConfirmed(false);
+            setShowAllMatches(false);
             requestIdRef.current = null;
             handleRequestIdRef.current = null;
           }}
@@ -472,6 +522,7 @@ export function AgentCreatePersonCard({
           “wechat:ID”.
         </p>
       ) : null}
+      </details>
       <div
         className="context-agent-identity-check"
         data-state={lookupState}
@@ -521,7 +572,7 @@ export function AgentCreatePersonCard({
               Confirmed handles are current identity evidence. Expired handles
               remain review clues only; you still make the binding.
             </p>
-            {matches.map((person) => {
+            {visibleMatches.map((person) => {
               const temporalRole =
                 personIdentityTemporalRole(person);
               const selectable =
@@ -664,6 +715,35 @@ export function AgentCreatePersonCard({
                 </article>
               );
             })}
+            {matches.length > visibleMatches.length ? (
+              <button
+                className="context-agent-show-matches"
+                onClick={() => setShowAllMatches(true)}
+                type="button"
+              >
+                Show {matches.length - visibleMatches.length} more possible matches
+              </button>
+            ) : showAllMatches && matches.length > 3 ? (
+              <button
+                className="context-agent-show-matches"
+                onClick={() => setShowAllMatches(false)}
+                type="button"
+              >
+                Show fewer matches
+              </button>
+            ) : null}
+            {duplicateMatches.length > 0 && onReviewDuplicates ? (
+              <button
+                className="context-agent-create-distinct"
+                onClick={onReviewDuplicates}
+                type="button"
+              >
+                Review {duplicateMatches.length === 1 ? "possible duplicate" : `${duplicateMatches.length} possible duplicates`}
+                <small>
+                  Opens the reversible merge preview. Nothing merges from this contact draft.
+                </small>
+              </button>
+            ) : null}
           </div>
         ) : (
           <p>
@@ -761,34 +841,41 @@ export function AgentCreatePersonCard({
           </span>
         </label>
       ) : null}
-      <label>
-        <span>Relationship context</span>
-        <input
-          autoComplete="off"
-          disabled={target.mode === "existing_context"}
-          maxLength={200}
-          onChange={(event) => {
-            setContextLabel(event.target.value);
-            requestIdRef.current = null;
-            handleRequestIdRef.current = null;
-          }}
-          placeholder="e.g. VP Product search"
-          value={contextLabel}
-        />
-      </label>
-      <label>
-        <span>First source</span>
-        <textarea
-          maxLength={8_000}
-          onChange={(event) => {
-            setFirstNote(event.target.value);
-            requestIdRef.current = null;
-          }}
-          placeholder="Paste the recruiter-owned note that justifies creating this relationship."
-          rows={3}
-          value={firstNote}
-        />
-      </label>
+      <details
+        className="context-agent-create__details"
+        onToggle={(event) => setSourceDetailsOpen(event.currentTarget.open)}
+        open={sourceDetailsOpen}
+      >
+        <summary>Relationship and source</summary>
+        <label>
+          <span>Relationship context</span>
+          <input
+            autoComplete="off"
+            disabled={target.mode === "existing_context"}
+            maxLength={200}
+            onChange={(event) => {
+              setContextLabel(event.target.value);
+              requestIdRef.current = null;
+              handleRequestIdRef.current = null;
+            }}
+            placeholder="e.g. VP Product search"
+            value={contextLabel}
+          />
+        </label>
+        <label>
+          <span>First source</span>
+          <textarea
+            maxLength={8_000}
+            onChange={(event) => {
+              setFirstNote(event.target.value);
+              requestIdRef.current = null;
+            }}
+            placeholder="Paste the recruiter-owned note that justifies creating this relationship."
+            rows={3}
+            value={firstNote}
+          />
+        </label>
+      </details>
       <footer>
         <p>
           {target.mode === "existing_context"

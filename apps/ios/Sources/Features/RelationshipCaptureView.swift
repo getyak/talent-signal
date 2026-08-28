@@ -10,6 +10,7 @@ enum CaptureDismissDisposition {
 
 private struct CaptureSourceInspectionView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
 
     let image: UIImage
 
@@ -18,24 +19,34 @@ private struct CaptureSourceInspectionView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 ZoomableCaptureImage(image: image)
-                    .accessibilityLabel("Original conversation screenshot")
-                    .accessibilityHint("Pinch or double tap to zoom while checking the recognized text.")
+                    .accessibilityLabel(
+                        appLanguage.text("Original conversation screenshot")
+                    )
+                    .accessibilityHint(
+                        appLanguage.text(
+                            "Pinch or double tap to zoom while checking the recognized text."
+                        )
+                    )
                     .accessibilityIdentifier("capture-source-inspection")
             }
-            .navigationTitle("Inspect original")
+            .navigationTitle(appLanguage.text("Inspect original"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.black, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(appLanguage.text("Done")) {
                         dismiss()
                     }
                     .accessibilityIdentifier("close-source-inspection")
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Text("Pinch or double tap to zoom. Return to the review to correct OCR errors.")
+                Text(
+                    appLanguage.text(
+                        "Pinch or double tap to zoom. Return to the review to correct OCR errors."
+                    )
+                )
                     .font(.caption)
                     .foregroundStyle(Color.white.opacity(0.82))
                     .multilineTextAlignment(.center)
@@ -132,6 +143,9 @@ struct RelationshipCaptureView: View {
     @StateObject private var store: RelationshipCaptureStore
     @State private var showCloseOptions = false
     @State private var showSourceInspection = false
+    @State private var relationshipDetailsExpanded = false
+    @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let onDismiss: (CaptureDismissDisposition) -> Void
 
     init(
@@ -173,31 +187,39 @@ struct RelationshipCaptureView: View {
                         switch store.stage {
                         case .recognizing:
                             progressCard(
-                                eyebrow: "On-device recognition",
-                                title: "Reading the screenshot",
-                                detail: "The image remains on this device. Nothing has been attached to a person."
+                                eyebrow: appLanguage.text("On-device recognition"),
+                                title: appLanguage.text("Reading the screenshot"),
+                                detail: appLanguage.text(
+                                    "The image remains on this device. Nothing has been attached to a person."
+                                )
                             )
                         case .reviewing:
                             reviewContent
                         case .submitting:
                             progressCard(
-                                eyebrow: "Governed source",
-                                title: "Saving reviewed text",
-                                detail: "The reviewed text is being stored as evidence. Identity remains unresolved."
+                                eyebrow: appLanguage.text("Governed source"),
+                                title: appLanguage.text("Saving reviewed text"),
+                                detail: appLanguage.text(
+                                    "The reviewed text is being stored as evidence. Identity remains unresolved."
+                                )
                             )
                         case .resolvingIdentity:
                             identityReviewContent
                         case .decidingIdentity:
                             progressCard(
-                                eyebrow: "Explicit identity decision",
-                                title: "Applying your selection",
-                                detail: "Only the selected person and relationship can receive this source."
+                                eyebrow: appLanguage.text("Explicit identity decision"),
+                                title: appLanguage.text("Applying your selection"),
+                                detail: appLanguage.text(
+                                    "Only the selected person and relationship can receive this source."
+                                )
                             )
                         case .compilingWiki:
                             progressCard(
-                                eyebrow: "Living person page",
-                                title: "Compiling the relationship Wiki",
-                                detail: "Evidence, confirmed state, conflicts, and open questions remain distinct."
+                                eyebrow: appLanguage.text("Living person page"),
+                                title: appLanguage.text("Compiling the relationship Wiki"),
+                                detail: appLanguage.text(
+                                    "Evidence, confirmed state, conflicts, and open questions remain distinct."
+                                )
                             )
                         case let .completed(completion):
                             completionContent(completion)
@@ -211,7 +233,7 @@ struct RelationshipCaptureView: View {
                     .padding(.vertical, 18)
                 }
             }
-            .navigationTitle("Review capture")
+            .navigationTitle(appLanguage.text("Review capture"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -221,7 +243,7 @@ struct RelationshipCaptureView: View {
                         Image(systemName: "xmark")
                             .frame(width: 44, height: 44)
                     }
-                    .accessibilityLabel("Close capture review")
+                    .accessibilityLabel(appLanguage.text("Close capture review"))
                     .accessibilityIdentifier("close-capture-review")
                 }
             }
@@ -236,22 +258,26 @@ struct RelationshipCaptureView: View {
             }
         }
         .confirmationDialog(
-            "Close this review?",
+            appLanguage.text("Close this review?"),
             isPresented: $showCloseOptions,
             titleVisibility: .visible
         ) {
-            Button("Keep for later") {
+            Button(appLanguage.text("Keep for later")) {
                 onDismiss(.keepForLater)
             }
-            Button("Discard capture", role: .destructive) {
+            Button(appLanguage.text("Discard capture"), role: .destructive) {
                 Task {
                     await store.discard()
                     onDismiss(.discard)
                 }
             }
-            Button("Continue reviewing", role: .cancel) {}
+            Button(appLanguage.text("Continue reviewing"), role: .cancel) {}
         } message: {
-            Text("Keeping it preserves the screenshot and reviewed draft for the next app launch.")
+            Text(
+                appLanguage.text(
+                    "Keeping it preserves the screenshot and reviewed draft for the next app launch."
+                )
+            )
         }
         .sheet(isPresented: $showSourceInspection) {
             if let image = UIImage(data: store.seed.imageData) {
@@ -270,8 +296,14 @@ struct RelationshipCaptureView: View {
             }
             .buttonStyle(.plain)
             .tsCard()
-            .accessibilityLabel("Inspect original conversation screenshot")
-            .accessibilityHint("Opens the original image for zooming before you correct the recognized text.")
+            .accessibilityLabel(
+                appLanguage.text("Inspect original conversation screenshot")
+            )
+            .accessibilityHint(
+                appLanguage.text(
+                    "Opens the original image for zooming before you correct the recognized text."
+                )
+            )
             .accessibilityIdentifier("inspect-capture-source")
         } else {
             sourceHeaderContent(showsInspectionCue: false)
@@ -283,7 +315,8 @@ struct RelationshipCaptureView: View {
     private func sourceHeaderContent(showsInspectionCue: Bool) -> some View {
         HStack(alignment: .center, spacing: 14) {
             imagePreview
-                .frame(width: 62, height: 78)
+                .frame(width: 76, height: 76)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(alignment: .bottomTrailing) {
                     if showsInspectionCue {
                         Image(systemName: "magnifyingglass")
@@ -296,14 +329,17 @@ struct RelationshipCaptureView: View {
                 }
 
             VStack(alignment: .leading, spacing: 5) {
-                SectionLabel(text: store.seed.origin.label)
-                Text(store.seed.fileName)
+                SectionLabel(text: appLanguage.text(store.seed.origin.label))
+                Text(appLanguage.text("Conversation screenshot"))
                     .font(.headline)
                     .foregroundStyle(Color.tsInk)
                     .lineLimit(2)
-                Text("Original image stays on this device")
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(appLanguage.text("Tap to inspect original"))
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -316,7 +352,9 @@ struct RelationshipCaptureView: View {
                 .resizable()
                 .scaledToFill()
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .accessibilityLabel("Selected conversation screenshot")
+                .accessibilityLabel(
+                    appLanguage.text("Selected conversation screenshot")
+                )
         } else {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.tsSurfaceMuted)
@@ -324,19 +362,25 @@ struct RelationshipCaptureView: View {
                     Image(systemName: "text.viewfinder")
                         .foregroundStyle(Color.tsMutedInk)
                 }
-                .accessibilityLabel("Conversation screenshot placeholder")
+                .accessibilityLabel(
+                    appLanguage.text("Conversation screenshot placeholder")
+                )
         }
     }
 
     private var reviewContent: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 14) {
-                SectionLabel(text: "1 · Review evidence")
-                Text("Correct the text before it becomes evidence")
+                SectionLabel(text: appLanguage.text("1 · Review evidence"))
+                Text(appLanguage.text("Correct the text before it becomes evidence"))
                     .font(.system(.title2, design: .rounded).weight(.bold))
                     .foregroundStyle(Color.tsInk)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("OCR can be wrong. Speaker identity stays unknown until another source supports it.")
+                Text(
+                    appLanguage.text(
+                        "OCR can be wrong. Speaker identity stays unknown until another source supports it."
+                    )
+                )
                     .font(.body)
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
@@ -355,36 +399,20 @@ struct RelationshipCaptureView: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(Color.tsLine, lineWidth: 1)
                     }
-                    .accessibilityLabel("Reviewed conversation text")
-                    .accessibilityHint("Edit any text recognition errors before saving.")
+                    .accessibilityLabel(
+                        appLanguage.text("Reviewed conversation text")
+                    )
+                    .accessibilityHint(
+                        appLanguage.text("Edit any text recognition errors before saving.")
+                    )
                     .accessibilityIdentifier("reviewed-ocr-text")
 
-                Label(
-                    store.draft.speaker.map {
-                        "Attribution: \($0.label) · recruiter reviewed"
-                    } ?? "Attribution: not reviewed · remains unresolved",
-                    systemImage: "quote.bubble"
-                )
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(
-                    store.draft.speaker == nil || store.draft.speaker == .unknown
-                        ? Color.tsWarning
-                        : Color.tsConfirmed
-                )
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("unknown-speaker-boundary")
-
-                Picker("Who wrote the reviewed text?", selection: $store.draft.speaker) {
-                    Text("Not reviewed").tag(Optional<TextSignalSpeaker>.none)
-                    ForEach(TextSignalSpeaker.allCases) { speaker in
-                        Text(speaker.label).tag(Optional(speaker))
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("capture-speaker-review")
+                speakerReviewControl
 
                 Text(
-                    "Choose only when the screenshot supports it. Unresolved speaker is valid, but Agent proposals stay unavailable until candidate attribution is confirmed."
+                    appLanguage.text(
+                        "Choose only when the screenshot supports it. Unresolved is a valid result."
+                    )
                 )
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
@@ -392,74 +420,263 @@ struct RelationshipCaptureView: View {
             }
             .tsCard()
 
-            VStack(alignment: .leading, spacing: 16) {
-                SectionLabel(text: "2 · Identity clue")
-                Text("A clue finds candidates; it never chooses one.")
-                    .font(.headline)
-                    .foregroundStyle(Color.tsInk)
-
-                TextField("Person name, if visible", text: $store.draft.displayNameHint)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("capture-person-hint")
-
-                Picker("Identity clue type", selection: $store.draft.handleType) {
-                    ForEach(IdentityHandleType.allCases) { type in
-                        Text(type.label).tag(type)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("capture-handle-type")
-
-                TextField(
-                    store.draft.handleType == .phone
-                        ? "Phone number"
-                        : store.draft.handleType == .email
-                            ? "Email address"
-                            : "WeChat ID",
-                    text: $store.draft.handleValue
-                )
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(
-                    store.draft.handleType == .phone
-                        ? .phonePad
-                        : store.draft.handleType == .email
-                            ? .emailAddress
-                            : .default
-                )
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("capture-handle-value")
-            }
-            .tsCard()
-
-            VStack(alignment: .leading, spacing: 16) {
-                SectionLabel(text: "3 · Relationship scope")
-                TextField("Relationship label", text: $store.draft.relationshipLabel)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("capture-relationship-label")
-                TextField("Purpose", text: $store.draft.relationshipPurpose, axis: .vertical)
-                    .lineLimit(2...4)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("capture-relationship-purpose")
-                TextField("Role, optional", text: $store.draft.relationshipRole)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("capture-relationship-role")
-            }
-            .tsCard()
+            captureContextReview
 
             Button {
                 store.submitReviewedDraft()
             } label: {
-                Label("Save and check identity", systemImage: "person.crop.circle.badge.questionmark")
+                Label(
+                    appLanguage.text("Save and check identity"),
+                    systemImage: "person.crop.circle.badge.questionmark"
+                )
             }
             .buttonStyle(TSPrimaryButtonStyle())
             .disabled(!store.draft.canSubmit)
             .accessibilityIdentifier("submit-reviewed-capture")
 
-            Text("This saves reviewed text and source metadata. It does not save the original image or bind a person yet.")
+            Text(
+                appLanguage.text(
+                    "This saves reviewed text and source metadata. It does not save the original image or bind a person yet."
+                )
+            )
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var speakerReviewControl: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                speakerReviewStatus
+                speakerReviewPicker
+            }
+        } else {
+            HStack(alignment: .center, spacing: 12) {
+                speakerReviewStatus
+                Spacer(minLength: 8)
+                speakerReviewPicker
+            }
+        }
+    }
+
+    private var speakerReviewStatus: some View {
+        Label(
+            speakerReviewStatusText,
+            systemImage: "quote.bubble"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(
+            store.draft.speaker == nil || store.draft.speaker == .unknown
+                ? Color.tsWarning
+                : Color.tsConfirmed
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("unknown-speaker-boundary")
+    }
+
+    private var speakerReviewStatusText: String {
+        guard let speaker = store.draft.speaker,
+              speaker != .unknown else {
+            return appLanguage.text("Speaker unresolved")
+        }
+        return appLanguage.text("Speaker reviewed")
+            + " · \(appLanguage.text(speaker.label))"
+    }
+
+    private var speakerReviewPicker: some View {
+        Menu {
+            Button(appLanguage.text("Clear speaker review")) {
+                store.draft.speaker = nil
+            }
+            ForEach(TextSignalSpeaker.allCases) { speaker in
+                Button(appLanguage.text(speaker.label)) {
+                    store.draft.speaker = speaker
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text(
+                    store.draft.speaker?.label
+                        ?? appLanguage.text("Speaker")
+                )
+                .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.bold))
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.tsVermilion)
+            .frame(minHeight: 44)
+            .padding(.horizontal, 8)
+            .background(Color.tsSurfaceMuted, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .accessibilityLabel(appLanguage.text("Who wrote the reviewed text?"))
+        .accessibilityValue(
+            store.draft.speaker.map { appLanguage.text($0.label) }
+                ?? appLanguage.text("Not reviewed")
+        )
+        .accessibilityIdentifier("capture-speaker-review")
+    }
+
+    private var captureContextReview: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionLabel(text: appLanguage.text("2 · Identity and purpose"))
+            Text(appLanguage.text("Keep only clues visible in this conversation."))
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+            Text(
+                appLanguage.text(
+                    "These clues narrow the review; they never choose a person. Leaving identity unresolved is valid."
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(Color.tsMutedInk)
+            .fixedSize(horizontal: false, vertical: true)
+
+            TextField(
+                appLanguage.text("Person name, if visible"),
+                text: $store.draft.displayNameHint
+            )
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("capture-person-hint")
+
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 10) {
+                    captureHandleField
+                    captureHandleTypeMenu
+                }
+            } else {
+                HStack(alignment: .center, spacing: 10) {
+                    captureHandleField
+                    captureHandleTypeMenu
+                }
+            }
+
+            Divider().overlay(Color.tsLine)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    relationshipDetailsExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(appLanguage.text("Relationship details"))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                        Text(relationshipSummary)
+                            .font(.caption)
+                            .foregroundStyle(Color.tsMutedInk)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.tsMutedInk)
+                        .rotationEffect(.degrees(relationshipDetailsExpanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+                .frame(minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(
+                relationshipDetailsExpanded
+                    ? appLanguage.text("Expanded")
+                    : appLanguage.text("Collapsed")
+            )
+            .accessibilityIdentifier("capture-relationship-details")
+
+            if relationshipDetailsExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField(
+                        appLanguage.text("Relationship label"),
+                        text: $store.draft.relationshipLabel
+                    )
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("capture-relationship-label")
+                    TextField(
+                        appLanguage.text("Purpose"),
+                        text: $store.draft.relationshipPurpose,
+                        axis: .vertical
+                    )
+                    .lineLimit(2...4)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("capture-relationship-purpose")
+                    TextField(
+                        appLanguage.text("Role, optional"),
+                        text: $store.draft.relationshipRole
+                    )
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("capture-relationship-role")
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .tsCard()
+    }
+
+    private var captureHandleField: some View {
+        TextField(captureHandlePlaceholder, text: $store.draft.handleValue)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .keyboardType(
+            store.draft.handleType == .phone
+                ? .phonePad
+                : store.draft.handleType == .email
+                    ? .emailAddress
+                    : .default
+        )
+        .textFieldStyle(.roundedBorder)
+        .accessibilityIdentifier("capture-handle-value")
+    }
+
+    private var captureHandleTypeMenu: some View {
+        Menu {
+            Picker(
+                appLanguage.text("Identity clue type"),
+                selection: $store.draft.handleType
+            ) {
+                ForEach(IdentityHandleType.allCases) { type in
+                    Text(appLanguage.text(type.label)).tag(type)
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text(appLanguage.text(store.draft.handleType.label))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.bold))
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.tsInk)
+            .frame(minWidth: 78, minHeight: 44)
+            .padding(.horizontal, 8)
+            .background(Color.tsSurfaceMuted, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .accessibilityLabel(appLanguage.text("Identity clue type"))
+        .accessibilityValue(appLanguage.text(store.draft.handleType.label))
+        .accessibilityIdentifier("capture-handle-type")
+    }
+
+    private var relationshipSummary: String {
+        let label = store.draft.relationshipLabel.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let role = store.draft.relationshipRole.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        return [label, role].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    private var captureHandlePlaceholder: String {
+        switch store.draft.handleType {
+        case .phone:
+            return appLanguage.text("Phone number, if visible")
+        case .email:
+            return appLanguage.text("Email address, if visible")
+        case .wechat:
+            return appLanguage.text("WeChat ID, if visible")
         }
     }
 
@@ -468,16 +685,16 @@ struct RelationshipCaptureView: View {
         if let identityCase = store.identityCase {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionLabel(text: "Identity review")
-                    Text("Who does this source belong to?")
+                    SectionLabel(text: appLanguage.text("Identity review"))
+                    Text(appLanguage.text("Who does this source belong to?"))
                         .font(.system(.title2, design: .rounded).weight(.bold))
                         .foregroundStyle(Color.tsInk)
-                    Text(identityCase.reason)
+                    Text(appLanguage.text(identityCase.reason))
                         .font(.body)
                         .foregroundStyle(Color.tsMutedInk)
                         .fixedSize(horizontal: false, vertical: true)
                     Label(
-                        "No person is selected by default",
+                        appLanguage.text("No person is selected by default"),
                         systemImage: "hand.tap"
                     )
                     .font(.caption.weight(.semibold))
@@ -488,10 +705,12 @@ struct RelationshipCaptureView: View {
 
                 if identityCase.candidates.isEmpty {
                     StateMessage(
-                        eyebrow: "No safe match",
+                        eyebrow: appLanguage.text("No safe match"),
                         icon: "person.crop.circle.badge.questionmark",
-                        title: "No existing person matches this clue",
-                        detail: "Create a separate person only if the source gives you enough identity evidence. Otherwise leave it unresolved."
+                        title: appLanguage.text("No existing person matches this clue"),
+                        detail: appLanguage.text(
+                            "Create a separate person only if the source gives you enough identity evidence. Otherwise leave it unresolved."
+                        )
                     ) {
                         EmptyView()
                     }
@@ -502,7 +721,7 @@ struct RelationshipCaptureView: View {
                 }
 
                 if store.selectedCandidateID != nil {
-                    Button("Bind source to selected person") {
+                    Button(appLanguage.text("Bind source to selected person")) {
                         store.bindSelectedCandidate()
                     }
                     .buttonStyle(TSPrimaryButtonStyle())
@@ -512,14 +731,14 @@ struct RelationshipCaptureView: View {
                 if !store.draft.displayNameHint.trimmingCharacters(
                     in: .whitespacesAndNewlines
                 ).isEmpty {
-                    Button("Create a separate person") {
+                    Button(appLanguage.text("Create a separate person")) {
                         store.createNewPerson()
                     }
                     .buttonStyle(TSSecondaryButtonStyle())
                     .accessibilityIdentifier("create-new-person-from-capture")
                 }
 
-                Button("Leave identity unresolved") {
+                Button(appLanguage.text("Leave identity unresolved")) {
                     store.leaveUnresolved()
                 }
                 .buttonStyle(TSTextButtonStyle())
@@ -560,7 +779,7 @@ struct RelationshipCaptureView: View {
                         Text(candidate.displayLabel)
                             .font(.headline)
                             .foregroundStyle(Color.tsInk)
-                        Text(candidate.temporalRole.label)
+                        Text(appLanguage.text(candidate.temporalRole.label))
                             .font(.caption.weight(.bold))
                             .foregroundStyle(
                                 candidate.temporalRole == .current
@@ -568,7 +787,7 @@ struct RelationshipCaptureView: View {
                                     : Color.tsWarning
                             )
                         Text(
-                            "\(candidate.contextCount) relationships · \(candidate.captureCount) governed sources"
+                            "\(candidate.contextCount) \(appLanguage.text("relationship contexts")) · \(candidate.captureCount) \(appLanguage.text("governed sources"))"
                         )
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
@@ -583,8 +802,12 @@ struct RelationshipCaptureView: View {
             .accessibilityIdentifier("identity-candidate-\(candidate.personID)")
             .accessibilityHint(
                 selectable
-                    ? "Selects this person for an explicit binding decision."
-                    : "Historical clue cannot be selected while another person owns the current clue."
+                    ? appLanguage.text(
+                        "Selects this person for an explicit binding decision."
+                    )
+                    : appLanguage.text(
+                        "Historical clue cannot be selected while another person owns the current clue."
+                    )
             )
 
             VStack(alignment: .leading, spacing: 6) {
@@ -597,7 +820,11 @@ struct RelationshipCaptureView: View {
             }
 
             if !selectable {
-                Text("Protected historical match: the same clue has a different current owner.")
+                Text(
+                    appLanguage.text(
+                        "Protected historical match: the same clue has a different current owner."
+                    )
+                )
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.tsWarning)
                     .fixedSize(horizontal: false, vertical: true)
@@ -606,7 +833,7 @@ struct RelationshipCaptureView: View {
 
             if selected && !candidate.relationshipContexts.isEmpty {
                 Picker(
-                    "Relationship",
+                    appLanguage.text("Relationship"),
                     selection: Binding(
                         get: {
                             store.selectedContextID
@@ -645,12 +872,14 @@ struct RelationshipCaptureView: View {
         VStack(alignment: .leading, spacing: 20) {
             if completion.isUnresolved {
                 StateMessage(
-                    eyebrow: "Safely preserved",
+                    eyebrow: appLanguage.text("Safely preserved"),
                     icon: "tray.full",
-                    title: "Source saved without guessing a person",
-                    detail: "The reviewed evidence remains unresolved and cannot change any person Wiki until a recruiter resolves identity."
+                    title: appLanguage.text("Source saved without guessing a person"),
+                    detail: appLanguage.text(
+                        "The reviewed evidence remains unresolved and cannot change any person Wiki until a recruiter resolves identity."
+                    )
                 ) {
-                    Button("Return to people") {
+                    Button(appLanguage.text("Return to people")) {
                         onDismiss(.finished)
                     }
                         .buttonStyle(TSPrimaryButtonStyle())
@@ -675,23 +904,23 @@ struct RelationshipCaptureView: View {
                     )
                     .accessibilityIdentifier("wiki-quality-verdict")
 
-                    Text("The person page is current")
+                    Text(appLanguage.text("The person page is current"))
                         .font(.system(.title2, design: .rounded).weight(.bold))
                         .foregroundStyle(Color.tsInk)
                     Text(
-                        "\(completion.wiki?.blocks.count ?? 0) source-linked blocks"
+                        "\(completion.wiki?.blocks.count ?? 0) \(appLanguage.text("source-linked blocks"))"
                     )
                     .font(.subheadline)
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
 
-                    Button("Continue in Agent Session") {
+                    Button(appLanguage.text("Continue in Agent Session")) {
                         onDismiss(.continueInAgent(completion))
                     }
                     .buttonStyle(TSPrimaryButtonStyle())
                     .accessibilityIdentifier("continue-capture-in-agent")
 
-                    Button("Return to this person") {
+                    Button(appLanguage.text("Return to this person")) {
                         onDismiss(.finished)
                     }
                     .buttonStyle(TSSecondaryButtonStyle())
@@ -723,14 +952,14 @@ struct RelationshipCaptureView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: "Receipt")
-                receiptRow(label: "Capture", value: completion.captureID)
-                receiptRow(label: "Resource", value: completion.resourceID)
+                SectionLabel(text: appLanguage.text("Receipt"))
+                receiptRow(label: appLanguage.text("Capture"), value: completion.captureID)
+                receiptRow(label: appLanguage.text("Resource"), value: completion.resourceID)
                 if let personID = completion.personID {
-                    receiptRow(label: "Person", value: personID)
+                    receiptRow(label: appLanguage.text("Person"), value: personID)
                 }
                 if let contextID = completion.relationshipContextID {
-                    receiptRow(label: "Relationship", value: contextID)
+                    receiptRow(label: appLanguage.text("Relationship"), value: contextID)
                 }
             }
             .tsCard()
@@ -775,20 +1004,20 @@ struct RelationshipCaptureView: View {
 
     private func failureContent(_ failure: RelationshipCaptureFailure) -> some View {
         StateMessage(
-            eyebrow: "Nothing was silently changed",
+            eyebrow: appLanguage.text("Nothing was silently changed"),
             icon: "arrow.clockwise.circle",
-            title: failure.title,
-            detail: failure.message
+            title: appLanguage.text(failure.title),
+            detail: appLanguage.text(failure.message)
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                Button("Retry safely") {
+                Button(appLanguage.text("Retry safely")) {
                     store.retry()
                 }
                 .buttonStyle(TSPrimaryButtonStyle())
                 .accessibilityIdentifier("retry-capture-step")
 
                 if failure.recoveryStage != .recognition {
-                    Button("Return to reviewed text") {
+                    Button(appLanguage.text("Return to reviewed text")) {
                         store.returnToReview()
                     }
                     .buttonStyle(TSSecondaryButtonStyle())
@@ -800,7 +1029,11 @@ struct RelationshipCaptureView: View {
 
     private var relationshipBoundary: some View {
         Label {
-            Text("Evidence, identity, relationship scope, compiled Wiki, and any future action remain separate. No external message or system record is created here.")
+            Text(
+                appLanguage.text(
+                    "Evidence, identity, relationship scope, compiled Wiki, and any future action remain separate. No external message or system record is created here."
+                )
+            )
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: "lock.shield")

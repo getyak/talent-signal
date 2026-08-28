@@ -320,7 +320,7 @@ final result: passed
 
 ---
 
-# Design QA — iOS persistent contact-tool receipts
+# Design QA — iOS persistent contact-tool receipts and People continuity
 
 ## Evidence
 
@@ -334,6 +334,23 @@ final result: passed
   `/tmp/talent-signal-contact-receipt-ui-v2.xcresult`.
 - Focused confirmed-match and response-loss result bundle:
   `/tmp/talent-signal-contact-receipt-retry-ui.xcresult`.
+- Before direct continuity, the restored receipt stopped at a verification
+  warning:
+  `/tmp/talent-signal-contact-receipts.mmEVVi/939F10FF-6A16-477F-A2AC-7B436B49EA4E.png`.
+- Standard restored receipt with the current-person action:
+  `/tmp/talent-signal-contact-people.SrwlhR/FB8EFF83-AFB0-403E-9B08-9C97BA2020FB.png`.
+- Standard canonical People destination:
+  `/tmp/talent-signal-contact-people.SrwlhR/EDCF7399-9ADB-4CC4-B5B7-557CC1526706.png`.
+- Simplified Chinese, dark appearance, AX5 restored receipt:
+  `/tmp/talent-signal-contact-people-ax5.JRPj46/210EFE9A-A5C3-48FE-B5C4-CA07CB8609EA.png`.
+- Simplified Chinese, dark appearance, AX5 People destination:
+  `/tmp/talent-signal-contact-people-ax5.JRPj46/F731C7D1-D101-45D5-8F0A-790E3A6378C0.png`.
+- Standard create and identity-review continuity result bundle:
+  `/tmp/talent-signal-contact-receipt-people-ui.xcresult`.
+- Simplified Chinese dark AX5 continuity result bundle:
+  `/tmp/talent-signal-contact-receipt-people-ax5-zh.xcresult`.
+- Exact-reference and migration model result bundle:
+  `/tmp/talent-signal-contact-receipt-people-model.xcresult`.
 
 ## Finding and resolution
 
@@ -349,6 +366,20 @@ references. Relaunched receipts state that they are restored references and
 direct the recruiter to People for current state instead of presenting cached
 history as live truth. Original contact prose and identity clues do not appear
 in the receipt or its persisted Session envelope.
+
+Two structural directions were compared. The warning-only direction kept the
+receipt visually minimal, but made the recruiter close the Session, switch to
+People, and search for an object the Agent had already identified. The selected
+direction adds one native, full-width `Open in People` row to a bound receipt.
+It dismisses the focused Agent surface and opens the exact living Person inside
+the existing People page, without adding a modal, duplicating contact detail,
+or increasing the receipt's authority.
+
+The action is derived only from a canonical Person ID that still exists in the
+current workspace snapshot. It never falls back to a display name. A restored
+identity-review receipt has no Person action, and a receipt whose Person was
+deleted says that the Person is no longer available and removes the action.
+This keeps history inspectable without risking a wrong-target transition.
 
 Identity-review Sessions deliberately show `Choose a relationship`. They retain
 the canonical resolution case but no person or relationship IDs, and therefore
@@ -370,20 +401,31 @@ input were not moved or restyled.
   reconciles canonical readback, and restores one receipt after relaunch.
 - Unit coverage verifies minimal-reference persistence, exact idempotent retry,
   mismatched-readback refusal, version 3 relationship-session migration, and
-  the absence of a fake relationship scope for unresolved identity.
+  the absence of a fake relationship scope for unresolved identity. It also
+  verifies exact current-snapshot Person resolution and no destination for a
+  missing Person.
 - English and Simplified Chinese semantic projections are asserted without
   translating person labels or canonical identifiers.
 - The standard screenshots show one readable single-column card, complete
   labels, subordinate receipt IDs, at least 44-point controls, and a reachable
   pinned composer. No duplicate form, hero treatment, or Agent theater was
   introduced.
+- Standard and Simplified Chinese dark AX5 journeys pass save, dismiss,
+  termination, Session reopen, exact-Person transition, and destination
+  verification. The latter visually preserves an uncropped receipt action and
+  vertically stacks reference metadata at accessibility text sizes.
+- The destination remains the original People projection: Today / Sessions /
+  People stay in the established top navigation and the bottom global Agent
+  input remains visible and reachable.
 
 ## Mobile UX rubric
 
 - Task legibility: 3 — the confirmed tool outcome and destination lead.
 - Hierarchy: 3 — identity, context, receipt, and refresh warning are distinct.
-- Platform interaction: 3 — native Session retrieval and pinned composition.
-- Accessibility: 3 — semantic controls, complete labels, and localized rows.
+- Platform interaction: 3 — native Session retrieval, one-step canonical
+  continuity, and pinned composition.
+- Accessibility: 3 — semantic controls, complete labels, localized rows, and
+  an uncropped 44-point action at AX5.
 - Visual craft: 3 — quiet bordered card, scarce accent, stable single column.
 - Vetoes: none.
 
@@ -1175,7 +1217,7 @@ final result: passed with canonical receipt proof pending
 
 ---
 
-# Design QA — iOS global screenshot handoff
+# Design QA — iOS global screenshot handoff and Ask continuity
 
 ## Evidence
 
@@ -1190,6 +1232,16 @@ final result: passed with canonical receipt proof pending
 - Before/after comparison:
   `/tmp/talent-signal-ios-paperclip-before-after.png`
 - Device: iPhone 17 Pro Simulator, 1206 × 2622 pixels.
+- Current Ask-to-system-picker proof:
+  `/tmp/talent-signal-global-paperclip-artifacts.NKemaU/82909FE1-8469-441F-8367-B883E86E93FD.png`
+- Current governed-review cancellation state:
+  `/tmp/talent-signal-global-paperclip-artifacts.NKemaU/B97497E6-E6C6-4D51-A0D7-F32E22887327.png`
+- Current protected-draft return state:
+  `/tmp/talent-signal-global-paperclip-artifacts.NKemaU/43A1EFDB-8499-4D76-BF3C-C29C10A30152.png`
+- Current five-journey navigation, input, AX5, and contextual-Session bundle:
+  `/tmp/talent-signal-global-paperclip-ui.xcresult`.
+- Current picker-cancel and exact-draft recovery bundle:
+  `/tmp/talent-signal-global-paperclip-recovery-ui-retry.xcresult`.
 
 ## Finding and resolution
 
@@ -1203,6 +1255,25 @@ to one quiet Open Photos row, never to the text Signal form. Selecting an image
 continues into the existing on-device text and identity review, with no contact
 or external write from selection alone. Interrupted screenshot review remains
 recoverable through the existing pending-capture handoff.
+
+The same rule now continues inside the focused Ask composer. Leaving its
+paperclip disabled until a relationship was selected was rejected because it
+quietly reintroduced the form-first dependency the global input removed. An
+intermediate Text / Photo / Voice chooser was also rejected because it
+duplicated intent already visible in the composer. The selected contextual
+semantics keep one visual control: without relationship scope it opens one
+conversation screenshot for governed review; inside an existing relationship
+Session it remains the task-image attachment control and may select up to ten
+non-evidence images. The two routes use an Ask-local semantic event rather than
+adding another state to the global App Intent router.
+
+Cancellation is interruption-safe. A typed global draft is persisted before
+the system picker appears, the focused Ask closes cleanly into screenshot
+review, and closing that review returns to Today. Reopening the unchanged
+bottom global input restores the exact message with no implicit Person or
+relationship. The first attempt to verify this path exposed that the system
+picker still covered the review page; the final test cancels that native layer
+before exercising the in-app close action, matching the real user sequence.
 
 Visual QA found and fixed a second-order iOS defect: the scaled screenshot
 thumbnail could draw outside its layout frame and collide with source text at
@@ -1224,6 +1295,12 @@ Chinese.
   failure recovery, and absence of the text Signal controls.
 - All evidence is local Simulator state; no contact, message, meeting, ATS,
   CRM, reminder, canonical record, or external system was written.
+- In a scoped calendar-preparation Session, `ask-add-photos` remains enabled
+  and the unscoped screenshot-review action is absent. In a new global Ask,
+  `ask-review-screenshot` is enabled at 44 points while no scope selector is
+  shown.
+- The current matrix passed five of five journeys; the recovery rerun passed
+  one of one after correcting the test to cancel the native Photos layer.
 
 final result: passed
 

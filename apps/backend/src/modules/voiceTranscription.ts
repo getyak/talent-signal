@@ -203,7 +203,9 @@ export class EnvironmentDoubaoVoiceTranscriber
   async transcribe(
     input: VoiceTranscriptionInput,
   ): Promise<VoiceTranscriptionReceipt> {
-    if (this.environment.TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING !== "true") {
+    if (
+      this.environment.TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION !== "true"
+    ) {
       throw new ApiError(
         503,
         "REMOTE_TRANSCRIPTION_NOT_ADMITTED",

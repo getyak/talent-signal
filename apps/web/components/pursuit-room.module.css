@@ -161,6 +161,11 @@
   scroll-margin-top: 90px;
 }
 
+.proposal:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 6px;
+}
+
 .proposal > header {
   align-items: start;
   display: flex;
@@ -308,8 +313,8 @@
   display: inline-flex;
   font-size: 0.69rem;
   font-weight: 680;
-  min-height: 35px;
-  padding: 0 12px;
+  min-height: 44px;
+  padding: 0 14px;
 }
 
 .decisionOptions input:checked + span {
@@ -388,7 +393,7 @@
   flex: 0 0 auto;
   font-size: 0.74rem;
   font-weight: 760;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 16px;
 }
 
@@ -428,12 +433,14 @@
 }
 
 .reviewError a {
+  align-items: center;
   border: 1px solid currentColor;
   border-radius: 999px;
+  display: inline-flex;
   flex: 0 0 auto;
   font-size: 0.7rem;
   font-weight: 760;
-  min-height: 38px;
+  min-height: 44px;
   padding: 9px 13px;
 }
 
@@ -470,7 +477,7 @@
   font-size: 0.7rem;
   font-weight: 760;
   margin-left: auto;
-  min-height: 38px;
+  min-height: 44px;
   padding: 9px 13px;
 }
 

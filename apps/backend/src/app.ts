@@ -166,6 +166,10 @@ import {
 import { decideAssertion } from "./modules/decisions.js";
 import { createChatTask, getChatTaskReadback } from "./modules/chat.js";
 import {
+  createEnvironmentChatAnswerProvider,
+  type RemoteChatAnswerProviding,
+} from "./modules/chatAnswerProvider.js";
+import {
   CHAT_MEDIA_MAX_BYTES,
   createChatMediaAsset,
   deleteChatMediaAsset,
@@ -332,12 +336,16 @@ export interface AppDependencies {
   pool: Pool;
   voiceTranscriber?: VoiceTranscriptionServing;
   chatMediaStorage?: ChatMediaStorage;
+  remoteChatProvider?: RemoteChatAnswerProviding | null;
 }
 
 export async function buildApp(
   dependencies: AppDependencies,
 ): Promise<FastifyInstance> {
   const { appleTokenVerifier, config, pool } = dependencies;
+  const remoteChatProvider = dependencies.remoteChatProvider === undefined
+    ? createEnvironmentChatAnswerProvider()
+    : dependencies.remoteChatProvider;
   const voiceTranscriber =
     dependencies.voiceTranscriber ?? new EnvironmentDoubaoVoiceTranscriber();
   const chatMediaStorage =
@@ -1707,7 +1715,12 @@ export async function buildApp(
       },
     },
     async (request, reply) => {
-      const result = await createChatTask(pool, request.auth, request.body);
+      const result = await createChatTask(
+        pool,
+        request.auth,
+        request.body,
+        remoteChatProvider,
+      );
       return reply
         .header("idempotent-replayed", result.replayed)
         .status(result.status)

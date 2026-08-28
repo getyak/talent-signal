@@ -72,7 +72,7 @@ export default async function PursuitRoomPage({
         <section className={styles.hero}>
           <p className={styles.eyebrow}>{pursuit.type} pursuit</p>
           <h1>{pursuit.title}</h1>
-          <p>{pursuit.target_outcome}</p>
+          <p>{pursuit.target_outcome.replaceAll("_", " ")}</p>
           <dl>
             <div>
               <dt>Target date</dt>

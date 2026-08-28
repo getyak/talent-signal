@@ -16,6 +16,10 @@ for command_name in curl docker node tailscale; do
   fi
 done
 
+node "$repository_root/scripts/infisical/verify-contract.mjs" testflightBackend
+node "$repository_root/scripts/deploy/verify-testflight-chat-environment.mjs"
+node "$repository_root/scripts/deploy/verify-testflight-voice-environment.mjs"
+
 tailscale_state="$(tailscale status --json)"
 tailscale_values="$(
   node -e '
@@ -74,6 +78,10 @@ fi
 
 "${compose[@]}" exec -T api node -e \
   "fetch('https://appleid.apple.com/auth/keys').then(async response => { const body = await response.json(); if (!response.ok || !Array.isArray(body.keys) || body.keys.length === 0) process.exit(1); }).catch(() => process.exit(1))"
+"${compose[@]}" exec -T api \
+  node apps/backend/dist/evaluation/probeVoiceTranscription.js
+"${compose[@]}" exec -T api \
+  node apps/backend/dist/evaluation/probeChatAnswerProvider.js
 
 published_endpoint="$("${compose[@]}" port api 4317)"
 if [[ "$published_endpoint" != 127.0.0.1:* ]]; then

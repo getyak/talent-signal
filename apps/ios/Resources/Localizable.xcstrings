@@ -1429,6 +1429,12 @@
     "Try another person or context." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请尝试其他人物或情境。" } } }
     },
+    "Choose a conversation screenshot. Identity and relationship stay unconfirmed until review." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一张会话截图；完成审阅前，身份与关系均不会被确认。" } } }
+    },
+    "Review screenshot" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅截图" } } }
+    },
     "Upload failed. Retry keeps the same image identity." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传失败。重试会继续使用同一图片标识。" } } }
     },
