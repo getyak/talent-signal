@@ -182,6 +182,10 @@ Exact tokens, typography choices, breakpoints, and component behavior belong in
 the implementation. The surrounding product is the reference for density and
 idiom.
 
+On working surfaces, headings name the current object, date, state, or
+decision. Reserve narrative promises and slogan-like copy for marketing or
+onboarding; do not use them as persistent product chrome.
+
 Avoid:
 
 - generic gradients and glowing AI decoration;
