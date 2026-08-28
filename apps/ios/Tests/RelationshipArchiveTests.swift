@@ -1667,7 +1667,9 @@ final class RelationshipArchiveTests: XCTestCase {
 
     func testCitationObservedDateUsesTheSourceTimezone() {
         let citation = relationshipAskReadbackFixture().citations[0]
-        XCTAssertTrue(citation.compactProvenance.hasPrefix("2026-08-24"))
+        XCTAssertTrue(
+            citation.compactProvenance(in: .english).hasPrefix("2026-08-24")
+        )
         let boundary = RelationshipAskResponse.Citation(
             id: citation.id,
             dependencyType: citation.dependencyType,
@@ -1694,7 +1696,9 @@ final class RelationshipArchiveTests: XCTestCase {
             lastReviewedAt: citation.lastReviewedAt,
             lastReviewedBy: citation.lastReviewedBy
         )
-        XCTAssertTrue(boundary.compactProvenance.hasPrefix("2026-08-25"))
+        XCTAssertTrue(
+            boundary.compactProvenance(in: .english).hasPrefix("2026-08-25")
+        )
         XCTAssertTrue(boundary.detailedObservedAt.contains("2026-08-25 01:33"))
         XCTAssertTrue(boundary.detailedObservedAt.contains("Asia/Shanghai"))
         XCTAssertTrue(
@@ -1735,6 +1739,20 @@ final class RelationshipArchiveTests: XCTestCase {
                 ]
             )
         )
+    }
+
+    func testDeterministicWorkspaceSessionKeepsItsAccountPersistenceScope() throws {
+        let session = try XCTUnwrap(
+            PursuitWorkspaceSession.configured(
+                arguments: [
+                    "TalentSignal",
+                    "--workspace-backend-url", "http://127.0.0.1:4317",
+                    "--workspace-account-id", "fixture-account",
+                ]
+            )
+        )
+
+        XCTAssertEqual(session.accountID, "fixture-account")
     }
 
     func testPreviewAttentionRanksWorkNotPeople() {
@@ -1783,7 +1801,10 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(snapshot.todayItems.map(\.kind), [.action, .review, .gap])
         XCTAssertEqual(Set(snapshot.todayItems.map(\.pursuitID)).count, 3)
         XCTAssertEqual(snapshot.todayItems[0].owner, preview.currentUserName)
-        XCTAssertEqual(snapshot.todayItems[0].due, "Aug 25, 2026")
+        XCTAssertEqual(
+            snapshot.todayItems[0].due,
+            "2026-08-25T09:00:00.000Z"
+        )
     }
 
     func testTodayDoesNotHideAttentionAfterThirdPursuit() {

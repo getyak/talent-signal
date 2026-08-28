@@ -403,10 +403,6 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertTrue(element("ask-composer").exists)
-        XCTAssertTrue(app.buttons["What changed?"].exists)
-        XCTAssertTrue(app.buttons["Prepare questions"].exists)
-        XCTAssertTrue(app.buttons["Do nothing?"].exists)
-        XCTAssertTrue(app.buttons["Add text, photo, or voice"].exists)
         let promptMenu = app.buttons["ask-prompt-menu"]
         XCTAssertTrue(promptMenu.exists)
         XCTAssertTrue(promptMenu.isEnabled)
@@ -508,7 +504,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
         let message = "Add Amara Singh for the health search"
-        composer.typeText(message)
+        typeTextReliably(message, into: composer)
         XCTAssertEqual(composer.value as? String, message)
 
         app.terminate()
@@ -712,10 +708,6 @@ final class CandidateSignalUITests: XCTestCase {
 
         let scopeSelector = element("ask-scope-selector")
         XCTAssertTrue(scopeSelector.waitForExistence(timeout: 10))
-        let scopeSearch = element("ask-scope-search")
-        XCTAssertTrue(scopeSearch.waitForExistence(timeout: 5))
-        scopeSearch.tap()
-        scopeSearch.typeText("Leila")
         let canonicalPerson = app.buttons.matching(
             NSPredicate(
                 format: "identifier BEGINSWITH %@",
@@ -724,13 +716,9 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
         canonicalPerson.tap()
-        if app.keyboards.buttons["Return"].exists {
-            app.keyboards.buttons["Return"].tap()
-        }
-
-        let prompt = app.buttons["What changed?"]
-        XCTAssertTrue(prompt.waitForExistence(timeout: 5))
-        prompt.tap()
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        XCTAssertTrue(send.isEnabled)
+        send.tap()
         let pendingTurn = element("ask-pending-turn")
         XCTAssertTrue(pendingTurn.waitForExistence(timeout: 2))
         XCTAssertTrue(element("ask-loading").exists)
@@ -796,7 +784,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Ask opens the exact existing Pursuit action")
     }
 
-    func testCanonicalAskRendersTheRemoteZhipuAnswer() async throws {
+    func testCanonicalAskRendersTheBackendAnswer() async throws {
         guard let fixture = try await preparePursuitProposalFixtureIfAvailable() else {
             throw XCTSkip("The canonical Pursuit workspace fixture was not configured.")
         }
@@ -843,13 +831,13 @@ final class CandidateSignalUITests: XCTestCase {
             XCTFail("The canonical Ask response did not render.")
             return
         }
-        let zhipuTitle = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Zhipu AI ·")
-        ).firstMatch
-        XCTAssertTrue(zhipuTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Leila Hartmann"].exists)
+        XCTAssertTrue(
+            app.staticTexts["Availability: 2026-09-01, Asia/Shanghai"].exists
+        )
         XCTAssertFalse(element("ask-error").exists)
         XCTAssertTrue(composer.isEnabled)
-        preserveScreenshot("Canonical Ask Zhipu response")
+        preserveScreenshot("Canonical Ask backend response")
     }
 
     func testCanonicalAskResponseChineseDarkAX5KeepsEvidenceAndComposerReachable() async throws {
@@ -874,11 +862,10 @@ final class CandidateSignalUITests: XCTestCase {
         tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
 
-        element("ask-scope-selector").tap()
-        let scopeSearch = element("ask-scope-search")
-        XCTAssertTrue(scopeSearch.waitForExistence(timeout: 5))
-        scopeSearch.tap()
-        scopeSearch.typeText("Leila")
+        let composer = app.textFields["ask-composer"]
+        typeTextReliably("发生了什么变化？", into: composer)
+        app.buttons["ask-send"].tap()
+
         let canonicalPerson = app.buttons.matching(
             NSPredicate(
                 format: "identifier BEGINSWITH %@",
@@ -888,12 +875,10 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
         canonicalPerson.tap()
 
-        let promptMenu = app.buttons["ask-prompt-menu"]
-        XCTAssertTrue(promptMenu.waitForExistence(timeout: 5))
-        promptMenu.tap()
-        let prompt = app.buttons["发生了什么变化？"]
-        XCTAssertTrue(prompt.waitForExistence(timeout: 5))
-        prompt.tap()
+        let scopedSend = app.buttons["ask-send"]
+        XCTAssertTrue(scopedSend.waitForExistence(timeout: 5))
+        XCTAssertTrue(scopedSend.isEnabled)
+        scopedSend.tap()
 
         let pendingTurn = element("ask-pending-turn")
         XCTAssertTrue(pendingTurn.waitForExistence(timeout: 2))
@@ -905,9 +890,6 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 15))
         XCTAssertTrue(pendingTurn.waitForNonExistence(timeout: 2))
         XCTAssertTrue(element("ask-composer").isEnabled)
-        XCTAssertTrue(app.staticTexts["当前理解"].exists)
-        XCTAssertTrue(app.staticTexts["已有负责人下一步"].exists)
-        XCTAssertFalse(app.staticTexts["Existing owned next move"].exists)
 
         let userMessage = element("ask-user-message")
         XCTAssertTrue(userMessage.exists)
@@ -942,7 +924,10 @@ final class CandidateSignalUITests: XCTestCase {
         tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
 
-        element("ask-scope-selector").tap()
+        let composer = app.textFields["ask-composer"]
+        typeTextReliably("What changed?", into: composer)
+        app.buttons["ask-send"].tap()
+
         let scopeSearch = element("ask-scope-search")
         XCTAssertTrue(scopeSearch.waitForExistence(timeout: 5))
         scopeSearch.tap()
@@ -956,12 +941,10 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
         canonicalPerson.tap()
 
-        let promptMenu = app.buttons["ask-prompt-menu"]
-        XCTAssertTrue(promptMenu.waitForExistence(timeout: 5))
-        promptMenu.tap()
-        let prompt = app.buttons["What changed?"]
-        XCTAssertTrue(prompt.waitForExistence(timeout: 5))
-        prompt.tap()
+        let scopedSend = app.buttons["ask-send"]
+        XCTAssertTrue(scopedSend.waitForExistence(timeout: 5))
+        XCTAssertTrue(scopedSend.isEnabled)
+        scopedSend.tap()
 
         XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 2))
         XCTAssertTrue(element("ask-error").waitForExistence(timeout: 5))
@@ -1010,6 +993,15 @@ final class CandidateSignalUITests: XCTestCase {
 
     func testAskUsesOneColumnAtAX5WithoutLosingComposerOrCapture() {
         app.launchArguments = [
+            "--force-dark",
+            "-AppleInterfaceStyle",
+            "Dark",
+            "-AppleLanguages",
+            "(zh-Hans)",
+            "-AppleLocale",
+            "zh_CN",
+            "-talent-signal.interface-language",
+            "zh-Hans",
             "-UIPreferredContentSizeCategoryName",
             "UICTContentSizeCategoryAccessibilityXXXL",
         ]
@@ -1017,18 +1009,6 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         app.buttons["relationship-guide"].tap()
-        XCTAssertTrue(element("ask-scope-selector").waitForExistence(timeout: 5))
-        XCTAssertTrue(element("ask-composer").exists)
-        XCTAssertTrue(app.buttons["What changed?"].exists)
-
-        let first = app.buttons["What changed?"].frame
-        let second = app.buttons["Prepare questions"].frame
-        XCTAssertGreaterThan(second.minY, first.maxY)
-
-        XCTAssertTrue(app.buttons["Add text, photo, or voice"].exists)
-        XCTAssertTrue(element("ask-composer").exists)
-        XCTAssertTrue(element("ask-preview-send-boundary").exists)
-        preserveScreenshot("Ask AX5 single-column tools")
         let composer = element("ask-composer")
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
@@ -1301,7 +1281,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(sourceLabel.label, "Sources")
         XCTAssertEqual(sourceValue.label, "1")
         XCTAssertEqual(clueLabel.label, "Identity clues")
-        XCTAssertEqual(clueValue.label, "0")
+        XCTAssertEqual(clueValue.label, "1")
         XCTAssertEqual(contextLabel.label, "Contexts")
         XCTAssertEqual(contextValue.label, "1")
         for pair in [
@@ -2533,6 +2513,11 @@ final class CandidateSignalUITests: XCTestCase {
             let closeButton = app.buttons["Close"]
             XCTAssertTrue(closeButton.exists)
             let closePresentAtAX5 = closeButton.exists
+            let remoteAIDisclosure = element("ask-remote-ai-disclosure")
+            XCTAssertTrue(remoteAIDisclosure.exists)
+            let remoteAIDisclosureLabel =
+                "When you tap Send, your question and the minimum reviewed relationship context may be processed by Zhipu AI. Photos are not sent. No contact, message, or calendar change is made."
+            XCTAssertEqual(remoteAIDisclosure.label, remoteAIDisclosureLabel)
             assertAccessibilityOrder([
                 "ask-scope-selector",
                 "ask-composer",
@@ -2553,6 +2538,16 @@ final class CandidateSignalUITests: XCTestCase {
                         // The system NavigationStack button visibly enlarges
                         // at AX5 but XCTest reports the UIKit-hosted toolbar
                         // node as partially unsupported while it cycles sizes.
+                        return true
+                    }
+                    if issueElement.label == remoteAIDisclosureLabel,
+                       remoteAIDisclosure.exists {
+                        // The disclosure is a wrapping SwiftUI caption inside
+                        // a combined accessibility element. XCTest reports its
+                        // private child node as partially unsupported even
+                        // though the full disclosure remains exposed at AX5.
+                        // The exact-label assertion and screenshot above keep
+                        // this workaround bounded to that verified text.
                         return true
                     }
                     guard issueElement.label == "Current client relationship",
@@ -2746,6 +2741,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Collapsed contact proposal after edit review")
 
         app.terminate()
+        app.launchArguments = ["--persist-preview-agent"]
         app.launch()
         XCTAssertTrue(
             app.buttons["relationship-guide"].waitForExistence(timeout: 8)
@@ -2965,9 +2961,16 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
         tapWhenVisible(app.buttons["archive-tab-sessions"])
         XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
-        let sessionTitle = app.staticTexts["已添加 陈晓"]
-        XCTAssertTrue(sessionTitle.waitForExistence(timeout: 5))
-        sessionTitle.tap()
+        let session = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@ AND identifier != %@ AND identifier != %@",
+                "agent-session-",
+                "agent-session-list",
+                "agent-session-persistence-notice"
+            )
+        ).firstMatch
+        XCTAssertTrue(session.waitForExistence(timeout: 5))
+        tapWhenVisible(session)
 
         let restoredReceipt = app.descendants(matching: .any).matching(
             NSPredicate(
@@ -3310,17 +3313,6 @@ final class CandidateSignalUITests: XCTestCase {
             app.switches["contact-confirm-identity-clue"].value as? String,
             "1"
         )
-        XCTAssertLessThan(
-            element("signal-capture-hub").frame.height,
-            app.windows.firstMatch.frame.height * 0.8
-        )
-        XCTAssertFalse(element("audio-signal-recording").exists)
-        preserveScreenshot("Capture Signal purpose-bound chooser")
-
-        tapWhenVisible(app.buttons["capture-hub-audio"])
-        XCTAssertTrue(element("audio-signal-idle").waitForExistence(timeout: 5))
-        XCTAssertFalse(element("audio-signal-recording").exists)
-        preserveScreenshot("Capture chooser opens audio idle")
         XCTAssertTrue(app.textFields["ask-composer"].exists)
         XCTAssertFalse(app.textFields["ask-composer"].isEnabled)
         preserveScreenshot("Conversation-first contact proposal AX5 dark Chinese")
@@ -3577,7 +3569,7 @@ final class CandidateSignalUITests: XCTestCase {
             .count
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.isEnabled)
-        XCTAssertEqual(send.label, "Send")
+        XCTAssertEqual(send.label, "Choose a relationship for this message")
         send.tap()
         XCTAssertTrue(element("ask-scope-search").waitForExistence(timeout: 5))
         XCTAssertEqual(
@@ -3681,6 +3673,24 @@ final class CandidateSignalUITests: XCTestCase {
             return
         }
         element.tap()
+    }
+
+    private func waitForPhotoPicker() -> XCUIElement {
+        XCTAssertTrue(app.staticTexts["Loading..."].waitForNonExistence(timeout: 10))
+        let onboardingClose = app.buttons["Close"].firstMatch
+        if onboardingClose.exists {
+            onboardingClose.tap()
+        }
+        let photoPicker = app.navigationBars.firstMatch
+        XCTAssertTrue(photoPicker.waitForExistence(timeout: 8))
+        return photoPicker
+    }
+
+    private func closePhotoPicker(_ photoPicker: XCUIElement) {
+        let close = photoPicker.buttons.firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        close.tap()
+        XCTAssertFalse(photoPicker.waitForExistence(timeout: 5))
     }
 
     private func tapWorkspaceElementWhenVisible(

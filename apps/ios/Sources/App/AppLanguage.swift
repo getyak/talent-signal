@@ -126,6 +126,11 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         return source.date(from: day).map(output.string) ?? day
     }
 
+    func dueDate(_ value: String, prefixed: Bool = false) -> String {
+        let format = prefixed ? text(" · due %@") : text("Due %@")
+        return String(format: format, locale: locale, shortDate(value))
+    }
+
     func recordedDate(
         at value: String,
         sourceTimezone: String?

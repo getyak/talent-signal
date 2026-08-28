@@ -505,6 +505,7 @@ struct RelationshipAskView: View {
                     )
                 }
             }
+            restoreContactProposal()
             restoreDraft(preferred: initialSeed?.suggestedObjective)
             if sessionID == nil,
                initialSeed == nil,
@@ -715,7 +716,7 @@ struct RelationshipAskView: View {
             .accessibilityIdentifier("ask-scope-no-results")
         } else if dynamicTypeSize.isAccessibilitySize
                     || sizeCategory.isAccessibilityCategory {
-            LazyVStack(spacing: 8) {
+            VStack(spacing: 8) {
                 ForEach(filteredScopes) { scope in
                     scopeOption(scope, fillsWidth: true)
                 }
@@ -1145,8 +1146,7 @@ struct RelationshipAskView: View {
                     .accessibilityHidden(true)
                 Text(
                     appLanguage.text(
-                        "When you tap Send, your question and the minimum reviewed relationship context may be processed by Zhipu AI. Photos are not sent. No contact, message, or calendar change is made.",
-                        zhHans: "轻点发送后，你的问题和最少量的已审阅关系信息可能会交给智谱 AI 处理。照片不会发送，也不会创建联系人、发送消息或更改日历。"
+                        "When you tap Send, your question and the minimum reviewed relationship context may be processed by Zhipu AI. Photos are not sent. No contact, message, or calendar change is made."
                     )
                 )
                 .font(.caption2)
@@ -1864,16 +1864,14 @@ struct RelationshipAskView: View {
         }
         guard isCanonical else {
             errorMessage = appLanguage.text(
-                "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again.",
-                zhHans: "当前是预览数据，因此问题没有发送。请打开已登录并连接后端的工作区，然后重试。"
+                "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
             )
             composerFocused = false
             return
         }
         guard mediaIDs.count == mediaDrafts.count else {
             errorMessage = appLanguage.text(
-                "Wait for every photo to finish uploading, or remove the failed photo. Your question is still here.",
-                zhHans: "请等待所有照片上传完成，或移除上传失败的照片。你的问题仍然保留。"
+                "Wait for every photo to finish uploading, or remove the failed photo. Your question is still here."
             )
             composerFocused = false
             return
@@ -2376,6 +2374,24 @@ struct RelationshipAskView: View {
         case nil:
             break
         }
+    }
+
+    private func restoreContactProposal() {
+        guard sessionID == nil,
+              initialSeed == nil,
+              contactDraft == nil,
+              let restoredDraft = sessionStore.contactProposalDraft else {
+            return
+        }
+        contactDraft = restoredDraft
+        contactOperationKey = sessionStore.contactProposalOperationKey
+        pendingContactTarget = sessionStore.contactProposalPendingTarget
+        pendingContactCapturedAt = sessionStore.contactProposalCapturedAt
+        pendingContactConfirmIdentityClue =
+            sessionStore.contactProposalPendingConfirmIdentityClue
+        confirmContactIdentityClue = restoredDraft.identityClue != nil
+        restorePendingContactChoice()
+        startContactLookup(for: restoredDraft)
     }
 
     private func initials(_ name: String) -> String {
@@ -3828,7 +3844,7 @@ private struct AskTurnView: View {
                                             Text(citation.sourceName)
                                                 .font(.caption.weight(.semibold))
                                                 .foregroundStyle(Color.tsInk)
-                                            Text(citation.compactProvenance)
+                                            Text(citation.compactProvenance(in: language))
                                                 .font(.caption2)
                                                 .foregroundStyle(Color.tsMutedInk)
                                         }
@@ -3843,8 +3859,8 @@ private struct AskTurnView: View {
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(
                                     language.text(
-                                        "Evidence from \(citation.sourceName), \(citation.compactProvenance)",
-                                        zhHans: "来自 \(citation.sourceName) 的证据，\(citation.compactProvenance)"
+                                        "Evidence from \(citation.sourceName), \(citation.compactProvenance(in: language))",
+                                        zhHans: "来自 \(citation.sourceName) 的证据，\(citation.compactProvenance(in: language))"
                                     )
                                 )
                                 .accessibilityHint(
@@ -4336,11 +4352,11 @@ private struct AskEvidenceReviewHistoryView: View {
 }
 
 extension RelationshipAskResponse.Citation {
-    var compactProvenance: String {
+    func compactProvenance(in language: AppLanguage) -> String {
         let day = observedDate.map { date in
             Self.observedDateFormatter(timeZone: resolvedSourceTimeZone).string(from: date)
         } ?? String(observedAt.prefix(10))
-        return "\(day) · \(attribution.actorKind.humanized) · \(reviewStatus.humanized)"
+        return "\(day) · \(language.workspaceValue(attribution.actorKind)) · \(language.workspaceValue(reviewStatus))"
     }
 
     var detailedObservedAt: String {
@@ -4418,7 +4434,7 @@ private struct AskCitationDetailView: View {
                         Text(citation.sourceName)
                             .font(.custom("Georgia", size: 28, relativeTo: .title2))
                             .foregroundStyle(Color.tsInk)
-                        Text(citation.compactProvenance)
+                        Text(citation.compactProvenance(in: language))
                             .font(.caption)
                             .foregroundStyle(Color.tsMutedInk)
                     }
@@ -4440,11 +4456,11 @@ private struct AskCitationDetailView: View {
                         )
                         citationLine(
                             language.text("Source state", zhHans: "来源状态"),
-                            "\(citation.reviewStatus.humanized) · capture v\(citation.captureVersion)"
+                            "\(language.workspaceValue(citation.reviewStatus)) · capture v\(citation.captureVersion)"
                         )
                         citationLine(
                             language.text("Attribution", zhHans: "归属"),
-                            "\(citation.attribution.actorKind.humanized) · \(citation.attribution.status.humanized)"
+                            "\(language.workspaceValue(citation.attribution.actorKind)) · \(language.workspaceValue(citation.attribution.status))"
                         )
                         if let reviewer = citation.lastReviewedBy {
                             citationLine(

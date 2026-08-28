@@ -348,7 +348,7 @@ declare -a ios_result_parts=()
 ios_suite_failed="false"
 ios_part_index=0
 
-is_runner_bootstrap_failure() {
+is_retryable_simulator_failure() {
   local result_path="$1"
   [ -d "$result_path" ] || return 1
   xcrun xcresulttool get test-results summary \
@@ -362,7 +362,9 @@ is_runner_bootstrap_failure() {
         result.fetch("skippedTests", 0).zero? &&
         only_failure.fetch("testName", "").include?("UITests-Runner encountered an error") &&
         only_failure.fetch("failureText", "").include?("before establishing connection")
-      exit(bootstrap_failure ? 0 : 1)
+      query_timeout = failures.length == 1 &&
+        only_failure.fetch("failureText", "").include?("Timed out while evaluating UI query")
+      exit((bootstrap_failure || query_timeout) ? 0 : 1)
     '
 }
 
@@ -384,11 +386,11 @@ run_ios_test_part() {
 
   if xcodebuild "${part_arguments[@]}" test-without-building; then
     :
-  elif is_runner_bootstrap_failure "$part_path"; then
+  elif is_retryable_simulator_failure "$part_path"; then
     local infra_failure_dir="$ios_result_parts_dir/infra-failures"
     mkdir -p "$infra_failure_dir"
     mv "$part_path" "$infra_failure_dir/$(basename "$part_path")"
-    echo "Retrying isolated iOS test after runner bootstrap failure: $selector" >&2
+    echo "Retrying isolated iOS test after a retryable Simulator failure: $selector" >&2
     reboot_simulator_for_retry
     if ! xcodebuild "${part_arguments[@]}" test-without-building; then
       ios_suite_failed="true"

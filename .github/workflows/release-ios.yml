@@ -124,7 +124,14 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.release_sha }}
 
+      - name: Require the release-scoped Infisical identity
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''
+        run: |
+          echo "::error::INFISICAL_TESTFLIGHT_IDENTITY_ID is required for TestFlight releases"
+          exit 1
+
       - name: Load release secrets from Infisical
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
         uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
         with:
           method: oidc
