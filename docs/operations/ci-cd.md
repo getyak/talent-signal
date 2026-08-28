@@ -62,10 +62,11 @@ Fastlane, signing dependency, versioning, classifier, and release-workflow
 changes. A change to the release decision itself therefore receives the same
 real TestFlight proof as an iOS product change.
 
-The release job checks required secret names without printing their values,
-joins the internal TestFlight tailnet as an ephemeral `tag:ci` node, writes the
-validated `TALENT_SIGNAL_API_BASE_URL` from the `testflight` Environment into
-the app build configuration, verifies tailnet reachability and a current Apple
+The release job exchanges GitHub's OIDC token for a short-lived Infisical token,
+loads only `staging:/release`, and checks required names without printing their
+values. It joins the internal TestFlight tailnet as an ephemeral `tag:ci` node,
+writes the validated `TALENT_SIGNAL_API_BASE_URL` into the app build
+configuration, verifies tailnet reachability and a current Apple
 authentication challenge before signing, writes signing material only under
 the runner temporary directory, verifies
 read access to the isolated private match repository, and removes those files
@@ -112,22 +113,30 @@ proves a device download.
 - `main`: pull request required, force-push and deletion blocked, `CI required`
   and `Security required` required.
 - `testflight`: only `main`, without a required reviewer.
-- `testflight` variable `TALENT_SIGNAL_API_BASE_URL`: the stable HTTPS origin
-  selected for the current release stage, with a reachable, contract-current
-  Apple authentication challenge. The internal stage may use a tailnet-only
-  Tailscale Serve origin; external testing and production require the public
-  production origin.
-- `testflight` secrets `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`: a Tailscale
-  trust credential limited to ephemeral `tag:ci` nodes with device-core and
-  auth-key write scopes. The tag is admin-owned and the credential is never
-  written into the app.
+- Infisical `staging:/release/TALENT_SIGNAL_API_BASE_URL`: the stable HTTPS
+  origin selected for the current release stage, with a reachable,
+  contract-current Apple authentication challenge. The internal stage may use
+  a tailnet-only Tailscale Serve origin; external testing and production require
+  the public production origin.
+- Infisical `staging:/release/TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`: a
+  Tailscale trust credential limited to ephemeral `tag:ci` nodes with
+  device-core and auth-key write scopes. The tag is admin-owned and the
+  credential is never written into the app.
+- `testflight` variable `INFISICAL_TESTFLIGHT_IDENTITY_ID`: the non-secret ID of
+  the OIDC Machine Identity. Its Infisical role permits only secret description
+  and value reads in `staging:/release`, and its OIDC subject is restricted to
+  this repository's `testflight` GitHub Environment.
 - Private match repository: `getyak/talent-signal-certs`, with only encrypted
   Talent Signal signing assets and a dedicated read-only CI deploy key.
 - Public App Store submission remains an explicit promotion after metadata,
   agreements, App Review readiness, and a human release decision are verified.
 
-These settings are managed through the GitHub API during repository bootstrap.
-Review them after ownership, plan, or maintainer membership changes.
+The old GitHub Environment secrets are a temporary rollback source during the
+cutover. When `INFISICAL_TESTFLIGHT_IDENTITY_ID` is unset, workflows load those
+legacy values; when it is set, they fail closed on Infisical errors and never
+fall back. Delete and revoke the legacy values only after a real TestFlight
+release and access audit pass through Infisical. Review these settings after
+ownership, plan, or maintainer membership changes.
 
 ## Link checking policy
 

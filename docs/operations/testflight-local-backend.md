@@ -14,12 +14,12 @@ Use the public production topology before external TestFlight or App Store use.
 
 ## Configure
 
-Copy `deploy/testflight/environment.example` to the ignored
-`.env.testflight`, replace the PostgreSQL value, and set
+Create the names from `deploy/testflight/environment.example` under
+`staging:/backend` in Infisical. Replace the PostgreSQL value, and set
 `TALENT_SIGNAL_API_BASE_URL` and `ALLOWED_ORIGINS` to this Mac's exact Tailscale
 MagicDNS HTTPS origin. Generate a URL-safe PostgreSQL password such as
-`openssl rand -hex 24`, set the runtime file to mode `0600`, and do not commit
-it.
+`openssl rand -hex 24`. Authenticate the operator with `infisical login`; the
+deployment script injects the values only into its child process.
 
 The TestFlight Compose boundary differs from synthetic development:
 
@@ -36,8 +36,7 @@ The TestFlight Compose boundary differs from synthetic development:
 With Tailscale connected and Docker running:
 
 ```bash
-TS_TESTFLIGHT_ENV_FILE=.env.testflight \
-  ./scripts/deploy/testflight-local.sh
+./scripts/deploy/testflight-local.sh
 ```
 
 The script validates that the configured URL exactly matches the Mac's current
@@ -53,21 +52,20 @@ build without changing the runtime boundary:
 
 ```bash
 TS_TESTFLIGHT_REBUILD=false \
-TS_TESTFLIGHT_ENV_FILE=.env.testflight \
   ./scripts/deploy/testflight-local.sh
 ```
 
 Rebuild after backend or contract code changes.
 
-Only after that probe succeeds, store the same HTTPS URL as the
-`TALENT_SIGNAL_API_BASE_URL` variable in the GitHub `testflight` Environment.
-It is a build-time value, but the endpoint remains tailnet-only.
+Only after that probe succeeds, store the same HTTPS URL as
+`staging:/release/TALENT_SIGNAL_API_BASE_URL`. It is a build-time value, but the
+endpoint remains tailnet-only.
 
 GitHub-hosted runners are not tailnet members by default. Create a dedicated
 Tailscale OAuth trust credential with only `Devices > Core > Write` and
 `Keys > Auth Keys > Write`, restricted to an admin-owned `tag:ci`. Store its
-client ID and secret as `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` in the same
-GitHub Environment. The release workflow joins each runner as an ephemeral
+client ID and secret as `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` under
+`staging:/release`. The release workflow joins each runner as an ephemeral
 `tag:ci` node, proves tailnet reachability, probes the Apple authentication
 contract, and logs out the node when the job finishes. Never store those values
 in repository variables, files, or logs.
@@ -90,9 +88,9 @@ To pause access without deleting PostgreSQL data:
 
 ```bash
 tailscale serve reset
-docker compose --project-name talent-signal-testflight-local \
-  --env-file .env.testflight \
-  --file compose.testflight.yaml down
+./scripts/infisical/run.sh staging /shared /backend -- \
+  docker compose --project-name talent-signal-testflight-local \
+    --file compose.testflight.yaml down
 ```
 
 The database volume remains candidate-data storage subject to the repository's
