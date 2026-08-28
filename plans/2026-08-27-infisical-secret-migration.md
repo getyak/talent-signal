@@ -35,8 +35,8 @@ token.
   folders. Root values remain as rollback data.
 - **Complete:** audited credential-shaped runtime environment names against the
   manifest; `AUTH_SECRET`, OpenRouter, Ark, and Zhipu development readback pass.
-- **Complete:** switched local, TestFlight, and production wrappers to transient
-  folder injection and added manifest/contract tests.
+- **Complete:** switched local and TestFlight wrappers to transient folder
+  injection and added manifest/contract tests.
 - **Complete:** created protected project-managed identity
   `github-testflight-release-oidc` with ID
   `c9ad327f-9a88-4781-a28d-fc59ab21e944`, exact GitHub OIDC binding, and a
@@ -47,8 +47,9 @@ token.
   isolated the patch on `codex/infisical-secret-cutover`, opened PR #74, and
   passed repository policy/actionlint plus backend and web checks while the iOS
   and Swift CodeQL checks continue.
-- **Complete:** production wrappers require a short-lived Machine Identity token
-  and cannot use a human CLI session or its encrypted offline cache.
+- **Complete:** the shared injection wrapper requires a short-lived Machine
+  Identity token for `prod` and cannot use a human CLI session or its encrypted
+  offline cache.
 - **Complete:** Free-plan custom-role rejection was resolved without widening
   access by using a project-managed identity plus Additional Privilege. The old
   organization identity remains protected, has no auth methods, `no-access`,
@@ -70,7 +71,8 @@ token.
   `staging:/release`, verified token exchange from Infisical readback, and
   removed the bounded local credential copy. The old client remains available
   for rollback until the real workflow proof succeeds.
-- **Pending:** production backend values and a production-only workload identity.
+- **Pending:** production backend values, a production-only workload identity,
+  and the production deployment-script cutover after those prerequisites pass.
 - **Complete:** bound GitHub environment `testflight` variable
   `INFISICAL_TESTFLIGHT_IDENTITY_ID` to the protected project-managed identity;
   legacy workflows do not consume this variable, so the new workflow will enter
