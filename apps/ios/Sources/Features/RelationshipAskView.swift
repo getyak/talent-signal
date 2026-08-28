@@ -1011,7 +1011,9 @@ struct RelationshipAskView: View {
     }
 
     private var composer: some View {
-        VStack(spacing: 8) {
+        let controlSize = composerControlSize
+
+        return VStack(spacing: 8) {
             voiceInputStatus
 
             if !mediaDrafts.isEmpty, !isSending {
@@ -1045,15 +1047,15 @@ struct RelationshipAskView: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.tsInk)
                         .frame(
-                            width: composerControlSize,
-                            height: composerControlSize
+                            width: controlSize,
+                            height: controlSize
                         )
                         .background(Color.tsCanvas, in: Circle())
                 }
                 .disabled(
                     voiceInput.isBusy
                         || isSending
-                        || contactDraft != nil
+                        || hasBlockingContactProposal
                         || mediaDrafts.count >= 10
                         || selectedScope == nil
                 )
@@ -1068,15 +1070,15 @@ struct RelationshipAskView: View {
                 .accessibilityIdentifier("ask-add-photos")
 
                 TextField(
-                    contactDraft == nil
-                        ? appLanguage.text("Message or add anything…")
-                        : appLanguage.text("Finish reviewing the contact first"),
+                    hasBlockingContactProposal
+                        ? appLanguage.text("Finish reviewing the contact first")
+                        : appLanguage.text("Message or add anything…"),
                     text: $draft,
                     axis: .vertical
                 )
                 .focused($composerFocused)
                 .lineLimit(1...5)
-                .disabled(voiceInput.isBusy || isSending || contactDraft != nil)
+                .disabled(voiceInput.isBusy || isSending || hasBlockingContactProposal)
                 .padding(.horizontal, 15)
                 .padding(.vertical, 12)
                 .background(
@@ -1277,7 +1279,7 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryDisabled: Bool {
-        if contactDraft != nil { return true }
+        if hasBlockingContactProposal { return true }
         if !trimmedDraft.isEmpty { return !canSendDraft }
         if voiceInput.phase == .transcribing
             || voiceInput.phase == .requestingPermission {
@@ -1287,7 +1289,7 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryAccessibilityLabel: String {
-        if contactDraft != nil {
+        if hasBlockingContactProposal {
             return appLanguage.text("Finish reviewing the contact first")
         }
         if isSending {
@@ -1381,6 +1383,10 @@ struct RelationshipAskView: View {
 
     private var trimmedDraft: String {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasBlockingContactProposal: Bool {
+        contactDraft != nil && contactSaveMessage == nil
     }
 
     private var canSendDraft: Bool {
@@ -2257,57 +2263,51 @@ private struct ConversationContactProposalTurn: View {
                 .accessibilityIdentifier("contact-dismiss-proposal")
             }
 
-            contactDetails
-
-            if let clue = draft.identityClue {
-                Toggle(isOn: $confirmIdentityClue) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: "\(identityClueLabel(clue)) · \(clue.value)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.tsInk)
-                            .textSelection(.enabled)
-                        Text(
-                            language.text(
-                                "Include this identity clue when you confirm"
-                            )
-                        )
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                    }
-                }
-                .tint(Color.tsVermilion)
-                .disabled(isReadOnly)
-                .accessibilityIdentifier("contact-confirm-identity-clue")
-            }
-
-            if hasPendingWrite, saveMessage == nil {
-                Label(
-                    language.text(
-                        "Previous outcome is unknown · retry is locked to the original operation"
-                    ),
-                    systemImage: "arrow.triangle.2.circlepath"
-                )
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.tsInk)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
-                .accessibilityIdentifier("contact-pending-write-boundary")
-            }
-
-            identityReview
-                .id("contact-identity-state")
-
             if let saveMessage {
-                Label(saveMessage, systemImage: "checkmark.circle.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tsInk)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 16))
-                    .accessibilityIdentifier("contact-save-success")
+                completedReceipt(saveMessage)
             } else {
+                contactDetails
+
+                if let clue = draft.identityClue {
+                    Toggle(isOn: $confirmIdentityClue) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(verbatim: "\(identityClueLabel(clue)) · \(clue.value)")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.tsInk)
+                                .textSelection(.enabled)
+                            Text(
+                                language.text(
+                                    "Include this identity clue when you confirm"
+                                )
+                            )
+                            .font(.caption)
+                            .foregroundStyle(Color.tsMutedInk)
+                        }
+                    }
+                    .tint(Color.tsVermilion)
+                    .disabled(isReadOnly)
+                    .accessibilityIdentifier("contact-confirm-identity-clue")
+                }
+
+                if hasPendingWrite {
+                    Label(
+                        language.text(
+                            "Previous outcome is unknown · retry is locked to the original operation"
+                        ),
+                        systemImage: "arrow.triangle.2.circlepath"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
+                    .accessibilityIdentifier("contact-pending-write-boundary")
+                }
+
+                identityReview
+                    .id("contact-identity-state")
+
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.circle")
                         .font(.caption)
@@ -2396,6 +2396,58 @@ private struct ConversationContactProposalTurn: View {
             showsAllMatches = false
             onRetryLookup()
         }
+    }
+
+    private func completedReceipt(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            contactDetails
+
+            if let clue = draft.identityClue {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: "\(identityClueLabel(clue)) · \(clue.value)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .textSelection(.enabled)
+                        Text(
+                            language.text(
+                                confirmIdentityClue
+                                    ? "Included in the saved source"
+                                    : "Not included in the saved source"
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                    }
+                } icon: {
+                    Image(
+                        systemName: confirmIdentityClue
+                            ? "checkmark.circle.fill"
+                            : "minus.circle"
+                    )
+                    .foregroundStyle(
+                        confirmIdentityClue ? Color.tsVermilion : Color.tsMutedInk
+                    )
+                }
+                .accessibilityIdentifier("contact-saved-identity-clue")
+            }
+
+            Label {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.tsInk)
+            }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 16))
+                .accessibilityIdentifier("contact-save-success")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("contact-completed-receipt")
     }
 
     private var proposalTitle: String {
@@ -2618,6 +2670,7 @@ private struct ConversationContactProposalTurn: View {
                 )
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("contact-no-preselection")
 
                 ForEach(visibleCandidates) { person in

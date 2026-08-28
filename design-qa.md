@@ -86,6 +86,112 @@ final result: passed
 
 ---
 
+# Design QA — iOS canonical contact conversation
+
+## Evidence
+
+- Evidence level: 1, canonical local-backend interaction on an iPhone 17 Pro
+  Simulator running iOS 26.5 in portrait.
+- Seven-journey result bundle:
+  `/tmp/talent-signal-ios-contact-conversation-final.xcresult`.
+- Standard contact turn:
+  `/tmp/talent-signal-ios-contact-conversation-final-artifacts.CEsqmS/62C03B66-1C2B-4E6E-A7D0-B479E4CAA4DE.png`.
+- Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-ios-contact-conversation-final-artifacts.CEsqmS/EC50FFC7-410B-4A4F-96C1-09D7A7F186EE.png`.
+- Lookup recovery:
+  `/tmp/talent-signal-ios-contact-conversation-final-artifacts.CEsqmS/6AEA4484-DCD7-4707-9691-05938DB1AB4F.png`.
+- Unknown-result recovery after relaunch:
+  `/tmp/talent-signal-ios-contact-conversation-final-artifacts.CEsqmS/0D38CFB9-BB56-46AB-A5B3-BA468A19012D.png`.
+- Final conflict-wrap result bundle:
+  `/tmp/talent-signal-ios-contact-conflict-wrap-retry.xcresult`; review render:
+  `/tmp/talent-signal-ios-contact-conflict-wrap-retry-artifacts.1vHN9a/49AC6531-1A27-4857-A68B-5798B06CB305.png`.
+- Four terminal create, attach, conflict, and response-loss receipts:
+  `/tmp/talent-signal-ios-contact-receipt.xcresult`.
+- Final full-wrap receipt:
+  `/tmp/talent-signal-ios-contact-receipt-wrap.xcresult`.
+- Composer-continuity result bundle:
+  `/tmp/talent-signal-ios-contact-continuity.xcresult`; final render:
+  `/tmp/talent-signal-ios-contact-continuity-artifacts.jL49B9/5945E96A-6FC1-412C-ADAD-2EC5D6E11589.png`.
+
+## Finding and resolution
+
+The earlier proposal proved the visual direction but still stopped short of a
+canonical create, attach, and conflict receipt. Its identity-conflict sentence
+could also truncate at the exact point where the recruiter needed to understand
+the choice. The finished contact interaction is an Agent tool turn rather than
+an upload or contact form: the recruiter's exact input remains an immutable
+right-hand message, and a quiet left-hand contact card progressively discloses
+only the identity decision and editable details needed for confirmation.
+
+The contact draft and tool card are projections, not relationship truth.
+Person, Pursuit or relationship context, governed source, explicit Action, and
+Receipt remain canonical. Identity search is automatic and account scoped;
+no-match proposes create, a confirmed current owner proposes attach, and a
+current-versus-historical conflict remains unselected. Merge is never inferred
+from conversation and continues through the existing reversible merge tool.
+
+The conflict explanation now expands vertically instead of truncating. The
+current owner is selectable, the historical owner remains visible but locked,
+and saving an unresolved identity case is a first-class choice. The familiar
+Today / Sessions / People navigation is unchanged. The bottom global composer
+also remains visible; it becomes temporarily unavailable while the current
+decision is unresolved so a second intent cannot obscure the first.
+
+Canonical completion now changes the tool turn into a compact terminal receipt
+instead of leaving a disabled review form on screen. The receipt is a separate
+projection from the mutable proposal: it retains the saved contact summary,
+whether the identity clue entered the governed source, the canonical receipt,
+and the traceability boundary, while removing the identity picker, edit toggle,
+and confirmation control. Receipt text expands vertically rather than
+ellipsizing. Once canonical completion is known, the global text, photo, and
+voice inputs resume immediately; only pending, failed, or unresolved decisions
+continue to block a competing intent.
+
+## Behavioral, safety, and accessibility proof
+
+- All seven canonical UI journeys passed: editable relaunch restoration,
+  no-match create after explicit confirmation, lookup failure and retry,
+  confirmed-match attach without preselection, current/historical conflict,
+  response-loss reconciliation using the same operation, and Simplified
+  Chinese dark AX5 reachability.
+- Create, attach, and unresolved-conflict paths each returned a canonical
+  receipt or resolution case. No test treated model prose as a write.
+- Create, attach, unresolved conflict, and response-loss reconciliation each
+  collapse to the same terminal receipt grammar. The final create test asserts
+  that dead proposal controls are absent and that text and voice input are
+  enabled again after the receipt becomes canonical.
+- Lookup failure and unknown-result recovery retain the exact recruiter message
+  and proposal. Relaunch cannot silently recompute a different destination.
+- The focused conflict test asserts the complete consequence sentence, no
+  default candidate selection, locked historical ownership, absence of a
+  create-separate shortcut, and the explicit unresolved-review route.
+- A Simulator keyboard-focus race was made deterministic by waiting for an
+  actual keyboard before typing; the experience was not accepted on a blind
+  rerun.
+- Capturing the composer's optical control size outside the Photos picker's
+  sendable label closure removes the Swift 6 actor-isolation warning without
+  changing its layout.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — one exact message leads to one reviewable tool turn.
+- Hierarchy: 3 — identity result, consequence, details, and receipt stay
+  distinct.
+- Platform interaction: 3 — native scrolling, controls, keyboard, and pinned
+  composer behavior are executable.
+- Accessibility: 3 — AX5, dark mode, Chinese, wrapping, locked state, and
+  control reachability are verified.
+- Visual craft: 3 — quiet IM authorship, progressive details, and no duplicate
+  upload surface.
+- Performance feel: 3 — checking, retry, restore, and unknown-result states
+  preserve continuity rather than resetting the flow.
+- Vetoes: none. Level 4 remains intentionally unclaimed without a real
+  recruiter and assistive-technology user evaluation.
+
+final result: passed
+
+---
+
 # Design QA — iOS Today evidence-first decision frame
 
 ## Evidence

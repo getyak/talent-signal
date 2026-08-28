@@ -40,8 +40,14 @@
     "Identity needs review" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份需要审阅" } } }
     },
+    "Included in the saved source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已包含在保存的来源中" } } }
+    },
     "Name needed" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要姓名" } } }
+    },
+    "Not included in the saved source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未包含在保存的来源中" } } }
     },
     "Relationship needed" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要关系" } } }

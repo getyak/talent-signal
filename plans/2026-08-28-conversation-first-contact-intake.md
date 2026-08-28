@@ -333,3 +333,40 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   corrected failure journey passed 1/1 in
   `/tmp/talent-signal-ios-ask-pending-failure-v3.xcresult`. Final screenshots
   and the structural decision are recorded in `design-qa.md`.
+- Replaced the remaining form-first iOS contact presentation with a
+  conversation-authored Agent tool turn. The recruiter's exact concise input
+  remains an immutable right-hand message; identity checking and the editable
+  create, attach, or unresolved-review proposal stay in one quiet left-hand
+  card with details collapsed by default.
+- Kept contact drafts and tool cards as projections over canonical Person,
+  relationship context, governed source, explicit Action, and Receipt. The
+  Agent still cannot merge or write from prose; the existing reversible merge
+  tool and one recruiter confirmation retain execution authority.
+- Preserved the established Today / Sessions / People navigation and bottom
+  global Agent input. The composer remains visible during contact review and is
+  temporarily unavailable only while the active identity decision is open.
+- Closed the final conflict-state visual defect: the full current-versus-
+  historical consequence now wraps, no candidate is preselected, historical
+  ownership is visible but locked, and unresolved review remains explicit.
+- Seven canonical iOS UI journeys passed in
+  `/tmp/talent-signal-ios-contact-conversation-final.xcresult`: relaunch restore,
+  no-match create, lookup failure/retry, confirmed-owner attach, identity
+  conflict, response-loss same-operation reconciliation, and Simplified Chinese
+  dark AX5. The corrected conflict render independently passed in
+  `/tmp/talent-signal-ios-contact-conflict-wrap-retry.xcresult`.
+- Removed the contact composer's Swift 6 actor-isolation warning by capturing
+  its optical control size before entering the Photos picker label closure.
+  Hardened UI typing against Simulator focus races by requiring visible
+  keyboard focus rather than accepting a blind rerun.
+- Replaced the post-save disabled form with a compact terminal receipt. The
+  mutable identity controls and save action disappear; the contact summary,
+  identity-clue inclusion, canonical receipt, and source traceability remain.
+  Long receipt text wraps without truncation.
+- Restored IM continuity after canonical completion: the existing bottom global
+  text, photo, and voice inputs become available immediately while the receipt
+  stays in the conversation. Pending, failed, and unresolved contact decisions
+  still block a competing intent. Create, attach, conflict, and response-loss
+  receipt paths passed in `/tmp/talent-signal-ios-contact-receipt.xcresult`;
+  full wrapping passed in `/tmp/talent-signal-ios-contact-receipt-wrap.xcresult`;
+  and the enabled-composer terminal frame passed in
+  `/tmp/talent-signal-ios-contact-continuity.xcresult`.
