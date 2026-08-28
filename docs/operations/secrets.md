@@ -99,10 +99,12 @@ Infisical readback before removing the source file. Never copy the reserved
 ## GitHub Actions cutover
 
 The iOS workflows prefer the pinned Infisical Secrets Action with GitHub OIDC.
-The identity is restricted to the exact subject
-`repo:getyak/talent-signal:environment:testflight`, custom audience
+The identity is restricted to the exact immutable subject
+`repo:getyak@269524475/talent-signal@1322192683:environment:testflight`, custom audience
 `infisical://talent-signal/testflight`, environment `staging`, and path
-`/release`. Its base project access remains `no-access`; a path-scoped
+`/release`. The OIDC discovery URL is the provider origin
+`https://token.actions.githubusercontent.com`; Infisical performs discovery
+from that origin. Its base project access remains `no-access`; a path-scoped
 Additional Privilege grants only `describeSecret` and `readValue`. This keeps
 the same least-privilege boundary on plans where custom roles are unavailable.
 

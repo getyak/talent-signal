@@ -53,7 +53,11 @@ test("GitHub OIDC is bound to the release contract boundary", () => {
   assert.equal(manifest.githubOidc.path, manifest.groups.release.path);
   assert.equal(
     manifest.githubOidc.subject,
-    "repo:getyak/talent-signal:environment:testflight",
+    "repo:getyak@269524475/talent-signal@1322192683:environment:testflight",
+  );
+  assert.equal(
+    manifest.githubOidc.discoveryUrl,
+    "https://token.actions.githubusercontent.com",
   );
   assert.equal(manifest.githubOidc.accessTokenTtlSeconds, 900);
   assert.match(manifest.githubOidc.identityId, /^[0-9a-f-]{36}$/u);

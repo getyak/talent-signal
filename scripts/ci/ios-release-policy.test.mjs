@@ -279,10 +279,10 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   assert.match(refreshWorkflow, /secret-path: \/release/);
   assert.match(refreshWorkflow, /MATCH_MAINTENANCE_DEPLOY_KEY/);
   assert.match(refreshWorkflow, /fastlane run sigh/);
+  assert.match(refreshWorkflow, /fastlane ios prepare_signing/);
   assert.match(refreshWorkflow, /readonly:true/);
   assert.match(refreshWorkflow, /sync-refreshed-ios-profile\.rb/);
   assert.doesNotMatch(refreshWorkflow, /MATCH_FORCE/);
-  assert.doesNotMatch(refreshWorkflow, /fastlane ios prepare_signing/);
   assert.doesNotMatch(refreshWorkflow, /fastlane ios beta/);
   assert.match(refreshWorkflow, /Remove temporary signing material/);
 });

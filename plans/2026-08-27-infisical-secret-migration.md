@@ -43,7 +43,9 @@ token.
   probe all passed while the existing unrelated Serve routes remained intact.
 - **Complete:** created protected project-managed identity
   `github-testflight-release-oidc` with ID
-  `c9ad327f-9a88-4781-a28d-fc59ab21e944`, exact GitHub OIDC binding, and a
+  `c9ad327f-9a88-4781-a28d-fc59ab21e944`, exact immutable GitHub OIDC subject
+  `repo:getyak@269524475/talent-signal@1322192683:environment:testflight`,
+  discovery origin `https://token.actions.githubusercontent.com`, and a
   path-scoped Additional Privilege that grants only `describeSecret` and
   `readValue` for `staging:/release`.
 - **Complete:** prepared iOS workflows for pinned Infisical OIDC loading with an
@@ -62,6 +64,10 @@ token.
   `getyak/talent-signal-certs`, stored the private key, repository URL, and a new
   keychain password in `staging:/release`, verified repository access, and
   removed the bounded local temporary copies.
+- **Complete:** provisioned a separate write-enabled Match maintenance key in
+  `staging:/release`. The manual, confirmation-gated signing workflow used it
+  to regenerate encrypted App Store profiles for the app, Share extension, and
+  Live Activity extension; ordinary releases continue using the read-only key.
 - **Complete:** created App Store Connect key `Talent Signal Infisical CI` with
   App Manager access, and stored its Key ID, Issuer ID, and the active installed
   internal tester email in `staging:/release`.
@@ -86,11 +92,17 @@ token.
   `INFISICAL_TESTFLIGHT_IDENTITY_ID` to the protected project-managed identity;
   legacy workflows do not consume this variable, so the new workflow will enter
   the OIDC path immediately after merge.
-- **Pending:** PR #74 final iOS check is running with a 60-minute job budget
-  after the previous all-passing test run was cancelled by the old 45-minute
-  timeout. Real TestFlight release/access proof and deletion or revocation of
-  the old GitHub secrets, `.env.testflight`, root duplicates, and any bounded
-  local `.env` recovery copy.
+- **Complete:** PR #74 merged at `30b2cc7afb0af2c880095bcc3a9b4f967d789512`;
+  the formal `main` TestFlight access audit passed through Infisical OIDC.
+- **Complete:** a real release reached Infisical OIDC, Tailscale attachment,
+  backend authentication proof, signing-repository access, and profile loading.
+  It exposed missing extension App IDs and stale capabilities, which were then
+  registered and regenerated through the scoped Apple and Match maintenance
+  credentials. Final archive/upload proof remains pending the core branch merge
+  that carries the three-profile Fastlane mapping.
+- **Pending:** merge the core migration, rerun the real TestFlight release, and
+  then delete or revoke old GitHub secrets, `.env.testflight`, root duplicates,
+  and the bounded local `.env` recovery copy.
 - **Verified:** workflow actionlint, shell syntax, documentation, secret
   scanning, Agent/Web/Backend tests, the web production build with a synthetic
   auth secret, and name-only `dev`/`staging` contracts pass. A clean-worktree
@@ -98,11 +110,9 @@ token.
 
 ## Remaining cutover
 
-1. Complete PR #74 checks and merge the isolated workflow cutover.
-2. Run the audit-only TestFlight access workflow from `main` and a real
-   TestFlight release,
-   then observe their external outcomes.
-3. Rebase and merge the core secret-management branch, then remove the three
+1. Rebase and merge the core secret-management branch, then rerun the real
+   TestFlight release with the app and extension profile mapping.
+2. Remove the three
    verified local rollback files.
-4. Remove and revoke the superseded GitHub secrets, old Match deploy key, and
+3. Remove and revoke the superseded GitHub secrets, old Match deploy key, and
    old Tailscale OAuth client only after the release/access proof succeeds.
