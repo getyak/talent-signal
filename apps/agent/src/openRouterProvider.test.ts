@@ -263,4 +263,35 @@ describe("OpenRouterAgentProvider", () => {
         }),
     ).toThrow("must use HTTPS");
   });
+
+  it("uses low reasoning and privacy-constrained routing for GLM-5.3", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      response({
+        model: "z-ai/glm-5.3",
+        choices: [{ message: { role: "assistant", content: "{}" } }],
+        usage: { prompt_tokens: 10, completion_tokens: 2, cost: 0.001 },
+      }),
+    );
+    const provider = new OpenRouterAgentProvider({
+      apiKey: "test-key",
+      model: "z-ai/glm-5.3",
+      providerOrder: ["z-ai"],
+      fetcher,
+    });
+
+    await provider.run(request(), vi.fn(), new AbortController().signal);
+
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
+      reasoning_effort: string;
+      provider: Record<string, unknown>;
+    };
+    expect(body.reasoning_effort).toBe("low");
+    expect(body.provider).toEqual({
+      allow_fallbacks: true,
+      data_collection: "deny",
+      require_parameters: true,
+      zdr: true,
+      order: ["z-ai"],
+    });
+  });
 });
