@@ -1,8 +1,293 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Clarify relative timing before relying on it" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先明确相对时间再使用" } } }
+    },
+    "Current understanding" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前理解" } } }
+    },
+    "Existing owned next move" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已有负责人下一步" } } }
+    },
+    "Existing work only · no new action or external effect." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅显示现有事项 · 不创建新行动，也不产生外部影响。" } } }
+    },
+    "Governed source material is attached" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已附上受治理来源" } } }
+    },
+    "Needs review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要审阅" } } }
+    },
+    "No action" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂不行动" } } }
+    },
+    "Proposed next move" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "建议的下一步" } } }
+    },
+    "Public research is ready for evidence review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "公开研究已可进行证据审阅" } } }
+    },
+    "Public research is stale and needs refresh" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "公开研究已过期，需要刷新" } } }
+    },
+    "Research seed saved; no research has run" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存研究线索，尚未运行研究" } } }
+    },
+    "Resolve before relying on this point" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对后再依赖此信息" } } }
+    },
+    "Review proposed facts before relying on them" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅建议事实后再使用" } } }
+    },
+    "Reviewed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已审阅" } } }
+    },
+    "%1$lld of %2$lld decisions complete" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已完成 %1$lld / %2$lld 项决定" } } }
+    },
+    "Apply reviewed decisions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用已审阅决定" } } }
+    },
+    "Applied items recorded; unresolved items remain" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已记录应用项；待核对项保持不变" } } }
+    },
+    "Attribution" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "归属" } } }
+    },
+    "Canonical Pursuit updated" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Pursuit 已更新" } } }
+    },
+    "Canonical review not connected" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未连接正式审阅" } } }
+    },
+    "Canonical review recorded" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正式审阅已记录" } } }
+    },
+    "Change %1$lld of %2$lld · %3$@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第 %1$lld / %2$lld 项变更 · %3$@" } } }
+    },
+    "Channel" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "渠道" } } }
+    },
+    "Check canonical status" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查正式状态" } } }
+    },
+    "Choose a valid decision for every Proposal item first." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先为每个 Proposal 项目作出有效决定。" } } }
+    },
+    "Close relationship review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭关系审阅" } } }
+    },
+    "Confirm" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认" } } }
+    },
+    "Confirming with canonical state" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在与正式状态确认" } } }
+    },
+    "Correct it before applying" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用前先修正" } } }
+    },
+    "Corrected value" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "修正后的值" } } }
+    },
+    "Current" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前" } } }
+    },
+    "Edit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "修正" } } }
+    },
+    "Evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据" } } }
+    },
+    "Evidence no longer reviewable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据已无法审阅" } } }
+    },
+    "Keep the current value" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留当前值" } } }
+    },
+    "Leave this for later review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂留待后续审阅" } } }
+    },
+    "Loading canonical Proposal…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载正式 Proposal…" } } }
+    },
+    "No message was sent and external effects are empty." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未发送消息，外部影响为空。" } } }
+    },
+    "No reviewable evidence text is available for this Proposal." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个 Proposal 没有可审阅的证据文本。" } } }
+    },
+    "Nothing from this review was applied." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本次审阅未应用任何内容。" } } }
+    },
+    "One recovery reference is saved until canonical readback finishes. Do not submit this review again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复引用会保留到正式回读完成。请勿重复提交本次审阅。" } } }
+    },
+    "Operation" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作" } } }
+    },
+    "Proposed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "建议值" } } }
+    },
+    "Proposed change" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "建议变更" } } }
+    },
+    "Proposal rejected" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Proposal 已拒绝" } } }
+    },
+    "Proposal remains unresolved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Proposal 保持待核对" } } }
+    },
+    "Pursuit changed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Pursuit 已发生变化" } } }
+    },
+    "Records these decisions in canonical Pursuit state. No external action is performed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将这些决定写入正式 Pursuit 状态，不执行任何外部操作。" } } }
+    },
+    "Recovery reference" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复引用" } } }
+    },
+    "Reference" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "引用" } } }
+    },
+    "Reject" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拒绝" } } }
+    },
+    "Relative time remains unresolved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "相对时间仍待核对" } } }
+    },
+    "Required" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "必填" } } }
+    },
+    "Retry loading Proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新加载 Proposal" } } }
+    },
+    "Review change" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅变更" } } }
+    },
+    "Review each change below. Applying it updates only canonical Pursuit state—no message or external write." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "逐项审阅下方变更。应用后只更新正式 Pursuit 状态，不会发送消息或写入外部系统。" } } }
+    },
+    "Review not applied" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅未应用" } } }
+    },
+    "Revision %1$lld → %2$lld · %3$lld changed fields" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "版本 %1$lld → %2$lld · %3$lld 个字段已变更" } } }
+    },
+    "Revision %1$lld → %2$lld · %3$lld changed field" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "版本 %1$lld → %2$lld · %3$lld 个字段已变更" } } }
+    },
+    "Role" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "角色" } } }
+    },
+    "Source details" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源详情" } } }
+    },
+    "The saved review may or may not have applied. Check canonical readback before trying again; the same recovery reference will be used." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存的审阅结果尚不确定。重试前请先检查正式回读；系统会沿用同一恢复引用。" } } }
+    },
+    "This evidence contains a relative date. It remains quoted context, not a scheduled date; confirm the absolute date and timezone before creating a due Action." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这条证据包含相对日期。它仍只是引用上下文，并非已安排日期；创建带截止时间的 Action 前，请确认绝对日期与时区。" } } }
+    },
+    "This synthetic preview has no Proposal ID, so no confirmation control is available and nothing can be presented as applied." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个合成预览没有 Proposal ID，因此不提供确认控件，也不会把任何内容呈现为已应用。" } } }
+    },
+    "Use the proposed value" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "采用建议值" } } }
+    },
+    "Why it was suggested" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "建议依据" } } }
+    },
+    "Your decision" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你的决定" } } }
+    },
+    "actor" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作者" } } }
+    },
+    "iOS Share" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iOS 分享" } } }
+    },
+    "receipt" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回执" } } }
+    },
+    "%1$lld of %2$lld sources available" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld / %2$lld 条来源可用" } } }
+    },
+    "%lld reviewed source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 条已审阅来源" } } }
+    },
+    "%lld reviewed sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 条已审阅来源" } } }
+    },
+    "A mutual final decision with the selected candidate" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "与入选候选人共同作出最终决定" } } }
+    },
     "Allow Calendar Access" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "允许访问日历" } } }
+    },
+    "Back" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回" } } }
+    },
+    "Back to %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回%@" } } }
+    },
+    "Clear search" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清除搜索" } } }
+    },
+    "Chief Product Officer search" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "首席产品官寻访" } } }
+    },
+    "Back to People" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回联系人" } } }
+    },
+    "Current work" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前目标" } } }
+    },
+    "Directory" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人" } } }
+    },
+    "Independent board director search" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独立董事寻访" } } }
+    },
+    "No matching people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未找到匹配的联系人" } } }
+    },
+    "No matching sessions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未找到匹配的会话" } } }
+    },
+    "No response yet" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚无回复" } } }
+    },
+    "Recent" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最近" } } }
+    },
+    "Recorded by the recruiter" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "由招聘顾问记录" } } }
+    },
+    "Present an evidence-backed shortlist to the chair" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向董事长提交有证据支持的候选名单" } } }
+    },
+    "Search people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索联系人" } } }
+    },
+    "Search sessions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索会话" } } }
+    },
+    "Source unavailable · review needed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源不可用 · 需要审阅" } } }
+    },
+    "The candidate described a location constraint." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "候选人说明了地点限制。" } } }
+    },
+    "Try a name, role, or Pursuit." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试试姓名、角色或目标。" } } }
+    },
+    "Try a person, Pursuit, or question." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试试联系人、目标或问题。" } } }
+    },
+    "Checking confirmed identity clues…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在核对已确认的身份线索…" } } }
     },
     "Capture the next Signal without leaving the moment" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不离开当下，也能捕捉下一条信号" } } }
@@ -15,6 +300,9 @@
     },
     "Continue as Demo User" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以演示用户继续" } } }
+    },
+    "Current and historical owners differ · choose the current owner or keep this unresolved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前归属与历史归属不同 · 请选择当前联系人或保留待核对" } } }
     },
     "Create This Pursuit" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建这个 Pursuit" } } }
@@ -31,6 +319,15 @@
     "Get Started" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始" } } }
     },
+    "Identity checking is temporarily unavailable." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份检查暂时不可用。" } } }
+    },
+    "Historical ownership only · selection disabled" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅为历史归属 · 已停用选择" } } }
+    },
+    "Include this identity clue when you confirm" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认时一并保存这条身份线索" } } }
+    },
     "Give Talent Signal one place to listen" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先给 Talent Signal 一个倾听入口" } } }
     },
@@ -42,6 +339,12 @@
     },
     "Nothing changes until you confirm it." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未经你的确认，什么都不会改变。" } } }
+    },
+    "No confirmed identity match · ready to create after review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未发现已确认的身份匹配 · 审阅后可创建" } } }
+    },
+    "No same-name page found · no identity clue to verify" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未发现同名联系人 · 当前没有可核对的身份线索" } } }
     },
     "One supported move, with its evidence still attached." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一次有依据的推进，证据仍与它相连。" } } }
@@ -58,6 +361,15 @@
     "Replay Onboarding" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新体验引导" } } }
     },
+    "Possible identity matches · none selected" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可能的身份匹配 · 尚未选择" } } }
+    },
+    "Retry identity check" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试身份检查" } } }
+    },
+    "Remove identity clue and review by name" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除身份线索，改为按姓名核对" } } }
+    },
     "Reset Demo Data" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置演示数据" } } }
     },
@@ -66,6 +378,27 @@
     },
     "See It in Today" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在 Today 中查看" } } }
+    },
+    "Same-name review only · names do not prove identity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅核对同名联系人 · 姓名不能证明身份" } } }
+    },
+    "Save for identity review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存待身份核对" } } }
+    },
+    "Saved for identity review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存待身份核对" } } }
+    },
+    "Saved for identity review, but local recovery could not be cleared. Reopening uses the same safe operation." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存待身份核对，但无法清除本地恢复记录。重新打开时会继续使用同一个安全操作。" } } }
+    },
+    "Saved with canonical receipt · source remains traceable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已生成规范回执 · 来源仍可追溯" } } }
+    },
+    "case" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对单" } } }
+    },
+    "source receipt" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源回执" } } }
     },
     "Simulate Action Button" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "模拟 Action Button" } } }
@@ -78,6 +411,9 @@
     },
     "Use a Demo Meeting" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用演示会议" } } }
+    },
+    "Wait for identity checking or retry it before saving." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请等待身份检查完成，或重试后再保存。" } } }
     },
     "Use the showcase Signal" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用示例 Signal" } } }
@@ -112,11 +448,11 @@
     "Activity" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动" } } }
     },
+    "Activity type" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动类型" } } }
+    },
     "Add activity" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加活动" } } }
-    },
-    "Add one exact moment, then approve it in Apple Calendar." : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加一个明确的时间，再到 Apple 日历中确认。" } } }
     },
     "Apple Calendar shows the final title and time before saving. Talent Signal does not read the rest of your calendar." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple 日历会在保存前显示最终标题与时间。Talent Signal 不会读取你的其他日历内容。" } } }
@@ -130,11 +466,20 @@
     "Calendar. No linked moments." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历。暂无关联活动。" } } }
     },
+    "Collapse month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起月历" } } }
+    },
     "Conversation" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会谈" } } }
     },
     "Duration" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时长" } } }
+    },
+    "Expand month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "展开月历" } } }
+    },
+    "Foreground voice · 1 minute max" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "前台语音 · 最长 1 分钟" } } }
     },
     "Interview" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "面试" } } }
@@ -145,17 +490,14 @@
     "Meeting" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会议" } } }
     },
+    "Next month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下个月" } } }
+    },
     "No confirmed relationship is available." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无可用的已确认关系。" } } }
     },
-    "No linked activity" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无关联活动" } } }
-    },
-    "No linked moments" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无关联活动" } } }
-    },
-    "Open to add an activity" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开后可添加活动" } } }
+    "No activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无活动" } } }
     },
     "Opens Apple's final event editor. Nothing is saved yet." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Apple 的最终事件编辑器，目前尚未保存。" } } }
@@ -181,17 +523,14 @@
     "Prepare with Agent" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用 Agent 做会前准备" } } }
     },
-    "Preview only · no Calendar data was read" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅为预览 · 未读取系统日历数据" } } }
+    "Preview · Calendar not read" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览 · 未读取系统日历" } } }
+    },
+    "Previous month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上个月" } } }
     },
     "Relationship" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系" } } }
-    },
-    "Relationship calendar" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系日历" } } }
-    },
-    "Relationship moments" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系活动" } } }
     },
     "Returns to the linked Session with an editable draft. Nothing is sent yet." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回关联会话并放入可编辑草稿，暂不会发送。" } } }
@@ -799,6 +1138,9 @@
     "Listening" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在聆听" } } }
     },
+    "Listening to you" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在听你说" } } }
+    },
     "Microphone permission was not granted. No audio was recorded." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未获得麦克风权限，因此没有录制任何音频。" } } }
     },
@@ -823,6 +1165,9 @@
     "Tap stop to transcribe with Doubao · 1 minute max" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "点击停止后由豆包转写 · 最长 1 分钟" } } }
     },
+    "Tap the red stop button to create an editable transcript." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "轻点红色停止按钮，生成可编辑的转写文本。" } } }
+    },
     "Use Doubao voice transcription?" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用豆包语音转写？" } } }
     },
@@ -838,11 +1183,722 @@
     "Voice transcription failed. Your text draft is unchanged." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音转写失败；你的文字草稿没有改变。" } } }
     },
+    "Add a conversation screenshot" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加对话截图" } } }
+    },
+    "Add photos" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加图片" } } }
+    },
+    "An image did not upload. Retry or remove it before Send." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一张图片上传失败；发送前请重试或移除。" } } }
+    },
+    "Choose the existing person or explicitly create a separate contact." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择现有人物，或明确创建一个独立联系人。" } } }
+    },
+    "Continue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续" } } }
+    },
+    "Conversation screenshot" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "对话截图" } } }
+    },
+    "Choose up to ten task images. Selection alone does not make them evidence." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最多选择十张任务图片；仅选择图片不会使其成为证据。" } } }
+    },
+    "Message or add anything…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入、粘贴或添加任何内容…" } } }
+    },
+    "Media album" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "媒体相册" } } }
+    },
+    "Image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片" } } }
+    },
+    "more images" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张更多图片" } } }
+    },
+    "One image was larger than 8 MB and was not added." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一张图片超过 8 MB，未被添加。" } } }
+    },
+    "One selected image could not be read; the rest are unchanged." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一张所选图片无法读取；其余图片未受影响。" } } }
+    },
+    "Open Photos" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开照片" } } }
+    },
+    "Open the global Agent input" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开全局 Agent 输入" } } }
+    },
+    "Opens the stored task image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开已存储的任务图片" } } }
+    },
+    "Opens the system photo picker, then starts text and identity review." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开系统照片选择器，然后开始文字与身份审阅。" } } }
+    },
+    "Pending review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待继续审阅" } } }
+    },
+    "of" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "/" } } }
+    },
+    "Removal was not confirmed. The image remains attached locally." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未确认移除；图片仍保留在本地附件中。" } } }
+    },
+    "Remove image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除图片" } } }
+    },
+    "Removing image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在移除图片" } } }
+    },
+    "Resume capture review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续截图审阅" } } }
+    },
+    "Saved after your confirmation. The original note remains the source." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已在你确认后保存；原始输入仍作为来源保留。" } } }
+    },
+    "Saved, but local recovery could not be cleared. Reopening uses the same safe operation." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存，但本地恢复记录暂时无法清除；再次打开会复用同一安全操作。" } } }
+    },
+    "Task images · not evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "任务图片 · 非证据" } } }
+    },
+    "Task images, not evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "任务图片，非证据" } } }
+    },
+    "task images, not evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张任务图片，非证据" } } }
+    },
+    "Tell the Agent anything…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "告诉 Agent 任何事情…" } } }
+    },
+    "Ten images is the limit for one Ask." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每次提问最多添加十张图片。" } } }
+    },
+    "The contact was not saved. Your proposal is still here." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人尚未保存；提议仍保留在这里。" } } }
+    },
+    "The original image stays on this device in the current slice. No contact, message, meeting, ATS, CRM, or reminder is written from selection alone." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在当前版本中，原始图片仅保留在此设备上；仅选择图片不会写入联系人、消息、会议、ATS、CRM 或提醒。" } } }
+    },
+    "The screenshot and your reviewed draft remain on this device. No person was changed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "截图和已审阅草稿仍保留在此设备上；没有任何人物记录被更改。" } } }
+    },
+    "The image could not be removed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法移除这张图片。" } } }
+    },
+    "The proposal could not be cleared from protected recovery. It remains open." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法从受保护的恢复记录中清除此提议；提议仍保持打开。" } } }
+    },
+    "The proposal is open, but this device could not protect it for relaunch." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提议仍保持打开，但此设备暂时无法保护它以便重新启动后恢复。" } } }
+    },
+    "This edit is visible, but it could not be protected for relaunch." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此编辑当前可见，但暂时无法保护以便重新启动后恢复。" } } }
+    },
+    "Upload failed. Retry keeps the same image identity." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传失败。重试会继续使用同一图片标识。" } } }
+    },
+    "Upload complete" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传完成" } } }
+    },
+    "Uploading image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在上传图片" } } }
+    },
     "Waiting for microphone permission…" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在等待麦克风权限…" } } }
     },
     "Why is this recording needed?" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为什么需要这段录音？" } } }
+    },
+    "Close capture review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭截图审阅" } } }
+    },
+    "Evidence, confirmed local state, interpretation, action preview, and outcome remain separate. Fixture review never authorizes an external write." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据、已确认的本地状态、解释、行动预览与结果始终彼此分离；演示审阅不会授权任何外部写入。" } } }
+    },
+    "Evidence, identity, relationship scope, compiled Wiki, and any future action remain separate. No external message or system record is created here." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据、身份、关系范围、汇编后的 Wiki 与任何未来行动始终彼此分离；这里不会创建外部消息或系统记录。" } } }
+    },
+    "On-device recognition" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本机识别" } } }
+    },
+    "Original operation locked · selection disabled" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原操作已锁定 · 无法更改选择" } } }
+    },
+    "Saved receipt · selection disabled" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回执已保存 · 无法更改选择" } } }
+    },
+    "Created as a separate person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已创建为独立联系人" } } }
+    },
+    "Photos" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "照片" } } }
+    },
+    "Previous outcome is unknown · retry is locked to the original operation" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上次结果未知 · 重试已锁定为原操作" } } }
+    },
+    "Reading the screenshot" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在读取截图" } } }
+    },
+    "Review capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅截图" } } }
+    },
+    "Tap to inspect original" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "轻点查看原图" } } }
+    },
+    "The confirmed operation could not be protected for a safe retry. Nothing was saved." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保护已确认的操作以便安全重试，因此没有保存任何内容。" } } }
+    },
+    "The image remains on this device. Nothing has been attached to a person." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片仍保留在此设备上，尚未附加到任何人物。" } } }
+    },
+    "No readable conversation text was found. Try a clearer screenshot." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未找到可读取的对话文字，请尝试更清晰的截图。" } } }
+    },
+    "Nothing was silently changed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未静默更改任何内容" } } }
+    },
+    "Retry safely" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安全重试" } } }
+    },
+    "Retry same operation" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试同一操作" } } }
+    },
+    "Return to reviewed text" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回已审阅文字" } } }
+    },
+    "Source was not ready" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源尚未就绪" } } }
+    },
+    "Text recognition stopped" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文字识别已停止" } } }
+    },
+    "2 · Identity and purpose" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "2 · 身份与关系目的" } } }
+    },
+    "Keep only clues visible in this conversation." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只保留这段对话中可见的线索。" } } }
+    },
+    "These clues narrow the review; they never choose a person. Leaving identity unresolved is valid." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这些线索只用于缩小审阅范围，不会替你选择联系人；保留身份待核对也是有效结果。" } } }
+    },
+    "Identity clue type" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份线索类型" } } }
+    },
+    "Phone number, if visible" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电话号码（如可见）" } } }
+    },
+    "Email address, if visible" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电子邮箱（如可见）" } } }
+    },
+    "WeChat ID, if visible" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "微信号（如可见）" } } }
+    },
+    "Relationship details" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系详情" } } }
+    },
+    "Expanded" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已展开" } } }
+    },
+    "Collapsed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已折叠" } } }
+    },
+    "Choose only when the screenshot supports it. Unresolved is a valid result." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有截图本身支持时才选择；保留未解决也是有效结果。" } } }
+    },
+    "Speaker reviewed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "说话人已审阅" } } }
+    },
+    "Speaker unresolved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "说话人未解决" } } }
+    },
+    "Who wrote the reviewed text?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "谁写了这段已审阅文字？" } } }
+    },
+    "Not reviewed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未审阅" } } }
+    },
+    "Speaker" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "说话人" } } }
+    },
+    "Clear speaker review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清除说话人审阅" } } }
+    },
+    "Original conversation screenshot" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原始对话截图" } } }
+    },
+    "Pinch or double tap to zoom while checking the recognized text." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对识别文字时，可双指缩放或轻点两下来放大。" } } }
+    },
+    "Inspect original" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看原图" } } }
+    },
+    "Pinch or double tap to zoom. Return to the review to correct OCR errors." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "双指缩放或轻点两下来放大；返回审阅页即可更正识别错误。" } } }
+    },
+    "Governed source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "受治理来源" } } }
+    },
+    "Saving reviewed text" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在保存已审阅文字" } } }
+    },
+    "The reviewed text is being stored as evidence. Identity remains unresolved." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在将已审阅文字保存为证据；身份仍保持待核对。" } } }
+    },
+    "Explicit identity decision" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "明确的身份决定" } } }
+    },
+    "Applying your selection" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在应用你的选择" } } }
+    },
+    "Only the selected person and relationship can receive this source." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有你选择的人物与关系可以接收这份来源。" } } }
+    },
+    "Living person page" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "动态人物页" } } }
+    },
+    "Compiling the relationship Wiki" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在汇编关系 Wiki" } } }
+    },
+    "Evidence, confirmed state, conflicts, and open questions remain distinct." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据、已确认状态、冲突与待解问题始终彼此分离。" } } }
+    },
+    "Close this review?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭本次审阅？" } } }
+    },
+    "Keep for later" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "稍后继续" } } }
+    },
+    "Discard capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "丢弃本次截图" } } }
+    },
+    "Continue reviewing" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续审阅" } } }
+    },
+    "Keeping it preserves the screenshot and reviewed draft for the next app launch." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择稍后继续，会保留截图和已审阅草稿，供下次打开 App 时恢复。" } } }
+    },
+    "Inspect original conversation screenshot" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看原始对话截图" } } }
+    },
+    "Opens the original image for zooming before you correct the recognized text." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在更正识别文字前，打开原图并支持缩放查看。" } } }
+    },
+    "Selected conversation screenshot" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择的对话截图" } } }
+    },
+    "Conversation screenshot placeholder" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "对话截图占位图" } } }
+    },
+    "1 · Review evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1 · 审阅证据" } } }
+    },
+    "Correct the text before it becomes evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先校正文字，再将其作为证据" } } }
+    },
+    "OCR can be wrong. Speaker identity stays unknown until another source supports it." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文字识别可能出错；在其他来源支持前，说话人身份保持未知。" } } }
+    },
+    "Reviewed conversation text" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已审阅的对话文字" } } }
+    },
+    "Edit any text recognition errors before saving." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存前请更正任何文字识别错误。" } } }
+    },
+    "Save and check identity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存并核对身份" } } }
+    },
+    "This saves reviewed text and source metadata. It does not save the original image or bind a person yet." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会保存已审阅文字和来源元数据；尚不会保存原图或绑定人物。" } } }
+    },
+    "Person name, if visible" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人物姓名（如可见）" } } }
+    },
+    "Relationship label" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系名称" } } }
+    },
+    "Purpose" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系目的" } } }
+    },
+    "Role, optional" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "角色（选填）" } } }
+    },
+    "Identity review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份核对" } } }
+    },
+    "Who does this source belong to?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这份来源属于谁？" } } }
+    },
+    "No person is selected by default" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认不会选择任何人物" } } }
+    },
+    "No safe match" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有安全匹配" } } }
+    },
+    "No existing person matches this clue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有现有人物匹配这条线索" } } }
+    },
+    "Create a separate person only if the source gives you enough identity evidence. Otherwise leave it unresolved." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有来源提供了足够的身份依据时，才创建独立人物；否则请保留待核对。" } } }
+    },
+    "Bind source to selected person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将来源绑定到所选人物" } } }
+    },
+    "Create a separate person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建独立人物" } } }
+    },
+    "Leave identity unresolved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留身份待核对" } } }
+    },
+    "relationship contexts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "段关系情境" } } }
+    },
+    "governed sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个受治理来源" } } }
+    },
+    "Selects this person for an explicit binding decision." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择此人物，进入明确的绑定决定。" } } }
+    },
+    "Historical clue cannot be selected while another person owns the current clue." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当另一人物拥有当前线索时，不能选择历史线索。" } } }
+    },
+    "Protected historical match: the same clue has a different current owner." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "受保护的历史匹配：同一线索已有不同的当前归属者。" } } }
+    },
+    "Safely preserved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已安全保留" } } }
+    },
+    "Source saved without guessing a person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源已保存，没有猜测人物身份" } } }
+    },
+    "The reviewed evidence remains unresolved and cannot change any person Wiki until a recruiter resolves identity." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已审阅证据保持待核对；在招聘顾问解决身份前，它不会更改任何人物 Wiki。" } } }
+    },
+    "Return to people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回人物" } } }
+    },
+    "The person page is current" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人物页已更新到当前状态" } } }
+    },
+    "source-linked blocks" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个来源关联区块" } } }
+    },
+    "Continue in Agent Session" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在 Agent 会话中继续" } } }
+    },
+    "Return to this person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回此人物" } } }
+    },
+    "Resource" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源" } } }
+    },
+    "Candidate" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "候选人" } } }
+    },
+    "Recruiter" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "招聘顾问" } } }
+    },
+    "Client" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "客户" } } }
+    },
+    "Unresolved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待核对" } } }
+    },
+    "Phone" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电话" } } }
+    },
+    "Email" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "邮箱" } } }
+    },
+    "WeChat" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "微信" } } }
+    },
+    "Current identity clue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前身份线索" } } }
+    },
+    "Historical identity clue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "历史身份线索" } } }
+    },
+    "Identity needs comparison" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份需要比较" } } }
+    },
+    "App Shortcut" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "App 快捷指令" } } }
+    },
+    "Test capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "测试截图" } } }
+    },
+    "One existing person matches confirmed identity handles; recruiter confirmation is still required." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一位现有人物匹配已确认的身份线索，仍需招聘顾问确认。" } } }
+    },
+    "The supplied identity handles conflict across more than one existing person." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提供的身份线索对应多位现有人物。" } } }
+    },
+    "No usable confirmed identity handle was supplied." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未提供可用的已确认身份线索。" } } }
+    },
+    "No existing person matches the supplied confirmed identity handles." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有现有人物匹配所提供的已确认身份线索。" } } }
+    },
+    "Confirmed phone handle matched." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已匹配已确认的电话号码。" } } }
+    },
+    "Confirmed email handle matched." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已匹配已确认的电子邮箱。" } } }
+    },
+    "Confirmed wechat handle matched." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已匹配已确认的微信号。" } } }
+    },
+    "Identity review could not load" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法载入身份核对" } } }
+    },
+    "Identity was not changed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份未发生更改" } } }
+    },
+    "Wiki still needs compilation" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Wiki 仍需汇编" } } }
+    },
+    "Try a prompt" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试试建议问题" } } }
+    },
+    "Offers optional starters without sending until you choose one." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提供可选的开场问题；只有选择后才会发送。" } } }
+    },
+    "workspace" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工作区" } } }
+    },
+    "%1$@ · %2$@ · base revision %3$lld" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ · %2$@ · 基于修订 %3$lld" } } }
+    },
+    "%1$@ · revision %2$lld" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ · 修订 %2$lld" } } }
+    },
+    "%1$lld of %2$lld evidence references remain authoritative" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%2$lld 条证据中仍有 %1$lld 条有效" } } }
+    },
+    "%lld reviewed evidence reference" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 条已审阅证据" } } }
+    },
+    "%lld reviewed evidence references" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 条已审阅证据" } } }
+    },
+    "Active" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进行中" } } }
+    },
+    "Actor unavailable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认人未知" } } }
+    },
+    "Audit details" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审计详情" } } }
+    },
+    "Cancelled" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已取消" } } }
+    },
+    "Canonical revision %1$lld → %2$lld" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "规范修订 %1$lld → %2$lld" } } }
+    },
+    "Check canonical result" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查规范结果" } } }
+    },
+    "Client Alignment" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "客户对齐" } } }
+    },
+    "Close when: %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭条件：%@" } } }
+    },
+    "Completed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已完成" } } }
+    },
+    "Confirmed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认记录" } } }
+    },
+    "Current blocker" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前阻碍" } } }
+    },
+    "Current frame" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前框架" } } }
+    },
+    "Current recruiter" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前招聘顾问" } } }
+    },
+    "Decision receipt %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "决策回执 %@" } } }
+    },
+    "Decision record" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "决策记录" } } }
+    },
+    "Directly observed outcome" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "直接观察到的结果" } } }
+    },
+    "Draft" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "草稿" } } }
+    },
+    "Evidence Supported" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "证据支持" } } }
+    },
+    "Explicitly recorded by the recruiter; no evidence authority is claimed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "由招聘顾问明确记录，不主张证据效力" } } }
+    },
+    "External effect requires separate verification" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "外部影响需要单独核验" } } }
+    },
+    "Failed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未达成" } } }
+    },
+    "In Progress" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进行中" } } }
+    },
+    "Milestone" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前阶段" } } }
+    },
+    "Milestone authority" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阶段依据" } } }
+    },
+    "Milestone source authority changed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阶段来源的证据效力已变化" } } }
+    },
+    "Needs Review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要审阅" } } }
+    },
+    "Next action" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一步行动" } } }
+    },
+    "No action is recorded." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未记录行动。" } } }
+    },
+    "No cited evidence remains authoritative; a new reviewed source is required" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "引用的证据均已失效，需要新的已审阅来源" } } }
+    },
+    "No due date" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无截止日期" } } }
+    },
+    "No message, calendar event, or external write" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未发送消息、创建日历事件或执行外部写入" } } }
+    },
+    "No open blocker" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无未解决阻碍" } } }
+    },
+    "No open gap is recorded." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无未解决缺口。" } } }
+    },
+    "No owned action awaiting outcome" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无等待结果的负责行动" } } }
+    },
+    "Observed outcome recorded" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已记录观察结果" } } }
+    },
+    "Observed outcome: %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "观察结果：%@" } } }
+    },
+    "Open" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待处理" } } }
+    },
+    "Open gaps" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未解决缺口" } } }
+    },
+    "Operation %1$@ · receipt %2$@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作 %1$@ · 回执 %2$@" } } }
+    },
+    "Originally evidence-supported" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原有证据支持" } } }
+    },
+    "Outcome unknown — operation locked" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "结果未知 — 操作已锁定" } } }
+    },
+    "Owned internal actions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "负责的内部行动" } } }
+    },
+    "Owner: %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "负责人：%@" } } }
+    },
+    "Owner: %1$@ · %2$@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "负责人：%1$@ · %2$@" } } }
+    },
+    "Paused" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已暂停" } } }
+    },
+    "Proposal is out of date" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Proposal 已过期" } } }
+    },
+    "Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标" } } }
+    },
+    "Pursuit type" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标类型" } } }
+    },
+    "Record observed outcome" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录观察结果" } } }
+    },
+    "Record outcome" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录结果" } } }
+    },
+    "Recorded %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录于 %@" } } }
+    },
+    "Recording with one saved recovery reference. Success waits for canonical readback." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在记录，并已保存一条恢复引用。读取规范状态后才会确认成功。" } } }
+    },
+    "Recovery reference %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复引用 %@" } } }
+    },
+    "Referenced in Ask" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Ask 中引用" } } }
+    },
+    "Recruiting" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "招聘" } } }
+    },
+    "Sales" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "销售" } } }
+    },
+    "Succeeded" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已达成" } } }
+    },
+    "Target date" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标日期" } } }
+    },
+    "Target outcome" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标结果" } } }
+    },
+    "The recruiter-confirmed decision and revision remain in history, but %@. Review or correct the milestone before treating it as current evidence-backed truth." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "招聘顾问确认过的决策和修订仍保留在历史中，但%@。在把当前阶段视为有证据支持的事实前，请先审阅或纠正。" } } }
+    },
+    "The saved recovery reference will be checked before another write is allowed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "允许再次写入前，会先检查已保存的恢复引用。" } } }
+    },
+    "This Pursuit is now revision %lld. An older Proposal cannot be reviewed and has no execution authority. Current workspace readback will replace it." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此目标当前为修订 %lld。旧 Proposal 无法审阅，也没有执行权限；它将由工作区的最新读取结果替代。" } } }
+    },
+    "Time unavailable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时间未知" } } }
+    },
+    "User Authored" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户记录" } } }
+    },
+    "Waiting for review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待审阅" } } }
+    },
+    "What was directly observed?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "直接观察到了什么？" } } }
+    },
+    "Workspace member" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "工作区成员" } } }
+    },
+    "%1$@ · Owner: %2$@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ · 负责人：%2$@" } } }
+    },
+    "Checking canonical result" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查规范结果" } } }
+    },
+    "Observed %1$@ · %2$@ · %3$@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "观察于%1$@ · %2$@ · %3$@" } } }
+    },
+    "Observed at an unparsed source time: %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源时间无法解析：%@" } } }
+    },
+    "Outcome recorded" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已记录结果" } } }
+    },
+    "Proposed change · Needs review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拟议变更 · 需要审阅" } } }
     }
   },
   "version" : "1.0"

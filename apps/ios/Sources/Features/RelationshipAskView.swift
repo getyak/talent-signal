@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import PhotosUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class VoiceInputStore: ObservableObject {
@@ -189,6 +191,60 @@ final class VoiceInputStore: ObservableObject {
     }
 }
 
+private struct VoiceListeningVisualizer: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let barCount = 13
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0, paused: reduceMotion)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .center, spacing: 4) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    Capsule()
+                        .fill(index == barCount / 2 ? Color.tsVermilion : Color.tsInk.opacity(0.72))
+                        .frame(width: 3, height: barHeight(index: index, time: time))
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 42)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func barHeight(index: Int, time: TimeInterval) -> CGFloat {
+        guard !reduceMotion else {
+            return CGFloat(10 + (index * 7) % 22)
+        }
+        let phase = time * 3.0 + Double(index) * 0.74
+        let envelope = 0.5 + 0.5 * sin(phase)
+        let stagger = 0.72 + 0.28 * sin(phase * 0.53 + Double(index))
+        return 9 + CGFloat(envelope * stagger) * 27
+    }
+}
+
+private struct VoiceRecordButtonHalo: View {
+    let isActive: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if isActive {
+            TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: reduceMotion)) { context in
+                let pulse: CGFloat = reduceMotion
+                    ? 0
+                    : CGFloat(
+                        (sin(context.date.timeIntervalSinceReferenceDate * 3.2) + 1) / 2
+                    )
+                Circle()
+                    .stroke(Color.tsVermilion.opacity(0.18 + pulse * 0.18), lineWidth: 1.5)
+                    .scaleEffect(1.08 + pulse * 0.12)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
 @MainActor
 struct RelationshipAskView: View {
     let snapshot: PursuitWorkspaceSnapshot
@@ -201,8 +257,16 @@ struct RelationshipAskView: View {
         _ objective: String,
         _ personID: String,
         _ contextID: String,
-        _ idempotencyKey: String
+        _ idempotencyKey: String,
+        _ mediaIDs: [String]
     ) async throws -> RelationshipAskResponse
+    let saveContact: (
+        _ draft: ConversationContactDraft,
+        _ target: ConversationContactTarget,
+        _ confirmIdentityClue: Bool,
+        _ capturedAt: Date,
+        _ idempotencyKey: String
+    ) async throws -> ResourceCaptureResult
     let reviewEvidence: (
         _ fragmentID: String,
         _ expectedReviewStatus: String,
@@ -222,14 +286,34 @@ struct RelationshipAskView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.sizeCategory) private var sizeCategory
-    @ScaledMetric(relativeTo: .caption2) private var scopeContextFontSize: CGFloat = 11
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedScope: AskScope?
     @State private var scopeQuery = ""
     @State private var isChoosingScope = false
     @State private var draft = ""
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var mediaDrafts: [AskMediaDraft] = []
+    @State private var mediaNotice: String?
+    @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
     @State private var isSending = false
     @State private var errorMessage: String?
+    @State private var contactDraft: ConversationContactDraft?
+    @State private var contactOperationKey: String?
+    @State private var pendingContactTarget: ConversationContactTarget?
+    @State private var pendingContactCapturedAt: Date?
+    @State private var pendingContactConfirmIdentityClue: Bool?
+    @State private var contactCandidates: [WorkspacePerson] = []
+    @State private var contactLookupPhase: ConversationContactLookupPhase = .idle
+    @State private var contactLookupTask: Task<Void, Never>?
+    @State private var selectedContactPersonID: String?
+    @State private var selectedContactContextID: String?
+    @State private var createDistinctContact = false
+    @State private var saveContactForIdentityReview = false
+    @State private var confirmContactIdentityClue = false
+    @State private var isSavingContact = false
+    @State private var contactSaveMessage: String?
+    @State private var contactSaveError: String?
     @State private var selectedCitation: SelectedAskCitation?
     @State private var selectedPursuit: SelectedPursuitTarget?
     @State private var reinstatementOperation: AgentEvidenceReviewOperation?
@@ -245,7 +329,10 @@ struct RelationshipAskView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                scopeBar
+                if contactDraft == nil {
+                    scopeBar
+                        .transition(.opacity)
+                }
                 conversation
                 composer
             }
@@ -396,6 +483,22 @@ struct RelationshipAskView: View {
             } else if selectedScope == nil {
                 selectedScope = availableScopes.first
             }
+            if contactDraft == nil,
+               let restoredContact = sessionStore.contactProposalDraft {
+                contactDraft = restoredContact
+                contactOperationKey = sessionStore.contactProposalOperationKey
+                pendingContactTarget = sessionStore.contactProposalPendingTarget
+                pendingContactCapturedAt = sessionStore.contactProposalCapturedAt
+                pendingContactConfirmIdentityClue =
+                    sessionStore.contactProposalPendingConfirmIdentityClue
+                restorePendingContactChoice()
+                confirmContactIdentityClue = pendingContactConfirmIdentityClue
+                    ?? (restoredContact.identityClue != nil)
+                startContactLookup(
+                    for: restoredContact,
+                    preservePendingWrite: pendingContactTarget != nil
+                )
+            }
             restoreDraft(preferred: initialSeed?.suggestedObjective)
             while !Task.isCancelled {
                 do {
@@ -417,6 +520,14 @@ struct RelationshipAskView: View {
                 relationshipContextID: selectedScope.context.id
             )
         }
+        .onChange(of: selectedPhotoItems) { items in
+            guard !items.isEmpty else { return }
+            importSelectedPhotos(items)
+        }
+        .onChange(of: selectedScope?.id) { _ in
+            guard !mediaDrafts.isEmpty else { return }
+            discardMediaDrafts()
+        }
         .onChange(of: voiceInput.transcript) { transcript in
             guard let transcript, !transcript.isEmpty else { return }
             insertVoiceTranscript(transcript)
@@ -435,6 +546,9 @@ struct RelationshipAskView: View {
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
+            mediaImportTask?.cancel()
+            mediaImportTask = nil
+            discardMediaDrafts()
         }
         .confirmationDialog(
             appLanguage.text("Use Doubao voice transcription?"),
@@ -443,6 +557,7 @@ struct RelationshipAskView: View {
         ) {
             Button(appLanguage.text("Start voice input")) {
                 hasAcceptedVoiceDisclosure = true
+                voiceHaptic(.soft)
                 startVoiceInput()
             }
             .accessibilityIdentifier("confirm-voice-input-disclosure")
@@ -574,14 +689,18 @@ struct RelationshipAskView: View {
                 Text(scope.person.displayLabel)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(scope.context.displayLabel)
-                    .font(.system(size: scopeContextFontSize))
+                    .font(.caption2)
                     .foregroundStyle(Color.tsMutedInk)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // The relationship picker is persistent navigation chrome. Keep it
+            // compact at accessibility sizes; its full value remains exposed
+            // by the parent accessibility element.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .layoutPriority(1)
             Spacer(minLength: 8)
             Image(systemName: "chevron.down")
@@ -605,10 +724,37 @@ struct RelationshipAskView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
-                    if turns.isEmpty {
+                    if turns.isEmpty, contactDraft == nil {
                         starterGrid
                             .padding(.top, 24)
-                    } else {
+                    }
+
+                    if let contactDraft {
+                        ConversationContactProposalCard(
+                            draft: contactDraftBinding(fallback: contactDraft),
+                            candidates: contactCandidates,
+                            lookupPhase: contactLookupPhase,
+                            selectedPersonID: $selectedContactPersonID,
+                            selectedContextID: $selectedContactContextID,
+                            createDistinct: $createDistinctContact,
+                            saveForIdentityReview: $saveContactForIdentityReview,
+                            confirmIdentityClue: $confirmContactIdentityClue,
+                            hasPendingWrite: pendingContactTarget != nil,
+                            isSaving: isSavingContact,
+                            saveMessage: contactSaveMessage,
+                            errorMessage: contactSaveError,
+                            isCanonical: isCanonical,
+                            language: appLanguage,
+                            onConfirm: saveContactProposal,
+                            onRetryLookup: {
+                                startContactLookup(for: contactDraft)
+                            },
+                            onCancel: clearContactProposal
+                        )
+                        .id(contactDraft.sourceNote)
+                    }
+
+                    if !turns.isEmpty {
                         ForEach(turns) { turn in
                             AskTurnView(
                                 turn: turn,
@@ -624,6 +770,9 @@ struct RelationshipAskView: View {
                                     sessionStore.transientSupersededEvidenceReviewKeys,
                                 evidenceReviewAuthorityReadbackKeys:
                                     sessionStore.evidenceReviewAuthorityReadbackKeys,
+                                loadMedia: { mediaID in
+                                    try await workspaceStore.loadChatMedia(id: mediaID)
+                                },
                                 onOpenEvidence: { citation in
                                     selectedCitation = SelectedAskCitation(
                                         taskID: turn.response.taskID,
@@ -712,10 +861,17 @@ struct RelationshipAskView: View {
             }
             .accessibilityIdentifier("ask-conversation")
             .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: turns.count) { _ in
                 if let last = turns.last {
                     withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+                        proxy.scrollTo(
+                            last.id,
+                            anchor: dynamicTypeSize.isAccessibilitySize
+                                || sizeCategory.isAccessibilityCategory
+                                ? .top
+                                : .bottom
+                        )
                     }
                 }
             }
@@ -723,30 +879,8 @@ struct RelationshipAskView: View {
     }
 
     private var starterGrid: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            if !dynamicTypeSize.isAccessibilitySize && !sizeCategory.isAccessibilityCategory {
-                Text(
-                    selectedScope.map { $0.person.displayLabel }
-                        ?? appLanguage.text("Choose a person", zhHans: "选择一个人物")
-                )
-                .font(.custom("Georgia", size: 28, relativeTo: .title2))
-                .foregroundStyle(Color.tsInk)
-            }
-
-            Group {
-                if dynamicTypeSize.isAccessibilitySize || sizeCategory.isAccessibilityCategory {
-                    VStack(alignment: .leading, spacing: 8) {
-                        starterPrompts
-                    }
-                } else {
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 8) {
-                            starterPrompts
-                        }
-                    }
-                    .scrollIndicators(.hidden)
-                }
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            starterPromptMenu
 
             if !isCanonical {
                 Label(
@@ -770,56 +904,92 @@ struct RelationshipAskView: View {
         }
     }
 
-    @ViewBuilder
-    private var starterPrompts: some View {
-        quickPrompt(
-            title: appLanguage.text("What changed?", zhHans: "发生了什么变化？"),
-            objective: "Explain what changed, the supporting evidence, and what remains uncertain."
-        )
-        quickPrompt(
-            title: appLanguage.text("Prepare questions", zhHans: "准备问题"),
-            objective: "Prepare the smallest evidence-grounded questions that would resolve the current gap."
-        )
-        quickPrompt(
-            title: appLanguage.text("Do nothing?", zhHans: "可以不行动吗？"),
-            objective: "Check whether no action is the safest current decision and explain the trigger to revisit it."
-        )
-    }
-
-    private func quickPrompt(title: String, objective: String) -> some View {
-        Button {
-            send(objective)
+    private var starterPromptMenu: some View {
+        Menu {
+            Button(appLanguage.text("What changed?", zhHans: "发生了什么变化？")) {
+                send(appLanguage.text("What changed?", zhHans: "发生了什么变化？"))
+            }
+            Button(appLanguage.text("Prepare questions", zhHans: "准备问题")) {
+                send(appLanguage.text("Prepare questions", zhHans: "准备问题"))
+            }
+            Button(appLanguage.text("Do nothing?", zhHans: "可以不行动吗？")) {
+                send(appLanguage.text("Do nothing?", zhHans: "可以不行动吗？"))
+            }
         } label: {
-            Text(title)
+            Label(
+                appLanguage.text("Try a prompt"),
+                systemImage: "text.bubble"
+            )
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
                 .padding(.horizontal, 14)
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .background(Color.tsCanvas, in: Capsule())
         }
         .buttonStyle(.plain)
         .disabled(selectedScope == nil || isSending || !isCanonical)
+        .opacity(selectedScope == nil || isSending || !isCanonical ? 0.58 : 1)
+        .accessibilityHint(
+            appLanguage.text(
+                "Offers optional starters without sending until you choose one."
+            )
+        )
+        .accessibilityIdentifier("ask-prompt-menu")
     }
 
     private var composer: some View {
         VStack(spacing: 8) {
             voiceInputStatus
 
+            if !mediaDrafts.isEmpty {
+                AskMediaDraftTray(
+                    drafts: mediaDrafts,
+                    onRetry: retryMediaDraft,
+                    onRemove: removeMediaDraft
+                )
+            }
+
+            if let mediaNotice {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .accessibilityHidden(true)
+                    Text(mediaNotice)
+                        .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                }
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityIdentifier("ask-media-notice")
+            }
+
             HStack(alignment: .bottom, spacing: 8) {
-                Button { onCapture(nil) } label: {
+                PhotosPicker(
+                    selection: $selectedPhotoItems,
+                    maxSelectionCount: 10,
+                    matching: .images
+                ) {
                     Image(systemName: "paperclip")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.tsInk)
-                        .frame(width: 44, height: 44)
+                        .frame(
+                            width: composerControlSize,
+                            height: composerControlSize
+                        )
                         .background(Color.tsCanvas, in: Circle())
                 }
-                .disabled(voiceInput.isBusy)
+                .disabled(voiceInput.isBusy || mediaDrafts.count >= 10 || selectedScope == nil)
                 .accessibilityLabel(
-                    appLanguage.text("Add text, photo, or voice")
+                    appLanguage.text("Add photos")
                 )
+                .accessibilityHint(
+                    appLanguage.text(
+                        "Choose up to ten task images. Selection alone does not make them evidence."
+                    )
+                )
+                .accessibilityIdentifier("ask-add-photos")
 
                 TextField(
-                    appLanguage.text("Ask anything"),
+                    appLanguage.text("Message or add anything…"),
                     text: $draft,
                     axis: .vertical
                 )
@@ -841,12 +1011,18 @@ struct RelationshipAskView: View {
                                 .tint(Color.tsSurface)
                         } else {
                             Image(systemName: composerPrimarySymbol)
-                                .font(.body.weight(.semibold))
+                                .font(.system(size: 17, weight: .semibold))
                         }
                     }
                     .foregroundStyle(composerPrimaryForeground)
-                    .frame(width: 44, height: 44)
+                    .frame(
+                        width: composerPrimaryControlSize,
+                        height: composerPrimaryControlSize
+                    )
                     .background(composerPrimaryBackground, in: Circle())
+                    .overlay {
+                        VoiceRecordButtonHalo(isActive: voiceInput.isRecording)
+                    }
                 }
                 .disabled(composerPrimaryDisabled)
                 .opacity(composerPrimaryDisabled ? 0.35 : 1)
@@ -861,6 +1037,20 @@ struct RelationshipAskView: View {
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(Color.tsSurface.opacity(0.98))
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
+            value: voiceInput.phase
+        )
+    }
+
+    private var composerControlSize: CGFloat {
+        dynamicTypeSize.isAccessibilitySize || sizeCategory.isAccessibilityCategory
+            ? 52
+            : 44
+    }
+
+    private var composerPrimaryControlSize: CGFloat {
+        voiceInput.isRecording ? max(48, composerControlSize) : composerControlSize
     }
 
     @ViewBuilder
@@ -878,42 +1068,64 @@ struct RelationshipAskView: View {
             }
             .accessibilityIdentifier("ask-voice-requesting-permission")
         case let .recording(startedAt):
-            HStack(spacing: 10) {
-                Image(systemName: "waveform")
-                    .foregroundStyle(Color.tsVermilion)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(appLanguage.text("Listening"))
-                        .font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "waveform.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.tsVermilion)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(appLanguage.text("Listening to you"))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .accessibilityIdentifier("ask-voice-recording")
+                        Text(appLanguage.text("Foreground voice · 1 minute max"))
+                            .font(.caption2)
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
+                    Spacer(minLength: 8)
+                    Text(startedAt, style: .timer)
+                        .font(.subheadline.monospacedDigit().weight(.semibold))
                         .foregroundStyle(Color.tsInk)
-                    Text(
-                        appLanguage.text(
-                            "Tap stop to transcribe with Doubao · 1 minute max"
-                        )
+                    Button {
+                        cancelVoiceInput()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .frame(width: 44, height: 44)
+                            .background(Color.tsSurfaceMuted, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(appLanguage.text("Cancel"))
+                    .accessibilityIdentifier("ask-voice-cancel")
+                }
+                VoiceListeningVisualizer()
+                Text(
+                    appLanguage.text(
+                        "Tap the red stop button to create an editable transcript."
                     )
+                )
                     .font(.caption2)
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Text(startedAt, style: .timer)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.tsInk)
-                Button(appLanguage.text("Cancel")) {
-                    cancelVoiceInput()
-                }
-                .font(.caption.weight(.semibold))
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("ask-voice-cancel")
             }
-            .accessibilityIdentifier("ask-voice-recording")
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.tsVermilion.opacity(0.28), lineWidth: 1)
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         case .transcribing:
             HStack(spacing: 10) {
                 ProgressView()
+                    .tint(Color.tsInk)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(appLanguage.text("Creating an editable transcript…"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
+                        .accessibilityIdentifier("ask-voice-transcribing")
                     Text(
                         appLanguage.text(
                             "Nothing is sent to the Agent until you tap Send."
@@ -930,7 +1142,10 @@ struct RelationshipAskView: View {
                 .frame(minHeight: 44)
                 .accessibilityIdentifier("ask-voice-cancel-transcription")
             }
-            .accessibilityIdentifier("ask-voice-transcribing")
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .transition(.opacity)
         case let .failed(message):
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "exclamationmark.circle")
@@ -940,6 +1155,7 @@ struct RelationshipAskView: View {
                     .font(.caption)
                     .foregroundStyle(Color.tsInk)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ask-voice-failed")
                 Spacer(minLength: 8)
                 if voiceInput.microphonePermission == .denied {
                     Button(appLanguage.text("Settings")) {
@@ -959,7 +1175,6 @@ struct RelationshipAskView: View {
                     .frame(minHeight: 44)
                 }
             }
-            .accessibilityIdentifier("ask-voice-failed")
         }
     }
 
@@ -1014,6 +1229,7 @@ struct RelationshipAskView: View {
             return
         }
         if voiceInput.isRecording {
+            voiceHaptic(.rigid)
             voiceOperation?.cancel()
             voiceOperation = Task {
                 await voiceInput.stopAndTranscribe()
@@ -1029,6 +1245,7 @@ struct RelationshipAskView: View {
             isVoiceDisclosurePresented = true
             return
         }
+        voiceHaptic(.soft)
         startVoiceInput()
     }
 
@@ -1047,9 +1264,16 @@ struct RelationshipAskView: View {
     }
 
     private func cancelVoiceInput() {
+        voiceHaptic(.light)
         voiceOperation?.cancel()
         voiceOperation = nil
         voiceInput.cancel()
+    }
+
+    private func voiceHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
     }
 
     private func insertVoiceTranscript(_ transcript: String) {
@@ -1071,7 +1295,17 @@ struct RelationshipAskView: View {
     }
 
     private var canSendDraft: Bool {
-        selectedScope != nil && !isSending && isCanonical
+        let isContactIntent = ConversationContactIntake.propose(trimmedDraft) != nil
+        if isContactIntent {
+            return !isSending
+                && !isSavingContact
+                && mediaDrafts.isEmpty
+        }
+        return selectedScope != nil
+            && !isSending
+            && !isSavingContact
+            && isCanonical
+            && mediaDrafts.allSatisfy { $0.phase == .ready }
     }
 
     private var filteredScopes: [AskScope] {
@@ -1087,9 +1321,219 @@ struct RelationshipAskView: View {
         sessionStore.session(id: activeSessionID)?.turns ?? []
     }
 
+    private func importSelectedPhotos(_ items: [PhotosPickerItem]) {
+        mediaImportTask?.cancel()
+        mediaImportTask = Task {
+            defer {
+                selectedPhotoItems = []
+                mediaImportTask = nil
+            }
+            guard let scope = selectedScope else { return }
+            let remaining = max(0, 10 - mediaDrafts.count)
+            guard remaining > 0 else {
+                mediaNotice = appLanguage.text("Ten images is the limit for one Ask.")
+                return
+            }
+            if items.count > remaining {
+                mediaNotice = appLanguage.text(
+                    "Only the first \(remaining) selected images were added.",
+                    zhHans: "仅添加了所选图片中的前 \(remaining) 张。"
+                )
+            }
+            for (offset, item) in items.prefix(remaining).enumerated() {
+                if Task.isCancelled { return }
+                do {
+                    guard var data = try await item.loadTransferable(type: Data.self),
+                          var preview = UIImage(data: data) else {
+                        throw PursuitWorkspaceClientError.invalidResponse
+                    }
+                    var mediaType = item.supportedContentTypes
+                        .compactMap(\.preferredMIMEType)
+                        .first(where: Self.allowedChatMediaTypes.contains)
+                    var fileExtension = item.supportedContentTypes
+                        .compactMap(\.preferredFilenameExtension)
+                        .first
+                    if mediaType == nil {
+                        guard let converted = preview.jpegData(compressionQuality: 0.9) else {
+                            throw PursuitWorkspaceClientError.invalidResponse
+                        }
+                        data = converted
+                        preview = UIImage(data: converted) ?? preview
+                        mediaType = "image/jpeg"
+                        fileExtension = "jpg"
+                    }
+                    guard !data.isEmpty, data.count <= 8_388_608 else {
+                        mediaNotice = appLanguage.text(
+                            "One image was larger than 8 MB and was not added."
+                        )
+                        continue
+                    }
+                    let id = UUID()
+                    let scale = preview.scale
+                    let draft = AskMediaDraft(
+                        id: id,
+                        data: data,
+                        preview: preview,
+                        fileName: "ask-photo-\(mediaDrafts.count + offset + 1).\(fileExtension ?? "image")",
+                        mediaType: mediaType ?? "image/jpeg",
+                        width: max(1, Int(preview.size.width * scale)),
+                        height: max(1, Int(preview.size.height * scale)),
+                        remoteAsset: nil,
+                        phase: .uploading
+                    )
+                    mediaDrafts.append(draft)
+                    mediaNotice = appLanguage.text("Task images · not evidence")
+                    uploadMediaDraft(id, scope: scope)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    mediaNotice = appLanguage.text(
+                        "One selected image could not be read; the rest are unchanged."
+                    )
+                }
+            }
+        }
+    }
+
+    private func uploadMediaDraft(_ id: UUID, scope: AskScope? = nil) {
+        guard let index = mediaDrafts.firstIndex(where: { $0.id == id }),
+              let resolvedScope = scope ?? selectedScope else { return }
+        mediaDrafts[index].phase = .uploading
+        let draft = mediaDrafts[index]
+        Task {
+            do {
+                let asset: ChatMediaAsset
+                if let existing = draft.remoteAsset {
+                    asset = existing
+                } else {
+                    asset = try await workspaceStore.createChatMedia(
+                        personID: resolvedScope.person.id,
+                        relationshipContextID: resolvedScope.context.id,
+                        fileName: draft.fileName,
+                        mediaType: draft.mediaType,
+                        byteSize: draft.data.count,
+                        width: draft.width,
+                        height: draft.height,
+                        idempotencyKey: "ios:chat-media:\(draft.id.uuidString.lowercased())"
+                    )
+                }
+                guard let current = mediaDrafts.firstIndex(where: { $0.id == id }) else {
+                    try? await workspaceStore.deleteChatMedia(id: asset.id)
+                    return
+                }
+                mediaDrafts[current].remoteAsset = asset
+                let ready = asset.status == "ready"
+                    ? asset
+                    : try await workspaceStore.uploadChatMedia(
+                        id: asset.id,
+                        data: draft.data,
+                        mediaType: draft.mediaType
+                    )
+                guard let finalIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else {
+                    try? await workspaceStore.deleteChatMedia(id: ready.id)
+                    return
+                }
+                mediaDrafts[finalIndex].remoteAsset = ready
+                mediaDrafts[finalIndex].phase = .ready
+            } catch {
+                guard let failedIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else {
+                    return
+                }
+                mediaDrafts[failedIndex].phase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? appLanguage.text("Upload failed. Retry keeps the same image identity.")
+                )
+                mediaNotice = appLanguage.text(
+                    "An image did not upload. Retry or remove it before Send."
+                )
+            }
+        }
+    }
+
+    private func retryMediaDraft(_ id: UUID) {
+        uploadMediaDraft(id)
+    }
+
+    private func removeMediaDraft(_ id: UUID) {
+        guard let index = mediaDrafts.firstIndex(where: { $0.id == id }) else { return }
+        let mediaID = mediaDrafts[index].remoteAsset?.id
+        guard let mediaID else {
+            mediaDrafts.remove(at: index)
+            if mediaDrafts.isEmpty { mediaNotice = nil }
+            return
+        }
+        mediaDrafts[index].phase = .removing
+        Task {
+            do {
+                try await workspaceStore.deleteChatMedia(id: mediaID)
+                mediaDrafts.removeAll { $0.id == id }
+                if mediaDrafts.isEmpty { mediaNotice = nil }
+            } catch {
+                guard let failedIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else {
+                    return
+                }
+                mediaDrafts[failedIndex].phase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? appLanguage.text("The image could not be removed.")
+                )
+                mediaNotice = appLanguage.text(
+                    "Removal was not confirmed. The image remains attached locally."
+                )
+            }
+        }
+    }
+
+    private func discardMediaDrafts() {
+        let mediaIDs = mediaDrafts.compactMap { $0.remoteAsset?.id }
+        mediaDrafts = []
+        mediaNotice = nil
+        guard !mediaIDs.isEmpty else { return }
+        Task {
+            for mediaID in mediaIDs {
+                try? await workspaceStore.deleteChatMedia(id: mediaID)
+            }
+        }
+    }
+
+    private static let allowedChatMediaTypes: Set<String> = [
+        "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif",
+    ]
+
     private func send(_ objective: String) {
         let trimmed = objective.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let selectedScope, !isSending else { return }
+        let mediaIDs = mediaDrafts.compactMap(\.readyMediaID)
+        guard !trimmed.isEmpty, !isSending else { return }
+        if mediaIDs.isEmpty,
+           let proposedContact = ConversationContactIntake.propose(trimmed) {
+            contactDraft = proposedContact
+            contactOperationKey = "ios:contact:\(UUID().uuidString.lowercased())"
+            pendingContactTarget = nil
+            pendingContactCapturedAt = nil
+            pendingContactConfirmIdentityClue = nil
+            selectedContactPersonID = nil
+            selectedContactContextID = nil
+            createDistinctContact = false
+            saveContactForIdentityReview = false
+            confirmContactIdentityClue = proposedContact.identityClue != nil
+            contactSaveMessage = nil
+            contactSaveError = nil
+            startContactLookup(for: proposedContact)
+            if let contactOperationKey,
+               !sessionStore.saveContactProposal(
+                    proposedContact,
+                    idempotencyKey: contactOperationKey
+               ) {
+                contactSaveError = appLanguage.text(
+                    "The proposal is open, but this device could not protect it for relaunch."
+                )
+            }
+            draft = ""
+            composerFocused = false
+            return
+        }
+        guard
+              let selectedScope,
+              mediaIDs.count == mediaDrafts.count else { return }
         errorMessage = nil
         isSending = true
         let operationID = UUID()
@@ -1097,7 +1541,8 @@ struct RelationshipAskView: View {
             trimmed,
             personID: selectedScope.person.id,
             relationshipContextID: selectedScope.context.id,
-            proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())"
+            proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())",
+            requestIdentity: mediaIDs.isEmpty ? nil : mediaIDs.joined(separator: ":")
         )
         Task {
             do {
@@ -1105,7 +1550,8 @@ struct RelationshipAskView: View {
                     trimmed,
                     selectedScope.person.id,
                     selectedScope.context.id,
-                    idempotencyKey
+                    idempotencyKey,
+                    mediaIDs
                 )
                 sessionStore.revalidateEvidenceReviewAuthority(
                     citations: response.citations,
@@ -1126,6 +1572,9 @@ struct RelationshipAskView: View {
                     relationshipContextID: selectedScope.context.id
                 )
                 draft = ""
+                composerFocused = false
+                mediaDrafts = []
+                mediaNotice = nil
             } catch {
                 errorMessage = (error as? LocalizedError)?.errorDescription
                     ?? appLanguage.text(
@@ -1134,6 +1583,239 @@ struct RelationshipAskView: View {
                     )
             }
             isSending = false
+        }
+    }
+
+    private func startContactLookup(
+        for proposal: ConversationContactDraft,
+        preservePendingWrite: Bool = false
+    ) {
+        contactLookupTask?.cancel()
+        if !preservePendingWrite {
+            selectedContactPersonID = nil
+            selectedContactContextID = nil
+            createDistinctContact = false
+            saveContactForIdentityReview = false
+        }
+        guard isCanonical else {
+            contactCandidates = []
+            contactLookupPhase = .idle
+            return
+        }
+        guard let identityClue = proposal.identityClue else {
+            contactCandidates = ConversationContactMatchPolicy.sameNameReview(
+                for: proposal,
+                in: snapshot.people
+            )
+            contactLookupPhase = .complete
+            return
+        }
+        contactCandidates = []
+        contactLookupPhase = .checking
+        let sourceNote = proposal.sourceNote
+        contactLookupTask = Task {
+            do {
+                let matches = try await workspaceStore.findContactMatches(
+                    identityClue: identityClue
+                )
+                guard !Task.isCancelled, contactDraft?.sourceNote == sourceNote else {
+                    return
+                }
+                contactCandidates = matches
+                contactLookupPhase = .complete
+            } catch is CancellationError {
+                return
+            } catch {
+                guard contactDraft?.sourceNote == sourceNote else { return }
+                contactCandidates = []
+                contactLookupPhase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? appLanguage.text(
+                            "Identity checking is temporarily unavailable."
+                        )
+                )
+            }
+        }
+    }
+
+    private func saveContactProposal() {
+        guard let contactDraft, !isSavingContact else { return }
+        guard contactLookupPhase == .complete else {
+            contactSaveError = appLanguage.text(
+                "Wait for identity checking or retry it before saving."
+            )
+            return
+        }
+        let candidates = contactCandidates
+        let target: ConversationContactTarget
+        if let pendingContactTarget {
+            target = pendingContactTarget
+        } else {
+            let hasIdentityConflict = ConversationContactMatchPolicy
+                .hasCurrentHistoricalConflict(in: candidates)
+            if saveContactForIdentityReview {
+                target = .unresolved
+            } else if let selectedContactPersonID {
+                target = .existingPerson(
+                    personID: selectedContactPersonID,
+                    relationshipContextID: selectedContactContextID
+                )
+            } else if candidates.isEmpty || (createDistinctContact && !hasIdentityConflict) {
+                target = .newPerson
+            } else {
+                contactSaveError = appLanguage.text(
+                    "Choose the existing person or explicitly create a separate contact."
+                )
+                return
+            }
+        }
+        contactSaveError = nil
+        contactSaveMessage = nil
+        isSavingContact = true
+        let operationKey = contactOperationKey
+            ?? sessionStore.contactProposalOperationKey
+            ?? "ios:contact:\(UUID().uuidString.lowercased())"
+        contactOperationKey = operationKey
+        let confirmedIdentityClue = pendingContactConfirmIdentityClue
+            ?? confirmContactIdentityClue
+        guard sessionStore.saveContactProposal(
+            contactDraft,
+            idempotencyKey: operationKey,
+            pendingTarget: target,
+            pendingConfirmIdentityClue: confirmedIdentityClue
+        ) else {
+            isSavingContact = false
+            contactSaveError = appLanguage.text(
+                "The confirmed operation could not be protected for a safe retry. Nothing was saved."
+            )
+            return
+        }
+        let capturedAt = sessionStore.contactProposalCapturedAt ?? Date()
+        pendingContactTarget = target
+        pendingContactCapturedAt = capturedAt
+        pendingContactConfirmIdentityClue = confirmedIdentityClue
+        Task {
+            do {
+                let result = try await saveContact(
+                    contactDraft,
+                    target,
+                    confirmedIdentityClue,
+                    capturedAt,
+                    operationKey
+                )
+                let receipt = result.resource.id.suffix(8)
+                let didClearRecovery = sessionStore.clearContactProposal()
+                if didClearRecovery {
+                    pendingContactTarget = nil
+                    pendingContactCapturedAt = nil
+                    pendingContactConfirmIdentityClue = nil
+                }
+                if target == .unresolved {
+                    guard let caseID = result.identity.resolutionCaseID else {
+                        throw PursuitWorkspaceClientError.scopeReadbackMismatch
+                    }
+                    contactSaveMessage = didClearRecovery
+                        ? "\(appLanguage.text("Saved for identity review")) · \(appLanguage.text("case")) \(caseID.suffix(8)) · \(appLanguage.text("source receipt")) \(receipt)."
+                        : appLanguage.text(
+                            "Saved for identity review, but local recovery could not be cleared. Reopening uses the same safe operation."
+                        )
+                } else {
+                    guard result.identity.personID != nil else {
+                        throw PursuitWorkspaceClientError.scopeReadbackMismatch
+                    }
+                    let destination = selectedContactPersonID.flatMap { selectedID in
+                        contactCandidates.first { $0.id == selectedID }?.displayLabel
+                    } ?? contactDraft.name
+                    contactSaveMessage = didClearRecovery
+                        ? appLanguage.text(
+                            "Saved to \(destination) · receipt \(receipt). The original note remains the source.",
+                            zhHans: "已保存到 \(destination) · 回执 \(receipt)。原始输入仍作为来源保留。"
+                        )
+                        : appLanguage.text(
+                            "Saved, but local recovery could not be cleared. Reopening uses the same safe operation."
+                        )
+                }
+            } catch {
+                contactSaveError = (error as? LocalizedError)?.errorDescription
+                    ?? appLanguage.text(
+                        "The contact was not saved. Your proposal is still here."
+                    )
+            }
+            isSavingContact = false
+        }
+    }
+
+    private func clearContactProposal() {
+        guard sessionStore.clearContactProposal() else {
+            contactSaveError = appLanguage.text(
+                "The proposal could not be cleared from protected recovery. It remains open."
+            )
+            return
+        }
+        contactDraft = nil
+        contactOperationKey = nil
+        pendingContactTarget = nil
+        pendingContactCapturedAt = nil
+        pendingContactConfirmIdentityClue = nil
+        contactLookupTask?.cancel()
+        contactLookupTask = nil
+        contactCandidates = []
+        contactLookupPhase = .idle
+        selectedContactPersonID = nil
+        selectedContactContextID = nil
+        createDistinctContact = false
+        saveContactForIdentityReview = false
+        confirmContactIdentityClue = false
+        contactSaveMessage = nil
+        contactSaveError = nil
+    }
+
+    private func contactDraftBinding(
+        fallback: ConversationContactDraft
+    ) -> Binding<ConversationContactDraft> {
+        Binding(
+            get: { contactDraft ?? fallback },
+            set: { updated in
+                contactDraft = updated
+                let wasPending = pendingContactTarget != nil
+                let operationKey = wasPending
+                    ? "ios:contact:\(UUID().uuidString.lowercased())"
+                    : contactOperationKey
+                        ?? sessionStore.contactProposalOperationKey
+                        ?? "ios:contact:\(UUID().uuidString.lowercased())"
+                contactOperationKey = operationKey
+                if wasPending {
+                    pendingContactTarget = nil
+                    pendingContactCapturedAt = nil
+                    pendingContactConfirmIdentityClue = nil
+                }
+                if !sessionStore.saveContactProposal(
+                    updated,
+                    idempotencyKey: operationKey
+                ) {
+                    contactSaveError = appLanguage.text(
+                        "This edit is visible, but it could not be protected for relaunch."
+                    )
+                }
+            }
+        )
+    }
+
+    private func restorePendingContactChoice() {
+        selectedContactPersonID = nil
+        selectedContactContextID = nil
+        createDistinctContact = false
+        saveContactForIdentityReview = false
+        switch pendingContactTarget {
+        case .newPerson:
+            createDistinctContact = true
+        case let .existingPerson(personID, relationshipContextID):
+            selectedContactPersonID = personID
+            selectedContactContextID = relationshipContextID
+        case .unresolved:
+            saveContactForIdentityReview = true
+        case nil:
+            break
         }
     }
 
@@ -1327,6 +2009,595 @@ struct RelationshipAskView: View {
     }
 }
 
+private struct ConversationContactProposalCard: View {
+    @Binding var draft: ConversationContactDraft
+    let candidates: [WorkspacePerson]
+    let lookupPhase: ConversationContactLookupPhase
+    @Binding var selectedPersonID: String?
+    @Binding var selectedContextID: String?
+    @Binding var createDistinct: Bool
+    @Binding var saveForIdentityReview: Bool
+    @Binding var confirmIdentityClue: Bool
+    let hasPendingWrite: Bool
+    let isSaving: Bool
+    let saveMessage: String?
+    let errorMessage: String?
+    let isCanonical: Bool
+    let language: AppLanguage
+    let onConfirm: () -> Void
+    let onRetryLookup: () -> Void
+    let onCancel: () -> Void
+    @State private var showsAllMatches = false
+
+    private var selectedPerson: WorkspacePerson? {
+        candidates.first { $0.id == selectedPersonID }
+    }
+
+    private var canConfirm: Bool {
+        isCanonical
+            && !isSaving
+            && lookupPhase == .complete
+            && !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !draft.relationshipContext.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).isEmpty
+            && (hasPendingWrite || (
+                saveForIdentityReview
+                    || candidates.isEmpty
+                    || (createDistinct && !hasCurrentHistoricalConflict)
+                    || selectedPersonID != nil
+            ))
+            && saveMessage == nil
+    }
+
+    private var hasCurrentHistoricalConflict: Bool {
+        ConversationContactMatchPolicy.hasCurrentHistoricalConflict(in: candidates)
+    }
+
+    private var isReadOnly: Bool {
+        hasPendingWrite || saveMessage != nil
+    }
+
+    private var confirmButtonEmphasized: Bool {
+        canConfirm || isSaving
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "person.crop.circle.badge.plus")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(Color.tsVermilion)
+                    .frame(width: 40, height: 40)
+                    .background(Color.tsVermilion.opacity(0.1), in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(language.text("CONTACT PROPOSAL", zhHans: "联系人提议"))
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.4)
+                        .foregroundStyle(Color.tsVermilion)
+                    TextField(
+                        language.text("Contact name", zhHans: "联系人姓名"),
+                        text: $draft.name
+                    )
+                        .font(.custom("Georgia", size: 26, relativeTo: .title2))
+                        .foregroundStyle(Color.tsInk)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.next)
+                        .disabled(isReadOnly)
+                        .accessibilityIdentifier("contact-proposal-name")
+                    TextField(
+                        language.text("Relationship", zhHans: "关系"),
+                        text: $draft.relationshipContext
+                    )
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .submitLabel(.done)
+                        .disabled(isReadOnly)
+                        .accessibilityIdentifier("contact-proposal-relationship")
+                }
+                Spacer(minLength: 8)
+                Button(action: onCancel) {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(language.text("Dismiss proposal", zhHans: "关闭提议"))
+                .accessibilityIdentifier("contact-dismiss-proposal")
+            }
+
+            if let clue = draft.identityClue {
+                Toggle(isOn: $confirmIdentityClue) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: "\(identityClueLabel(clue)) · \(clue.value)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .textSelection(.enabled)
+                        Text(
+                            language.text(
+                                "Include this identity clue when you confirm"
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                    }
+                }
+                .tint(Color.tsVermilion)
+                .disabled(isReadOnly)
+                .accessibilityIdentifier("contact-confirm-identity-clue")
+            }
+
+            if hasPendingWrite, saveMessage == nil {
+                Label(
+                    language.text(
+                        "Previous outcome is unknown · retry is locked to the original operation"
+                    ),
+                    systemImage: "arrow.triangle.2.circlepath"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+                .accessibilityIdentifier("contact-pending-write-boundary")
+            }
+
+            identityReview
+
+            if let saveMessage {
+                Label(saveMessage, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+                    .accessibilityIdentifier("contact-save-success")
+            } else {
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(Color.tsVermilion)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("contact-save-error")
+                }
+
+                Button(action: onConfirm) {
+                    HStack(spacing: 8) {
+                        if isSaving {
+                            ProgressView()
+                                .tint(Color.tsSurface)
+                        }
+                        Text(confirmTitle)
+                            .font(.subheadline.weight(.bold))
+                        Spacer()
+                        Image(systemName: "arrow.right")
+                            .font(.subheadline.weight(.bold))
+                    }
+                    .foregroundStyle(
+                        confirmButtonEmphasized ? Color.tsSurface : Color.tsMutedInk
+                    )
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 50)
+                    .background(
+                        confirmButtonEmphasized ? Color.tsInk : Color.tsCanvas,
+                        in: RoundedRectangle(cornerRadius: 16)
+                    )
+                    .overlay {
+                        if !confirmButtonEmphasized {
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.tsLine, lineWidth: 1)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(!canConfirm)
+                .accessibilityIdentifier("contact-confirm-save")
+            }
+
+            Label(
+                saveMessage == nil
+                    ? language.text(
+                        "Proposed only · nothing changes until you confirm",
+                        zhHans: "仅为提议 · 确认前不会发生任何更改"
+                    )
+                    : language.text(
+                        "Saved with canonical receipt · source remains traceable"
+                    ),
+                systemImage: saveMessage == nil ? "lock.shield" : "checkmark.shield"
+            )
+            .font(.caption2)
+            .foregroundStyle(Color.tsMutedInk)
+            .accessibilityIdentifier(
+                saveMessage == nil ? "contact-proposal-boundary" : "contact-receipt-boundary"
+            )
+        }
+        .padding(18)
+        .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 24))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color.tsInk.opacity(0.08), lineWidth: 1)
+        }
+        .shadow(color: Color.tsInk.opacity(0.05), radius: 18, y: 8)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("contact-proposal-card")
+        .onChange(of: draft.name) { _ in
+            selectedPersonID = nil
+            selectedContextID = nil
+            createDistinct = false
+            saveForIdentityReview = false
+            showsAllMatches = false
+            if draft.identityClue == nil {
+                onRetryLookup()
+            }
+        }
+        .onChange(of: draft.identityClue) { clue in
+            selectedPersonID = nil
+            selectedContextID = nil
+            createDistinct = false
+            saveForIdentityReview = false
+            confirmIdentityClue = clue != nil
+            showsAllMatches = false
+            onRetryLookup()
+        }
+    }
+
+    @ViewBuilder
+    private var identityReview: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(language.text("IDENTITY CHECK", zhHans: "身份检查"))
+                .font(.caption2.weight(.bold))
+                .tracking(1.2)
+                .foregroundStyle(Color.tsMutedInk)
+
+            if !isCanonical {
+                Label(
+                    language.text(
+                        "Workspace readback is unavailable. Edit safely here; identity checking and save stay disabled.",
+                        zhHans: "工作区回读暂不可用；你仍可安全编辑，但身份检查和保存保持禁用。"
+                    ),
+                    systemImage: "exclamationmark.shield"
+                )
+                .font(.subheadline)
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("contact-workspace-unavailable")
+            } else if lookupPhase == .checking {
+                Label {
+                    Text(
+                        language.text(
+                            "Checking confirmed identity clues…"
+                        )
+                    )
+                } icon: {
+                    ProgressView()
+                }
+                .font(.subheadline)
+                .foregroundStyle(Color.tsInk)
+                .accessibilityIdentifier("contact-identity-checking")
+            } else if case let .failed(message) = lookupPhase {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(message, systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tsInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(action: onRetryLookup) {
+                        Text(language.text("Retry identity check"))
+                            .font(.caption.weight(.semibold))
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("contact-retry-identity-check")
+                }
+                .accessibilityIdentifier("contact-identity-check-failed")
+            } else if candidates.isEmpty {
+                Label(
+                    language.text(
+                        draft.identityClue == nil
+                            ? "No same-name page found · no identity clue to verify"
+                            : "No confirmed identity match · ready to create after review"
+                    ),
+                    systemImage: "checkmark.circle"
+                )
+                .font(.subheadline)
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("contact-identity-no-match")
+            } else {
+                Text(
+                    language.text(
+                        hasCurrentHistoricalConflict
+                            ? "Current and historical owners differ · choose the current owner or keep this unresolved"
+                            : draft.identityClue == nil
+                                ? "Same-name review only · names do not prove identity"
+                                : "Possible identity matches · none selected"
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityIdentifier("contact-no-preselection")
+
+                ForEach(visibleCandidates) { person in
+                    let policyAllowsSelection = ConversationContactMatchPolicy.canSelect(
+                        person,
+                        among: candidates
+                    )
+                    let selectionAllowed = !isReadOnly && policyAllowsSelection
+                    Button {
+                        guard selectionAllowed else { return }
+                        selectedPersonID = person.id
+                        selectedContextID = matchingContext(in: person)?.id
+                        createDistinct = false
+                        saveForIdentityReview = false
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(initials(person.displayLabel))
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.tsVermilion)
+                                .frame(width: 36, height: 36)
+                                .background(Color.tsVermilion.opacity(0.1), in: Circle())
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(person.displayLabel)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.tsInk)
+                                Text(
+                                    matchDetail(for: person)
+                                )
+                                .font(.caption)
+                                .foregroundStyle(Color.tsMutedInk)
+                            }
+                            Spacer()
+                            Image(
+                                systemName: selectionAllowed
+                                    ? selectedPersonID == person.id
+                                        ? "checkmark.circle.fill"
+                                        : "circle"
+                                    : policyAllowsSelection
+                                        ? "lock.circle"
+                                        : "clock.arrow.circlepath"
+                            )
+                            .foregroundStyle(
+                                selectionAllowed && selectedPersonID == person.id
+                                    ? Color.tsVermilion
+                                    : Color.tsMutedInk.opacity(0.5)
+                            )
+                        }
+                        .padding(12)
+                        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!selectionAllowed)
+                    .opacity(selectionAllowed ? 1 : 0.72)
+                    .accessibilityIdentifier("contact-match-\(person.id)")
+                    .accessibilityValue(
+                        selectionAllowed
+                            ? ""
+                            : policyAllowsSelection
+                                ? language.text(
+                                    saveMessage == nil
+                                        ? "Original operation locked · selection disabled"
+                                        : "Saved receipt · selection disabled"
+                                )
+                                : language.text(
+                                    "Historical ownership only · selection disabled"
+                                )
+                    )
+                }
+
+                if candidates.count > 3, !showsAllMatches {
+                    Button {
+                        showsAllMatches = true
+                    } label: {
+                        Text(
+                            language.text(
+                                "Show \(candidates.count - 3) more matches",
+                                zhHans: "显示另外 \(candidates.count - 3) 个匹配项"
+                            )
+                        )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("contact-show-all-matches")
+                }
+
+                if let selectedPerson {
+                    relationshipChoices(for: selectedPerson)
+                        .disabled(isReadOnly)
+                }
+
+                if hasCurrentHistoricalConflict {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Button {
+                            saveForIdentityReview.toggle()
+                            if saveForIdentityReview {
+                                selectedPersonID = nil
+                                selectedContextID = nil
+                                createDistinct = false
+                            }
+                        } label: {
+                            Label(
+                                language.text("Save for identity review"),
+                                systemImage: saveForIdentityReview
+                                    ? "checkmark.square.fill"
+                                    : "square"
+                            )
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(
+                                saveForIdentityReview ? Color.tsVermilion : Color.tsInk
+                            )
+                            .frame(minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isReadOnly)
+                        .accessibilityIdentifier("contact-save-for-identity-review")
+
+                        Button {
+                            draft.identityClue = nil
+                        } label: {
+                            Label(
+                                language.text("Remove identity clue and review by name"),
+                                systemImage: "minus.circle"
+                            )
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .frame(minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isReadOnly)
+                        .accessibilityIdentifier("contact-remove-identity-clue")
+                    }
+                } else {
+                    Button {
+                        createDistinct.toggle()
+                        if createDistinct {
+                            selectedPersonID = nil
+                            selectedContextID = nil
+                            saveForIdentityReview = false
+                        }
+                    } label: {
+                        Label(
+                            language.text(
+                                saveMessage == nil
+                                    ? "Create as a separate person"
+                                    : "Created as a separate person"
+                            ),
+                            systemImage: createDistinct
+                                ? "checkmark.square.fill"
+                                : "square"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(createDistinct ? Color.tsVermilion : Color.tsInk)
+                        .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isReadOnly)
+                    .accessibilityIdentifier("contact-create-distinct")
+                }
+            }
+        }
+    }
+
+    private func relationshipChoices(for person: WorkspacePerson) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(language.text("Add to relationship", zhHans: "添加到关系"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
+            ForEach(person.contexts.prefix(3)) { context in
+                Button {
+                    selectedContextID = context.id
+                } label: {
+                    Label(
+                        context.displayLabel,
+                        systemImage: selectedContextID == context.id
+                            ? "checkmark.circle.fill"
+                            : "circle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsInk)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+            }
+            Button {
+                selectedContextID = nil
+            } label: {
+                Label(
+                    language.text(
+                        "New · \(draft.relationshipContext)",
+                        zhHans: "新关系 · \(draft.relationshipContext)"
+                    ),
+                    systemImage: selectedContextID == nil
+                        ? "checkmark.circle.fill"
+                        : "circle"
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsInk)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 12)
+    }
+
+    private var confirmTitle: String {
+        if hasPendingWrite {
+            return language.text(
+                "Retry same operation"
+            )
+        }
+        if saveForIdentityReview {
+            return language.text("Save for identity review")
+        }
+        if candidates.isEmpty || createDistinct {
+            return language.text("Create contact", zhHans: "创建联系人")
+        }
+        return language.text("Add to existing contact", zhHans: "添加到现有联系人")
+    }
+
+    private var visibleCandidates: [WorkspacePerson] {
+        showsAllMatches ? candidates : Array(candidates.prefix(3))
+    }
+
+    private func matchDetail(for person: WorkspacePerson) -> String {
+        if let match = person.identityMatches.first(where: {
+            $0.kind == "confirmed_handle" || $0.kind == "expired_handle"
+        }) {
+            let status = match.kind == "confirmed_handle"
+                ? language.text("Confirmed", zhHans: "已确认")
+                : language.text("Needs fresh confirmation", zhHans: "需要重新确认")
+            let type = match.handleType.map { handleType in
+                switch handleType {
+                case "email": return language.text("email", zhHans: "邮箱")
+                case "phone": return language.text("phone", zhHans: "电话")
+                case "linkedin_url": return "LinkedIn"
+                default: return language.text("identity clue", zhHans: "身份线索")
+                }
+            } ?? language.text("identity clue", zhHans: "身份线索")
+            if let displayHint = match.displayHint {
+                return "\(status) \(type) · \(displayHint)"
+            }
+            return "\(status) \(type)"
+        }
+        return language.text(
+            "Same name · \(person.contextCount) relationship\(person.contextCount == 1 ? "" : "s")",
+            zhHans: "同名 · \(person.contextCount) 段关系"
+        )
+    }
+
+    private func identityClueLabel(
+        _ clue: ConversationContactDraft.IdentityClue
+    ) -> String {
+        switch clue.type {
+        case "email": return language.text("Email", zhHans: "邮箱")
+        case "phone": return language.text("Phone", zhHans: "电话")
+        case "linkedin_url": return "LinkedIn"
+        default: return language.text("Identity clue", zhHans: "身份线索")
+        }
+    }
+
+    private func matchingContext(in person: WorkspacePerson) -> WorkspacePerson.Context? {
+        let target = draft.relationshipContext.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: .current
+        )
+        return person.contexts.first {
+            $0.displayLabel.folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: .current
+            ) == target
+        }
+    }
+
+    private func initials(_ name: String) -> String {
+        let parts = name.split(separator: " ")
+        let value = String(parts.prefix(2).compactMap(\.first))
+        return value.isEmpty ? String(name.prefix(2)) : value.uppercased()
+    }
+}
+
 private struct AskScope: Identifiable, Equatable {
     let person: WorkspacePerson
     let context: WorkspacePerson.Context
@@ -1353,6 +2624,7 @@ private struct AskTurnView: View {
     let inFlightEvidenceReviewKeys: Set<String>
     let transientSupersededEvidenceReviewKeys: Set<String>
     let evidenceReviewAuthorityReadbackKeys: Set<String>
+    let loadMedia: (String) async throws -> ChatMediaContent
     let onOpenEvidence: (RelationshipAskResponse.Citation) -> Void
     let onRetryEvidenceReview: (AgentEvidenceReviewOperation) -> Void
     let onReinstateEvidence: (AgentEvidenceReviewOperation) -> Void
@@ -1361,13 +2633,28 @@ private struct AskTurnView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(turn.objective)
-                .font(.body)
-                .foregroundStyle(Color.tsSurface)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 11)
-                .background(Color.tsInk, in: RoundedRectangle(cornerRadius: 18))
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            VStack(alignment: .trailing, spacing: 7) {
+                if !turn.response.media.isEmpty {
+                    ChatMediaAlbumBubble(
+                        media: turn.response.media,
+                        load: loadMedia
+                    )
+                    .frame(maxWidth: 310)
+                }
+                Text(turn.objective)
+                    .font(.body)
+                    .foregroundStyle(Color.tsInk)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 11)
+                    .frame(maxWidth: 330, alignment: .trailing)
+                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.tsLine, lineWidth: 1)
+                    }
+                    .accessibilityIdentifier("ask-user-message")
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
 
             if turn.requiresRefresh {
                 Label(
@@ -1384,19 +2671,7 @@ private struct AskTurnView: View {
 
             ForEach(turn.response.blocks) { block in
                 VStack(alignment: .leading, spacing: 9) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(block.title)
-                            .font(.headline)
-                            .foregroundStyle(Color.tsInk)
-                        Spacer(minLength: 8)
-                        if block.requiresUserDecision {
-                            Image(systemName: "checkmark.circle.badge.questionmark")
-                                .foregroundStyle(Color.tsVermilion)
-                                .accessibilityLabel(
-                                    language.text("Needs review", zhHans: "需要审阅")
-                                )
-                        }
-                    }
+                    blockHeader(block)
                     if block.kind == "active_action" {
                         AskActiveActionView(
                             rawBody: block.body,
@@ -1424,7 +2699,7 @@ private struct AskTurnView: View {
                                             Text(citation.sourceName)
                                                 .font(.caption.weight(.semibold))
                                                 .foregroundStyle(Color.tsInk)
-                                            Text(citation.compactProvenance)
+                                            Text(citation.compactProvenance(language: language))
                                                 .font(.caption2)
                                                 .foregroundStyle(Color.tsMutedInk)
                                         }
@@ -1439,8 +2714,8 @@ private struct AskTurnView: View {
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(
                                     language.text(
-                                        "Evidence from \(citation.sourceName), \(citation.compactProvenance)",
-                                        zhHans: "来自 \(citation.sourceName) 的证据，\(citation.compactProvenance)"
+                                        "Evidence from \(citation.sourceName), \(citation.compactProvenance(language: language))",
+                                        zhHans: "来自 \(citation.sourceName) 的证据，\(citation.compactProvenance(language: language))"
                                     )
                                 )
                                 .accessibilityHint(
@@ -1496,6 +2771,48 @@ private struct AskTurnView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ask-response-turn")
     }
+
+    @ViewBuilder
+    private func blockHeader(_ block: RelationshipAskResponse.Block) -> some View {
+        let title = block.kind == "person_brief"
+            ? language.text("Current understanding")
+            : language.workspaceTerm(block.title)
+
+        if block.requiresUserDecision {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    blockTitle(title, kind: block.kind)
+                    Spacer(minLength: 8)
+                    reviewBadge
+                }
+                VStack(alignment: .leading, spacing: 7) {
+                    blockTitle(title, kind: block.kind)
+                    reviewBadge
+                }
+            }
+        } else {
+            blockTitle(title, kind: block.kind)
+        }
+    }
+
+    private func blockTitle(_ title: String, kind: String) -> some View {
+        Text(title)
+            .font(.headline)
+            .foregroundStyle(Color.tsInk)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("ask-block-title-\(kind)")
+    }
+
+    private var reviewBadge: some View {
+        Label(
+            language.text("Needs review"),
+            systemImage: "checkmark.circle.badge.questionmark"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(Color.tsVermilion)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("ask-block-needs-review")
+    }
 }
 
 private struct AskActiveActionView: View {
@@ -1533,7 +2850,7 @@ private struct AskActiveActionView: View {
                 )
             }
             if let effect = fields.effect {
-                Label(effect, systemImage: "shield.lefthalf.filled")
+                Label(language.workspaceTerm(effect), systemImage: "shield.lefthalf.filled")
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1932,9 +3249,49 @@ private struct AskEvidenceReviewHistoryView: View {
 }
 
 extension RelationshipAskResponse.Citation {
+    func compactProvenance(language: AppLanguage) -> String {
+        let day = observedDate.map { date in
+            Self.observedDateFormatter(
+                timeZone: resolvedSourceTimeZone,
+                locale: language.locale
+            ).string(from: date)
+        } ?? language.shortDate(observedAt)
+        return "\(day) · \(language.workspaceValue(attribution.actorKind)) · \(language.workspaceValue(reviewStatus))"
+    }
+
+    func detailedObservedAt(language: AppLanguage) -> String {
+        guard let observedDate else {
+            return "\(observedAt)\(sourceTimezone.map { " · \($0)" } ?? "")"
+        }
+        let value = Self.observedDateTimeFormatter(
+            timeZone: resolvedSourceTimeZone,
+            locale: language.locale
+        ).string(from: observedDate)
+        return sourceTimezone.map { "\(value) · \($0)" } ?? value
+    }
+
+    func detailedLastReviewedAt(language: AppLanguage) -> String? {
+        guard let lastReviewedAt else { return nil }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = fractional.date(from: lastReviewedAt)
+            ?? ISO8601DateFormatter().date(from: lastReviewedAt)
+        guard let date else {
+            return "\(lastReviewedAt)\(sourceTimezone.map { " · \($0)" } ?? "")"
+        }
+        let value = Self.observedDateTimeFormatter(
+            timeZone: resolvedSourceTimeZone,
+            locale: language.locale
+        ).string(from: date)
+        return sourceTimezone.map { "\(value) · \($0)" } ?? value
+    }
+
     var compactProvenance: String {
         let day = observedDate.map { date in
-            Self.observedDateFormatter(timeZone: resolvedSourceTimeZone).string(from: date)
+            Self.observedDateFormatter(
+                timeZone: resolvedSourceTimeZone,
+                locale: Locale(identifier: "en_US_POSIX")
+            ).string(from: date)
         } ?? String(observedAt.prefix(10))
         return "\(day) · \(attribution.actorKind.humanized) · \(reviewStatus.humanized)"
     }
@@ -1944,9 +3301,10 @@ extension RelationshipAskResponse.Citation {
             return "\(observedAt)\(sourceTimezone.map { " · \($0)" } ?? "")"
         }
         let zone = resolvedSourceTimeZone
-        let value = Self.observedDateTimeFormatter(timeZone: zone).string(
-            from: observedDate
-        )
+        let value = Self.observedDateTimeFormatter(
+            timeZone: zone,
+            locale: Locale(identifier: "en_US_POSIX")
+        ).string(from: observedDate)
         return sourceTimezone.map { "\(value) · \($0)" } ?? value
     }
 
@@ -1960,7 +3318,8 @@ extension RelationshipAskResponse.Citation {
             return "\(lastReviewedAt)\(sourceTimezone.map { " · \($0)" } ?? "")"
         }
         let value = Self.observedDateTimeFormatter(
-            timeZone: resolvedSourceTimeZone
+            timeZone: resolvedSourceTimeZone,
+            locale: Locale(identifier: "en_US_POSIX")
         ).string(from: date)
         return sourceTimezone.map { "\(value) · \($0)" } ?? value
     }
@@ -1977,21 +3336,35 @@ extension RelationshipAskResponse.Citation {
             ?? TimeZone(secondsFromGMT: 0)!
     }
 
-    private static func observedDateFormatter(timeZone: TimeZone) -> DateFormatter {
+    private static func observedDateFormatter(
+        timeZone: TimeZone,
+        locale: Locale
+    ) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.locale = locale
         formatter.timeZone = timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
+        if locale.identifier == "en_US_POSIX" {
+            formatter.dateFormat = "yyyy-MM-dd"
+        } else {
+            formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+        }
         return formatter
     }
 
-    private static func observedDateTimeFormatter(timeZone: TimeZone) -> DateFormatter {
+    private static func observedDateTimeFormatter(
+        timeZone: TimeZone,
+        locale: Locale
+    ) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.locale = locale
         formatter.timeZone = timeZone
-        formatter.dateFormat = "yyyy-MM-dd HH:mm zzz"
+        if locale.identifier == "en_US_POSIX" {
+            formatter.dateFormat = "yyyy-MM-dd HH:mm zzz"
+        } else {
+            formatter.setLocalizedDateFormatFromTemplate("yMMMdjmm")
+        }
         return formatter
     }
 }
@@ -2014,7 +3387,7 @@ private struct AskCitationDetailView: View {
                         Text(citation.sourceName)
                             .font(.custom("Georgia", size: 28, relativeTo: .title2))
                             .foregroundStyle(Color.tsInk)
-                        Text(citation.compactProvenance)
+                        Text(citation.compactProvenance(language: language))
                             .font(.caption)
                             .foregroundStyle(Color.tsMutedInk)
                     }
@@ -2032,20 +3405,20 @@ private struct AskCitationDetailView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         citationLine(
                             language.text("Observed", zhHans: "观察时间"),
-                            citation.detailedObservedAt
+                            citation.detailedObservedAt(language: language)
                         )
                         citationLine(
                             language.text("Source state", zhHans: "来源状态"),
-                            "\(citation.reviewStatus.humanized) · capture v\(citation.captureVersion)"
+                            "\(language.workspaceValue(citation.reviewStatus)) · capture v\(citation.captureVersion)"
                         )
                         citationLine(
                             language.text("Attribution", zhHans: "归属"),
-                            "\(citation.attribution.actorKind.humanized) · \(citation.attribution.status.humanized)"
+                            "\(language.workspaceValue(citation.attribution.actorKind)) · \(language.workspaceValue(citation.attribution.status))"
                         )
                         if let reviewer = citation.lastReviewedBy {
                             citationLine(
                                 language.text("Last reviewed", zhHans: "最近审阅"),
-                                "\(reviewer)\(citation.detailedLastReviewedAt.map { " · \($0)" } ?? "")"
+                                "\(reviewer)\(citation.detailedLastReviewedAt(language: language).map { " · \($0)" } ?? "")"
                             )
                         }
                         citationLine(

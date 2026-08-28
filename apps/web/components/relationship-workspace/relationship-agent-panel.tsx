@@ -9,17 +9,18 @@ import type {
   ResourceCaptureResponse,
 } from "@talent-signal/contracts";
 import {
-  AddressBook,
   ArrowRight,
-  CheckCircle,
+  ArrowUp,
   CircleNotch,
   Clock,
+  FileText,
+  ImageSquare,
   LinkSimple,
-  Plus,
+  Paperclip,
   ShieldCheck,
   Sparkle,
-  UserPlus,
 } from "@phosphor-icons/react";
+import { useRef } from "react";
 
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
@@ -28,16 +29,29 @@ import {
   relationshipBriefContinuityReceipt,
   RelationshipHistoryTimeline,
 } from "./relationship-history";
-import type { RelationshipAgentOperation } from "./use-relationship-agent-controller";
+import {
+  RelationshipChatMediaAlbum,
+  RelationshipChatMediaDraftTray,
+} from "./relationship-chat-media";
+import type {
+  RelationshipAgentOperation,
+  RelationshipChatMediaDraft,
+} from "./use-relationship-agent-controller";
+import type { AgentContactDraft } from "@/lib/agent-contact-intake";
+import { AgentVoiceInput } from "./agent-voice-input";
 
 type Props = {
   busyLabel: string;
+  contactDraft: AgentContactDraft | null;
   createOpen: boolean;
   history: RelationshipAgentHistory | null;
   identityResolutionCase: IdentityResolutionCase | null;
   mode: "relationship" | "review";
   objective: string;
   onAsk: () => void;
+  onMediaSelected: (files: FileList | File[]) => void;
+  onRemoveMedia: (clientId: string) => void;
+  onRetryMedia: (clientId: string) => void;
   onCancelCreate: () => void;
   onIdentityCaseUpdated: (nextCase: IdentityResolutionCase) => void;
   onIdentityDeferred: (caseId: string) => void;
@@ -56,10 +70,12 @@ type Props = {
   ) => void;
   onObjectiveChange: (value: string) => void;
   onReviewMerge: (operationId: string) => void;
+  onReviewDuplicates: () => void;
   onReviewSources: () => void;
   onRunCommand: (objective: string) => boolean;
   operation: RelationshipAgentOperation | null;
   pendingCount: number;
+  mediaDrafts: RelationshipChatMediaDraft[];
   response: ChatTaskResponse | null;
   scope: Pick<RelationshipScope, "person" | "relationship_context">;
   submittedObjective: string;
@@ -67,12 +83,16 @@ type Props = {
 
 export function RelationshipAgentPanel({
   busyLabel,
+  contactDraft,
   createOpen,
   history,
   identityResolutionCase,
   mode,
   objective,
   onAsk,
+  onMediaSelected,
+  onRemoveMedia,
+  onRetryMedia,
   onCancelCreate,
   onIdentityCaseUpdated,
   onIdentityDeferred,
@@ -80,14 +100,17 @@ export function RelationshipAgentPanel({
   onInitialResourcesCommitted,
   onObjectiveChange,
   onReviewMerge,
+  onReviewDuplicates,
   onReviewSources,
   onRunCommand,
   operation,
   pendingCount,
+  mediaDrafts,
   response,
   scope,
   submittedObjective,
 }: Props) {
+  const attachmentMenuRef = useRef<HTMLDetailsElement>(null);
   const reviewMode = mode === "review";
   const priorBrief =
     !response && !operation
@@ -112,57 +135,13 @@ export function RelationshipAgentPanel({
         </i>
       </div>
       <div className="context-chat__intro">
-        <p className="eyebrow">RELATIONSHIP AGENT</p>
-        <h1 id="relationship-chat-title">Ask, navigate, or change this page.</h1>
+        <p className="eyebrow">RELATIONSHIP THREAD</p>
+        <h1 id="relationship-chat-title">Say it naturally.</h1>
         <p>
-          {reviewMode
-            ? "I am scoped to this person and relationship. Every answer and proposed change keeps its source boundary."
-            : "I am scoped to this person and relationship. Page changes remain staged until you review them."}
+          Ask a question, paste a relationship update, or add a person. Agent
+          checks the current page and prepares any consequential change for
+          review.
         </p>
-      </div>
-      <div className="context-agent-actions">
-        {reviewMode ? (
-          <button
-            disabled={pendingCount === 0}
-            onClick={() => onRunCommand("Review pending changes")}
-            type="button"
-          >
-            <CheckCircle aria-hidden="true" size={15} />
-            {pendingCount > 0
-              ? `Review ${pendingCount} ${
-                  pendingCount === 1 ? "change" : "changes"
-                }`
-              : "No changes waiting"}
-          </button>
-        ) : null}
-        <button onClick={() => onRunCommand("Add a source")} type="button">
-          <Plus aria-hidden="true" size={15} />
-          Add source
-        </button>
-        {reviewMode ? (
-          <button
-            onClick={() => onRunCommand("Show the next move")}
-            type="button"
-          >
-            <ArrowRight aria-hidden="true" size={15} />
-            Next move
-          </button>
-        ) : null}
-        <button
-          data-active={createOpen}
-          onClick={() => onRunCommand("Create a contact")}
-          type="button"
-        >
-          <UserPlus aria-hidden="true" size={15} />
-          Create contact
-        </button>
-        <button
-          onClick={() => onRunCommand("Review a possible duplicate")}
-          type="button"
-        >
-          <AddressBook aria-hidden="true" size={15} />
-          Review duplicate
-        </button>
       </div>
 
       {identityResolutionCase ? (
@@ -173,9 +152,13 @@ export function RelationshipAgentPanel({
         />
       ) : createOpen ? (
         <AgentCreatePersonCard
+          currentPersonId={scope.person.id}
+          initialDraft={contactDraft}
+          key={contactDraft?.sourceNote ?? "manual-contact-draft"}
           onCancel={onCancelCreate}
           onCommitted={onInitialResourcesCommitted}
           onDeferred={onIdentityDeferred}
+          onReviewDuplicates={onReviewDuplicates}
         />
       ) : operation ? (
         <div
@@ -259,32 +242,98 @@ export function RelationshipAgentPanel({
           onAsk();
         }}
       >
-        <label>
-          <span className="sr-only">Ask about this relationship</span>
-          <textarea
-            maxLength={1_000}
-            onChange={(event) => onObjectiveChange(event.target.value)}
-            rows={2}
-            value={objective}
-          />
-        </label>
-        <button
-          className="context-primary-button"
-          disabled={!objective.trim() || Boolean(busyLabel)}
-          type="submit"
-        >
-          {busyLabel === "Compiling a source-linked brief" ? (
-            <CircleNotch aria-hidden="true" className="spin" size={18} />
+        <RelationshipChatMediaDraftTray
+          drafts={mediaDrafts}
+          onRemove={onRemoveMedia}
+          onRetry={onRetryMedia}
+        />
+        <div className="context-chat__composer-row">
+          <details
+            className="context-chat__attachment-menu"
+            ref={attachmentMenuRef}
+          >
+            <summary aria-label="Add an attachment or governed source">
+              <Paperclip aria-hidden="true" size={19} weight="duotone" />
+            </summary>
+            <div className="context-chat__attachment-popover">
+              <label>
+                <ImageSquare aria-hidden="true" size={18} weight="duotone" />
+                <span>
+                  <strong>Task images</strong>
+                  <small>Use only for this Agent request</small>
+                </span>
+                <input
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                  multiple
+                  onChange={(event) => {
+                    if (event.target.files?.length) {
+                      onMediaSelected(event.target.files);
+                    }
+                    event.target.value = "";
+                    attachmentMenuRef.current?.removeAttribute("open");
+                  }}
+                  type="file"
+                />
+              </label>
+              <button
+                onClick={() => {
+                  attachmentMenuRef.current?.removeAttribute("open");
+                  onReviewSources();
+                }}
+                type="button"
+              >
+                <FileText aria-hidden="true" size={18} weight="duotone" />
+                <span>
+                  <strong>Governed source</strong>
+                  <small>Keep provenance and a deletion path</small>
+                </span>
+              </button>
+            </div>
+          </details>
+          <label className="context-chat__objective">
+            <span className="sr-only">Ask about this relationship</span>
+            <textarea
+              id="relationship-agent-composer"
+              maxLength={1_000}
+              onChange={(event) => onObjectiveChange(event.target.value)}
+              placeholder="Message, paste, or add anything…"
+              rows={2}
+              value={objective}
+            />
+          </label>
+          {objective.trim() ? (
+            <button
+              className="context-primary-button"
+              disabled={
+                Boolean(busyLabel) ||
+                mediaDrafts.some((draft) => draft.status !== "ready")
+              }
+              type="submit"
+            >
+              {busyLabel === "Compiling a source-linked brief" ? (
+                <CircleNotch aria-hidden="true" className="spin" size={18} />
+              ) : (
+                <ArrowUp aria-hidden="true" size={18} weight="bold" />
+              )}
+              <span className="sr-only">Send to Agent</span>
+            </button>
           ) : (
-            <Sparkle aria-hidden="true" size={18} weight="fill" />
+            <AgentVoiceInput
+              disabled={Boolean(busyLabel)}
+              onTranscript={(transcript) =>
+                onObjectiveChange(transcript.slice(0, 1_000))
+              }
+            />
           )}
-          Ask Agent
-        </button>
+        </div>
       </form>
 
       {response ? (
         <div className="context-chat__response">
-          <p className="context-agent-user-message">{submittedObjective}</p>
+          <div className="context-agent-user-turn">
+            <p className="context-agent-user-message">{submittedObjective}</p>
+            <RelationshipChatMediaAlbum media={response.media ?? []} />
+          </div>
           <div className="context-chat__response-meta">
             <span>Snapshot {response.knowledge_snapshot_id.slice(0, 8)}</span>
             <span>Manifest {response.context_manifest_id.slice(0, 8)}</span>

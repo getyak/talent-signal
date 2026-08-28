@@ -62,18 +62,54 @@ describe("persistent workspace shell", () => {
     );
   });
 
-  it("opens capture from a same-route shell transition and clears the intent on close", () => {
+  it("routes the global New action into the single Agent composer", () => {
     const navigation = read("components/workspace-shell-nav.tsx");
     const workspace = read("components/relationship-workspace-app.tsx");
+    const relationshipAgent = read(
+      "components/relationship-workspace/relationship-agent-panel.tsx",
+    );
+    const startAgent = read(
+      "components/relationship-workspace/relationship-agent-start-panel.tsx",
+    );
 
     expect(navigation).toContain(
-      'window.dispatchEvent(new Event("talent-signal:open-capture"))',
+      'window.dispatchEvent(new Event("talent-signal:focus-agent"))',
     );
+    expect(navigation).toContain("intent=compose");
     expect(workspace).toContain(
-      'window.addEventListener("talent-signal:open-capture", openCapture)',
+      'window.addEventListener("talent-signal:focus-agent", focusAgent)',
     );
+    expect(workspace).toContain('"relationship-agent-composer"');
     expect(workspace).toContain('location.searchParams.delete("intent")');
-    expect(workspace).toContain("onClose={closeCapture}");
+    expect(relationshipAgent).toContain(
+      'id="relationship-agent-composer"',
+    );
+    expect(startAgent).toContain('id="relationship-agent-composer"');
+    expect(relationshipAgent).toContain("<AgentVoiceInput");
+    expect(startAgent).toContain("<AgentVoiceInput");
+    expect(relationshipAgent).toContain("onTranscript=");
+    expect(startAgent).toContain("onTranscript=");
+  });
+
+  it("keeps governed capture behind the Agent attachment disclosure", () => {
+    const workspace = read("components/relationship-workspace-app.tsx");
+    const relationshipAgent = read(
+      "components/relationship-workspace/relationship-agent-panel.tsx",
+    );
+    const resourceSection = read(
+      "components/relationship-workspace/relationship-resource-section.tsx",
+    );
+
+    expect(workspace).not.toContain("Import screenshot");
+    expect(workspace).toContain("<CapturePanel");
+    expect(relationshipAgent).toContain(
+      'aria-label="Add an attachment or governed source"',
+    );
+    expect(relationshipAgent).toContain("Task images");
+    expect(relationshipAgent).toContain("Governed source");
+    expect(resourceSection).toContain("if (!open)");
+    expect(resourceSection).toContain("return null");
+    expect(resourceSection).not.toContain("Choose source");
   });
 });
 
@@ -217,5 +253,24 @@ describe("relationship workspace initial read", () => {
     expect(reviewGate).toContain("reviewedProposalIds");
     expect(reviewGate).toContain("key={pending.id}");
     expect(reviewGate).toContain("Review next Proposal");
+  });
+
+  it("takes review-ready Today work directly to the human decision gate", () => {
+    const today = read("components/pursuit-today-page.tsx");
+    const proposal = read("components/pursuit-proposal-review.tsx");
+    const room = read("app/workspace/pursuits/[id]/page.tsx");
+    const roomStyles = read("components/pursuit-room.module.css");
+
+    expect(today).toContain('item.proposalStatus === "needs_review"');
+    expect(today).toContain('`${room}#proposal`');
+    expect(today).toContain('"Review proposal"');
+    expect(today).toContain('item.attentionKind !== "review"');
+    expect(proposal).toContain('id="proposal"');
+    expect(proposal).toContain('proposalRef.current?.focus({ preventScroll: true })');
+    expect(proposal).toContain("tabIndex={-1}");
+    expect(room).toContain('pursuit.target_outcome.replaceAll("_", " ")');
+    expect(roomStyles).toMatch(
+      /\.decisionOptions span \{[\s\S]*?min-height: 44px;/,
+    );
   });
 });

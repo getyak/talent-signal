@@ -10,6 +10,8 @@ import {
   type AssertionDecisionRequest,
   type AssertionDecisionResponse,
   type ChatTaskResponse,
+  type ChatMediaAsset,
+  type ChatMediaDeleteResponse,
   type CaptureIdentityCorrectionRequest,
   type CaptureIdentityCorrectionResponse,
   type DeleteCaptureResponse,
@@ -42,6 +44,7 @@ import {
   type SourceAuthorizationDecisionResponse,
   type SubmitAnalysisProposalRequest,
   type WorkspaceReviewResponse,
+  type VoiceTranscriptionDraft,
 } from "@talent-signal/contracts";
 
 import {
@@ -1019,7 +1022,62 @@ export type AskRelationshipChatInput = {
   person_id: string;
   relationship_context_id: string;
   objective: string;
+  media_ids?: string[];
 };
+
+export async function uploadRelationshipChatMedia(input: {
+  request_id: string;
+  person_id: string;
+  relationship_context_id: string;
+  file_name: string;
+  media_type: ChatMediaAsset["media_type"];
+  bytes: Uint8Array;
+  width?: number;
+  height?: number;
+}): Promise<ChatMediaAsset> {
+  if (
+    !UUID.test(input.request_id) ||
+    !UUID.test(input.person_id) ||
+    !UUID.test(input.relationship_context_id) ||
+    input.bytes.byteLength < 1 ||
+    input.bytes.byteLength > 8 * 1024 * 1024
+  ) {
+    throw new Error("The Chat image upload scope is incomplete.");
+  }
+  const { client } = await authenticatedClient("web-chat-media-upload");
+  const staged = await client.createChatMedia({
+    idempotency_key: `web-chat-media:${input.request_id}`,
+    person_id: input.person_id,
+    relationship_context_id: input.relationship_context_id,
+    file_name: input.file_name,
+    media_type: input.media_type,
+    byte_size: input.bytes.byteLength,
+    ...(input.width ? { width: input.width } : {}),
+    ...(input.height ? { height: input.height } : {}),
+  });
+  if (staged.status === "ready") return staged;
+  return client.uploadChatMediaContent(
+    staged.id,
+    input.bytes,
+    input.media_type,
+  );
+}
+
+export async function deleteRelationshipChatMedia(
+  mediaId: string,
+): Promise<ChatMediaDeleteResponse> {
+  if (!UUID.test(mediaId)) throw new Error("The Chat image ID is invalid.");
+  const { client } = await authenticatedClient("web-chat-media-delete");
+  return client.deleteChatMedia(mediaId);
+}
+
+export async function readRelationshipChatMedia(
+  mediaId: string,
+): Promise<Response> {
+  if (!UUID.test(mediaId)) throw new Error("The Chat image ID is invalid.");
+  const { client } = await authenticatedClient("web-chat-media-read");
+  return client.getChatMediaContent(mediaId);
+}
 
 export async function askRelationshipChat(
   input: AskRelationshipChatInput,
@@ -1031,7 +1089,9 @@ export async function askRelationshipChat(
     !/^[0-9a-f-]{36}$/i.test(input.person_id) ||
     !/^[0-9a-f-]{36}$/i.test(input.relationship_context_id) ||
     input.objective.trim().length === 0 ||
-    input.objective.length > 1_000
+    input.objective.length > 1_000 ||
+    (input.media_ids?.length ?? 0) > 10 ||
+    (input.media_ids ?? []).some((id) => !UUID.test(id))
   ) {
     throw new Error("The Chat task scope is incomplete.");
   }
@@ -1050,7 +1110,36 @@ export async function askRelationshipChat(
     objective,
     person_id: input.person_id,
     relationship_context_id: input.relationship_context_id,
+    ...(input.media_ids?.length ? { media_ids: input.media_ids } : {}),
   });
+}
+
+export async function transcribeRelationshipVoice(input: {
+  audio_base64: string;
+  client_request_id: string;
+  mime_type: "audio/wav";
+}): Promise<VoiceTranscriptionDraft> {
+  if (
+    !UUID.test(input.client_request_id) ||
+    input.mime_type !== "audio/wav" ||
+    input.audio_base64.length < 60 ||
+    input.audio_base64.length > 3_333_336 ||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(input.audio_base64)
+  ) {
+    throw new Error("The temporary voice recording is invalid.");
+  }
+  const { client } = await authenticatedClient("web-relationship-voice");
+  const draft = await client.transcribeVoice(input);
+  if (
+    draft.client_request_id !== input.client_request_id ||
+    draft.provider !== "doubao" ||
+    draft.status !== "draft" ||
+    draft.temporary_audio_stored_by_talent_signal !== false ||
+    !draft.transcript.trim()
+  ) {
+    throw new Error("Voice transcription returned an invalid draft.");
+  }
+  return draft;
 }
 
 export async function decideBackendAssertion(

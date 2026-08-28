@@ -35,7 +35,7 @@ struct PursuitWorkspaceSession: Equatable {
             userEmail: value(after: "--workspace-user-email", in: arguments)
                 ?? "recruiter@alpha.local",
             accessToken: nil,
-            accountID: nil,
+            accountID: value(after: "--workspace-account-id", in: arguments),
             userID: nil,
             userDisplayName: nil
         )
@@ -59,14 +59,248 @@ struct PursuitEvidenceReviewResult: Equatable {
     let decidedAt: String
 }
 
+private struct ConversationContactCaptureBody: Encodable {
+    let contractVersion: String
+    let idempotencyKey: String
+    let channel: String
+    let purpose: String
+    let capturedAt: String
+    let sourceTimezone: String
+    let personScope: PersonScope
+    let resource: Resource
+    let confirmedIdentityHandles: [IdentityHandle]?
+    let fragments: [Fragment]
+
+    enum CodingKeys: String, CodingKey {
+        case contractVersion = "contract_version"
+        case idempotencyKey = "idempotency_key"
+        case channel, purpose
+        case capturedAt = "captured_at"
+        case sourceTimezone = "source_timezone"
+        case personScope = "person_scope"
+        case resource
+        case confirmedIdentityHandles = "confirmed_identity_handles"
+        case fragments
+    }
+
+    enum PersonScope: Encodable {
+        case newPerson(
+            displayLabel: String,
+            relationshipContext: RelationshipContext,
+            bindingBasis: String
+        )
+        case confirmed(
+            personID: String,
+            relationshipContext: RelationshipContext,
+            bindingBasis: String
+        )
+        case unresolved(
+            displayNameHint: String,
+            handles: [IdentityHandle],
+            relationshipContext: RelationshipContext,
+            reason: String
+        )
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case displayLabel = "display_label"
+            case personID = "person_id"
+            case displayNameHint = "display_name_hint"
+            case handles
+            case relationshipContext = "relationship_context"
+            case bindingBasis = "binding_basis"
+            case reason
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case let .newPerson(displayLabel, relationshipContext, bindingBasis):
+                try container.encode("new_person", forKey: .status)
+                try container.encode(displayLabel, forKey: .displayLabel)
+                try container.encode(relationshipContext, forKey: .relationshipContext)
+                try container.encode(bindingBasis, forKey: .bindingBasis)
+            case let .confirmed(personID, relationshipContext, bindingBasis):
+                try container.encode("confirmed", forKey: .status)
+                try container.encode(personID, forKey: .personID)
+                try container.encode(relationshipContext, forKey: .relationshipContext)
+                try container.encode(bindingBasis, forKey: .bindingBasis)
+            case let .unresolved(displayNameHint, handles, relationshipContext, reason):
+                try container.encode("unresolved", forKey: .status)
+                try container.encode(displayNameHint, forKey: .displayNameHint)
+                try container.encode(handles, forKey: .handles)
+                try container.encode(relationshipContext, forKey: .relationshipContext)
+                try container.encode(reason, forKey: .reason)
+            }
+        }
+    }
+
+    struct RelationshipContext: Encodable {
+        let status: String
+        let relationshipContextID: String?
+        let label: String?
+        let purpose: String?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case relationshipContextID = "relationship_context_id"
+            case label, purpose
+        }
+    }
+
+    struct Resource: Encodable {
+        let clientResourceID: String
+        let kind: String
+        let displayName: String
+        let mediaType: String
+        let observedAt: String
+        let sourceTimezone: String
+        let retention: Retention
+
+        enum CodingKeys: String, CodingKey {
+            case clientResourceID = "client_resource_id"
+            case kind
+            case displayName = "display_name"
+            case mediaType = "media_type"
+            case observedAt = "observed_at"
+            case sourceTimezone = "source_timezone"
+            case retention
+        }
+    }
+
+    struct Retention: Encodable {
+        let requestedMode: String
+        let sourceScope: String
+
+        enum CodingKeys: String, CodingKey {
+            case requestedMode = "requested_mode"
+            case sourceScope = "source_scope"
+        }
+    }
+
+    struct IdentityHandle: Encodable {
+        let type: String
+        let value: String
+        let sourceClientResourceID: String
+
+        enum CodingKeys: String, CodingKey {
+            case type, value
+            case sourceClientResourceID = "source_client_resource_id"
+        }
+    }
+
+    struct Fragment: Encodable {
+        let clientResourceID: String
+        let kind: String
+        let sequence: Int
+        let text: String
+        let locator: Locator
+        let attribution: Attribution
+        let reviewStatus: String
+        let parser: Parser
+
+        enum CodingKeys: String, CodingKey {
+            case clientResourceID = "client_resource_id"
+            case kind, sequence, text, locator, attribution
+            case reviewStatus = "review_status"
+            case parser
+        }
+    }
+
+    struct Locator: Encodable {
+        let kind: String
+        let revision: Int?
+        let field: String?
+        let sourceRecordVersion: String?
+
+        enum CodingKeys: String, CodingKey {
+            case kind, revision, field
+            case sourceRecordVersion = "source_record_version"
+        }
+    }
+
+    struct Attribution: Encodable {
+        let actorKind: String
+        let status: String
+
+        enum CodingKeys: String, CodingKey {
+            case actorKind = "actor_kind"
+            case status
+        }
+    }
+
+    struct Parser: Encodable {
+        let name: String
+        let version: String
+    }
+}
+
+struct ChatMediaAsset: Codable, Equatable, Identifiable {
+    let id: String
+    let fileName: String
+    let mediaType: String
+    let byteSize: Int
+    let width: Int?
+    let height: Int?
+    let status: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, width, height, status
+        case fileName = "file_name"
+        case mediaType = "media_type"
+        case byteSize = "byte_size"
+        case createdAt = "created_at"
+    }
+}
+
+struct ChatMediaContent: Equatable {
+    let data: Data
+    let mediaType: String
+}
+
 protocol PursuitWorkspaceServing {
     func loadWorkspace() async throws -> PursuitWorkspaceSnapshot
+    func findContactMatches(
+        identityClue: ConversationContactDraft.IdentityClue
+    ) async throws -> [WorkspacePerson]
+    func saveContactDraft(
+        _ draft: ConversationContactDraft,
+        target: ConversationContactTarget,
+        confirmIdentityClue: Bool,
+        capturedAt: Date,
+        idempotencyKey: String
+    ) async throws -> ResourceCaptureResult
     func ask(
         objective: String,
         personID: String,
         relationshipContextID: String,
         idempotencyKey: String
     ) async throws -> RelationshipAskResponse
+    func ask(
+        objective: String,
+        personID: String,
+        relationshipContextID: String,
+        idempotencyKey: String,
+        mediaIDs: [String]
+    ) async throws -> RelationshipAskResponse
+    func createChatMedia(
+        personID: String,
+        relationshipContextID: String,
+        fileName: String,
+        mediaType: String,
+        byteSize: Int,
+        width: Int?,
+        height: Int?,
+        idempotencyKey: String
+    ) async throws -> ChatMediaAsset
+    func uploadChatMedia(
+        id: String,
+        data: Data,
+        mediaType: String
+    ) async throws -> ChatMediaAsset
+    func deleteChatMedia(id: String) async throws
+    func loadChatMedia(id: String) async throws -> ChatMediaContent
     func revalidateAsk(
         response: RelationshipAskResponse,
         personID: String,
@@ -99,12 +333,75 @@ protocol PursuitWorkspaceServing {
 }
 
 extension PursuitWorkspaceServing {
+    func findContactMatches(
+        identityClue: ConversationContactDraft.IdentityClue
+    ) async throws -> [WorkspacePerson] {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func saveContactDraft(
+        _ draft: ConversationContactDraft,
+        target: ConversationContactTarget,
+        confirmIdentityClue: Bool,
+        capturedAt: Date,
+        idempotencyKey: String
+    ) async throws -> ResourceCaptureResult {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
     func ask(
         objective: String,
         personID: String,
         relationshipContextID: String,
         idempotencyKey: String
     ) async throws -> RelationshipAskResponse {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func ask(
+        objective: String,
+        personID: String,
+        relationshipContextID: String,
+        idempotencyKey: String,
+        mediaIDs: [String]
+    ) async throws -> RelationshipAskResponse {
+        guard mediaIDs.isEmpty else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        return try await ask(
+            objective: objective,
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func createChatMedia(
+        personID: String,
+        relationshipContextID: String,
+        fileName: String,
+        mediaType: String,
+        byteSize: Int,
+        width: Int?,
+        height: Int?,
+        idempotencyKey: String
+    ) async throws -> ChatMediaAsset {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func uploadChatMedia(
+        id: String,
+        data: Data,
+        mediaType: String
+    ) async throws -> ChatMediaAsset {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func deleteChatMedia(id: String) async throws {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func loadChatMedia(id: String) async throws -> ChatMediaContent {
         throw PursuitWorkspaceClientError.askUnavailable
     }
 
@@ -266,11 +563,182 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         )
     }
 
+    func findContactMatches(
+        identityClue: ConversationContactDraft.IdentityClue
+    ) async throws -> [WorkspacePerson] {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        let result: WorkspacePeopleEnvelope = try await post(
+            path: "v1/people/search",
+            token: login.accessToken,
+            body: WorkspacePeopleSearchBody(query: identityClue.value)
+        )
+        guard result.contractVersion == TalentSignalAPIContract.version else {
+            throw PursuitWorkspaceClientError.scopeReadbackMismatch
+        }
+        return ConversationContactMatchPolicy.authoritativeMatches(in: result.people)
+    }
+
+    func saveContactDraft(
+        _ draft: ConversationContactDraft,
+        target: ConversationContactTarget,
+        confirmIdentityClue: Bool,
+        capturedAt: Date,
+        idempotencyKey: String
+    ) async throws -> ResourceCaptureResult {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        let observedAt = Self.contactTimestamp(capturedAt)
+        let clientResourceID = "ios-contact:\(idempotencyKey.suffix(72))"
+        let personScope: ConversationContactCaptureBody.PersonScope
+        switch target {
+        case .newPerson:
+            personScope = .newPerson(
+                displayLabel: draft.name,
+                relationshipContext: .init(
+                    status: "proposed",
+                    relationshipContextID: nil,
+                    label: draft.relationshipContext,
+                    purpose: "Recruiter-defined relationship context"
+                ),
+                bindingBasis: "The signed-in recruiter reviewed the Agent proposal and explicitly chose to create a new person."
+            )
+        case let .existingPerson(personID, relationshipContextID):
+            personScope = .confirmed(
+                personID: personID,
+                relationshipContext: .init(
+                    status: relationshipContextID == nil ? "proposed" : "existing",
+                    relationshipContextID: relationshipContextID,
+                    label: relationshipContextID == nil ? draft.relationshipContext : nil,
+                    purpose: relationshipContextID == nil
+                        ? "Recruiter-defined relationship context"
+                        : nil
+                ),
+                bindingBasis: "The signed-in recruiter reviewed the visible identity match and explicitly chose this person."
+            )
+        case .unresolved:
+            let handles = draft.identityClue.map {
+                [ConversationContactCaptureBody.IdentityHandle(
+                    type: $0.type,
+                    value: $0.value,
+                    sourceClientResourceID: clientResourceID
+                )]
+            } ?? []
+            personScope = .unresolved(
+                displayNameHint: draft.name,
+                handles: handles,
+                relationshipContext: .init(
+                    status: "proposed",
+                    relationshipContextID: nil,
+                    label: draft.relationshipContext,
+                    purpose: "Recruiter-defined relationship context"
+                ),
+                reason: "The recruiter preserved this source for identity review because current and historical identity ownership conflict."
+            )
+        }
+        let confirmedHandles: [ConversationContactCaptureBody.IdentityHandle]?
+        if target != .unresolved, confirmIdentityClue, let clue = draft.identityClue {
+            confirmedHandles = [
+                .init(
+                    type: clue.type,
+                    value: clue.value,
+                    sourceClientResourceID: clientResourceID
+                )
+            ]
+        } else {
+            confirmedHandles = nil
+        }
+        let body = ConversationContactCaptureBody(
+            contractVersion: TalentSignalAPIContract.version,
+            idempotencyKey: idempotencyKey,
+            channel: "chat",
+            purpose: "Preserve a recruiter-reviewed contact note after explicit identity confirmation",
+            capturedAt: observedAt,
+            sourceTimezone: TimeZone.current.identifier,
+            personScope: personScope,
+            resource: .init(
+                clientResourceID: clientResourceID,
+                kind: "contact_record",
+                displayName: "Agent contact intake",
+                mediaType: "text/plain",
+                observedAt: observedAt,
+                sourceTimezone: TimeZone.current.identifier,
+                retention: .init(
+                    requestedMode: "ephemeral",
+                    sourceScope: "reviewed_selected_text"
+                )
+            ),
+            confirmedIdentityHandles: confirmedHandles,
+            fragments: [
+                .init(
+                    clientResourceID: clientResourceID,
+                    kind: "contact_field",
+                    sequence: 0,
+                    text: draft.sourceNote,
+                    locator: .init(
+                        kind: "contact_field",
+                        revision: nil,
+                        field: "source_note",
+                        sourceRecordVersion: "1"
+                    ),
+                    attribution: .init(actorKind: "recruiter", status: "confirmed"),
+                    reviewStatus: "reviewed",
+                    parser: .init(name: "ios-agent-contact-intake", version: "1.0.0")
+                )
+            ]
+        )
+        let result: ResourceCaptureResult = try await post(
+            path: "v1/resource-captures",
+            token: login.accessToken,
+            body: body
+        )
+        switch target {
+        case .unresolved:
+            guard ["needs_review", "unresolved"].contains(result.identity.status),
+                  result.identity.personID == nil,
+                  result.identity.resolutionCaseID != nil else {
+                throw PursuitWorkspaceClientError.scopeReadbackMismatch
+            }
+        case .newPerson, .existingPerson:
+            guard result.identity.status == "bound", result.identity.personID != nil else {
+                throw PursuitWorkspaceClientError.scopeReadbackMismatch
+            }
+        }
+        if case let .existingPerson(expectedPersonID, expectedContextID) = target {
+            guard result.identity.personID == expectedPersonID,
+                  expectedContextID == nil
+                    || result.identity.relationshipContextID == expectedContextID else {
+                throw PursuitWorkspaceClientError.scopeReadbackMismatch
+            }
+        }
+        return result
+    }
+
     func ask(
         objective: String,
         personID: String,
         relationshipContextID: String,
         idempotencyKey: String
+    ) async throws -> RelationshipAskResponse {
+        try await ask(
+            objective: objective,
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            idempotencyKey: idempotencyKey,
+            mediaIDs: []
+        )
+    }
+
+    func ask(
+        objective: String,
+        personID: String,
+        relationshipContextID: String,
+        idempotencyKey: String,
+        mediaIDs: [String]
     ) async throws -> RelationshipAskResponse {
         guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
             throw PursuitWorkspaceClientError.loopbackOnly
@@ -280,7 +748,8 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             idempotencyKey: idempotencyKey,
             objective: objective,
             personID: personID,
-            relationshipContextID: relationshipContextID
+            relationshipContextID: relationshipContextID,
+            mediaIDs: mediaIDs
         )
         let response: RelationshipAskResponse
         do {
@@ -323,6 +792,104 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             expectedPersonID: personID,
             expectedRelationshipContextID: relationshipContextID
         )
+    }
+
+    func createChatMedia(
+        personID: String,
+        relationshipContextID: String,
+        fileName: String,
+        mediaType: String,
+        byteSize: Int,
+        width: Int?,
+        height: Int?,
+        idempotencyKey: String
+    ) async throws -> ChatMediaAsset {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        return try await post(
+            path: "v1/chat/media",
+            token: login.accessToken,
+            body: CreateChatMediaBody(
+                idempotencyKey: idempotencyKey,
+                personID: personID,
+                relationshipContextID: relationshipContextID,
+                fileName: fileName,
+                mediaType: mediaType,
+                byteSize: byteSize,
+                width: width,
+                height: height
+            )
+        )
+    }
+
+    func uploadChatMedia(
+        id: String,
+        data: Data,
+        mediaType: String
+    ) async throws -> ChatMediaAsset {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        var request = URLRequest(
+            url: baseURL.appending(path: "v1/chat/media/\(id)/content")
+        )
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "accept")
+        request.setValue(mediaType, forHTTPHeaderField: "content-type")
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        request.httpBody = data
+        return try await decodedResponse(request, rejectionMessage: "The image upload was rejected.")
+    }
+
+    func deleteChatMedia(id: String) async throws {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        var request = URLRequest(url: baseURL.appending(path: "v1/chat/media/\(id)"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "accept")
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        let response: ChatMediaDeleteResponse = try await decodedResponse(
+            request,
+            rejectionMessage: "The image could not be removed."
+        )
+        guard response.id == id, response.status == "deleted" else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+    }
+
+    func loadChatMedia(id: String) async throws -> ChatMediaContent {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        var request = URLRequest(
+            url: baseURL.appending(path: "v1/chat/media/\(id)/content")
+        )
+        request.httpMethod = "GET"
+        request.setValue("image/*", forHTTPHeaderField: "accept")
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw Self.backendError(
+                data: data,
+                statusCode: http.statusCode,
+                fallback: "The image could not be read."
+            )
+        }
+        guard let mediaType = http.value(forHTTPHeaderField: "content-type"),
+              mediaType.hasPrefix("image/"),
+              !data.isEmpty else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+        return ChatMediaContent(data: data, mediaType: mediaType)
     }
 
     func revalidateAsk(
@@ -514,15 +1081,25 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
         request.httpBody = try JSONEncoder().encode(body)
+        return try await decodedResponse(
+            request,
+            rejectionMessage: "The action outcome was rejected."
+        )
+    }
+
+    private func decodedResponse<Response: Decodable>(
+        _ request: URLRequest,
+        rejectionMessage: String
+    ) async throws -> Response {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw PursuitWorkspaceClientError.invalidResponse
         }
         guard (200...299).contains(http.statusCode) else {
-            let envelope = try? JSONDecoder().decode(WorkspaceErrorEnvelope.self, from: data)
-            throw PursuitWorkspaceClientError.backend(
-                code: envelope?.error?.code ?? "HTTP_\(http.statusCode)",
-                message: envelope?.error?.message ?? "The action outcome was rejected."
+            throw Self.backendError(
+                data: data,
+                statusCode: http.statusCode,
+                fallback: rejectionMessage
             )
         }
         do {
@@ -532,11 +1109,29 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         }
     }
 
+    private static func backendError(
+        data: Data,
+        statusCode: Int,
+        fallback: String
+    ) -> PursuitWorkspaceClientError {
+        let envelope = try? JSONDecoder().decode(WorkspaceErrorEnvelope.self, from: data)
+        return .backend(
+            code: envelope?.error?.code ?? "HTTP_\(statusCode)",
+            message: envelope?.error?.message ?? fallback
+        )
+    }
+
     private static func isVerifiedTimestamp(_ value: String) -> Bool {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fractional.date(from: value) != nil
             || ISO8601DateFormatter().date(from: value) != nil
+    }
+
+    private static func contactTimestamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 
     static func validatedEvidenceReviewResult(
@@ -643,6 +1238,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
     let knowledgeSnapshotID: String
     let disposition: String
     let blocks: [Block]
+    let media: [ChatMediaAsset]
     let createdAt: String
     let citations: [Citation]
 
@@ -770,6 +1366,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         knowledgeSnapshotID: String,
         disposition: String,
         blocks: [Block],
+        media: [ChatMediaAsset] = [],
         createdAt: String,
         citations: [Citation] = []
     ) {
@@ -779,6 +1376,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         self.knowledgeSnapshotID = knowledgeSnapshotID
         self.disposition = disposition
         self.blocks = blocks
+        self.media = media
         self.createdAt = createdAt
         self.citations = citations
     }
@@ -791,6 +1389,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         knowledgeSnapshotID = try container.decode(String.self, forKey: .knowledgeSnapshotID)
         disposition = try container.decode(String.self, forKey: .disposition)
         blocks = try container.decode([Block].self, forKey: .blocks)
+        media = try container.decodeIfPresent([ChatMediaAsset].self, forKey: .media) ?? []
         createdAt = try container.decode(String.self, forKey: .createdAt)
         citations = []
     }
@@ -803,6 +1402,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             knowledgeSnapshotID: knowledgeSnapshotID,
             disposition: disposition,
             blocks: blocks,
+            media: media,
             createdAt: createdAt,
             citations: citations
         )
@@ -813,7 +1413,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         case taskID = "task_id"
         case contextManifestID = "context_manifest_id"
         case knowledgeSnapshotID = "knowledge_snapshot_id"
-        case disposition, blocks
+        case disposition, blocks, media
         case createdAt = "created_at"
     }
 }
@@ -830,6 +1430,7 @@ struct RelationshipAskReadback: Decodable, Equatable {
     let snapshotStatus: String
     let authorizationScope: String
     let citations: [RelationshipAskResponse.Citation]
+    let media: [ChatMediaAsset]?
     let createdAt: String
 
     func validated(
@@ -856,6 +1457,12 @@ struct RelationshipAskReadback: Decodable, Equatable {
         )
         guard Set(citations.map(\.id)).count == citations.count else {
             throw PursuitWorkspaceClientError.askCitationBindingMismatch
+        }
+        let responseMediaIDs = response.media.map(\.id)
+        let readbackMedia = media ?? []
+        guard responseMediaIDs == readbackMedia.map(\.id),
+              readbackMedia.allSatisfy({ $0.status == "ready" }) else {
+            throw PursuitWorkspaceClientError.askReadbackEnvelopeMismatch
         }
         let detailsByID = Dictionary(
             uniqueKeysWithValues: citations.map { ($0.id, $0) }
@@ -886,7 +1493,7 @@ struct RelationshipAskReadback: Decodable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case citations
+        case citations, media
         case contractVersion = "contract_version"
         case accountID = "account_id"
         case taskID = "task_id"
@@ -906,13 +1513,41 @@ private struct RelationshipAskBody: Encodable {
     let objective: String
     let personID: String
     let relationshipContextID: String
+    let mediaIDs: [String]
 
     enum CodingKeys: String, CodingKey {
         case idempotencyKey = "idempotency_key"
         case objective
         case personID = "person_id"
         case relationshipContextID = "relationship_context_id"
+        case mediaIDs = "media_ids"
     }
+}
+
+private struct CreateChatMediaBody: Encodable {
+    let idempotencyKey: String
+    let personID: String
+    let relationshipContextID: String
+    let fileName: String
+    let mediaType: String
+    let byteSize: Int
+    let width: Int?
+    let height: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case idempotencyKey = "idempotency_key"
+        case personID = "person_id"
+        case relationshipContextID = "relationship_context_id"
+        case fileName = "file_name"
+        case mediaType = "media_type"
+        case byteSize = "byte_size"
+        case width, height
+    }
+}
+
+private struct ChatMediaDeleteResponse: Decodable {
+    let id: String
+    let status: String
 }
 
 private struct WorkspaceEvidenceReviewBody: Encodable {
@@ -1036,6 +1671,10 @@ private struct WorkspacePeopleEnvelope: Decodable {
         case contractVersion = "contract_version"
         case people
     }
+}
+
+private struct WorkspacePeopleSearchBody: Encodable {
+    let query: String
 }
 
 private struct WorkspaceProposalListEnvelope: Decodable {

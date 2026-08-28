@@ -1,25 +1,41 @@
 # Talent Signal for iOS
 
-The native SwiftUI client opens on Pursuit-first Today. Today, Pursuits, and
+The native SwiftUI client opens on Pursuit-first Today. Today, Sessions, and
 People are projections of the same account-scoped canonical workspace; Inbox
 opens the Proposal, item decision, revision, Receipt, and readback loop. Failed
 reads do not substitute preview facts, and attention ranks work rather than a
 person.
 
-Ask opens as a focused, Pursuit-scoped AI conversation with canonical Person
-and context lookup, compact prompt tools, capture, and direct record navigation.
+The familiar Today, Sessions, and People navigation stays in the top rail. A
+single global Agent composer remains thumb-reachable at the bottom: natural
+contact messages become review-only contact proposals, while the paperclip
+enters screenshot review directly. Ask opens as a focused AI conversation with
+canonical Person and context lookup, compact prompt tools, capture, and direct
+record navigation. A contact proposal checks exact workspace names without
+preselection, then requires an explicit decision to add the source to an
+existing person or create a distinct person; no contact write occurs on Send.
+The proposal keeps its editable name, relationship context, original note, and
+one stable operation key in protected account-scoped recovery for up to seven
+days. Relaunch and retry reuse that key; confirmed save or dismissal clears the
+recovery, and a failed local clear still reuses the same key instead of leaving
+a second write path.
+Its composer can select up to ten task images through the system Photos picker,
+shows honest upload, retry, and removal state, and submits only fully stored
+media through the account-scoped local or S3-compatible backend boundary. A
+submitted turn renders one to four visible tiles plus a `+N` remainder; selection
+alone never promotes an image into governed evidence.
 Today keeps one decision visually primary and renders later work as quiet
 continuations; it has no separate feed or generic search panel.
 
-The bottom Capture control opens one purpose-bound chooser for Text Signal,
-conversation screenshot, or Audio Signal. The `Capture Signal` App Shortcut is
-suitable for an Action button configuration and only foregrounds that chooser.
-`Record Signal` only opens the foreground audio surface. Neither intent starts
-the microphone. Audio requires a non-empty purpose, explicit authorization,
-system permission, an active foreground scene, available input, and recorder
-success before the UI can say `Recording now`. Completed audio stays protected
-on-device with a checksum and deletion path; this slice has no upload,
-transcription, Proposal, confirmed-state, or external-write authority.
+The bottom paperclip opens intentional conversation-screenshot review directly;
+it does not place another capture chooser in the primary path. The `Capture
+Signal` App Shortcut opens the global Agent input, while `Record Signal` opens
+the foreground audio surface. Neither intent starts the microphone. Audio
+requires a non-empty purpose, explicit authorization, system permission, an
+active foreground scene, available input, and recorder success before the UI
+can say `Recording now`. Completed audio stays protected on-device with a
+checksum and deletion path; this slice has no upload, Proposal, confirmed-state,
+or external-write authority.
 
 Intentional screenshot import still provides on-device text review, temporal
 identity comparison, explicit relationship attachment, and a compiled-Wiki

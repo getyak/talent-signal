@@ -97,6 +97,7 @@ struct AgentSessionDraft: Codable, Equatable {
     var text: String
     var updatedAt: Date
     var pendingIdempotencyKey: String?
+    var requestIdentity: String? = nil
 }
 
 struct AgentEvidenceReviewOperation: Codable, Equatable, Identifiable {
@@ -231,6 +232,16 @@ private struct PersistedAgentSessionEnvelope: Codable {
     let sessions: [PersistedAgentSession]
     let drafts: [AgentSessionDraft]
     let evidenceReviews: [AgentEvidenceReviewOperation]?
+    let contactProposal: AgentContactProposalDraft?
+}
+
+struct AgentContactProposalDraft: Codable, Equatable {
+    let draft: ConversationContactDraft
+    let idempotencyKey: String
+    let capturedAt: Date?
+    let pendingTarget: ConversationContactTarget?
+    let pendingConfirmIdentityClue: Bool?
+    let updatedAt: Date
 }
 
 private struct PersistedAgentSession: Codable {
@@ -301,6 +312,7 @@ private struct PersistedRelationshipAskResponse: Codable {
     let contextManifestID: String
     let knowledgeSnapshotID: String
     let disposition: String
+    let media: [ChatMediaAsset]?
     let createdAt: String
 
     init(_ value: RelationshipAskResponse) {
@@ -309,6 +321,7 @@ private struct PersistedRelationshipAskResponse: Codable {
         contextManifestID = value.contextManifestID
         knowledgeSnapshotID = value.knowledgeSnapshotID
         disposition = value.disposition
+        media = value.media
         createdAt = value.createdAt
     }
 
@@ -330,6 +343,7 @@ private struct PersistedRelationshipAskResponse: Codable {
                     requiresUserDecision: false
                 ),
             ],
+            media: media ?? [],
             createdAt: createdAt,
             citations: []
         )
@@ -340,6 +354,13 @@ private struct PersistedRelationshipAskResponse: Codable {
 final class AgentSessionStore: ObservableObject {
     private static let sessionRetention: TimeInterval = 30 * 24 * 60 * 60
     private static let draftRetention: TimeInterval = 7 * 24 * 60 * 60
+
+    private static func stableContactCaptureDate(_ date: Date) -> Date {
+        // Agent recovery uses Foundation's ISO-8601 Date strategy, which persists
+        // whole seconds. Normalize before the first write so a relaunch replays the
+        // byte-equivalent canonical capture timestamp.
+        Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded())
+    }
     @Published private var storedSessions: [AgentSession]
     @Published private var storedEvidenceReviews: [AgentEvidenceReviewOperation]
     @Published private(set) var activeEvidenceReviewKeys: Set<String>
@@ -347,6 +368,7 @@ final class AgentSessionStore: ObservableObject {
     @Published private(set) var evidenceReviewAuthorityReadbackKeys: Set<String>
     @Published private(set) var persistenceNotice: String?
     private var drafts: [AgentSessionDraft]
+    private var storedContactProposal: AgentContactProposalDraft?
     private let persistence: AgentSessionPersisting?
     private let now: () -> Date
     private var expirationTask: Task<Void, Never>?
@@ -361,6 +383,7 @@ final class AgentSessionStore: ObservableObject {
         expirationTask = nil
         persistenceNotice = nil
         drafts = []
+        storedContactProposal = nil
         activeEvidenceReviewKeys = []
         transientSupersededEvidenceReviewKeys = []
         evidenceReviewAuthorityReadbackKeys = []
@@ -382,13 +405,14 @@ final class AgentSessionStore: ObservableObject {
                 PersistedAgentSessionEnvelope.self,
                 from: data
             )
-            guard [1, 2].contains(envelope.version) else {
+            guard [1, 2, 3].contains(envelope.version) else {
                 throw AgentSessionPersistenceError.unsupportedVersion
             }
             storedSessions = envelope.sessions
                 .map(\.value)
                 .sorted { $0.updatedAt > $1.updatedAt }
             drafts = envelope.drafts
+            storedContactProposal = envelope.contactProposal
             storedEvidenceReviews = envelope.evidenceReviews ?? []
             evidenceReviewAuthorityReadbackKeys = Set(
                 storedEvidenceReviews.lazy
@@ -401,6 +425,7 @@ final class AgentSessionStore: ObservableObject {
         } catch {
             storedSessions = []
             drafts = []
+            storedContactProposal = nil
             storedEvidenceReviews = []
             evidenceReviewAuthorityReadbackKeys = []
             persistenceNotice = "Saved Agent sessions could not be restored on this device."
@@ -518,6 +543,9 @@ final class AgentSessionStore: ObservableObject {
                     updatedAt: now(),
                     pendingIdempotencyKey: existing?.text == text
                         ? existing?.pendingIdempotencyKey
+                        : nil,
+                    requestIdentity: existing?.text == text
+                        ? existing?.requestIdentity
                         : nil
                 )
             )
@@ -529,13 +557,15 @@ final class AgentSessionStore: ObservableObject {
         _ text: String,
         personID: String,
         relationshipContextID: String,
-        proposedIdempotencyKey: String
+        proposedIdempotencyKey: String,
+        requestIdentity: String? = nil
     ) -> String {
         _ = pruneExpiredState()
         if let pending = drafts.first(where: {
             $0.personID == personID
                 && $0.relationshipContextID == relationshipContextID
                 && $0.text == text
+                && $0.requestIdentity == requestIdentity
         })?.pendingIdempotencyKey {
             return pending
         }
@@ -549,7 +579,8 @@ final class AgentSessionStore: ObservableObject {
                 relationshipContextID: relationshipContextID,
                 text: text,
                 updatedAt: now(),
-                pendingIdempotencyKey: proposedIdempotencyKey
+                pendingIdempotencyKey: proposedIdempotencyKey,
+                requestIdentity: requestIdentity
             )
         )
         persist()
@@ -563,6 +594,66 @@ final class AgentSessionStore: ObservableObject {
                 && $0.relationshipContextID == relationshipContextID
         }
         persist()
+    }
+
+    var contactProposalDraft: ConversationContactDraft? {
+        pruneExpired()
+        return storedContactProposal?.draft
+    }
+
+    var contactProposalOperationKey: String? {
+        pruneExpired()
+        return storedContactProposal?.idempotencyKey
+    }
+
+    var contactProposalCapturedAt: Date? {
+        pruneExpired()
+        return storedContactProposal?.capturedAt
+    }
+
+    var contactProposalPendingTarget: ConversationContactTarget? {
+        pruneExpired()
+        return storedContactProposal?.pendingTarget
+    }
+
+    var contactProposalPendingConfirmIdentityClue: Bool? {
+        pruneExpired()
+        return storedContactProposal?.pendingConfirmIdentityClue
+    }
+
+    @discardableResult
+    func saveContactProposal(
+        _ draft: ConversationContactDraft,
+        idempotencyKey: String,
+        pendingTarget: ConversationContactTarget? = nil,
+        pendingConfirmIdentityClue: Bool? = nil
+    ) -> Bool {
+        _ = pruneExpiredState()
+        let capturedAt = Self.stableContactCaptureDate(storedContactProposal.flatMap {
+            $0.idempotencyKey == idempotencyKey ? $0.capturedAt : nil
+        } ?? now())
+        storedContactProposal = AgentContactProposalDraft(
+            draft: draft,
+            idempotencyKey: idempotencyKey,
+            capturedAt: capturedAt,
+            pendingTarget: pendingTarget,
+            pendingConfirmIdentityClue: pendingConfirmIdentityClue,
+            updatedAt: now()
+        )
+        return persist()
+    }
+
+    @discardableResult
+    func clearContactProposal() -> Bool {
+        _ = pruneExpiredState()
+        let prior = storedContactProposal
+        storedContactProposal = nil
+        guard persist() else {
+            storedContactProposal = prior
+            scheduleNextExpiration()
+            return false
+        }
+        return true
     }
 
     @discardableResult
@@ -889,6 +980,7 @@ final class AgentSessionStore: ObservableObject {
             evidenceReviewAuthorityReadbackKeys = []
             storedSessions = []
             drafts = []
+            storedContactProposal = nil
             storedEvidenceReviews = []
             persistenceNotice = nil
             return true
@@ -905,6 +997,7 @@ final class AgentSessionStore: ObservableObject {
         evidenceReviewAuthorityReadbackKeys = []
         storedSessions = []
         drafts = []
+        storedContactProposal = nil
         storedEvidenceReviews = []
         do {
             try persistence.completeDeletion()
@@ -933,10 +1026,11 @@ final class AgentSessionStore: ObservableObject {
         guard let persistence else { return true }
         do {
             let envelope = PersistedAgentSessionEnvelope(
-                version: 2,
+                version: 3,
                 sessions: storedSessions.map(PersistedAgentSession.init),
                 drafts: drafts,
-                evidenceReviews: storedEvidenceReviews
+                evidenceReviews: storedEvidenceReviews,
+                contactProposal: storedContactProposal
             )
             try persistence.save(try JSONEncoder.agentSession.encode(envelope))
             persistenceNotice = nil
@@ -955,12 +1049,17 @@ final class AgentSessionStore: ObservableObject {
         let retainedEvidenceReviews = storedEvidenceReviews.filter {
             $0.updatedAt > sessionCutoff
         }
+        let retainedContactProposal = storedContactProposal.flatMap {
+            $0.updatedAt > draftCutoff ? $0 : nil
+        }
         let didChange = retainedSessions.count != storedSessions.count
             || retainedDrafts.count != drafts.count
             || retainedEvidenceReviews.count != storedEvidenceReviews.count
+            || retainedContactProposal != storedContactProposal
         guard didChange else { return false }
         storedSessions = retainedSessions
         drafts = retainedDrafts
+        storedContactProposal = retainedContactProposal
         storedEvidenceReviews = retainedEvidenceReviews
         let retainedReviewKeys = Set(
             retainedEvidenceReviews.map(\.idempotencyKey)
@@ -986,8 +1085,12 @@ final class AgentSessionStore: ObservableObject {
         let evidenceReviewExpirations = storedEvidenceReviews.map {
             $0.updatedAt.addingTimeInterval(Self.sessionRetention)
         }
+        let contactProposalExpirations = storedContactProposal.map {
+            [$0.updatedAt.addingTimeInterval(Self.draftRetention)]
+        } ?? []
         guard let nextExpiration = (
             sessionExpirations + draftExpirations + evidenceReviewExpirations
+                + contactProposalExpirations
         ).min() else {
             expirationTask = nil
             return
@@ -1303,8 +1406,6 @@ enum RelationshipArchiveSheet: Identifiable {
     case review(RelationshipArchivePerson)
     case resume(RelationshipArchivePerson)
     case detail(RelationshipArchivePerson)
-    case pursuit(WorkspacePursuit)
-    case workspacePerson(WorkspacePerson, [WorkspacePersonRole])
     case proposal(WorkspaceProposal)
     case menu
 
@@ -1316,10 +1417,6 @@ enum RelationshipArchiveSheet: Identifiable {
             return "resume-\(person.id)"
         case let .detail(person):
             return "detail-\(person.id)"
-        case let .pursuit(pursuit):
-            return "pursuit-\(pursuit.id)"
-        case let .workspacePerson(person, _):
-            return "workspace-person-\(person.id)"
         case let .proposal(proposal):
             return "proposal-\(proposal.id)"
         case .menu:
@@ -1331,11 +1428,10 @@ enum RelationshipArchiveSheet: Identifiable {
 struct WorkspacePersonRole: Equatable, Identifiable {
     let pursuitID: String
     let pursuitTitle: String
+    let targetOutcome: String
     let roleID: String
     let roleType: String
     let status: String
-    let confidence: String
-    let evidenceCount: Int
     let evidenceState: WorkspaceEvidenceState
 
     var id: String { "\(pursuitID)-\(roleID)" }

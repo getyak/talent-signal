@@ -10,6 +10,7 @@ struct RelationshipArchiveView: View {
     @StateObject private var workspaceStore: PursuitWorkspaceStore
     @StateObject private var sessionStore: AgentSessionStore
     @State private var selectedPage: RelationshipArchivePage = .today
+    @State private var presentedPursuit: WorkspacePursuit?
     @State private var presentedSheet: RelationshipArchiveSheet?
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
@@ -47,15 +48,30 @@ struct RelationshipArchiveView: View {
                 } ?? UserDefaultsPursuitActionCompletionStore()
             )
         )
-        _sessionStore = StateObject(
-            wrappedValue: resolvedService == nil
-                ? AgentSessionStore.preview(snapshot: .preview)
-                : AgentSessionStore(
-                    persistence: session?.accountID.map {
-                        FileAgentSessionPersistence(accountID: $0)
-                    }
-                )
+        let resolvedSessionStore: AgentSessionStore
+#if DEBUG
+        let usesPersistentPreview = ProcessInfo.processInfo.arguments.contains(
+            "--persist-preview-agent"
         )
+#else
+        let usesPersistentPreview = false
+#endif
+        if resolvedService == nil, usesPersistentPreview {
+            resolvedSessionStore = AgentSessionStore(
+                persistence: FileAgentSessionPersistence(
+                    accountID: "ui-test-preview-agent"
+                )
+            )
+        } else if resolvedService == nil {
+            resolvedSessionStore = AgentSessionStore.preview(snapshot: .preview)
+        } else {
+            resolvedSessionStore = AgentSessionStore(
+                persistence: session?.accountID.map {
+                    FileAgentSessionPersistence(accountID: $0)
+                }
+            )
+        }
+        _sessionStore = StateObject(wrappedValue: resolvedSessionStore)
         reviewBaseURL = session?.baseURL
         authenticatedAccessToken = session?.accessToken
         accountEmail = session?.userEmail
@@ -88,7 +104,7 @@ struct RelationshipArchiveView: View {
                     capturePresentation = .ask(sessionID: nil, seed: nil)
                 },
                 onCapture: {
-                    intakePresentation = .init(initialDestination: nil)
+                    capturePresentation = .screenshot
                 }
             )
         }
@@ -100,22 +116,6 @@ struct RelationshipArchiveView: View {
                 RelationshipResumeView(person: person)
             case let .detail(person):
                 RelationshipDetailView(person: person)
-            case let .pursuit(pursuit):
-                PursuitDetailView(
-                    pursuit: pursuit,
-                    snapshot: workspaceStore.snapshot,
-                    currentUserID: workspaceStore.snapshot?.currentUserID,
-                    workspaceStore: workspaceStore,
-                    onOpenProposal: { proposal in
-                        presentedSheet = nil
-                        Task { @MainActor in
-                            await Task.yield()
-                            presentedSheet = .proposal(proposal)
-                        }
-                    }
-                )
-            case let .workspacePerson(person, roles):
-                WorkspacePersonDetailView(person: person, roles: roles)
             case let .proposal(proposal):
                 RelationshipChangeReviewView(
                     person: previewPerson(for: proposal),
@@ -171,11 +171,26 @@ struct RelationshipArchiveView: View {
                         sessionStore: sessionStore,
                         sessionID: sessionID,
                         initialSeed: seed,
-                        ask: { objective, personID, contextID, idempotencyKey in
+                        ask: { objective, personID, contextID, idempotencyKey, mediaIDs in
                             try await workspaceStore.ask(
                                 objective: objective,
                                 personID: personID,
                                 relationshipContextID: contextID,
+                                idempotencyKey: idempotencyKey,
+                                mediaIDs: mediaIDs
+                            )
+                        },
+                        saveContact: {
+                            draft,
+                            target,
+                            confirmIdentityClue,
+                            capturedAt,
+                            idempotencyKey in
+                            try await workspaceStore.saveContactDraft(
+                                draft,
+                                target: target,
+                                confirmIdentityClue: confirmIdentityClue,
+                                capturedAt: capturedAt,
                                 idempotencyKey: idempotencyKey
                             )
                         },
@@ -218,6 +233,7 @@ struct RelationshipArchiveView: View {
                     backendURL: reviewBaseURL,
                     accessToken: authenticatedAccessToken,
                     workspaceID: workspaceStore.snapshot?.workspaceID,
+                    entryMode: .conversationImage,
                     onClose: { capturePresentation = nil },
                     onContinueInAgent: continueCaptureInAgent
                 )
@@ -248,6 +264,13 @@ struct RelationshipArchiveView: View {
                 await revalidateSessionEvidence()
             }
         }
+        .onChange(of: selectedPage) { _ in
+            closePursuit()
+        }
+        .onChange(of: workspaceStore.snapshot) { snapshot in
+            guard let pursuitID = presentedPursuit?.id else { return }
+            presentedPursuit = snapshot?.pursuit(id: pursuitID)
+        }
         .sheet(
             item: $intakePresentation,
             onDismiss: completeDeferredTransition
@@ -276,7 +299,9 @@ struct RelationshipArchiveView: View {
         .onReceive(captureIntentRouter.$request) { request in
             guard let request else { return }
             switch request.destination {
-            case .hub, .foregroundAudio:
+            case .hub:
+                capturePresentation = .ask(sessionID: nil, seed: nil)
+            case .foregroundAudio:
                 intakePresentation = .init(initialDestination: request.destination)
             case .latestProposal:
                 if let proposal = workspaceStore.snapshot?.openProposals.first {
@@ -284,7 +309,7 @@ struct RelationshipArchiveView: View {
                 }
             case let .pursuit(id):
                 if let pursuit = workspaceStore.snapshot?.pursuits.first(where: { $0.id == id }) {
-                    presentedSheet = .pursuit(pursuit)
+                    openPursuit(pursuit)
                 }
             }
             captureIntentRouter.consume(request.id)
@@ -295,7 +320,7 @@ struct RelationshipArchiveView: View {
             case "audio":
                 intakePresentation = .init(initialDestination: .foregroundAudio)
             default:
-                intakePresentation = .init(initialDestination: nil)
+                capturePresentation = .ask(sessionID: nil, seed: nil)
             }
         }
         .task {
@@ -337,62 +362,85 @@ struct RelationshipArchiveView: View {
         case .empty:
             PursuitWorkspaceEmptyView(selectedPage: selectedPage)
         case let .preview(snapshot), let .loaded(snapshot):
-            TabView(selection: $selectedPage) {
-                PursuitTodayView(
-                    snapshot: snapshot,
-                    isPreview: !workspaceStore.isCanonical,
-                    calendarActivities: RelationshipCalendarProjection.activities(
+            ZStack {
+                TabView(selection: $selectedPage) {
+                    PursuitTodayView(
                         snapshot: snapshot,
-                        isPreview: !workspaceStore.isCanonical
-                    ),
-                    unreadSessions: sessionStore.unreadSessions,
-                    actionRecovery: workspaceStore.latestActionRecovery(
-                        in: snapshot
-                    ),
-                    onOpenSession: openSession,
-                    onOpenCalendar: {
-                        isRelationshipCalendarPresented = true
-                    },
-                    onOpenAttention: openAttention,
-                    onOpenPursuit: { presentedSheet = .pursuit($0) },
-                    onOpenActionRecovery: { pursuitID in
-                        guard let pursuit = snapshot.pursuit(id: pursuitID) else {
-                            return
+                        isPreview: !workspaceStore.isCanonical,
+                        calendarActivities: RelationshipCalendarProjection.activities(
+                            snapshot: snapshot,
+                            isPreview: !workspaceStore.isCanonical
+                        ),
+                        unreadSessions: sessionStore.unreadSessions,
+                        actionRecovery: workspaceStore.latestActionRecovery(
+                            in: snapshot
+                        ),
+                        onOpenSession: openSession,
+                        onOpenCalendar: {
+                            isRelationshipCalendarPresented = true
+                        },
+                        onOpenAttention: openAttention,
+                        onOpenPursuit: openPursuit,
+                        onOpenActionRecovery: { pursuitID in
+                            guard let pursuit = snapshot.pursuit(id: pursuitID) else {
+                                return
+                            }
+                            openPursuit(pursuit)
                         }
-                        presentedSheet = .pursuit(pursuit)
-                    }
-                )
-                .tag(RelationshipArchivePage.today)
+                    )
+                    .tag(RelationshipArchivePage.today)
 
-                AgentSessionListView(
-                    sessions: sessionStore.sessions,
-                    isPreview: !workspaceStore.isCanonical,
-                    persistenceNotice: sessionStore.persistenceNotice,
-                    onOpen: openSession,
-                    onNewSession: {
-                        capturePresentation = .ask(sessionID: nil, seed: nil)
-                    },
-                    onMarkUnread: sessionStore.markUnread,
-                    onDelete: sessionStore.delete
-                )
-                .tag(RelationshipArchivePage.sessions)
+                    AgentSessionListView(
+                        sessions: sessionStore.sessions,
+                        isPreview: !workspaceStore.isCanonical,
+                        persistenceNotice: sessionStore.persistenceNotice,
+                        onOpen: openSession,
+                        onMarkUnread: sessionStore.markUnread,
+                        onDelete: sessionStore.delete
+                    )
+                    .tag(RelationshipArchivePage.sessions)
 
-                WorkspacePeopleView(
-                    snapshot: snapshot,
-                    isPreview: !workspaceStore.isCanonical,
-                    onSelect: { person in
-                        presentedSheet = .workspacePerson(
-                            person,
-                            roles(for: person.id, in: snapshot)
-                        )
-                    }
-                )
-                .tag(RelationshipArchivePage.people)
+                    WorkspacePeopleView(
+                        snapshot: snapshot,
+                        isPreview: !workspaceStore.isCanonical,
+                        roles: { roles(for: $0, in: snapshot) },
+                        onOpenPursuit: openPursuit
+                    )
+                    .tag(RelationshipArchivePage.people)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .indexViewStyle(.page(backgroundDisplayMode: .never))
+                .allowsHitTesting(presentedPursuit == nil)
+                .accessibilityHidden(presentedPursuit != nil)
+
+                if let presentedPursuit {
+                    PursuitDetailView(
+                        pursuit: presentedPursuit,
+                        snapshot: snapshot,
+                        currentUserID: snapshot.currentUserID,
+                        workspaceStore: workspaceStore,
+                        backLabel: selectedPage.title(in: appLanguage),
+                        onBack: closePursuit,
+                        onOpenProposal: { proposal in
+                            presentedSheet = .proposal(proposal)
+                        }
+                    )
+                    .id(presentedPursuit.id)
+                    .transition(.opacity)
+                    .zIndex(1)
+                }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .indexViewStyle(.page(backgroundDisplayMode: .never))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeOut(duration: 0.18), value: presentedPursuit?.id)
         }
+    }
+
+    private func openPursuit(_ pursuit: WorkspacePursuit) {
+        presentedPursuit = pursuit
+    }
+
+    private func closePursuit() {
+        presentedPursuit = nil
     }
 
     private func openSession(_ session: AgentSession) {
@@ -509,7 +557,7 @@ struct RelationshipArchiveView: View {
            let proposal = snapshot.proposals.first(where: { $0.id == proposalID }) {
             presentedSheet = .proposal(proposal)
         } else if let pursuit = snapshot.pursuit(id: item.pursuitID) {
-            presentedSheet = .pursuit(pursuit)
+            openPursuit(pursuit)
         }
     }
 
@@ -524,11 +572,10 @@ struct RelationshipArchiveView: View {
                     WorkspacePersonRole(
                         pursuitID: pursuit.id,
                         pursuitTitle: pursuit.title,
+                        targetOutcome: pursuit.targetOutcome,
                         roleID: $0.id,
                         roleType: $0.roleType,
                         status: $0.status,
-                        confidence: $0.confidence,
-                        evidenceCount: $0.evidenceRefs.count,
                         evidenceState: $0.evidenceState
                     )
                 }
@@ -683,6 +730,7 @@ private struct RelationshipArchiveHeader: View {
             reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
             value: selectedPage
         )
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityElement(children: .contain)
     }
 }
@@ -727,6 +775,10 @@ private struct PursuitTodayView: View {
                     activities: calendarActivities,
                     onOpen: onOpenCalendar
                 )
+                    // This is a compact glance, not the calendar reading surface.
+                    // Keep it legible at accessibility sizes without letting a
+                    // secondary preview displace the decision that Today exists for.
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .padding(.top, isPreview ? 16 : 22)
 
                 if let unread = unreadSessions.first {
@@ -786,12 +838,7 @@ private struct PursuitTodayView: View {
                         item: focus,
                         pursuit: snapshot.pursuit(id: focus.pursuitID),
                         primaryAction: { openPrimary(focus) },
-                        proposalAction: { onOpenAttention(focus) },
-                        pursuitAction: {
-                            if let pursuit = snapshot.pursuit(id: focus.pursuitID) {
-                                onOpenPursuit(pursuit)
-                            }
-                        }
+                        proposalAction: { onOpenAttention(focus) }
                     )
                     .padding(.top, topWorkSpacing)
 
@@ -930,6 +977,7 @@ private struct PursuitTodayView: View {
 private struct TodayActionRecoveryCard: View {
     let item: PursuitActionRecoveryItem
     let action: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         Button(action: action) {
@@ -937,8 +985,8 @@ private struct TodayActionRecoveryCard: View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Label(
                         item.status == .recorded
-                            ? "Outcome recorded"
-                            : "Checking canonical result",
+                            ? appLanguage.text("Outcome recorded")
+                            : appLanguage.text("Checking canonical result"),
                         systemImage: item.status == .recorded
                             ? "checkmark.seal"
                             : "arrow.triangle.2.circlepath"
@@ -955,12 +1003,19 @@ private struct TodayActionRecoveryCard: View {
                     .font(.subheadline)
                     .foregroundStyle(Color.tsInk)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("\(item.pursuitTitle) · Owner: \(item.ownerDisplayName)")
+                Text(String(
+                    format: appLanguage.text("%1$@ · Owner: %2$@"),
+                    locale: appLanguage.locale,
+                    item.pursuitTitle,
+                    item.ownerDisplayName
+                ))
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
                 Label(
-                    "No message, calendar event, or external write",
+                    appLanguage.text(
+                        "No message, calendar event, or external write"
+                    ),
                     systemImage: "lock.shield"
                 )
                 .font(.caption)
@@ -1038,7 +1093,6 @@ private struct TodayFocusCard: View {
     let pursuit: WorkspacePursuit?
     let primaryAction: () -> Void
     let proposalAction: () -> Void
-    let pursuitAction: () -> Void
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -1047,12 +1101,12 @@ private struct TodayFocusCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 RelationshipEyebrow(
                     item.kind == .review
-                        ? appLanguage.text("AI insight · Needs review", zhHans: "AI 洞察 · 需要审阅")
+                        ? appLanguage.text("Proposed change · Needs review")
                         : appLanguage.workspaceTerm(item.eyebrow)
                 )
                 Spacer(minLength: 10)
                 if let due = item.due {
-                    Text(due)
+                    Text(appLanguage.shortDate(due))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.tsMutedInk)
                 }
@@ -1067,56 +1121,42 @@ private struct TodayFocusCard: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
             if item.subjectDisplayLabel != nil, let pursuit {
-                Text(pursuit.title)
+                Text(appLanguage.workspaceTerm(pursuit.title))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 5)
             }
-            Text(item.title)
+            Text(appLanguage.workspaceTerm(item.title))
                 .font(.body)
                 .foregroundStyle(Color.tsInk)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 10)
 
-            if dynamicTypeSize.isAccessibilitySize {
-                primaryActionButton
-                    .padding(.top, 20)
-            }
-
             TodayDecisionContextLine(
                 label: appLanguage.text("Target outcome", zhHans: "目标结果"),
-                value: item.targetOutcome
+                value: appLanguage.workspaceTerm(item.targetOutcome),
+                accessibilityIdentifier: "today-focus-target-outcome"
             )
                 .padding(.top, 10)
             TodayDecisionContextLine(
                 label: appLanguage.text("Target date", zhHans: "目标日期"),
-                value: item.targetDate
+                value: appLanguage.shortDate(item.targetDate),
+                accessibilityIdentifier: "today-focus-target-date"
             )
             if let blocker = item.blocker {
                 TodayDecisionContextLine(
                     label: appLanguage.text("Blocker", zhHans: "阻碍"),
-                    value: blocker
+                    value: appLanguage.workspaceTerm(blocker),
+                    accessibilityIdentifier: "today-focus-blocker"
                 )
             }
 
-            HStack(spacing: 12) {
-                if let owner = item.owner {
-                    Label(owner, systemImage: "person")
-                }
-                if let evidence = item.evidenceFreshness {
-                    Label(shortEvidence(evidence), systemImage: "link")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(Color.tsMutedInk)
-            .lineLimit(1)
-            .padding(.top, 14)
+            attentionMetadata
+                .padding(.top, 14)
 
-            if !dynamicTypeSize.isAccessibilitySize {
-                primaryActionButton
-                    .padding(.top, 20)
-            }
+            primaryActionButton
+                .padding(.top, 20)
 
             if item.proposalID != nil, item.proposedAction != nil, item.kind != .review {
                 Button(action: proposalAction) {
@@ -1135,15 +1175,6 @@ private struct TodayFocusCard: View {
                     )
                 )
                 .accessibilityIdentifier("today-review-proposal-\(item.pursuitID)")
-            } else if item.kind == .review {
-                Button(action: pursuitAction) {
-                    Text(appLanguage.text("Open Pursuit", zhHans: "打开目标"))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.tsInk)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("today-open-pursuit")
             }
         }
         .padding(20)
@@ -1179,6 +1210,64 @@ private struct TodayFocusCard: View {
         )
     }
 
+    @ViewBuilder
+    private var attentionMetadata: some View {
+        let evidence = localizedEvidenceSummary
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let owner = item.owner {
+                        metadataLabel(owner, systemImage: "person")
+                    }
+                    if let evidence {
+                        metadataLabel(evidence, systemImage: "link")
+                    }
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        if let owner = item.owner {
+                            metadataLabel(owner, systemImage: "person")
+                        }
+                        if let evidence {
+                            metadataLabel(evidence, systemImage: "link")
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let owner = item.owner {
+                            metadataLabel(owner, systemImage: "person")
+                        }
+                        if let evidence {
+                            metadataLabel(evidence, systemImage: "link")
+                        }
+                    }
+                }
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(Color.tsMutedInk)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("today-focus-metadata")
+    }
+
+    private func metadataLabel(
+        _ text: String,
+        systemImage: String
+    ) -> some View {
+        Label(text, systemImage: systemImage)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var localizedEvidenceSummary: String? {
+        if let observedAt = item.evidenceObservedAt {
+            return shortEvidence(appLanguage.evidenceFreshness(
+                observedAt: observedAt,
+                sourceTimezone: item.evidenceSourceTimezone
+            ))
+        }
+        return item.evidenceState.map(appLanguage.evidenceExplanation)
+    }
+
     private func shortEvidence(_ value: String) -> String {
         value.components(separatedBy: " · ").first ?? value
     }
@@ -1196,11 +1285,14 @@ private struct TodayContinuationRow: View {
             Button(action: primaryAction) {
                 HStack(alignment: .center, spacing: 14) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(pursuit?.title ?? appLanguage.text("Pursuit", zhHans: "目标"))
+                        Text(
+                            pursuit.map { appLanguage.workspaceTerm($0.title) }
+                                ?? appLanguage.text("Pursuit", zhHans: "目标")
+                        )
                             .font(.headline)
                             .foregroundStyle(Color.tsInk)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(item.title)
+                        Text(appLanguage.workspaceTerm(item.title))
                             .font(.caption)
                             .foregroundStyle(Color.tsMutedInk)
                             .lineLimit(2)
@@ -1208,7 +1300,11 @@ private struct TodayContinuationRow: View {
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 7) {
                         Text(
-                            [item.owner, item.due ?? appLanguage.workspaceTerm(item.eyebrow)]
+                            [
+                                item.owner,
+                                item.due.map(appLanguage.shortDate)
+                                    ?? appLanguage.workspaceTerm(item.eyebrow),
+                            ]
                                 .compactMap { $0 }
                                 .joined(separator: " · ")
                         )
@@ -1251,142 +1347,10 @@ private struct TodayContinuationRow: View {
     }
 }
 
-private struct PursuitAttentionRow: View {
-    let item: PursuitAttentionItem
-    let pursuit: WorkspacePursuit?
-    let primaryAction: () -> Void
-    let proposalAction: () -> Void
-    @State private var isExpanded = false
-    @Environment(\.appLanguage) private var appLanguage
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                RelationshipEyebrow(appLanguage.workspaceTerm(item.eyebrow))
-                Spacer(minLength: 8)
-                if let due = item.due {
-                    Text(
-                        appLanguage.text(
-                            "Due \(due)",
-                            zhHans: "截止 \(due)"
-                        )
-                    )
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color.tsMutedInk)
-                }
-            }
-            .padding(.top, 18)
-            Text(
-                pursuit?.title
-                    ?? appLanguage.text(
-                        "Pursuit unavailable",
-                        zhHans: "目标不可用"
-                    )
-            )
-                .font(.custom("Georgia", size: 22, relativeTo: .headline))
-                .foregroundStyle(Color.tsInk)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
-            Text(item.title)
-                .font(.subheadline)
-                .foregroundStyle(Color.tsInk)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 7)
-            TodayDecisionContextLine(
-                label: appLanguage.text("Target outcome", zhHans: "目标结果"),
-                value: item.targetOutcome
-            )
-                .padding(.top, 8)
-            TodayDecisionContextLine(
-                label: appLanguage.text("Target date", zhHans: "目标日期"),
-                value: item.targetDate
-            )
-            if let owner = item.owner {
-                TodayDecisionContextLine(
-                    label: appLanguage.text("Owner", zhHans: "负责人"),
-                    value: "\(owner)\(item.due.map { appLanguage.text(" · due \($0)", zhHans: " · 截止 \($0)") } ?? "")"
-                )
-            }
-            if let blocker = item.blocker {
-                TodayDecisionContextLine(
-                    label: appLanguage.text("Blocker", zhHans: "阻碍"),
-                    value: blocker
-                )
-            }
-            if let evidenceFreshness = item.evidenceFreshness {
-                TodayDecisionContextLine(
-                    label: appLanguage.text("Evidence", zhHans: "证据"),
-                    value: evidenceFreshness
-                )
-            }
-            DisclosureGroup(isExpanded: $isExpanded) {
-                Text(item.reason)
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 8)
-                if let pursuit {
-                    TodayDecisionContextLine(
-                        label: appLanguage.text(
-                            "Current milestone",
-                            zhHans: "当前里程碑"
-                        ),
-                        value: "\(pursuit.milestone.humanized) · \(pursuit.milestoneAuthority.evidenceState.attentionLabel.lowercased()) · revision \(pursuit.revision)"
-                    )
-                }
-            } label: {
-                Text(
-                    isExpanded
-                        ? appLanguage.text("Hide full context", zhHans: "收起完整背景")
-                        : appLanguage.text("Show full context", zhHans: "查看完整背景")
-                )
-                    .font(.caption.weight(.semibold))
-            }
-            .padding(.top, 8)
-            .accessibilityIdentifier("today-context-\(item.pursuitID)")
-            Button(action: primaryAction) {
-                HStack(spacing: 12) {
-                    Text(appLanguage.workspaceTerm(item.actionLabel))
-                        .font(.subheadline.weight(.semibold))
-                    Image(systemName: "arrow.right")
-                }
-                .foregroundStyle(Color.tsInk)
-                .frame(minHeight: 44)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Color.tsInk).frame(height: 1)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(
-                item.kind == .review
-                    ? "today-review-proposal-\(item.pursuitID)"
-                    : "today-attention-\(item.id)"
-            )
-            .padding(.top, 12)
-            if item.proposalID != nil, item.proposedAction != nil {
-                Button(action: proposalAction) {
-                    Text(appLanguage.text("Review proposal", zhHans: "审阅提议"))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.tsMutedInk)
-                        .frame(
-                            maxWidth: .infinity,
-                            minHeight: 44,
-                            alignment: .leading
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("today-review-proposal-\(item.pursuitID)")
-            }
-        }
-        .padding(.bottom, 22)
-        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
-    }
-}
-
 private struct TodayDecisionContextLine: View {
     let label: String
     let value: String
+    var accessibilityIdentifier: String? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -1405,6 +1369,7 @@ private struct TodayDecisionContextLine: View {
         }
         .padding(.top, 7)
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
 
     private var labelView: some View {
@@ -1428,45 +1393,25 @@ private struct AgentSessionListView: View {
     let isPreview: Bool
     let persistenceNotice: String?
     let onOpen: (AgentSession) -> Void
-    let onNewSession: () -> Void
     let onMarkUnread: (UUID) -> Void
     let onDelete: (UUID) -> Void
+    @State private var query = ""
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .bottom, spacing: 18) {
-                VStack(alignment: .leading, spacing: 7) {
-                    RelationshipEyebrow(
-                        appLanguage.text("AGENT CONVERSATIONS", zhHans: "AGENT 对话"),
-                        color: .tsInk
-                    )
-                    Text(appLanguage.text("Sessions", zhHans: "会话"))
-                        .font(.custom("Georgia", size: 42, relativeTo: .largeTitle))
-                        .foregroundStyle(Color.tsInk)
-                        .tracking(-1.1)
-                }
-                Spacer(minLength: 8)
-                Button(action: onNewSession) {
-                    Image(systemName: "plus")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.tsSurface)
-                        .frame(width: 44, height: 44)
-                        .background(Color.tsInk, in: Circle())
-                }
-                .accessibilityLabel(
-                    appLanguage.text("New session", zhHans: "新建会话")
-                )
-                .accessibilityIdentifier("new-agent-session")
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 28)
-            .padding(.bottom, isPreview ? 14 : 22)
+            WorkspaceSearchField(
+                query: $query,
+                placeholder: appLanguage.text("Search sessions"),
+                accessibilityIdentifier: "session-search"
+            )
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 8)
 
             if isPreview {
                 PursuitPreviewBoundary()
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 20)
             }
 
             if let persistenceNotice {
@@ -1500,36 +1445,51 @@ private struct AgentSessionListView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 42)
                 .accessibilityIdentifier("agent-sessions-empty")
+            } else if filteredSessions.isEmpty {
+                WorkspaceRetrievalEmptyState(
+                    title: appLanguage.text("No matching sessions"),
+                    detail: appLanguage.text("Try a person, Pursuit, or question."),
+                    accessibilityIdentifier: "agent-sessions-no-matches"
+                )
             } else {
                 List {
-                    ForEach(sessions) { session in
-                        Button { onOpen(session) } label: {
-                            AgentSessionRow(session: session)
-                        }
-                        .buttonStyle(.plain)
-                        .listRowBackground(Color.tsSurface)
-                        .listRowSeparatorTint(Color.tsLine)
-                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            Button {
-                                onMarkUnread(session.id)
-                            } label: {
-                                Label(
-                                    appLanguage.text("Unread", zhHans: "标为未读"),
-                                    systemImage: "circle.fill"
-                                )
+                    Section {
+                        ForEach(filteredSessions) { session in
+                            Button { onOpen(session) } label: {
+                                AgentSessionRow(session: session)
                             }
-                            .tint(Color.tsMutedInk)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                onDelete(session.id)
-                            } label: {
-                                Label(
-                                    appLanguage.text("Remove", zhHans: "移除"),
-                                    systemImage: "trash"
-                                )
+                            .buttonStyle(.plain)
+                            .listRowBackground(Color.tsSurface)
+                            .listRowSeparatorTint(Color.tsLine)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    onMarkUnread(session.id)
+                                } label: {
+                                    Label(
+                                        appLanguage.text("Unread", zhHans: "标为未读"),
+                                        systemImage: "circle.fill"
+                                    )
+                                }
+                                .tint(Color.tsMutedInk)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    onDelete(session.id)
+                                } label: {
+                                    Label(
+                                        appLanguage.text("Remove", zhHans: "移除"),
+                                        systemImage: "trash"
+                                    )
+                                }
                             }
                         }
+                    } header: {
+                        WorkspaceRetrievalSectionHeader(
+                            title: appLanguage.text("Recent"),
+                            count: filteredSessions.count,
+                            accessibilityIdentifier: "session-result-count"
+                        )
+                        .textCase(nil)
                     }
                 }
                 .listStyle(.plain)
@@ -1540,46 +1500,101 @@ private struct AgentSessionListView: View {
         }
         .background(Color.tsSurface)
     }
+
+    private var filteredSessions: [AgentSession] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return sessions }
+        return sessions.filter { session in
+            [
+                session.title,
+                session.personDisplayLabel,
+                session.contextDisplayLabel,
+                session.latestPreview,
+            ]
+            .joined(separator: " ")
+            .localizedCaseInsensitiveContains(needle)
+        }
+    }
 }
 
 private struct AgentSessionRow: View {
     let session: AgentSession
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(session.isUnread ? Color.tsInk : Color.tsCanvas)
-                    .frame(width: 46, height: 46)
-                Image(systemName: "sparkles")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(session.isUnread ? Color.tsSurface : Color.tsInk)
+            if !dynamicTypeSize.isAccessibilitySize {
+                RelationshipInitials(
+                    initials: relationshipInitials(session.personDisplayLabel),
+                    size: 46,
+                    isEmphasized: session.isUnread
+                )
+                .accessibilityHidden(true)
             }
-            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(compactRelativeTime)
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(Color.tsMutedInk)
+                        Spacer()
+                        if session.isUnread {
+                            Label(
+                                appLanguage.text("Unread", zhHans: "未读"),
+                                systemImage: "circle.fill"
+                            )
+                            .font(.caption2)
+                            .foregroundStyle(Color.tsVermilion)
+                        }
+                    }
                     Text(session.title)
                         .font(.headline)
                         .foregroundStyle(Color.tsInk)
-                        .lineLimit(1)
-                    Spacer(minLength: 6)
-                    Text(session.updatedAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(Color.tsMutedInk)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier(
+                            "agent-session-title-\(session.id.uuidString)"
+                        )
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(session.title)
+                            .font(.headline)
+                            .foregroundStyle(Color.tsInk)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier(
+                                "agent-session-title-\(session.id.uuidString)"
+                            )
+                        Spacer(minLength: 6)
+                        Text(compactRelativeTime)
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(Color.tsMutedInk)
+                            .accessibilityIdentifier(
+                                "agent-session-time-\(session.id.uuidString)"
+                            )
+                    }
                 }
                 Text("\(session.personDisplayLabel) · \(session.contextDisplayLabel)")
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
-                    .lineLimit(1)
-                Text(session.latestPreview)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    session.turns.isEmpty
+                        ? appLanguage.text("No response yet")
+                        : session.latestPreview
+                )
                     .font(.subheadline)
                     .foregroundStyle(Color.tsMutedInk)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            if session.isUnread {
+            if session.isUnread && !dynamicTypeSize.isAccessibilitySize {
                 Circle()
                     .fill(Color.tsVermilion)
                     .frame(width: 7, height: 7)
@@ -1590,7 +1605,33 @@ private struct AgentSessionRow: View {
         .padding(.vertical, 10)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .accessibilityValue(compactRelativeTime)
         .accessibilityIdentifier("agent-session-\(session.id.uuidString)")
+    }
+
+    private var compactRelativeTime: String {
+        let interval = max(Date.now.timeIntervalSince(session.updatedAt), 0)
+        if interval < 60 {
+            return appLanguage.text("Now", zhHans: "刚刚")
+        }
+        if interval < 3_600 {
+            let minutes = max(Int(interval / 60), 1)
+            return appLanguage.text("\(minutes)m", zhHans: "\(minutes)分")
+        }
+        if interval < 86_400 {
+            let hours = max(Int(interval / 3_600), 1)
+            return appLanguage.text("\(hours)h", zhHans: "\(hours)时")
+        }
+        if interval < 604_800 {
+            let days = max(Int(interval / 86_400), 1)
+            return appLanguage.text("\(days)d", zhHans: "\(days)天")
+        }
+        return session.updatedAt.formatted(
+            Date.FormatStyle()
+                .month(.abbreviated)
+                .day()
+                .locale(appLanguage.locale)
+        )
     }
 }
 
@@ -1702,49 +1743,97 @@ private struct PursuitListRow: View {
 private struct WorkspacePeopleView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
-    let onSelect: (WorkspacePerson) -> Void
+    let roles: (String) -> [WorkspacePersonRole]
+    let onOpenPursuit: (WorkspacePursuit) -> Void
+    @State private var query = ""
+    @State private var selectedPersonID: String?
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
+        Group {
+            if let selectedPerson {
+                WorkspacePersonDetailView(
+                    person: selectedPerson,
+                    roles: roles(selectedPerson.id),
+                    onBack: { selectedPersonID = nil },
+                    onOpenPursuit: { pursuitID in
+                        guard let pursuit = snapshot.pursuit(id: pursuitID) else {
+                            return
+                        }
+                        onOpenPursuit(pursuit)
+                    }
+                )
+            } else {
+                directory
+            }
+        }
+    }
+
+    private var directory: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                RelationshipPageIntro(
-                    eyebrow: appLanguage.text(
-                        "Stable identities · \(snapshot.people.count)",
-                        zhHans: "稳定身份 · \(snapshot.people.count)"
-                    ),
-                    title: appLanguage.text("People", zhHans: "人物"),
-                    summary: appLanguage.text(
-                        "One person may hold different roles across Pursuits; the role never becomes identity.",
-                        zhHans: "同一个人可在不同目标中承担不同角色；角色不会取代身份。"
-                    )
+                WorkspaceSearchField(
+                    query: $query,
+                    placeholder: appLanguage.text("Search people"),
+                    accessibilityIdentifier: "people-search"
                 )
-                .padding(.bottom, 24)
-                if isPreview { PursuitPreviewBoundary() }
-                ForEach(snapshot.people) { person in
-                    Button { onSelect(person) } label: {
-                        WorkspacePersonRow(
-                            person: person,
-                            roles: personRoles(person.id)
-                        )
+                .padding(.bottom, 8)
+
+                if isPreview {
+                    PursuitPreviewBoundary()
+                }
+
+                WorkspaceRetrievalSectionHeader(
+                    title: appLanguage.text("Directory"),
+                    count: filteredPeople.count,
+                    accessibilityIdentifier: "people-result-count"
+                )
+                .padding(.top, 8)
+
+                if filteredPeople.isEmpty {
+                    WorkspaceRetrievalEmptyState(
+                        title: appLanguage.text("No matching people"),
+                        detail: appLanguage.text("Try a name, role, or Pursuit."),
+                        accessibilityIdentifier: "people-no-matches"
+                    )
+                    .frame(minHeight: 280)
+                } else {
+                    ForEach(filteredPeople) { person in
+                        Button { selectedPersonID = person.id } label: {
+                            WorkspacePersonRow(
+                                person: person,
+                                roles: personRoles(person.id)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("workspace-person-\(person.id)")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("workspace-person-\(person.id)")
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 24)
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
             .padding(.bottom, 28)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier("relationship-people")
     }
 
+    private var selectedPerson: WorkspacePerson? {
+        selectedPersonID.flatMap { id in snapshot.people.first { $0.id == id } }
+    }
+
     private func personRoles(_ personID: String) -> [String] {
-        snapshot.pursuits.flatMap { pursuit in
-            pursuit.personRoles
-                .filter { $0.subjectRef.id == personID }
-                .map { "\($0.roleType.humanized) · \(pursuit.title)" }
+        roles(personID).map { "\($0.roleType.humanized) · \($0.pursuitTitle)" }
+    }
+
+    private var filteredPeople: [WorkspacePerson] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return snapshot.people }
+        return snapshot.people.filter { person in
+            let profileText = person.profile?.headline ?? ""
+            return ([person.displayLabel, profileText] + personRoles(person.id))
+                .joined(separator: " ")
+                .localizedCaseInsensitiveContains(needle)
         }
     }
 }
@@ -1753,17 +1842,22 @@ private struct WorkspacePersonRow: View {
     let person: WorkspacePerson
     let roles: [String]
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            RelationshipInitials(
-                initials: String(person.displayLabel.prefix(2)).uppercased(),
-                size: 48
-            )
+            if !dynamicTypeSize.isAccessibilitySize {
+                RelationshipInitials(
+                    initials: relationshipInitials(person.displayLabel),
+                    size: 48
+                )
+            }
             VStack(alignment: .leading, spacing: 6) {
                 Text(person.displayLabel)
                     .font(.custom("Georgia", size: 19, relativeTo: .headline))
                     .foregroundStyle(Color.tsInk)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let profile = person.profile {
                     Text(profile.headline)
                         .font(.subheadline.weight(.medium))
@@ -1798,14 +1892,18 @@ private struct WorkspacePersonRow: View {
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
-                .font(.caption)
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.tsMutedInk)
                 .frame(minHeight: 48)
         }
         .padding(.vertical, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.tsLine)
+                .frame(height: 1)
+        }
     }
 }
 
@@ -1815,18 +1913,121 @@ private struct PursuitPreviewBoundary: View {
     var body: some View {
         Label(
             appLanguage.text(
-                "Synthetic preview · canonical backend not connected",
-                zhHans: "合成预览 · 尚未连接权威后端"
+                "Preview data · changes are unavailable",
+                zhHans: "预览数据 · 暂不能保存更改"
             ),
-            systemImage: "eye.trianglebadge.exclamationmark"
+            systemImage: "eye"
         )
-        .font(.caption.weight(.semibold))
+        .font(.caption2)
         .foregroundStyle(Color.tsMutedInk)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .top) { Divider().overlay(Color.tsLine) }
-        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityIdentifier("workspace-preview-boundary")
+    }
+}
+
+private struct WorkspaceSearchField: View {
+    @Binding var query: String
+    let placeholder: String
+    let accessibilityIdentifier: String
+    @FocusState private var isFocused: Bool
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityHidden(true)
+            TextField(placeholder, text: $query)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .padding(.vertical, 11)
+                .focused($isFocused)
+                .accessibilityIdentifier(accessibilityIdentifier)
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(appLanguage.text("Clear search"))
+                .accessibilityIdentifier("\(accessibilityIdentifier)-clear")
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, query.isEmpty ? 14 : 0)
+        .frame(minHeight: 46)
+        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.tsInk.opacity(0.07), lineWidth: 1)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { isFocused = true }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("\(accessibilityIdentifier)-container")
+    }
+}
+
+private struct WorkspaceRetrievalSectionHeader: View {
+    let title: String
+    let count: Int
+    let accessibilityIdentifier: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.bold))
+                .tracking(1.05)
+                .foregroundStyle(Color.tsInk)
+            Spacer()
+            Text(verbatim: "\(count)")
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(Color.tsMutedInk)
+        }
+        .frame(minHeight: 36)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(String(count))
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
+private struct WorkspaceRetrievalEmptyState: View {
+    let title: String
+    let detail: String
+    let accessibilityIdentifier: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.title3)
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+            Text(detail)
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 24)
+        .padding(.top, 42)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
@@ -2014,9 +2215,13 @@ struct PursuitDetailView: View {
     let currentUserID: String?
     @ObservedObject var workspaceStore: PursuitWorkspaceStore
     let targetActionID: String?
+    let backLabel: String?
+    let onBack: (() -> Void)?
     let onOpenProposal: (WorkspaceProposal) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLanguage) private var appLanguage
     @State private var completingActionID: String?
+    @AccessibilityFocusState private var isHeadingFocused: Bool
 
     init(
         pursuit: WorkspacePursuit,
@@ -2024,6 +2229,8 @@ struct PursuitDetailView: View {
         currentUserID: String?,
         workspaceStore: PursuitWorkspaceStore,
         targetActionID: String? = nil,
+        backLabel: String? = nil,
+        onBack: (() -> Void)? = nil,
         onOpenProposal: @escaping (WorkspaceProposal) -> Void
     ) {
         _pursuit = State(initialValue: pursuit)
@@ -2031,43 +2238,112 @@ struct PursuitDetailView: View {
         self.currentUserID = currentUserID
         self.workspaceStore = workspaceStore
         self.targetActionID = targetActionID
+        self.backLabel = backLabel
+        self.onBack = onBack
         self.onOpenProposal = onOpenProposal
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                    RelationshipEyebrow("\(pursuit.status.humanized) · revision \(pursuit.revision)")
-                        .padding(.top, 26)
+        Group {
+            if onBack != nil {
+                pursuitContent
+            } else {
+                NavigationStack {
+                    pursuitContent
+                        .navigationTitle(appLanguage.text("Pursuit"))
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button(
+                                    appLanguage.text("Close"),
+                                    action: dismiss.callAsFunction
+                                )
+                            }
+                        }
+                }
+            }
+        }
+        .accessibilityIdentifier("pursuit-detail")
+        .onChange(of: snapshot?.pursuit(id: pursuit.id)) { updatedPursuit in
+            guard let updatedPursuit else { return }
+            pursuit = updatedPursuit
+        }
+    }
+
+    private var pursuitContent: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let onBack {
+                        Button(action: onBack) {
+                            Label(
+                                backLabel ?? appLanguage.text("Back"),
+                                systemImage: "chevron.left"
+                            )
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            String(
+                                format: appLanguage.text("Back to %@"),
+                                locale: appLanguage.locale,
+                                backLabel ?? appLanguage.text("workspace")
+                            )
+                        )
+                        .accessibilityIdentifier("pursuit-detail-back")
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    }
+                    RelationshipEyebrow(
+                        String(
+                            format: appLanguage.text("%1$@ · revision %2$lld"),
+                            locale: appLanguage.locale,
+                            appLanguage.workspaceValue(pursuit.status),
+                            pursuit.revision
+                        )
+                    )
+                        .padding(.top, onBack == nil ? 26 : 8)
                     Text(pursuit.title)
-                        .font(.custom("Georgia", size: 36, relativeTo: .largeTitle))
+                        .font(.custom("Georgia", size: 32, relativeTo: .title))
                         .foregroundStyle(Color.tsInk)
-                        .tracking(-0.8)
+                        .tracking(-0.6)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
-                    Text("Target outcome: \(pursuit.targetOutcome.workspacePhrase)")
-                        .font(.body)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 12)
-
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused($isHeadingFocused)
+                        .accessibilityIdentifier("pursuit-detail-title")
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     PursuitDefinitionSection(
-                        title: "Current frame",
+                        title: appLanguage.text("Current frame"),
                         rows: [
-                            ("Milestone", pursuit.milestone.humanized),
                             (
-                                "Milestone authority",
-                                "\(pursuit.milestoneAuthority.kind.humanized) · \(pursuit.milestoneAuthority.evidenceState.attentionLabel)"
+                                appLanguage.text("Target outcome"),
+                                pursuit.targetOutcome.workspacePhrase
                             ),
                             (
-                                "Confirmed",
-                                milestoneConfirmationSummary
+                                appLanguage.text("Target date"),
+                                appLanguage.shortDate(pursuit.targetDate)
                             ),
-                            ("Target date", WorkspaceDate.short(pursuit.targetDate)),
-                            ("Type", pursuit.type.humanized),
-                        ]
+                            (
+                                appLanguage.text("Milestone"),
+                                appLanguage.workspaceValue(pursuit.milestone)
+                            ),
+                            (
+                                appLanguage.text("Current blocker"),
+                                primaryGap?.title
+                                    ?? appLanguage.text("No open blocker")
+                            ),
+                            (
+                                appLanguage.text("Next action"),
+                                primaryAction?.title
+                                    ?? appLanguage.text(
+                                        "No owned action awaiting outcome"
+                                    )
+                            ),
+                        ],
+                        accessibilityIdentifier: "pursuit-current-frame"
                     )
 
                     if ["partial", "unavailable"].contains(
@@ -2075,19 +2351,29 @@ struct PursuitDetailView: View {
                     ) {
                         VStack(alignment: .leading, spacing: 8) {
                             Label(
-                                "Milestone source authority changed",
+                                appLanguage.text("Milestone source authority changed"),
                                 systemImage: "exclamationmark.shield"
                             )
                             .font(.headline)
                             .foregroundStyle(Color.tsVermilion)
-                            Text(
-                                "The recruiter-confirmed decision and revision remain in history, but \(pursuit.milestoneAuthority.evidenceState.explanation.lowercased()). Review or correct the milestone before treating it as current evidence-backed truth."
-                            )
+                            Text(String(
+                                format: appLanguage.text(
+                                    "The recruiter-confirmed decision and revision remain in history, but %@. Review or correct the milestone before treating it as current evidence-backed truth."
+                                ),
+                                locale: appLanguage.locale,
+                                appLanguage.evidenceExplanation(
+                                    pursuit.milestoneAuthority.evidenceState
+                                ).lowercased()
+                            ))
                             .font(.subheadline)
                             .foregroundStyle(Color.tsMutedInk)
                             .fixedSize(horizontal: false, vertical: true)
                             if let receiptID = pursuit.milestoneAuthority.receiptID {
-                                Text("Decision receipt \(receiptID.prefix(8))")
+                                Text(String(
+                                    format: appLanguage.text("Decision receipt %@"),
+                                    locale: appLanguage.locale,
+                                    String(receiptID.prefix(8))
+                                ))
                                     .font(.caption)
                                     .foregroundStyle(Color.tsMutedInk)
                             }
@@ -2099,7 +2385,7 @@ struct PursuitDetailView: View {
                     }
 
                     if !pendingProposals.isEmpty {
-                        RelationshipEyebrow("Waiting for review")
+                        RelationshipEyebrow(appLanguage.text("Waiting for review"))
                             .padding(.top, 30)
                         ForEach(pendingProposals) { proposal in
                             Button { onOpenProposal(proposal) } label: {
@@ -2108,7 +2394,15 @@ struct PursuitDetailView: View {
                                         .font(.headline)
                                         .foregroundStyle(Color.tsInk)
                                         .fixedSize(horizontal: false, vertical: true)
-                                    Text("\(proposal.subjectDisplayLabel) · \(proposal.status.humanized) · base revision \(proposal.baseRevision)")
+                                    Text(String(
+                                        format: appLanguage.text(
+                                            "%1$@ · %2$@ · base revision %3$lld"
+                                        ),
+                                        locale: appLanguage.locale,
+                                        proposal.subjectDisplayLabel,
+                                        appLanguage.workspaceValue(proposal.status),
+                                        proposal.baseRevision
+                                    ))
                                         .font(.caption)
                                         .foregroundStyle(Color.tsMutedInk)
                                 }
@@ -2125,14 +2419,18 @@ struct PursuitDetailView: View {
                     if !staleProposals.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Label(
-                                "Proposal is out of date",
+                                appLanguage.text("Proposal is out of date"),
                                 systemImage: "clock.badge.exclamationmark"
                             )
                             .font(.headline)
                             .foregroundStyle(Color.tsVermilion)
-                            Text(
-                                "This Pursuit is now revision \(currentPursuitRevision). An older Proposal cannot be reviewed and has no execution authority. Current workspace readback will replace it."
-                            )
+                            Text(String(
+                                format: appLanguage.text(
+                                    "This Pursuit is now revision %lld. An older Proposal cannot be reviewed and has no execution authority. Current workspace readback will replace it."
+                                ),
+                                locale: appLanguage.locale,
+                                currentPursuitRevision
+                            ))
                             .font(.subheadline)
                             .foregroundStyle(Color.tsMutedInk)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2143,10 +2441,10 @@ struct PursuitDetailView: View {
                         .accessibilityIdentifier("pursuit-stale-proposal")
                     }
 
-                    RelationshipEyebrow("Open gaps")
+                    RelationshipEyebrow(appLanguage.text("Open gaps"))
                         .padding(.top, 30)
                     if pursuit.gaps.filter({ $0.status == "open" }).isEmpty {
-                        Text("No open gap is recorded.")
+                        Text(appLanguage.text("No open gap is recorded."))
                             .font(.subheadline)
                             .foregroundStyle(Color.tsMutedInk)
                             .padding(.top, 12)
@@ -2156,20 +2454,26 @@ struct PursuitDetailView: View {
                                 Text(gap.title)
                                     .font(.headline)
                                     .foregroundStyle(Color.tsInk)
-                                Text("\(gap.basis.temporalAuthorityLabel) · \(gap.basis.evidenceState.attentionLabel)")
+                                Text(
+                                    "\(localizedTemporalAuthorityLabel(gap.basis)) · \(appLanguage.evidenceAttentionLabel(gap.basis.evidenceState))"
+                                )
                                     .font(.caption)
                                     .foregroundStyle(
                                         gap.basis.evidenceState.availability == "available"
                                             ? Color.tsMutedInk
                                             : Color.tsVermilion
                                     )
-                                Text(gap.basis.evidenceState.explanation)
+                                Text(appLanguage.evidenceExplanation(gap.basis.evidenceState))
                                     .font(.caption2)
                                     .foregroundStyle(Color.tsMutedInk)
                                 Text(gap.basis.summary)
                                     .font(.subheadline)
                                     .foregroundStyle(Color.tsMutedInk)
-                                Text("Close when: \(gap.closeCondition)")
+                                Text(String(
+                                    format: appLanguage.text("Close when: %@"),
+                                    locale: appLanguage.locale,
+                                    gap.closeCondition
+                                ))
                                     .font(.caption)
                                     .foregroundStyle(Color.tsMutedInk)
                             }
@@ -2178,26 +2482,56 @@ struct PursuitDetailView: View {
                         }
                     }
 
-                    RelationshipEyebrow("Owned internal actions")
+                    RelationshipEyebrow(appLanguage.text("Owned internal actions"))
                         .padding(.top, 30)
                     if let completion = recordedActionCompletion {
                         VStack(alignment: .leading, spacing: 8) {
-                            Label("Observed outcome recorded", systemImage: "checkmark.seal")
+                            Label(
+                                appLanguage.text("Observed outcome recorded"),
+                                systemImage: "checkmark.seal"
+                            )
                                 .font(.headline)
                             Text(completion.action.title)
                                 .font(.subheadline.weight(.semibold))
-                            Text("Owner: \(completion.action.ownerDisplayName) · \(WorkspaceDate.recorded(at: completion.result.receipt.occurredAt, sourceTimezone: TimeZone.current.identifier))")
+                            Text(String(
+                                format: appLanguage.text("Owner: %1$@ · %2$@"),
+                                locale: appLanguage.locale,
+                                completion.action.ownerDisplayName,
+                                appLanguage.recordedDate(
+                                    at: completion.result.receipt.occurredAt,
+                                    sourceTimezone: TimeZone.current.identifier
+                                )
+                            ))
                                 .font(.caption)
                                 .foregroundStyle(Color.tsMutedInk)
-                            Text("Canonical revision \(completion.result.receipt.entityRef.beforeRevision) → \(completion.result.receipt.entityRef.afterRevision)")
+                            Text(String(
+                                format: appLanguage.text(
+                                    "Canonical revision %1$lld → %2$lld"
+                                ),
+                                locale: appLanguage.locale,
+                                completion.result.receipt.entityRef.beforeRevision,
+                                completion.result.receipt.entityRef.afterRevision
+                            ))
                                 .font(.caption)
                                 .foregroundStyle(Color.tsMutedInk)
-                            DisclosureGroup("Audit details") {
-                                Text("Operation \(completion.result.receipt.operationID.prefix(8)) · receipt \(completion.result.receipt.id.prefix(8))")
+                            DisclosureGroup(appLanguage.text("Audit details")) {
+                                Text(String(
+                                    format: appLanguage.text(
+                                        "Operation %1$@ · receipt %2$@"
+                                    ),
+                                    locale: appLanguage.locale,
+                                    String(completion.result.receipt.operationID.prefix(8)),
+                                    String(completion.result.receipt.id.prefix(8))
+                                ))
                                     .font(.caption2)
                                     .foregroundStyle(Color.tsMutedInk)
                             }
-                            Label("No message, calendar event, or external write", systemImage: "lock.shield")
+                            Label(
+                                appLanguage.text(
+                                    "No message, calendar event, or external write"
+                                ),
+                                systemImage: "lock.shield"
+                            )
                                 .font(.caption)
                                 .foregroundStyle(Color.tsMutedInk)
                         }
@@ -2206,7 +2540,7 @@ struct PursuitDetailView: View {
                         .accessibilityIdentifier("pursuit-action-completion-receipt")
                     }
                     if pursuit.actions.isEmpty {
-                        Text("No action is recorded.")
+                        Text(appLanguage.text("No action is recorded."))
                             .font(.subheadline)
                             .foregroundStyle(Color.tsMutedInk)
                             .padding(.top, 12)
@@ -2215,7 +2549,7 @@ struct PursuitDetailView: View {
                             VStack(alignment: .leading, spacing: 7) {
                                 if action.id == targetActionID {
                                     Label(
-                                        "Referenced in Ask",
+                                        appLanguage.text("Referenced in Ask"),
                                         systemImage: "arrow.down.right.circle.fill"
                                     )
                                     .font(.caption.weight(.semibold))
@@ -2227,27 +2561,44 @@ struct PursuitDetailView: View {
                                 Text(action.title)
                                     .font(.headline)
                                     .foregroundStyle(Color.tsInk)
-                                Text("\(action.status.humanized) · \(action.dueAt.map(WorkspaceDate.short) ?? "no due date")")
+                                Text(
+                                    "\(appLanguage.workspaceValue(action.status)) · \(action.dueAt.map(appLanguage.shortDate) ?? appLanguage.text("No due date"))"
+                                )
                                     .font(.caption)
                                     .foregroundStyle(Color.tsMutedInk)
-                                Text("Owner: \(action.ownerDisplayName)")
+                                Text(String(
+                                    format: appLanguage.text("Owner: %@"),
+                                    locale: appLanguage.locale,
+                                    action.ownerDisplayName
+                                ))
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.tsInk)
                                     .accessibilityIdentifier("pursuit-action-owner-\(action.id)")
                                 if let outcome = action.outcomeSummary,
                                    let completedAt = action.completedAt {
-                                    Text("Observed outcome: \(outcome)")
+                                    Text(String(
+                                        format: appLanguage.text("Observed outcome: %@"),
+                                        locale: appLanguage.locale,
+                                        outcome
+                                    ))
                                         .font(.subheadline)
                                         .foregroundStyle(Color.tsInk)
                                         .fixedSize(horizontal: false, vertical: true)
-                                    Text(WorkspaceDate.recorded(at: completedAt, sourceTimezone: TimeZone.current.identifier))
+                                    Text(appLanguage.recordedDate(
+                                        at: completedAt,
+                                        sourceTimezone: TimeZone.current.identifier
+                                    ))
                                         .font(.caption2)
                                         .foregroundStyle(Color.tsMutedInk)
                                 }
                                 Label(
                                     action.externalEffects.isEmpty
-                                        ? "No message, calendar event, or external write"
-                                        : "External effect requires separate verification",
+                                        ? appLanguage.text(
+                                            "No message, calendar event, or external write"
+                                        )
+                                        : appLanguage.text(
+                                            "External effect requires separate verification"
+                                        ),
                                     systemImage: "lock.shield"
                                 )
                                 .font(.caption)
@@ -2258,7 +2609,7 @@ struct PursuitDetailView: View {
                                     if completingActionID == action.id {
                                         actionCompletionControls(for: action)
                                     } else {
-                                        Button("Record observed outcome") {
+                                        Button(appLanguage.text("Record observed outcome")) {
                                             completingActionID = action.id
                                             Task {
                                                 await workspaceStore.prepareActionCompletion(
@@ -2292,37 +2643,48 @@ struct PursuitDetailView: View {
                             .id(action.id)
                         }
                     }
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 40)
+
+                    PursuitDefinitionSection(
+                        title: appLanguage.text("Decision record"),
+                        rows: [
+                            (
+                                appLanguage.text("Milestone authority"),
+                                "\(appLanguage.workspaceValue(pursuit.milestoneAuthority.kind)) · \(appLanguage.evidenceAttentionLabel(pursuit.milestoneAuthority.evidenceState))"
+                            ),
+                            (appLanguage.text("Confirmed"), milestoneConfirmationSummary),
+                            (
+                                appLanguage.text("Pursuit type"),
+                                appLanguage.workspaceValue(pursuit.type)
+                            ),
+                        ]
+                    )
                 }
-                .background(Color.tsSurface.ignoresSafeArea())
-                .navigationTitle("Pursuit")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Close", action: dismiss.callAsFunction)
-                    }
+                .padding(.horizontal, 22)
+                .padding(.bottom, 40)
+            }
+            .scrollIndicators(.hidden)
+            .background(Color.tsSurface.ignoresSafeArea())
+            .task {
+                if onBack != nil {
+                    await Task.yield()
+                    isHeadingFocused = true
                 }
-                .task {
-                    if let targetActionID,
-                       pursuit.actions.contains(where: { $0.id == targetActionID }) {
-                        await Task.yield()
-                        proxy.scrollTo(targetActionID, anchor: .center)
-                    }
-                    for action in pursuit.actions
-                    where workspaceStore.hasSavedActionCompletion(actionID: action.id) {
-                        completingActionID = action.id
-                        await workspaceStore.prepareActionCompletion(
-                            pursuit: pursuit,
-                            action: action
-                        )
-                        syncRecordedAction()
-                    }
+                if let targetActionID,
+                   pursuit.actions.contains(where: { $0.id == targetActionID }) {
+                    await Task.yield()
+                    proxy.scrollTo(targetActionID, anchor: .center)
+                }
+                for action in pursuit.actions
+                where workspaceStore.hasSavedActionCompletion(actionID: action.id) {
+                    completingActionID = action.id
+                    await workspaceStore.prepareActionCompletion(
+                        pursuit: pursuit,
+                        action: action
+                    )
+                    syncRecordedAction()
                 }
             }
         }
-        .accessibilityIdentifier("pursuit-detail")
     }
 
     private var pendingProposals: [WorkspaceProposal] {
@@ -2330,6 +2692,22 @@ struct PursuitDetailView: View {
             $0.pursuitID == pursuit.id
                 && $0.baseRevision == currentPursuitRevision
         } ?? []
+    }
+
+    private var primaryGap: WorkspaceGap? {
+        pursuit.gaps.first { $0.status == "open" }
+    }
+
+    private var primaryAction: WorkspaceAction? {
+        let currentActions = pursuit.actions.filter {
+            !["completed", "cancelled"].contains($0.status)
+        }
+        if let targetActionID,
+           let targeted = currentActions.first(where: { $0.id == targetActionID }) {
+            return targeted
+        }
+        return currentActions.first(where: { $0.ownerUserID == currentUserID })
+            ?? currentActions.first
     }
 
     private var staleProposals: [WorkspaceProposal] {
@@ -2349,19 +2727,29 @@ struct PursuitDetailView: View {
         let actor: String
         if let confirmedBy = pursuit.milestoneAuthority.confirmedByUserID,
            confirmedBy == snapshot?.currentUserID {
-            actor = snapshot?.currentUserName ?? "Current recruiter"
+            actor = snapshot?.currentUserName ?? appLanguage.text("Current recruiter")
         } else if pursuit.milestoneAuthority.confirmedByUserID != nil {
-            actor = "Workspace member"
+            actor = appLanguage.text("Workspace member")
         } else {
-            actor = "Actor unavailable"
+            actor = appLanguage.text("Actor unavailable")
         }
         let confirmation = pursuit.milestoneAuthority.confirmedAt.map {
-            WorkspaceDate.recorded(
+            appLanguage.recordedDate(
                 at: $0,
                 sourceTimezone: TimeZone.current.identifier
             )
-        } ?? "Time unavailable"
+        } ?? appLanguage.text("Time unavailable")
         return "\(actor) · \(confirmation)"
+    }
+
+    private func localizedTemporalAuthorityLabel(
+        _ basis: WorkspaceGap.Basis
+    ) -> String {
+        if basis.kind == "evidence_supported",
+           basis.evidenceState.availability != "available" {
+            return appLanguage.text("Originally evidence-supported")
+        }
+        return appLanguage.workspaceValue(basis.kind)
     }
 
     private var recordedActionCompletion: (
@@ -2386,7 +2774,9 @@ struct PursuitDetailView: View {
         switch phase {
         case .confirming:
             Label(
-                "Recording with one saved recovery reference. Success waits for canonical readback.",
+                appLanguage.text(
+                    "Recording with one saved recovery reference. Success waits for canonical readback."
+                ),
                 systemImage: "arrow.triangle.2.circlepath"
             )
             .font(.caption)
@@ -2395,19 +2785,25 @@ struct PursuitDetailView: View {
         case let .unknownLocked(operationID):
             VStack(alignment: .leading, spacing: 10) {
                 Label(
-                    "Outcome unknown — operation locked",
+                    appLanguage.text("Outcome unknown — operation locked"),
                     systemImage: "exclamationmark.shield"
                 )
                 .font(.subheadline.weight(.semibold))
-                Text("The saved recovery reference will be checked before another write is allowed.")
+                Text(appLanguage.text(
+                    "The saved recovery reference will be checked before another write is allowed."
+                ))
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
-                DisclosureGroup("Audit details") {
-                    Text("Recovery reference \(operationID.uuidString.lowercased())")
+                DisclosureGroup(appLanguage.text("Audit details")) {
+                    Text(String(
+                        format: appLanguage.text("Recovery reference %@"),
+                        locale: appLanguage.locale,
+                        operationID.uuidString.lowercased()
+                    ))
                         .font(.caption2)
                         .foregroundStyle(Color.tsMutedInk)
                 }
-                Button("Check canonical result") {
+                Button(appLanguage.text("Check canonical result")) {
                     Task {
                         await workspaceStore.reconcileActionCompletion(
                             actionID: action.id
@@ -2433,11 +2829,11 @@ struct PursuitDetailView: View {
         message: String?
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Directly observed outcome")
+            Text(appLanguage.text("Directly observed outcome"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
             TextField(
-                "What was directly observed?",
+                appLanguage.text("What was directly observed?"),
                 text: Binding(
                     get: {
                         workspaceStore.actionOutcomeDrafts[action.id] ?? ""
@@ -2460,12 +2856,12 @@ struct PursuitDetailView: View {
                     .foregroundStyle(Color.tsVermilion)
             }
             HStack(spacing: 12) {
-                Button("Cancel") {
+                Button(appLanguage.text("Cancel")) {
                     workspaceStore.cancelActionCompletion(actionID: action.id)
                     completingActionID = nil
                 }
                 .frame(minHeight: 44)
-                Button("Record outcome") {
+                Button(appLanguage.text("Record outcome")) {
                     recordOutcome(for: action)
                 }
                 .buttonStyle(.borderedProminent)
@@ -2501,142 +2897,320 @@ struct PursuitDetailView: View {
 private struct PursuitDefinitionSection: View {
     let title: String
     let rows: [(String, String)]
+    var accessibilityIdentifier: String? = nil
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(spacing: 0) {
             RelationshipEyebrow(title)
+                .accessibilityIdentifier(accessibilityIdentifier ?? "")
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 30)
                 .padding(.bottom, 8)
-            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { entry in
-                    let row = entry.element
-                    let rowIdentifier = "definition-\(title.lowercased().replacingOccurrences(of: " ", with: "-"))-row-\(entry.offset)"
-                    GridRow(alignment: .top) {
-                        Text(row.0)
-                            .font(.caption)
-                            .foregroundStyle(Color.tsMutedInk)
-                            .gridColumnAlignment(.leading)
-                            .accessibilityIdentifier("\(rowIdentifier)-label")
-                        Text(row.1)
-                            .font(.subheadline)
-                            .foregroundStyle(Color.tsInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .gridColumnAlignment(.leading)
-                            .accessibilityIdentifier("\(rowIdentifier)-value")
-                    }
-                    .padding(.vertical, 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .overlay(alignment: .bottom) {
-                        Divider().overlay(Color.tsLine)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { entry in
+                        definitionRow(entry)
                     }
                 }
+            } else {
+                Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { entry in
+                        let row = entry.element
+                        let rowIdentifier = rowIdentifier(entry.offset)
+                        GridRow(alignment: .top) {
+                            Text(row.0)
+                                .font(.caption)
+                                .foregroundStyle(Color.tsMutedInk)
+                                .gridColumnAlignment(.leading)
+                                .accessibilityIdentifier("\(rowIdentifier)-label")
+                            Text(row.1)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.tsInk)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .gridColumnAlignment(.leading)
+                                .accessibilityIdentifier("\(rowIdentifier)-value")
+                        }
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .overlay(alignment: .bottom) {
+                            Divider().overlay(Color.tsLine)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func definitionRow(
+        _ entry: EnumeratedSequence<[(String, String)]>.Element
+    ) -> some View {
+        let row = entry.element
+        let identifier = rowIdentifier(entry.offset)
+        return VStack(alignment: .leading, spacing: 5) {
+            Text(row.0)
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityIdentifier("\(identifier)-label")
+            Text(row.1)
+                .font(.subheadline)
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("\(identifier)-value")
+        }
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottom) {
+            Divider().overlay(Color.tsLine)
+        }
+    }
+
+    private func rowIdentifier(_ offset: Int) -> String {
+        "definition-\(title.lowercased().replacingOccurrences(of: " ", with: "-"))-row-\(offset)"
     }
 }
 
 private struct WorkspacePersonDetailView: View {
     let person: WorkspacePerson
     let roles: [WorkspacePersonRole]
-    @Environment(\.dismiss) private var dismiss
+    let onBack: () -> Void
+    let onOpenPursuit: (String) -> Void
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AccessibilityFocusState private var isHeadingFocused: Bool
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    RelationshipEyebrow(appLanguage.text("Stable person identity"))
-                        .padding(.top, 26)
-                    Text(person.displayLabel)
-                        .font(.custom("Georgia", size: 38, relativeTo: .largeTitle))
-                        .foregroundStyle(Color.tsInk)
-                        .tracking(-0.8)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 10)
-                    Text(
-                        appLanguage.text(
-                            "Roles below are contextual. They do not redefine identity or rank this person."
-                        )
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Button(action: onBack) {
+                    Label(
+                        appLanguage.text("Directory"),
+                        systemImage: "chevron.left"
                     )
-                        .font(.body)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(appLanguage.text("Back to People"))
+                .accessibilityIdentifier("person-detail-back")
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+
+                HStack(alignment: .top, spacing: 14) {
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        RelationshipInitials(
+                            initials: relationshipInitials(person.displayLabel),
+                            size: 56
+                        )
+                    }
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(person.displayLabel)
+                            .font(.custom("Georgia", size: 32, relativeTo: .title))
+                            .foregroundStyle(Color.tsInk)
+                            .tracking(-0.55)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityAddTraits(.isHeader)
+                            .accessibilityFocused($isHeadingFocused)
+                        if let profile = person.profile {
+                            Text(profile.headline)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color.tsMutedInk)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.top, 8)
+
+                WorkspacePersonSectionHeader(appLanguage.text("Current work"))
+                    .padding(.top, 28)
+                if roles.isEmpty {
+                    Text(appLanguage.text("No active Pursuit role is recorded."))
+                        .font(.subheadline)
                         .foregroundStyle(Color.tsMutedInk)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 12)
-
-                    if let profile = person.profile {
-                        RelationshipEyebrow(appLanguage.text("About"))
-                            .padding(.top, 30)
-                        Text(profile.headline)
-                            .font(.headline)
-                            .foregroundStyle(Color.tsInk)
-                            .padding(.top, 12)
-                        Text(profile.summary)
-                            .font(.body)
-                            .foregroundStyle(Color.tsInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 8)
-                        Label(
-                            appLanguage.text("Written by the workspace owner"),
-                            systemImage: "person.crop.circle.badge.checkmark"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .padding(.top, 10)
-                    }
-
-                    RelationshipEyebrow(appLanguage.text("Pursuit roles"))
-                        .padding(.top, 30)
-                    if roles.isEmpty {
-                        Text(appLanguage.text("No active Pursuit role is recorded."))
-                            .font(.subheadline)
-                            .foregroundStyle(Color.tsMutedInk)
-                            .padding(.top, 12)
-                    } else {
-                        ForEach(roles) { role in
-                            VStack(alignment: .leading, spacing: 7) {
-                                Text(role.pursuitTitle)
-                                    .font(.headline)
-                                    .foregroundStyle(Color.tsInk)
-                                Text("\(role.roleType.humanized) · \(role.status.humanized) · \(role.confidence.humanized)")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.tsMutedInk)
-                                Text(role.evidenceState.explanation)
-                                    .font(.caption2)
-                                    .foregroundStyle(
-                                        role.evidenceState.availability == "unavailable"
-                                            ? Color.tsVermilion
-                                            : Color.tsMutedInk
-                                    )
-                            }
-                            .padding(.vertical, 16)
-                            .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+                } else {
+                    ForEach(roles) { role in
+                        WorkspacePersonPursuitRow(role: role) {
+                            onOpenPursuit(role.pursuitID)
                         }
                     }
+                }
 
-                    PursuitDefinitionSection(
-                        title: appLanguage.text("Governed identity"),
-                        rows: [
-                            (appLanguage.text("Sources"), "\(person.captureCount)"),
-                            (appLanguage.text("Identity clues"), "\(person.confirmedIdentityCount)"),
-                            (appLanguage.text("Contexts"), "\(person.contextCount)"),
-                        ]
+                if let profile = person.profile {
+                    WorkspacePersonSectionHeader(appLanguage.text("About"))
+                        .padding(.top, 28)
+                    Text(profile.summary)
+                        .font(.body)
+                        .foregroundStyle(Color.tsInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 12)
+                    Label(
+                        appLanguage.text("Written by the workspace owner"),
+                        systemImage: "person.crop.circle.badge.checkmark"
                     )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .padding(.top, 10)
                 }
-                .padding(.horizontal, 22)
-                .padding(.bottom, 40)
+
+                WorkspacePersonIdentitySection(person: person)
+                    .padding(.top, 28)
             }
-            .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle(appLanguage.text("Person"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(appLanguage.text("Close"), action: dismiss.callAsFunction)
-                }
-            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
+        .scrollIndicators(.hidden)
+        .background(Color.tsSurface)
         .accessibilityIdentifier("workspace-person-detail")
+        .task {
+            await Task.yield()
+            isHeadingFocused = true
+        }
+    }
+}
+
+private struct WorkspacePersonSectionHeader: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.caption2.weight(.bold))
+            .tracking(1.05)
+            .foregroundStyle(Color.tsInk)
+            .fixedSize(horizontal: false, vertical: true)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+    }
+}
+
+private struct WorkspacePersonPursuitRow: View {
+    let role: WorkspacePersonRole
+    let action: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(role.pursuitTitle)
+                        .font(.headline)
+                        .foregroundStyle(Color.tsInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(role.targetOutcome.workspacePhrase)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("\(role.roleType.humanized) · \(role.status.humanized)")
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                    Label(evidenceSummary, systemImage: evidenceIcon)
+                        .font(.caption2)
+                        .foregroundStyle(
+                            role.evidenceState.availability == "unavailable"
+                                ? Color.tsVermilion
+                                : Color.tsMutedInk
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.tsMutedInk)
+                    .frame(minHeight: 44)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+        .accessibilityIdentifier("person-pursuit-\(role.pursuitID)")
+    }
+
+    private var evidenceIcon: String {
+        switch role.evidenceState.availability {
+        case "available": return "checkmark.seal"
+        case "not_required": return "person.crop.circle.badge.checkmark"
+        default: return "exclamationmark.triangle"
+        }
+    }
+
+    private var evidenceSummary: String {
+        switch role.evidenceState.availability {
+        case "available":
+            let count = role.evidenceState.availableReferenceCount
+            let key = count == 1 ? "%lld reviewed source" : "%lld reviewed sources"
+            return String(
+                format: appLanguage.text(key),
+                locale: appLanguage.locale,
+                Int64(count)
+            )
+        case "partial":
+            return String(
+                format: appLanguage.text("%1$lld of %2$lld sources available"),
+                locale: appLanguage.locale,
+                Int64(role.evidenceState.availableReferenceCount),
+                Int64(role.evidenceState.referenceCount)
+            )
+        case "not_required":
+            return appLanguage.text("Recorded by the recruiter")
+        default:
+            return appLanguage.text("Source unavailable · review needed")
+        }
+    }
+}
+
+private struct WorkspacePersonIdentitySection: View {
+    let person: WorkspacePerson
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            WorkspacePersonSectionHeader(appLanguage.text("Governed identity"))
+            identityRow(
+                label: appLanguage.text("Sources"),
+                value: person.captureCount,
+                identifier: "definition-governed-identity-row-0"
+            )
+            identityRow(
+                label: appLanguage.text("Identity clues"),
+                value: person.confirmedIdentityCount,
+                identifier: "definition-governed-identity-row-1"
+            )
+            identityRow(
+                label: appLanguage.text("Contexts"),
+                value: person.contextCount,
+                identifier: "definition-governed-identity-row-2"
+            )
+        }
+    }
+
+    private func identityRow(
+        label: String,
+        value: Int,
+        identifier: String
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityIdentifier("\(identifier)-label")
+            Spacer(minLength: 12)
+            Text(verbatim: "\(value)")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(Color.tsInk)
+                .accessibilityIdentifier("\(identifier)-value")
+        }
+        .padding(.vertical, 13)
+        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
     }
 }
 
@@ -2646,46 +3220,53 @@ private struct RelationshipGuideRail: View {
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
+            Button(action: onCapture) {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(width: 44, height: 48)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                appLanguage.text("Add a conversation screenshot")
+            )
+            .accessibilityIdentifier("capture-relationship-moment")
+
             Button(action: onGuide) {
                 HStack(spacing: 10) {
-                    RelationshipSignalOrb()
-                        .frame(width: 28, height: 28)
-                    Text(appLanguage.text("Ask anything", zhHans: "问点什么"))
-                        .font(.subheadline)
-                        .foregroundStyle(Color.tsMutedInk)
+                    Text(
+                        appLanguage.text("Tell the Agent anything…")
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(1)
                     Spacer(minLength: 6)
+                    Image(systemName: "waveform")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.tsVermilion)
                 }
                 .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                .padding(.leading, 10)
+                .padding(.trailing, 12)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(
-                appLanguage.text("Open a new Agent session", zhHans: "打开新的 Agent 会话")
+                appLanguage.text("Open the global Agent input")
             )
             .accessibilityIdentifier("relationship-guide")
-
-            Button(action: onCapture) {
-                Image(systemName: "waveform")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.tsInk)
-                    .frame(width: 48, height: 48)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(
-                appLanguage.text(
-                    "Add text, photo, or voice",
-                    zhHans: "添加文本、图片或语音"
-                )
-            )
-            .accessibilityIdentifier("capture-relationship-moment")
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 9)
+        .padding(.vertical, 8)
         .background(Color.tsCanvas, in: Capsule())
+        .overlay {
+            Capsule().stroke(Color.tsInk.opacity(0.07), lineWidth: 1)
+        }
+        .shadow(color: Color.tsInk.opacity(0.055), radius: 18, y: 8)
         .padding(.horizontal, 20)
+        .padding(.vertical, 8)
         .background(Color.tsSurface.opacity(0.97))
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 }
 
@@ -2727,6 +3308,7 @@ private struct RelationshipEyebrow: View {
             .tracking(1.15)
             .foregroundStyle(color)
             .fixedSize(horizontal: false, vertical: true)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 }
 
@@ -2820,16 +3402,33 @@ private struct RelationshipPersonRow: View {
 private struct RelationshipInitials: View {
     let initials: String
     let size: CGFloat
+    var isEmphasized = false
 
     var body: some View {
         Text(initials)
-            .font(.custom("Georgia", size: size * 0.32, relativeTo: .body))
-            .foregroundStyle(Color.tsMutedInk)
+            .font(.custom("Georgia", fixedSize: size * 0.32))
+            .foregroundStyle(isEmphasized ? Color.tsSurface : Color.tsMutedInk)
             .frame(width: size, height: size)
-            .background(Color.tsCanvas, in: Circle())
-            .overlay { Circle().stroke(Color.tsLine, lineWidth: 1) }
+            .background(isEmphasized ? Color.tsInk : Color.tsCanvas, in: Circle())
+            .overlay {
+                if !isEmphasized {
+                    Circle().stroke(Color.tsLine, lineWidth: 1)
+                }
+            }
             .accessibilityHidden(true)
     }
+}
+
+private func relationshipInitials(_ name: String) -> String {
+    let parts = name.split(whereSeparator: \.isWhitespace)
+    if parts.count > 1 {
+        return parts.prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+    }
+    return String(name.prefix(2)).uppercased()
 }
 
 private struct RelationshipLibraryRow: View {

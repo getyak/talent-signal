@@ -115,6 +115,22 @@ final class RelationshipArchiveTests: XCTestCase {
             AppLanguage.english.workspaceTerm("Evidence-backed gap"),
             "Evidence-backed gap"
         )
+        XCTAssertEqual(
+            AppLanguage.simplifiedChinese.workspaceValue("client_alignment"),
+            "客户对齐"
+        )
+        XCTAssertEqual(
+            AppLanguage.english.shortDate("2026-09-18"),
+            "Sep 18, 2026"
+        )
+        XCTAssertEqual(
+            AppLanguage.simplifiedChinese.shortDate("2026-09-18"),
+            "2026年9月18日"
+        )
+        XCTAssertEqual(
+            AppLanguage.simplifiedChinese.evidenceExplanation(.availableOne),
+            "1 条已审阅证据"
+        )
     }
 
     @MainActor
@@ -1039,6 +1055,165 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testContactProposalRestoresEditsAndOneOperationKeyAfterRelaunch() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "contact-proposal-recovery-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let first = AgentSessionStore(persistence: persistence)
+        var draft = try XCTUnwrap(
+            ConversationContactIntake.propose(
+                "Add Maya Chen for the product search, maya@example.com"
+            )
+        )
+
+        XCTAssertTrue(
+            first.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:stable"
+            )
+        )
+        draft.relationshipContext = "Chief Product Officer"
+        XCTAssertTrue(
+            first.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:stable"
+            )
+        )
+
+        let relaunched = AgentSessionStore(persistence: persistence)
+        XCTAssertEqual(relaunched.contactProposalDraft, draft)
+        XCTAssertEqual(
+            relaunched.contactProposalOperationKey,
+            "ios:contact:stable"
+        )
+        XCTAssertTrue(relaunched.clearContactProposal())
+        XCTAssertNil(
+            AgentSessionStore(persistence: persistence).contactProposalDraft
+        )
+    }
+
+    @MainActor
+    func testConfirmedContactOperationRestoresExactRetryIntentAndCaptureTime() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "contact-operation-recovery-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let clock = AgentSessionTestClock(
+            now: Date(timeIntervalSince1970: 1_780_100_000)
+        )
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let first = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        let draft = try XCTUnwrap(
+            ConversationContactIntake.propose(
+                "Add Mina Patel for Finance, email mina@example.com"
+            )
+        )
+        let originalCapturedAt = clock.now
+        let target = ConversationContactTarget.newPerson
+
+        XCTAssertTrue(
+            first.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:response-lost",
+                pendingTarget: target,
+                pendingConfirmIdentityClue: true
+            )
+        )
+        clock.now.addTimeInterval(90)
+        XCTAssertTrue(
+            first.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:response-lost",
+                pendingTarget: target,
+                pendingConfirmIdentityClue: true
+            )
+        )
+
+        let relaunched = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        XCTAssertEqual(relaunched.contactProposalPendingTarget, target)
+        XCTAssertEqual(relaunched.contactProposalPendingConfirmIdentityClue, true)
+        XCTAssertEqual(relaunched.contactProposalCapturedAt, originalCapturedAt)
+        XCTAssertEqual(
+            relaunched.contactProposalOperationKey,
+            "ios:contact:response-lost"
+        )
+    }
+
+    @MainActor
+    func testContactProposalExpiresAtDraftRetentionBoundary() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "contact-proposal-retention-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let clock = AgentSessionTestClock(
+            now: Date(timeIntervalSince1970: 1_780_000_000)
+        )
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let store = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        let draft = try XCTUnwrap(
+            ConversationContactIntake.propose("Add Maya Chen for product")
+        )
+        XCTAssertTrue(
+            store.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:expires"
+            )
+        )
+
+        clock.now.addTimeInterval(7 * 24 * 60 * 60)
+
+        XCTAssertNil(store.contactProposalDraft)
+        XCTAssertNil(store.contactProposalOperationKey)
+        XCTAssertNil(
+            AgentSessionStore(
+                persistence: persistence,
+                now: { clock.now }
+            ).contactProposalDraft
+        )
+    }
+
+    @MainActor
+    func testContactProposalDismissalStaysOpenWhenProtectedClearFails() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let draft = try XCTUnwrap(
+            ConversationContactIntake.propose("Add Maya Chen for product")
+        )
+        XCTAssertTrue(
+            store.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:clear-retry"
+            )
+        )
+
+        persistence.failSave = true
+
+        XCTAssertFalse(store.clearContactProposal())
+        XCTAssertEqual(store.contactProposalDraft, draft)
+        XCTAssertEqual(
+            store.contactProposalOperationKey,
+            "ios:contact:clear-retry"
+        )
+    }
+
+    @MainActor
     func testPendingAskReusesOneIdempotencyKeyAfterRelaunch() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "pending-agent-ask-\(UUID().uuidString)")
@@ -1141,6 +1316,12 @@ final class RelationshipArchiveTests: XCTestCase {
             lastReviewedBy: citation.lastReviewedBy
         )
         XCTAssertTrue(boundary.compactProvenance.hasPrefix("2026-08-25"))
+        let localizedProvenance = boundary.compactProvenance(
+            language: .simplifiedChinese
+        )
+        XCTAssertTrue(localizedProvenance.contains("候选人"))
+        XCTAssertTrue(localizedProvenance.contains("已审阅"))
+        XCTAssertFalse(localizedProvenance.contains("Candidate"))
         XCTAssertTrue(boundary.detailedObservedAt.contains("2026-08-25 01:33"))
         XCTAssertTrue(boundary.detailedObservedAt.contains("Asia/Shanghai"))
         XCTAssertTrue(
@@ -1229,7 +1410,10 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(snapshot.todayItems.map(\.kind), [.action, .review, .gap])
         XCTAssertEqual(Set(snapshot.todayItems.map(\.pursuitID)).count, 3)
         XCTAssertEqual(snapshot.todayItems[0].owner, preview.currentUserName)
-        XCTAssertEqual(snapshot.todayItems[0].due, "Aug 25, 2026")
+        XCTAssertEqual(
+            snapshot.todayItems[0].due,
+            "2026-08-25T09:00:00.000Z"
+        )
     }
 
     func testTodayDoesNotHideAttentionAfterThirdPursuit() {
@@ -1803,6 +1987,69 @@ final class RelationshipArchiveTests: XCTestCase {
             )
         }
     }
+
+    func testAskReadbackPreservesReadyMediaInManifestOrder() throws {
+        let first = chatMediaFixture(id: "media-1", fileName: "one.jpg")
+        let second = chatMediaFixture(id: "media-2", fileName: "two.jpg")
+        let base = relationshipAskResponseFixture()
+        let response = RelationshipAskResponse(
+            contractVersion: base.contractVersion,
+            taskID: base.taskID,
+            contextManifestID: base.contextManifestID,
+            knowledgeSnapshotID: base.knowledgeSnapshotID,
+            disposition: base.disposition,
+            blocks: base.blocks,
+            media: [first, second],
+            createdAt: base.createdAt
+        )
+
+        let validated = try relationshipAskReadbackFixture(media: [first, second]).validated(
+            response,
+            expectedAccountID: "account-1",
+            expectedPersonID: "person-1",
+            expectedRelationshipContextID: "context-1"
+        )
+        XCTAssertEqual(validated.media.map(\.id), ["media-1", "media-2"])
+
+        XCTAssertThrowsError(
+            try relationshipAskReadbackFixture(media: [second, first]).validated(
+                response,
+                expectedAccountID: "account-1",
+                expectedPersonID: "person-1",
+                expectedRelationshipContextID: "context-1"
+            )
+        )
+    }
+
+    @MainActor
+    func testAskIdempotencyChangesWhenMediaSelectionChanges() {
+        let store = AgentSessionStore()
+        let first = store.beginAsk(
+            "What changed?",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            proposedIdempotencyKey: "first",
+            requestIdentity: "media-1:media-2"
+        )
+        let retry = store.beginAsk(
+            "What changed?",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            proposedIdempotencyKey: "retry",
+            requestIdentity: "media-1:media-2"
+        )
+        let changed = store.beginAsk(
+            "What changed?",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            proposedIdempotencyKey: "changed",
+            requestIdentity: "media-3"
+        )
+
+        XCTAssertEqual(first, "first")
+        XCTAssertEqual(retry, "first")
+        XCTAssertEqual(changed, "changed")
+    }
 }
 
 private func relationshipAskResponseFixture() -> RelationshipAskResponse {
@@ -1823,6 +2070,19 @@ private func relationshipAskResponseFixture() -> RelationshipAskResponse {
                 requiresUserDecision: true
             ),
         ],
+        createdAt: "2026-08-25T01:00:00.000Z"
+    )
+}
+
+private func chatMediaFixture(id: String, fileName: String) -> ChatMediaAsset {
+    ChatMediaAsset(
+        id: id,
+        fileName: fileName,
+        mediaType: "image/jpeg",
+        byteSize: 128,
+        width: 1200,
+        height: 900,
+        status: "ready",
         createdAt: "2026-08-25T01:00:00.000Z"
     )
 }
@@ -1893,7 +2153,8 @@ private func relationshipAskReadbackFixture(
     citationReviewStatus: String = "reviewed",
     citationAttributionStatus: String = "confirmed",
     citationExactExcerpt: String? = "The final conversation works next Tuesday.",
-    citationLastReviewID: String? = "review-1"
+    citationLastReviewID: String? = "review-1",
+    media: [ChatMediaAsset]? = nil
 ) -> RelationshipAskReadback {
     RelationshipAskReadback(
         contractVersion: TalentSignalAPIContract.version,
@@ -1941,6 +2202,7 @@ private func relationshipAskReadbackFixture(
                 lastReviewedBy: "Recruiter"
             ),
         ],
+        media: media,
         createdAt: "2026-08-25T01:00:00.000Z"
     )
 }

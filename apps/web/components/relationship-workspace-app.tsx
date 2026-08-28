@@ -10,7 +10,7 @@ import {
   type ResourceCaptureResponse,
   type WorkspaceReviewResponse,
 } from "@talent-signal/contracts";
-import { Plus, ShieldCheck } from "@phosphor-icons/react";
+import { ShieldCheck } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -141,15 +141,35 @@ export function RelationshipWorkspaceApp({
   });
 
   useEffect(() => {
-    function openCapture() {
-      setCaptureOpen(true);
+    function focusAgent() {
+      window.requestAnimationFrame(() => {
+        const composer = document.getElementById(
+          "relationship-agent-composer",
+        );
+        composer?.scrollIntoView({ block: "center" });
+        composer?.focus({ preventScroll: true });
+
+        const location = new URL(window.location.href);
+        if (location.searchParams.get("intent") !== "compose") {
+          return;
+        }
+        location.searchParams.delete("intent");
+        window.history.replaceState(
+          null,
+          "",
+          `${location.pathname}${location.search}${location.hash}`,
+        );
+      });
     }
-    window.addEventListener("talent-signal:open-capture", openCapture);
+    window.addEventListener("talent-signal:focus-agent", focusAgent);
+    if (
+      new URL(window.location.href).searchParams.get("intent") ===
+      "compose"
+    ) {
+      focusAgent();
+    }
     return () =>
-      window.removeEventListener(
-        "talent-signal:open-capture",
-        openCapture,
-      );
+      window.removeEventListener("talent-signal:focus-agent", focusAgent);
   }, []);
 
   useEffect(() => {
@@ -791,13 +811,16 @@ export function RelationshipWorkspaceApp({
         </p>
         {!activeScope ? (
           <RelationshipAgentStartPanel
+            contactDraft={relationshipAgent.contactDraft}
             createOpen={relationshipAgent.createOpen}
             identityResolutionCase={identityResolutionCase}
+            objective={relationshipAgent.objective}
+            onAsk={() => void relationshipAgent.ask()}
             onCancelCreate={cancelAgentCreate}
             onCaseUpdated={handleIdentityCaseUpdated}
             onCommitted={handleInitialResourcesCommitted}
-            onCreateOpen={() => relationshipAgent.setCreateOpen(true)}
             onDeferred={(caseId) => void handleIdentityReviewCreated(caseId)}
+            onObjectiveChange={relationshipAgent.setObjective}
             onResolved={handleIdentityCaseResolved}
             onScreenshot={() => setCaptureOpen(true)}
           />
@@ -821,14 +844,6 @@ export function RelationshipWorkspaceApp({
             </div>
             <div>
               <Link href="/workspace/boundaries">Boundary cases</Link>
-              <button
-                className="context-primary-button context-primary-button--compact"
-                onClick={() => setCaptureOpen(true)}
-                type="button"
-              >
-                <Plus aria-hidden="true" size={17} />
-                Import screenshot
-              </button>
             </div>
           </header>
 
@@ -850,12 +865,17 @@ export function RelationshipWorkspaceApp({
             <div className="context-page context-page--resource-only">
               <RelationshipAgentPanel
                 busyLabel={busy}
+                contactDraft={relationshipAgent.contactDraft}
                 createOpen={relationshipAgent.createOpen}
                 history={agentHistory}
                 identityResolutionCase={identityResolutionCase}
                 mode="relationship"
                 objective={relationshipAgent.objective}
+                mediaDrafts={relationshipAgent.mediaDrafts}
                 onAsk={() => void relationshipAgent.ask()}
+                onMediaSelected={relationshipAgent.addMedia}
+                onRemoveMedia={(clientId) => void relationshipAgent.removeMedia(clientId)}
+                onRetryMedia={relationshipAgent.retryMedia}
                 onCancelCreate={cancelAgentCreate}
                 onIdentityCaseUpdated={handleIdentityCaseUpdated}
                 onIdentityDeferred={(caseId) =>
@@ -867,6 +887,7 @@ export function RelationshipWorkspaceApp({
                 onReviewMerge={(operationId) =>
                   void handleReviewPersonMergeReversal(operationId)
                 }
+                onReviewDuplicates={relationshipAgent.openMergeReview}
                 onReviewSources={openResourceComposer}
                 onRunCommand={relationshipAgent.runUiCommand}
                 operation={relationshipAgent.operation}
@@ -921,7 +942,6 @@ export function RelationshipWorkspaceApp({
                   );
                 }}
                 onIdentityCorrected={handleIdentityCorrected}
-                onOpen={openResourceComposer}
                 onReviewCapture={handleOpenCaptureReview}
                 onScreenshot={() => setCaptureOpen(true)}
                 open={resourceComposerOpen}
@@ -936,12 +956,17 @@ export function RelationshipWorkspaceApp({
             <div className="context-page">
               <RelationshipAgentPanel
                 busyLabel={busy}
+                contactDraft={relationshipAgent.contactDraft}
                 createOpen={relationshipAgent.createOpen}
                 history={agentHistory}
                 identityResolutionCase={identityResolutionCase}
                 mode="review"
                 objective={relationshipAgent.objective}
+                mediaDrafts={relationshipAgent.mediaDrafts}
                 onAsk={() => void relationshipAgent.ask()}
+                onMediaSelected={relationshipAgent.addMedia}
+                onRemoveMedia={(clientId) => void relationshipAgent.removeMedia(clientId)}
+                onRetryMedia={relationshipAgent.retryMedia}
                 onCancelCreate={cancelAgentCreate}
                 onIdentityCaseUpdated={handleIdentityCaseUpdated}
                 onIdentityDeferred={(caseId) =>
@@ -953,6 +978,7 @@ export function RelationshipWorkspaceApp({
                 onReviewMerge={(operationId) =>
                   void handleReviewPersonMergeReversal(operationId)
                 }
+                onReviewDuplicates={relationshipAgent.openMergeReview}
                 onReviewSources={openResourceComposer}
                 onRunCommand={relationshipAgent.runUiCommand}
                 operation={relationshipAgent.operation}
@@ -1028,7 +1054,6 @@ export function RelationshipWorkspaceApp({
                   );
                 }}
                 onIdentityCorrected={handleIdentityCorrected}
-                onOpen={openResourceComposer}
                 onReviewCapture={handleOpenCaptureReview}
                 onScreenshot={() => setCaptureOpen(true)}
                 open={resourceComposerOpen}

@@ -1,6 +1,8 @@
 import {
   CaptureResponseSchema,
   ChatTaskResponseSchema,
+  ChatMediaAssetSchema,
+  CreateChatMediaRequestSchema,
   CONTRACT_VERSION,
   CreateCaptureRequestSchema,
   IdentityResolutionCaseSchema,
@@ -730,5 +732,34 @@ describe("multichannel relationship-resource contracts", () => {
         knowledge_snapshot_id: undefined,
       }),
     ).toBe(false);
+  });
+
+  it("bounds scoped Chat media without granting evidence authority", () => {
+    const media = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      file_name: "conversation context.jpg",
+      media_type: "image/jpeg",
+      byte_size: 2048,
+      width: 1200,
+      height: 900,
+      status: "ready",
+      created_at: "2026-08-27T10:00:00.000Z",
+    };
+    expect(Value.Check(ChatMediaAssetSchema, media)).toBe(true);
+    expect(
+      Value.Check(CreateChatMediaRequestSchema, {
+        idempotency_key: "web-chat-media:request-1",
+        person_id: personId,
+        relationship_context_id: contextId,
+        file_name: media.file_name,
+        media_type: media.media_type,
+        byte_size: media.byte_size,
+        width: media.width,
+        height: media.height,
+      }),
+    ).toBe(true);
+    expect(Value.Check(ChatMediaAssetSchema, { ...media, byte_size: 8_388_609 })).toBe(false);
+    expect(media).not.toHaveProperty("evidence_fragment_ids");
+    expect(media).not.toHaveProperty("authorization_scope");
   });
 });

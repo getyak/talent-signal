@@ -36,6 +36,7 @@ const MIGRATIONS = [
   "028_password_auth",
   "029_password_credential_constraint",
   "030_person_profiles",
+  "031_chat_media_assets",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

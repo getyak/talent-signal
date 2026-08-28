@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  ChatMediaAsset,
   ChatTaskResponse,
   RelationshipScope,
 } from "@talent-signal/contracts";
@@ -13,10 +14,13 @@ import {
 } from "react";
 
 import { resolveAgentUiCommand } from "@/lib/agent-ui-command";
+import {
+  proposeAgentContactDraft,
+  type AgentContactDraft,
+} from "@/lib/agent-contact-intake";
 import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
 
-const DEFAULT_OBJECTIVE =
-  "What should I remember and do before the next conversation?";
+const DEFAULT_OBJECTIVE = "";
 const DRAFT_PREFIX = "talent-signal:relationship-agent-draft:v1";
 const DRAFT_EVENT = "talent-signal:relationship-agent-draft";
 
@@ -26,7 +30,28 @@ export type RelationshipAgentOperation = {
   title: string;
 };
 
+export type RelationshipChatMediaDraft = {
+  clientId: string;
+  error: string | null;
+  file: File;
+  media: ChatMediaAsset | null;
+  previewUrl: string;
+  status: "uploading" | "ready" | "failed" | "removing";
+};
+
+const CHAT_MEDIA_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+]);
+const CHAT_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
+const CHAT_MEDIA_MAX_ITEMS = 10;
+
 type ConversationState = {
+  contactDraft: AgentContactDraft | null;
   createOpen: boolean;
   key: string;
   operation: RelationshipAgentOperation | null;
@@ -36,6 +61,7 @@ type ConversationState = {
 
 function emptyConversation(key: string): ConversationState {
   return {
+    contactDraft: null,
     createOpen: false,
     key,
     operation: null,
@@ -114,10 +140,12 @@ export function useRelationshipAgentController({
 }: ControllerOptions) {
   const requestRef = useRef<{
     key: string;
+    mediaSignature: string;
     objective: string;
     requestId: string;
   } | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
+  const mediaDraftsRef = useRef<RelationshipChatMediaDraft[]>([]);
   const scopeKey = relationshipAgentScopeKey({ accountId, scope });
   const conversationKey = relationshipAgentConversationKey({
     accountId,
@@ -135,6 +163,21 @@ export function useRelationshipAgentController({
     key: conversationKey,
     value: DEFAULT_OBJECTIVE,
   });
+  const [mediaDrafts, setMediaDraftsState] = useState<
+    RelationshipChatMediaDraft[]
+  >([]);
+
+  function setMediaDrafts(
+    update:
+      | RelationshipChatMediaDraft[]
+      | ((current: RelationshipChatMediaDraft[]) => RelationshipChatMediaDraft[]),
+  ) {
+    setMediaDraftsState((current) => {
+      const next = typeof update === "function" ? update(current) : update;
+      mediaDraftsRef.current = next;
+      return next;
+    });
+  }
 
   const subscribeDraft = useCallback(
     (notify: () => void) => {
@@ -193,10 +236,143 @@ export function useRelationshipAgentController({
     requestAbortRef.current?.abort();
     requestAbortRef.current = null;
     onBusyChange("");
+    const abandoned = mediaDraftsRef.current;
+    mediaDraftsRef.current = [];
+    setMediaDraftsState([]);
+    for (const draft of abandoned) {
+      URL.revokeObjectURL(draft.previewUrl);
+      if (draft.media?.id && draft.status === "ready") {
+        void relationshipIntegrationFetch(
+          `/api/local-integration/chat/media/${draft.media.id}`,
+          { method: "DELETE" },
+        );
+      }
+    }
     return () => {
       requestAbortRef.current?.abort();
     };
   }, [conversationKey, onBusyChange]);
+
+  async function uploadMediaDraft(draft: RelationshipChatMediaDraft) {
+    const requestScope = scope;
+    if (!requestScope) return;
+    const form = new FormData();
+    form.set("request_id", draft.clientId);
+    form.set("person_id", requestScope.person.id);
+    form.set(
+      "relationship_context_id",
+      requestScope.relationship_context.id,
+    );
+    form.set("file", draft.file);
+    try {
+      const result = await relationshipIntegrationFetch(
+        "/api/local-integration/chat/media",
+        { method: "POST", body: form },
+      );
+      const payload = (await result.json()) as ChatMediaAsset | { message?: string };
+      if (!result.ok || !("id" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "The image could not be uploaded.",
+        );
+      }
+      setMediaDrafts((current) =>
+        current.map((item) =>
+          item.clientId === draft.clientId
+            ? { ...item, error: null, media: payload, status: "ready" }
+            : item,
+        ),
+      );
+    } catch (caught) {
+      setMediaDrafts((current) =>
+        current.map((item) =>
+          item.clientId === draft.clientId
+            ? {
+                ...item,
+                error:
+                  caught instanceof Error
+                    ? caught.message
+                    : "The image could not be uploaded.",
+                status: "failed",
+              }
+            : item,
+        ),
+      );
+    }
+  }
+
+  function addMedia(files: FileList | File[]) {
+    const available = CHAT_MEDIA_MAX_ITEMS - mediaDraftsRef.current.length;
+    const selected = Array.from(files).slice(0, Math.max(0, available));
+    const drafts: RelationshipChatMediaDraft[] = [];
+    for (const file of selected) {
+      if (!CHAT_MEDIA_TYPES.has(file.type) || file.size < 1 || file.size > CHAT_MEDIA_MAX_BYTES) {
+        onError(`${file.name} must be a supported image no larger than 8 MB.`);
+        continue;
+      }
+      drafts.push({
+        clientId: crypto.randomUUID(),
+        error: null,
+        file,
+        media: null,
+        previewUrl: URL.createObjectURL(file),
+        status: "uploading",
+      });
+    }
+    if (Array.from(files).length > available) {
+      onError(`Attach up to ${CHAT_MEDIA_MAX_ITEMS} images to one Ask.`);
+    }
+    if (drafts.length === 0) return;
+    setMediaDrafts((current) => [...current, ...drafts]);
+    onAnnouncement(`${drafts.length} ${drafts.length === 1 ? "image is" : "images are"} uploading for this scoped Ask.`);
+    for (const draft of drafts) void uploadMediaDraft(draft);
+  }
+
+  function retryMedia(clientId: string) {
+    const draft = mediaDraftsRef.current.find((item) => item.clientId === clientId);
+    if (!draft || draft.status !== "failed") return;
+    const retry = { ...draft, error: null, status: "uploading" as const };
+    setMediaDrafts((current) =>
+      current.map((item) => (item.clientId === clientId ? retry : item)),
+    );
+    void uploadMediaDraft(retry);
+  }
+
+  async function removeMedia(clientId: string) {
+    const draft = mediaDraftsRef.current.find((item) => item.clientId === clientId);
+    if (!draft || draft.status === "uploading" || draft.status === "removing") return;
+    if (draft.media?.id) {
+      setMediaDrafts((current) =>
+        current.map((item) =>
+          item.clientId === clientId ? { ...item, status: "removing" } : item,
+        ),
+      );
+      try {
+        const result = await relationshipIntegrationFetch(
+          `/api/local-integration/chat/media/${draft.media.id}`,
+          { method: "DELETE" },
+        );
+        if (!result.ok) throw new Error("The stored image could not be removed.");
+      } catch (caught) {
+        setMediaDrafts((current) =>
+          current.map((item) =>
+            item.clientId === clientId
+              ? {
+                  ...item,
+                  error: caught instanceof Error ? caught.message : "The image could not be removed.",
+                  status: "failed",
+                }
+              : item,
+          ),
+        );
+        return;
+      }
+    }
+    URL.revokeObjectURL(draft.previewUrl);
+    setMediaDrafts((current) => current.filter((item) => item.clientId !== clientId));
+    onAnnouncement("Image removed from the current Ask.");
+  }
 
   function updateConversation(patch: Partial<Omit<ConversationState, "key">>) {
     setConversation((current) => ({
@@ -210,6 +386,7 @@ export function useRelationshipAgentController({
 
   function clearStoredDraft() {
     if (!scopeKey) {
+      setVolatileDraft({ key: conversationKey, value: DEFAULT_OBJECTIVE });
       return;
     }
     try {
@@ -253,7 +430,10 @@ export function useRelationshipAgentController({
   }
 
   function setCreateOpen(next: boolean) {
-    updateConversation({ createOpen: next });
+    updateConversation({
+      contactDraft: next ? currentConversation.contactDraft : null,
+      createOpen: next,
+    });
   }
 
   function setOperation(
@@ -277,8 +457,10 @@ export function useRelationshipAgentController({
     detail: string,
     status: RelationshipAgentOperation["status"],
     submitted = objective.trim(),
+    contactDraft: AgentContactDraft | null = null,
   ) {
     updateConversation({
+      contactDraft,
       operation: { detail, status, title },
       response: null,
       submittedObjective: submitted,
@@ -292,12 +474,17 @@ export function useRelationshipAgentController({
     const submitted = commandObjective.trim();
 
     if (command === "create_person") {
-      setCreateOpen(true);
+      const contactDraft = proposeAgentContactDraft(submitted);
+      updateConversation({
+        contactDraft,
+        createOpen: true,
+      });
       stageOperation(
         "Contact creation staged",
-        "Complete the explicit person, relationship context, and first governed source. Nothing is created until you submit that reviewable form.",
+        "I prepared a reviewable contact draft and will check this account for an existing person before creation is available.",
         "staged",
         submitted,
+        contactDraft,
       );
       onAnnouncement("Agent opened a governed contact draft.");
       return true;
@@ -379,10 +566,44 @@ export function useRelationshipAgentController({
   }
 
   async function ask() {
-    if (!scope || !objective.trim()) {
+    if (!objective.trim()) return;
+    const submitted = objective.trim();
+    const contactDraft = proposeAgentContactDraft(submitted);
+    if (contactDraft) {
+      updateConversation({
+        contactDraft,
+        createOpen: true,
+        operation: {
+          detail:
+            "I extracted only the visible identity and relationship clues. Account-scoped matching runs before create or attach becomes available.",
+          status: "staged",
+          title: contactDraft.name
+            ? `Contact draft prepared for ${contactDraft.name}`
+            : "Contact draft needs a name",
+        },
+        response: null,
+        submittedObjective: submitted,
+      });
+      requestRef.current = null;
+      clearStoredDraft();
+      onAnnouncement(
+        "Agent prepared a contact draft. Nothing has been created.",
+      );
       return;
     }
-    const submitted = objective.trim();
+    if (!scope) {
+      onError(
+        "Start with a person update, for example “Add Maya Chen for the CPO search…”, or open an existing relationship before asking a scoped question.",
+      );
+      return;
+    }
+    if (mediaDraftsRef.current.some((item) => item.status !== "ready")) {
+      return;
+    }
+    const readyMediaIds = mediaDraftsRef.current.flatMap((item) =>
+      item.media?.id ? [item.media.id] : [],
+    );
+    const mediaSignature = readyMediaIds.join(":");
     if (runUiCommand(submitted)) {
       return;
     }
@@ -394,10 +615,12 @@ export function useRelationshipAgentController({
     onError("");
     if (
       requestRef.current?.key !== requestConversationKey ||
-      requestRef.current.objective !== submitted
+      requestRef.current.objective !== submitted ||
+      requestRef.current.mediaSignature !== mediaSignature
     ) {
       requestRef.current = {
         key: requestConversationKey,
+        mediaSignature,
         objective: submitted,
         requestId: crypto.randomUUID(),
       };
@@ -419,6 +642,7 @@ export function useRelationshipAgentController({
             person_id: requestScope.person.id,
             relationship_context_id: requestScope.relationship_context.id,
             objective: submitted,
+            media_ids: readyMediaIds,
           }),
         },
       );
@@ -446,6 +670,11 @@ export function useRelationshipAgentController({
         submittedObjective: submitted,
       });
       clearStoredDraft();
+      for (const draft of mediaDraftsRef.current) {
+        URL.revokeObjectURL(draft.previewUrl);
+      }
+      mediaDraftsRef.current = [];
+      setMediaDraftsState([]);
       onAnnouncement(
         "Chat brief compiled from the visible person and relationship context.",
       );
@@ -475,12 +704,18 @@ export function useRelationshipAgentController({
 
   return {
     ask,
+    addMedia,
     clearGeneratedArtifacts,
+    contactDraft: currentConversation.contactDraft,
     createOpen: currentConversation.createOpen,
     objective,
+    mediaDrafts,
     operation: currentConversation.operation,
+    openMergeReview: onOpenMergeReview,
     response: currentConversation.response,
     runUiCommand,
+    removeMedia,
+    retryMedia,
     setCreateOpen,
     setObjective,
     setOperation,
