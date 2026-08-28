@@ -3,6 +3,13 @@ ENV["FASTLANE_SKIP_UPDATE_CHECK"] ||= "1"
 default_platform(:ios)
 
 APP_IDENTIFIER = "com.talentsignal.app"
+SHARE_EXTENSION_IDENTIFIER = "com.talentsignal.app.share"
+LIVE_ACTIVITY_IDENTIFIER = "com.talentsignal.app.live-activity"
+APP_IDENTIFIERS = [
+  APP_IDENTIFIER,
+  SHARE_EXTENSION_IDENTIFIER,
+  LIVE_ACTIVITY_IDENTIFIER
+].freeze
 REPOSITORY_ROOT = File.expand_path("..", __dir__)
 IOS_PROJECT = File.join(REPOSITORY_ROOT, "apps/ios/TalentSignal.xcodeproj")
 IOS_SCHEME = "TalentSignal"
@@ -75,14 +82,15 @@ platform :ios do
     )
   end
 
-  desc "Create or refresh the App Store provisioning profile"
+  desc "Create or refresh App Store profiles for the app and extensions"
   lane :prepare_signing do
     match(
       type: "appstore",
-      app_identifier: APP_IDENTIFIER,
+      app_identifier: APP_IDENTIFIERS,
       api_key: app_store_connect_key,
       git_url: ENV["MATCH_GIT_URL"] || DEFAULT_MATCH_GIT_URL,
       git_branch: ENV["MATCH_GIT_BRANCH"] || DEFAULT_MATCH_GIT_BRANCH,
+      force: true,
       readonly: false
     )
   end
@@ -99,7 +107,7 @@ platform :ios do
 
     match(
       type: "appstore",
-      app_identifier: APP_IDENTIFIER,
+      app_identifier: APP_IDENTIFIERS,
       api_key: key,
       git_url: ENV["MATCH_GIT_URL"] || DEFAULT_MATCH_GIT_URL,
       git_branch: ENV["MATCH_GIT_BRANCH"] || DEFAULT_MATCH_GIT_BRANCH,
@@ -128,7 +136,9 @@ platform :ios do
         signingStyle: "manual",
         teamID: team_id,
         provisioningProfiles: {
-          APP_IDENTIFIER => "match AppStore #{APP_IDENTIFIER}"
+          APP_IDENTIFIER => "match AppStore #{APP_IDENTIFIER}",
+          SHARE_EXTENSION_IDENTIFIER => "match AppStore #{SHARE_EXTENSION_IDENTIFIER}",
+          LIVE_ACTIVITY_IDENTIFIER => "match AppStore #{LIVE_ACTIVITY_IDENTIFIER}"
         }
       }
     )
