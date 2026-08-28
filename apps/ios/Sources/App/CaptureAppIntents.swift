@@ -4,9 +4,51 @@ import Foundation
 import OSLog
 import UniformTypeIdentifiers
 
-enum CaptureIntentDestination: String, Equatable, Sendable {
+enum CaptureIntentDestination: Equatable, Sendable {
     case hub
     case foregroundAudio
+    case latestProposal
+    case pursuit(String)
+}
+
+struct PursuitEntity: AppEntity {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Pursuit")
+    static let defaultQuery = PursuitEntityQuery()
+
+    let id: String
+    let displayName: String
+    let lifecycleState: String
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(
+            title: "\(displayName)",
+            subtitle: "\(lifecycleState)"
+        )
+    }
+}
+
+struct PursuitEntityQuery: EntityQuery {
+    func entities(for identifiers: [String]) async throws -> [PursuitEntity] {
+        let wanted = Set(identifiers)
+        return try availableEntities().filter { wanted.contains($0.id) }
+    }
+
+    func suggestedEntities() async throws -> [PursuitEntity] {
+        try availableEntities()
+    }
+
+    private func availableEntities() throws -> [PursuitEntity] {
+        guard StandaloneSharedCaptureConfiguration.isEnabled else { return [] }
+        guard let state = try FileStandaloneOnboardingStore().load(),
+              let pursuit = state.pursuit else { return [] }
+        return [
+            PursuitEntity(
+                id: pursuit.id.uuidString,
+                displayName: pursuit.outcome,
+                lifecycleState: state.isActivated ? "Verified progress" : "Active"
+            ),
+        ]
+    }
 }
 
 @MainActor
@@ -73,6 +115,51 @@ struct RecordSignalIntent: AppIntent {
         return .result(
             dialog: "Talent Signal opened for foreground recording. Recording has not started."
         )
+    }
+}
+
+struct ReviewLatestProposalIntent: AppIntent {
+    static let title: LocalizedStringResource = "Review Signal"
+    static let description = IntentDescription(
+        "Open the latest pending Proposal for human review."
+    )
+
+    @available(iOS 26.0, *)
+    static let supportedModes: IntentModes = .foreground(.immediate)
+
+    static let openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        await MainActor.run {
+            CaptureIntentRouter.shared.route(to: .latestProposal)
+        }
+        return .result(dialog: "Opening the latest Proposal. Nothing is confirmed automatically.")
+    }
+}
+
+struct OpenPursuitIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open Pursuit"
+    static let description = IntentDescription("Open one stable Pursuit by its local identifier.")
+
+    @Parameter(title: "Pursuit")
+    var pursuit: PursuitEntity
+
+    @available(iOS 26.0, *)
+    static let supportedModes: IntentModes = .foreground(.immediate)
+
+    static let openAppWhenRun = true
+
+    init() {}
+
+    init(pursuit: PursuitEntity) {
+        self.pursuit = pursuit
+    }
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        await MainActor.run {
+            CaptureIntentRouter.shared.route(to: .pursuit(pursuit.id))
+        }
+        return .result(dialog: "Opening \(pursuit.displayName).")
     }
 }
 
@@ -165,6 +252,24 @@ struct TalentSignalShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Capture Signal",
             systemImageName: "waveform.badge.plus"
+        )
+        AppShortcut(
+            intent: ReviewLatestProposalIntent(),
+            phrases: [
+                "Review Signal in \(.applicationName)",
+                "Review the latest Proposal in \(.applicationName)"
+            ],
+            shortTitle: "Review Signal",
+            systemImageName: "checkmark.bubble"
+        )
+        AppShortcut(
+            intent: OpenPursuitIntent(),
+            phrases: [
+                "Open a Pursuit in \(.applicationName)",
+                "Show my Pursuit in \(.applicationName)"
+            ],
+            shortTitle: "Open Pursuit",
+            systemImageName: "scope"
         )
         AppShortcut(
             intent: RecordSignalIntent(),

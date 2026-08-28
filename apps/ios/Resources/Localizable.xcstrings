@@ -1,6 +1,99 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Allow Calendar Access" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "允许访问日历" } } }
+    },
+    "Capture the next Signal without leaving the moment" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不离开当下，也能捕捉下一条信号" } } }
+    },
+    "Confirm and Update Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认并更新 Pursuit" } } }
+    },
+    "Connect the conversation to the right moment." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把这次对话连接到正确时刻。" } } }
+    },
+    "Continue as Demo User" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以演示用户继续" } } }
+    },
+    "Create This Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建这个 Pursuit" } } }
+    },
+    "Discard Proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "丢弃 Proposal" } } }
+    },
+    "Do This Later" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以后再做" } } }
+    },
+    "From conversation to a next move" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从一次对话到下一步" } } }
+    },
+    "Get Started" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始" } } }
+    },
+    "Give Talent Signal one place to listen" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先给 Talent Signal 一个倾听入口" } } }
+    },
+    "Keep Unresolved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保持未解决" } } }
+    },
+    "Make the Next Capture Instant" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "让下次捕捉触手可及" } } }
+    },
+    "Nothing changes until you confirm it." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未经你的确认，什么都不会改变。" } } }
+    },
+    "One supported move, with its evidence still attached." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一次有依据的推进，证据仍与它相连。" } } }
+    },
+    "Practice Capture Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "练习 Capture Signal" } } }
+    },
+    "Process This Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "处理这条 Signal" } } }
+    },
+    "Remember what moves\nthe work forward." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记住真正推动\n事情向前的信息。" } } }
+    },
+    "Replay Onboarding" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新体验引导" } } }
+    },
+    "Reset Demo Data" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置演示数据" } } }
+    },
+    "Review what Talent Signal understood" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅 Talent Signal 的理解" } } }
+    },
+    "See It in Today" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在 Today 中查看" } } }
+    },
+    "Simulate Action Button" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "模拟 Action Button" } } }
+    },
+    "Try It With My Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用我的 Signal 试试看" } } }
+    },
+    "Turn meetings and conversations into evidence-backed next steps." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把会议与对话变成有证据支持的下一步。" } } }
+    },
+    "Use a Demo Meeting" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用演示会议" } } }
+    },
+    "Use the showcase Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用示例 Signal" } } }
+    },
+    "What are you moving forward?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你正在推动什么结果？" } } }
+    },
+    "What changed after this conversation?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这次对话之后，什么发生了变化？" } } }
+    },
+    "Wrong Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Pursuit 不正确" } } }
+    },
+    "You moved this Pursuit forward." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你推动了这个 Pursuit。" } } }
+    },
     "%@, %d activities" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@，%d 项活动" } } }
     },

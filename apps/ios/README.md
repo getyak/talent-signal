@@ -42,7 +42,9 @@ of Release; a Release-specific test verifies those arguments are inert.
 
 - Xcode 26 or newer
 - XcodeGen 2.45 or newer
-- An Apple Development team with access to `com.talentsignal.app`
+- An Apple Development team with access to `com.talentsignal.app`, its App
+  Group `group.com.talentsignal.app`, and the embedded Share/Live Activity
+  extension identifiers
 
 ## Generate and run
 
@@ -68,6 +70,68 @@ The backend verifies the Apple assertion and issues the application session;
 the app stores that session in the device Keychain. Debug builds can show the
 real login surface against localhost with `--show-login --auth-backend-url`,
 but deterministic simulated login remains a Debug-only fixture path.
+
+## Standalone onboarding showcase
+
+The Debug app includes a backend-independent onboarding adapter for the first
+verified-progress journey. It is isolated from the authenticated canonical
+workspace and never appears because a backend read failed.
+
+Add these scheme launch arguments to start a fresh deterministic showcase:
+
+```text
+--standalone-onboarding-reset
+--standalone-demo
+--demo-proposal-engine
+--simulate-action-button
+```
+
+The journey creates a protected local session and Pursuit, labels every Demo
+Meeting, Demo engine result, and simulated Action Button event, and reaches a
+persisted local Today projection only after the user confirms a sourced change
+or accepts a next action. Remove `--standalone-onboarding-reset` to verify
+relaunch recovery. Settings inside standalone Today can replay onboarding or
+reset only the standalone Demo session and its local recordings; it never
+resets system permissions, removes user-authored Share captures, or deletes
+user Calendar events.
+
+For real Calendar proof, use `--standalone-onboarding` on an iOS 17+ device,
+choose Calendar, read the purpose explanation, then tap `Allow Calendar Access`.
+The adapter requests EventKit Full Access, reads only the bounded recent and
+upcoming window, listens for EventKit changes, and treats write-only, denied,
+restricted, empty, and revoked states as distinct recoverable outcomes. It does
+not write an event during onboarding.
+
+For real voice proof on iOS 26+, choose Voice, confirm the purpose-bound capture
+authorization, and start the recorder while the app is foregrounded. The Draft
+exists before the microphone prompt. Audio is atomically finalized under
+Application Support. When available, `SpeechAnalyzer` and `SpeechTranscriber`
+receive the foreground audio stream and progressively update the editable
+transcript. When permission, locale, model assets, or device support is
+unavailable, the same local Draft remains editable as text and the recorder
+falls back without inventing a transcript.
+
+While that foreground recorder is active, the embedded Live Activity shows
+only `Recording Signal`, elapsed time, and Stop. It then moves through
+`Saved · Organizing` to `Ready to Review`; it never exposes a name, meeting
+title, transcript, or Proposal on the Lock Screen or Dynamic Island. Its Stop
+control writes a draft-scoped request through the App Group. The recorder and
+persisted Draft remain authoritative if Live Activities are disabled.
+
+The app exposes `Capture Signal`, `Review Signal`, and `Open Pursuit` first in
+App Shortcuts, followed by the foreground-recording and screenshot helpers.
+Only the user can map one in system Settings. The Simulator `Simulate Action
+Button` control is Debug-only, visible as `Simulated`, and is not
+physical-device proof.
+
+The `Talent Signal` Share Extension accepts one image, text item, or web URL.
+After the user taps Post, it writes the payload first and atomically appends a
+versioned `CaptureEnvelope` to `group.com.talentsignal.app`. The containing app
+imports each stable envelope ID once and opens the same editable Signal →
+Proposal → Review path. For an image without a note, the user must add a Signal
+before processing; the app does not claim the Action Button can read another
+app's screen. Verify on a signed device by sharing from Photos, Safari, or a
+text selection, then reopening the standalone Debug showcase.
 
 ## Verify
 

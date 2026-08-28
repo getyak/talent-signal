@@ -276,7 +276,18 @@ struct RelationshipArchiveView: View {
         }
         .onReceive(captureIntentRouter.$request) { request in
             guard let request else { return }
-            intakePresentation = .init(initialDestination: request.destination)
+            switch request.destination {
+            case .hub, .foregroundAudio:
+                intakePresentation = .init(initialDestination: request.destination)
+            case .latestProposal:
+                if let proposal = workspaceStore.snapshot?.openProposals.first {
+                    presentedSheet = .proposal(proposal)
+                }
+            case let .pursuit(id):
+                if let pursuit = workspaceStore.snapshot?.pursuits.first(where: { $0.id == id }) {
+                    presentedSheet = .pursuit(pursuit)
+                }
+            }
             captureIntentRouter.consume(request.id)
         }
         .onOpenURL { url in

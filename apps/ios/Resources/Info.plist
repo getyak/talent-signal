@@ -12,8 +12,19 @@
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.talentsignal.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>talentsignal</string>
+			</array>
+		</dict>
+	</array>
     <key>CFBundleName</key>
     <string>$(PRODUCT_NAME)</string>
     <key>CFBundlePackageType</key>
@@ -38,7 +49,15 @@
 	<key>NSContactsUsageDescription</key>
 	<string>Talent Signal opens Apple&apos;s contact editor only after you review the exact fields you want to add.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Talent Signal opens Apple&apos;s Calendar editor only after you review the exact event title and time.</string>
+	<string>Talent Signal reads event titles and times only after you choose Calendar, so you can select the right meeting.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Talent Signal reads a bounded recent and upcoming window so you can choose a meeting. It does not change events during onboarding.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Talent Signal uses Apple&apos;s Calendar editor only after you review the exact event title and time.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Talent Signal transcribes only the foreground recording you explicitly start, using on-device speech when available.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
     <string>Talent Signal imports only the conversation screenshot you choose.</string>
     <key>TalentSignalAPIBaseURLBase64URL</key>
