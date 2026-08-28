@@ -66,8 +66,11 @@ test("credential-shaped runtime names are owned by Infisical", () => {
   const discoveredNames = new Set();
   const patterns = [
     /process\.env\.([A-Z][A-Z0-9_]*)/gu,
+    /process\.env\[["']([A-Z][A-Z0-9_]*)["']\]/gu,
     /ENV\.fetch\("([A-Z][A-Z0-9_]*)"/gu,
+    /ENV\[["']([A-Z][A-Z0-9_]*)["']\]/gu,
     /\$\{\{\s*secrets\.([A-Z][A-Z0-9_]*)\s*\}\}/gu,
+    /\$\{\{\s*secrets\[["']([A-Z][A-Z0-9_]*)["']\]\s*\}\}/gu,
     /\$\{([A-Z][A-Z0-9_]*)(?=[:}?])/gu,
   ];
   for (const root of ["apps", "scripts", ".github", "fastlane"]) {
