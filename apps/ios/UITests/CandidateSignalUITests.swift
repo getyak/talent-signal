@@ -3096,6 +3096,7 @@ final class CandidateSignalUITests: XCTestCase {
         }
         app.launchArguments = [
             "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
         ]
@@ -3127,6 +3128,93 @@ final class CandidateSignalUITests: XCTestCase {
         assertContactContinuationScope(person: "Noor Vega", context: "Design")
         XCTAssertTrue(element("contact-receipt-boundary").exists)
         preserveScreenshot("Canonical contact no-match creation receipt")
+        assertContactReceiptRestoresInSessions(
+            sessionTitle: "Added Noor Vega",
+            outcomeTitle: "Contact created",
+            person: "Noor Vega",
+            context: "Design"
+        )
+    }
+
+    func testCanonicalContactReceiptAX5DarkChineseOpensPeopleDetail() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
+              let email = fixture.contactNoMatchEmail else {
+            throw XCTSkip("The canonical contact identity fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
+            "--force-dark",
+            "-AppleInterfaceStyle", "Dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        let composer = app.textFields["ask-composer"]
+        let message = "添加联系人陈晓，用于产品负责人搜索，邮箱 \(email)"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "陈晓")
+        XCTAssertTrue(element("contact-identity-no-match").waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "创建新联系人？")
+        tapWhenVisible(app.buttons["contact-confirm-save"])
+        XCTAssertTrue(
+            app.staticTexts["contact-save-success"].waitForExistence(timeout: 20)
+        )
+        assertCompactContactReceipt()
+        tapWhenVisible(app.buttons["contact-dismiss-proposal"])
+
+        let liveReceipt = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "agent-contact-receipt-"
+            )
+        ).firstMatch
+        XCTAssertTrue(liveReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["联系人已创建"].exists)
+        XCTAssertTrue(app.buttons["contact-receipt-open-person"].exists)
+        XCTAssertLessThanOrEqual(liveReceipt.frame.maxX, app.frame.maxX + 1)
+        preserveScreenshot("Contact tool receipt AX5 dark Chinese")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["archive-tab-sessions"])
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        let sessionTitle = app.staticTexts["已添加 陈晓"]
+        XCTAssertTrue(sessionTitle.waitForExistence(timeout: 5))
+        sessionTitle.tap()
+
+        let restoredReceipt = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "agent-contact-receipt-"
+            )
+        ).firstMatch
+        XCTAssertTrue(restoredReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["已恢复的引用 · 请在人物中核对当前状态"].exists
+        )
+        let openPerson = app.buttons["contact-receipt-open-person"]
+        XCTAssertTrue(openPerson.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(openPerson.frame.height, 44)
+        preserveScreenshot("Restored contact tool receipt AX5 dark Chinese")
+
+        tapWhenVisible(openPerson)
+        XCTAssertTrue(element("workspace-person-detail").waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["陈晓"].exists)
+        XCTAssertTrue(app.buttons["archive-tab-people"].exists)
+        XCTAssertTrue(app.buttons["relationship-guide"].exists)
+        preserveScreenshot("Contact receipt to People AX5 dark Chinese")
     }
 
     func testCanonicalContactLookupFailurePreservesMessageAndRetries() async throws {
@@ -3188,6 +3276,7 @@ final class CandidateSignalUITests: XCTestCase {
         }
         app.launchArguments = [
             "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
         ]
@@ -3225,6 +3314,12 @@ final class CandidateSignalUITests: XCTestCase {
         assertContactContinuationScope(person: "Samira Current")
         XCTAssertTrue(element("contact-receipt-boundary").exists)
         preserveScreenshot("Canonical contact confirmed match attachment receipt")
+        assertContactReceiptRestoresInSessions(
+            sessionTitle: "Updated Samira Current",
+            outcomeTitle: "Added to existing contact",
+            person: "Samira Current",
+            context: nil
+        )
     }
 
     func testCanonicalContactConflictLocksHistoryAndSavesResolutionCase() async throws {
@@ -3236,6 +3331,7 @@ final class CandidateSignalUITests: XCTestCase {
         }
         app.launchArguments = [
             "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
         ]
@@ -3285,6 +3381,12 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("contact-receipt-boundary").exists)
         preserveScreenshot("Canonical contact conflict resolution case receipt")
         assertUnresolvedContactHasNoInheritedScope()
+        assertContactReceiptRestoresInSessions(
+            sessionTitle: "Review Robin Lee’s identity",
+            outcomeTitle: "Saved for identity review",
+            person: nil,
+            context: nil
+        )
     }
 
     func testCanonicalContactResponseLossRelaunchRetriesSameOperation() async throws {
@@ -3382,6 +3484,12 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(
             try XCTUnwrap(final.droppedResourceCaptureResponseCount),
             initialDrops + 1
+        )
+        assertContactReceiptRestoresInSessions(
+            sessionTitle: "Added Mina Patel",
+            outcomeTitle: "Contact created",
+            person: "Mina Patel",
+            context: nil
         )
     }
 
@@ -3686,6 +3794,78 @@ final class CandidateSignalUITests: XCTestCase {
         let send = app.buttons["ask-send"]
         XCTAssertFalse(send.isEnabled)
         XCTAssertEqual(send.label, "Choose a relationship before sending")
+    }
+
+    private func assertContactReceiptRestoresInSessions(
+        sessionTitle: String,
+        outcomeTitle: String,
+        person: String?,
+        context: String?
+    ) {
+        tapWhenVisible(app.buttons["contact-dismiss-proposal"])
+        let liveReceipt = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "agent-contact-receipt-"
+            )
+        ).firstMatch
+        XCTAssertTrue(liveReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[outcomeTitle].exists)
+        XCTAssertFalse(element("contact-user-message").exists)
+        preserveScreenshot("Agent contact tool history receipt")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(
+            element("canonical-pursuit-today").waitForExistence(timeout: 15)
+        )
+        XCTAssertTrue(
+            app.buttons["archive-tab-sessions"].waitForExistence(timeout: 5)
+        )
+        app.buttons["archive-tab-sessions"].tap()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        let session = app.staticTexts[sessionTitle]
+        XCTAssertTrue(session.waitForExistence(timeout: 5))
+        session.tap()
+
+        let restoredReceipt = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "agent-contact-receipt-"
+            )
+        ).firstMatch
+        XCTAssertTrue(restoredReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[outcomeTitle].exists)
+        if let person {
+            XCTAssertTrue(
+                app.staticTexts[
+                    "Restored reference · verify current state in People"
+                ].exists
+            )
+            assertContactContinuationScope(person: person, context: context)
+            let openPerson = app.buttons["contact-receipt-open-person"]
+            XCTAssertTrue(openPerson.waitForExistence(timeout: 5))
+            preserveScreenshot("Restored Agent contact tool history")
+            tapWhenVisible(openPerson)
+            XCTAssertTrue(
+                element("workspace-person-detail").waitForExistence(timeout: 8)
+            )
+            XCTAssertTrue(app.staticTexts[person].exists)
+            XCTAssertTrue(app.buttons["archive-tab-people"].exists)
+            XCTAssertTrue(app.buttons["relationship-guide"].exists)
+            preserveScreenshot("Contact receipt opens canonical People detail")
+        } else {
+            XCTAssertTrue(
+                app.staticTexts[
+                    "Restored reference · identity still needs review"
+                ].exists
+            )
+            XCTAssertFalse(app.buttons["contact-receipt-open-person"].exists)
+            let selector = element("ask-scope-selector")
+            XCTAssertTrue(selector.waitForExistence(timeout: 5))
+            XCTAssertEqual(selector.value as? String, "None")
+            preserveScreenshot("Restored Agent contact tool history")
+        }
     }
 
     private func tapWhenVisible(_ element: XCUIElement, maxSwipes: Int = 14) {

@@ -229,6 +229,32 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
 - Added executable coverage for standard retrieval, search filter, no-result,
   clear recovery, localized result-count semantics, Simplified Chinese dark
   AX5, Today regression, and reopening existing Agent work.
+- Added durable contact-tool receipts to Agent Sessions. A confirmed create,
+  attach, or identity-review result now survives dismissal and app relaunch,
+  appears in chronological conversation order, and remains visibly distinct
+  from evidence, relationship truth, and an Agent answer.
+- Advanced the account-scoped Session envelope to version 4 while retaining
+  version 1–3 relationship-session migration. The receipt stores only canonical
+  capture/resource/person/context/resolution-case references and display labels;
+  it never persists the original note, email, phone, or other identity clue.
+- Kept unresolved identity work outside relationship scope. Its Session carries
+  a real resolution-case reference with nil person and context IDs, so a later
+  relationship question cannot inherit a fabricated or stale destination.
+- Made receipt retry idempotent by operation and canonical readback. An exact
+  replay reuses one Session and one receipt; a changed capture or resource
+  result is rejected instead of overwriting history. Restored references are
+  marked stale-by-design and ask the recruiter to verify current state in
+  People.
+- Localized semantic receipt-only Session titles, context labels, and previews
+  at render time. Canonical IDs and stored display labels remain unchanged,
+  while English and Simplified Chinese retrieval surfaces read naturally.
+- Fixture-backed iPhone 17 Pro tests prove no-match creation and identity-review
+  receipts in the live conversation, after process termination, and after
+  reopening from the original Sessions navigation. The focused result bundle is
+  `/tmp/talent-signal-contact-receipt-ui-v2.xcresult`.
+- Confirmed-person attachment and unknown-outcome response-loss recovery pass
+  the same dismiss, relaunch, Sessions, and restored-receipt checks in
+  `/tmp/talent-signal-contact-receipt-retry-ui.xcresult`.
 - Replaced the iOS canonical Person sheet with an inline People detail so the
   original Today / Sessions / People navigation and bottom global Agent input
   remain present while inspecting a stable identity. The obsolete sheet route

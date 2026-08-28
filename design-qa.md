@@ -86,6 +86,77 @@ final result: passed
 
 ---
 
+# Design QA — iOS persistent contact-tool receipts
+
+## Evidence
+
+- Evidence level: 1, fixture-backed iPhone 17 Pro Simulator interaction on
+  iOS 26.5.
+- Restored created-contact receipt:
+  `/tmp/talent-signal-contact-receipts.mmEVVi/939F10FF-6A16-477F-A2AC-7B436B49EA4E.png`
+- Restored identity-review receipt:
+  `/tmp/talent-signal-contact-receipts.mmEVVi/DA62C139-EBD4-4556-848E-A59CDDF9440B.png`
+- Focused create and identity-review result bundle:
+  `/tmp/talent-signal-contact-receipt-ui-v2.xcresult`.
+- Focused confirmed-match and response-loss result bundle:
+  `/tmp/talent-signal-contact-receipt-retry-ui.xcresult`.
+
+## Finding and resolution
+
+A canonical contact write previously ended in a compact success card that
+disappeared when the proposal was dismissed. Sessions retained Agent answers,
+but not confirmed tool outcomes, so a recruiter could not recover what the
+tool created, attached, or left for identity review after interruption.
+
+The finished conversation records a restrained contact-tool receipt only after
+canonical readback succeeds. Person and relationship context lead; the source
+receipt and optional identity-review case remain subordinate monospace
+references. Relaunched receipts state that they are restored references and
+direct the recruiter to People for current state instead of presenting cached
+history as live truth. Original contact prose and identity clues do not appear
+in the receipt or its persisted Session envelope.
+
+Identity-review Sessions deliberately show `Choose a relationship`. They retain
+the canonical resolution case but no person or relationship IDs, and therefore
+cannot send a relationship question until the recruiter explicitly chooses a
+real scope. Receipt-only Session titles, context labels, and previews are
+localized at render time so Simplified Chinese does not expose English storage
+grammar.
+
+The established Today / Sessions / People navigation and bottom global Agent
+input were not moved or restyled.
+
+## Behavioral, safety, and accessibility proof
+
+- No-match creation and current-versus-historical identity conflict both pass
+  save, dismiss, process termination, Sessions retrieval, and restored receipt
+  verification against the canonical fixture.
+- Confirmed existing-person attachment and a committed-but-response-lost create
+  pass the same recovery path. The latter replays the protected operation,
+  reconciles canonical readback, and restores one receipt after relaunch.
+- Unit coverage verifies minimal-reference persistence, exact idempotent retry,
+  mismatched-readback refusal, version 3 relationship-session migration, and
+  the absence of a fake relationship scope for unresolved identity.
+- English and Simplified Chinese semantic projections are asserted without
+  translating person labels or canonical identifiers.
+- The standard screenshots show one readable single-column card, complete
+  labels, subordinate receipt IDs, at least 44-point controls, and a reachable
+  pinned composer. No duplicate form, hero treatment, or Agent theater was
+  introduced.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — the confirmed tool outcome and destination lead.
+- Hierarchy: 3 — identity, context, receipt, and refresh warning are distinct.
+- Platform interaction: 3 — native Session retrieval and pinned composition.
+- Accessibility: 3 — semantic controls, complete labels, and localized rows.
+- Visual craft: 3 — quiet bordered card, scarce accent, stable single column.
+- Vetoes: none.
+
+final result: passed
+
+---
+
 # Design QA — iOS canonical contact conversation
 
 ## Evidence
