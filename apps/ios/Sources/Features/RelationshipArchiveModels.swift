@@ -33,6 +33,122 @@ struct AgentSessionTurn: Identifiable, Equatable {
     let requiresRefresh: Bool
 }
 
+struct AgentContactReceipt: Identifiable, Equatable {
+    enum Outcome: String, Codable, Equatable {
+        case createdPerson = "created_person"
+        case matchedExisting = "matched_existing"
+        case identityReview = "identity_review"
+    }
+
+    let id: UUID
+    let operationKey: String
+    let outcome: Outcome
+    let captureID: String
+    let resourceID: String
+    let duplicateOfResourceID: String?
+    let personID: String?
+    let relationshipContextID: String?
+    let resolutionCaseID: String?
+    let personDisplayLabel: String
+    let contextDisplayLabel: String?
+    let createdAt: Date
+    let requiresRefresh: Bool
+
+    var compactPreview: String {
+        compactPreview(in: .english)
+    }
+
+    func compactPreview(in language: AppLanguage) -> String {
+        let reference = resourceID.suffix(8)
+        let preview: String
+        switch outcome {
+        case .createdPerson:
+            preview = String(
+                format: language.text("Created contact · receipt %@"),
+                locale: language.locale,
+                String(reference)
+            )
+        case .matchedExisting:
+            preview = String(
+                format: language.text("Added to existing contact · receipt %@"),
+                locale: language.locale,
+                String(reference)
+            )
+        case .identityReview:
+            let caseReference = resolutionCaseID.map { String($0.suffix(8)) }
+                ?? String(reference)
+            preview = String(
+                format: language.text("Saved for identity review · case %@"),
+                locale: language.locale,
+                caseReference
+            )
+        }
+        guard requiresRefresh else { return preview }
+        return String(
+            format: language.text("Saved receipt · %@"),
+            locale: language.locale,
+            preview
+        )
+    }
+
+    func currentPerson(in snapshot: PursuitWorkspaceSnapshot) -> WorkspacePerson? {
+        guard let personID else { return nil }
+        return snapshot.people.first { $0.id == personID }
+    }
+}
+
+enum AgentSessionScope: Equatable {
+    case relationship(
+        personID: String,
+        relationshipContextID: String,
+        personDisplayLabel: String,
+        contextDisplayLabel: String
+    )
+    case identityReview(
+        resolutionCaseID: String,
+        personDisplayLabel: String
+    )
+
+    var personID: String? {
+        guard case let .relationship(personID, _, _, _) = self else { return nil }
+        return personID
+    }
+
+    var relationshipContextID: String? {
+        guard case let .relationship(_, relationshipContextID, _, _) = self else {
+            return nil
+        }
+        return relationshipContextID
+    }
+
+    var resolutionCaseID: String? {
+        guard case let .identityReview(resolutionCaseID, _) = self else { return nil }
+        return resolutionCaseID
+    }
+
+    var personDisplayLabel: String {
+        switch self {
+        case let .relationship(_, _, personDisplayLabel, _),
+             let .identityReview(_, personDisplayLabel):
+            return personDisplayLabel
+        }
+    }
+
+    var contextDisplayLabel: String {
+        switch self {
+        case let .relationship(_, _, _, contextDisplayLabel):
+            return contextDisplayLabel
+        case .identityReview:
+            return "Identity review"
+        }
+    }
+
+    func matches(personID: String, relationshipContextID: String) -> Bool {
+        self.personID == personID
+            && self.relationshipContextID == relationshipContextID
+    }
+}
+
 struct AgentSessionSeed: Equatable {
     let personID: String
     let relationshipContextID: String
@@ -65,22 +181,76 @@ struct AgentSessionSeed: Equatable {
 
 struct AgentSession: Identifiable, Equatable {
     let id: UUID
-    let personID: String
-    let relationshipContextID: String
-    let personDisplayLabel: String
-    let contextDisplayLabel: String
+    let scope: AgentSessionScope
     var title: String
     var turns: [AgentSessionTurn]
+    var contactReceipts: [AgentContactReceipt]
     var updatedAt: Date
     var isUnread: Bool
 
+    var personID: String? { scope.personID }
+    var relationshipContextID: String? { scope.relationshipContextID }
+    var personDisplayLabel: String { scope.personDisplayLabel }
+    var contextDisplayLabel: String { scope.contextDisplayLabel }
+    var resolutionCaseID: String? { scope.resolutionCaseID }
+
+    var isIdentityReview: Bool {
+        if case .identityReview = scope { return true }
+        return false
+    }
+
     var latestPreview: String {
-        guard let turn = turns.last else {
+        let latestTurn = turns.max { $0.createdAt < $1.createdAt }
+        let latestReceipt = contactReceipts.max { $0.createdAt < $1.createdAt }
+        if let latestReceipt {
+            if let latestTurn {
+                if latestReceipt.createdAt >= latestTurn.createdAt {
+                    return latestReceipt.compactPreview
+                }
+            } else {
+                return latestReceipt.compactPreview
+            }
+        }
+        guard let turn = latestTurn else {
             return "No Agent response has been recorded in this session."
         }
         let preview = turn.response.blocks.first?.body
             ?? "No Agent response has been recorded in this session."
         return turn.requiresRefresh ? "Needs refresh · \(preview)" : preview
+    }
+
+    func displayTitle(in language: AppLanguage) -> String {
+        guard let receipt = contactReceipts.max(by: {
+            $0.createdAt < $1.createdAt
+        }) else { return title }
+        let key: String
+        switch receipt.outcome {
+        case .createdPerson:
+            key = "Added %@"
+        case .matchedExisting:
+            key = "Updated %@"
+        case .identityReview:
+            key = "Review %@’s identity"
+        }
+        return String(
+            format: language.text(key),
+            locale: language.locale,
+            receipt.personDisplayLabel
+        )
+    }
+
+    func displayContextLabel(in language: AppLanguage) -> String {
+        isIdentityReview ? language.text("Identity review") : contextDisplayLabel
+    }
+
+    func latestPreview(in language: AppLanguage) -> String {
+        let latestTurn = turns.max { $0.createdAt < $1.createdAt }
+        let latestReceipt = contactReceipts.max { $0.createdAt < $1.createdAt }
+        guard let latestReceipt else { return latestPreview }
+        if let latestTurn, latestReceipt.createdAt < latestTurn.createdAt {
+            return latestPreview
+        }
+        return latestReceipt.compactPreview(in: language)
     }
 }
 
@@ -98,6 +268,11 @@ struct AgentSessionDraft: Codable, Equatable {
     var updatedAt: Date
     var pendingIdempotencyKey: String?
     var requestIdentity: String? = nil
+}
+
+private struct AgentGlobalDraft: Codable, Equatable {
+    var text: String
+    var updatedAt: Date
 }
 
 struct AgentEvidenceReviewOperation: Codable, Equatable, Identifiable {
@@ -231,43 +406,126 @@ private struct PersistedAgentSessionEnvelope: Codable {
     let version: Int
     let sessions: [PersistedAgentSession]
     let drafts: [AgentSessionDraft]
+    let globalDraft: AgentGlobalDraft?
     let evidenceReviews: [AgentEvidenceReviewOperation]?
+    let contactProposal: AgentContactProposalDraft?
+}
+
+struct AgentContactProposalDraft: Codable, Equatable {
+    let draft: ConversationContactDraft
+    let idempotencyKey: String
+    let capturedAt: Date?
+    let pendingTarget: ConversationContactTarget?
+    let pendingConfirmIdentityClue: Bool?
+    let updatedAt: Date
 }
 
 private struct PersistedAgentSession: Codable {
     let id: UUID
-    let personID: String
-    let relationshipContextID: String
+    let scopeKind: String?
+    let personID: String?
+    let relationshipContextID: String?
+    let identityResolutionCaseID: String?
     let personDisplayLabel: String
     let contextDisplayLabel: String
     let title: String
     let turns: [PersistedAgentSessionTurn]
+    let contactReceipts: [PersistedAgentContactReceipt]?
     let updatedAt: Date
     let isUnread: Bool
 
     init(_ value: AgentSession) {
         id = value.id
+        scopeKind = value.isIdentityReview ? "identity_review" : "relationship"
         personID = value.personID
         relationshipContextID = value.relationshipContextID
+        identityResolutionCaseID = value.resolutionCaseID
         personDisplayLabel = value.personDisplayLabel
         contextDisplayLabel = value.contextDisplayLabel
         title = value.title
         turns = value.turns.map(PersistedAgentSessionTurn.init)
+        contactReceipts = value.contactReceipts.map(PersistedAgentContactReceipt.init)
         updatedAt = value.updatedAt
         isUnread = value.isUnread
     }
 
-    var value: AgentSession {
-        AgentSession(
+    func value() throws -> AgentSession {
+        let scope: AgentSessionScope
+        if scopeKind == "identity_review" {
+            guard let identityResolutionCaseID else {
+                throw AgentSessionPersistenceError.invalidSessionScope
+            }
+            scope = .identityReview(
+                resolutionCaseID: identityResolutionCaseID,
+                personDisplayLabel: personDisplayLabel
+            )
+        } else {
+            guard let personID, let relationshipContextID else {
+                throw AgentSessionPersistenceError.invalidSessionScope
+            }
+            scope = .relationship(
+                personID: personID,
+                relationshipContextID: relationshipContextID,
+                personDisplayLabel: personDisplayLabel,
+                contextDisplayLabel: contextDisplayLabel
+            )
+        }
+        return AgentSession(
             id: id,
-            personID: personID,
-            relationshipContextID: relationshipContextID,
-            personDisplayLabel: personDisplayLabel,
-            contextDisplayLabel: contextDisplayLabel,
+            scope: scope,
             title: title,
             turns: turns.map(\.value),
+            contactReceipts: (contactReceipts ?? []).map(\.value),
             updatedAt: updatedAt,
             isUnread: isUnread
+        )
+    }
+}
+
+private struct PersistedAgentContactReceipt: Codable {
+    let id: UUID
+    let operationKey: String
+    let outcome: AgentContactReceipt.Outcome
+    let captureID: String
+    let resourceID: String
+    let duplicateOfResourceID: String?
+    let personID: String?
+    let relationshipContextID: String?
+    let resolutionCaseID: String?
+    let personDisplayLabel: String
+    let contextDisplayLabel: String?
+    let createdAt: Date
+
+    init(_ value: AgentContactReceipt) {
+        id = value.id
+        operationKey = value.operationKey
+        outcome = value.outcome
+        captureID = value.captureID
+        resourceID = value.resourceID
+        duplicateOfResourceID = value.duplicateOfResourceID
+        personID = value.personID
+        relationshipContextID = value.relationshipContextID
+        resolutionCaseID = value.resolutionCaseID
+        personDisplayLabel = value.personDisplayLabel
+        contextDisplayLabel = value.contextDisplayLabel
+        createdAt = value.createdAt
+    }
+
+    var value: AgentContactReceipt {
+        AgentContactReceipt(
+            id: id,
+            operationKey: operationKey,
+            outcome: outcome,
+            captureID: captureID,
+            resourceID: resourceID,
+            duplicateOfResourceID: duplicateOfResourceID,
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            resolutionCaseID: resolutionCaseID,
+            personDisplayLabel: personDisplayLabel,
+            contextDisplayLabel: contextDisplayLabel,
+            createdAt: createdAt,
+            requiresRefresh: true
         )
     }
 }
@@ -344,6 +602,10 @@ private struct PersistedRelationshipAskResponse: Codable {
 final class AgentSessionStore: ObservableObject {
     private static let sessionRetention: TimeInterval = 30 * 24 * 60 * 60
     private static let draftRetention: TimeInterval = 7 * 24 * 60 * 60
+
+    private static func stableContactCaptureDate(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded())
+    }
     @Published private var storedSessions: [AgentSession]
     @Published private var storedEvidenceReviews: [AgentEvidenceReviewOperation]
     @Published private(set) var activeEvidenceReviewKeys: Set<String>
@@ -351,6 +613,8 @@ final class AgentSessionStore: ObservableObject {
     @Published private(set) var evidenceReviewAuthorityReadbackKeys: Set<String>
     @Published private(set) var persistenceNotice: String?
     private var drafts: [AgentSessionDraft]
+    private var storedGlobalDraft: AgentGlobalDraft?
+    private var storedContactProposal: AgentContactProposalDraft?
     private let persistence: AgentSessionPersisting?
     private let now: () -> Date
     private var expirationTask: Task<Void, Never>?
@@ -365,6 +629,8 @@ final class AgentSessionStore: ObservableObject {
         expirationTask = nil
         persistenceNotice = nil
         drafts = []
+        storedGlobalDraft = nil
+        storedContactProposal = nil
         activeEvidenceReviewKeys = []
         transientSupersededEvidenceReviewKeys = []
         evidenceReviewAuthorityReadbackKeys = []
@@ -386,13 +652,15 @@ final class AgentSessionStore: ObservableObject {
                 PersistedAgentSessionEnvelope.self,
                 from: data
             )
-            guard [1, 2].contains(envelope.version) else {
+            guard [1, 2, 3, 4, 5].contains(envelope.version) else {
                 throw AgentSessionPersistenceError.unsupportedVersion
             }
-            storedSessions = envelope.sessions
-                .map(\.value)
+            storedSessions = try envelope.sessions
+                .map { try $0.value() }
                 .sorted { $0.updatedAt > $1.updatedAt }
             drafts = envelope.drafts
+            storedGlobalDraft = envelope.globalDraft
+            storedContactProposal = envelope.contactProposal
             storedEvidenceReviews = envelope.evidenceReviews ?? []
             evidenceReviewAuthorityReadbackKeys = Set(
                 storedEvidenceReviews.lazy
@@ -405,6 +673,8 @@ final class AgentSessionStore: ObservableObject {
         } catch {
             storedSessions = []
             drafts = []
+            storedGlobalDraft = nil
+            storedContactProposal = nil
             storedEvidenceReviews = []
             evidenceReviewAuthorityReadbackKeys = []
             persistenceNotice = "Saved Agent sessions could not be restored on this device."
@@ -444,9 +714,18 @@ final class AgentSessionStore: ObservableObject {
             createdAt: createdAt,
             requiresRefresh: false
         )
-        let resolvedID = sessionID ?? UUID()
+        let existingIndex = sessionID.flatMap { proposedID in
+            storedSessions.firstIndex {
+                $0.id == proposedID
+                    && $0.scope.matches(
+                        personID: person.id,
+                        relationshipContextID: context.id
+                    )
+            }
+        }
+        let resolvedID = existingIndex.map { storedSessions[$0].id } ?? UUID()
 
-        if let index = storedSessions.firstIndex(where: { $0.id == resolvedID }) {
+        if let index = existingIndex {
             storedSessions[index].turns.append(turn)
             storedSessions[index].updatedAt = createdAt
             storedSessions[index].isUnread = false
@@ -454,12 +733,15 @@ final class AgentSessionStore: ObservableObject {
             storedSessions.append(
                 AgentSession(
                     id: resolvedID,
-                    personID: person.id,
-                    relationshipContextID: context.id,
-                    personDisplayLabel: person.displayLabel,
-                    contextDisplayLabel: context.displayLabel,
+                    scope: .relationship(
+                        personID: person.id,
+                        relationshipContextID: context.id,
+                        personDisplayLabel: person.displayLabel,
+                        contextDisplayLabel: context.displayLabel
+                    ),
                     title: Self.sessionTitle(from: objective),
                     turns: [turn],
+                    contactReceipts: [],
                     updatedAt: createdAt,
                     isUnread: false
                 )
@@ -468,6 +750,103 @@ final class AgentSessionStore: ObservableObject {
         sortSessions()
         persist()
         return resolvedID
+    }
+
+    @discardableResult
+    func recordContactReceipt(
+        operationKey: String,
+        outcome: AgentContactReceipt.Outcome,
+        result: ResourceCaptureResult,
+        personDisplayLabel: String,
+        contextDisplayLabel: String?,
+        createdAt: Date? = nil
+    ) -> UUID? {
+        _ = pruneExpiredState()
+        for session in storedSessions {
+            guard let existing = session.contactReceipts.first(where: {
+                $0.operationKey == operationKey
+                    || $0.captureID == result.captureID
+            }) else { continue }
+            guard existing.operationKey == operationKey,
+                  existing.outcome == outcome,
+                  existing.captureID == result.captureID,
+                  existing.resourceID == result.resource.id,
+                  existing.personID == result.identity.personID,
+                  existing.relationshipContextID
+                    == result.identity.relationshipContextID,
+                  existing.resolutionCaseID == result.identity.resolutionCaseID else {
+                persistenceNotice = "The retried contact receipt did not match the protected canonical references."
+                return nil
+            }
+            return session.id
+        }
+
+        let scope: AgentSessionScope
+        switch outcome {
+        case .createdPerson, .matchedExisting:
+            guard let personID = result.identity.personID,
+                  let relationshipContextID = result.identity.relationshipContextID,
+                  result.identity.resolutionCaseID == nil,
+                  let contextDisplayLabel else {
+                persistenceNotice = "The canonical contact receipt did not include a usable relationship scope."
+                return nil
+            }
+            scope = .relationship(
+                personID: personID,
+                relationshipContextID: relationshipContextID,
+                personDisplayLabel: personDisplayLabel,
+                contextDisplayLabel: contextDisplayLabel
+            )
+        case .identityReview:
+            guard let resolutionCaseID = result.identity.resolutionCaseID,
+                  result.identity.personID == nil,
+                  result.identity.relationshipContextID == nil else {
+                persistenceNotice = "The canonical contact receipt did not include an identity review case."
+                return nil
+            }
+            scope = .identityReview(
+                resolutionCaseID: resolutionCaseID,
+                personDisplayLabel: personDisplayLabel
+            )
+        }
+
+        let receiptDate = createdAt ?? now()
+        let receipt = AgentContactReceipt(
+            id: UUID(),
+            operationKey: operationKey,
+            outcome: outcome,
+            captureID: result.captureID,
+            resourceID: result.resource.id,
+            duplicateOfResourceID: result.resource.duplicateOfResourceID,
+            personID: result.identity.personID,
+            relationshipContextID: result.identity.relationshipContextID,
+            resolutionCaseID: result.identity.resolutionCaseID,
+            personDisplayLabel: personDisplayLabel,
+            contextDisplayLabel: contextDisplayLabel,
+            createdAt: receiptDate,
+            requiresRefresh: false
+        )
+        let session = AgentSession(
+            id: UUID(),
+            scope: scope,
+            title: Self.contactSessionTitle(
+                outcome: outcome,
+                personDisplayLabel: personDisplayLabel
+            ),
+            turns: [],
+            contactReceipts: [receipt],
+            updatedAt: receiptDate,
+            isUnread: false
+        )
+        let priorSessions = storedSessions
+        storedSessions.append(session)
+        sortSessions()
+        guard persist() else {
+            storedSessions = priorSessions
+            scheduleNextExpiration()
+            return nil
+        }
+        return session.id
     }
 
     func markRead(_ id: UUID) {
@@ -532,6 +911,63 @@ final class AgentSessionStore: ObservableObject {
         persist()
     }
 
+    func globalDraft() -> String {
+        pruneExpired()
+        return storedGlobalDraft?.text ?? ""
+    }
+
+    func saveGlobalDraft(_ text: String) {
+        _ = pruneExpiredState()
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        storedGlobalDraft = trimmed.isEmpty
+            ? nil
+            : AgentGlobalDraft(text: text, updatedAt: now())
+        persist()
+    }
+
+    @discardableResult
+    func promoteGlobalDraft(
+        _ text: String,
+        personID: String,
+        relationshipContextID: String
+    ) -> Bool {
+        _ = pruneExpiredState()
+        let priorDrafts = drafts
+        let priorGlobalDraft = storedGlobalDraft
+        let existing = drafts.first {
+            $0.personID == personID
+                && $0.relationshipContextID == relationshipContextID
+        }
+        drafts.removeAll {
+            $0.personID == personID
+                && $0.relationshipContextID == relationshipContextID
+        }
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            drafts.append(
+                AgentSessionDraft(
+                    personID: personID,
+                    relationshipContextID: relationshipContextID,
+                    text: text,
+                    updatedAt: now(),
+                    pendingIdempotencyKey: existing?.text == text
+                        ? existing?.pendingIdempotencyKey
+                        : nil,
+                    requestIdentity: existing?.text == text
+                        ? existing?.requestIdentity
+                        : nil
+                )
+            )
+        }
+        storedGlobalDraft = nil
+        guard persist() else {
+            drafts = priorDrafts
+            storedGlobalDraft = priorGlobalDraft
+            scheduleNextExpiration()
+            return false
+        }
+        return true
+    }
+
     func beginAsk(
         _ text: String,
         personID: String,
@@ -573,6 +1009,78 @@ final class AgentSessionStore: ObservableObject {
                 && $0.relationshipContextID == relationshipContextID
         }
         persist()
+    }
+
+    var contactProposalDraft: ConversationContactDraft? {
+        pruneExpired()
+        return storedContactProposal?.draft
+    }
+
+    var contactProposalOperationKey: String? {
+        pruneExpired()
+        return storedContactProposal?.idempotencyKey
+    }
+
+    var contactProposalCapturedAt: Date? {
+        pruneExpired()
+        return storedContactProposal?.capturedAt
+    }
+
+    var contactProposalPendingTarget: ConversationContactTarget? {
+        pruneExpired()
+        return storedContactProposal?.pendingTarget
+    }
+
+    var contactProposalPendingConfirmIdentityClue: Bool? {
+        pruneExpired()
+        return storedContactProposal?.pendingConfirmIdentityClue
+    }
+
+    @discardableResult
+    func saveContactProposal(
+        _ draft: ConversationContactDraft,
+        idempotencyKey: String,
+        pendingTarget: ConversationContactTarget? = nil,
+        pendingConfirmIdentityClue: Bool? = nil,
+        clearingGlobalDraft: Bool = false
+    ) -> Bool {
+        _ = pruneExpiredState()
+        let priorContactProposal = storedContactProposal
+        let priorGlobalDraft = storedGlobalDraft
+        let capturedAt = Self.stableContactCaptureDate(storedContactProposal.flatMap {
+            $0.idempotencyKey == idempotencyKey ? $0.capturedAt : nil
+        } ?? now())
+        storedContactProposal = AgentContactProposalDraft(
+            draft: draft,
+            idempotencyKey: idempotencyKey,
+            capturedAt: capturedAt,
+            pendingTarget: pendingTarget,
+            pendingConfirmIdentityClue: pendingConfirmIdentityClue,
+            updatedAt: now()
+        )
+        if clearingGlobalDraft {
+            storedGlobalDraft = nil
+        }
+        guard persist() else {
+            storedContactProposal = priorContactProposal
+            storedGlobalDraft = priorGlobalDraft
+            scheduleNextExpiration()
+            return false
+        }
+        return true
+    }
+
+    @discardableResult
+    func clearContactProposal() -> Bool {
+        _ = pruneExpiredState()
+        let prior = storedContactProposal
+        storedContactProposal = nil
+        guard persist() else {
+            storedContactProposal = prior
+            scheduleNextExpiration()
+            return false
+        }
+        return true
     }
 
     @discardableResult
@@ -870,13 +1378,15 @@ final class AgentSessionStore: ObservableObject {
         return storedSessions.flatMap { session in
             session.turns.compactMap { turn in
                 guard !turn.requiresRefresh,
-                      !turn.response.citations.isEmpty else {
+                      !turn.response.citations.isEmpty,
+                      let personID = session.personID,
+                      let relationshipContextID = session.relationshipContextID else {
                     return nil
                 }
                 return AgentSessionValidationTarget(
                     taskID: turn.response.taskID,
-                    personID: session.personID,
-                    relationshipContextID: session.relationshipContextID,
+                    personID: personID,
+                    relationshipContextID: relationshipContextID,
                     response: turn.response
                 )
             }
@@ -899,6 +1409,8 @@ final class AgentSessionStore: ObservableObject {
             evidenceReviewAuthorityReadbackKeys = []
             storedSessions = []
             drafts = []
+            storedGlobalDraft = nil
+            storedContactProposal = nil
             storedEvidenceReviews = []
             persistenceNotice = nil
             return true
@@ -915,6 +1427,8 @@ final class AgentSessionStore: ObservableObject {
         evidenceReviewAuthorityReadbackKeys = []
         storedSessions = []
         drafts = []
+        storedGlobalDraft = nil
+        storedContactProposal = nil
         storedEvidenceReviews = []
         do {
             try persistence.completeDeletion()
@@ -943,10 +1457,12 @@ final class AgentSessionStore: ObservableObject {
         guard let persistence else { return true }
         do {
             let envelope = PersistedAgentSessionEnvelope(
-                version: 2,
+                version: 5,
                 sessions: storedSessions.map(PersistedAgentSession.init),
                 drafts: drafts,
-                evidenceReviews: storedEvidenceReviews
+                globalDraft: storedGlobalDraft,
+                evidenceReviews: storedEvidenceReviews,
+                contactProposal: storedContactProposal
             )
             try persistence.save(try JSONEncoder.agentSession.encode(envelope))
             persistenceNotice = nil
@@ -962,15 +1478,25 @@ final class AgentSessionStore: ObservableObject {
         let draftCutoff = now().addingTimeInterval(-Self.draftRetention)
         let retainedSessions = storedSessions.filter { $0.updatedAt > sessionCutoff }
         let retainedDrafts = drafts.filter { $0.updatedAt > draftCutoff }
+        let retainedGlobalDraft = storedGlobalDraft.flatMap {
+            $0.updatedAt > draftCutoff ? $0 : nil
+        }
         let retainedEvidenceReviews = storedEvidenceReviews.filter {
             $0.updatedAt > sessionCutoff
         }
+        let retainedContactProposal = storedContactProposal.flatMap {
+            $0.updatedAt > draftCutoff ? $0 : nil
+        }
         let didChange = retainedSessions.count != storedSessions.count
             || retainedDrafts.count != drafts.count
+            || retainedGlobalDraft != storedGlobalDraft
             || retainedEvidenceReviews.count != storedEvidenceReviews.count
+            || retainedContactProposal != storedContactProposal
         guard didChange else { return false }
         storedSessions = retainedSessions
         drafts = retainedDrafts
+        storedGlobalDraft = retainedGlobalDraft
+        storedContactProposal = retainedContactProposal
         storedEvidenceReviews = retainedEvidenceReviews
         let retainedReviewKeys = Set(
             retainedEvidenceReviews.map(\.idempotencyKey)
@@ -993,11 +1519,19 @@ final class AgentSessionStore: ObservableObject {
         let draftExpirations = drafts.map {
             $0.updatedAt.addingTimeInterval(Self.draftRetention)
         }
+        let globalDraftExpirations = storedGlobalDraft.map {
+            [$0.updatedAt.addingTimeInterval(Self.draftRetention)]
+        } ?? []
         let evidenceReviewExpirations = storedEvidenceReviews.map {
             $0.updatedAt.addingTimeInterval(Self.sessionRetention)
         }
+        let contactProposalExpirations = storedContactProposal.map {
+            [$0.updatedAt.addingTimeInterval(Self.draftRetention)]
+        } ?? []
         guard let nextExpiration = (
-            sessionExpirations + draftExpirations + evidenceReviewExpirations
+            sessionExpirations + draftExpirations + globalDraftExpirations
+                + evidenceReviewExpirations
+                + contactProposalExpirations
         ).min() else {
             expirationTask = nil
             return
@@ -1024,6 +1558,20 @@ final class AgentSessionStore: ObservableObject {
             in: .whitespacesAndNewlines
         )
         return bounded.count < firstLine.count ? "\(bounded)…" : bounded
+    }
+
+    private static func contactSessionTitle(
+        outcome: AgentContactReceipt.Outcome,
+        personDisplayLabel: String
+    ) -> String {
+        switch outcome {
+        case .createdPerson:
+            return "Added \(personDisplayLabel)"
+        case .matchedExisting:
+            return "Updated \(personDisplayLabel)"
+        case .identityReview:
+            return "Review \(personDisplayLabel)’s identity"
+        }
     }
 
     @discardableResult
@@ -1057,6 +1605,7 @@ final class AgentSessionStore: ObservableObject {
 
 enum AgentSessionPersistenceError: LocalizedError, Equatable {
     case unsupportedVersion
+    case invalidSessionScope
     case deletionCouldNotBeVerified
     case evidenceReviewRecoveryUnavailable
     case evidenceReviewSuperseded
@@ -1066,6 +1615,8 @@ enum AgentSessionPersistenceError: LocalizedError, Equatable {
         switch self {
         case .unsupportedVersion:
             "Saved Agent sessions use an unsupported version."
+        case .invalidSessionScope:
+            "Saved Agent session scope is incomplete."
         case .deletionCouldNotBeVerified:
             "Saved Agent sessions could not be deleted safely."
         case .evidenceReviewRecoveryUnavailable:
@@ -1152,10 +1703,12 @@ extension AgentSessionStore {
         let now = Date(timeIntervalSince1970: 1_787_645_400)
         let primary = AgentSession(
             id: UUID(uuidString: "90000000-0000-4000-8000-000000000001")!,
-            personID: first.id,
-            relationshipContextID: firstContext.id,
-            personDisplayLabel: first.displayLabel,
-            contextDisplayLabel: firstContext.displayLabel,
+            scope: .relationship(
+                personID: first.id,
+                relationshipContextID: firstContext.id,
+                personDisplayLabel: first.displayLabel,
+                contextDisplayLabel: firstContext.displayLabel
+            ),
             title: "What changed with the location model?",
             turns: [
                 AgentSessionTurn(
@@ -1166,6 +1719,7 @@ extension AgentSessionStore {
                     requiresRefresh: false
                 ),
             ],
+            contactReceipts: [],
             updatedAt: now,
             isUnread: false
         )
@@ -1176,12 +1730,15 @@ extension AgentSessionStore {
         }
         let secondary = AgentSession(
             id: UUID(uuidString: "90000000-0000-4000-8000-000000000002")!,
-            personID: people[1].id,
-            relationshipContextID: secondContext.id,
-            personDisplayLabel: people[1].displayLabel,
-            contextDisplayLabel: secondContext.displayLabel,
+            scope: .relationship(
+                personID: people[1].id,
+                relationshipContextID: secondContext.id,
+                personDisplayLabel: people[1].displayLabel,
+                contextDisplayLabel: secondContext.displayLabel
+            ),
             title: "Prepare the next conversation",
             turns: [],
+            contactReceipts: [],
             updatedAt: now.addingTimeInterval(-7_200),
             isUnread: false
         )

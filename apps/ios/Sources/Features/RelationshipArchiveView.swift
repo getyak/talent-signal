@@ -180,6 +180,20 @@ struct RelationshipArchiveView: View {
                                 mediaIDs: mediaIDs
                             )
                         },
+                        saveContact: {
+                            draft,
+                            target,
+                            confirmIdentityClue,
+                            capturedAt,
+                            idempotencyKey in
+                            try await workspaceStore.saveContactDraft(
+                                draft,
+                                target: target,
+                                confirmIdentityClue: confirmIdentityClue,
+                                capturedAt: capturedAt,
+                                idempotencyKey: idempotencyKey
+                            )
+                        },
                         reviewEvidence: {
                             fragmentID,
                             expectedReviewStatus,
@@ -206,6 +220,16 @@ struct RelationshipArchiveView: View {
                         onCapture: { destination in
                             deferredIntakePresentation = .init(
                                 initialDestination: destination
+                            )
+                            capturePresentation = nil
+                        },
+                        onOpenPerson: { personID in
+                            guard let person = snapshot.people.first(where: {
+                                $0.id == personID
+                            }) else { return }
+                            deferredArchiveSheet = .workspacePerson(
+                                person,
+                                roles(for: person.id, in: snapshot)
                             )
                             capturePresentation = nil
                         },

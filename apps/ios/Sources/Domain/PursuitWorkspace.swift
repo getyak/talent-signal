@@ -298,6 +298,23 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
     let lastActivityAt: String
     let profile: Profile?
     let contexts: [Context]
+    var identityMatches: [IdentityMatch] = []
+
+    struct IdentityMatch: Decodable, Equatable {
+        let kind: String
+        let handleType: String?
+        let displayHint: String?
+        let sourceResourceID: String?
+        let expiredAt: String?
+
+        enum CodingKeys: String, CodingKey {
+            case kind
+            case handleType = "handle_type"
+            case displayHint = "display_hint"
+            case sourceResourceID = "source_resource_id"
+            case expiredAt = "expired_at"
+        }
+    }
 
     struct Profile: Decodable, Equatable {
         let headline: String
@@ -336,6 +353,7 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
         case lastActivityAt = "last_activity_at"
         case profile
         case contexts
+        case identityMatches = "identity_matches"
     }
 }
 
