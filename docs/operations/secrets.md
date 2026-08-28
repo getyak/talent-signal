@@ -108,14 +108,11 @@ from that origin. Its base project access remains `no-access`; a path-scoped
 Additional Privilege grants only `describeSecret` and `readValue`. This keeps
 the same least-privilege boundary on plans where custom roles are unavailable.
 
-During migration, the workflows use the existing GitHub Environment secrets
-only when the non-secret `INFISICAL_TESTFLIGHT_IDENTITY_ID` variable is absent.
-Set that variable only after an Infisical administrator has configured the
-project-managed identity, path-scoped Additional Privilege, and OIDC method and
-`pnpm secrets:check:release` succeeds. The variable is now bound to the
-protected release identity. Run one real release and access audit, then delete
-and revoke the legacy GitHub secrets. The workflows deliberately fail closed
-when the enabled Infisical identity cannot supply the complete contract.
+The `INFISICAL_TESTFLIGHT_IDENTITY_ID` variable is bound to the protected
+release identity. Release `0.1.13 (20260828111000)` completed Apple processing
+and internal distribution through that identity, after which the legacy GitHub
+secrets and fallback branches were removed. The workflows now deliberately fail
+closed when Infisical cannot supply the complete contract.
 
 ## Provider keys
 

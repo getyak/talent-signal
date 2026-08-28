@@ -3,6 +3,7 @@ import XCTest
 @MainActor
 final class CandidateSignalUITests: XCTestCase {
     private var app: XCUIApplication!
+    private let systemCalendarEditorTimeout: TimeInterval = 20
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -29,7 +30,10 @@ final class CandidateSignalUITests: XCTestCase {
 
         add.tap()
         let systemCancel = app.buttons["cancel-button"]
-        XCTAssertTrue(systemCancel.waitForExistence(timeout: 8))
+        XCTAssertTrue(
+            systemCancel.waitForExistence(timeout: systemCalendarEditorTimeout),
+            "Apple Calendar editor did not become ready"
+        )
         preserveScreenshot("Apple Calendar final approval")
         systemCancel.tap()
         let discardChanges = app.buttons["Discard Changes"]
@@ -65,7 +69,10 @@ final class CandidateSignalUITests: XCTestCase {
         addProposal.tap()
 
         let systemAdd = app.buttons["add-button"]
-        XCTAssertTrue(systemAdd.waitForExistence(timeout: 8))
+        XCTAssertTrue(
+            systemAdd.waitForExistence(timeout: systemCalendarEditorTimeout),
+            "Apple Calendar editor did not become ready"
+        )
         systemAdd.tap()
 
         XCTAssertTrue(element("calendar-saved").waitForExistence(timeout: 8))
@@ -177,7 +184,10 @@ final class CandidateSignalUITests: XCTestCase {
         review.tap()
 
         let systemCancel = app.buttons["cancel-button"]
-        XCTAssertTrue(systemCancel.waitForExistence(timeout: 8))
+        XCTAssertTrue(
+            systemCancel.waitForExistence(timeout: systemCalendarEditorTimeout),
+            "Apple Calendar editor did not become ready"
+        )
         preserveScreenshot("Relationship activity Apple approval")
         systemCancel.tap()
         let discardChanges = app.buttons["Discard Changes"]

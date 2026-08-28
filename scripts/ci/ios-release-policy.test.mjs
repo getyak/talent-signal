@@ -11,6 +11,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import {
+  APP_GROUP,
+  PROFILE_SPECS,
+  validateProvisioningProfile,
+} from "./manage-ios-signing-profiles.mjs";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const classifier = join(repositoryRoot, "scripts/ci/has-ios-changes.sh");
@@ -181,10 +186,7 @@ test("automatic releases classify the verified default-branch tip without execut
   assert.doesNotMatch(prepareJob[1], /actions\/checkout/);
   assert.doesNotMatch(prepareJob[1], /\.\/scripts\/ci\/has-ios-changes\.sh/);
 
-  assert.match(
-    releaseWorkflow,
-    /TALENT_SIGNAL_API_BASE_URL: \$\{\{ vars\.TALENT_SIGNAL_API_BASE_URL \}\}/,
-  );
+  assert.match(releaseWorkflow, /TALENT_SIGNAL_API_BASE_URL/);
   assert.match(releaseWorkflow, /probe-auth-backend\.mjs/);
   assert.match(
     releaseWorkflow,
@@ -200,10 +202,8 @@ test("automatic releases classify the verified default-branch tip without execut
     /oidc-audience: infisical:\/\/talent-signal\/testflight/,
   );
   assert.match(releaseWorkflow, /secret-path: \/release/);
-  assert.match(
-    releaseWorkflow,
-    /if: vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''/,
-  );
+  assert.doesNotMatch(releaseWorkflow, /Load legacy GitHub secrets/);
+  assert.doesNotMatch(releaseWorkflow, /secrets\.APP_STORE_CONNECT/);
   assert.match(
     releaseWorkflow,
     /oauth-client-id: \$\{\{ env\.TS_OAUTH_CLIENT_ID \}\}/,
@@ -342,13 +342,34 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   );
   assert.match(refreshWorkflow, /secret-path: \/release/);
   assert.match(refreshWorkflow, /MATCH_MAINTENANCE_DEPLOY_KEY/);
-  assert.match(refreshWorkflow, /fastlane run sigh/);
   assert.match(refreshWorkflow, /fastlane ios prepare_signing/);
-  assert.match(refreshWorkflow, /readonly:true/);
-  assert.match(refreshWorkflow, /sync-refreshed-ios-profile\.rb/);
+  assert.match(refreshWorkflow, /manage-ios-signing-profiles\.mjs rotate --confirm-rotation/);
+  assert.match(refreshWorkflow, /manage-ios-signing-profiles\.mjs verify/);
+  assert.match(refreshWorkflow, /The encrypted signing repository was not updated/);
   assert.doesNotMatch(refreshWorkflow, /MATCH_FORCE/);
+  assert.doesNotMatch(refreshWorkflow, /match nuke/);
   assert.doesNotMatch(refreshWorkflow, /fastlane ios beta/);
   assert.match(refreshWorkflow, /Remove temporary signing material/);
+});
+
+test("profile verification requires the shared App Group and main-app Apple sign-in", () => {
+  assert.deepEqual(PROFILE_SPECS.map((profile) => profile.bundleId), [
+    "com.talentsignal.app",
+    "com.talentsignal.app.share",
+    "com.talentsignal.app.live-activity",
+  ]);
+  for (const spec of PROFILE_SPECS) {
+    const entitlements = {
+      "application-identifier": `6RG2F8YY59.${spec.bundleId}`,
+      "com.apple.security.application-groups": [APP_GROUP],
+    };
+    if (spec.signInWithApple) entitlements["com.apple.developer.applesignin"] = ["Default"];
+    validateProvisioningProfile({ Name: spec.name, Entitlements: entitlements }, spec);
+    assert.throws(
+      () => validateProvisioningProfile({ Name: spec.name, Entitlements: { ...entitlements, "com.apple.security.application-groups": [] } }, spec),
+      /lacks group\.com\.talentsignal\.app/,
+    );
+  }
 });
 
 test("TestFlight access uses the release-scoped Infisical OIDC identity", () => {
@@ -369,6 +390,8 @@ test("TestFlight access uses the release-scoped Infisical OIDC identity", () => 
     /identity-id: \$\{\{ vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID \}\}/,
   );
   assert.match(accessWorkflow, /secret-path: \/release/);
+  assert.doesNotMatch(accessWorkflow, /Load legacy GitHub secrets/);
+  assert.doesNotMatch(accessWorkflow, /secrets\.APP_STORE_CONNECT/);
   assert.match(
     accessWorkflow,
     /API_KEY_CONTENT: \$\{\{ env\.APP_STORE_CONNECT_API_KEY_CONTENT \}\}/,

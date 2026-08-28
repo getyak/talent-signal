@@ -131,12 +131,14 @@ proves a device download.
 - Public App Store submission remains an explicit promotion after metadata,
   agreements, App Review readiness, and a human release decision are verified.
 
-The old GitHub Environment secrets are a temporary rollback source during the
-cutover. When `INFISICAL_TESTFLIGHT_IDENTITY_ID` is unset, workflows load those
-legacy values; when it is set, they fail closed on Infisical errors and never
-fall back. Delete and revoke the legacy values only after a real TestFlight
-release and access audit pass through Infisical. Review these settings after
-ownership, plan, or maintainer membership changes.
+The release, signing-refresh, and TestFlight-access workflows use only the
+Infisical OIDC identity and fail closed when it cannot supply the complete
+contract. The former GitHub secret fallback was removed after release
+`0.1.13 (20260828111000)` completed Apple processing and internal distribution.
+Profile refresh deletes only the three exact App Store profile names, regenerates
+them through the maintenance key, then verifies the shared App Group on all
+three and Sign in with Apple on the main app before accepting the new Match
+repository revision.
 
 ## Link checking policy
 

@@ -35,7 +35,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Load release secrets from Infisical
-        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
         uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
         with:
           method: oidc
@@ -44,24 +43,6 @@ jobs:
           project-slug: talent-signal-8p1-x
           env-slug: staging
           secret-path: /release
-
-      - name: Load legacy GitHub secrets during migration
-        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''
-        env:
-          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          TESTFLIGHT_TESTER_EMAIL: ${{ secrets.TESTFLIGHT_TESTER_EMAIL }}
-        run: |
-          for name in \
-            APP_STORE_CONNECT_API_KEY_CONTENT \
-            APP_STORE_CONNECT_API_KEY_ID \
-            APP_STORE_CONNECT_ISSUER_ID \
-            TESTFLIGHT_TESTER_EMAIL; do
-            delimiter="TS_SECRET_${GITHUB_RUN_ID}_${RANDOM}"
-            printf '%s<<%s\n%s\n%s\n' \
-              "$name" "$delimiter" "${!name:-}" "$delimiter" >> "$GITHUB_ENV"
-          done
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
