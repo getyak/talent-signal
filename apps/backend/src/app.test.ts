@@ -56,7 +56,7 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("030_person_profiles"),
+      expect.stringContaining("031_chat_media_assets"),
     );
   }, 10_000);
 });

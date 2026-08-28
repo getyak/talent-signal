@@ -97,6 +97,7 @@ struct AgentSessionDraft: Codable, Equatable {
     var text: String
     var updatedAt: Date
     var pendingIdempotencyKey: String?
+    var requestIdentity: String? = nil
 }
 
 struct AgentEvidenceReviewOperation: Codable, Equatable, Identifiable {
@@ -301,6 +302,7 @@ private struct PersistedRelationshipAskResponse: Codable {
     let contextManifestID: String
     let knowledgeSnapshotID: String
     let disposition: String
+    let media: [ChatMediaAsset]?
     let createdAt: String
 
     init(_ value: RelationshipAskResponse) {
@@ -309,6 +311,7 @@ private struct PersistedRelationshipAskResponse: Codable {
         contextManifestID = value.contextManifestID
         knowledgeSnapshotID = value.knowledgeSnapshotID
         disposition = value.disposition
+        media = value.media
         createdAt = value.createdAt
     }
 
@@ -330,6 +333,7 @@ private struct PersistedRelationshipAskResponse: Codable {
                     requiresUserDecision: false
                 ),
             ],
+            media: media ?? [],
             createdAt: createdAt,
             citations: []
         )
@@ -518,6 +522,9 @@ final class AgentSessionStore: ObservableObject {
                     updatedAt: now(),
                     pendingIdempotencyKey: existing?.text == text
                         ? existing?.pendingIdempotencyKey
+                        : nil,
+                    requestIdentity: existing?.text == text
+                        ? existing?.requestIdentity
                         : nil
                 )
             )
@@ -529,13 +536,15 @@ final class AgentSessionStore: ObservableObject {
         _ text: String,
         personID: String,
         relationshipContextID: String,
-        proposedIdempotencyKey: String
+        proposedIdempotencyKey: String,
+        requestIdentity: String? = nil
     ) -> String {
         _ = pruneExpiredState()
         if let pending = drafts.first(where: {
             $0.personID == personID
                 && $0.relationshipContextID == relationshipContextID
                 && $0.text == text
+                && $0.requestIdentity == requestIdentity
         })?.pendingIdempotencyKey {
             return pending
         }
@@ -549,7 +558,8 @@ final class AgentSessionStore: ObservableObject {
                 relationshipContextID: relationshipContextID,
                 text: text,
                 updatedAt: now(),
-                pendingIdempotencyKey: proposedIdempotencyKey
+                pendingIdempotencyKey: proposedIdempotencyKey,
+                requestIdentity: requestIdentity
             )
         )
         persist()

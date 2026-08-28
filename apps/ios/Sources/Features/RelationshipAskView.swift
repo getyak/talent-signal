@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import PhotosUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class VoiceInputStore: ObservableObject {
@@ -255,7 +257,8 @@ struct RelationshipAskView: View {
         _ objective: String,
         _ personID: String,
         _ contextID: String,
-        _ idempotencyKey: String
+        _ idempotencyKey: String,
+        _ mediaIDs: [String]
     ) async throws -> RelationshipAskResponse
     let reviewEvidence: (
         _ fragmentID: String,
@@ -282,6 +285,10 @@ struct RelationshipAskView: View {
     @State private var scopeQuery = ""
     @State private var isChoosingScope = false
     @State private var draft = ""
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var mediaDrafts: [AskMediaDraft] = []
+    @State private var mediaNotice: String?
+    @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
     @State private var isSending = false
     @State private var errorMessage: String?
@@ -472,6 +479,14 @@ struct RelationshipAskView: View {
                 relationshipContextID: selectedScope.context.id
             )
         }
+        .onChange(of: selectedPhotoItems) { items in
+            guard !items.isEmpty else { return }
+            importSelectedPhotos(items)
+        }
+        .onChange(of: selectedScope?.id) { _ in
+            guard !mediaDrafts.isEmpty else { return }
+            discardMediaDrafts()
+        }
         .onChange(of: voiceInput.transcript) { transcript in
             guard let transcript, !transcript.isEmpty else { return }
             insertVoiceTranscript(transcript)
@@ -490,6 +505,9 @@ struct RelationshipAskView: View {
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
+            mediaImportTask?.cancel()
+            mediaImportTask = nil
+            discardMediaDrafts()
         }
         .confirmationDialog(
             appLanguage.text("Use Doubao voice transcription?"),
@@ -680,6 +698,9 @@ struct RelationshipAskView: View {
                                     sessionStore.transientSupersededEvidenceReviewKeys,
                                 evidenceReviewAuthorityReadbackKeys:
                                     sessionStore.evidenceReviewAuthorityReadbackKeys,
+                                loadMedia: { mediaID in
+                                    try await workspaceStore.loadChatMedia(id: mediaID)
+                                },
                                 onOpenEvidence: { citation in
                                     selectedCitation = SelectedAskCitation(
                                         taskID: turn.response.taskID,
@@ -861,18 +882,49 @@ struct RelationshipAskView: View {
         VStack(spacing: 8) {
             voiceInputStatus
 
+            if !mediaDrafts.isEmpty {
+                AskMediaDraftTray(
+                    drafts: mediaDrafts,
+                    onRetry: retryMediaDraft,
+                    onRemove: removeMediaDraft
+                )
+            }
+
+            if let mediaNotice {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .accessibilityHidden(true)
+                    Text(mediaNotice)
+                        .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                }
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityIdentifier("ask-media-notice")
+            }
+
             HStack(alignment: .bottom, spacing: 8) {
-                Button { onCapture(nil) } label: {
+                PhotosPicker(
+                    selection: $selectedPhotoItems,
+                    maxSelectionCount: 10,
+                    matching: .images
+                ) {
                     Image(systemName: "paperclip")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.tsInk)
                         .frame(width: composerControlSize, height: composerControlSize)
                         .background(Color.tsCanvas, in: Circle())
                 }
-                .disabled(voiceInput.isBusy)
+                .disabled(voiceInput.isBusy || mediaDrafts.count >= 10 || selectedScope == nil)
                 .accessibilityLabel(
-                    appLanguage.text("Add text, photo, or voice")
+                    appLanguage.text("Add photos")
                 )
+                .accessibilityHint(
+                    appLanguage.text(
+                        "Choose up to ten task images. Selection alone does not make them evidence."
+                    )
+                )
+                .accessibilityIdentifier("ask-add-photos")
 
                 TextField(
                     appLanguage.text("Ask anything"),
@@ -1187,7 +1239,10 @@ struct RelationshipAskView: View {
     }
 
     private var canSendDraft: Bool {
-        selectedScope != nil && !isSending && isCanonical
+        selectedScope != nil
+            && !isSending
+            && isCanonical
+            && mediaDrafts.allSatisfy { $0.phase == .ready }
     }
 
     private var filteredScopes: [AskScope] {
@@ -1203,9 +1258,178 @@ struct RelationshipAskView: View {
         sessionStore.session(id: activeSessionID)?.turns ?? []
     }
 
+    private func importSelectedPhotos(_ items: [PhotosPickerItem]) {
+        mediaImportTask?.cancel()
+        mediaImportTask = Task {
+            defer {
+                selectedPhotoItems = []
+                mediaImportTask = nil
+            }
+            guard let scope = selectedScope else { return }
+            let remaining = max(0, 10 - mediaDrafts.count)
+            guard remaining > 0 else {
+                mediaNotice = appLanguage.text("Ten images is the limit for one Ask.")
+                return
+            }
+            if items.count > remaining {
+                mediaNotice = appLanguage.text(
+                    "Only the first \(remaining) selected images were added.",
+                    zhHans: "仅添加了所选图片中的前 \(remaining) 张。"
+                )
+            }
+            for (offset, item) in items.prefix(remaining).enumerated() {
+                if Task.isCancelled { return }
+                do {
+                    guard var data = try await item.loadTransferable(type: Data.self),
+                          var preview = UIImage(data: data) else {
+                        throw PursuitWorkspaceClientError.invalidResponse
+                    }
+                    var mediaType = item.supportedContentTypes
+                        .compactMap(\.preferredMIMEType)
+                        .first(where: Self.allowedChatMediaTypes.contains)
+                    var fileExtension = item.supportedContentTypes
+                        .compactMap(\.preferredFilenameExtension)
+                        .first
+                    if mediaType == nil {
+                        guard let converted = preview.jpegData(compressionQuality: 0.9) else {
+                            throw PursuitWorkspaceClientError.invalidResponse
+                        }
+                        data = converted
+                        preview = UIImage(data: converted) ?? preview
+                        mediaType = "image/jpeg"
+                        fileExtension = "jpg"
+                    }
+                    guard !data.isEmpty, data.count <= 8_388_608 else {
+                        mediaNotice = appLanguage.text("One image was larger than 8 MB and was not added.")
+                        continue
+                    }
+                    let id = UUID()
+                    let scale = preview.scale
+                    let mediaDraft = AskMediaDraft(
+                        id: id,
+                        data: data,
+                        preview: preview,
+                        fileName: "ask-photo-\(mediaDrafts.count + offset + 1).\(fileExtension ?? "image")",
+                        mediaType: mediaType ?? "image/jpeg",
+                        width: max(1, Int(preview.size.width * scale)),
+                        height: max(1, Int(preview.size.height * scale)),
+                        remoteAsset: nil,
+                        phase: .uploading
+                    )
+                    mediaDrafts.append(mediaDraft)
+                    mediaNotice = appLanguage.text("Task images · not evidence")
+                    uploadMediaDraft(id, scope: scope)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    mediaNotice = appLanguage.text("One selected image could not be read; the rest are unchanged.")
+                }
+            }
+        }
+    }
+
+    private func uploadMediaDraft(_ id: UUID, scope: AskScope? = nil) {
+        guard let index = mediaDrafts.firstIndex(where: { $0.id == id }),
+              let resolvedScope = scope ?? selectedScope else { return }
+        mediaDrafts[index].phase = .uploading
+        let mediaDraft = mediaDrafts[index]
+        Task {
+            do {
+                let asset: ChatMediaAsset
+                if let existing = mediaDraft.remoteAsset {
+                    asset = existing
+                } else {
+                    asset = try await workspaceStore.createChatMedia(
+                        personID: resolvedScope.person.id,
+                        relationshipContextID: resolvedScope.context.id,
+                        fileName: mediaDraft.fileName,
+                        mediaType: mediaDraft.mediaType,
+                        byteSize: mediaDraft.data.count,
+                        width: mediaDraft.width,
+                        height: mediaDraft.height,
+                        idempotencyKey: "ios:chat-media:\(mediaDraft.id.uuidString.lowercased())"
+                    )
+                }
+                guard let current = mediaDrafts.firstIndex(where: { $0.id == id }) else {
+                    try? await workspaceStore.deleteChatMedia(id: asset.id)
+                    return
+                }
+                mediaDrafts[current].remoteAsset = asset
+                let ready = asset.status == "ready"
+                    ? asset
+                    : try await workspaceStore.uploadChatMedia(
+                        id: asset.id,
+                        data: mediaDraft.data,
+                        mediaType: mediaDraft.mediaType
+                    )
+                guard let finalIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else {
+                    try? await workspaceStore.deleteChatMedia(id: ready.id)
+                    return
+                }
+                mediaDrafts[finalIndex].remoteAsset = ready
+                mediaDrafts[finalIndex].phase = .ready
+            } catch {
+                guard let failedIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else { return }
+                mediaDrafts[failedIndex].phase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? appLanguage.text("Upload failed. Retry keeps the same image identity.")
+                )
+                mediaNotice = appLanguage.text("An image did not upload. Retry or remove it before Send.")
+            }
+        }
+    }
+
+    private func retryMediaDraft(_ id: UUID) {
+        uploadMediaDraft(id)
+    }
+
+    private func removeMediaDraft(_ id: UUID) {
+        guard let index = mediaDrafts.firstIndex(where: { $0.id == id }) else { return }
+        guard let mediaID = mediaDrafts[index].remoteAsset?.id else {
+            mediaDrafts.remove(at: index)
+            if mediaDrafts.isEmpty { mediaNotice = nil }
+            return
+        }
+        mediaDrafts[index].phase = .removing
+        Task {
+            do {
+                try await workspaceStore.deleteChatMedia(id: mediaID)
+                mediaDrafts.removeAll { $0.id == id }
+                if mediaDrafts.isEmpty { mediaNotice = nil }
+            } catch {
+                guard let failedIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else { return }
+                mediaDrafts[failedIndex].phase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? appLanguage.text("The image could not be removed.")
+                )
+                mediaNotice = appLanguage.text("Removal was not confirmed. The image remains attached locally.")
+            }
+        }
+    }
+
+    private func discardMediaDrafts() {
+        let mediaIDs = mediaDrafts.compactMap { $0.remoteAsset?.id }
+        mediaDrafts = []
+        mediaNotice = nil
+        guard !mediaIDs.isEmpty else { return }
+        Task {
+            for mediaID in mediaIDs {
+                try? await workspaceStore.deleteChatMedia(id: mediaID)
+            }
+        }
+    }
+
+    private static let allowedChatMediaTypes: Set<String> = [
+        "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif",
+    ]
+
     private func send(_ objective: String) {
         let trimmed = objective.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let selectedScope, !isSending else { return }
+        let mediaIDs = mediaDrafts.compactMap(\.readyMediaID)
+        guard !trimmed.isEmpty,
+              let selectedScope,
+              !isSending,
+              mediaIDs.count == mediaDrafts.count else { return }
         errorMessage = nil
         isSending = true
         let operationID = UUID()
@@ -1213,7 +1437,8 @@ struct RelationshipAskView: View {
             trimmed,
             personID: selectedScope.person.id,
             relationshipContextID: selectedScope.context.id,
-            proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())"
+            proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())",
+            requestIdentity: mediaIDs.isEmpty ? nil : mediaIDs.joined(separator: ":")
         )
         Task {
             do {
@@ -1221,7 +1446,8 @@ struct RelationshipAskView: View {
                     trimmed,
                     selectedScope.person.id,
                     selectedScope.context.id,
-                    idempotencyKey
+                    idempotencyKey,
+                    mediaIDs
                 )
                 sessionStore.revalidateEvidenceReviewAuthority(
                     citations: response.citations,
@@ -1242,6 +1468,8 @@ struct RelationshipAskView: View {
                     relationshipContextID: selectedScope.context.id
                 )
                 draft = ""
+                mediaDrafts = []
+                mediaNotice = nil
             } catch {
                 errorMessage = (error as? LocalizedError)?.errorDescription
                     ?? appLanguage.text(
@@ -1469,6 +1697,7 @@ private struct AskTurnView: View {
     let inFlightEvidenceReviewKeys: Set<String>
     let transientSupersededEvidenceReviewKeys: Set<String>
     let evidenceReviewAuthorityReadbackKeys: Set<String>
+    let loadMedia: (String) async throws -> ChatMediaContent
     let onOpenEvidence: (RelationshipAskResponse.Citation) -> Void
     let onRetryEvidenceReview: (AgentEvidenceReviewOperation) -> Void
     let onReinstateEvidence: (AgentEvidenceReviewOperation) -> Void
@@ -1477,13 +1706,25 @@ private struct AskTurnView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(turn.objective)
-                .font(.body)
-                .foregroundStyle(Color.tsSurface)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 11)
-                .background(Color.tsInk, in: RoundedRectangle(cornerRadius: 18))
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            VStack(alignment: .trailing, spacing: 7) {
+                if !turn.response.media.isEmpty {
+                    ChatMediaAlbumBubble(media: turn.response.media, load: loadMedia)
+                        .frame(maxWidth: 310)
+                }
+                Text(turn.objective)
+                    .font(.body)
+                    .foregroundStyle(Color.tsInk)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 11)
+                    .frame(maxWidth: 330, alignment: .trailing)
+                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.tsLine, lineWidth: 1)
+                    }
+                    .accessibilityIdentifier("ask-user-message")
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
 
             if turn.requiresRefresh {
                 Label(

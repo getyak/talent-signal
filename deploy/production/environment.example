@@ -14,6 +14,16 @@ SESSION_TTL_SECONDS=28800
 RETENTION_SWEEP_INTERVAL_MS=60000
 LOG_LEVEL=info
 
+# Private Chat task media. Prefer workload identity; set explicit AWS
+# credentials only when the host cannot provide one.
+CHAT_MEDIA_STORAGE_PROVIDER=s3
+CHAT_MEDIA_S3_BUCKET=replace-with-private-bucket
+CHAT_MEDIA_S3_REGION=replace-with-region
+CHAT_MEDIA_S3_ENDPOINT=
+CHAT_MEDIA_S3_FORCE_PATH_STYLE=false
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
 # Optional build/runtime overrides.
 BACKEND_IMAGE=talent-signal-backend:production
 TS_PNPM_REGISTRY=https://registry.npmjs.org

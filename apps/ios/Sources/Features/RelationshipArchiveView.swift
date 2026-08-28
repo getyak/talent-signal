@@ -171,12 +171,13 @@ struct RelationshipArchiveView: View {
                         sessionStore: sessionStore,
                         sessionID: sessionID,
                         initialSeed: seed,
-                        ask: { objective, personID, contextID, idempotencyKey in
+                        ask: { objective, personID, contextID, idempotencyKey, mediaIDs in
                             try await workspaceStore.ask(
                                 objective: objective,
                                 personID: personID,
                                 relationshipContextID: contextID,
-                                idempotencyKey: idempotencyKey
+                                idempotencyKey: idempotencyKey,
+                                mediaIDs: mediaIDs
                             )
                         },
                         reviewEvidence: {
