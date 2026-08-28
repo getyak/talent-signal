@@ -3124,6 +3124,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(success.waitForExistence(timeout: 20))
         XCTAssertTrue(success.label.contains("Saved to Noor Vega"))
         assertCompactContactReceipt()
+        assertContactContinuationScope(person: "Noor Vega", context: "Design")
         XCTAssertTrue(element("contact-receipt-boundary").exists)
         preserveScreenshot("Canonical contact no-match creation receipt")
     }
@@ -3221,6 +3222,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(success.waitForExistence(timeout: 20))
         XCTAssertTrue(success.label.contains("Saved to Samira Current"))
         assertCompactContactReceipt()
+        assertContactContinuationScope(person: "Samira Current")
         XCTAssertTrue(element("contact-receipt-boundary").exists)
         preserveScreenshot("Canonical contact confirmed match attachment receipt")
     }
@@ -3282,6 +3284,7 @@ final class CandidateSignalUITests: XCTestCase {
         assertCompactContactReceipt()
         XCTAssertTrue(element("contact-receipt-boundary").exists)
         preserveScreenshot("Canonical contact conflict resolution case receipt")
+        assertUnresolvedContactHasNoInheritedScope()
     }
 
     func testCanonicalContactResponseLossRelaunchRetriesSameOperation() async throws {
@@ -3366,6 +3369,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "Contact saved")
         XCTAssertTrue(app.buttons["contact-dismiss-proposal"].isEnabled)
         assertCompactContactReceipt()
+        assertContactContinuationScope(person: "Mina Patel")
         preserveScreenshot("Canonical contact relaunch reconciled same operation")
 
         let (finalData, finalResponse) = try await URLSession.shared.data(from: stateURL)
@@ -3657,6 +3661,31 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertFalse(app.buttons["contact-confirm-save"].exists)
         XCTAssertTrue(app.textFields["ask-composer"].isEnabled)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
+    }
+
+    private func assertContactContinuationScope(
+        person: String,
+        context: String? = nil
+    ) {
+        let selector = element("ask-scope-selector")
+        XCTAssertTrue(selector.waitForExistence(timeout: 5))
+        let value = selector.value as? String
+        XCTAssertTrue(value?.contains(person) == true)
+        if let context {
+            XCTAssertTrue(value?.contains(context) == true)
+        }
+    }
+
+    private func assertUnresolvedContactHasNoInheritedScope() {
+        let selector = element("ask-scope-selector")
+        XCTAssertTrue(selector.waitForExistence(timeout: 5))
+        XCTAssertEqual(selector.value as? String, "None")
+
+        let composer = app.textFields["ask-composer"]
+        typeTextReliably("What changed in this relationship?", into: composer)
+        let send = app.buttons["ask-send"]
+        XCTAssertFalse(send.isEnabled)
+        XCTAssertEqual(send.label, "Choose a relationship before sending")
     }
 
     private func tapWhenVisible(_ element: XCUIElement, maxSwipes: Int = 14) {

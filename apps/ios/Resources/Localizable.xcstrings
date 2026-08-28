@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Add another contact…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加另一位联系人…" } } }
+    },
     "Add to the existing contact?" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到已有联系人？" } } }
     },
@@ -666,6 +669,9 @@
     },
     "Choose a relationship" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一段关系" } } }
+    },
+    "Choose a relationship before sending" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发送前请选择一段关系" } } }
     },
     "Choose one" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一张" } } }

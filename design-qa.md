@@ -112,6 +112,14 @@ final result: passed
 - Composer-continuity result bundle:
   `/tmp/talent-signal-ios-contact-continuity.xcresult`; final render:
   `/tmp/talent-signal-ios-contact-continuity-artifacts.jL49B9/5945E96A-6FC1-412C-ADAD-2EC5D6E11589.png`.
+- Bound create and attach continuation scopes:
+  `/tmp/talent-signal-ios-contact-scope-continuity.xcresult`; create render:
+  `/tmp/talent-signal-ios-contact-scope-artifacts.TiyOFi/87565B0D-B98E-4A38-A0E8-F41271751176.png`.
+- Unresolved and response-loss continuation safety:
+  `/tmp/talent-signal-ios-contact-unresolved-continuity.xcresult`.
+- Final unresolved terminal render and interaction proof:
+  `/tmp/talent-signal-ios-contact-unresolved-final.xcresult`;
+  `/tmp/talent-signal-ios-contact-unresolved-final-artifacts.6xymOB/86F72B3C-09EB-4019-9D6B-11B6A114473C.png`.
 
 ## Finding and resolution
 
@@ -147,6 +155,17 @@ ellipsizing. Once canonical completion is known, the global text, photo, and
 voice inputs resume immediately; only pending, failed, or unresolved decisions
 continue to block a competing intent.
 
+The first terminal receipt pass made the composer look continuous but still
+left its relationship scope at the value selected before contact intake. That
+could make a follow-up Ask appear to concern the saved contact while actually
+targeting an unrelated relationship. Completion now rebinds from the exact
+canonical `person_id` and `relationship_context_id` returned by the save, using
+the refreshed workspace rather than the presentation's initial snapshot. The
+scope selector returns above the receipt so the next destination is visible.
+An unresolved identity case clears the prior scope; another contact intent
+remains possible, but an ordinary Ask cannot send until the recruiter chooses a
+relationship. Its compact placeholder stays fully readable on iPhone width.
+
 ## Behavioral, safety, and accessibility proof
 
 - All seven canonical UI journeys passed: editable relaunch restoration,
@@ -160,6 +179,10 @@ continue to block a competing intent.
   collapse to the same terminal receipt grammar. The final create test asserts
   that dead proposal controls are absent and that text and voice input are
   enabled again after the receipt becomes canonical.
+- Create, attach, and response-loss recovery assert the exact post-save Person
+  relationship scope from canonical readback. The unresolved path asserts
+  `None`, types a generic follow-up, and verifies that Send remains disabled
+  with an explicit accessible reason instead of inheriting stale scope.
 - Lookup failure and unknown-result recovery retain the exact recruiter message
   and proposal. Relaunch cannot silently recompute a different destination.
 - The focused conflict test asserts the complete consequence sentence, no

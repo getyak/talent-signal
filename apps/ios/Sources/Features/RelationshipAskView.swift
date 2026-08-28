@@ -334,7 +334,7 @@ struct RelationshipAskView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if contactDraft == nil {
+                if contactDraft == nil || contactSaveMessage != nil {
                     scopeBar
                         .transition(.opacity)
                 }
@@ -802,7 +802,7 @@ struct RelationshipAskView: View {
                                     composerFocused = true
                                 },
                                 onOpenPursuit: { pursuitID, actionID in
-                                    guard let pursuit = snapshot.pursuit(id: pursuitID) else {
+                                    guard let pursuit = currentSnapshot.pursuit(id: pursuitID) else {
                                         return
                                     }
                                     selectedPursuit = SelectedPursuitTarget(
@@ -1070,9 +1070,7 @@ struct RelationshipAskView: View {
                 .accessibilityIdentifier("ask-add-photos")
 
                 TextField(
-                    hasBlockingContactProposal
-                        ? appLanguage.text("Finish reviewing the contact first")
-                        : appLanguage.text("Message or add anything…"),
+                    composerPlaceholder,
                     text: $draft,
                     axis: .vertical
                 )
@@ -1295,7 +1293,13 @@ struct RelationshipAskView: View {
         if isSending {
             return appLanguage.text("Reading the record…")
         }
-        if !trimmedDraft.isEmpty { return appLanguage.text("Send") }
+        if !trimmedDraft.isEmpty {
+            if selectedScope == nil,
+               ConversationContactIntake.propose(trimmedDraft) == nil {
+                return appLanguage.text("Choose a relationship before sending")
+            }
+            return appLanguage.text("Send")
+        }
         if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
         if voiceTranscriber == nil { return appLanguage.text("Record voice") }
         return appLanguage.text("Start voice input")
@@ -1373,8 +1377,12 @@ struct RelationshipAskView: View {
         composerFocused = true
     }
 
+    private var currentSnapshot: PursuitWorkspaceSnapshot {
+        workspaceStore.snapshot ?? snapshot
+    }
+
     private var availableScopes: [AskScope] {
-        snapshot.people.flatMap { person in
+        currentSnapshot.people.flatMap { person in
             person.contexts.map { context in
                 AskScope(person: person, context: context)
             }
@@ -1383,6 +1391,16 @@ struct RelationshipAskView: View {
 
     private var trimmedDraft: String {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var composerPlaceholder: String {
+        if hasBlockingContactProposal {
+            return appLanguage.text("Finish reviewing the contact first")
+        }
+        if contactSaveMessage != nil, selectedScope == nil {
+            return appLanguage.text("Add another contact…")
+        }
+        return appLanguage.text("Message or add anything…")
     }
 
     private var hasBlockingContactProposal: Bool {
@@ -1730,7 +1748,7 @@ struct RelationshipAskView: View {
         guard let identityClue = proposal.identityClue else {
             contactCandidates = ConversationContactMatchPolicy.sameNameReview(
                 for: proposal,
-                in: snapshot.people
+                in: currentSnapshot.people
             )
             contactLookupPhase = .complete
             return
@@ -1847,6 +1865,7 @@ struct RelationshipAskView: View {
                     capturedAt,
                     operationKey
                 )
+                bindContactContinuation(to: result)
                 let receipt = result.resource.id.suffix(8)
                 let didClearRecovery = sessionStore.clearContactProposal()
                 if didClearRecovery {
@@ -1886,6 +1905,23 @@ struct RelationshipAskView: View {
                     )
             }
             isSavingContact = false
+        }
+    }
+
+    private func bindContactContinuation(to result: ResourceCaptureResult) {
+        activeSessionID = nil
+        isChoosingScope = false
+        guard let personID = result.identity.personID,
+              let relationshipContextID = result.identity.relationshipContextID else {
+            // An unresolved identity case owns no relationship scope. The
+            // composer may accept another contact intent, but a generic Ask
+            // must never inherit whichever relationship preceded this review.
+            selectedScope = nil
+            return
+        }
+        selectedScope = availableScopes.first {
+            $0.person.id == personID
+                && $0.context.id == relationshipContextID
         }
     }
 

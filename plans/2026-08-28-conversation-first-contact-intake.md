@@ -370,3 +370,16 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   full wrapping passed in `/tmp/talent-signal-ios-contact-receipt-wrap.xcresult`;
   and the enabled-composer terminal frame passed in
   `/tmp/talent-signal-ios-contact-continuity.xcresult`.
+- Corrected the post-save conversation destination. A bound create or attach
+  now reselects the exact Person and relationship context returned by canonical
+  readback from the refreshed workspace, resets any prior Session, and makes
+  that destination visible above the receipt before another Ask can be sent.
+- An unresolved identity case now clears the relationship that preceded the
+  contact review. The global field can still accept another concise contact
+  intent, but a generic follow-up remains disabled until a relationship is
+  chosen and exposes that reason accessibly. Bound create/attach passed in
+  `/tmp/talent-signal-ios-contact-scope-continuity.xcresult`; unresolved and
+  response-loss recovery passed in
+  `/tmp/talent-signal-ios-contact-unresolved-continuity.xcresult`; and the clean
+  unresolved terminal frame passed in
+  `/tmp/talent-signal-ios-contact-unresolved-final.xcresult`.
