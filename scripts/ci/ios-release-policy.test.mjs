@@ -179,6 +179,28 @@ test("automatic releases classify the verified default-branch tip without execut
     releaseWorkflow,
     /tailscale\/github-action@[0-9a-f]{40} # v4\.1\.3/,
   );
+  assert.match(
+    releaseWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+  assert.match(releaseWorkflow, /method: oidc/);
+  assert.match(
+    releaseWorkflow,
+    /oidc-audience: infisical:\/\/talent-signal\/testflight/,
+  );
+  assert.match(releaseWorkflow, /secret-path: \/release/);
+  assert.match(
+    releaseWorkflow,
+    /if: vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /oauth-client-id: \$\{\{ env\.TS_OAUTH_CLIENT_ID \}\}/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /oauth-secret: \$\{\{ env\.TS_OAUTH_SECRET \}\}/,
+  );
   assert.match(releaseWorkflow, /TS_OAUTH_CLIENT_ID/);
   assert.match(releaseWorkflow, /TS_OAUTH_SECRET/);
   assert.match(releaseWorkflow, /tags: tag:ci/);
@@ -213,6 +235,12 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   assert.doesNotMatch(refreshWorkflow, /workflow_run:/);
   assert.match(refreshWorkflow, /confirm_profile_refresh:/);
   assert.match(refreshWorkflow, /environment:\n\s+name: testflight/);
+  assert.match(refreshWorkflow, /id-token: write/);
+  assert.match(
+    refreshWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+  assert.match(refreshWorkflow, /secret-path: \/release/);
   assert.match(refreshWorkflow, /MATCH_MAINTENANCE_DEPLOY_KEY/);
   assert.match(refreshWorkflow, /fastlane run sigh/);
   assert.match(refreshWorkflow, /readonly:true/);
@@ -221,4 +249,28 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   assert.doesNotMatch(refreshWorkflow, /fastlane ios prepare_signing/);
   assert.doesNotMatch(refreshWorkflow, /fastlane ios beta/);
   assert.match(refreshWorkflow, /Remove temporary signing material/);
+});
+
+test("TestFlight access uses the release-scoped Infisical OIDC identity", () => {
+  const accessWorkflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/testflight-access.yml"),
+    "utf8",
+  );
+
+  assert.match(accessWorkflow, /id-token: write/);
+  assert.match(accessWorkflow, /environment:\n\s+name: testflight/);
+  assert.match(
+    accessWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+  assert.match(accessWorkflow, /method: oidc/);
+  assert.match(
+    accessWorkflow,
+    /identity-id: \$\{\{ vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID \}\}/,
+  );
+  assert.match(accessWorkflow, /secret-path: \/release/);
+  assert.match(
+    accessWorkflow,
+    /API_KEY_CONTENT: \$\{\{ env\.APP_STORE_CONNECT_API_KEY_CONTENT \}\}/,
+  );
 });
