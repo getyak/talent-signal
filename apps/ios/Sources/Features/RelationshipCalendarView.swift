@@ -425,6 +425,7 @@ struct RelationshipCalendarView: View {
                             .font(.caption.weight(.bold))
                             .foregroundStyle(Color.tsMutedInk)
                             .rotationEffect(.degrees(isMonthExpanded ? 180 : 0))
+                            .animation(calendarMotion, value: isMonthExpanded)
                     }
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
@@ -453,7 +454,6 @@ struct RelationshipCalendarView: View {
                             offset: 1
                         )
                     }
-                    .transition(.opacity)
                 }
             }
             .padding(.horizontal, 8)
@@ -480,15 +480,16 @@ struct RelationshipCalendarView: View {
                 }
             }
 
-            ZStack(alignment: .top) {
-                LazyVGrid(columns: monthColumns, spacing: calendarRowSpacing) {
-                    ForEach(monthGridDates, id: \.self) { date in
-                        monthDayCell(date)
-                    }
+            LazyVGrid(columns: monthColumns, spacing: calendarRowSpacing) {
+                ForEach(visibleGridDates, id: \.self) { date in
+                    monthDayCell(date)
                 }
-                .offset(y: isMonthExpanded ? 0 : collapsedGridOffset)
+            }
+            .transaction { transaction in
+                transaction.disablesAnimations = true
             }
             .frame(height: visibleGridHeight, alignment: .top)
+            .animation(calendarMotion, value: isMonthExpanded)
             .clipped()
         }
         .padding(.horizontal, 2)
@@ -505,11 +506,9 @@ struct RelationshipCalendarView: View {
             .accessibilityLabel(dayAccessibilityLabel(date))
             .accessibilityAddTraits(isSelected(date) ? .isSelected : [])
             .accessibilityIdentifier("calendar-month-day-\(dayIdentifier(date))")
-            .transition(.identity)
         } else {
             monthDayLabel(date)
                 .accessibilityHidden(true)
-                .transition(.identity)
         }
     }
 
@@ -622,6 +621,10 @@ struct RelationshipCalendarView: View {
 
     private var calendarRowHeight: CGFloat { 44 }
 
+    private var calendarMotion: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.24)
+    }
+
     private var monthGridDates: [Date] {
         guard let monthInterval = calendar.dateInterval(of: .month, for: selectedDate),
               let days = calendar.range(of: .day, in: .month, for: selectedDate) else {
@@ -648,8 +651,12 @@ struct RelationshipCalendarView: View {
         return selectedIndex / 7
     }
 
-    private var collapsedGridOffset: CGFloat {
-        -CGFloat(selectedWeekIndex) * (calendarRowHeight + calendarRowSpacing)
+    private var visibleGridDates: [Date] {
+        guard !isMonthExpanded else { return monthGridDates }
+        let start = selectedWeekIndex * 7
+        let end = min(start + 7, monthGridDates.count)
+        guard start < end else { return [] }
+        return Array(monthGridDates[start..<end])
     }
 
     private var expandedGridHeight: CGFloat {
@@ -764,12 +771,10 @@ struct RelationshipCalendarView: View {
     }
 
     private func updateCalendar(_ update: () -> Void) {
-        if reduceMotion {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
             update()
-        } else {
-            withAnimation(.easeInOut(duration: 0.26)) {
-                update()
-            }
         }
     }
 

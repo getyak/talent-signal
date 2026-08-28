@@ -988,7 +988,7 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryControlSize: CGFloat {
-        voiceInput.isRecording ? max(48, composerControlSize) : composerControlSize
+        max(48, composerControlSize)
     }
 
     @ViewBuilder
