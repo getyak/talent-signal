@@ -288,6 +288,7 @@ struct RelationshipAskView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.sizeCategory) private var sizeCategory
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @State private var selectedScope: AskScope?
     @State private var scopeQuery = ""
     @State private var isChoosingScope = false
@@ -511,6 +512,13 @@ struct RelationshipAskView: View {
                 )
             }
             restoreDraft(preferred: initialSeed?.suggestedObjective)
+            if sessionID == nil,
+               initialSeed == nil,
+               contactDraft == nil,
+               !voiceOverEnabled {
+                await Task.yield()
+                composerFocused = true
+            }
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(60))

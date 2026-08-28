@@ -452,6 +452,30 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Conversation-first Ask with embedded tools")
     }
 
+    func testGlobalAgentInputMovesDirectlyIntoTyping() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let globalInput = app.buttons["relationship-guide"]
+        XCTAssertTrue(globalInput.waitForExistence(timeout: 5))
+        globalInput.tap()
+
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForExistence(timeout: 3),
+            "A new global intent should need no second tap before typing."
+        )
+
+        let message = "Add Maya Chen for the product search"
+        composer.typeText(message)
+        XCTAssertEqual(composer.value as? String, message)
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.exists)
+        XCTAssertTrue(send.isEnabled)
+        preserveScreenshot("Global Agent input opens ready to type")
+    }
+
     func testVoiceInputInsertsAnEditableDraftWithoutSending() {
         app.launchArguments = [
             "--deterministic-voice-input",
@@ -3073,6 +3097,10 @@ final class CandidateSignalUITests: XCTestCase {
         )
         app.buttons["relationship-guide"].tap()
         XCTAssertTrue(element("contact-proposal-card").waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.keyboards.firstMatch.exists,
+            "A restored contact decision should not steal focus from review."
+        )
         XCTAssertEqual(element("contact-user-message").label, message)
         XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "Maya Chen")
         XCTAssertFalse(app.textFields["contact-proposal-name"].exists)

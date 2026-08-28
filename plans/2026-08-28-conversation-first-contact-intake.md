@@ -409,3 +409,17 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   `/tmp/talent-signal-ios-contact-unresolved-continuity.xcresult`; and the clean
   unresolved terminal frame passed in
   `/tmp/talent-signal-ios-contact-unresolved-final.xcresult`.
+- Removed the second tap between the unchanged bottom global Agent input and
+  actual typing. A brand-new unseeded Ask now focuses its existing composer
+  after mounting, so the recruiter can type immediately without introducing a
+  second root `TextField` or duplicating draft, photo, voice, and recovery state.
+- Kept review and accessibility context stable. Existing Sessions, seeded
+  continuations, restored contact proposals, and VoiceOver sessions do not
+  autofocus, so a consequential decision or accessibility navigation remains
+  the lead instead of an unsolicited keyboard.
+- Level 1 iPhone 17 Pro Simulator proof covers direct typing after one global
+  tap and restored-proposal no-focus behavior with zero failures in
+  `/tmp/talent-signal-global-input-focus-ui.xcresult`. Simplified Chinese dark
+  AX5 preserves the one-column scope, preview boundary, 44-point capture
+  controls, and uncropped composer in
+  `/tmp/talent-signal-global-input-focus-ax5-zh.xcresult`.

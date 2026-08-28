@@ -86,6 +86,65 @@ final result: passed
 
 ---
 
+# Design QA — iOS one-tap global Agent input
+
+## Finding and selected direction
+
+The persistent bottom capsule looked like a message field but opening a new
+Agent conversation left the real composer unfocused. A recruiter therefore had
+to tap the global input and then tap again before typing, breaking the immediate
+IM expectation established by the visual treatment.
+
+Two directions were compared. A root-level `TextField` would make the first
+surface literally editable, but would duplicate draft, photo, voice, pending
+intent, and restoration state between Today and Ask. The selected direction
+keeps one canonical composer: tapping the unchanged global capsule opens a new
+Ask and places the insertion point in that composer as soon as it is mounted.
+The top Today / Sessions / People navigation and the bottom input styling were
+not moved or restyled.
+
+Autofocus is deliberately limited to a brand-new, unseeded global intent. An
+existing Session, a seeded continuation, or a restored contact proposal opens
+without a keyboard so review and recovery remain the visual lead. VoiceOver
+also suppresses autofocus to avoid moving accessibility focus without an
+explicit decision.
+
+## Evidence
+
+- Evidence level: 1, fixture-backed iPhone 17 Pro Simulator interaction on
+  iOS 26.5.
+- Direct typing after one tap, standard English:
+  `/tmp/talent-signal-global-input-focus.ooNbRf/0E30CC00-5541-4DC3-BA0E-A3D7703FFDE6.png`.
+- Restored contact decision without focus theft:
+  `/tmp/talent-signal-global-input-focus.ooNbRf/803A4CA4-EABE-4525-A256-E6824723389C.png`.
+- Standard focus and restored-decision result bundle:
+  `/tmp/talent-signal-global-input-focus-ui.xcresult`.
+- Simplified Chinese, dark appearance, AX5 single-column layout:
+  `/tmp/talent-signal-global-input-focus-ax5.c8aEHD/FA57579C-3F34-4446-9772-F980473F1AE8.png`.
+- AX5 layout result bundle:
+  `/tmp/talent-signal-global-input-focus-ax5-zh.xcresult`.
+
+The standard journey proves that a direct `typeText` succeeds after tapping
+only the global capsule and that the keyboard, editable message, and Send action
+are simultaneously present. The recovery journey proves that a restored
+consequential contact decision does not summon the keyboard. The AX5 journey is
+layout evidence rather than keyboard evidence: it verifies the single-column
+scope and preview hierarchy, 44-point photo and voice targets, and an uncropped
+composer in Simplified Chinese dark appearance.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — one global intent threshold leads directly to typing.
+- Hierarchy: 3 — a restored decision still leads when it needs review.
+- Platform interaction: 3 — native focus and keyboard behavior, one composer.
+- Accessibility: 3 — VoiceOver focus is not moved; AX5 controls remain usable.
+- Visual craft: 3 — no extra field, modal, navigation, or restyling was added.
+- Vetoes: none.
+
+final result: passed
+
+---
+
 # Design QA — iOS persistent contact-tool receipts
 
 ## Evidence
