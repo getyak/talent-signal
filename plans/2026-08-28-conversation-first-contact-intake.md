@@ -303,3 +303,12 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   Agent input without moving or restyling either surface. AX5 body content
   remains readable and scrollable; the compact calendar alone uses a bounded
   optical scale because it is a secondary glance with full accessibility text.
+- Finished the iOS Ask message micro-craft pass with a content-sized
+  `ViewThatFits` bubble. Short questions now shrink-wrap like an IM message;
+  longer questions and accessibility sizes fall back to a wrapping layout
+  bounded at 330 points without changing the original navigation or global
+  input.
+- Added executable geometry coverage for the standard short prompt (under 280
+  points) while retaining the existing Chinese dark AX5 viewport bound. Both
+  focused UI journeys passed with zero failures in
+  `/tmp/talent-signal-ios-ask-bubble-final.xcresult`.

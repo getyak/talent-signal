@@ -2628,6 +2628,35 @@ private struct SelectedPursuitTarget: Identifiable {
     var id: String { "\(pursuit.id):\(actionID)" }
 }
 
+private struct AskUserMessageBubble: View {
+    let message: String
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            bubble(fixesWidth: true)
+            bubble(fixesWidth: false)
+                .frame(maxWidth: 330, alignment: .trailing)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(message)
+        .accessibilityIdentifier("ask-user-message")
+    }
+
+    private func bubble(fixesWidth: Bool) -> some View {
+        Text(message)
+            .font(.body)
+            .foregroundStyle(Color.tsInk)
+            .fixedSize(horizontal: fixesWidth, vertical: true)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 11)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.tsLine, lineWidth: 1)
+            }
+    }
+}
+
 private struct AskTurnView: View {
     let turn: AgentSessionTurn
     let language: AppLanguage
@@ -2653,18 +2682,7 @@ private struct AskTurnView: View {
                     )
                     .frame(maxWidth: 310)
                 }
-                Text(turn.objective)
-                    .font(.body)
-                    .foregroundStyle(Color.tsInk)
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 11)
-                    .frame(maxWidth: 330, alignment: .trailing)
-                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(Color.tsLine, lineWidth: 1)
-                    }
-                    .accessibilityIdentifier("ask-user-message")
+                AskUserMessageBubble(message: turn.objective)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
 

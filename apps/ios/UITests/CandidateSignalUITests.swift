@@ -558,6 +558,10 @@ final class CandidateSignalUITests: XCTestCase {
         prompt.tap()
         XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 15))
         XCTAssertFalse(app.staticTexts["Preview data · connect a workspace to send"].exists)
+        let userMessage = element("ask-user-message")
+        XCTAssertTrue(userMessage.exists)
+        XCTAssertEqual(userMessage.label, "What changed?")
+        XCTAssertLessThan(userMessage.frame.width, 280)
         preserveScreenshot("Canonical Ask evidence-bound response")
 
         let evidence = app.buttons.matching(

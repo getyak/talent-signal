@@ -1135,10 +1135,15 @@ final result: passed
   `/tmp/talent-signal-ios-ask-response-final3-artifacts.SamdXm/CA637797-9A64-450D-9B7E-5251349CA0F2.png`
 - After, Simplified Chinese, dark appearance, AX5 Dynamic Type:
   `/tmp/talent-signal-ios-ask-response-final3-artifacts.SamdXm/86F61D35-0717-4D61-9521-5A6E12334147.png`
+- Final micro-craft pass, standard English response:
+  `/tmp/talent-signal-ios-ask-bubble-final-artifacts.0wmh0K/592257BB-140B-4539-844E-61A8FCA4B2A9.png`
+- Final micro-craft pass, Simplified Chinese, dark appearance, AX5 Dynamic
+  Type:
+  `/tmp/talent-signal-ios-ask-bubble-final-artifacts.0wmh0K/19FD8B48-E635-4E1D-8E7F-A2B367C721B8.png`
 - Exact evidence detail:
-  `/tmp/talent-signal-ios-ask-response-final3-artifacts.SamdXm/D1B21EC1-999F-4E2C-8640-CD86FFCFB4C3.png`
+  `/tmp/talent-signal-ios-ask-bubble-final-artifacts.0wmh0K/A4D67804-1CB6-4F2A-84DE-F57769887C5B.png`
 - Focused result bundle:
-  `/tmp/talent-signal-ios-ask-response-final3.xcresult`
+  `/tmp/talent-signal-ios-ask-bubble-final.xcresult`
 
 ## Finding and resolution
 
@@ -1159,6 +1164,13 @@ text-and-symbol `Needs review` state, and localizes controlled block titles,
 dates, actor kind, and review status. Existing owned work remains distinct from
 a proposed action and still declares that it creates no external effect.
 
+The final micro-craft pass removes the fixed 330-point question width. A short
+message now shrink-wraps its content like a quiet IM bubble; `ViewThatFits`
+switches longer messages and accessibility sizes to a wrapping layout bounded
+at 330 points. The standard fixture's `What changed?` bubble is under 280 points,
+while the Chinese AX5 bubble remains within the viewport without truncating its
+question or reducing Dynamic Type.
+
 The established Today / Sessions / People navigation and bottom global Agent
 entry were not moved or restyled.
 
@@ -1170,6 +1182,8 @@ entry were not moved or restyled.
 - The AX5 test verifies the short Chinese question, localized response headings,
   localized candidate/review provenance, bounded bubble width, citation
   reachability, and persistent bottom composer.
+- The standard test verifies the exact user-message label and content-sized
+  geometry, preventing a short prompt from regressing to a form-like full row.
 - The standard path still opens the exact cited fragment, marks the saved answer
   stale after a dispute, and opens the referenced existing Pursuit action.
 - One unit test verifies source-timezone boundaries and localized citation
