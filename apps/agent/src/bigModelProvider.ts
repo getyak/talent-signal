@@ -14,59 +14,46 @@ import type {
   AgentToolResult,
 } from "./types.js";
 
-const SDK_VERSION = "openrouter-chat-completions.v1";
-const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
+const SDK_VERSION = "bigmodel-chat-completions.v1";
+const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
 
-type OpenRouterToolCall = {
+type BigModelToolCall = {
   id: string;
   type: "function";
-  function: {
-    name: string;
-    arguments: string;
-  };
+  function: { name: string; arguments: string };
 };
 
-type OpenRouterMessage =
+type BigModelMessage =
   | { role: "system" | "user"; content: string }
   | {
       role: "assistant";
       content: string | null;
-      tool_calls?: OpenRouterToolCall[];
+      reasoning_content?: string;
+      tool_calls?: BigModelToolCall[];
     }
   | { role: "tool"; tool_call_id: string; content: string };
 
-type OpenRouterResponse = {
+type BigModelResponse = {
   id?: string;
   model?: string;
   choices?: Array<{
-    finish_reason?: string | null;
     message?: {
-      role?: string;
       content?: string | null;
-      tool_calls?: OpenRouterToolCall[];
+      reasoning_content?: string;
+      tool_calls?: BigModelToolCall[];
     };
   }>;
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-    cost?: number | string;
-  };
-  error?: {
-    code?: number | string;
-    message?: string;
-  };
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 };
 
-type JsonSchema = Record<string, unknown>;
-
-type OpenRouterAgentProviderOptions = {
+type BigModelAgentProviderOptions = {
   apiKey: string;
   model: string;
   baseUrl?: string;
-  referer?: string;
   reasoningEffort?: "low" | "high" | "max";
-  providerOrder?: readonly string[];
+  inputCnyPerMillion: number;
+  outputCnyPerMillion: number;
+  cnyPerUsd: number;
   fetcher?: typeof fetch;
 };
 
@@ -95,29 +82,28 @@ const toolDefinitions: Record<
   },
 };
 
-function jsonSchema(schema: z.ZodType): JsonSchema {
-  const converted = z.toJSONSchema(schema) as JsonSchema;
-  const { $schema: _dialect, ...parameters } = converted;
-  return parameters;
-}
-
 function tools(manifest: readonly AgentToolName[]) {
-  return manifest.map((name) => ({
-    type: "function" as const,
-    function: {
-      name,
-      description: toolDefinitions[name].description,
-      parameters: jsonSchema(toolDefinitions[name].schema),
-    },
-  }));
+  return manifest.map((name) => {
+    const converted = z.toJSONSchema(toolDefinitions[name].schema) as Record<
+      string,
+      unknown
+    >;
+    const { $schema: _dialect, ...parameters } = converted;
+    return {
+      type: "function" as const,
+      function: {
+        name,
+        description: toolDefinitions[name].description,
+        parameters,
+      },
+    };
+  });
 }
 
 function parseArguments(value: string): unknown {
   try {
     return JSON.parse(value) as unknown;
   } catch {
-    // The governed runner records this as TOOL_INPUT_INVALID. Preserve the raw
-    // value only in process memory; the durable journal stores fingerprints.
     return value;
   }
 }
@@ -125,7 +111,7 @@ function parseArguments(value: string): unknown {
 function parseStructuredOutput(content: string | null | undefined): unknown {
   if (!content?.trim()) return null;
   const trimmed = content.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/iu.exec(trimmed);
   try {
     return JSON.parse(fenced?.[1] ?? trimmed) as unknown;
   } catch {
@@ -133,58 +119,75 @@ function parseStructuredOutput(content: string | null | undefined): unknown {
   }
 }
 
-function number(value: unknown): number {
+function nonnegativeNumber(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-function validatedBaseUrl(value: string): string {
-  const parsed = new URL(value);
-  const isLoopback = new Set(["127.0.0.1", "::1", "localhost"]).has(
-    parsed.hostname,
-  );
-  if (parsed.protocol !== "https:" && !isLoopback) {
-    throw new Error("The OpenRouter base URL must use HTTPS.");
+function positiveNumber(value: number, name: string) {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number.`);
   }
-  return parsed.toString().replace(/\/$/, "");
+  return value;
 }
 
-export class OpenRouterAgentProvider implements AgentProvider {
-  readonly id = "openrouter-chat-completions";
+function validatedBaseUrl(value: string): string {
+  const parsed = new URL(value);
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.hostname !== "open.bigmodel.cn" ||
+    parsed.pathname.replace(/\/+$/, "") !== "/api/paas/v4"
+  ) {
+    throw new Error(
+      "The BigModel base URL must use the official v4 API endpoint.",
+    );
+  }
+  return `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}`;
+}
+
+export class BigModelAgentProvider implements AgentProvider {
+  readonly id = "bigmodel-chat-completions";
   readonly sdkVersion = SDK_VERSION;
   readonly model: string;
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly referer: string | undefined;
-  private readonly reasoningEffort: "low" | "high" | "max" | undefined;
-  private readonly providerOrder: readonly string[] | undefined;
+  private readonly reasoningEffort: "low" | "high" | "max";
+  private readonly inputCnyPerMillion: number;
+  private readonly outputCnyPerMillion: number;
+  private readonly cnyPerUsd: number;
   private readonly fetcher: typeof fetch;
 
-  constructor(options: OpenRouterAgentProviderOptions) {
+  constructor(options: BigModelAgentProviderOptions) {
     this.apiKey = options.apiKey.trim();
     this.model = options.model.trim();
-    if (!this.apiKey) throw new Error("An OpenRouter API key is required.");
-    if (!this.model) throw new Error("A pinned OpenRouter model is required.");
-    if (this.model === "openrouter/free") {
-      throw new Error(
-        "The OpenRouter free router is not a pinned model. Configure one explicit model.",
-      );
+    if (!this.apiKey) throw new Error("A BigModel API key is required.");
+    if (
+      !/^glm-[a-z0-9.-]+$/u.test(this.model) ||
+      /(?:latest|auto)/u.test(this.model)
+    ) {
+      throw new Error("Configure one explicitly pinned GLM model.");
     }
     this.baseUrl = validatedBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
-    this.referer = options.referer?.trim() || undefined;
-    this.reasoningEffort =
-      options.reasoningEffort ??
-      (this.model === "z-ai/glm-5.3" ? "low" : undefined);
-    if (
-      options.providerOrder?.some(
-        (provider) => !/^[a-z0-9/-]+$/u.test(provider),
-      )
-    ) {
-      throw new Error("OpenRouter provider order contains an invalid slug.");
-    }
-    this.providerOrder = options.providerOrder;
+    this.reasoningEffort = options.reasoningEffort ?? "low";
+    this.inputCnyPerMillion = positiveNumber(
+      options.inputCnyPerMillion,
+      "BigModel input price",
+    );
+    this.outputCnyPerMillion = positiveNumber(
+      options.outputCnyPerMillion,
+      "BigModel output price",
+    );
+    this.cnyPerUsd = positiveNumber(options.cnyPerUsd, "CNY per USD");
     this.fetcher = options.fetcher ?? fetch;
+  }
+
+  private estimatedUsd(inputTokens: number, outputTokens: number) {
+    const cny =
+      (inputTokens * this.inputCnyPerMillion +
+        outputTokens * this.outputCnyPerMillion) /
+      1_000_000;
+    return cny / this.cnyPerUsd;
   }
 
   async run(
@@ -192,7 +195,7 @@ export class OpenRouterAgentProvider implements AgentProvider {
     invokeTool: (name: string, input: unknown) => Promise<AgentToolResult>,
     signal: AbortSignal,
   ): Promise<AgentProviderResult> {
-    const messages: OpenRouterMessage[] = [
+    const messages: BigModelMessage[] = [
       {
         role: "system",
         content: [
@@ -214,7 +217,6 @@ export class OpenRouterAgentProvider implements AgentProvider {
     const permissionDenials: string[] = [];
     let inputTokens = 0;
     let outputTokens = 0;
-    let estimatedUsd = 0;
     let terminalToolSucceeded = false;
     let lastResponseID: string | undefined;
 
@@ -224,59 +226,44 @@ export class OpenRouterAgentProvider implements AgentProvider {
         1,
         request.budget.maxTaskTokens - inputTokens - outputTokens,
       );
-      const response = await this.fetcher(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${this.apiKey}`,
-          "content-type": "application/json",
-          "x-title": "Talent Signal bounded Agent",
-          ...(this.referer ? { "http-referer": this.referer } : {}),
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          tools: availableTools,
-          tool_choice: terminalToolSucceeded ? "none" : "auto",
-          parallel_tool_calls: false,
-          temperature: 0,
-          ...(this.reasoningEffort
-            ? { reasoning_effort: this.reasoningEffort }
-            : {}),
-          provider: {
-            allow_fallbacks: true,
-            data_collection: "deny",
-            require_parameters: true,
-            zdr: true,
-            ...(this.providerOrder ? { order: this.providerOrder } : {}),
+      const response = await this.fetcher(
+        `${this.baseUrl}/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${this.apiKey}`,
+            "content-type": "application/json",
           },
-          max_tokens: Math.min(2_048, remainingTokens),
-          session_id: request.runID,
-        }),
-        signal,
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | OpenRouterResponse
-        | null;
+          body: JSON.stringify({
+            model: this.model,
+            messages,
+            ...(terminalToolSucceeded
+              ? { response_format: { type: "json_object" } }
+              : { tools: availableTools, tool_choice: "auto" }),
+            thinking: { type: "enabled" },
+            reasoning_effort: this.reasoningEffort,
+            temperature: 0,
+            max_tokens: Math.min(2_048, remainingTokens),
+          }),
+          signal,
+        },
+      );
       if (!response.ok) {
-        const providerCode = payload?.error?.code;
-        throw new Error(
-          `OpenRouter request failed with ${response.status}${
-            providerCode === undefined ? "" : ` (${String(providerCode)})`
-          }.`,
-        );
+        throw new Error(`BigModel request failed with ${response.status}.`);
       }
+      const payload = (await response.json().catch(() => null)) as
+        | BigModelResponse
+        | null;
       if (payload?.model !== this.model) {
         throw new Error(
-          "OpenRouter returned a model different from the immutable configured model.",
+          "BigModel returned a model different from the immutable configured model.",
         );
       }
-      const choice = payload.choices?.[0];
-      const message = choice?.message;
-      if (!message) throw new Error("OpenRouter returned no assistant message.");
+      const message = payload.choices?.[0]?.message;
+      if (!message) throw new Error("BigModel returned no assistant message.");
       lastResponseID = payload.id ?? lastResponseID;
-      inputTokens += number(payload.usage?.prompt_tokens);
-      outputTokens += number(payload.usage?.completion_tokens);
-      estimatedUsd += number(payload.usage?.cost);
+      inputTokens += nonnegativeNumber(payload.usage?.prompt_tokens);
+      outputTokens += nonnegativeNumber(payload.usage?.completion_tokens);
       const toolCalls = message.tool_calls ?? [];
 
       if (toolCalls.length === 0) {
@@ -284,17 +271,22 @@ export class OpenRouterAgentProvider implements AgentProvider {
           structuredOutput: parseStructuredOutput(message.content),
           inputTokens,
           outputTokens,
-          estimatedUsd,
+          estimatedUsd: this.estimatedUsd(inputTokens, outputTokens),
           turns: turn,
           permissionDenials,
           ...(lastResponseID ? { sessionID: lastResponseID } : {}),
-          terminalReason: terminalToolSucceeded ? "completed" : "provider_stopped",
+          terminalReason: terminalToolSucceeded
+            ? "completed"
+            : "provider_stopped",
         };
       }
 
       messages.push({
         role: "assistant",
         content: message.content ?? null,
+        ...(message.reasoning_content
+          ? { reasoning_content: message.reasoning_content }
+          : {}),
         tool_calls: toolCalls,
       });
       for (const toolCall of toolCalls) {
@@ -327,7 +319,7 @@ export class OpenRouterAgentProvider implements AgentProvider {
       structuredOutput: null,
       inputTokens,
       outputTokens,
-      estimatedUsd,
+      estimatedUsd: this.estimatedUsd(inputTokens, outputTokens),
       turns: request.budget.maxTurns,
       permissionDenials,
       ...(lastResponseID ? { sessionID: lastResponseID } : {}),

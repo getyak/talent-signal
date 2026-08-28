@@ -18,6 +18,10 @@ import {
   getArkAvailability,
   screenshotPrompt,
 } from "./ark";
+import {
+  analyzeScreenshotWithBigModel,
+  getBigModelAvailability,
+} from "./bigModel";
 
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const DEFAULT_OPENROUTER_SCREENSHOT_MODEL =
@@ -133,6 +137,28 @@ export function getScreenshotAnalysisAvailability() {
   const aiEnabled = process.env.TALENT_SIGNAL_AI_ENABLED === "true";
   const sensitiveAllowed = sensitiveProcessingAllowed();
   const ark = getArkAvailability();
+  const bigModel = getBigModelAvailability();
+  const selectedProvider =
+    process.env.TALENT_SIGNAL_SCREENSHOT_PROVIDER?.trim() || "auto";
+  if (selectedProvider === "zhipu") {
+    return bigModel;
+  }
+  if (selectedProvider === "ark") {
+    return ark;
+  }
+  if (selectedProvider === "openrouter") {
+    return {
+      enabled:
+        aiEnabled && sensitiveAllowed && Boolean(process.env.OPENROUTER_API_KEY),
+      provider: "OpenRouter" as const,
+      screenshot_model: openRouterScreenshotModel(),
+    };
+  }
+  if (selectedProvider !== "auto") {
+    throw new Error(
+      "TALENT_SIGNAL_SCREENSHOT_PROVIDER must be auto, ark, zhipu, or openrouter.",
+    );
+  }
   if (aiEnabled && sensitiveAllowed && process.env.ARK_API_KEY) {
     return {
       enabled: true,
@@ -299,6 +325,20 @@ export async function analyzeScreenshot(input: {
   }
   if (availability.provider === "OpenRouter") {
     return analyzeWithOpenRouter(input);
+  }
+  if (availability.provider === "Zhipu BigModel") {
+    const result = await analyzeScreenshotWithBigModel(input);
+    return {
+      draft: result.draft,
+      meta: {
+        ...result.meta,
+        prompt_version: SCREENSHOT_PROMPT_VERSION,
+        ...(input.preProviderMinimization
+          ? { pre_provider_minimization: input.preProviderMinimization }
+          : {}),
+        source_sha256: input.sourceSha256,
+      },
+    };
   }
   const result = await analyzeScreenshotWithArk(input);
   return {
