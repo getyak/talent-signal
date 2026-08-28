@@ -116,12 +116,18 @@ final class StandaloneOnboardingUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "--standalone-onboarding-reset",
+            "--force-dark",
+            "--simulate-action-button",
             "-AppleInterfaceStyle", "Dark",
             "-UIPreferredContentSizeCategoryName",
             "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
         app.launch()
+
+        let appearance = app.descendants(matching: .any)["standalone-appearance"]
+        XCTAssertTrue(appearance.waitForExistence(timeout: 5))
+        XCTAssertEqual(appearance.value as? String, "dark")
 
         tap("standalone-demo-user", in: app)
         tap("standalone-create-pursuit", in: app)
@@ -155,6 +161,64 @@ final class StandaloneOnboardingUITests: XCTestCase {
         manualReview.tap()
 
         XCTAssertTrue(app.staticTexts["MANUAL STRUCTURE · NO MODEL"].waitForExistence(timeout: 8))
+        let proposalAttachment = XCTAttachment(screenshot: app.screenshot())
+        proposalAttachment.name = "Standalone AX5 dark manual Proposal"
+        proposalAttachment.lifetime = .keepAlways
+        add(proposalAttachment)
+
+        let factToggle = app.switches["Confirm this sourced change"].firstMatch
+        for _ in 0..<6 where !factToggle.isHittable { app.swipeUp() }
+        XCTAssertTrue(factToggle.waitForExistence(timeout: 5))
+        XCTAssertTrue(factToggle.isHittable)
+        factToggle.tap()
+        let confirm = app.buttons["standalone-confirm-proposal"]
+        for _ in 0..<6 where !confirm.isHittable { app.swipeUp() }
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+
+        tap("standalone-offer-action-button", in: app)
+        tap("standalone-practice-capture", in: app)
+        tap("standalone-simulate-action-button", in: app)
+        tap("standalone-enter-today", in: app)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["standalone-today-primary-card"]
+                .waitForExistence(timeout: 5)
+        )
+        let todayAttachment = XCTAttachment(screenshot: app.screenshot())
+        todayAttachment.name = "Standalone AX5 dark Today"
+        todayAttachment.lifetime = .keepAlways
+        add(todayAttachment)
+    }
+
+    @MainActor
+    func testFreshWelcomeCanDeleteRetainedSourceAfterReset() {
+        let fixtureID = UUID()
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--standalone-onboarding-reset",
+            "--standalone-retained-source-fixture", fixtureID.uuidString,
+        ]
+        app.launch()
+
+        let manage = app.buttons["standalone-manage-retained-sources"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        XCTAssertTrue(manage.isHittable)
+        manage.tap()
+
+        let delete = app.buttons[
+            "standalone-delete-retained-source-\(fixtureID.uuidString.lowercased())"
+        ]
+        for _ in 0..<4 where !delete.exists { app.swipeUp() }
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.tap()
+        let confirm = app.buttons["Delete Source and Derived State"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["standalone-no-retained-sources"]
+                .waitForExistence(timeout: 5)
+        )
     }
 
     @MainActor

@@ -117,13 +117,39 @@ struct SharedCaptureInbox {
     private let rootURL: URL
     private let fileManager: FileManager
 
+#if DEBUG
+    private static var retainedSourceFixtureID: UUID? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--standalone-retained-source-fixture"),
+              arguments.indices.contains(index + 1) else { return nil }
+        return UUID(uuidString: arguments[index + 1])
+    }
+#endif
+
     init(
         rootURL: URL? = nil,
         fileManager: FileManager = .default
     ) throws {
         self.fileManager = fileManager
+#if DEBUG
+        let debugFixtureRootURL = Self.retainedSourceFixtureID.map { fixtureID in
+            fileManager.temporaryDirectory
+                .appending(
+                    path: "StandaloneSharedCaptureUITest",
+                    directoryHint: .isDirectory
+                )
+                .appending(
+                    path: fixtureID.uuidString.lowercased(),
+                    directoryHint: .isDirectory
+                )
+        }
+#else
+        let debugFixtureRootURL: URL? = nil
+#endif
         if let rootURL {
             self.rootURL = rootURL
+        } else if let debugFixtureRootURL {
+            self.rootURL = debugFixtureRootURL
         } else if let container = fileManager.containerURL(
             forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier
         ) {
@@ -136,7 +162,31 @@ struct SharedCaptureInbox {
         }
         try prepareDirectories()
         try recoverPendingTransactions()
+#if DEBUG
+        try seedRetainedSourceFixtureIfNeeded()
+#endif
     }
+
+#if DEBUG
+    private func seedRetainedSourceFixtureIfNeeded() throws {
+        guard let fixtureID = Self.retainedSourceFixtureID else { return }
+        let marker = rootURL.appending(path: ".retained-source-fixture-seeded")
+        guard !fileManager.fileExists(atPath: marker.path) else { return }
+        if try envelope(id: fixtureID) == nil {
+            _ = try appendImage(
+                id: fixtureID,
+                data: Data("synthetic-retained-source".utf8),
+                fileExtension: "png",
+                mediaType: "image/png",
+                sourceText: "Synthetic retained source for UI deletion proof",
+                sourceApplication: "Round 7 UI fixture",
+                now: Date(timeIntervalSince1970: 42)
+            )
+        }
+        try markImported(fixtureID)
+        try Data().write(to: marker, options: [.atomic, .completeFileProtection])
+    }
+#endif
 
     @discardableResult
     func appendText(
@@ -249,7 +299,9 @@ struct SharedCaptureInbox {
                 try fileManager.removeItem(at: directory)
                 continue
             }
-            let manifest = try deletionManifest(at: directory)
+            guard let manifest = try deletionManifest(at: directory) else {
+                continue
+            }
             if retainedEnvelopeIDs.contains(manifest.id) {
                 try recoverDeletion(at: directory)
             } else {
@@ -442,7 +494,7 @@ struct SharedCaptureInbox {
 
     private func recoverDeletion(at directory: URL) throws {
         guard fileManager.fileExists(atPath: directory.path) else { return }
-        let manifest = try deletionManifest(at: directory)
+        guard let manifest = try deletionManifest(at: directory) else { return }
         for move in manifest.moves.reversed() {
             let staged = directory.appending(path: move.stagedFileName)
             guard fileManager.fileExists(atPath: staged.path) else { continue }
@@ -455,7 +507,7 @@ struct SharedCaptureInbox {
         try fileManager.removeItem(at: directory)
     }
 
-    private func deletionManifest(at directory: URL) throws -> DeletionManifest {
+    private func deletionManifest(at directory: URL) throws -> DeletionManifest? {
         let manifestURL = directory.appending(path: "manifest.json")
         guard fileManager.fileExists(atPath: manifestURL.path) else {
             if try fileManager.contentsOfDirectory(
@@ -463,6 +515,7 @@ struct SharedCaptureInbox {
                 includingPropertiesForKeys: nil
             ).isEmpty {
                 try fileManager.removeItem(at: directory)
+                return nil
             }
             throw SharedCaptureInboxError.corruptDeletionTransaction(directory.lastPathComponent)
         }

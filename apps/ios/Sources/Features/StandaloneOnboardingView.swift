@@ -25,6 +25,7 @@ struct StandaloneOnboardingView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appLanguage) private var appLanguage
     @FocusState private var signalTextFocused: Bool
 
@@ -52,6 +53,9 @@ struct StandaloneOnboardingView: View {
     ) {
         let reset = arguments.contains("--standalone-onboarding-reset")
         _store = StateObject(wrappedValue: StandaloneOnboardingStore(reset: reset))
+        _retainedSharedCaptures = State(
+            initialValue: (try? SharedCaptureInbox().retained()) ?? []
+        )
         forceDemoEngine = arguments.contains("--demo-proposal-engine")
             || arguments.contains("--standalone-demo")
         simulatesActionButton = arguments.contains("--simulate-action-button")
@@ -62,6 +66,12 @@ struct StandaloneOnboardingView: View {
     var body: some View {
         ZStack {
             Color.tsCanvas.ignoresSafeArea()
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel(localized("Standalone appearance"))
+                .accessibilityValue(colorScheme == .dark ? "dark" : "light")
+                .accessibilityIdentifier("standalone-appearance")
             VStack(spacing: 0) {
                 if store.state.route != .today {
                     progressHeader
@@ -175,24 +185,6 @@ struct StandaloneOnboardingView: View {
         .sheet(isPresented: $showsSettings) {
             standaloneSettings
         }
-        .alert(
-            localized("Delete imported source?"),
-            isPresented: $showsDeleteImportedSourceConfirmation
-        ) {
-            Button(localized("Cancel"), role: .cancel) {}
-            Button(localized("Delete Source and Derived State"), role: .destructive) {
-                guard let envelope = pendingSharedCaptureDeletion else { return }
-                do {
-                    let inbox = try SharedCaptureInbox()
-                    store.deleteRetainedCapture(envelope.id, using: inbox)
-                    refreshRetainedSharedCaptures()
-                } catch {
-                    sharedCaptureNotice = "The imported source was not deleted: \(error.localizedDescription)"
-                }
-            }
-        } message: {
-            Text(localized("This removes the retained Share or Shortcut item and the local Draft, Proposal, and verified progress derived from it. It does not delete the original item from the source app."))
-        }
         .onOpenURL { url in
             handleDeepLink(url)
         }
@@ -212,10 +204,13 @@ struct StandaloneOnboardingView: View {
                     .accessibilityLabel(localized("Onboarding step \(stepNumber) of 9"))
             }
             GeometryReader { proxy in
+                let availableWidth = proxy.size.width.isFinite
+                    ? max(0, proxy.size.width)
+                    : 0
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.tsLine).frame(height: 2)
                     Capsule().fill(Color.tsVermilion)
-                        .frame(width: proxy.size.width * CGFloat(stepNumber) / 9, height: 2)
+                        .frame(width: availableWidth * CGFloat(stepNumber) / 9, height: 2)
                 }
             }
             .frame(height: 2)
@@ -278,6 +273,18 @@ struct StandaloneOnboardingView: View {
             Button(localized("Get Started")) { store.showIdentity() }
                 .buttonStyle(TSPrimaryButtonStyle())
                 .accessibilityIdentifier("standalone-get-started")
+            Button { openSettings() } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(localized("Manage retained sources"))
+                        .font(.body.weight(.semibold))
+                    Text(localized("Review or delete imported Share and Shortcut evidence."))
+                        .font(.footnote)
+                        .foregroundStyle(Color.tsMutedInk)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(TSSecondaryButtonStyle())
+            .accessibilityIdentifier("standalone-manage-retained-sources")
 #if DEBUG
             Button(localized("Continue as Demo User")) {
                 store.begin(displayName: "Demo Recruiter", demoAccount: true)
@@ -852,6 +859,7 @@ struct StandaloneOnboardingView: View {
                         .background(Color.tsSurface, in: Circle())
                 }
                 .accessibilityLabel(localized("Settings"))
+                .accessibilityIdentifier("standalone-open-settings")
             }
             if let pursuit = store.state.pursuit, let progress = store.state.progress {
                 VStack(alignment: .leading, spacing: sizeCategory.isAccessibilityCategory ? 14 : 18) {
@@ -940,11 +948,13 @@ struct StandaloneOnboardingView: View {
                         store.resetDemoData()
                         showsSettings = false
                     }
+                    .accessibilityIdentifier("standalone-reset-demo-data")
                 }
                 Section(localized("Retained imported sources")) {
                     if retainedSharedCaptures.isEmpty {
                         Text(localized("No retained Share or Shortcut sources"))
                             .foregroundStyle(Color.tsMutedInk)
+                            .accessibilityIdentifier("standalone-no-retained-sources")
                     } else {
                         ForEach(retainedSharedCaptures) { envelope in
                             Button(role: .destructive) {
@@ -959,6 +969,9 @@ struct StandaloneOnboardingView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            .accessibilityIdentifier(
+                                "standalone-delete-retained-source-\(envelope.id.uuidString.lowercased())"
+                            )
                         }
                     }
                 }
@@ -967,11 +980,32 @@ struct StandaloneOnboardingView: View {
                     Text(localized("Imported Share and Shortcut sources remain listed here after reset until you delete them individually."))
                 }
             }
+            .onAppear {
+                refreshRetainedSharedCaptures()
+            }
             .navigationTitle(localized("Settings"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(localized("Done")) { showsSettings = false }
                 }
+            }
+            .alert(
+                localized("Delete imported source?"),
+                isPresented: $showsDeleteImportedSourceConfirmation
+            ) {
+                Button(localized("Cancel"), role: .cancel) {}
+                Button(localized("Delete Source and Derived State"), role: .destructive) {
+                    guard let envelope = pendingSharedCaptureDeletion else { return }
+                    do {
+                        let inbox = try SharedCaptureInbox()
+                        store.deleteRetainedCapture(envelope.id, using: inbox)
+                        refreshRetainedSharedCaptures()
+                    } catch {
+                        sharedCaptureNotice = "The imported source was not deleted: \(error.localizedDescription)"
+                    }
+                }
+            } message: {
+                Text(localized("This removes the retained Share or Shortcut item and the local Draft, Proposal, and verified progress derived from it. It does not delete the original item from the source app."))
             }
         }
     }

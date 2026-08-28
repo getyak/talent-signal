@@ -612,6 +612,45 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertNil(relaunchedInbox.payloadURL(for: image))
     }
 
+    func testEmptyPreManifestDeletionDirectoryDoesNotStopLaterRecovery() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let retainedID = UUID(uuidString: "ffffffff-ffff-4fff-8fff-ffffffffffff")!
+        let image = try inbox.appendImage(
+            id: retainedID,
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        try inbox.markImported(image.id)
+        _ = try inbox.stageDeletion(image.id)
+        let emptyTransaction = directory
+            .appending(path: "Deleting", directoryHint: .isDirectory)
+            .appending(
+                path: "00000000-0000-4000-8000-000000000000",
+                directoryHint: .isDirectory
+            )
+        try FileManager.default.createDirectory(
+            at: emptyTransaction,
+            withIntermediateDirectories: false
+        )
+
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        try relaunchedInbox.reconcileDeletionTransactions(
+            retainedEnvelopeIDs: [retainedID]
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: emptyTransaction.path))
+        let restored = try XCTUnwrap(relaunchedInbox.envelope(id: retainedID))
+        XCTAssertEqual(restored.id, image.id)
+        XCTAssertEqual(restored.kind, image.kind)
+        XCTAssertEqual(restored.payloadFileName, image.payloadFileName)
+        XCTAssertEqual(restored.mediaType, image.mediaType)
+        XCTAssertNotNil(relaunchedInbox.payloadURL(for: image))
+    }
+
     @MainActor
     func testResetAfterImportKeepsSourceVisibleAndIndividuallyDeletable() throws {
         let directory = FileManager.default.temporaryDirectory

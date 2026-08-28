@@ -1,6 +1,15 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Standalone appearance" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独立流程外观" } } }
+    },
+    "Manage retained sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理保留的来源" } } }
+    },
+    "Review or delete imported Share and Shortcut evidence." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看或删除从分享与快捷指令导入的证据。" } } }
+    },
     "DEMO SOURCE EVIDENCE" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "演示来源证据" } } }
     },
