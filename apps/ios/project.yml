@@ -83,12 +83,18 @@ targets:
     settings:
       base:
         APPLICATION_EXTENSION_API_ONLY: YES
-        CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: LiveActivityExtension/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.app.live-activity
         PRODUCT_NAME: TalentSignalLiveActivity
         SKIP_INSTALL: YES
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+        Release:
+          CODE_SIGN_IDENTITY: "iPhone Distribution: Xiong Xinwei (6RG2F8YY59)"
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: match AppStore com.talentsignal.app.live-activity
 
   TalentSignalShare:
     type: app-extension
@@ -108,12 +114,18 @@ targets:
     settings:
       base:
         APPLICATION_EXTENSION_API_ONLY: YES
-        CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: ShareExtension/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.app.share
         PRODUCT_NAME: TalentSignalShare
         SKIP_INSTALL: YES
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+        Release:
+          CODE_SIGN_IDENTITY: "iPhone Distribution: Xiong Xinwei (6RG2F8YY59)"
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: match AppStore com.talentsignal.app.share
 
   TalentSignalTests:
     type: bundle.unit-test
