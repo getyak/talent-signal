@@ -20,9 +20,17 @@ risk is contained.
 
 ## Credential handling
 
-- Store deployment credentials only in GitHub Actions environments or
-  repository secrets.
-- Keep local values in ignored `.env` files; commit only `.env.example` files
-  containing empty or obviously non-secret placeholders.
+- Store application and deployment secrets in the Infisical `talent-signal`
+  project. Deliver them through human CLI authentication for local development,
+  GitHub OIDC for Actions, and separate least-privilege workload identities for
+  staging and production.
+- Keep local values in Infisical. An ignored `.env` is an offline recovery path,
+  not a canonical source. Commit only `.env.example` files containing empty or
+  obviously non-secret placeholders.
+- Never export a complete environment to logs or diagnostics. Verify only the
+  presence of explicitly named variables.
 - Rotate a credential immediately if it appears in a commit, log, artifact,
   issue, pull request, or chat transcript.
+
+See [Secret delivery](docs/operations/secrets.md) for the runtime and recovery
+procedure.

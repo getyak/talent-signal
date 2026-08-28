@@ -2,11 +2,11 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-testflight_env="${TS_TESTFLIGHT_ENV_FILE:-$repository_root/.env.testflight}"
 
-if [[ ! -r "$testflight_env" ]]; then
-  echo "TestFlight environment file is not readable: $testflight_env" >&2
-  exit 1
+if [[ "${TS_INFISICAL_INJECTED:-false}" != "true" ]]; then
+  exec "$repository_root/scripts/infisical/run.sh" \
+    staging /shared /backend -- \
+    env TS_INFISICAL_INJECTED=true "$0" "$@"
 fi
 
 for command_name in curl docker node tailscale; do
@@ -38,20 +38,15 @@ if [[ -z "$tailscale_hostname" ]]; then
 fi
 
 configured_base_url="$(
-  node --input-type=module - "$testflight_env" "$repository_root" <<'NODE'
-import { readFileSync } from "node:fs";
+  node --input-type=module - "$repository_root" <<'NODE'
 import { pathToFileURL } from "node:url";
 
-const [environmentFile, repositoryRoot] = process.argv.slice(2);
+const [repositoryRoot] = process.argv.slice(2);
 const moduleURL = pathToFileURL(
   `${repositoryRoot}/scripts/ios/configure-build-environment.mjs`,
 );
-const { readEnvironmentValue, validateAPIBaseURL } = await import(moduleURL);
-const value = readEnvironmentValue(
-  readFileSync(environmentFile, "utf8"),
-  "TALENT_SIGNAL_API_BASE_URL",
-);
-console.log(validateAPIBaseURL(value, "Release"));
+const { validateAPIBaseURL } = await import(moduleURL);
+console.log(validateAPIBaseURL(process.env.TALENT_SIGNAL_API_BASE_URL, "Release"));
 NODE
 )"
 expected_base_url="https://$tailscale_hostname"
@@ -64,7 +59,6 @@ fi
 compose=(
   docker compose
   --project-name talent-signal-testflight-local
-  --env-file "$testflight_env"
   --file "$repository_root/compose.testflight.yaml"
 )
 
@@ -101,8 +95,7 @@ direct_network=(
   -u all_proxy
   NODE_USE_ENV_PROXY=0
 )
-"${direct_network[@]}" node "$repository_root/scripts/ios/probe-auth-backend.mjs" \
-  --env-file "$testflight_env"
+"${direct_network[@]}" node "$repository_root/scripts/ios/probe-auth-backend.mjs"
 curl --noproxy "$tailscale_hostname" --fail --silent --show-error \
   "$configured_base_url/health/live" >/dev/null
 

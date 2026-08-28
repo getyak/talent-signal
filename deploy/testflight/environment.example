@@ -1,4 +1,4 @@
-# Keep the real file outside Git at .env.testflight or another ignored path.
+# Name contract for Infisical staging:/backend. Do not create a runtime env file.
 TALENT_SIGNAL_API_BASE_URL=https://your-mac.your-tailnet.ts.net
 
 # PostgreSQL is reachable only from the Compose network.

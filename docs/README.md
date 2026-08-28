@@ -63,6 +63,8 @@ updated.
 - [`operations/`](operations/) contains recurring operational expectations.
 - [Production backend operations](operations/backend-production.md) defines the
   no-seed PostgreSQL, migration, API, and HTTPS deployment boundary.
+- [Secret delivery](operations/secrets.md) defines Infisical ownership, local
+  injection, workload identity, environment isolation, and rotation.
 - [Internal TestFlight backend on Tailscale](operations/testflight-local-backend.md)
   defines the owner-operated Mac, loopback, tailnet, and no-seed testing
   boundary.
