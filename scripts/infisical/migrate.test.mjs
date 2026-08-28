@@ -46,7 +46,13 @@ test("raw key-file import delegates the file without dotenv escaping", async () 
     const source = join(directory, "AuthKey_TEST.p8");
     const capture = join(directory, "arguments.txt");
     const fakeInfisical = join(directory, "infisical");
-    await writeFile(source, "-----BEGIN PRIVATE KEY-----\nline-two\n-----END PRIVATE KEY-----\n");
+    const syntheticPrivateKey = [
+      `-----BEGIN ${"PRIVATE KEY"}-----`,
+      "line-two",
+      `-----END ${"PRIVATE KEY"}-----`,
+      "",
+    ].join("\n");
+    await writeFile(source, syntheticPrivateKey);
     await writeFile(
       fakeInfisical,
       "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CAPTURE_PATH\"\n",

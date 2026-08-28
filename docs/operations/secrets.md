@@ -109,10 +109,11 @@ the same least-privilege boundary on plans where custom roles are unavailable.
 During migration, the workflows use the existing GitHub Environment secrets
 only when the non-secret `INFISICAL_TESTFLIGHT_IDENTITY_ID` variable is absent.
 Set that variable only after an Infisical administrator has configured the
-custom role and OIDC method and `pnpm secrets:check:release` succeeds. Run one
-real release and access audit, then delete and revoke the legacy GitHub secrets.
-Do not set the variable early: the workflows deliberately fail closed when an
-enabled Infisical identity cannot supply the complete contract.
+project-managed identity, path-scoped Additional Privilege, and OIDC method and
+`pnpm secrets:check:release` succeeds. The variable is now bound to the
+protected release identity. Run one real release and access audit, then delete
+and revoke the legacy GitHub secrets. The workflows deliberately fail closed
+when the enabled Infisical identity cannot supply the complete contract.
 
 ## Provider keys
 
