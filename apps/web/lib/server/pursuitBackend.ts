@@ -82,8 +82,9 @@ export async function loadPursuitToday(options: { expanded?: boolean } = {}) {
           TODAY_FOCUSED_ITEM_LIMIT,
         ),
     providerMode:
-      process.env.TALENT_SIGNAL_AGENT_PROVIDER === "openrouter"
-        ? ("live_openrouter" as const)
+      process.env.TALENT_SIGNAL_AGENT_PROVIDER === "openrouter" ||
+      process.env.TALENT_SIGNAL_AGENT_PROVIDER === "zhipu"
+        ? ("live_remote" as const)
         : ("safe_deterministic" as const),
   };
 }

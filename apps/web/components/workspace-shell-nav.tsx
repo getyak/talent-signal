@@ -1,8 +1,8 @@
 "use client";
 
 import {
+  ChatCircleDots,
   House,
-  Plus,
   Sparkle,
   UserCircle,
 } from "@phosphor-icons/react";
@@ -61,7 +61,7 @@ export function WorkspaceShellNav() {
 export function WorkspaceCaptureLink() {
   const pathname = usePathname();
 
-  function openCapture(event: MouseEvent<HTMLAnchorElement>) {
+  function focusAgent(event: MouseEvent<HTMLAnchorElement>) {
     if (pathname !== "/workspace") {
       return;
     }
@@ -70,25 +70,23 @@ export function WorkspaceCaptureLink() {
       return;
     }
     event.preventDefault();
-    window.dispatchEvent(new Event("talent-signal:open-capture"));
-    window.setTimeout(() => {
-      window.history.pushState(
-        null,
-        "",
-        "/workspace?surface=desk&intent=capture",
-      );
-    }, 0);
+    window.history.pushState(
+      null,
+      "",
+      "/workspace?surface=desk&intent=compose",
+    );
+    window.dispatchEvent(new Event("talent-signal:focus-agent"));
   }
 
   return (
     <Link
-      aria-label="Add a governed source"
+      aria-label="Start a new Agent message"
       className={styles.capture}
-      href="/workspace?surface=desk&intent=capture"
-      onClick={openCapture}
+      href="/workspace?surface=desk&intent=compose"
+      onClick={focusAgent}
     >
-      <Plus aria-hidden="true" size={20} />
-      <span>Add source</span>
+      <ChatCircleDots aria-hidden="true" size={20} weight="duotone" />
+      <span>New</span>
     </Link>
   );
 }

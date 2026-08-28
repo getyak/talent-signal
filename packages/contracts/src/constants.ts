@@ -127,6 +127,8 @@ export const KNOWLEDGE_DEPENDENCY_TYPES = [
 
 export const CHAT_RESPONSE_BLOCK_KINDS = [
   "answer",
+  "question_set",
+  "clarification",
   "person_brief",
   "source_receipt",
   "identity_review",

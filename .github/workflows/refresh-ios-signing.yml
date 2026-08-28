@@ -52,6 +52,20 @@ jobs:
 
       - name: Validate maintenance secrets
         run: |
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            MATCH_GIT_URL \
+            MATCH_MAINTENANCE_DEPLOY_KEY \
+            MATCH_PASSWORD; do
+            delimiter="TS_SECRET_${GITHUB_RUN_ID}_${RANDOM}"
+            printf '%s<<%s\n%s\n%s\n' \
+              "$name" "$delimiter" "${!name:-}" "$delimiter" >> "$GITHUB_ENV"
+          done
+
+      - name: Validate maintenance secrets
+        run: |
           missing=0
           for name in \
             APP_STORE_CONNECT_API_KEY_CONTENT \

@@ -867,9 +867,15 @@ struct StateMessage<Actions: View>: View {
 }
 
 struct PrivacyBoundaryNote: View {
+    @Environment(\.appLanguage) private var appLanguage
+
     var body: some View {
         Label {
-            Text("Evidence, confirmed local state, interpretation, action preview, and outcome remain separate. Fixture review never authorizes an external write.")
+            Text(
+                appLanguage.text(
+                    "Evidence, confirmed local state, interpretation, action preview, and outcome remain separate. Fixture review never authorizes an external write."
+                )
+            )
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: "lock.shield")

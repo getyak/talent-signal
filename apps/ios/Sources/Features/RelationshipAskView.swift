@@ -245,6 +245,11 @@ private struct VoiceRecordButtonHalo: View {
     }
 }
 
+enum RelationshipAskCaptureAction: Equatable, Sendable {
+    case screenshotReview
+    case foregroundAudio
+}
+
 @MainActor
 struct RelationshipAskView: View {
     let snapshot: PursuitWorkspaceSnapshot
@@ -277,7 +282,7 @@ struct RelationshipAskView: View {
     ) async throws -> PursuitEvidenceReviewResult
     let revalidateSessions: () async -> Void
     let onOpenProposal: (WorkspaceProposal) -> Void
-    let onCapture: (CaptureIntentDestination?) -> Void
+    let onCapture: (RelationshipAskCaptureAction) -> Void
     let onOpenPerson: (String) -> Void
     let voiceTranscriber: (any VoiceTranscriptionServing)?
 
@@ -1078,12 +1083,10 @@ struct RelationshipAskView: View {
         .disabled(
             isSending
                 || isInterpretingContact
-                || (selectedScope != nil && !isCanonical)
         )
         .opacity(
             isSending
                 || isInterpretingContact
-                || (selectedScope != nil && !isCanonical)
                 ? 0.58
                 : 1
         )
@@ -1135,37 +1138,27 @@ struct RelationshipAskView: View {
                 .accessibilityIdentifier("ask-media-notice")
             }
 
-            HStack(alignment: .bottom, spacing: 8) {
-                PhotosPicker(
-                    selection: $selectedPhotoItems,
-                    maxSelectionCount: 10,
-                    matching: .images
-                ) {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.tsInk)
-                        .frame(
-                            width: controlSize,
-                            height: controlSize
-                        )
-                        .background(Color.tsCanvas, in: Circle())
-                }
-                .disabled(
-                    voiceInput.isBusy
-                        || isSending
-                        || hasBlockingContactProposal
-                        || mediaDrafts.count >= 10
-                        || selectedScope == nil
-                )
-                .accessibilityLabel(
-                    appLanguage.text("Add photos")
-                )
-                .accessibilityHint(
+            HStack(alignment: .top, spacing: 7) {
+                Image(systemName: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityHidden(true)
+                Text(
                     appLanguage.text(
-                        "Choose up to ten task images. Selection alone does not make them evidence."
+                        "When you tap Send, your question and the minimum reviewed relationship context may be processed by Zhipu AI. Photos are not sent. No contact, message, or calendar change is made.",
+                        zhHans: "轻点发送后，你的问题和最少量的已审阅关系信息可能会交给智谱 AI 处理。照片不会发送，也不会创建联系人、发送消息或更改日历。"
                     )
                 )
-                .accessibilityIdentifier("ask-add-photos")
+                .font(.caption2)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("ask-remote-ai-disclosure")
+
+            HStack(alignment: .bottom, spacing: 8) {
+                composerAttachmentControl(size: controlSize)
 
                 TextField(
                     composerPlaceholder,
@@ -1225,6 +1218,62 @@ struct RelationshipAskView: View {
             reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
             value: voiceInput.phase
         )
+    }
+
+    @ViewBuilder
+    private func composerAttachmentControl(size: CGFloat) -> some View {
+        if selectedScope == nil {
+            Button {
+                composerFocused = false
+                onCapture(.screenshotReview)
+            } label: {
+                composerAttachmentIcon(size: size)
+            }
+            .buttonStyle(.plain)
+            .disabled(
+                voiceInput.isBusy
+                    || isSending
+                    || isInterpretingContact
+                    || hasBlockingContactProposal
+            )
+            .accessibilityLabel(appLanguage.text("Review screenshot"))
+            .accessibilityHint(
+                appLanguage.text(
+                    "Choose a conversation screenshot. Identity and relationship stay unconfirmed until review."
+                )
+            )
+            .accessibilityIdentifier("ask-review-screenshot")
+        } else {
+            PhotosPicker(
+                selection: $selectedPhotoItems,
+                maxSelectionCount: 10,
+                matching: .images
+            ) {
+                composerAttachmentIcon(size: size)
+            }
+            .disabled(
+                voiceInput.isBusy
+                    || isSending
+                    || isInterpretingContact
+                    || hasBlockingContactProposal
+                    || mediaDrafts.count >= 10
+            )
+            .accessibilityLabel(appLanguage.text("Add photos"))
+            .accessibilityHint(
+                appLanguage.text(
+                    "Choose up to ten task images. Selection alone does not make them evidence."
+                )
+            )
+            .accessibilityIdentifier("ask-add-photos")
+        }
+    }
+
+    nonisolated private func composerAttachmentIcon(size: CGFloat) -> some View {
+        Image(systemName: "paperclip")
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(Color.tsInk)
+            .frame(width: size, height: size)
+            .background(Color.tsCanvas, in: Circle())
     }
 
     private var composerControlSize: CGFloat {
@@ -1447,6 +1496,10 @@ struct RelationshipAskView: View {
             return appLanguage.text("Understanding this message…")
         }
         if !trimmedDraft.isEmpty {
+            if selectedScope == nil,
+               ConversationContactIntake.propose(trimmedDraft) == nil {
+                return appLanguage.text("Choose a relationship for this message")
+            }
             return appLanguage.text("Send")
         }
         if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
@@ -1582,7 +1635,6 @@ struct RelationshipAskView: View {
             && !isSending
             && !isInterpretingContact
             && !isSavingContact
-            && isCanonical
             && mediaDrafts.allSatisfy { $0.phase == .ready }
     }
 
@@ -1810,7 +1862,22 @@ struct RelationshipAskView: View {
             requestRelationshipScope()
             return
         }
-        guard mediaIDs.count == mediaDrafts.count else { return }
+        guard isCanonical else {
+            errorMessage = appLanguage.text(
+                "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again.",
+                zhHans: "当前是预览数据，因此问题没有发送。请打开已登录并连接后端的工作区，然后重试。"
+            )
+            composerFocused = false
+            return
+        }
+        guard mediaIDs.count == mediaDrafts.count else {
+            errorMessage = appLanguage.text(
+                "Wait for every photo to finish uploading, or remove the failed photo. Your question is still here.",
+                zhHans: "请等待所有照片上传完成，或移除上传失败的照片。你的问题仍然保留。"
+            )
+            composerFocused = false
+            return
+        }
         errorMessage = nil
         pendingObjective = trimmed
         isSending = true

@@ -218,9 +218,14 @@ struct RelationshipArchiveView: View {
                             capturePresentation = nil
                         },
                         onCapture: { destination in
-                            deferredIntakePresentation = .init(
-                                initialDestination: destination
-                            )
+                            switch destination {
+                            case .screenshotReview:
+                                deferredCapturePresentation = .screenshot
+                            case .foregroundAudio:
+                                deferredIntakePresentation = .init(
+                                    initialDestination: .foregroundAudio
+                                )
+                            }
                             capturePresentation = nil
                         },
                         onOpenPerson: { personID in
@@ -334,6 +339,15 @@ struct RelationshipArchiveView: View {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--deterministic-voice-input") {
             return DeterministicVoiceTranscriber()
+        }
+        if let baseURL = reviewBaseURL,
+           URLFixtureLoader.isLoopback(baseURL),
+           authenticatedAccessToken == nil {
+            return URLSimulatedVoiceTranscriptionClient(
+                baseURL: baseURL,
+                accountSlug: workspaceLabel ?? "fixture-alpha",
+                userEmail: accountEmail ?? "recruiter@alpha.local"
+            )
         }
 #endif
         return reviewBaseURL.flatMap { baseURL in
@@ -1022,11 +1036,13 @@ private struct TodayUnreadSessionRow: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(session.title)
+                    Text(session.displayTitle(in: appLanguage))
                         .font(.headline)
                         .foregroundStyle(Color.tsInk)
                         .lineLimit(1)
-                    Text("\(session.personDisplayLabel) · \(session.contextDisplayLabel)")
+                    Text(
+                        "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
+                    )
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
                         .lineLimit(1)
@@ -1050,8 +1066,8 @@ private struct TodayUnreadSessionRow: View {
         .buttonStyle(.plain)
         .accessibilityLabel(
             appLanguage.text(
-                "Unread session: \(session.title), \(session.personDisplayLabel)",
-                zhHans: "未读会话：\(session.title)，\(session.personDisplayLabel)"
+                "Unread session: \(session.displayTitle(in: appLanguage)), \(session.personDisplayLabel)",
+                zhHans: "未读会话：\(session.displayTitle(in: appLanguage))，\(session.personDisplayLabel)"
             )
         )
         .accessibilityIdentifier("today-unread-session")
@@ -1513,8 +1529,7 @@ private struct AgentSessionListView: View {
                         .foregroundStyle(Color.tsInk)
                     Text(
                         appLanguage.text(
-                            "Ask from the bottom field. A successful Agent response will appear here without becoming relationship truth.",
-                            zhHans: "从底部输入框开始提问。Agent 成功回复后会出现在这里，但不会因此成为关系事实。"
+                            "Use the bottom field. Successful Agent responses and confirmed tool receipts appear here without becoming relationship truth."
                         )
                     )
                     .font(.subheadline)
@@ -1594,7 +1609,9 @@ private struct AgentSessionRow: View {
                         .font(.caption2)
                         .foregroundStyle(Color.tsMutedInk)
                 }
-                Text("\(session.personDisplayLabel) · \(session.contextDisplayLabel)")
+                Text(
+                    "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
+                )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(1)

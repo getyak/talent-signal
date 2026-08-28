@@ -220,6 +220,20 @@ test("automatic releases classify the verified default-branch tip without execut
     releaseWorkflow,
     /TALENT_SIGNAL_API_BASE_URL: \$\{\{ secrets\./,
   );
+  assert.match(
+    releaseWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+  assert.match(releaseWorkflow, /method: oidc/);
+  assert.match(releaseWorkflow, /secret-path: \/release/);
+  assert.match(
+    releaseWorkflow,
+    /oidc-audience: infisical:\/\/talent-signal\/testflight/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /if: vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''/,
+  );
 });
 
 test("manual Fastlane builds require the same Release environment", () => {
@@ -350,6 +364,26 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   assert.doesNotMatch(refreshWorkflow, /match nuke/);
   assert.doesNotMatch(refreshWorkflow, /fastlane ios beta/);
   assert.match(refreshWorkflow, /Remove temporary signing material/);
+  assert.match(refreshWorkflow, /id-token: write/);
+  assert.match(
+    refreshWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+});
+
+test("TestFlight access uses the same Infisical OIDC boundary", () => {
+  const accessWorkflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/testflight-access.yml"),
+    "utf8",
+  );
+
+  assert.match(accessWorkflow, /id-token: write/);
+  assert.match(
+    accessWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+  assert.match(accessWorkflow, /env-slug: staging/);
+  assert.match(accessWorkflow, /secret-path: \/release/);
 });
 
 test("profile verification requires the shared App Group and main-app Apple sign-in", () => {

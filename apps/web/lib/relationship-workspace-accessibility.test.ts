@@ -153,6 +153,13 @@ const relationshipAgentStartPanel = readFileSync(
   ),
   "utf8",
 );
+const agentVoiceInput = readFileSync(
+  resolve(
+    import.meta.dirname,
+    "../components/relationship-workspace/agent-voice-input.tsx",
+  ),
+  "utf8",
+);
 const relationshipHistory = readFileSync(
   resolve(
     import.meta.dirname,
@@ -162,6 +169,17 @@ const relationshipHistory = readFileSync(
 );
 
 describe("relationship workspace accessibility contract", () => {
+  it("keeps voice as an editable composer draft with foreground recovery", () => {
+    expect(agentVoiceInput).toContain("Nothing reaches the Agent until");
+    expect(agentVoiceInput).toContain("temporary_audio_stored_by_talent_signal !== false");
+    expect(agentVoiceInput).toContain('document.addEventListener("visibilitychange"');
+    expect(agentVoiceInput).toContain("Nothing was sent.");
+    expect(agentVoiceInput).toContain("Cancel voice transcription");
+    expect(agentVoiceInput).toContain("requestAbortRef.current?.abort()");
+    expect(agentVoiceInput).toContain('aria-live="polite"');
+    expect(agentVoiceInput).toContain('aria-pressed={phase === "recording"}');
+  });
+
   it("uses a modal primitive with named content and guarded dismissal", () => {
     expect(capturePanel).toContain(
       'import * as Dialog from "@radix-ui/react-dialog"',
@@ -266,6 +284,10 @@ describe("relationship workspace accessibility contract", () => {
     );
     expect(agentCreatePersonCard).toContain("canCreateDistinctPerson({");
     expect(agentCreatePersonCard).toContain("Current owner:");
+    expect(agentCreatePersonCard).toContain("Review {duplicateMatches.length");
+    expect(agentCreatePersonCard).toContain(
+      "Opens the reversible merge preview. Nothing merges from this contact draft.",
+    );
     expect(agentCreatePersonCard).toContain("It never merges or contacts anyone.");
   });
 
@@ -403,7 +425,10 @@ describe("relationship workspace accessibility contract", () => {
     );
     expect(relationshipOnboarding).toContain("<StartRelationshipPanel");
     expect(relationshipAgentStartPanel).toContain(
-      "Start from the person, not a blank prompt.",
+      "Start with one message.",
+    );
+    expect(relationshipAgentStartPanel).toContain(
+      'placeholder="Message, paste, or add anything…"',
     );
   });
 

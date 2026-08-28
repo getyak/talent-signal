@@ -28,6 +28,11 @@ enum SelectedConversationImageError: LocalizedError, Equatable {
     }
 }
 
+enum CandidateSignalEntryMode {
+    case workbench
+    case conversationImage
+}
+
 @MainActor
 struct CandidateSignalView: View {
     @StateObject private var store: CandidateSignalStore
@@ -37,19 +42,24 @@ struct CandidateSignalView: View {
     @State private var photoImportTask: Task<Void, Never>?
     @State private var localhostExpanded = false
     @State private var showingTextSignal = false
+    @State private var showingPhotoPicker = false
+    @State private var didRequestInitialPhotoPicker = false
     @State private var pendingTextSignal: TextSignalOutboxRecord?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.appLanguage) private var appLanguage
     private let onClose: (() -> Void)?
     private let onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)?
     private let showsFixtureTools: Bool
     private let authenticatedBackendURL: URL?
     private let authenticatedAccessToken: String?
     private let authenticatedWorkspaceID: String?
+    private let entryMode: CandidateSignalEntryMode
 
     init(
         backendURL: URL? = nil,
         accessToken: String? = nil,
         workspaceID: String? = nil,
+        entryMode: CandidateSignalEntryMode = .workbench,
         onClose: (() -> Void)? = nil,
         onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)? = nil
     ) {
@@ -59,6 +69,7 @@ struct CandidateSignalView: View {
         authenticatedBackendURL = backendURL
         authenticatedAccessToken = accessToken
         authenticatedWorkspaceID = workspaceID
+        self.entryMode = entryMode
         showsFixtureTools = TalentSignalRootRoute.opensReviewWorkbench(
             arguments: ProcessInfo.processInfo.arguments
         )
@@ -71,6 +82,7 @@ struct CandidateSignalView: View {
         authenticatedBackendURL = nil
         authenticatedAccessToken = nil
         authenticatedWorkspaceID = nil
+        entryMode = .workbench
         showsFixtureTools = true
     }
 
@@ -83,7 +95,11 @@ struct CandidateSignalView: View {
                         LazyVStack(alignment: .leading, spacing: 24) {
                             Group {
                                 if case .idle = store.stage, !showsFixtureTools {
-                                    captureHeader
+                                    if entryMode == .conversationImage {
+                                        conversationImageHeader
+                                    } else {
+                                        captureHeader
+                                    }
                                 } else {
                                     BrandHeader()
                                 }
@@ -92,7 +108,11 @@ struct CandidateSignalView: View {
 
                             switch store.stage {
                             case .idle:
-                                idleContent
+                                if entryMode == .conversationImage {
+                                    conversationImageIdleContent
+                                } else {
+                                    idleContent
+                                }
                             case let .importing(kind):
                                 importingContent(kind)
                             case let .importCancelled(kind):
@@ -160,11 +180,17 @@ struct CandidateSignalView: View {
         .onChange(of: selectedPhoto) { item in
             loadSelectedPhoto(item)
         }
+        .photosPicker(
+            isPresented: $showingPhotoPicker,
+            selection: $selectedPhoto,
+            matching: .images
+        )
         .onDisappear {
             photoImportTask?.cancel()
         }
         .task {
             await refreshPendingTextSignal()
+            requestInitialPhotoPickerIfNeeded()
         }
         .sheet(isPresented: $showingTextSignal) {
             TextSignalCaptureView(
@@ -223,6 +249,117 @@ struct CandidateSignalView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("capture-entry-header")
+    }
+
+    private var conversationImageHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel(text: appLanguage.text("Conversation screenshot"))
+                .foregroundStyle(Color.tsVermilion)
+            Text(appLanguage.text("Choose one conversation image"))
+                .font(.custom("Georgia", size: 36, relativeTo: .largeTitle))
+                .foregroundStyle(Color.tsInk)
+                .tracking(-0.8)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                appLanguage.text(
+                    "Review on-device text, compare identity evidence, then attach it to one relationship Wiki."
+                )
+            )
+            .font(.body)
+            .foregroundStyle(Color.tsMutedInk)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("capture-entry-header")
+    }
+
+    private var conversationImageIdleContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            if let savedSeed = captureHandoff.savedSeed,
+               captureHandoff.pendingSeed == nil {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionLabel(text: appLanguage.text("Pending review"))
+                    Text(
+                        appLanguage.text("Continue") + " \(savedSeed.fileName)"
+                    )
+                    .font(.headline)
+                    .foregroundStyle(Color.tsInk)
+                    Text(
+                        appLanguage.text(
+                            "The screenshot and your reviewed draft remain on this device. No person was changed."
+                        )
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        captureHandoff.resume()
+                    } label: {
+                        Text(appLanguage.text("Resume capture review"))
+                    }
+                    .buttonStyle(TSPrimaryButtonStyle())
+                    .accessibilityIdentifier("resume-capture-review")
+                }
+                .tsCard()
+            }
+
+            Button {
+                showingPhotoPicker = true
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "photo.badge.plus")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Color.tsVermilion)
+                        .frame(width: 30, height: 44)
+                    Text(appLanguage.text("Open Photos"))
+                        .font(.headline)
+                        .foregroundStyle(Color.tsInk)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tsMutedInk)
+                }
+                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .overlay(alignment: .top) {
+                Rectangle().fill(Color.tsLine).frame(height: 1)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color.tsLine).frame(height: 1)
+            }
+            .accessibilityIdentifier("choose-image")
+            .accessibilityHint(
+                appLanguage.text(
+                    "Opens the system photo picker, then starts text and identity review."
+                )
+            )
+
+            Text(
+                appLanguage.text(
+                    "The original image stays on this device in the current slice. No contact, message, meeting, ATS, CRM, or reminder is written from selection alone."
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(Color.tsMutedInk)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func requestInitialPhotoPickerIfNeeded() {
+        guard entryMode == .conversationImage,
+              !didRequestInitialPhotoPicker,
+              captureHandoff.savedSeed == nil,
+              captureHandoff.pendingSeed == nil,
+              case .idle = store.stage else {
+            return
+        }
+        didRequestInitialPhotoPicker = true
+        Task { @MainActor in
+            await Task.yield()
+            showingPhotoPicker = true
+        }
     }
 
     private var idleContent: some View {

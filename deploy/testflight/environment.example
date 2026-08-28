@@ -1,6 +1,26 @@
 # Name contract for Infisical staging:/backend. Do not create a runtime env file.
 TALENT_SIGNAL_API_BASE_URL=https://your-mac.your-tailnet.ts.net
 
+# Relationship Ask belongs in Infisical staging:/shared. Only the user's
+# question and the minimum reviewed, published relationship context are sent.
+# Keep this false until staging has its own Zhipu key; never reuse a dev key.
+TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING=false
+TALENT_SIGNAL_CHAT_PROVIDER=zhipu
+TALENT_SIGNAL_CHAT_MODEL=glm-5.3
+TALENT_SIGNAL_CHAT_TIMEOUT_MS=15000
+ZHIPU_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+ZHIPU_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
+
+# Recruiter dictation belongs in Infisical staging:/shared. The App ID and
+# Access Token remain server-only. This voice-specific gate does not admit
+# screenshots or candidate evidence to other remote model paths.
+TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION=true
+VOICE_ASR_PROVIDER=doubao
+DOUBAO_ASR_BASE_URL=https://openspeech.bytedance.com
+DOUBAO_ASR_RESOURCE_ID=volc.bigasr.auc_turbo
+DOUBAO_ASR_APP_ID=replace-in-infisical
+DOUBAO_ASR_ACCESS_TOKEN=replace-in-infisical
+
 # PostgreSQL is reachable only from the Compose network.
 POSTGRES_DB=talent_signal_testflight
 POSTGRES_USER=talent_signal_testflight

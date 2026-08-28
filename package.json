@@ -38,7 +38,7 @@
     "secrets:check:prod": "./scripts/infisical/run.sh prod /shared /backend -- node scripts/infisical/verify-contract.mjs productionBackend",
     "secrets:check:release": "./scripts/infisical/run.sh staging /release -- node scripts/infisical/verify-contract.mjs iosRelease",
     "secrets:check:testflight-access": "./scripts/infisical/run.sh staging /release -- node scripts/infisical/verify-contract.mjs testflightAccess",
-    "secrets:check:test": "node --test scripts/verify-secret-environment.test.mjs scripts/infisical/manifest.test.mjs scripts/infisical/migrate.test.mjs scripts/infisical/run.test.mjs",
+    "secrets:check:test": "node --test scripts/verify-secret-environment.test.mjs scripts/infisical/manifest.test.mjs scripts/infisical/migrate.test.mjs scripts/infisical/run.test.mjs scripts/deploy/verify-testflight-chat-environment.test.mjs scripts/deploy/verify-testflight-voice-environment.test.mjs",
     "typecheck": "pnpm --filter @talent-signal/web typecheck",
     "test": "pnpm --filter @talent-signal/web test",
     "wiki:build": "node scripts/wiki.mjs build",

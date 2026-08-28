@@ -123,6 +123,32 @@ admission. Keep `TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING=false` until the
 provider contract and observed data path satisfy the integration admission
 checklist.
 
+Recruiter dictation uses the narrower
+`TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION` gate. Set it only for a
+runtime whose authenticated flow records in the foreground, stops before
+upload, discloses the remote transcription boundary, returns an editable
+draft, and deletes its temporary audio. Enabling recruiter dictation does not
+admit screenshots, candidate-call recordings, or private candidate evidence
+to another model path.
+
+Relationship Ask has its own narrower
+`TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING` gate. When enabled, configure
+`TALENT_SIGNAL_CHAT_PROVIDER=zhipu`, pin `TALENT_SIGNAL_CHAT_MODEL=glm-5.3`,
+and keep the environment-specific `ZHIPU_API_KEY` in that environment's
+`/shared` path. The backend sends only the user's submitted question and the
+minimum selected, published, reviewed relationship blocks. It does not send
+Chat photos, raw screenshots, whole transcripts, provider keys, or contact,
+message, and calendar write authority. The server rejects citations outside
+the supplied evidence manifest and falls back to the deterministic response
+when the provider is disabled or fails. This gate does not enable the broader
+Agent runtime or `TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING`.
+
+Use a dedicated credential for each environment. In particular, do not copy
+`dev:/shared/ZHIPU_API_KEY` into `staging:/shared`; create a staging key in the
+provider account, write it directly to Infisical, then prove it with the
+synthetic Relationship Ask probe. The iOS app and `/release` workflows never
+receive this key.
+
 For GLM, the Agent runtime accepts either a direct BigModel credential with
 `TALENT_SIGNAL_AGENT_PROVIDER=zhipu` and a pinned `glm-*` model, or the existing
 OpenRouter credential with a pinned `z-ai/glm-*` model. Screenshot analysis

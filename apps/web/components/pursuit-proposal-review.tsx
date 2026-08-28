@@ -8,7 +8,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useWorkspaceSessionRecovery } from "./use-workspace-session-recovery";
 import {
@@ -56,6 +56,7 @@ function initialEditValue(value: unknown): string {
 }
 
 export function PursuitProposalReview({ onReviewed, proposal }: Props) {
+  const proposalRef = useRef<HTMLElement>(null);
   const { sessionRecoveryHref } = useWorkspaceSessionRecovery(null);
   const [decisions, setDecisions] = useState<
     Record<string, { decision: Decision; editedValue: string }>
@@ -65,6 +66,14 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<PursuitReviewReceipt | null>(null);
   const allDecided = proposal.items.every((item) => decisions[item.id]);
+
+  useEffect(() => {
+    if (window.location.hash !== "#proposal") return;
+    const frame = window.requestAnimationFrame(() => {
+      proposalRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [proposal.id]);
 
   function decide(itemId: string, decision: Decision, proposedValue: unknown) {
     setDecisions((current) => ({
@@ -171,11 +180,19 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
   }
 
   return (
-    <section className={styles.proposal} id="proposal">
+    <section
+      aria-labelledby={`pursuit-proposal-${proposal.id}-title`}
+      className={styles.proposal}
+      id="proposal"
+      ref={proposalRef}
+      tabIndex={-1}
+    >
       <header>
         <div>
           <p>Review-only Agent Proposal</p>
-          <h2>{proposal.summary}</h2>
+          <h2 id={`pursuit-proposal-${proposal.id}-title`}>
+            {proposal.summary}
+          </h2>
           <span>
             {proposal.review_context.subject.display_label} · Pursuit revision {proposal.base_revision}
           </span>

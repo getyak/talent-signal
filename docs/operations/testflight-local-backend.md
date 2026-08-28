@@ -14,8 +14,13 @@ Use the public production topology before external TestFlight or App Store use.
 
 ## Configure
 
-Create the names from `deploy/testflight/environment.example` under
-`staging:/backend` in Infisical. Replace the PostgreSQL value, and set
+Create the backend names from `deploy/testflight/environment.example` under
+`staging:/backend` in Infisical and the Relationship Ask and recruiter-
+dictation names from the same example under `staging:/shared`. Give staging a
+dedicated Zhipu key; never reuse the development credential. Keep
+`TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING=false` until that key exists and
+the operator intends to admit the documented minimized context. Replace the
+PostgreSQL value, and set
 `TALENT_SIGNAL_API_BASE_URL` and `ALLOWED_ORIGINS` to this Mac's exact Tailscale
 MagicDNS HTTPS origin. Generate a URL-safe PostgreSQL password such as
 `openssl rand -hex 24`. Authenticate the operator with `infisical login`; the
@@ -29,6 +34,10 @@ The TestFlight Compose boundary differs from synthetic development:
 - PostgreSQL is internal-only;
 - the API publishes only on `127.0.0.1`;
 - the API has explicit runtime DNS for Apple public-key verification;
+- Relationship Ask has its own remote-processing gate, fixed provider/model,
+  official-endpoint allowlist, server-only key, and synthetic provider probe;
+- recruiter dictation has its own admission gate and server-only provider
+  credential boundary;
 - Docker logs rotate locally.
 
 ## Start and verify
@@ -45,7 +54,22 @@ starts the API, configures Tailscale Serve, and verifies the Apple authenticatio
 challenge through HTTPS. Before reporting success, it also requires the API
 container to retrieve a non-empty Apple public-key set; this catches a Docker
 or Colima DNS failure that local database health checks cannot detect. It stops
-before GitHub or TestFlight configuration if any boundary fails.
+before GitHub or TestFlight configuration if any boundary fails. The deployment
+also sends one synthetic silent WAV from inside the API container to the real
+ASR provider. An accepted no-speech response proves credentials, entitlement,
+DNS, and provider reachability without sending candidate or recruiter speech.
+When Relationship Ask is admitted, the deployment also sends one clearly
+synthetic relationship block and question to Zhipu. It requires a structured,
+evidence-cited response before the runtime is reported ready; the probe prints
+only provider/model and token counts. When the gate is explicitly disabled,
+the probe records a safe skip and the existing deterministic Ask path remains
+available.
+
+GitHub Actions remains scoped to `staging:/release`. It receives the HTTPS
+origin, signing material, App Store Connect credentials, and an ephemeral
+Tailscale CI identity, but never reads the backend database or provider
+credentials. No deployment path exports Infisical values to a persistent
+`.env` file.
 
 For an ordinary restart with an already verified local image, skip the network
 build without changing the runtime boundary:

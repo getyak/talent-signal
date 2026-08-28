@@ -76,18 +76,15 @@ struct PursuitWorkspaceSnapshot: Equatable {
                 title: title,
                 reason: reason,
                 targetOutcome: pursuit.targetOutcome.workspacePhrase,
-                targetDate: WorkspaceDate.short(pursuit.targetDate),
+                targetDate: pursuit.targetDate,
                 blocker: gap.map {
                     "\($0.title) · \($0.basis.evidenceState.explanation) · close when \($0.closeCondition)"
                 },
-                evidenceFreshness: proposal?.latestEvidence.map {
-                    WorkspaceDate.evidenceFreshness(
-                        observedAt: $0.observedAt,
-                        sourceTimezone: $0.sourceTimezone
-                    )
-                } ?? gap.map { $0.basis.evidenceState.explanation },
+                evidenceObservedAt: proposal?.latestEvidence?.observedAt,
+                evidenceSourceTimezone: proposal?.latestEvidence?.sourceTimezone,
+                evidenceState: proposal?.evidenceState ?? gap?.basis.evidenceState,
                 owner: action?.ownerDisplayName,
-                due: action?.dueAt.map(WorkspaceDate.short),
+                due: action?.dueAt,
                 proposedAction: action?.title,
                 actionLabel: kind == .review
                     ? "Review proposal"
@@ -494,7 +491,9 @@ struct PursuitAttentionItem: Equatable, Identifiable {
     let targetOutcome: String
     let targetDate: String
     let blocker: String?
-    let evidenceFreshness: String?
+    let evidenceObservedAt: String?
+    let evidenceSourceTimezone: String?
+    let evidenceState: WorkspaceEvidenceState?
     let owner: String?
     let due: String?
     let proposedAction: String?

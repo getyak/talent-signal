@@ -121,3 +121,21 @@ Initial item kinds are milestone, Pursuit status, contextual role status,
 evidence-backed gap, and recruiter-owned internal action. Add a new kind only
 when a flagship journey cannot be expressed safely; do not introduce a generic
 JSON patch authority.
+
+## iOS evidence-to-decision completion evidence
+
+The review surface now follows one mobile reading order: exact evidence,
+compact source and time, optional audit provenance, current and proposed values,
+reason and effect, evidence authority, explicit item decision, then canonical
+apply. No item is preselected. At accessibility AX5 the four decisions stack as
+full-width rows instead of a two-column grid, and the affected interface copy
+is catalog-backed in English and Simplified Chinese. Exact evidence and
+canonical authored content remain untranslated.
+
+Focused executable proof passed on an iPhone 17 Pro Simulator against the
+local canonical Proposal fixture: preview cannot apply or claim success;
+connected review applies only after an explicit item decision and backend
+readback; and Simplified Chinese dark AX5 keeps evidence inspectable and every
+decision reachable. The result bundle is
+`/tmp/talent-signal-ios-proposal-final.xcresult`; the corresponding visual
+adjudication is recorded in `design-qa.md`.

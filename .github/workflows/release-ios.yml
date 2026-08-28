@@ -136,6 +136,25 @@ jobs:
 
       - name: Validate release secrets
         run: |
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            DEVELOPMENT_TEAM \
+            MATCH_DEPLOY_KEY \
+            MATCH_GIT_URL \
+            MATCH_KEYCHAIN_PASSWORD \
+            MATCH_PASSWORD \
+            TALENT_SIGNAL_API_BASE_URL \
+            TS_OAUTH_CLIENT_ID \
+            TS_OAUTH_SECRET; do
+            delimiter="TS_SECRET_${GITHUB_RUN_ID}_${RANDOM}"
+            printf '%s<<%s\n%s\n%s\n' \
+              "$name" "$delimiter" "${!name:-}" "$delimiter" >> "$GITHUB_ENV"
+          done
+
+      - name: Validate release secrets
+        run: |
           missing=0
           for name in \
             APP_STORE_CONNECT_API_KEY_CONTENT \
