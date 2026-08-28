@@ -54,11 +54,6 @@ struct AudioSignalCaptureView: View {
                     }
                     .accessibilityLabel(appLanguage.text("Close audio Signal"))
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button(appLanguage.text("Done")) { focusedField = nil }
-                        .accessibilityIdentifier("dismiss-audio-signal-keyboard")
-                }
             }
         }
         .task { store.restore() }
@@ -122,10 +117,18 @@ struct AudioSignalCaptureView: View {
 
     private var authorization: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(appLanguage.text("AUTHORIZING PARTY"))
-                .font(.caption.weight(.bold))
-                .tracking(1.2)
-                .foregroundStyle(Color.tsMutedInk)
+            HStack(alignment: .firstTextBaseline) {
+                Text(appLanguage.text("AUTHORIZING PARTY"))
+                    .font(.caption.weight(.bold))
+                    .tracking(1.2)
+                    .foregroundStyle(Color.tsMutedInk)
+                Spacer()
+                if focusedField != nil {
+                    Button(appLanguage.text("Done")) { focusedField = nil }
+                        .font(.body.weight(.semibold))
+                        .accessibilityIdentifier("dismiss-audio-signal-keyboard")
+                }
+            }
             TextField(
                 appLanguage.text("Name or accountable party"),
                 text: $store.authorizingParty,

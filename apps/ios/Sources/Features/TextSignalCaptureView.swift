@@ -91,13 +91,6 @@ struct TextSignalCaptureView: View {
                     }
                     .accessibilityLabel("Close text Signal")
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        focusedField = nil
-                    }
-                    .accessibilityIdentifier("dismiss-text-signal-keyboard")
-                }
             }
         }
         .sheet(isPresented: $isScopePickerPresented) { scopePickerSheet }
@@ -126,9 +119,17 @@ struct TextSignalCaptureView: View {
 
     private var exactText: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("1 · Exact text")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.tsMutedInk)
+            HStack(alignment: .firstTextBaseline) {
+                Text("1 · Exact text")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.tsMutedInk)
+                Spacer()
+                if focusedField != nil {
+                    Button("Done") { focusedField = nil }
+                        .font(.body.weight(.semibold))
+                        .accessibilityIdentifier("dismiss-text-signal-keyboard")
+                }
+            }
             TextEditor(text: $store.text)
                 .focused($focusedField, equals: .exactText)
                 .font(.body)

@@ -44,6 +44,9 @@ struct StopStandaloneSignalRecordingIntent: LiveActivityIntent {
 }
 
 struct LiveActivityStopRequestBridge {
+    private static let maximumRequestAge: TimeInterval = 2 * 60
+    private static let clockTolerance: TimeInterval = 5
+
     private struct StopRequest: Codable {
         let draftID: UUID
         let requestedAt: Date
@@ -64,7 +67,9 @@ struct LiveActivityStopRequestBridge {
 
     static func consume(
         draftID: UUID,
-        rootURL: URL? = nil
+        rootURL: URL? = nil,
+        recordingStartedAt: Date? = nil,
+        now: Date = Date()
     ) throws -> Bool {
         let directory = try resolvedDirectory(rootURL: rootURL)
         let finalURL = directory.appending(path: "stop-request.json")
@@ -73,7 +78,16 @@ struct LiveActivityStopRequestBridge {
             StopRequest.self,
             from: Data(contentsOf: finalURL)
         )
-        guard request.draftID == draftID else { return false }
+        let minimumDate = max(
+            now.addingTimeInterval(-maximumRequestAge),
+            recordingStartedAt?.addingTimeInterval(-clockTolerance) ?? .distantPast
+        )
+        guard request.draftID == draftID,
+              request.requestedAt >= minimumDate,
+              request.requestedAt <= now.addingTimeInterval(clockTolerance) else {
+            try FileManager.default.removeItem(at: finalURL)
+            return false
+        }
         try FileManager.default.removeItem(at: finalURL)
         return true
     }

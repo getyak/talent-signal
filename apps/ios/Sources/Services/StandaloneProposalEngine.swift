@@ -33,11 +33,50 @@ struct AdaptiveStandaloneProposalEngine: StandaloneProposalGenerating {
     }
 }
 
+struct ManualStandaloneProposalEngine: StandaloneProposalGenerating {
+    func generate(
+        draft: StandaloneCaptureDraft,
+        pursuit: StandalonePursuit
+    ) async throws -> StandaloneProposal {
+        let signal = draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !signal.isEmpty else { throw StandaloneProposalEngineError.emptySignal }
+        return StandaloneProposal(
+            id: UUID(),
+            sourceSummary: StandaloneProposalSource.summary(for: draft),
+            matchedPursuitID: pursuit.id,
+            facts: [
+                .init(
+                    id: UUID(),
+                    field: "Recruiter-authored Signal",
+                    proposedValue: signal,
+                    evidenceExcerpt: signal,
+                    confidenceBand: "Direct local text · review required"
+                ),
+            ],
+            inferences: [],
+            unknowns: [
+                .init(
+                    id: UUID(),
+                    question: "Should this Signal be split into narrower facts before it becomes current state?",
+                    whyUnresolved: "No model interpreted the text. Confirm, edit, or leave the proposal unresolved yourself."
+                ),
+            ],
+            nextActions: [],
+            engineLabel: "Manual structure · no model",
+            modelDisclaimer: "No model interpreted this Signal. The exact local text is proposed as one editable item; you decide whether any of it becomes current Pursuit state.",
+            createdAt: Date()
+        )
+    }
+}
+
 enum StandaloneProposalEngineError: LocalizedError, Equatable {
+    case emptySignal
     case onDeviceIntelligenceUnavailable
 
     var errorDescription: String? {
         switch self {
+        case .emptySignal:
+            return "Add Signal text before creating a Proposal."
         case .onDeviceIntelligenceUnavailable:
             return "On-device intelligence is unavailable. The Draft remains saved; continue editing or use the explicitly labeled showcase fixture."
         }

@@ -31,15 +31,15 @@ final class FileStandaloneOnboardingStore: StandaloneOnboardingPersisting {
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true,
-            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+            attributes: [.protectionKey: FileProtectionType.complete]
         )
         let data = try Self.encoder.encode(state)
         try data.write(
             to: fileURL,
-            options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+            options: [.atomic, .completeFileProtection]
         )
         try FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            [.protectionKey: FileProtectionType.complete],
             ofItemAtPath: fileURL.path
         )
     }
