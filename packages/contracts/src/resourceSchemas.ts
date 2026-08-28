@@ -1416,6 +1416,54 @@ export const ChatResponseBlockSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const ChatMediaAssetSchema = Type.Object(
+  {
+    id: Id,
+    file_name: Type.String({ minLength: 1, maxLength: 240 }),
+    media_type: Type.Union([
+      Type.Literal("image/jpeg"),
+      Type.Literal("image/png"),
+      Type.Literal("image/webp"),
+      Type.Literal("image/gif"),
+      Type.Literal("image/heic"),
+      Type.Literal("image/heif"),
+    ]),
+    byte_size: Type.Integer({ minimum: 1, maximum: 8_388_608 }),
+    width: Type.Union([Type.Integer({ minimum: 1, maximum: 20_000 }), Type.Null()]),
+    height: Type.Union([Type.Integer({ minimum: 1, maximum: 20_000 }), Type.Null()]),
+    status: Type.Union([
+      Type.Literal("pending"),
+      Type.Literal("ready"),
+      Type.Literal("failed"),
+      Type.Literal("deleted"),
+    ]),
+    created_at: Timestamp,
+  },
+  { $id: "ChatMediaAsset", additionalProperties: false },
+);
+
+export const CreateChatMediaRequestSchema = Type.Object(
+  {
+    idempotency_key: IdempotencyKey,
+    person_id: Id,
+    relationship_context_id: Id,
+    file_name: Type.String({ minLength: 1, maxLength: 240 }),
+    media_type: ChatMediaAssetSchema.properties.media_type,
+    byte_size: Type.Integer({ minimum: 1, maximum: 8_388_608 }),
+    width: Type.Optional(Type.Integer({ minimum: 1, maximum: 20_000 })),
+    height: Type.Optional(Type.Integer({ minimum: 1, maximum: 20_000 })),
+  },
+  { $id: "CreateChatMediaRequest", additionalProperties: false },
+);
+
+export const ChatMediaDeleteResponseSchema = Type.Object(
+  {
+    id: Id,
+    status: Type.Literal("deleted"),
+  },
+  { $id: "ChatMediaDeleteResponse", additionalProperties: false },
+);
+
 export const ChatTaskResponseSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
@@ -1433,6 +1481,7 @@ export const ChatTaskResponseSchema = Type.Object(
       minItems: 1,
       maxItems: 20,
     }),
+    media: Type.Optional(Type.Array(ChatMediaAssetSchema, { maxItems: 10 })),
     created_at: Timestamp,
   },
   { $id: "ChatTaskResponse", additionalProperties: false },
@@ -1519,6 +1568,7 @@ export const ChatTaskReadbackSchema = Type.Object(
       maxItems: 500,
       uniqueItems: true,
     }),
+    media: Type.Optional(Type.Array(ChatMediaAssetSchema, { maxItems: 10 })),
     created_at: Timestamp,
   },
   { $id: "ChatTaskReadback", additionalProperties: false },
@@ -1530,6 +1580,9 @@ export const ChatTaskRequestSchema = Type.Object(
     objective: Type.String({ minLength: 1, maxLength: 1_000 }),
     person_id: Id,
     relationship_context_id: Id,
+    media_ids: Type.Optional(
+      Type.Array(Id, { maxItems: 10, uniqueItems: true }),
+    ),
   },
   { $id: "ChatTaskRequest", additionalProperties: false },
 );
@@ -1893,6 +1946,9 @@ export type ChatTaskResponse = Static<typeof ChatTaskResponseSchema>;
 export type ChatCitation = Static<typeof ChatCitationSchema>;
 export type ChatTaskReadback = Static<typeof ChatTaskReadbackSchema>;
 export type ChatTaskRequest = Static<typeof ChatTaskRequestSchema>;
+export type ChatMediaAsset = Static<typeof ChatMediaAssetSchema>;
+export type CreateChatMediaRequest = Static<typeof CreateChatMediaRequestSchema>;
+export type ChatMediaDeleteResponse = Static<typeof ChatMediaDeleteResponseSchema>;
 export type PersonDirectoryContext = Static<
   typeof PersonDirectoryContextSchema
 >;

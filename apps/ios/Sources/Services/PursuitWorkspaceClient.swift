@@ -59,6 +59,30 @@ struct PursuitEvidenceReviewResult: Equatable {
     let decidedAt: String
 }
 
+struct ChatMediaAsset: Codable, Equatable, Identifiable {
+    let id: String
+    let fileName: String
+    let mediaType: String
+    let byteSize: Int
+    let width: Int?
+    let height: Int?
+    let status: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, width, height, status
+        case fileName = "file_name"
+        case mediaType = "media_type"
+        case byteSize = "byte_size"
+        case createdAt = "created_at"
+    }
+}
+
+struct ChatMediaContent: Equatable {
+    let data: Data
+    let mediaType: String
+}
+
 protocol PursuitWorkspaceServing {
     func loadWorkspace() async throws -> PursuitWorkspaceSnapshot
     func ask(
@@ -67,6 +91,26 @@ protocol PursuitWorkspaceServing {
         relationshipContextID: String,
         idempotencyKey: String
     ) async throws -> RelationshipAskResponse
+    func ask(
+        objective: String,
+        personID: String,
+        relationshipContextID: String,
+        idempotencyKey: String,
+        mediaIDs: [String]
+    ) async throws -> RelationshipAskResponse
+    func createChatMedia(
+        personID: String,
+        relationshipContextID: String,
+        fileName: String,
+        mediaType: String,
+        byteSize: Int,
+        width: Int?,
+        height: Int?,
+        idempotencyKey: String
+    ) async throws -> ChatMediaAsset
+    func uploadChatMedia(id: String, data: Data, mediaType: String) async throws -> ChatMediaAsset
+    func deleteChatMedia(id: String) async throws
+    func loadChatMedia(id: String) async throws -> ChatMediaContent
     func revalidateAsk(
         response: RelationshipAskResponse,
         personID: String,
@@ -105,6 +149,47 @@ extension PursuitWorkspaceServing {
         relationshipContextID: String,
         idempotencyKey: String
     ) async throws -> RelationshipAskResponse {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func ask(
+        objective: String,
+        personID: String,
+        relationshipContextID: String,
+        idempotencyKey: String,
+        mediaIDs: [String]
+    ) async throws -> RelationshipAskResponse {
+        guard mediaIDs.isEmpty else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await ask(
+            objective: objective,
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func createChatMedia(
+        personID: String,
+        relationshipContextID: String,
+        fileName: String,
+        mediaType: String,
+        byteSize: Int,
+        width: Int?,
+        height: Int?,
+        idempotencyKey: String
+    ) async throws -> ChatMediaAsset {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func uploadChatMedia(id: String, data: Data, mediaType: String) async throws -> ChatMediaAsset {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func deleteChatMedia(id: String) async throws {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func loadChatMedia(id: String) async throws -> ChatMediaContent {
         throw PursuitWorkspaceClientError.askUnavailable
     }
 
@@ -272,6 +357,22 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         relationshipContextID: String,
         idempotencyKey: String
     ) async throws -> RelationshipAskResponse {
+        try await ask(
+            objective: objective,
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            idempotencyKey: idempotencyKey,
+            mediaIDs: []
+        )
+    }
+
+    func ask(
+        objective: String,
+        personID: String,
+        relationshipContextID: String,
+        idempotencyKey: String,
+        mediaIDs: [String]
+    ) async throws -> RelationshipAskResponse {
         guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
             throw PursuitWorkspaceClientError.loopbackOnly
         }
@@ -280,7 +381,8 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             idempotencyKey: idempotencyKey,
             objective: objective,
             personID: personID,
-            relationshipContextID: relationshipContextID
+            relationshipContextID: relationshipContextID,
+            mediaIDs: mediaIDs
         )
         let response: RelationshipAskResponse
         do {
@@ -323,6 +425,91 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             expectedPersonID: personID,
             expectedRelationshipContextID: relationshipContextID
         )
+    }
+
+    func createChatMedia(
+        personID: String,
+        relationshipContextID: String,
+        fileName: String,
+        mediaType: String,
+        byteSize: Int,
+        width: Int?,
+        height: Int?,
+        idempotencyKey: String
+    ) async throws -> ChatMediaAsset {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        return try await post(
+            path: "v1/chat/media",
+            token: login.accessToken,
+            body: CreateChatMediaBody(
+                idempotencyKey: idempotencyKey,
+                personID: personID,
+                relationshipContextID: relationshipContextID,
+                fileName: fileName,
+                mediaType: mediaType,
+                byteSize: byteSize,
+                width: width,
+                height: height
+            )
+        )
+    }
+
+    func uploadChatMedia(id: String, data: Data, mediaType: String) async throws -> ChatMediaAsset {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        var request = URLRequest(url: baseURL.appending(path: "v1/chat/media/\(id)/content"))
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "accept")
+        request.setValue(mediaType, forHTTPHeaderField: "content-type")
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        request.httpBody = data
+        return try await decodedResponse(request, rejectionMessage: "The image upload was rejected.")
+    }
+
+    func deleteChatMedia(id: String) async throws {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        var request = URLRequest(url: baseURL.appending(path: "v1/chat/media/\(id)"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "accept")
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        let response: ChatMediaDeleteResponse = try await decodedResponse(
+            request,
+            rejectionMessage: "The image could not be removed."
+        )
+        guard response.id == id, response.status == "deleted" else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+    }
+
+    func loadChatMedia(id: String) async throws -> ChatMediaContent {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        var request = URLRequest(url: baseURL.appending(path: "v1/chat/media/\(id)/content"))
+        request.httpMethod = "GET"
+        request.setValue("image/*", forHTTPHeaderField: "accept")
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw Self.backendError(data: data, statusCode: http.statusCode, fallback: "The image could not be read.")
+        }
+        guard let mediaType = http.value(forHTTPHeaderField: "content-type"),
+              mediaType.hasPrefix("image/"), !data.isEmpty else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+        return ChatMediaContent(data: data, mediaType: mediaType)
     }
 
     func revalidateAsk(
@@ -514,22 +701,37 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
         request.httpBody = try JSONEncoder().encode(body)
+        return try await decodedResponse(request, rejectionMessage: "The action outcome was rejected.")
+    }
+
+    private func decodedResponse<Response: Decodable>(
+        _ request: URLRequest,
+        rejectionMessage: String
+    ) async throws -> Response {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw PursuitWorkspaceClientError.invalidResponse
         }
         guard (200...299).contains(http.statusCode) else {
-            let envelope = try? JSONDecoder().decode(WorkspaceErrorEnvelope.self, from: data)
-            throw PursuitWorkspaceClientError.backend(
-                code: envelope?.error?.code ?? "HTTP_\(http.statusCode)",
-                message: envelope?.error?.message ?? "The action outcome was rejected."
-            )
+            throw Self.backendError(data: data, statusCode: http.statusCode, fallback: rejectionMessage)
         }
         do {
             return try JSONDecoder().decode(Response.self, from: data)
         } catch {
             throw PursuitWorkspaceClientError.invalidResponse
         }
+    }
+
+    private static func backendError(
+        data: Data,
+        statusCode: Int,
+        fallback: String
+    ) -> PursuitWorkspaceClientError {
+        let envelope = try? JSONDecoder().decode(WorkspaceErrorEnvelope.self, from: data)
+        return .backend(
+            code: envelope?.error?.code ?? "HTTP_\(statusCode)",
+            message: envelope?.error?.message ?? fallback
+        )
     }
 
     private static func isVerifiedTimestamp(_ value: String) -> Bool {
@@ -643,6 +845,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
     let knowledgeSnapshotID: String
     let disposition: String
     let blocks: [Block]
+    let media: [ChatMediaAsset]
     let createdAt: String
     let citations: [Citation]
 
@@ -770,6 +973,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         knowledgeSnapshotID: String,
         disposition: String,
         blocks: [Block],
+        media: [ChatMediaAsset] = [],
         createdAt: String,
         citations: [Citation] = []
     ) {
@@ -779,6 +983,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         self.knowledgeSnapshotID = knowledgeSnapshotID
         self.disposition = disposition
         self.blocks = blocks
+        self.media = media
         self.createdAt = createdAt
         self.citations = citations
     }
@@ -791,6 +996,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         knowledgeSnapshotID = try container.decode(String.self, forKey: .knowledgeSnapshotID)
         disposition = try container.decode(String.self, forKey: .disposition)
         blocks = try container.decode([Block].self, forKey: .blocks)
+        media = try container.decodeIfPresent([ChatMediaAsset].self, forKey: .media) ?? []
         createdAt = try container.decode(String.self, forKey: .createdAt)
         citations = []
     }
@@ -803,6 +1009,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             knowledgeSnapshotID: knowledgeSnapshotID,
             disposition: disposition,
             blocks: blocks,
+            media: media,
             createdAt: createdAt,
             citations: citations
         )
@@ -813,7 +1020,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         case taskID = "task_id"
         case contextManifestID = "context_manifest_id"
         case knowledgeSnapshotID = "knowledge_snapshot_id"
-        case disposition, blocks
+        case disposition, blocks, media
         case createdAt = "created_at"
     }
 }
@@ -830,6 +1037,7 @@ struct RelationshipAskReadback: Decodable, Equatable {
     let snapshotStatus: String
     let authorizationScope: String
     let citations: [RelationshipAskResponse.Citation]
+    var media: [ChatMediaAsset]? = nil
     let createdAt: String
 
     func validated(
@@ -856,6 +1064,12 @@ struct RelationshipAskReadback: Decodable, Equatable {
         )
         guard Set(citations.map(\.id)).count == citations.count else {
             throw PursuitWorkspaceClientError.askCitationBindingMismatch
+        }
+        let responseMediaIDs = response.media.map(\.id)
+        let readbackMedia = media ?? []
+        guard responseMediaIDs == readbackMedia.map(\.id),
+              readbackMedia.allSatisfy({ $0.status == "ready" }) else {
+            throw PursuitWorkspaceClientError.askReadbackEnvelopeMismatch
         }
         let detailsByID = Dictionary(
             uniqueKeysWithValues: citations.map { ($0.id, $0) }
@@ -886,7 +1100,7 @@ struct RelationshipAskReadback: Decodable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case citations
+        case citations, media
         case contractVersion = "contract_version"
         case accountID = "account_id"
         case taskID = "task_id"
@@ -906,13 +1120,41 @@ private struct RelationshipAskBody: Encodable {
     let objective: String
     let personID: String
     let relationshipContextID: String
+    let mediaIDs: [String]
 
     enum CodingKeys: String, CodingKey {
         case idempotencyKey = "idempotency_key"
         case objective
         case personID = "person_id"
         case relationshipContextID = "relationship_context_id"
+        case mediaIDs = "media_ids"
     }
+}
+
+private struct CreateChatMediaBody: Encodable {
+    let idempotencyKey: String
+    let personID: String
+    let relationshipContextID: String
+    let fileName: String
+    let mediaType: String
+    let byteSize: Int
+    let width: Int?
+    let height: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case idempotencyKey = "idempotency_key"
+        case personID = "person_id"
+        case relationshipContextID = "relationship_context_id"
+        case fileName = "file_name"
+        case mediaType = "media_type"
+        case byteSize = "byte_size"
+        case width, height
+    }
+}
+
+private struct ChatMediaDeleteResponse: Decodable {
+    let id: String
+    let status: String
 }
 
 private struct WorkspaceEvidenceReviewBody: Encodable {

@@ -62,6 +62,7 @@
 		A4B50D55CF2FD1DB578106DC /* RelationshipArchiveModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D60444BD109DBAA3780F88D /* RelationshipArchiveModels.swift */; };
 		A8C31D8E27A8BB40971F0064 /* TextSignalCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DBD7EB9582B085CB7D1063C /* TextSignalCaptureTests.swift */; };
 		AA99245C7C678EA2D4C35023 /* StandaloneOnboardingUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53BCE51454FF92655D32B728 /* StandaloneOnboardingUITests.swift */; };
+		ACC0E1060D9BE78F6F244141 /* RelationshipAskMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE7D8D288EC295CF8F91EE6B /* RelationshipAskMedia.swift */; };
 		ACCF73276C146F5561CD23D7 /* SharedCaptureEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */; };
 		AD08E92344FA0B6C172C1F68 /* CandidateSignalComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */; };
 		B3FCB11A82FE832BEF7B6B06 /* StandaloneOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */; };
@@ -184,6 +185,7 @@
 		A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionTests.swift; sourceTree = "<group>"; };
 		AA2B7831196A17D268065375 /* RelationshipCaptureClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureClient.swift; sourceTree = "<group>"; };
 		AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingView.swift; sourceTree = "<group>"; };
+		BE7D8D288EC295CF8F91EE6B /* RelationshipAskMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAskMedia.swift; sourceTree = "<group>"; };
 		BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCapture.swift; sourceTree = "<group>"; };
 		C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewClient.swift; sourceTree = "<group>"; };
 		C66F4083C1349A570FEBEC26 /* StandaloneCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneCalendarService.swift; sourceTree = "<group>"; };
@@ -353,6 +355,7 @@
 				7D60444BD109DBAA3780F88D /* RelationshipArchiveModels.swift */,
 				A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */,
 				8740830A52A1650A3FF8B41A /* RelationshipArchiveView.swift */,
+				BE7D8D288EC295CF8F91EE6B /* RelationshipAskMedia.swift */,
 				7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */,
 				5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */,
 				91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */,
@@ -637,6 +640,7 @@
 				A4B50D55CF2FD1DB578106DC /* RelationshipArchiveModels.swift in Sources */,
 				C4F842118E9C6C983BD8F36C /* RelationshipArchiveSheets.swift in Sources */,
 				19879CA4D7C15E17BD4FAAD2 /* RelationshipArchiveView.swift in Sources */,
+				ACC0E1060D9BE78F6F244141 /* RelationshipAskMedia.swift in Sources */,
 				FA2154B29466D7C1BF4C6347 /* RelationshipAskView.swift in Sources */,
 				82F626089258164A29855376 /* RelationshipCalendarView.swift in Sources */,
 				78E69431CCB66C1BFA7EFDDF /* RelationshipCapture.swift in Sources */,
