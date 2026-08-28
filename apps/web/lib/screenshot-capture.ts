@@ -20,7 +20,7 @@ export type ScreenshotPlatform = (typeof SCREENSHOT_PLATFORMS)[number];
 export type ScreenshotOwnerRole = (typeof SCREENSHOT_OWNER_ROLES)[number];
 
 export type ScreenshotAnalysisMeta = {
-  provider: "Volcano Ark" | "OpenRouter";
+  provider: "Volcano Ark" | "OpenRouter" | "Zhipu BigModel";
   model: string;
   request_id?: string;
   prompt_version: string;
@@ -36,7 +36,7 @@ export type ScreenshotAnalysisMeta = {
 
 const screenshotAnalysisMetaSchema = z
   .object({
-    provider: z.enum(["Volcano Ark", "OpenRouter"]),
+    provider: z.enum(["Volcano Ark", "OpenRouter", "Zhipu BigModel"]),
     model: z.string().min(1).max(120),
     request_id: z.string().min(1).max(180).optional(),
     prompt_version: z.string().min(1).max(80),

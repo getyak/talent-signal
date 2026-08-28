@@ -361,10 +361,10 @@ describe("screenshot capture proposal", () => {
     );
   });
 
-  it("retains a bounded, browser-local minimization receipt", () => {
+  it("retains a bounded, browser-local minimization receipt for BigModel", () => {
     const meta = validateScreenshotAnalysisMeta({
-      provider: "OpenRouter",
-      model: "google/gemini-3.5-flash-lite",
+      provider: "Zhipu BigModel",
+      model: "glm-5.3-flash",
       prompt_version: "screenshot-evidence.v1",
       pre_provider_minimization: {
         crop_bottom_percent: 90,
@@ -382,6 +382,7 @@ describe("screenshot capture proposal", () => {
       prepared_in_browser: true,
       redaction_count: 2,
     });
+    expect(meta.provider).toBe("Zhipu BigModel");
   });
 
   it("rejects a minimization receipt whose crop is too narrow", () => {
