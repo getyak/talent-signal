@@ -1,6 +1,54 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Add to the existing contact?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到已有联系人？" } } }
+    },
+    "Checking existing contacts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查已有联系人" } } }
+    },
+    "Choose the existing contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择已有联系人" } } }
+    },
+    "Confirm the original save" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对原保存结果" } } }
+    },
+    "Contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人" } } }
+    },
+    "Contact saved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人已保存" } } }
+    },
+    "Create a new contact?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建新联系人？" } } }
+    },
+    "Done editing" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成编辑" } } }
+    },
+    "Edit contact details" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑联系人详情" } } }
+    },
+    "Finish reviewing the contact first" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先完成联系人审阅" } } }
+    },
+    "Identity check needs retry" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份检查需要重试" } } }
+    },
+    "Identity check" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份检查" } } }
+    },
+    "Identity needs review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份需要审阅" } } }
+    },
+    "Name needed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要姓名" } } }
+    },
+    "Relationship needed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要关系" } } }
+    },
+    "Review this contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅此联系人" } } }
+    },
     "Clarify relative timing before relying on it" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先明确相对时间再使用" } } }
     },

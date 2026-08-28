@@ -297,6 +297,11 @@ struct RelationshipAskView: View {
     @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
     @State private var isSending = false
+    @State private var pendingObjective: String?
+#if DEBUG
+    @State private var fixtureAskFailureConsumed = false
+    @State private var fixtureContactLookupFailureConsumed = false
+#endif
     @State private var errorMessage: String?
     @State private var contactDraft: ConversationContactDraft?
     @State private var contactOperationKey: String?
@@ -513,6 +518,7 @@ struct RelationshipAskView: View {
             if !isCurrent { selectedCitation = nil }
         }
         .onChange(of: draft) { value in
+            guard !isSending else { return }
             guard let selectedScope else { return }
             sessionStore.saveDraft(
                 value,
@@ -595,6 +601,7 @@ struct RelationshipAskView: View {
                 }
             }
             .buttonStyle(.plain)
+            .disabled(isSending)
             .frame(
                 maxWidth: .infinity,
                 minHeight: scopeSelectorMinimumHeight,
@@ -730,7 +737,7 @@ struct RelationshipAskView: View {
                     }
 
                     if let contactDraft {
-                        ConversationContactProposalCard(
+                        ConversationContactProposalTurn(
                             draft: contactDraftBinding(fallback: contactDraft),
                             candidates: contactCandidates,
                             lookupPhase: contactLookupPhase,
@@ -751,7 +758,7 @@ struct RelationshipAskView: View {
                             },
                             onCancel: clearContactProposal
                         )
-                        .id(contactDraft.sourceNote)
+                        .id("contact-proposal-turn")
                     }
 
                     if !turns.isEmpty {
@@ -808,13 +815,12 @@ struct RelationshipAskView: View {
                         }
                     }
 
-                    if isSending {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                            Text(appLanguage.text("Reading the record…", zhHans: "正在读取记录…"))
-                                .font(.caption)
-                                .foregroundStyle(Color.tsMutedInk)
-                        }
+                    if isSending, let pendingObjective {
+                        AskPendingTurnView(
+                            message: pendingObjective,
+                            mediaDrafts: mediaDrafts,
+                            language: appLanguage
+                        )
                         .id("ask-loading")
                     }
 
@@ -830,10 +836,13 @@ struct RelationshipAskView: View {
                                 send(draft.isEmpty ? turns.last?.objective ?? "" : draft)
                             }
                             .font(.caption.weight(.semibold))
+                            .accessibilityIdentifier("ask-retry")
                         }
                         .padding(14)
                         .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
                         .id("ask-error")
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("ask-error")
                     }
 
                     if let reviewPreparationError {
@@ -872,6 +881,58 @@ struct RelationshipAskView: View {
                                 ? .top
                                 : .bottom
                         )
+                    }
+                }
+            }
+            .onChange(of: isSending) { sending in
+                guard sending else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    if reduceMotion {
+                        proxy.scrollTo("ask-loading", anchor: .bottom)
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo("ask-loading", anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            .onChange(of: errorMessage) { message in
+                guard message != nil else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    if reduceMotion {
+                        proxy.scrollTo("ask-error", anchor: .bottom)
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo("ask-error", anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            .onChange(of: contactDraft?.sourceNote) { sourceNote in
+                guard sourceNote != nil else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    if reduceMotion {
+                        proxy.scrollTo("contact-proposal-turn", anchor: .top)
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo("contact-proposal-turn", anchor: .top)
+                        }
+                    }
+                }
+            }
+            .onChange(of: contactLookupPhase) { phase in
+                guard case .failed = phase else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    if reduceMotion {
+                        proxy.scrollTo("contact-identity-state", anchor: .bottom)
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo("contact-identity-state", anchor: .bottom)
+                        }
                     }
                 }
             }
@@ -953,7 +1014,7 @@ struct RelationshipAskView: View {
         VStack(spacing: 8) {
             voiceInputStatus
 
-            if !mediaDrafts.isEmpty {
+            if !mediaDrafts.isEmpty, !isSending {
                 AskMediaDraftTray(
                     drafts: mediaDrafts,
                     onRetry: retryMediaDraft,
@@ -961,7 +1022,7 @@ struct RelationshipAskView: View {
                 )
             }
 
-            if let mediaNotice {
+            if let mediaNotice, !isSending {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "photo.on.rectangle.angled")
                         .accessibilityHidden(true)
@@ -989,7 +1050,13 @@ struct RelationshipAskView: View {
                         )
                         .background(Color.tsCanvas, in: Circle())
                 }
-                .disabled(voiceInput.isBusy || mediaDrafts.count >= 10 || selectedScope == nil)
+                .disabled(
+                    voiceInput.isBusy
+                        || isSending
+                        || contactDraft != nil
+                        || mediaDrafts.count >= 10
+                        || selectedScope == nil
+                )
                 .accessibilityLabel(
                     appLanguage.text("Add photos")
                 )
@@ -1001,13 +1068,15 @@ struct RelationshipAskView: View {
                 .accessibilityIdentifier("ask-add-photos")
 
                 TextField(
-                    appLanguage.text("Message or add anything…"),
+                    contactDraft == nil
+                        ? appLanguage.text("Message or add anything…")
+                        : appLanguage.text("Finish reviewing the contact first"),
                     text: $draft,
                     axis: .vertical
                 )
                 .focused($composerFocused)
                 .lineLimit(1...5)
-                .disabled(voiceInput.isBusy)
+                .disabled(voiceInput.isBusy || isSending || contactDraft != nil)
                 .padding(.horizontal, 15)
                 .padding(.vertical, 12)
                 .background(
@@ -1191,6 +1260,7 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimarySymbol: String {
+        if isSending { return "arrow.up" }
         if !trimmedDraft.isEmpty { return "arrow.up" }
         return voiceInput.isRecording ? "stop.fill" : "waveform"
     }
@@ -1207,6 +1277,7 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryDisabled: Bool {
+        if contactDraft != nil { return true }
         if !trimmedDraft.isEmpty { return !canSendDraft }
         if voiceInput.phase == .transcribing
             || voiceInput.phase == .requestingPermission {
@@ -1216,6 +1287,12 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryAccessibilityLabel: String {
+        if contactDraft != nil {
+            return appLanguage.text("Finish reviewing the contact first")
+        }
+        if isSending {
+            return appLanguage.text("Reading the record…")
+        }
         if !trimmedDraft.isEmpty { return appLanguage.text("Send") }
         if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
         if voiceTranscriber == nil { return appLanguage.text("Record voice") }
@@ -1517,6 +1594,8 @@ struct RelationshipAskView: View {
         guard !trimmed.isEmpty, !isSending else { return }
         if mediaIDs.isEmpty,
            let proposedContact = ConversationContactIntake.propose(trimmed) {
+            errorMessage = nil
+            isChoosingScope = false
             contactDraft = proposedContact
             contactOperationKey = "ios:contact:\(UUID().uuidString.lowercased())"
             pendingContactTarget = nil
@@ -1547,7 +1626,10 @@ struct RelationshipAskView: View {
               let selectedScope,
               mediaIDs.count == mediaDrafts.count else { return }
         errorMessage = nil
+        pendingObjective = trimmed
         isSending = true
+        draft = ""
+        composerFocused = false
         let operationID = UUID()
         let idempotencyKey = sessionStore.beginAsk(
             trimmed,
@@ -1558,6 +1640,7 @@ struct RelationshipAskView: View {
         )
         Task {
             do {
+                try await waitForFixtureAskDelayIfNeeded()
                 let response = try await ask(
                     trimmed,
                     selectedScope.person.id,
@@ -1579,15 +1662,16 @@ struct RelationshipAskView: View {
                     person: selectedScope.person,
                     context: selectedScope.context
                 )
+                pendingObjective = nil
                 sessionStore.clearDraft(
                     personID: selectedScope.person.id,
                     relationshipContextID: selectedScope.context.id
                 )
-                draft = ""
-                composerFocused = false
                 mediaDrafts = []
                 mediaNotice = nil
             } catch {
+                draft = pendingObjective ?? trimmed
+                pendingObjective = nil
                 errorMessage = (error as? LocalizedError)?.errorDescription
                     ?? appLanguage.text(
                         "Ask could not read this record. Your question is still here.",
@@ -1596,6 +1680,29 @@ struct RelationshipAskView: View {
             }
             isSending = false
         }
+    }
+
+    private func waitForFixtureAskDelayIfNeeded() async throws {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flagIndex = arguments.firstIndex(of: "--fixture-ask-delay-seconds"),
+              arguments.indices.contains(flagIndex + 1),
+              let seconds = Double(arguments[flagIndex + 1]),
+              seconds > 0 else {
+            if arguments.contains("--fixture-ask-fail-once"),
+               !fixtureAskFailureConsumed {
+                fixtureAskFailureConsumed = true
+                throw URLError(.networkConnectionLost)
+            }
+            return
+        }
+        try await Task.sleep(for: .milliseconds(Int(seconds * 1_000)))
+        if arguments.contains("--fixture-ask-fail-once"),
+           !fixtureAskFailureConsumed {
+            fixtureAskFailureConsumed = true
+            throw URLError(.networkConnectionLost)
+        }
+#endif
     }
 
     private func startContactLookup(
@@ -1627,6 +1734,7 @@ struct RelationshipAskView: View {
         let sourceNote = proposal.sourceNote
         contactLookupTask = Task {
             do {
+                try await waitForFixtureContactLookupIfNeeded()
                 let matches = try await workspaceStore.findContactMatches(
                     identityClue: identityClue
                 )
@@ -1648,6 +1756,24 @@ struct RelationshipAskView: View {
                 )
             }
         }
+    }
+
+    private func waitForFixtureContactLookupIfNeeded() async throws {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if let flagIndex = arguments.firstIndex(
+            of: "--fixture-contact-lookup-delay-seconds"
+        ), arguments.indices.contains(flagIndex + 1),
+           let seconds = Double(arguments[flagIndex + 1]),
+           seconds > 0 {
+            try await Task.sleep(for: .milliseconds(Int(seconds * 1_000)))
+        }
+        if arguments.contains("--fixture-contact-lookup-fail-once"),
+           !fixtureContactLookupFailureConsumed {
+            fixtureContactLookupFailureConsumed = true
+            throw URLError(.networkConnectionLost)
+        }
+#endif
     }
 
     private func saveContactProposal() {
@@ -2021,7 +2147,7 @@ struct RelationshipAskView: View {
     }
 }
 
-private struct ConversationContactProposalCard: View {
+private struct ConversationContactProposalTurn: View {
     @Binding var draft: ConversationContactDraft
     let candidates: [WorkspacePerson]
     let lookupPhase: ConversationContactLookupPhase
@@ -2039,7 +2165,10 @@ private struct ConversationContactProposalCard: View {
     let onConfirm: () -> Void
     let onRetryLookup: () -> Void
     let onCancel: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.sizeCategory) private var sizeCategory
     @State private var showsAllMatches = false
+    @State private var editsDetails = false
 
     private var selectedPerson: WorkspacePerson? {
         candidates.first { $0.id == selectedPersonID }
@@ -2075,38 +2204,45 @@ private struct ConversationContactProposalCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 14) {
+            AskUserMessageBubble(
+                message: draft.sourceNote,
+                accessibilityIdentifier: "contact-user-message"
+            )
+            .frame(maxWidth: .infinity, alignment: .trailing)
+
+            HStack(alignment: .top, spacing: 0) {
+                proposalCard
+                    .frame(
+                        maxWidth: dynamicTypeSize.isAccessibilitySize
+                            || sizeCategory.isAccessibilityCategory
+                            ? .infinity
+                            : 344,
+                        alignment: .leading
+                    )
+                Spacer(minLength: 0)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("contact-proposal-turn")
+    }
+
+    private var proposalCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "person.crop.circle.badge.plus")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(Color.tsVermilion)
-                    .frame(width: 40, height: 40)
-                    .background(Color.tsVermilion.opacity(0.1), in: Circle())
-                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(language.text("CONTACT PROPOSAL", zhHans: "联系人提议"))
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.4)
-                        .foregroundStyle(Color.tsVermilion)
-                    TextField(
-                        language.text("Contact name", zhHans: "联系人姓名"),
-                        text: $draft.name
+                    Label(
+                        language.text("Contact"),
+                        systemImage: "person.crop.circle.badge.plus"
                     )
-                        .font(.custom("Georgia", size: 26, relativeTo: .title2))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsMutedInk)
+
+                    Text(proposalTitle)
+                        .font(.headline)
                         .foregroundStyle(Color.tsInk)
-                        .textInputAutocapitalization(.words)
-                        .submitLabel(.next)
-                        .disabled(isReadOnly)
-                        .accessibilityIdentifier("contact-proposal-name")
-                    TextField(
-                        language.text("Relationship", zhHans: "关系"),
-                        text: $draft.relationshipContext
-                    )
-                        .font(.subheadline)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .submitLabel(.done)
-                        .disabled(isReadOnly)
-                        .accessibilityIdentifier("contact-proposal-relationship")
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("contact-proposal-title")
                 }
                 Spacer(minLength: 8)
                 Button(action: onCancel) {
@@ -2115,9 +2251,13 @@ private struct ConversationContactProposalCard: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
+                .disabled(isSaving || (hasPendingWrite && saveMessage == nil))
+                .opacity(isSaving || (hasPendingWrite && saveMessage == nil) ? 0.42 : 1)
                 .accessibilityLabel(language.text("Dismiss proposal", zhHans: "关闭提议"))
                 .accessibilityIdentifier("contact-dismiss-proposal")
             }
+
+            contactDetails
 
             if let clue = draft.identityClue {
                 Toggle(isOn: $confirmIdentityClue) {
@@ -2152,11 +2292,12 @@ private struct ConversationContactProposalCard: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+                .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
                 .accessibilityIdentifier("contact-pending-write-boundary")
             }
 
             identityReview
+                .id("contact-identity-state")
 
             if let saveMessage {
                 Label(saveMessage, systemImage: "checkmark.circle.fill")
@@ -2164,7 +2305,7 @@ private struct ConversationContactProposalCard: View {
                     .foregroundStyle(Color.tsInk)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+                    .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 16))
                     .accessibilityIdentifier("contact-save-success")
             } else {
                 if let errorMessage {
@@ -2175,7 +2316,10 @@ private struct ConversationContactProposalCard: View {
                         .accessibilityIdentifier("contact-save-error")
                 }
 
-                Button(action: onConfirm) {
+                Button {
+                    editsDetails = false
+                    onConfirm()
+                } label: {
                     HStack(spacing: 8) {
                         if isSaving {
                             ProgressView()
@@ -2225,13 +2369,12 @@ private struct ConversationContactProposalCard: View {
                 saveMessage == nil ? "contact-proposal-boundary" : "contact-receipt-boundary"
             )
         }
-        .padding(18)
-        .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 24))
+        .padding(16)
+        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 20))
         .overlay {
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.tsInk.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.tsLine, lineWidth: 1)
         }
-        .shadow(color: Color.tsInk.opacity(0.05), radius: 18, y: 8)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("contact-proposal-card")
         .onChange(of: draft.name) { _ in
@@ -2255,13 +2398,159 @@ private struct ConversationContactProposalCard: View {
         }
     }
 
+    private var proposalTitle: String {
+        if saveMessage != nil {
+            return language.text("Contact saved")
+        }
+        if hasPendingWrite {
+            return language.text("Confirm the original save")
+        }
+        guard isCanonical else {
+            return language.text("Review this contact")
+        }
+        switch lookupPhase {
+        case .idle:
+            return language.text("Review this contact")
+        case .checking:
+            return language.text("Checking existing contacts")
+        case .failed:
+            return language.text("Identity check needs retry")
+        case .complete:
+            if hasCurrentHistoricalConflict {
+                return language.text("Identity needs review")
+            }
+            if candidates.isEmpty {
+                return language.text("Create a new contact?")
+            }
+            if selectedPersonID != nil {
+                return language.text("Add to the existing contact?")
+            }
+            return language.text("Choose the existing contact")
+        }
+    }
+
+    @ViewBuilder
+    private var contactDetails: some View {
+        if editsDetails {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(language.text("Name"))
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                    TextField(
+                        language.text("Contact name", zhHans: "联系人姓名"),
+                        text: $draft.name
+                    )
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .textInputAutocapitalization(.words)
+                    .submitLabel(.next)
+                    .disabled(isReadOnly)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityIdentifier("contact-proposal-name")
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(language.text("Relationship"))
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                    TextField(
+                        language.text("Relationship", zhHans: "关系"),
+                        text: $draft.relationshipContext
+                    )
+                    .font(.body)
+                    .foregroundStyle(Color.tsInk)
+                    .submitLabel(.done)
+                    .disabled(isReadOnly)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityIdentifier("contact-proposal-relationship")
+                }
+
+                Button {
+                    editsDetails = false
+                } label: {
+                    Label(
+                        language.text("Done editing"),
+                        systemImage: "checkmark"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .disabled(isReadOnly)
+                .accessibilityIdentifier("contact-finish-details")
+            }
+            .padding(14)
+            .background(Color.tsSurface.opacity(0.72), in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("contact-details-editor")
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(
+                        draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? language.text("Name needed")
+                            : draft.name
+                    )
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("contact-summary-name")
+
+                    Text(
+                        draft.relationshipContext.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
+                            ? language.text("Relationship needed")
+                            : draft.relationshipContext
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("contact-summary-relationship")
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 4)
+
+                if !isReadOnly {
+                    Button {
+                        editsDetails = true
+                    } label: {
+                        Label(
+                            language.text("Edit"),
+                            systemImage: "pencil"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                        .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(language.text("Edit contact details"))
+                    .accessibilityIdentifier("contact-edit-details")
+                }
+            }
+            .padding(14)
+            .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("contact-proposal-summary")
+        }
+    }
+
     @ViewBuilder
     private var identityReview: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(language.text("IDENTITY CHECK", zhHans: "身份检查"))
-                .font(.caption2.weight(.bold))
-                .tracking(1.2)
-                .foregroundStyle(Color.tsMutedInk)
+            Label(
+                language.text("Identity check"),
+                systemImage: "person.text.rectangle"
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.tsInk)
 
             if !isCanonical {
                 Label(
@@ -2302,6 +2591,7 @@ private struct ConversationContactProposalCard: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("contact-retry-identity-check")
                 }
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("contact-identity-check-failed")
             } else if candidates.isEmpty {
                 Label(
@@ -2376,7 +2666,7 @@ private struct ConversationContactProposalCard: View {
                             )
                         }
                         .padding(12)
-                        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+                        .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 16))
                     }
                     .buttonStyle(.plain)
                     .disabled(!selectionAllowed)
@@ -2628,8 +2918,88 @@ private struct SelectedPursuitTarget: Identifiable {
     var id: String { "\(pursuit.id):\(actionID)" }
 }
 
+private struct AskPendingTurnView: View {
+    let message: String
+    let mediaDrafts: [AskMediaDraft]
+    let language: AppLanguage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .trailing, spacing: 7) {
+                if !mediaDrafts.isEmpty {
+                    AskPendingMediaStrip(
+                        drafts: mediaDrafts,
+                        language: language
+                    )
+                }
+                AskUserMessageBubble(message: message)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+
+            HStack(spacing: 9) {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityHidden(true)
+                Text(
+                    language.text("Reading the record…")
+                )
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                language.text("Reading the record…")
+            )
+            .accessibilityIdentifier("ask-loading")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-pending-turn")
+    }
+}
+
+private struct AskPendingMediaStrip: View {
+    let drafts: [AskMediaDraft]
+    let language: AppLanguage
+
+    private var visibleDrafts: [AskMediaDraft] { Array(drafts.prefix(3)) }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(visibleDrafts.enumerated()), id: \.element.id) { index, draft in
+                Image(uiImage: draft.preview)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 58, height: 58)
+                    .clipShape(RoundedRectangle(cornerRadius: 13))
+                    .overlay {
+                        if index == 2, drafts.count > 3 {
+                            RoundedRectangle(cornerRadius: 13)
+                                .fill(Color.black.opacity(0.48))
+                            Text(verbatim: "+\(drafts.count - 3)")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                        }
+                    }
+            }
+        }
+        .padding(3)
+        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            String(drafts.count) + " · "
+                + language.text("Task images, not evidence")
+        )
+        .accessibilityIdentifier("ask-pending-media")
+    }
+}
+
 private struct AskUserMessageBubble: View {
     let message: String
+    var accessibilityIdentifier = "ask-user-message"
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -2639,7 +3009,7 @@ private struct AskUserMessageBubble: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(message)
-        .accessibilityIdentifier("ask-user-message")
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private func bubble(fixesWidth: Bool) -> some View {

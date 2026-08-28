@@ -1171,6 +1171,25 @@ at 330 points. The standard fixture's `What changed?` bubble is under 280 points
 while the Chinese AX5 bubble remains within the viewport without truncating its
 question or reducing Dynamic Type.
 
+The send moment now follows the same conversation hierarchy. Two structures
+were compared: embedding a mutable progress/error state inside the recruiter's
+right-hand bubble, or treating the recruiter message as an immediate immutable
+echo while the Agent reports its own state in a separate left-hand row. The
+second direction was selected because it preserves authorship and never makes
+the recruiter's words look as though the Agent can edit their state. On send,
+the composer clears visually, the exact question and any task-image thumbnails
+appear immediately at the right, and a quiet `Reading the record…` row appears
+at the left. This pending turn is only an ephemeral projection; a canonical
+`AgentSessionTurn` is recorded after the validated response returns.
+
+Failure restores the exact question and retained media to the composer while
+keeping the existing idempotency intent available for retry. The failure card
+scrolls into view and exposes `Retry` as a distinct accessible child. The first
+focused failure run revealed that the row-level accessibility identifier was
+overwriting the child button identifier despite a visually visible control;
+the final container preserves child semantics, and the same-intent retry now
+passes end to end.
+
 The established Today / Sessions / People navigation and bottom global Agent
 entry were not moved or restyled.
 
@@ -1188,6 +1207,21 @@ entry were not moved or restyled.
   stale after a dispute, and opens the referenced existing Pursuit action.
 - One unit test verifies source-timezone boundaries and localized citation
   provenance. Release build and the localization boundary passed.
+- The send-state verification covers standard English, Simplified Chinese dark
+  AX5 with Reduce Motion, a five-task-image message, and failure recovery. The
+  three non-failure journeys passed in
+  `/tmp/talent-signal-ios-ask-pending-final.xcresult`; the corrected focused
+  failure and same-intent retry passed in
+  `/tmp/talent-signal-ios-ask-pending-failure-v3.xcresult`.
+- Final send-state renders are:
+  `/tmp/talent-signal-ios-ask-pending-artifacts.wkm72W/main/5EC40826-F1A5-454E-8126-76243111B046.png`
+  (standard pending),
+  `/tmp/talent-signal-ios-ask-pending-artifacts.wkm72W/main/E2120393-85EE-40FF-8F15-BA8BD9052094.png`
+  (Chinese dark AX5 pending),
+  `/tmp/talent-signal-ios-ask-pending-artifacts.wkm72W/main/3C522C53-2DCB-465F-B313-3B8AA13C1F77.png`
+  (five-image pending), and
+  `/tmp/talent-signal-ios-ask-pending-artifacts.wkm72W/failure/D2929875-1CBA-4280-B3D6-4DCD60A7DA19.png`
+  (failure restoration).
 - Exact excerpts, person names, and backend evidence content are never silently
   translated. No contact, message, calendar event, or external system write is
   authorized by this presentation layer.

@@ -312,3 +312,24 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   points) while retaining the existing Chinese dark AX5 viewport bound. Both
   focused UI journeys passed with zero failures in
   `/tmp/talent-signal-ios-ask-bubble-final.xcresult`.
+- Completed the iOS Ask send moment as an IM-style conversation transition.
+  The recruiter's exact message now echoes immediately on the right while a
+  separate quiet Agent row reports `Reading the record…`; progress is never
+  embedded as mutable state inside recruiter-authored content.
+- Clearing the visible composer no longer clears the persisted pending intent.
+  The existing idempotency key remains authoritative until a validated response
+  is recorded as a canonical `AgentSessionTurn`.
+- Pending photo asks now show a compact three-thumbnail strip with a remainder
+  count inside the outgoing message. The strip remains explicitly task imagery,
+  not evidence, and avoids returning to an upload-form presentation.
+- Failure restores the exact question and retained media, scrolls the recovery
+  card into view, and keeps `Retry` as its own accessible, hittable child. The
+  successful retry reuses the retained intent instead of silently creating a
+  second request.
+- Level 1 iPhone 17 Pro Simulator verification on iOS 26.5 covers standard
+  English, Simplified Chinese dark AX5 with Reduce Motion, five-image pending
+  and final messages, and failure-to-retry recovery. The non-failure journeys
+  are recorded in `/tmp/talent-signal-ios-ask-pending-final.xcresult`; the final
+  corrected failure journey passed 1/1 in
+  `/tmp/talent-signal-ios-ask-pending-failure-v3.xcresult`. Final screenshots
+  and the structural decision are recorded in `design-qa.md`.
