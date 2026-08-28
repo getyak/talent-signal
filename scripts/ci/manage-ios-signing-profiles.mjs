@@ -2,9 +2,7 @@
 
 import { createSign } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const APP_GROUP = "group.com.talentsignal.app";
@@ -30,9 +28,8 @@ export function createAppStoreConnectToken({ issuerId, keyId, privateKey, now = 
   const input = `${header}.${payload}`;
   const signer = createSign("SHA256");
   // The public Apple key ID is part of a signed JWT header, not a password.
-  // lgtm[js/insufficient-password-hash]
-  signer.update(input);
-  signer.end();
+  signer.update(input); // lgtm[js/insufficient-password-hash]
+  signer.end(); // lgtm[js/insufficient-password-hash]
   const signature = signer.sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
   return `${input}.${signature.toString("base64url")}`;
 }
@@ -54,22 +51,19 @@ export function validateProvisioningProfile(profile, spec) {
   }
 }
 
-function decodeProfile(profileContent, temporaryDirectory) {
-  const source = join(temporaryDirectory, "profile.mobileprovision");
-  const plist = join(temporaryDirectory, "profile.plist");
-  // App Store Connect returns the authenticated profile payload. The bounded
-  // mode-0600 file is required by macOS Security and is removed in finally.
-  // lgtm[js/http-to-file-access]
-  writeFileSync(source, Buffer.from(profileContent, "base64"), { mode: 0o600 });
-  execFileSync("/usr/bin/security", ["cms", "-D", "-i", source, "-o", plist]);
+function decodeProfile(profileContent) {
+  const plist = execFileSync("/usr/bin/security", ["cms", "-D", "-i", "/dev/stdin"], {
+    input: Buffer.from(profileContent, "base64"),
+    maxBuffer: 10 * 1024 * 1024,
+  });
   const extraction = [
     "import json, plistlib, sys",
-    "with open(sys.argv[1], 'rb') as source: profile = plistlib.load(source)",
+    "profile = plistlib.loads(sys.stdin.buffer.read())",
     "entitlements = profile.get('Entitlements', {})",
     "keys = ['application-identifier', 'com.apple.security.application-groups', 'com.apple.developer.applesignin']",
     "print(json.dumps({'Name': profile.get('Name'), 'Entitlements': {key: entitlements[key] for key in keys if key in entitlements}}))",
   ].join("\n");
-  return JSON.parse(execFileSync("python3", ["-c", extraction, plist], { encoding: "utf8" }));
+  return JSON.parse(execFileSync("python3", ["-c", extraction], { encoding: "utf8", input: plist }));
 }
 
 async function apiRequest(token, path, options = {}) {
@@ -118,21 +112,16 @@ async function rotate(token) {
 }
 
 async function verify(token) {
-  const temporaryDirectory = mkdtempSync(join(tmpdir(), "talent-signal-profiles-"));
-  try {
-    for (const spec of PROFILE_SPECS) {
-      const profiles = await profilesForSpec(token, spec);
-      if (profiles.length !== 1) throw new Error(`Expected one exact profile for ${spec.bundleId}; found ${profiles.length}`);
-      const profile = profiles[0];
-      if (profile.bundleId !== spec.bundleId || profile.attributes.profileState !== "ACTIVE") {
-        throw new Error(`Profile for ${spec.bundleId} is not exact and ACTIVE`);
-      }
-      const decoded = decodeProfile(profile.attributes.profileContent, temporaryDirectory);
-      validateProvisioningProfile(decoded, spec);
-      console.log(`Verified ${spec.bundleId}: ${profile.attributes.uuid}`);
+  for (const spec of PROFILE_SPECS) {
+    const profiles = await profilesForSpec(token, spec);
+    if (profiles.length !== 1) throw new Error(`Expected one exact profile for ${spec.bundleId}; found ${profiles.length}`);
+    const profile = profiles[0];
+    if (profile.bundleId !== spec.bundleId || profile.attributes.profileState !== "ACTIVE") {
+      throw new Error(`Profile for ${spec.bundleId} is not exact and ACTIVE`);
     }
-  } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true });
+    const decoded = decodeProfile(profile.attributes.profileContent);
+    validateProvisioningProfile(decoded, spec);
+    console.log(`Verified ${spec.bundleId}: ${profile.attributes.uuid}`);
   }
 }
 
