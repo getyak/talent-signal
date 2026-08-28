@@ -129,7 +129,7 @@ describe("private screenshot analysis provider", () => {
     vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "true");
     vi.stubEnv("TALENT_SIGNAL_SCREENSHOT_PROVIDER", "zhipu");
     vi.stubEnv("ZHIPU_API_KEY", "test-key");
-    vi.stubEnv("ARK_API_KEY", "an-ark-key-that-must-not-win");
+    vi.stubEnv("ARK_API_KEY", "synthetic-provider-value-not-selected");
     vi.stubEnv("OPENROUTER_API_KEY", "an-openrouter-key-that-must-not-win");
     const fetchImpl = vi.fn(async () =>
       new Response(
