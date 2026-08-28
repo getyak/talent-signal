@@ -100,9 +100,18 @@ token.
   registered and regenerated through the scoped Apple and Match maintenance
   credentials. Final archive/upload proof remains pending the core branch merge
   that carries the three-profile Fastlane mapping.
-- **Pending:** merge the core migration, rerun the real TestFlight release, and
-  then delete or revoke old GitHub secrets, `.env.testflight`, root duplicates,
-  and the bounded local `.env` recovery copy.
+- **Complete:** PRs #77 and #78 merged. TestFlight release `0.1.13`
+  (`20260828111000`) completed Apple processing and internal distribution from
+  Infisical OIDC. The three local rollback files, old GitHub repository and
+  `testflight` Environment secrets/variable, and superseded Match deploy key
+  were removed; only the non-secret Infisical identity ID remains in GitHub.
+- **Complete:** the signing refresh now rotates only the three exact App Store
+  profiles and verifies the shared App Group on every profile plus Sign in with
+  Apple on the main profile before accepting the Match repository update.
+- **Pending external administration:** revoke the superseded Tailscale OAuth
+  client and old App Store Connect key once their exact console records are
+  confirmed; remove the protected, unused organization-level Infisical identity
+  through an organization administrator.
 - **Verified:** workflow actionlint, shell syntax, documentation, secret
   scanning, Agent/Web/Backend tests, the web production build with a synthetic
   auth secret, and name-only `dev`/`staging` contracts pass. A clean-worktree
@@ -110,9 +119,7 @@ token.
 
 ## Remaining cutover
 
-1. Rebase and merge the core secret-management branch, then rerun the real
-   TestFlight release with the app and extension profile mapping.
-2. Remove the three
-   verified local rollback files.
-3. Remove and revoke the superseded GitHub secrets, old Match deploy key, and
-   old Tailscale OAuth client only after the release/access proof succeeds.
+1. Provision real production values, host, and a production-only workload
+   identity before enabling the production cutover.
+2. Complete the three explicitly named external-admin revocations above; do not
+   infer or bulk-delete credential records.
