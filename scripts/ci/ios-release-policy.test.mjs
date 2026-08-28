@@ -261,6 +261,49 @@ test("manual Fastlane builds require the same Release environment", () => {
   );
 });
 
+test("all shipped targets pin their App Store profiles in Release", () => {
+  const project = readFileSync(
+    join(repositoryRoot, "apps/ios/TalentSignal.xcodeproj/project.pbxproj"),
+    "utf8",
+  );
+  const releaseConfigurations = Array.from(
+    project.matchAll(
+      /\/\* Release \*\/ = \{\n\s+isa = XCBuildConfiguration;\n(?:\s+baseConfigurationReference = [^\n]+;\n)?\s+buildSettings = \{([\s\S]*?)\n\s+\};\n\s+name = Release;\n\s+\};/g,
+    ),
+    (match) => match[1],
+  );
+
+  for (const bundleIdentifier of [
+    "com.talentsignal.app",
+    "com.talentsignal.app.share",
+    "com.talentsignal.app.live-activity",
+  ]) {
+    const configuration = releaseConfigurations.find((candidate) =>
+      candidate.includes(`PRODUCT_BUNDLE_IDENTIFIER = ${
+        bundleIdentifier.includes("-")
+          ? `"${bundleIdentifier}"`
+          : bundleIdentifier
+      };`),
+    );
+
+    assert.ok(
+      configuration,
+      `expected Release settings for ${bundleIdentifier}`,
+    );
+    assert.match(configuration, /CODE_SIGN_STYLE = Manual;/);
+    assert.match(
+      configuration,
+      /CODE_SIGN_IDENTITY = "iPhone Distribution: Xiong Xinwei \(6RG2F8YY59\)";/,
+    );
+    assert.ok(
+      configuration.includes(
+        `PROVISIONING_PROFILE_SPECIFIER = "match AppStore ${bundleIdentifier}";`,
+      ),
+      `expected the App Store profile for ${bundleIdentifier}`,
+    );
+  }
+});
+
 test("signing refresh is explicit, entitlement-checked, and separately authorized", () => {
   const refreshWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/refresh-ios-signing.yml"),
