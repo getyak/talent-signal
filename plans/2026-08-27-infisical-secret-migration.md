@@ -80,8 +80,10 @@ token.
 - **Pending:** real TestFlight release/access proof and deletion or revocation of
   the old GitHub secrets, `.env.testflight`, root duplicates, and any bounded
   local `.env` recovery copy.
-- **Verified:** `pnpm check`, workflow actionlint, shell syntax, documentation,
-  secret scanning, and name-only `dev`/`staging` contracts pass.
+- **Verified:** workflow actionlint, shell syntax, documentation, secret
+  scanning, Agent/Web/Backend tests, the web production build with a synthetic
+  auth secret, and name-only `dev`/`staging` contracts pass. A clean-worktree
+  web process injected from `dev:/shared` plus `dev:/web` returned HTTP 200.
 
 ## Remaining cutover
 
