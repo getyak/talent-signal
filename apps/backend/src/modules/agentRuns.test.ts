@@ -87,6 +87,20 @@ describe("configuredAgentProvider", () => {
     });
   });
 
+  it("fails closed when direct BigModel pricing is not explicit", () => {
+    process.env.TALENT_SIGNAL_AGENT_PROVIDER = "zhipu";
+    process.env.TALENT_SIGNAL_AGENT_MODEL = "glm-5.3";
+    process.env.ZHIPU_API_KEY = "synthetic-test-key";
+    delete process.env.TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION;
+    delete process.env.TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION;
+    delete process.env.TALENT_SIGNAL_CNY_PER_USD;
+
+    expectApiError(
+      () => configuredAgentProvider(),
+      "AGENT_PROVIDER_CONFIGURATION_INVALID",
+    );
+  });
+
   it("fails closed without a credential or pinned model", () => {
     process.env.TALENT_SIGNAL_AGENT_PROVIDER = "openrouter";
     delete process.env.TALENT_SIGNAL_AGENT_MODEL;

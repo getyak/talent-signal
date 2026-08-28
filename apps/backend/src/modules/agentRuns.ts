@@ -365,9 +365,14 @@ export function configuredAgentProvider(): AgentProvider {
       );
     }
     try {
-      const numericSetting = (name: string, fallback: number) => {
+      const numericSetting = (name: string) => {
         const raw = process.env[name]?.trim();
-        const value = raw ? Number(raw) : fallback;
+        if (!raw) {
+          throw new Error(
+            `${name} is required because direct GLM-5.3 pricing is not yet published on the official BigModel price sheet.`,
+          );
+        }
+        const value = Number(raw);
         if (!Number.isFinite(value) || value <= 0) {
           throw new Error(`${name} must be a positive number.`);
         }
@@ -389,13 +394,11 @@ export function configuredAgentProvider(): AgentProvider {
         reasoningEffort: reasoningEffort as "low" | "high" | "max",
         inputCnyPerMillion: numericSetting(
           "TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION",
-          8,
         ),
         outputCnyPerMillion: numericSetting(
           "TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION",
-          28,
         ),
-        cnyPerUsd: numericSetting("TALENT_SIGNAL_CNY_PER_USD", 7),
+        cnyPerUsd: numericSetting("TALENT_SIGNAL_CNY_PER_USD"),
       });
     } catch (error) {
       throw new ApiError(

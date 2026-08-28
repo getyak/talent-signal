@@ -103,11 +103,13 @@ Out of scope:
    production; do not create long-lived service tokens as the default.
 4. Enable GLM-5.3 synthetic Agent evaluation through the existing pinned
    OpenRouter adapter, adding explicit low reasoning effort and privacy routing.
-5. Add a direct BigModel screenshot adapter for `glm-5v-turbo` rather than
-   treating text-only GLM-5.3 as a vision model. Keep selection explicit and
-   disabled until its key and sensitive-processing gate are present.
-6. Benchmark `glm-4.6v`, `glm-5v-turbo`, and `glm-5.3-flash` only on synthetic
-   screenshots before choosing a production default.
+5. Add a direct BigModel screenshot adapter pinned to the native multimodal
+   `glm-5.3-flash`; do not treat the standard text-only `glm-5.3` endpoint as a
+   vision model. Keep selection explicit and disabled until both the AI and
+   sensitive-processing gates are deliberately enabled.
+6. Use the passed synthetic `glm-5.3-flash` image proof as the development
+   default. Keep private candidate evidence disabled until provider admission
+   and a human-approved data-processing decision are complete.
 
 Rejected alternatives:
 
