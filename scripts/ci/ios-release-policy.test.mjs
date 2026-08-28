@@ -304,6 +304,27 @@ test("all shipped targets pin their App Store profiles in Release", () => {
   }
 });
 
+test("generated extension signing stays represented in the project specification", () => {
+  const projectSpecification = readFileSync(
+    join(repositoryRoot, "apps/ios/project.yml"),
+    "utf8",
+  );
+
+  for (const bundleIdentifier of [
+    "com.talentsignal.app.share",
+    "com.talentsignal.app.live-activity",
+  ]) {
+    assert.match(
+      projectSpecification,
+      new RegExp(
+        `PRODUCT_BUNDLE_IDENTIFIER: ${bundleIdentifier.replaceAll(".", "\\.")}` +
+          `[\\s\\S]*?Release:[\\s\\S]*?CODE_SIGN_STYLE: Manual` +
+          `[\\s\\S]*?PROVISIONING_PROFILE_SPECIFIER: match AppStore ${bundleIdentifier.replaceAll(".", "\\.")}`,
+      ),
+    );
+  }
+});
+
 test("signing refresh is explicit, entitlement-checked, and separately authorized", () => {
   const refreshWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/refresh-ios-signing.yml"),

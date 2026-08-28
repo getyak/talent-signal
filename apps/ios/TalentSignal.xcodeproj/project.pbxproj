@@ -504,7 +504,6 @@
 				TargetAttributes = {
 					76E68CE7B8C33205DD28BB5D = {
 						DevelopmentTeam = 6RG2F8YY59;
-						ProvisioningStyle = Automatic;
 					};
 					7A1E5332413A7E18BB45A742 = {
 						DevelopmentTeam = 6RG2F8YY59;
@@ -520,7 +519,6 @@
 					};
 					E24E32EDDA79DA017C952559 = {
 						DevelopmentTeam = 6RG2F8YY59;
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
