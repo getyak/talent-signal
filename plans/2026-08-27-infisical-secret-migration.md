@@ -36,7 +36,11 @@ token.
 - **Complete:** audited credential-shaped runtime environment names against the
   manifest; `AUTH_SECRET`, OpenRouter, Ark, and Zhipu development readback pass.
 - **Complete:** switched local and TestFlight wrappers to transient folder
-  injection and added manifest/contract tests.
+  injection and added manifest/contract tests. The real TestFlight backend was
+  rebuilt from this branch using only `staging:/shared` and
+  `staging:/backend`; the database migration, container health, Apple public-key
+  retrieval, Apple authentication challenge, loopback probe, and tailnet HTTPS
+  probe all passed while the existing unrelated Serve routes remained intact.
 - **Complete:** created protected project-managed identity
   `github-testflight-release-oidc` with ID
   `c9ad327f-9a88-4781-a28d-fc59ab21e944`, exact GitHub OIDC binding, and a
@@ -71,13 +75,20 @@ token.
   `staging:/release`, verified token exchange from Infisical readback, and
   removed the bounded local credential copy. The old client remains available
   for rollback until the real workflow proof succeeds.
+- **Complete:** compared every name in the remaining local rollback files with
+  live Infisical injection: 25 development names and 12 TestFlight names have
+  zero missing destinations. `TALENT_SIGNAL_INTEGRATION_MODE`, the one
+  previously omitted non-secret behavior flag, is now preserved in
+  `dev:/web` and the manifest.
 - **Pending:** production backend values, a production-only workload identity,
   and the production deployment-script cutover after those prerequisites pass.
 - **Complete:** bound GitHub environment `testflight` variable
   `INFISICAL_TESTFLIGHT_IDENTITY_ID` to the protected project-managed identity;
   legacy workflows do not consume this variable, so the new workflow will enter
   the OIDC path immediately after merge.
-- **Pending:** real TestFlight release/access proof and deletion or revocation of
+- **Pending:** PR #74 final iOS check is running with a 60-minute job budget
+  after the previous all-passing test run was cancelled by the old 45-minute
+  timeout. Real TestFlight release/access proof and deletion or revocation of
   the old GitHub secrets, `.env.testflight`, root duplicates, and any bounded
   local `.env` recovery copy.
 - **Verified:** workflow actionlint, shell syntax, documentation, secret
@@ -88,7 +99,10 @@ token.
 ## Remaining cutover
 
 1. Complete PR #74 checks and merge the isolated workflow cutover.
-2. Run the audit-only TestFlight access workflow and a real TestFlight release,
+2. Run the audit-only TestFlight access workflow from `main` and a real
+   TestFlight release,
    then observe their external outcomes.
-3. Remove and revoke the superseded GitHub secrets and old Tailscale OAuth client
-   only after proof succeeds.
+3. Rebase and merge the core secret-management branch, then remove the three
+   verified local rollback files.
+4. Remove and revoke the superseded GitHub secrets, old Match deploy key, and
+   old Tailscale OAuth client only after the release/access proof succeeds.
