@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       confirm_profile_refresh:
-        description: Sync the regenerated App Store profile for com.talentsignal.app
+        description: Regenerate the App Store profiles for the app and extensions
         required: true
         default: false
         type: boolean
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: release-ios
@@ -18,7 +19,7 @@ concurrency:
 
 jobs:
   refresh:
-    name: Refresh App Store profile
+    name: Refresh App Store profiles
     runs-on: macos-26
     timeout-minutes: 30
     environment:
@@ -39,7 +40,19 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Validate maintenance secrets
+      - name: Load release secrets from Infisical
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
+        uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_TESTFLIGHT_IDENTITY_ID }}
+          oidc-audience: infisical://talent-signal/testflight
+          project-slug: talent-signal-8p1-x
+          env-slug: staging
+          secret-path: /release
+
+      - name: Load legacy GitHub secrets during migration
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''
         env:
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
@@ -47,6 +60,20 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_MAINTENANCE_DEPLOY_KEY: ${{ secrets.MATCH_MAINTENANCE_DEPLOY_KEY }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: |
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            MATCH_GIT_URL \
+            MATCH_MAINTENANCE_DEPLOY_KEY \
+            MATCH_PASSWORD; do
+            delimiter="TS_SECRET_${GITHUB_RUN_ID}_${RANDOM}"
+            printf '%s<<%s\n%s\n%s\n' \
+              "$name" "$delimiter" "${!name:-}" "$delimiter" >> "$GITHUB_ENV"
+          done
+
+      - name: Validate maintenance secrets
         run: |
           missing=0
           for name in \
@@ -71,10 +98,7 @@ jobs:
 
       - name: Configure temporary signing credentials
         env:
-          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          MATCH_MAINTENANCE_DEPLOY_KEY: ${{ secrets.MATCH_MAINTENANCE_DEPLOY_KEY }}
+          API_KEY_CONTENT: ${{ env.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
           install -d -m 700 "$RUNNER_TEMP/match-maintenance-ssh"
           printf '%s\n' "$MATCH_MAINTENANCE_DEPLOY_KEY" > "$RUNNER_TEMP/match-maintenance-ssh/key"
@@ -99,8 +123,14 @@ jobs:
       - name: Verify isolated signing repository access
         env:
           GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: git ls-remote --exit-code "$MATCH_GIT_URL" HEAD
+
+      - name: Regenerate app and extension profiles
+        env:
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+          MATCH_TEAM_ID: ${{ env.DEVELOPMENT_TEAM }}
+        run: bundle exec fastlane ios prepare_signing
 
       - name: Download regenerated App Store profile
         env:
@@ -122,8 +152,6 @@ jobs:
         env:
           GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
           MATCH_GIT_BRANCH: main
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           REFRESHED_PROFILE_PATH: ${{ runner.temp }}/TalentSignal.mobileprovision
         run: |
           before_sha="$(git ls-remote "$MATCH_GIT_URL" refs/heads/main | cut -f1)"
@@ -141,9 +169,9 @@ jobs:
       - name: Summarize signing refresh
         run: |
           {
-            echo "### App Store profile refreshed"
+            echo "### App Store profiles refreshed"
             echo ""
-            echo "- App identifier: \`com.talentsignal.app\`"
+            echo "- App identifiers: \`com.talentsignal.app\`, \`com.talentsignal.app.share\`, \`com.talentsignal.app.live-activity\`"
             echo "- Profile type: \`appstore\`"
             echo "- Required entitlement: \`com.apple.developer.applesignin\`"
             echo "- Next proof: rerun the verified TestFlight release"

@@ -60,6 +60,22 @@ describe("stable person identity resolution", () => {
     expect(
       maskIdentityHandle("linkedin_url", "https://linkedin.com/in/zhou-yu"),
     ).toBe("linkedin.com/in/…");
+    expect(
+      parseIdentityHandleQuery(
+        "https://careers.linkedin.com/in/zhou-yu",
+      ),
+    ).toEqual({
+      type: "linkedin_url",
+      value: "https://careers.linkedin.com/in/zhou-yu",
+    });
+    expect(
+      parseIdentityHandleQuery(
+        "https://linkedin.com.attacker.example/in/zhou-yu",
+      ),
+    ).toEqual({
+      type: "public_profile_url",
+      value: "https://linkedin.com.attacker.example/in/zhou-yu",
+    });
   });
 
   it("proposes the same person for resume email and browser profile captures", () => {

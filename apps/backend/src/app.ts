@@ -17,6 +17,9 @@ import {
   ChatTaskRequestSchema,
   ChatTaskReadbackSchema,
   ChatTaskResponseSchema,
+  ChatMediaAssetSchema,
+  ChatMediaDeleteResponseSchema,
+  CreateChatMediaRequestSchema,
   CompileKnowledgeRequestSchema,
   CONTRACT_VERSION,
   CompletePursuitActionRequestSchema,
@@ -90,6 +93,7 @@ import {
   type CompletePursuitActionRequest,
   type CaptureIdentityCorrectionRequest,
   type ChatTaskRequest,
+  type CreateChatMediaRequest,
   type CompileKnowledgeRequest,
   type CreatePursuitAgentRunRequest,
   type DeleteCaptureRequest,
@@ -161,6 +165,17 @@ import {
 } from "./modules/captures.js";
 import { decideAssertion } from "./modules/decisions.js";
 import { createChatTask, getChatTaskReadback } from "./modules/chat.js";
+import {
+  CHAT_MEDIA_MAX_BYTES,
+  createChatMediaAsset,
+  deleteChatMediaAsset,
+  getChatMediaContent,
+  uploadChatMediaContent,
+} from "./modules/chatMedia.js";
+import {
+  createChatMediaStorage,
+  type ChatMediaStorage,
+} from "./modules/chatMediaStorage.js";
 import {
   decideIdentityResolutionCase,
   getIdentityResolutionCase,
@@ -316,6 +331,7 @@ export interface AppDependencies {
   config: BackendConfig;
   pool: Pool;
   voiceTranscriber?: VoiceTranscriptionServing;
+  chatMediaStorage?: ChatMediaStorage;
 }
 
 export async function buildApp(
@@ -324,6 +340,8 @@ export async function buildApp(
   const { appleTokenVerifier, config, pool } = dependencies;
   const voiceTranscriber =
     dependencies.voiceTranscriber ?? new EnvironmentDoubaoVoiceTranscriber();
+  const chatMediaStorage =
+    dependencies.chatMediaStorage ?? createChatMediaStorage(config);
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
@@ -345,6 +363,12 @@ export async function buildApp(
     genReqId: () => randomUUID(),
     bodyLimit: 2 * 1024 * 1024,
   });
+
+  app.addContentTypeParser(
+    /^image\//,
+    { parseAs: "buffer", bodyLimit: CHAT_MEDIA_MAX_BYTES },
+    (_request, body, done) => done(null, body),
+  );
 
   app.decorateRequest("auth", null as unknown as AuthContext);
   await app.register(cors, {
@@ -448,7 +472,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '030_person_profiles'`,
+           WHERE version = '031_chat_media_assets'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -1562,6 +1586,109 @@ export async function buildApp(
         request.auth,
         request.params.personId,
         request.params.contextId,
+      ),
+  );
+
+  app.post<{ Body: CreateChatMediaRequest }>(
+    "/v1/chat/media",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["chat"],
+        security,
+        body: CreateChatMediaRequestSchema,
+        response: {
+          201: ChatMediaAssetSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await createChatMediaAsset(
+            pool,
+            request.auth,
+            chatMediaStorage,
+            request.body,
+          ),
+        ),
+  );
+
+  app.put<{ Body: Buffer; Params: { id: string } }>(
+    "/v1/chat/media/:id/content",
+    {
+      bodyLimit: CHAT_MEDIA_MAX_BYTES,
+      preHandler: authenticate,
+      schema: {
+        tags: ["chat"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: ChatMediaAssetSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      uploadChatMediaContent(
+        pool,
+        request.auth,
+        chatMediaStorage,
+        request.params.id,
+        request.body,
+        request.headers["content-type"]?.split(";", 1)[0]?.toLowerCase() ?? "",
+      ),
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/chat/media/:id/content",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["chat"],
+        security,
+        params: IdParamsSchema,
+        response: { "4xx": ErrorResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const stored = await getChatMediaContent(
+        pool,
+        request.auth,
+        chatMediaStorage,
+        request.params.id,
+      );
+      return reply
+        .header("Cache-Control", "private, max-age=300")
+        .header("Content-Disposition", "inline")
+        .header("X-Content-Type-Options", "nosniff")
+        .type(stored.contentType)
+        .send(Buffer.from(stored.body));
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    "/v1/chat/media/:id",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["chat"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: ChatMediaDeleteResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      deleteChatMediaAsset(
+        pool,
+        request.auth,
+        chatMediaStorage,
+        request.params.id,
       ),
   );
 

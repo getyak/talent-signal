@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   AGENT_TOOL_NAMES,
+  BigModelAgentProvider,
   ClaudeAgentSDKProvider,
   DEFAULT_AGENT_BUDGET,
   OpenRouterAgentProvider,
@@ -308,6 +309,16 @@ export function configuredAgentProvider(): AgentProvider {
       );
     }
     try {
+      const configuredReasoningEffort =
+        process.env.TALENT_SIGNAL_AGENT_REASONING_EFFORT?.trim();
+      if (
+        configuredReasoningEffort &&
+        !new Set(["low", "high", "max"]).has(configuredReasoningEffort)
+      ) {
+        throw new Error(
+          "TALENT_SIGNAL_AGENT_REASONING_EFFORT must be low, high, or max.",
+        );
+      }
       return new OpenRouterAgentProvider({
         apiKey,
         model,
@@ -317,6 +328,22 @@ export function configuredAgentProvider(): AgentProvider {
         ...(process.env.TALENT_SIGNAL_AGENT_REFERER
           ? { referer: process.env.TALENT_SIGNAL_AGENT_REFERER }
           : {}),
+        ...(configuredReasoningEffort
+          ? {
+              reasoningEffort: configuredReasoningEffort as
+                | "low"
+                | "high"
+                | "max",
+            }
+          : {}),
+        ...(process.env.TALENT_SIGNAL_AGENT_PROVIDER_ORDER
+          ? {
+              providerOrder: process.env.TALENT_SIGNAL_AGENT_PROVIDER_ORDER
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean),
+            }
+          : {}),
       });
     } catch (error) {
       throw new ApiError(
@@ -325,6 +352,61 @@ export function configuredAgentProvider(): AgentProvider {
         error instanceof Error
           ? error.message
           : "The OpenRouter Agent configuration is invalid.",
+      );
+    }
+  }
+  if (provider === "zhipu") {
+    const apiKey = process.env.ZHIPU_API_KEY;
+    if (!apiKey) {
+      throw new ApiError(
+        503,
+        "AGENT_PROVIDER_CREDENTIAL_NOT_CONFIGURED",
+        "BigModel Agent execution requires a server-side API key.",
+      );
+    }
+    try {
+      const numericSetting = (name: string) => {
+        const raw = process.env[name]?.trim();
+        if (!raw) {
+          throw new Error(
+            `${name} is required because direct GLM-5.3 pricing is not yet published on the official BigModel price sheet.`,
+          );
+        }
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value <= 0) {
+          throw new Error(`${name} must be a positive number.`);
+        }
+        return value;
+      };
+      const reasoningEffort =
+        process.env.TALENT_SIGNAL_AGENT_REASONING_EFFORT?.trim() || "low";
+      if (!new Set(["low", "high", "max"]).has(reasoningEffort)) {
+        throw new Error(
+          "TALENT_SIGNAL_AGENT_REASONING_EFFORT must be low, high, or max.",
+        );
+      }
+      return new BigModelAgentProvider({
+        apiKey,
+        model,
+        ...(process.env.ZHIPU_BASE_URL
+          ? { baseUrl: process.env.ZHIPU_BASE_URL }
+          : {}),
+        reasoningEffort: reasoningEffort as "low" | "high" | "max",
+        inputCnyPerMillion: numericSetting(
+          "TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION",
+        ),
+        outputCnyPerMillion: numericSetting(
+          "TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION",
+        ),
+        cnyPerUsd: numericSetting("TALENT_SIGNAL_CNY_PER_USD"),
+      });
+    } catch (error) {
+      throw new ApiError(
+        503,
+        "AGENT_PROVIDER_CONFIGURATION_INVALID",
+        error instanceof Error
+          ? error.message
+          : "The BigModel Agent configuration is invalid.",
       );
     }
   }
@@ -338,6 +420,7 @@ export function configuredAgentProvider(): AgentProvider {
 const REMOTE_PROVIDER_IDS = new Set([
   "claude-agent-sdk",
   "openrouter-chat-completions",
+  "bigmodel-chat-completions",
 ]);
 
 export async function assertRemoteProviderDataBoundary(

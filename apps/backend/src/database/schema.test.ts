@@ -3,6 +3,19 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("authority schema", () => {
+  it("keeps Chat media scoped, lifecycle-aware, and distinct from evidence", async () => {
+    const sql = await readFile(
+      new URL("./031_chat_media_assets.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE TABLE chat_media_assets");
+    expect(sql).toContain("CREATE TABLE context_manifest_media");
+    expect(sql).toContain("UNIQUE (account_id, media_id)");
+    expect(sql).toContain("status IN ('pending', 'ready', 'failed', 'deleted')");
+    expect(sql).not.toContain("evidence_fragments");
+    expect(sql).not.toContain("source_resources");
+  });
+
   it("keeps user-authored person profiles separate from evidence", async () => {
     const sql = await readFile(
       new URL("./030_person_profiles.sql", import.meta.url),

@@ -60,9 +60,12 @@ import type {
 } from "./resourceSchemas.js";
 import type {
   CompileKnowledgeRequest,
+  ChatMediaAsset,
+  ChatMediaDeleteResponse,
   ChatTaskRequest,
   ChatTaskReadback,
   ChatTaskResponse,
+  CreateChatMediaRequest,
   KnowledgeSnapshot,
 } from "./resourceSchemas.js";
 import type {
@@ -482,6 +485,33 @@ export class TalentSignalClient {
     });
   }
 
+  createChatMedia(request: CreateChatMediaRequest): Promise<ChatMediaAsset> {
+    return this.request("/v1/chat/media", { method: "POST", body: request });
+  }
+
+  async uploadChatMediaContent(
+    mediaId: string,
+    body: Uint8Array,
+    mediaType: string,
+  ): Promise<ChatMediaAsset> {
+    const response = await this.rawRequest(`/v1/chat/media/${mediaId}/content`, {
+      method: "PUT",
+      body: body as BodyInit,
+      headers: { "content-type": mediaType },
+    });
+    return (await response.json()) as ChatMediaAsset;
+  }
+
+  deleteChatMedia(mediaId: string): Promise<ChatMediaDeleteResponse> {
+    return this.request(`/v1/chat/media/${mediaId}`, { method: "DELETE" });
+  }
+
+  getChatMediaContent(mediaId: string): Promise<Response> {
+    return this.rawRequest(`/v1/chat/media/${mediaId}/content`, {
+      method: "GET",
+    });
+  }
+
   getChatTaskReadback(taskId: string): Promise<ChatTaskReadback> {
     return this.request(`/v1/chat/tasks/${taskId}/readback`, {
       method: "GET",
@@ -673,29 +703,22 @@ export class TalentSignalClient {
   private async request<T>(
     path: string,
     options: {
-      method: "GET" | "POST";
+      method: "DELETE" | "GET" | "POST";
       body?: unknown;
       authenticated?: boolean;
     },
   ): Promise<T> {
-    const authenticated = options.authenticated ?? true;
-    if (authenticated && !this.accessToken) {
-      throw new Error("An access token is required for this request.");
-    }
-
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await this.rawRequest(path, {
       method: options.method,
       headers: {
         accept: "application/json",
         ...(options.body === undefined
           ? {}
           : { "content-type": "application/json" }),
-        ...(authenticated
-          ? { authorization: `Bearer ${this.accessToken}` }
-          : {}),
       },
       body:
         options.body === undefined ? undefined : JSON.stringify(options.body),
+      authenticated: options.authenticated,
     });
 
     const payload = (await response.json()) as T | ErrorEnvelope;
@@ -709,5 +732,45 @@ export class TalentSignalClient {
       );
     }
     return payload as T;
+  }
+
+  private async rawRequest(
+    path: string,
+    options: {
+      method: "DELETE" | "GET" | "POST" | "PUT";
+      body?: BodyInit;
+      headers?: Record<string, string>;
+      authenticated?: boolean;
+    },
+  ): Promise<Response> {
+    const authenticated = options.authenticated ?? true;
+    if (authenticated && !this.accessToken) {
+      throw new Error("An access token is required for this request.");
+    }
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: options.method,
+      headers: {
+        ...(options.headers ?? {}),
+        ...(authenticated
+          ? { authorization: `Bearer ${this.accessToken}` }
+          : {}),
+      },
+      body: options.body,
+    });
+    if (!response.ok) {
+      let envelope: ErrorEnvelope = {};
+      try {
+        envelope = (await response.clone().json()) as ErrorEnvelope;
+      } catch {
+        // Binary endpoints may fail before producing a JSON envelope.
+      }
+      throw new TalentSignalHttpError(
+        response.status,
+        envelope.error?.code ?? "HTTP_ERROR",
+        envelope.error?.message ?? `Request failed with ${response.status}.`,
+        envelope.error?.details,
+      );
+    }
+    return response;
   }
 }

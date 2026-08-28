@@ -40,41 +40,69 @@ jobs:
       release_sha: ${{ steps.decision.outputs.release_sha }}
       should_release: ${{ steps.decision.outputs.should_release }}
     steps:
-      - name: Check out verified revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 2
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
       - name: Evaluate release policy
         id: decision
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          BASE_SHA: ${{ github.event.workflow_run.pull_requests[0].base.sha || '' }}
           EVENT_NAME: ${{ github.event_name }}
           PUBLISH_TESTFLIGHT: ${{ inputs.publish_testflight || false }}
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-        run: |
-          should_release=false
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const repository = await github.rest.repos.get({ owner, repo });
+            const branch = await github.rest.repos.getBranch({
+              owner,
+              repo,
+              branch: repository.data.default_branch,
+            });
+            const releaseSha = branch.data.commit.sha;
+            let shouldRelease = false;
 
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            should_release="$PUBLISH_TESTFLIGHT"
-          else
-            # BASE_SHA is injected through the step environment.
-            # shellcheck disable=SC2153
-            base_sha="$BASE_SHA"
-            if ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
-              base_sha="$(git rev-parse "${RELEASE_SHA}^")"
-            fi
+            if (process.env.EVENT_NAME === "workflow_dispatch") {
+              shouldRelease = process.env.PUBLISH_TESTFLIGHT === "true";
+            } else if (process.env.VERIFIED_SHA !== releaseSha) {
+              core.notice(
+                "The verified CI revision is no longer the current default-branch tip; a newer CI run will decide its release.",
+              );
+            } else {
+              const commit = await github.rest.repos.getCommit({
+                owner,
+                repo,
+                ref: releaseSha,
+              });
+              const parentSha = commit.data.parents[0]?.sha;
+              if (!parentSha) {
+                shouldRelease = true;
+              } else {
+                const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                  owner,
+                  repo,
+                  basehead: `${parentSha}...${releaseSha}`,
+                  per_page: 100,
+                });
+                const files = comparison.data.files ?? [];
+                const exactReleaseFiles = new Set([
+                  "Gemfile",
+                  "Gemfile.lock",
+                  ".github/workflows/release-ios.yml",
+                  "scripts/ci/has-ios-changes.sh",
+                  "scripts/ci/next-ios-version.sh",
+                ]);
+                const releasePrefixes = ["apps/ios/", "fastlane/", "scripts/ios/"];
+                shouldRelease =
+                  files.length >= 300 ||
+                  files.some(
+                    ({ filename }) =>
+                      exactReleaseFiles.has(filename) ||
+                      releasePrefixes.some((prefix) => filename.startsWith(prefix)),
+                  );
+              }
+            }
 
-            if [ "$(./scripts/ci/has-ios-changes.sh \
-              "$base_sha" "$RELEASE_SHA" --release-files)" = "true" ]; then
-              should_release=true
-            fi
-          fi
-
-          echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
-          echo "should_release=$should_release" >> "$GITHUB_OUTPUT"
-          echo "TestFlight release required: $should_release"
+            core.setOutput("release_sha", releaseSha);
+            core.setOutput("should_release", shouldRelease ? "true" : "false");
+            core.info(`TestFlight release required: ${shouldRelease}`);
 
   testflight:
     name: Publish TestFlight
@@ -96,7 +124,19 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.release_sha }}
 
-      - name: Validate release secrets
+      - name: Load release secrets from Infisical
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
+        uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_TESTFLIGHT_IDENTITY_ID }}
+          oidc-audience: infisical://talent-signal/testflight
+          project-slug: talent-signal-8p1-x
+          env-slug: staging
+          secret-path: /release
+
+      - name: Load legacy GitHub secrets during migration
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''
         env:
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
@@ -106,8 +146,28 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          TALENT_SIGNAL_API_BASE_URL: ${{ vars.TALENT_SIGNAL_API_BASE_URL }}
           TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+        run: |
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            DEVELOPMENT_TEAM \
+            MATCH_DEPLOY_KEY \
+            MATCH_GIT_URL \
+            MATCH_KEYCHAIN_PASSWORD \
+            MATCH_PASSWORD \
+            TALENT_SIGNAL_API_BASE_URL \
+            TS_OAUTH_CLIENT_ID \
+            TS_OAUTH_SECRET; do
+            delimiter="TS_SECRET_${GITHUB_RUN_ID}_${RANDOM}"
+            printf '%s<<%s\n%s\n%s\n' \
+              "$name" "$delimiter" "${!name:-}" "$delimiter" >> "$GITHUB_ENV"
+          done
+
+      - name: Validate release secrets
         run: |
           missing=0
           for name in \
@@ -136,13 +196,11 @@ jobs:
       - name: Connect ephemeral runner to the TestFlight tailnet
         uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          oauth-client-id: ${{ env.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ env.TS_OAUTH_SECRET }}
           tags: tag:ci
 
       - name: Configure and verify iOS API
-        env:
-          TALENT_SIGNAL_API_BASE_URL: ${{ vars.TALENT_SIGNAL_API_BASE_URL }}
         run: |
           node scripts/ios/configure-build-environment.mjs --configuration Release
           api_hostname="$(node -e 'process.stdout.write(new URL(process.env.TALENT_SIGNAL_API_BASE_URL).hostname)')"
@@ -191,8 +249,7 @@ jobs:
       - name: Configure signing material
         id: release_metadata
         env:
-          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-          MATCH_DEPLOY_KEY: ${{ secrets.MATCH_DEPLOY_KEY }}
+          API_KEY_CONTENT: ${{ env.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
           install -d -m 700 "$RUNNER_TEMP/match-ssh"
           printf '%s\n' "$MATCH_DEPLOY_KEY" > "$RUNNER_TEMP/match-ssh/key"
@@ -206,20 +263,12 @@ jobs:
       - name: Verify isolated signing repository access
         env:
           GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: git ls-remote --exit-code "$MATCH_GIT_URL" HEAD
 
       - name: Archive and process TestFlight build
         env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
-          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
           GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          TALENT_SIGNAL_API_BASE_URL: ${{ vars.TALENT_SIGNAL_API_BASE_URL }}
           RELEASE_CHANGELOG_PATH: ${{ steps.release_notes.outputs.path }}
           RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
           FASTLANE_SKIP_UPDATE_CHECK: "1"

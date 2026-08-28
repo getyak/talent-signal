@@ -10,6 +10,15 @@ export interface BackendConfig {
   retentionSweepIntervalMs: number;
   sessionTtlSeconds: number;
   simulatedAuthEnabled: boolean;
+  chatMediaStorage?:
+    | { provider: "local"; directory: string }
+    | {
+        provider: "s3";
+        bucket: string;
+        endpoint?: string;
+        forcePathStyle: boolean;
+        region: string;
+      };
 }
 
 function requireValue(name: string): string {
@@ -63,6 +72,30 @@ export function loadConfig(): BackendConfig {
       "APPLE_SIGN_IN_AUDIENCES is required when Apple sign-in is enabled.",
     );
   }
+  const chatMediaProvider = process.env.CHAT_MEDIA_STORAGE_PROVIDER ?? "local";
+  if (chatMediaProvider !== "local" && chatMediaProvider !== "s3") {
+    throw new Error("CHAT_MEDIA_STORAGE_PROVIDER must be local or s3.");
+  }
+  const chatMediaStorage: NonNullable<BackendConfig["chatMediaStorage"]> =
+    chatMediaProvider === "s3"
+      ? {
+          provider: "s3",
+          bucket: requireValue("CHAT_MEDIA_S3_BUCKET"),
+          region: requireValue("CHAT_MEDIA_S3_REGION"),
+          forcePathStyle: parseBoolean(
+            process.env.CHAT_MEDIA_S3_FORCE_PATH_STYLE,
+            false,
+          ),
+          ...(process.env.CHAT_MEDIA_S3_ENDPOINT?.trim()
+            ? { endpoint: process.env.CHAT_MEDIA_S3_ENDPOINT.trim() }
+            : {}),
+        }
+      : {
+          provider: "local",
+          directory:
+            process.env.CHAT_MEDIA_LOCAL_DIRECTORY?.trim() ||
+            `${process.cwd()}/.data/chat-media`,
+        };
 
   return {
     allowedOrigins: (
@@ -91,5 +124,6 @@ export function loadConfig(): BackendConfig {
       10,
     ),
     simulatedAuthEnabled,
+    chatMediaStorage,
   };
 }

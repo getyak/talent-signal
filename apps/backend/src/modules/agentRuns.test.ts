@@ -14,8 +14,15 @@ const environmentKeys = [
   "TALENT_SIGNAL_AGENT_PROVIDER",
   "TALENT_SIGNAL_AGENT_MODEL",
   "TALENT_SIGNAL_AGENT_REFERER",
+  "TALENT_SIGNAL_AGENT_REASONING_EFFORT",
+  "TALENT_SIGNAL_AGENT_PROVIDER_ORDER",
   "OPENROUTER_API_KEY",
   "OPENROUTER_BASE_URL",
+  "ZHIPU_API_KEY",
+  "ZHIPU_BASE_URL",
+  "TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION",
+  "TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION",
+  "TALENT_SIGNAL_CNY_PER_USD",
 ] as const;
 const originalEnvironment = Object.fromEntries(
   environmentKeys.map((name) => [name, process.env[name]]),
@@ -64,6 +71,36 @@ describe("configuredAgentProvider", () => {
     });
   });
 
+  it("constructs one pinned BigModel provider with explicit pricing", () => {
+    process.env.TALENT_SIGNAL_AGENT_PROVIDER = "zhipu";
+    process.env.TALENT_SIGNAL_AGENT_MODEL = "glm-5.3";
+    process.env.ZHIPU_API_KEY = "synthetic-test-key";
+    process.env.ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
+    process.env.TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION = "8";
+    process.env.TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION = "28";
+    process.env.TALENT_SIGNAL_CNY_PER_USD = "7";
+
+    expect(configuredAgentProvider()).toMatchObject({
+      id: "bigmodel-chat-completions",
+      model: "glm-5.3",
+      sdkVersion: "bigmodel-chat-completions.v1",
+    });
+  });
+
+  it("fails closed when direct BigModel pricing is not explicit", () => {
+    process.env.TALENT_SIGNAL_AGENT_PROVIDER = "zhipu";
+    process.env.TALENT_SIGNAL_AGENT_MODEL = "glm-5.3";
+    process.env.ZHIPU_API_KEY = "synthetic-test-key";
+    delete process.env.TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION;
+    delete process.env.TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION;
+    delete process.env.TALENT_SIGNAL_CNY_PER_USD;
+
+    expectApiError(
+      () => configuredAgentProvider(),
+      "AGENT_PROVIDER_CONFIGURATION_INVALID",
+    );
+  });
+
   it("fails closed without a credential or pinned model", () => {
     process.env.TALENT_SIGNAL_AGENT_PROVIDER = "openrouter";
     delete process.env.TALENT_SIGNAL_AGENT_MODEL;
@@ -96,6 +133,25 @@ describe("configuredAgentProvider", () => {
     expectApiError(
       () => configuredAgentProvider(),
       "AGENT_PROVIDER_UNSUPPORTED",
+    );
+  });
+
+  it("rejects invalid reasoning effort and provider slugs", () => {
+    process.env.TALENT_SIGNAL_AGENT_PROVIDER = "openrouter";
+    process.env.TALENT_SIGNAL_AGENT_MODEL = "z-ai/glm-5.3";
+    process.env.OPENROUTER_API_KEY = "synthetic-test-key";
+    process.env.TALENT_SIGNAL_AGENT_REASONING_EFFORT = "unbounded";
+
+    expectApiError(
+      () => configuredAgentProvider(),
+      "AGENT_PROVIDER_CONFIGURATION_INVALID",
+    );
+
+    process.env.TALENT_SIGNAL_AGENT_REASONING_EFFORT = "low";
+    process.env.TALENT_SIGNAL_AGENT_PROVIDER_ORDER = "z-ai,invalid provider";
+    expectApiError(
+      () => configuredAgentProvider(),
+      "AGENT_PROVIDER_CONFIGURATION_INVALID",
     );
   });
 });

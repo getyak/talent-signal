@@ -117,6 +117,14 @@ describe("capture source authorization route", () => {
   });
 
   it("forwards the optimistic version guard and trimmed rationale", async () => {
+    const rejected = await POST(
+      request({ ...validBody, ignored_permission_override: true }),
+      context(),
+    );
+
+    expect(rejected.status).toBe(400);
+    expect(decideAuthorizationMock).not.toHaveBeenCalled();
+
     const result = await POST(request(validBody), context());
 
     expect(result.status).toBe(201);

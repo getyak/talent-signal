@@ -22,13 +22,24 @@ function response(body: unknown, status = 200) {
   });
 }
 
-function validBody(
-  value: unknown,
-): value is SourceAuthorizationDecisionRequest {
+const REQUEST_KEYS = new Set([
+  "authorization_expires_at",
+  "decision",
+  "expected_capture_version",
+  "idempotency_key",
+  "reason",
+]);
+
+class InvalidSourceAuthorizationRequest extends Error {}
+
+function parseBody(value: unknown): SourceAuthorizationDecisionRequest {
   if (typeof value !== "object" || value === null) {
-    return false;
+    throw new InvalidSourceAuthorizationRequest();
   }
   const body = value as Record<string, unknown>;
+  if (Object.keys(body).some((key) => !REQUEST_KEYS.has(key))) {
+    throw new InvalidSourceAuthorizationRequest();
+  }
   const authorizationExpiryValid =
     body.authorization_expires_at === undefined ||
     (body.decision === "restore" &&
@@ -36,16 +47,27 @@ function validBody(
       Number.isFinite(
         new Date(body.authorization_expires_at).getTime(),
       ));
-  return (
-    UUID.test(String(body.idempotency_key ?? "")) &&
-    Number.isInteger(body.expected_capture_version) &&
-    Number(body.expected_capture_version) >= 1 &&
-    (body.decision === "revoke" || body.decision === "restore") &&
-    typeof body.reason === "string" &&
-    body.reason.trim().length > 0 &&
-    body.reason.length <= 500 &&
-    authorizationExpiryValid
-  );
+  if (
+    !UUID.test(String(body.idempotency_key ?? "")) ||
+    !Number.isInteger(body.expected_capture_version) ||
+    Number(body.expected_capture_version) < 1 ||
+    (body.decision !== "revoke" && body.decision !== "restore") ||
+    typeof body.reason !== "string" ||
+    body.reason.trim().length === 0 ||
+    body.reason.length > 500 ||
+    !authorizationExpiryValid
+  ) {
+    throw new InvalidSourceAuthorizationRequest();
+  }
+  return {
+    idempotency_key: String(body.idempotency_key),
+    expected_capture_version: Number(body.expected_capture_version),
+    decision: body.decision,
+    reason: body.reason.trim(),
+    ...(body.authorization_expires_at === undefined
+      ? {}
+      : { authorization_expires_at: String(body.authorization_expires_at) }),
+  };
 }
 
 export async function POST(
@@ -81,21 +103,15 @@ export async function POST(
     return response({ code: "capture_id_invalid" }, 400);
   }
   try {
-    const body = await request.json();
-    if (!validBody(body)) {
-      return response(
-        { code: "source_authorization_invalid" },
-        400,
-      );
-    }
+    const body = parseBody(await request.json());
     return response(
-      await decideRelationshipSourceAuthorization(captureId, {
-        ...body,
-        reason: body.reason.trim(),
-      }),
+      await decideRelationshipSourceAuthorization(captureId, body),
       201,
     );
   } catch (error) {
+    if (error instanceof InvalidSourceAuthorizationRequest) {
+      return response({ code: "source_authorization_invalid" }, 400);
+    }
     if (error instanceof TalentSignalHttpError) {
       return response(
         { code: error.code, message: error.message },

@@ -65,6 +65,8 @@ type OpenRouterAgentProviderOptions = {
   model: string;
   baseUrl?: string;
   referer?: string;
+  reasoningEffort?: "low" | "high" | "max";
+  providerOrder?: readonly string[];
   fetcher?: typeof fetch;
 };
 
@@ -155,6 +157,8 @@ export class OpenRouterAgentProvider implements AgentProvider {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly referer: string | undefined;
+  private readonly reasoningEffort: "low" | "high" | "max" | undefined;
+  private readonly providerOrder: readonly string[] | undefined;
   private readonly fetcher: typeof fetch;
 
   constructor(options: OpenRouterAgentProviderOptions) {
@@ -169,6 +173,17 @@ export class OpenRouterAgentProvider implements AgentProvider {
     }
     this.baseUrl = validatedBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
     this.referer = options.referer?.trim() || undefined;
+    this.reasoningEffort =
+      options.reasoningEffort ??
+      (this.model === "z-ai/glm-5.3" ? "low" : undefined);
+    if (
+      options.providerOrder?.some(
+        (provider) => !/^[a-z0-9/-]+$/u.test(provider),
+      )
+    ) {
+      throw new Error("OpenRouter provider order contains an invalid slug.");
+    }
+    this.providerOrder = options.providerOrder;
     this.fetcher = options.fetcher ?? fetch;
   }
 
@@ -224,6 +239,16 @@ export class OpenRouterAgentProvider implements AgentProvider {
           tool_choice: terminalToolSucceeded ? "none" : "auto",
           parallel_tool_calls: false,
           temperature: 0,
+          ...(this.reasoningEffort
+            ? { reasoning_effort: this.reasoningEffort }
+            : {}),
+          provider: {
+            allow_fallbacks: true,
+            data_collection: "deny",
+            require_parameters: true,
+            zdr: true,
+            ...(this.providerOrder ? { order: this.providerOrder } : {}),
+          },
           max_tokens: Math.min(2_048, remainingTokens),
           session_id: request.runID,
         }),

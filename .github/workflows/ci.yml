@@ -58,7 +58,7 @@ jobs:
           ./scripts/ci/check-actions-pinned.sh
           ./scripts/ci/check-secrets.sh
           ./scripts/ci/test-next-ios-version.sh
-          node --test scripts/sync-local-agent-env.test.mjs
+          node --test scripts/verify-secret-environment.test.mjs scripts/infisical/manifest.test.mjs scripts/infisical/migrate.test.mjs scripts/infisical/run.test.mjs
           node --test scripts/ci/ios-release-policy.test.mjs
           node --test scripts/ios/*.test.mjs
           find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
@@ -133,6 +133,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Run candidate momentum Eval
+        run: pnpm eval:core
+
       - name: Build
         env:
           # Enables production-mode route evaluation in CI only; deployments use
@@ -170,7 +173,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

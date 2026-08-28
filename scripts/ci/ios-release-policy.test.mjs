@@ -152,16 +152,35 @@ test("external link reachability is advisory to the release gate", () => {
   assert.match(advisoryStep[1], /fail: false/);
 });
 
-test("automatic releases call the shared release classifier", () => {
+test("iOS CI has enough time to finish the isolated UI suite", () => {
+  const ciWorkflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/ci.yml"),
+    "utf8",
+  );
+  const iosJob = ciWorkflow.match(/  ios:\n([\s\S]*?)(?=\n  required:)/);
+
+  assert.ok(iosJob, "expected the iOS CI job");
+  assert.match(iosJob[1], /timeout-minutes: 60/);
+});
+
+test("automatic releases classify the verified default-branch tip without executing repository code", () => {
   const releaseWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/release-ios.yml"),
     "utf8",
   );
-
-  assert.match(
-    releaseWorkflow,
-    /has-ios-changes\.sh \\\n+\s+"\$base_sha" "\$RELEASE_SHA" --release-files/,
+  const prepareJob = releaseWorkflow.match(
+    /  prepare:\n([\s\S]*?)(?=\n  testflight:)/,
   );
+
+  assert.ok(prepareJob, "expected the release preparation job");
+  assert.match(prepareJob[1], /actions\/github-script@[0-9a-f]{40} # v8/);
+  assert.match(prepareJob[1], /process\.env\.VERIFIED_SHA !== releaseSha/);
+  assert.match(prepareJob[1], /compareCommitsWithBasehead/);
+  assert.match(prepareJob[1], /"apps\/ios\/"/);
+  assert.match(prepareJob[1], /"\.github\/workflows\/release-ios\.yml"/);
+  assert.doesNotMatch(prepareJob[1], /actions\/checkout/);
+  assert.doesNotMatch(prepareJob[1], /\.\/scripts\/ci\/has-ios-changes\.sh/);
+
   assert.match(
     releaseWorkflow,
     /TALENT_SIGNAL_API_BASE_URL: \$\{\{ vars\.TALENT_SIGNAL_API_BASE_URL \}\}/,
@@ -170,6 +189,28 @@ test("automatic releases call the shared release classifier", () => {
   assert.match(
     releaseWorkflow,
     /tailscale\/github-action@[0-9a-f]{40} # v4\.1\.3/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+  assert.match(releaseWorkflow, /method: oidc/);
+  assert.match(
+    releaseWorkflow,
+    /oidc-audience: infisical:\/\/talent-signal\/testflight/,
+  );
+  assert.match(releaseWorkflow, /secret-path: \/release/);
+  assert.match(
+    releaseWorkflow,
+    /if: vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /oauth-client-id: \$\{\{ env\.TS_OAUTH_CLIENT_ID \}\}/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /oauth-secret: \$\{\{ env\.TS_OAUTH_SECRET \}\}/,
   );
   assert.match(releaseWorkflow, /TS_OAUTH_CLIENT_ID/);
   assert.match(releaseWorkflow, /TS_OAUTH_SECRET/);
@@ -193,6 +234,95 @@ test("manual Fastlane builds require the same Release environment", () => {
     fastfile,
     /lane :beta do[\s\S]*?configure_ios_environment\("Release"\)/,
   );
+  assert.match(fastfile, /APP_IDENTIFIER = "com\.talentsignal\.app"/);
+  assert.match(
+    fastfile,
+    /SHARE_EXTENSION_IDENTIFIER = "com\.talentsignal\.app\.share"/,
+  );
+  assert.match(
+    fastfile,
+    /LIVE_ACTIVITY_IDENTIFIER = "com\.talentsignal\.app\.live-activity"/,
+  );
+  assert.match(
+    fastfile,
+    /lane :prepare_signing do[\s\S]*?app_identifier: APP_IDENTIFIERS[\s\S]*?force: true,[\s\S]*?readonly: false/,
+  );
+  assert.match(
+    fastfile,
+    /lane :beta do[\s\S]*?app_identifier: APP_IDENTIFIERS[\s\S]*?readonly: true/,
+  );
+  assert.match(
+    fastfile,
+    /SHARE_EXTENSION_IDENTIFIER => "match AppStore #\{SHARE_EXTENSION_IDENTIFIER\}"/,
+  );
+  assert.match(
+    fastfile,
+    /LIVE_ACTIVITY_IDENTIFIER => "match AppStore #\{LIVE_ACTIVITY_IDENTIFIER\}"/,
+  );
+});
+
+test("all shipped targets pin their App Store profiles in Release", () => {
+  const project = readFileSync(
+    join(repositoryRoot, "apps/ios/TalentSignal.xcodeproj/project.pbxproj"),
+    "utf8",
+  );
+  const releaseConfigurations = Array.from(
+    project.matchAll(
+      /\/\* Release \*\/ = \{\n\s+isa = XCBuildConfiguration;\n(?:\s+baseConfigurationReference = [^\n]+;\n)?\s+buildSettings = \{([\s\S]*?)\n\s+\};\n\s+name = Release;\n\s+\};/g,
+    ),
+    (match) => match[1],
+  );
+
+  for (const bundleIdentifier of [
+    "com.talentsignal.app",
+    "com.talentsignal.app.share",
+    "com.talentsignal.app.live-activity",
+  ]) {
+    const configuration = releaseConfigurations.find((candidate) =>
+      candidate.includes(`PRODUCT_BUNDLE_IDENTIFIER = ${
+        bundleIdentifier.includes("-")
+          ? `"${bundleIdentifier}"`
+          : bundleIdentifier
+      };`),
+    );
+
+    assert.ok(
+      configuration,
+      `expected Release settings for ${bundleIdentifier}`,
+    );
+    assert.match(configuration, /CODE_SIGN_STYLE = Manual;/);
+    assert.match(
+      configuration,
+      /CODE_SIGN_IDENTITY = "iPhone Distribution: Xiong Xinwei \(6RG2F8YY59\)";/,
+    );
+    assert.ok(
+      configuration.includes(
+        `PROVISIONING_PROFILE_SPECIFIER = "match AppStore ${bundleIdentifier}";`,
+      ),
+      `expected the App Store profile for ${bundleIdentifier}`,
+    );
+  }
+});
+
+test("generated extension signing stays represented in the project specification", () => {
+  const projectSpecification = readFileSync(
+    join(repositoryRoot, "apps/ios/project.yml"),
+    "utf8",
+  );
+
+  for (const bundleIdentifier of [
+    "com.talentsignal.app.share",
+    "com.talentsignal.app.live-activity",
+  ]) {
+    assert.match(
+      projectSpecification,
+      new RegExp(
+        `PRODUCT_BUNDLE_IDENTIFIER: ${bundleIdentifier.replaceAll(".", "\\.")}` +
+          `[\\s\\S]*?Release:[\\s\\S]*?CODE_SIGN_STYLE: Manual` +
+          `[\\s\\S]*?PROVISIONING_PROFILE_SPECIFIER: match AppStore ${bundleIdentifier.replaceAll(".", "\\.")}`,
+      ),
+    );
+  }
 });
 
 test("signing refresh is explicit, entitlement-checked, and separately authorized", () => {
@@ -205,12 +335,42 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   assert.doesNotMatch(refreshWorkflow, /workflow_run:/);
   assert.match(refreshWorkflow, /confirm_profile_refresh:/);
   assert.match(refreshWorkflow, /environment:\n\s+name: testflight/);
+  assert.match(refreshWorkflow, /id-token: write/);
+  assert.match(
+    refreshWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+  assert.match(refreshWorkflow, /secret-path: \/release/);
   assert.match(refreshWorkflow, /MATCH_MAINTENANCE_DEPLOY_KEY/);
   assert.match(refreshWorkflow, /fastlane run sigh/);
+  assert.match(refreshWorkflow, /fastlane ios prepare_signing/);
   assert.match(refreshWorkflow, /readonly:true/);
   assert.match(refreshWorkflow, /sync-refreshed-ios-profile\.rb/);
   assert.doesNotMatch(refreshWorkflow, /MATCH_FORCE/);
-  assert.doesNotMatch(refreshWorkflow, /fastlane ios prepare_signing/);
   assert.doesNotMatch(refreshWorkflow, /fastlane ios beta/);
   assert.match(refreshWorkflow, /Remove temporary signing material/);
+});
+
+test("TestFlight access uses the release-scoped Infisical OIDC identity", () => {
+  const accessWorkflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/testflight-access.yml"),
+    "utf8",
+  );
+
+  assert.match(accessWorkflow, /id-token: write/);
+  assert.match(accessWorkflow, /environment:\n\s+name: testflight/);
+  assert.match(
+    accessWorkflow,
+    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+  );
+  assert.match(accessWorkflow, /method: oidc/);
+  assert.match(
+    accessWorkflow,
+    /identity-id: \$\{\{ vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID \}\}/,
+  );
+  assert.match(accessWorkflow, /secret-path: \/release/);
+  assert.match(
+    accessWorkflow,
+    /API_KEY_CONTENT: \$\{\{ env\.APP_STORE_CONNECT_API_KEY_CONTENT \}\}/,
+  );
 });

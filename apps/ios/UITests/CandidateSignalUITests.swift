@@ -100,6 +100,8 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.buttons["calendar-add-activity"].exists)
         let activity = app.buttons["calendar-activity-preview-calendar-primary"]
         XCTAssertTrue(activity.waitForExistence(timeout: 5))
+        XCTAssertTrue(activity.label.contains("Interview"))
+        XCTAssertTrue(activity.label.split(separator: ",").count >= 3)
         preserveScreenshot("Relationship calendar agenda")
         activity.tap()
 
@@ -118,6 +120,40 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Meeting preparation returned to Session")
     }
 
+    func testRelationshipCalendarExpandsToMonthAndMovesBetweenMonths() {
+        app.launch()
+
+        let peek = app.buttons["today-calendar-peek"]
+        XCTAssertTrue(peek.waitForExistence(timeout: 8))
+        peek.tap()
+
+        let toggle = app.buttons["calendar-toggle-month"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(toggle.frame.height, 44)
+        XCTAssertFalse(app.buttons["calendar-next-month"].exists)
+        let dateButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "calendar-month-day-")
+        )
+        XCTAssertEqual(dateButtons.count, 7)
+        toggle.tap()
+
+        let previous = app.buttons["calendar-previous-month"]
+        let next = app.buttons["calendar-next-month"]
+        XCTAssertTrue(previous.waitForExistence(timeout: 5))
+        XCTAssertTrue(next.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "Collapse month")
+        XCTAssertGreaterThanOrEqual(previous.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(next.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(dateButtons.count, 28)
+        XCTAssertLessThanOrEqual(dateButtons.count, 42)
+        preserveScreenshot("Relationship calendar expanded month")
+        next.tap()
+        XCTAssertTrue(next.exists)
+        toggle.tap()
+        XCTAssertFalse(next.exists)
+        XCTAssertEqual(dateButtons.count, 7)
+    }
+
     func testRelationshipCalendarAddActivityUsesAppleFinalEditorAndCancelIsTruthful() {
         app.launch()
 
@@ -131,6 +167,10 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(
             element("relationship-calendar-composer").waitForExistence(timeout: 5)
         )
+        XCTAssertTrue(element("calendar-activity-kind").exists)
+        XCTAssertTrue(app.buttons["Interview"].exists)
+        XCTAssertTrue(app.buttons["Meeting"].exists)
+        XCTAssertTrue(app.buttons["Conversation"].exists)
         let review = app.buttons["calendar-review-in-apple"]
         XCTAssertTrue(review.waitForExistence(timeout: 5))
         XCTAssertTrue(review.isEnabled)
@@ -147,6 +187,34 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(
             element("calendar-composer-unchanged").waitForExistence(timeout: 5)
         )
+    }
+
+    func testRelationshipCalendarKeepsPersonContextVisibleInSimplifiedChinese() {
+        app.launchArguments = [
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+        ]
+        app.launch()
+
+        let peek = app.buttons["today-calendar-peek"]
+        XCTAssertTrue(peek.waitForExistence(timeout: 8))
+        peek.tap()
+
+        XCTAssertTrue(element("relationship-calendar").waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["不只看时间，也看见人"].exists)
+        XCTAssertFalse(app.staticTexts["每个时刻都与它所推进的人和 Pursuit 保持关联。"].exists)
+        let toggle = app.buttons["calendar-toggle-month"]
+        XCTAssertTrue(toggle.exists)
+        XCTAssertEqual(toggle.label, "展开月历")
+        toggle.tap()
+        XCTAssertTrue(
+            app.buttons["calendar-next-month"].waitForExistence(timeout: 5)
+        )
+        let activity = app.buttons["calendar-activity-preview-calendar-primary"]
+        XCTAssertTrue(activity.waitForExistence(timeout: 5))
+        XCTAssertTrue(activity.label.contains("面试"))
+        preserveScreenshot("Relationship calendar Simplified Chinese")
     }
 
     func testRelationshipCalendarRemainsReachableInDarkModeAtAX5() {
@@ -349,6 +417,11 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(start.waitForExistence(timeout: 5))
         start.tap()
         XCTAssertTrue(element("ask-voice-recording").waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(voice.frame.height, 48)
+        preserveScreenshot("Voice input listening state")
+        XCTAssertTrue(
+            app.buttons["ask-voice-cancel"].waitForExistence(timeout: 5)
+        )
 
         voice.tap()
 
@@ -358,6 +431,33 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(composer.value as? String, "What changed in this search?")
         XCTAssertFalse(element("ask-response-turn").exists)
         preserveScreenshot("Voice input remains an editable Agent draft")
+    }
+
+    func testVoiceListeningStateRemainsLegibleInSimplifiedChinese() {
+        app.launchArguments = [
+            "--deterministic-voice-input",
+            "-voice-input-cloud-disclosure-v1", "NO",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let voice = app.buttons["ask-voice"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 5))
+        voice.tap()
+        let start = app.buttons.matching(
+            identifier: "confirm-voice-input-disclosure"
+        ).firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.tap()
+
+        XCTAssertTrue(element("ask-voice-recording").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["正在听你说"].exists)
+        XCTAssertTrue(app.buttons["ask-voice-cancel"].waitForExistence(timeout: 5))
+        preserveScreenshot("Voice input Simplified Chinese")
     }
 
     func testCanonicalAskSearchesWorkspaceAndReturnsEvidenceBoundResponse() async throws {

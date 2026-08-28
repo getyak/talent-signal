@@ -1,10 +1,12 @@
 import SwiftUI
 
 struct RelationshipCalendarActivity: Identifiable, Equatable {
-    enum Kind: String, Equatable {
+    enum Kind: String, CaseIterable, Equatable, Identifiable {
         case interview
         case meeting
         case conversation
+
+        var id: String { rawValue }
 
         func title(in language: AppLanguage) -> String {
             switch self {
@@ -199,11 +201,11 @@ struct TodayRelationshipCalendarPeek: View {
     private var dateMark: some View {
         VStack(spacing: 1) {
             Text(dateWeekday)
-                .font(.caption2.weight(.bold))
+                .font(.system(size: 10, weight: .bold))
                 .tracking(0.8)
                 .foregroundStyle(Color.tsInk)
             Text(dateDay)
-                .font(.title3.weight(.semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Color.tsInk)
         }
         .frame(width: 42, height: 42)
@@ -225,20 +227,15 @@ struct TodayRelationshipCalendarPeek: View {
                     .foregroundStyle(Color.tsInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                 Text(
-                    verbatim: "\(nextActivity.displayTitle(in: appLanguage)) · \(nextActivity.contextDisplayLabel)"
+                    verbatim: "\(nextActivity.displayTitle(in: appLanguage)) · \(appLanguage.workspaceTerm(nextActivity.contextDisplayLabel))"
                 )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 1)
             } else {
-                Text(appLanguage.text("No linked moments"))
+                Text(appLanguage.text("No activity"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
-                Text(
-                    appLanguage.text("Open to add an activity")
-                )
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -270,11 +267,10 @@ struct TodayRelationshipCalendarPeek: View {
 
     private var dateDay: String {
         let date = nextActivity?.startDate ?? Date()
-        return date.formatted(
-            Date.FormatStyle()
-                .day()
-                .locale(appLanguage.locale)
-        )
+        // The tile already communicates month/day through the button's full
+        // accessibility label. Keep the decorative mark numeric so locales
+        // that append a day suffix do not clip inside its fixed square.
+        return String(Calendar(identifier: .gregorian).component(.day, from: date))
     }
 
     private var accessibilityLabel: String {
@@ -319,9 +315,10 @@ struct RelationshipCalendarView: View {
 
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var activities: [RelationshipCalendarActivity]
     @State private var selectedDate: Date
+    @State private var isMonthExpanded = false
     @State private var destination: CalendarSheetDestination?
 
     init(
@@ -347,19 +344,19 @@ struct RelationshipCalendarView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    weekRail
+                    calendarPicker
                     agendaHeader
-                        .padding(.top, 30)
+                        .padding(.top, 28)
                     agenda
-                        .padding(.top, 8)
+                        .padding(.top, 14)
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 10)
+                .padding(.top, 8)
                 .padding(.bottom, 44)
             }
             .scrollIndicators(.hidden)
             .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle(appLanguage.text("Relationship calendar"))
+            .navigationTitle(appLanguage.text("Calendar"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -412,70 +409,150 @@ struct RelationshipCalendarView: View {
         .accessibilityIdentifier("relationship-calendar")
     }
 
-    private var weekRail: some View {
-        HStack(spacing: 5) {
-            ForEach(weekDates, id: \.self) { date in
+    private var calendarPicker: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 4) {
                 Button {
-                    selectedDate = Calendar.current.startOfDay(for: date)
-                } label: {
-                    VStack(spacing: 5) {
-                        Text(
-                            date.formatted(
-                                Date.FormatStyle()
-                                    .weekday(.narrow)
-                                    .locale(appLanguage.locale)
-                            ).uppercased()
-                        )
-                            .font(.caption2.weight(.bold))
-                        Text(
-                            date.formatted(
-                                Date.FormatStyle()
-                                    .day()
-                                    .locale(appLanguage.locale)
-                            )
-                        )
-                            .font(.subheadline.weight(.semibold))
-                        Circle()
-                            .fill(hasActivity(on: date) ? Color.tsVermilion : .clear)
-                            .frame(width: 4, height: 4)
+                    updateCalendar {
+                        isMonthExpanded.toggle()
                     }
-                    .foregroundStyle(
-                        isSelected(date) ? Color.tsSurface : Color.tsInk
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 62)
-                    .background(
-                        isSelected(date) ? Color.tsInk : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 16)
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
+                } label: {
+                    HStack(spacing: 7) {
+                        Text(monthTitle)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.tsMutedInk)
+                            .rotationEffect(.degrees(isMonthExpanded ? 180 : 0))
+                            .animation(calendarMotion, value: isMonthExpanded)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(dayAccessibilityLabel(date))
-                .accessibilityAddTraits(isSelected(date) ? .isSelected : [])
-                .accessibilityIdentifier("calendar-day-\(dayIdentifier(date))")
+                .accessibilityLabel(
+                    appLanguage.text(isMonthExpanded ? "Collapse month" : "Expand month")
+                )
+                .accessibilityValue(monthTitle)
+                .accessibilityIdentifier("calendar-toggle-month")
+
+                Spacer(minLength: 8)
+
+                if isMonthExpanded {
+                    HStack(spacing: 4) {
+                        monthNavigationButton(
+                            symbol: "chevron.left",
+                            label: appLanguage.text("Previous month"),
+                            identifier: "calendar-previous-month",
+                            offset: -1
+                        )
+                        monthNavigationButton(
+                            symbol: "chevron.right",
+                            label: appLanguage.text("Next month"),
+                            identifier: "calendar-next-month",
+                            offset: 1
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+
+            calendarGrid
+        }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .padding(7)
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+    }
+
+    private var calendarGrid: some View {
+        VStack(spacing: 6) {
+            LazyVGrid(columns: monthColumns, spacing: 4) {
+                ForEach(weekdayHeaderDates, id: \.self) { date in
+                    Text(weekdayText(for: date))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.tsMutedInk)
+                        .frame(maxWidth: .infinity, minHeight: 28)
+                        .accessibilityHidden(true)
+                }
+            }
+
+            LazyVGrid(columns: monthColumns, spacing: calendarRowSpacing) {
+                ForEach(visibleGridDates, id: \.self) { date in
+                    monthDayCell(date)
+                }
+            }
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+            }
+            .frame(height: visibleGridHeight, alignment: .top)
+            .animation(calendarMotion, value: isMonthExpanded)
+            .clipped()
+        }
+        .padding(.horizontal, 2)
+        .padding(.bottom, 3)
+    }
+
+    @ViewBuilder
+    private func monthDayCell(_ date: Date) -> some View {
+        if isDateInteractive(date) {
+            Button { select(date) } label: {
+                monthDayLabel(date)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(dayAccessibilityLabel(date))
+            .accessibilityAddTraits(isSelected(date) ? .isSelected : [])
+            .accessibilityIdentifier("calendar-month-day-\(dayIdentifier(date))")
+        } else {
+            monthDayLabel(date)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func monthDayLabel(_ date: Date) -> some View {
+        ZStack(alignment: .bottom) {
+            Text(verbatim: "\(calendar.component(.day, from: date))")
+                .font(.subheadline.weight(isSelected(date) ? .bold : .medium))
+                .foregroundStyle(isSelected(date) ? Color.tsSurface : Color.tsInk)
+                .frame(width: 36, height: 36)
+                .background(
+                    isSelected(date) ? Color.tsInk : Color.clear,
+                    in: Circle()
+                )
+                .overlay {
+                    if calendar.isDateInToday(date), !isSelected(date) {
+                        Circle().stroke(Color.tsLine, lineWidth: 1)
+                    }
+                }
+
+            if hasActivity(on: date) {
+                Circle()
+                    .fill(isSelected(date) ? Color.tsSurface : Color.tsInk)
+                    .frame(width: 4, height: 4)
+                    .offset(y: -2)
             }
         }
-        .padding(6)
-        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 20))
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .contentShape(Rectangle())
+        .opacity(dayOpacity(date))
     }
 
     private var agendaHeader: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(
-                selectedDate.formatted(
-                    Date.FormatStyle()
-                        .weekday(.wide)
-                        .month(.wide)
-                        .day()
-                        .locale(appLanguage.locale)
-                ).uppercased()
-            )
-                .font(.caption2.weight(.bold))
-                .tracking(1.1)
-                .foregroundStyle(Color.tsInk)
             HStack(alignment: .firstTextBaseline) {
-                Text(appLanguage.text("Relationship moments"))
-                    .font(.custom("Georgia", size: 28, relativeTo: .title2))
+                Text(
+                    selectedDate.formatted(
+                        Date.FormatStyle()
+                            .weekday(.wide)
+                            .month(.wide)
+                            .day()
+                            .locale(appLanguage.locale)
+                    )
+                )
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
                 Spacer(minLength: 10)
                 Text(verbatim: "\(selectedActivities.count)")
@@ -484,7 +561,7 @@ struct RelationshipCalendarView: View {
             }
             if isPreview {
                 Text(
-                    appLanguage.text("Preview only · no Calendar data was read")
+                    appLanguage.text("Preview · Calendar not read")
                 )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
@@ -499,25 +576,20 @@ struct RelationshipCalendarView: View {
             Button {
                 destination = .composer
             } label: {
-                VStack(alignment: .leading, spacing: 9) {
-                    Image(systemName: "plus.circle")
-                        .font(.title3)
-                    Text(
-                        appLanguage.text("No linked activity")
-                    )
+                HStack(spacing: 12) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.body.weight(.semibold))
+                    Text(appLanguage.text("Add activity"))
                         .font(.headline)
-                    Text(
-                        appLanguage.text(
-                            "Add one exact moment, then approve it in Apple Calendar."
-                        )
-                    )
-                        .font(.caption)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
                         .foregroundStyle(Color.tsMutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .foregroundStyle(Color.tsInk)
-                .padding(.vertical, 22)
-                .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 2)
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -533,12 +605,83 @@ struct RelationshipCalendarView: View {
         }
     }
 
-    private var weekDates: [Date] {
-        let calendar = Calendar.current
-        let anchor = calendar.startOfDay(for: selectedDate)
-        return (-2...4).compactMap {
-            calendar.date(byAdding: .day, value: $0, to: anchor)
+    private var weekdayHeaderDates: [Date] {
+        let start = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start
+            ?? calendar.startOfDay(for: selectedDate)
+        return (0..<7).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: start)
         }
+    }
+
+    private var monthColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(minimum: 36), spacing: 4), count: 7)
+    }
+
+    private var calendarRowSpacing: CGFloat { 4 }
+
+    private var calendarRowHeight: CGFloat { 44 }
+
+    private var calendarMotion: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.24)
+    }
+
+    private var monthGridDates: [Date] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: selectedDate),
+              let days = calendar.range(of: .day, in: .month, for: selectedDate) else {
+            return []
+        }
+        let firstDay = calendar.startOfDay(for: monthInterval.start)
+        let weekday = calendar.component(.weekday, from: firstDay)
+        let leadingCount = (weekday - calendar.firstWeekday + 7) % 7
+        let occupiedCells = leadingCount + days.count
+        let totalCells = ((occupiedCells + 6) / 7) * 7
+        return (0..<totalCells).compactMap { index in
+            calendar.date(
+                byAdding: .day,
+                value: index - leadingCount,
+                to: firstDay
+            )
+        }
+    }
+
+    private var selectedWeekIndex: Int {
+        guard let selectedIndex = monthGridDates.firstIndex(where: isSelected) else {
+            return 0
+        }
+        return selectedIndex / 7
+    }
+
+    private var visibleGridDates: [Date] {
+        guard !isMonthExpanded else { return monthGridDates }
+        let start = selectedWeekIndex * 7
+        let end = min(start + 7, monthGridDates.count)
+        guard start < end else { return [] }
+        return Array(monthGridDates[start..<end])
+    }
+
+    private var expandedGridHeight: CGFloat {
+        let rowCount = max(1, monthGridDates.count / 7)
+        return CGFloat(rowCount) * calendarRowHeight
+            + CGFloat(max(0, rowCount - 1)) * calendarRowSpacing
+    }
+
+    private var visibleGridHeight: CGFloat {
+        isMonthExpanded ? expandedGridHeight : calendarRowHeight
+    }
+
+    private var monthTitle: String {
+        selectedDate.formatted(
+            Date.FormatStyle()
+                .month(.wide)
+                .year()
+                .locale(appLanguage.locale)
+        )
+    }
+
+    private var calendar: Calendar {
+        var value = Calendar.autoupdatingCurrent
+        value.locale = appLanguage.locale
+        return value
     }
 
     private var selectedActivities: [RelationshipCalendarActivity] {
@@ -554,6 +697,84 @@ struct RelationshipCalendarView: View {
     private func hasActivity(on date: Date) -> Bool {
         activities.contains {
             Calendar.current.isDate($0.startDate, inSameDayAs: date)
+        }
+    }
+
+    private func isInSelectedMonth(_ date: Date) -> Bool {
+        calendar.isDate(date, equalTo: selectedDate, toGranularity: .month)
+    }
+
+    private func isInSelectedWeek(_ date: Date) -> Bool {
+        calendar.isDate(date, equalTo: selectedDate, toGranularity: .weekOfYear)
+    }
+
+    private func isDateInteractive(_ date: Date) -> Bool {
+        isMonthExpanded ? isInSelectedMonth(date) : isInSelectedWeek(date)
+    }
+
+    private func dayOpacity(_ date: Date) -> Double {
+        if isInSelectedMonth(date) {
+            return 1
+        }
+        return isMonthExpanded ? 0 : 0.32
+    }
+
+    private func select(_ date: Date) {
+        updateCalendar {
+            selectedDate = calendar.startOfDay(for: date)
+        }
+    }
+
+    private func moveMonth(by offset: Int) {
+        guard let currentMonth = calendar.dateInterval(of: .month, for: selectedDate)?.start,
+              let targetMonth = calendar.date(byAdding: .month, value: offset, to: currentMonth),
+              let targetDays = calendar.range(of: .day, in: .month, for: targetMonth) else {
+            return
+        }
+        let preferredDay = calendar.component(.day, from: selectedDate)
+        let targetDay = min(preferredDay, targetDays.count)
+        guard let target = calendar.date(byAdding: .day, value: targetDay - 1, to: targetMonth) else {
+            return
+        }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            selectedDate = calendar.startOfDay(for: target)
+        }
+    }
+
+    private func monthNavigationButton(
+        symbol: String,
+        label: String,
+        identifier: String,
+        offset: Int
+    ) -> some View {
+        Button { moveMonth(by: offset) } label: {
+            Image(systemName: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.tsInk)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func weekdayText(for date: Date) -> String {
+        let value = date.formatted(
+            Date.FormatStyle()
+                .weekday(.narrow)
+                .locale(appLanguage.locale)
+        )
+        return appLanguage.usesSimplifiedChinese() ? value : value.uppercased()
+    }
+
+    private func updateCalendar(_ update: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            update()
         }
     }
 
@@ -612,16 +833,22 @@ private struct RelationshipCalendarActivityRow: View {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 12) {
                         timeColumn
-                        activityCopy
+                        HStack(alignment: .top, spacing: 12) {
+                            RelationshipPersonMark(
+                                displayName: activity.personDisplayLabel,
+                                size: 46
+                            )
+                            activityCopy
+                        }
                         openMark
                     }
                 } else {
                     HStack(alignment: .top, spacing: 16) {
                         timeColumn
-                        Rectangle()
-                            .fill(Color.tsLine)
-                            .frame(width: 1, height: 66)
-                            .accessibilityHidden(true)
+                        RelationshipPersonMark(
+                            displayName: activity.personDisplayLabel,
+                            size: 46
+                        )
                         activityCopy
                         Spacer(minLength: 8)
                         openMark
@@ -648,26 +875,29 @@ private struct RelationshipCalendarActivityRow: View {
             Text(timeText(activity.startDate))
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(Color.tsInk)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
             Text(durationText)
                 .font(.caption2)
                 .foregroundStyle(Color.tsMutedInk)
         }
-        .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 52, alignment: .leading)
+        .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 68, alignment: .leading)
     }
 
     private var activityCopy: some View {
         VStack(alignment: .leading, spacing: 5) {
+            Text(activity.personDisplayLabel)
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
             Label(
                 activity.displayTitle(in: appLanguage),
                 systemImage: activity.kind.symbolName
             )
-                .font(.headline)
-                .foregroundStyle(Color.tsInk)
-            Text(activity.personDisplayLabel)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.tsInk)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
             Text(activity.contextDisplayLabel)
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
         }
@@ -678,7 +908,7 @@ private struct RelationshipCalendarActivityRow: View {
         Image(systemName: "chevron.right")
             .font(.caption.weight(.bold))
             .foregroundStyle(Color.tsMutedInk)
-            .frame(minWidth: 44, minHeight: 44)
+            .frame(width: 24, height: 44)
             .accessibilityHidden(true)
     }
 
@@ -716,18 +946,19 @@ private struct RelationshipCalendarActivityDetail: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Image(systemName: activity.kind.symbolName)
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(Color.tsVermilion)
-                        .frame(width: 48, height: 48)
-                        .background(Color.tsSurfaceMuted, in: Circle())
-                        .accessibilityHidden(true)
-                    Text(activity.displayTitle(in: appLanguage))
-                        .font(.custom("Georgia", size: 34, relativeTo: .largeTitle))
+                    RelationshipPersonMark(
+                        displayName: activity.personDisplayLabel,
+                        size: 60
+                    )
+                    Text(activity.personDisplayLabel)
+                        .font(.largeTitle.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
                         .padding(.top, 18)
-                    Text(activity.personDisplayLabel)
-                        .font(.title3.weight(.semibold))
+                    Label(
+                        activity.displayTitle(in: appLanguage),
+                        systemImage: activity.kind.symbolName
+                    )
+                        .font(.headline)
                         .foregroundStyle(Color.tsInk)
                         .padding(.top, 8)
                     Text(activity.contextDisplayLabel)
@@ -846,9 +1077,9 @@ private struct RelationshipCalendarActivityDetail: View {
                 .frame(width: 22)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text(label.uppercased())
+                Text(displayLabel(label))
                     .font(.caption2.weight(.bold))
-                    .tracking(0.8)
+                    .tracking(appLanguage.usesSimplifiedChinese() ? 0 : 0.8)
                     .foregroundStyle(Color.tsMutedInk)
                 Text(value)
                     .font(.subheadline)
@@ -859,6 +1090,10 @@ private struct RelationshipCalendarActivityDetail: View {
         .accessibilityElement(children: .combine)
     }
 
+    private func displayLabel(_ label: String) -> String {
+        appLanguage.usesSimplifiedChinese() ? label : label.uppercased()
+    }
+
     private func timeText(_ date: Date) -> String {
         date.formatted(
             Date.FormatStyle()
@@ -866,6 +1101,32 @@ private struct RelationshipCalendarActivityDetail: View {
                 .minute()
                 .locale(appLanguage.locale)
         )
+    }
+}
+
+private struct RelationshipPersonMark: View {
+    let displayName: String
+    let size: CGFloat
+
+    var body: some View {
+        Text(initials)
+            .font(.system(size: size * 0.28, weight: .semibold, design: .rounded))
+            .foregroundStyle(Color.tsInk)
+            .frame(width: size, height: size)
+            .background(Color.tsSurfaceMuted, in: Circle())
+            .overlay {
+                Circle()
+                    .stroke(Color.tsLine, lineWidth: 1)
+            }
+            .accessibilityHidden(true)
+    }
+
+    private var initials: String {
+        let words = displayName.split(whereSeparator: { $0.isWhitespace })
+        if words.count > 1 {
+            return words.prefix(2).compactMap(\.first).map(String.init).joined()
+        }
+        return displayName.first.map(String.init) ?? "–"
     }
 }
 
@@ -886,6 +1147,7 @@ private struct RelationshipCalendarComposer: View {
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dismiss) private var dismiss
     @State private var selectedScopeID: String
+    @State private var selectedKind: RelationshipCalendarActivity.Kind = .interview
     @State private var title = ""
     @State private var titleWasEdited = false
     @State private var startDate: Date
@@ -936,6 +1198,20 @@ private struct RelationshipCalendarComposer: View {
                 }
 
                 Section(appLanguage.text("Activity")) {
+                    Picker(
+                        appLanguage.text("Activity type"),
+                        selection: $selectedKind
+                    ) {
+                        ForEach(RelationshipCalendarActivity.Kind.allCases) { kind in
+                            Label(
+                                kind.title(in: appLanguage),
+                                systemImage: kind.symbolName
+                            )
+                                .tag(kind)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("calendar-activity-kind")
                     TextField(
                         appLanguage.text("Title"),
                         text: $title,
@@ -1014,6 +1290,9 @@ private struct RelationshipCalendarComposer: View {
         .onChange(of: selectedScopeID) { _ in
             updateDefaultTitleIfNeeded()
         }
+        .onChange(of: selectedKind) { _ in
+            updateDefaultTitleIfNeeded()
+        }
         .sheet(item: $editorProposal) { proposal in
             DeviceCalendarEditorSheet(proposal: proposal) { completion in
                 switch completion {
@@ -1022,7 +1301,7 @@ private struct RelationshipCalendarComposer: View {
                     onSaved(
                         RelationshipCalendarActivity(
                             id: "calendar-\(proposal.sourceID)",
-                            kind: .meeting,
+                            kind: selectedKind,
                             title: proposal.title,
                             personID: scope.personID,
                             relationshipContextID: scope.relationshipContextID,
@@ -1075,7 +1354,7 @@ private struct RelationshipCalendarComposer: View {
 
     private func updateDefaultTitleIfNeeded() {
         guard !titleWasEdited, let selectedScope else { return }
-        title = "\(appLanguage.text("Meeting")) · \(selectedScope.personDisplayLabel)"
+        title = "\(selectedKind.title(in: appLanguage)) · \(selectedScope.personDisplayLabel)"
     }
 
     private static func scopes(

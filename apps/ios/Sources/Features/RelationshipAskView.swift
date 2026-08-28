@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import PhotosUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class VoiceInputStore: ObservableObject {
@@ -189,6 +191,60 @@ final class VoiceInputStore: ObservableObject {
     }
 }
 
+private struct VoiceListeningVisualizer: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let barCount = 13
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0, paused: reduceMotion)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .center, spacing: 4) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    Capsule()
+                        .fill(index == barCount / 2 ? Color.tsVermilion : Color.tsInk.opacity(0.72))
+                        .frame(width: 3, height: barHeight(index: index, time: time))
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 42)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func barHeight(index: Int, time: TimeInterval) -> CGFloat {
+        guard !reduceMotion else {
+            return CGFloat(10 + (index * 7) % 22)
+        }
+        let phase = time * 3.0 + Double(index) * 0.74
+        let envelope = 0.5 + 0.5 * sin(phase)
+        let stagger = 0.72 + 0.28 * sin(phase * 0.53 + Double(index))
+        return 9 + CGFloat(envelope * stagger) * 27
+    }
+}
+
+private struct VoiceRecordButtonHalo: View {
+    let isActive: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if isActive {
+            TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: reduceMotion)) { context in
+                let pulse: CGFloat = reduceMotion
+                    ? 0
+                    : CGFloat(
+                        (sin(context.date.timeIntervalSinceReferenceDate * 3.2) + 1) / 2
+                    )
+                Circle()
+                    .stroke(Color.tsVermilion.opacity(0.18 + pulse * 0.18), lineWidth: 1.5)
+                    .scaleEffect(1.08 + pulse * 0.12)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
 @MainActor
 struct RelationshipAskView: View {
     let snapshot: PursuitWorkspaceSnapshot
@@ -201,7 +257,8 @@ struct RelationshipAskView: View {
         _ objective: String,
         _ personID: String,
         _ contextID: String,
-        _ idempotencyKey: String
+        _ idempotencyKey: String,
+        _ mediaIDs: [String]
     ) async throws -> RelationshipAskResponse
     let reviewEvidence: (
         _ fragmentID: String,
@@ -222,11 +279,16 @@ struct RelationshipAskView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .caption2) private var scopeContextFontSize: CGFloat = 11
     @State private var selectedScope: AskScope?
     @State private var scopeQuery = ""
     @State private var isChoosingScope = false
     @State private var draft = ""
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var mediaDrafts: [AskMediaDraft] = []
+    @State private var mediaNotice: String?
+    @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
     @State private var isSending = false
     @State private var errorMessage: String?
@@ -417,6 +479,14 @@ struct RelationshipAskView: View {
                 relationshipContextID: selectedScope.context.id
             )
         }
+        .onChange(of: selectedPhotoItems) { items in
+            guard !items.isEmpty else { return }
+            importSelectedPhotos(items)
+        }
+        .onChange(of: selectedScope?.id) { _ in
+            guard !mediaDrafts.isEmpty else { return }
+            discardMediaDrafts()
+        }
         .onChange(of: voiceInput.transcript) { transcript in
             guard let transcript, !transcript.isEmpty else { return }
             insertVoiceTranscript(transcript)
@@ -435,6 +505,9 @@ struct RelationshipAskView: View {
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
+            mediaImportTask?.cancel()
+            mediaImportTask = nil
+            discardMediaDrafts()
         }
         .confirmationDialog(
             appLanguage.text("Use Doubao voice transcription?"),
@@ -443,6 +516,7 @@ struct RelationshipAskView: View {
         ) {
             Button(appLanguage.text("Start voice input")) {
                 hasAcceptedVoiceDisclosure = true
+                voiceHaptic(.soft)
                 startVoiceInput()
             }
             .accessibilityIdentifier("confirm-voice-input-disclosure")
@@ -624,6 +698,9 @@ struct RelationshipAskView: View {
                                     sessionStore.transientSupersededEvidenceReviewKeys,
                                 evidenceReviewAuthorityReadbackKeys:
                                     sessionStore.evidenceReviewAuthorityReadbackKeys,
+                                loadMedia: { mediaID in
+                                    try await workspaceStore.loadChatMedia(id: mediaID)
+                                },
                                 onOpenEvidence: { citation in
                                     selectedCitation = SelectedAskCitation(
                                         taskID: turn.response.taskID,
@@ -805,18 +882,49 @@ struct RelationshipAskView: View {
         VStack(spacing: 8) {
             voiceInputStatus
 
+            if !mediaDrafts.isEmpty {
+                AskMediaDraftTray(
+                    drafts: mediaDrafts,
+                    onRetry: retryMediaDraft,
+                    onRemove: removeMediaDraft
+                )
+            }
+
+            if let mediaNotice {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .accessibilityHidden(true)
+                    Text(mediaNotice)
+                        .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                }
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityIdentifier("ask-media-notice")
+            }
+
             HStack(alignment: .bottom, spacing: 8) {
-                Button { onCapture(nil) } label: {
+                PhotosPicker(
+                    selection: $selectedPhotoItems,
+                    maxSelectionCount: 10,
+                    matching: .images
+                ) {
                     Image(systemName: "paperclip")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.tsInk)
-                        .frame(width: 44, height: 44)
+                        .frame(width: composerControlSize, height: composerControlSize)
                         .background(Color.tsCanvas, in: Circle())
                 }
-                .disabled(voiceInput.isBusy)
+                .disabled(voiceInput.isBusy || mediaDrafts.count >= 10 || selectedScope == nil)
                 .accessibilityLabel(
-                    appLanguage.text("Add text, photo, or voice")
+                    appLanguage.text("Add photos")
                 )
+                .accessibilityHint(
+                    appLanguage.text(
+                        "Choose up to ten task images. Selection alone does not make them evidence."
+                    )
+                )
+                .accessibilityIdentifier("ask-add-photos")
 
                 TextField(
                     appLanguage.text("Ask anything"),
@@ -841,12 +949,18 @@ struct RelationshipAskView: View {
                                 .tint(Color.tsSurface)
                         } else {
                             Image(systemName: composerPrimarySymbol)
-                                .font(.body.weight(.semibold))
+                                .font(.system(size: 17, weight: .semibold))
                         }
                     }
                     .foregroundStyle(composerPrimaryForeground)
-                    .frame(width: 44, height: 44)
+                    .frame(
+                        width: composerPrimaryControlSize,
+                        height: composerPrimaryControlSize
+                    )
                     .background(composerPrimaryBackground, in: Circle())
+                    .overlay {
+                        VoiceRecordButtonHalo(isActive: voiceInput.isRecording)
+                    }
                 }
                 .disabled(composerPrimaryDisabled)
                 .opacity(composerPrimaryDisabled ? 0.35 : 1)
@@ -861,6 +975,20 @@ struct RelationshipAskView: View {
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(Color.tsSurface.opacity(0.98))
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
+            value: voiceInput.phase
+        )
+    }
+
+    private var composerControlSize: CGFloat {
+        dynamicTypeSize.isAccessibilitySize || sizeCategory.isAccessibilityCategory
+            ? 52
+            : 44
+    }
+
+    private var composerPrimaryControlSize: CGFloat {
+        max(48, composerControlSize)
     }
 
     @ViewBuilder
@@ -878,42 +1006,67 @@ struct RelationshipAskView: View {
             }
             .accessibilityIdentifier("ask-voice-requesting-permission")
         case let .recording(startedAt):
-            HStack(spacing: 10) {
-                Image(systemName: "waveform")
-                    .foregroundStyle(Color.tsVermilion)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(appLanguage.text("Listening"))
-                        .font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "waveform.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.tsVermilion)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(appLanguage.text("Listening to you"))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .accessibilityIdentifier("ask-voice-recording")
+                        Text(appLanguage.text("Foreground voice · 1 minute max"))
+                            .font(.caption2)
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
+                    Spacer(minLength: 8)
+                    Text(startedAt, style: .timer)
+                        .font(.subheadline.monospacedDigit().weight(.semibold))
                         .foregroundStyle(Color.tsInk)
-                    Text(
-                        appLanguage.text(
-                            "Tap stop to transcribe with Doubao · 1 minute max"
-                        )
+                    Button {
+                        cancelVoiceInput()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .frame(width: 44, height: 44)
+                            .background(Color.tsSurfaceMuted, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(appLanguage.text("Cancel"))
+                    .accessibilityIdentifier("ask-voice-cancel")
+                }
+                VoiceListeningVisualizer()
+                Text(
+                    appLanguage.text(
+                        "Tap the red stop button to create an editable transcript."
                     )
-                    .font(.caption2)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Text(startedAt, style: .timer)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.tsInk)
-                Button(appLanguage.text("Cancel")) {
-                    cancelVoiceInput()
-                }
-                .font(.caption.weight(.semibold))
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("ask-voice-cancel")
+                )
+                .font(.caption2)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .accessibilityIdentifier("ask-voice-recording")
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                Color.tsCanvas,
+                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.tsVermilion.opacity(0.28), lineWidth: 1)
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         case .transcribing:
             HStack(spacing: 10) {
                 ProgressView()
+                    .tint(Color.tsInk)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(appLanguage.text("Creating an editable transcript…"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
+                        .accessibilityIdentifier("ask-voice-transcribing")
                     Text(
                         appLanguage.text(
                             "Nothing is sent to the Agent until you tap Send."
@@ -930,7 +1083,13 @@ struct RelationshipAskView: View {
                 .frame(minHeight: 44)
                 .accessibilityIdentifier("ask-voice-cancel-transcription")
             }
-            .accessibilityIdentifier("ask-voice-transcribing")
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Color.tsCanvas,
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+            .transition(.opacity)
         case let .failed(message):
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "exclamationmark.circle")
@@ -940,6 +1099,7 @@ struct RelationshipAskView: View {
                     .font(.caption)
                     .foregroundStyle(Color.tsInk)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ask-voice-failed")
                 Spacer(minLength: 8)
                 if voiceInput.microphonePermission == .denied {
                     Button(appLanguage.text("Settings")) {
@@ -959,7 +1119,6 @@ struct RelationshipAskView: View {
                     .frame(minHeight: 44)
                 }
             }
-            .accessibilityIdentifier("ask-voice-failed")
         }
     }
 
@@ -1014,6 +1173,7 @@ struct RelationshipAskView: View {
             return
         }
         if voiceInput.isRecording {
+            voiceHaptic(.rigid)
             voiceOperation?.cancel()
             voiceOperation = Task {
                 await voiceInput.stopAndTranscribe()
@@ -1029,6 +1189,7 @@ struct RelationshipAskView: View {
             isVoiceDisclosurePresented = true
             return
         }
+        voiceHaptic(.soft)
         startVoiceInput()
     }
 
@@ -1047,9 +1208,16 @@ struct RelationshipAskView: View {
     }
 
     private func cancelVoiceInput() {
+        voiceHaptic(.light)
         voiceOperation?.cancel()
         voiceOperation = nil
         voiceInput.cancel()
+    }
+
+    private func voiceHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
     }
 
     private func insertVoiceTranscript(_ transcript: String) {
@@ -1071,7 +1239,10 @@ struct RelationshipAskView: View {
     }
 
     private var canSendDraft: Bool {
-        selectedScope != nil && !isSending && isCanonical
+        selectedScope != nil
+            && !isSending
+            && isCanonical
+            && mediaDrafts.allSatisfy { $0.phase == .ready }
     }
 
     private var filteredScopes: [AskScope] {
@@ -1087,9 +1258,178 @@ struct RelationshipAskView: View {
         sessionStore.session(id: activeSessionID)?.turns ?? []
     }
 
+    private func importSelectedPhotos(_ items: [PhotosPickerItem]) {
+        mediaImportTask?.cancel()
+        mediaImportTask = Task {
+            defer {
+                selectedPhotoItems = []
+                mediaImportTask = nil
+            }
+            guard let scope = selectedScope else { return }
+            let remaining = max(0, 10 - mediaDrafts.count)
+            guard remaining > 0 else {
+                mediaNotice = appLanguage.text("Ten images is the limit for one Ask.")
+                return
+            }
+            if items.count > remaining {
+                mediaNotice = appLanguage.text(
+                    "Only the first \(remaining) selected images were added.",
+                    zhHans: "仅添加了所选图片中的前 \(remaining) 张。"
+                )
+            }
+            for (offset, item) in items.prefix(remaining).enumerated() {
+                if Task.isCancelled { return }
+                do {
+                    guard var data = try await item.loadTransferable(type: Data.self),
+                          var preview = UIImage(data: data) else {
+                        throw PursuitWorkspaceClientError.invalidResponse
+                    }
+                    var mediaType = item.supportedContentTypes
+                        .compactMap(\.preferredMIMEType)
+                        .first(where: Self.allowedChatMediaTypes.contains)
+                    var fileExtension = item.supportedContentTypes
+                        .compactMap(\.preferredFilenameExtension)
+                        .first
+                    if mediaType == nil {
+                        guard let converted = preview.jpegData(compressionQuality: 0.9) else {
+                            throw PursuitWorkspaceClientError.invalidResponse
+                        }
+                        data = converted
+                        preview = UIImage(data: converted) ?? preview
+                        mediaType = "image/jpeg"
+                        fileExtension = "jpg"
+                    }
+                    guard !data.isEmpty, data.count <= 8_388_608 else {
+                        mediaNotice = appLanguage.text("One image was larger than 8 MB and was not added.")
+                        continue
+                    }
+                    let id = UUID()
+                    let scale = preview.scale
+                    let mediaDraft = AskMediaDraft(
+                        id: id,
+                        data: data,
+                        preview: preview,
+                        fileName: "ask-photo-\(mediaDrafts.count + offset + 1).\(fileExtension ?? "image")",
+                        mediaType: mediaType ?? "image/jpeg",
+                        width: max(1, Int(preview.size.width * scale)),
+                        height: max(1, Int(preview.size.height * scale)),
+                        remoteAsset: nil,
+                        phase: .uploading
+                    )
+                    mediaDrafts.append(mediaDraft)
+                    mediaNotice = appLanguage.text("Task images · not evidence")
+                    uploadMediaDraft(id, scope: scope)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    mediaNotice = appLanguage.text("One selected image could not be read; the rest are unchanged.")
+                }
+            }
+        }
+    }
+
+    private func uploadMediaDraft(_ id: UUID, scope: AskScope? = nil) {
+        guard let index = mediaDrafts.firstIndex(where: { $0.id == id }),
+              let resolvedScope = scope ?? selectedScope else { return }
+        mediaDrafts[index].phase = .uploading
+        let mediaDraft = mediaDrafts[index]
+        Task {
+            do {
+                let asset: ChatMediaAsset
+                if let existing = mediaDraft.remoteAsset {
+                    asset = existing
+                } else {
+                    asset = try await workspaceStore.createChatMedia(
+                        personID: resolvedScope.person.id,
+                        relationshipContextID: resolvedScope.context.id,
+                        fileName: mediaDraft.fileName,
+                        mediaType: mediaDraft.mediaType,
+                        byteSize: mediaDraft.data.count,
+                        width: mediaDraft.width,
+                        height: mediaDraft.height,
+                        idempotencyKey: "ios:chat-media:\(mediaDraft.id.uuidString.lowercased())"
+                    )
+                }
+                guard let current = mediaDrafts.firstIndex(where: { $0.id == id }) else {
+                    try? await workspaceStore.deleteChatMedia(id: asset.id)
+                    return
+                }
+                mediaDrafts[current].remoteAsset = asset
+                let ready = asset.status == "ready"
+                    ? asset
+                    : try await workspaceStore.uploadChatMedia(
+                        id: asset.id,
+                        data: mediaDraft.data,
+                        mediaType: mediaDraft.mediaType
+                    )
+                guard let finalIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else {
+                    try? await workspaceStore.deleteChatMedia(id: ready.id)
+                    return
+                }
+                mediaDrafts[finalIndex].remoteAsset = ready
+                mediaDrafts[finalIndex].phase = .ready
+            } catch {
+                guard let failedIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else { return }
+                mediaDrafts[failedIndex].phase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? appLanguage.text("Upload failed. Retry keeps the same image identity.")
+                )
+                mediaNotice = appLanguage.text("An image did not upload. Retry or remove it before Send.")
+            }
+        }
+    }
+
+    private func retryMediaDraft(_ id: UUID) {
+        uploadMediaDraft(id)
+    }
+
+    private func removeMediaDraft(_ id: UUID) {
+        guard let index = mediaDrafts.firstIndex(where: { $0.id == id }) else { return }
+        guard let mediaID = mediaDrafts[index].remoteAsset?.id else {
+            mediaDrafts.remove(at: index)
+            if mediaDrafts.isEmpty { mediaNotice = nil }
+            return
+        }
+        mediaDrafts[index].phase = .removing
+        Task {
+            do {
+                try await workspaceStore.deleteChatMedia(id: mediaID)
+                mediaDrafts.removeAll { $0.id == id }
+                if mediaDrafts.isEmpty { mediaNotice = nil }
+            } catch {
+                guard let failedIndex = mediaDrafts.firstIndex(where: { $0.id == id }) else { return }
+                mediaDrafts[failedIndex].phase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? appLanguage.text("The image could not be removed.")
+                )
+                mediaNotice = appLanguage.text("Removal was not confirmed. The image remains attached locally.")
+            }
+        }
+    }
+
+    private func discardMediaDrafts() {
+        let mediaIDs = mediaDrafts.compactMap { $0.remoteAsset?.id }
+        mediaDrafts = []
+        mediaNotice = nil
+        guard !mediaIDs.isEmpty else { return }
+        Task {
+            for mediaID in mediaIDs {
+                try? await workspaceStore.deleteChatMedia(id: mediaID)
+            }
+        }
+    }
+
+    private static let allowedChatMediaTypes: Set<String> = [
+        "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif",
+    ]
+
     private func send(_ objective: String) {
         let trimmed = objective.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let selectedScope, !isSending else { return }
+        let mediaIDs = mediaDrafts.compactMap(\.readyMediaID)
+        guard !trimmed.isEmpty,
+              let selectedScope,
+              !isSending,
+              mediaIDs.count == mediaDrafts.count else { return }
         errorMessage = nil
         isSending = true
         let operationID = UUID()
@@ -1097,7 +1437,8 @@ struct RelationshipAskView: View {
             trimmed,
             personID: selectedScope.person.id,
             relationshipContextID: selectedScope.context.id,
-            proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())"
+            proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())",
+            requestIdentity: mediaIDs.isEmpty ? nil : mediaIDs.joined(separator: ":")
         )
         Task {
             do {
@@ -1105,7 +1446,8 @@ struct RelationshipAskView: View {
                     trimmed,
                     selectedScope.person.id,
                     selectedScope.context.id,
-                    idempotencyKey
+                    idempotencyKey,
+                    mediaIDs
                 )
                 sessionStore.revalidateEvidenceReviewAuthority(
                     citations: response.citations,
@@ -1126,6 +1468,8 @@ struct RelationshipAskView: View {
                     relationshipContextID: selectedScope.context.id
                 )
                 draft = ""
+                mediaDrafts = []
+                mediaNotice = nil
             } catch {
                 errorMessage = (error as? LocalizedError)?.errorDescription
                     ?? appLanguage.text(
@@ -1353,6 +1697,7 @@ private struct AskTurnView: View {
     let inFlightEvidenceReviewKeys: Set<String>
     let transientSupersededEvidenceReviewKeys: Set<String>
     let evidenceReviewAuthorityReadbackKeys: Set<String>
+    let loadMedia: (String) async throws -> ChatMediaContent
     let onOpenEvidence: (RelationshipAskResponse.Citation) -> Void
     let onRetryEvidenceReview: (AgentEvidenceReviewOperation) -> Void
     let onReinstateEvidence: (AgentEvidenceReviewOperation) -> Void
@@ -1361,13 +1706,25 @@ private struct AskTurnView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(turn.objective)
-                .font(.body)
-                .foregroundStyle(Color.tsSurface)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 11)
-                .background(Color.tsInk, in: RoundedRectangle(cornerRadius: 18))
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            VStack(alignment: .trailing, spacing: 7) {
+                if !turn.response.media.isEmpty {
+                    ChatMediaAlbumBubble(media: turn.response.media, load: loadMedia)
+                        .frame(maxWidth: 310)
+                }
+                Text(turn.objective)
+                    .font(.body)
+                    .foregroundStyle(Color.tsInk)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 11)
+                    .frame(maxWidth: 330, alignment: .trailing)
+                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.tsLine, lineWidth: 1)
+                    }
+                    .accessibilityIdentifier("ask-user-message")
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
 
             if turn.requiresRefresh {
                 Label(

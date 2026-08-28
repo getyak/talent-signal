@@ -62,10 +62,11 @@ Fastlane, signing dependency, versioning, classifier, and release-workflow
 changes. A change to the release decision itself therefore receives the same
 real TestFlight proof as an iOS product change.
 
-The release job checks required secret names without printing their values,
-joins the internal TestFlight tailnet as an ephemeral `tag:ci` node, writes the
-validated `TALENT_SIGNAL_API_BASE_URL` from the `testflight` Environment into
-the app build configuration, verifies tailnet reachability and a current Apple
+The release job exchanges GitHub's OIDC token for a short-lived Infisical token,
+loads only `staging:/release`, and checks required names without printing their
+values. It joins the internal TestFlight tailnet as an ephemeral `tag:ci` node,
+writes the validated `TALENT_SIGNAL_API_BASE_URL` into the app build
+configuration, verifies tailnet reachability and a current Apple
 authentication challenge before signing, writes signing material only under
 the runner temporary directory, verifies
 read access to the isolated private match repository, and removes those files
@@ -74,18 +75,17 @@ tag and GitHub prerelease are created only after that stronger acceptance
 point, not merely after transport upload.
 
 Provisioning-profile renewal is a separate maintenance operation. The
-`Refresh iOS signing` workflow requires explicit confirmation and a temporary
+`Refresh iOS signing` workflow requires explicit confirmation and a dedicated
 `MATCH_MAINTENANCE_DEPLOY_KEY` with write access to the isolated match
-repository. A maintainer first regenerates the profile for
-`com.talentsignal.app` in Apple Developer after enabling the required App ID
-capabilities. The workflow then downloads that existing profile through the
-scoped App Store Connect credential, verifies the bundle ID, profile name, and
-Sign in with Apple entitlement, verifies that the profile contains the isolated
-match distribution certificate, and encrypts only that profile into match. It
+repository. The workflow regenerates profiles for `com.talentsignal.app`,
+`com.talentsignal.app.share`, and `com.talentsignal.app.live-activity` after
+the required App ID capabilities are enabled. It then downloads the primary
+app profile through the scoped App Store Connect credential, verifies its
+bundle ID, profile name, Sign in with Apple entitlement, and isolated match
+distribution certificate, and encrypts the profile into match. It
 does not archive or upload the app and shares the release concurrency lock.
-Remove the temporary environment secret and revoke its deploy key immediately
-after the refreshed profile has been proved by a successful release; ordinary
-TestFlight CI keeps using its dedicated read-only key.
+Ordinary TestFlight CI keeps using its dedicated read-only key and cannot write
+the signing repository.
 
 App Store Connect owns the last delivery hop. Talent Signal must have an
 internal testing group with automatic distribution enabled and at least one
@@ -112,22 +112,31 @@ proves a device download.
 - `main`: pull request required, force-push and deletion blocked, `CI required`
   and `Security required` required.
 - `testflight`: only `main`, without a required reviewer.
-- `testflight` variable `TALENT_SIGNAL_API_BASE_URL`: the stable HTTPS origin
-  selected for the current release stage, with a reachable, contract-current
-  Apple authentication challenge. The internal stage may use a tailnet-only
-  Tailscale Serve origin; external testing and production require the public
-  production origin.
-- `testflight` secrets `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`: a Tailscale
-  trust credential limited to ephemeral `tag:ci` nodes with device-core and
-  auth-key write scopes. The tag is admin-owned and the credential is never
-  written into the app.
+- Infisical `staging:/release/TALENT_SIGNAL_API_BASE_URL`: the stable HTTPS
+  origin selected for the current release stage, with a reachable,
+  contract-current Apple authentication challenge. The internal stage may use
+  a tailnet-only Tailscale Serve origin; external testing and production require
+  the public production origin.
+- Infisical `staging:/release/TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`: a
+  Tailscale trust credential limited to ephemeral `tag:ci` nodes with
+  device-core and auth-key write scopes. The tag is admin-owned and the
+  credential is never written into the app.
+- `testflight` variable `INFISICAL_TESTFLIGHT_IDENTITY_ID`: the non-secret ID of
+  the OIDC Machine Identity. Its Infisical role permits only secret description
+  and value reads in `staging:/release`. Its OIDC discovery origin is
+  `https://token.actions.githubusercontent.com`, and its subject is the immutable
+  repository-ID form for this repository's `testflight` GitHub Environment.
 - Private match repository: `getyak/talent-signal-certs`, with only encrypted
   Talent Signal signing assets and a dedicated read-only CI deploy key.
 - Public App Store submission remains an explicit promotion after metadata,
   agreements, App Review readiness, and a human release decision are verified.
 
-These settings are managed through the GitHub API during repository bootstrap.
-Review them after ownership, plan, or maintainer membership changes.
+The old GitHub Environment secrets are a temporary rollback source during the
+cutover. When `INFISICAL_TESTFLIGHT_IDENTITY_ID` is unset, workflows load those
+legacy values; when it is set, they fail closed on Infisical errors and never
+fall back. Delete and revoke the legacy values only after a real TestFlight
+release and access audit pass through Infisical. Review these settings after
+ownership, plan, or maintainer membership changes.
 
 ## Link checking policy
 
@@ -170,11 +179,11 @@ again. The hook never mutates a commit during push.
   fails before signing. Repair the `testflight` Environment variable or backend
   deployment; never substitute the marketing site or a Release fixture.
 - If Xcode reports that the match profile lacks a required entitlement, enable
-  the capability for the App ID, regenerate the named profile in Apple
-  Developer, provision a temporary write deploy key, run `Refresh iOS signing`
-  with explicit confirmation, revoke the temporary key, and rerun the failed
-  verified release. App Manager API keys can read profiles but cannot create
-  them. Do not remove a product capability to fit a stale profile.
+  the capability for every affected App ID, run `Refresh iOS signing` with
+  explicit confirmation, and rerun the failed verified release. The scoped App
+  Manager API key and maintenance key have live proof for regenerating the app
+  and extension profiles. Do not remove a product capability to fit a stale
+  profile.
 - If TestFlight accepts an upload but processing or later metadata fails,
   verify the version and build number in App Store Connect before rerunning to
   avoid duplicate uploads.

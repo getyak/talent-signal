@@ -951,6 +951,99 @@
     },
     "Why is this recording needed?" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为什么需要这段录音？" } } }
+    },
+    "Activity type" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动类型" } } }
+    },
+    "Add photos" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加照片" } } }
+    },
+    "An image did not upload. Retry or remove it before Send." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一张图片上传失败。发送前请重试或移除。" } } }
+    },
+    "Choose up to ten task images. Selection alone does not make them evidence." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最多选择十张任务图片；仅选择图片不会使其成为证据。" } } }
+    },
+    "Collapse month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起月历" } } }
+    },
+    "Expand month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "展开月历" } } }
+    },
+    "Foreground voice · 1 minute max" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "前台语音 · 最长 1 分钟" } } }
+    },
+    "Image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片" } } }
+    },
+    "Listening to you" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在听你说" } } }
+    },
+    "Media album" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "媒体相册" } } }
+    },
+    "more images" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张更多图片" } } }
+    },
+    "Next month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下个月" } } }
+    },
+    "No activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无活动" } } }
+    },
+    "of" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "共" } } }
+    },
+    "One image was larger than 8 MB and was not added." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一张图片超过 8 MB，未被添加。" } } }
+    },
+    "One selected image could not be read; the rest are unchanged." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一张所选图片无法读取，其余图片未受影响。" } } }
+    },
+    "Opens the stored task image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开已存储的任务图片" } } }
+    },
+    "Preview · Calendar not read" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览 · 未读取系统日历" } } }
+    },
+    "Previous month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上个月" } } }
+    },
+    "Removal was not confirmed. The image remains attached locally." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未确认移除；图片仍保留在本地附件中。" } } }
+    },
+    "Remove image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除图片" } } }
+    },
+    "Removing image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在移除图片" } } }
+    },
+    "Tap the red stop button to create an editable transcript." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "轻点红色停止按钮，生成可编辑的转写文本。" } } }
+    },
+    "Task images · not evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "任务图片 · 非证据" } } }
+    },
+    "task images, not evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张任务图片，非证据" } } }
+    },
+    "Task images, not evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "任务图片，非证据" } } }
+    },
+    "Ten images is the limit for one Ask." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每次提问最多添加十张图片。" } } }
+    },
+    "The image could not be removed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法移除该图片。" } } }
+    },
+    "Upload complete" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传完成" } } }
+    },
+    "Upload failed. Retry keeps the same image identity." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传失败；重试会保留相同的图片标识。" } } }
+    },
+    "Uploading image" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在上传图片" } } }
     }
   },
   "version" : "1.0"
