@@ -32,7 +32,9 @@ token.
 - **Complete:** created `/shared`, `/web`, `/backend`, `/release`, and
   `/operations` in `dev`, `staging`, and `prod`.
 - **Complete:** copied readable root and ignored local values into the allowlisted
-  folders. Root values remain as rollback data.
+  folders. After runtime and release proof, all `dev` and `staging` root copies
+  were removed. Production root values remain untouched until the real
+  production identity, host, and scoped contracts are ready.
 - **Complete:** audited credential-shaped runtime environment names against the
   manifest; `AUTH_SECRET`, OpenRouter, Ark, and Zhipu development readback pass.
 - **Complete:** switched local and TestFlight wrappers to transient folder
