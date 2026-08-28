@@ -65,6 +65,11 @@ Out of scope:
   GLM-5.3 for direct China API billing. It lists GLM-5V-Turbo image/video/text
   input below 32K at CNY 5 input / CNY 22 output per million tokens. Do not buy
   a direct GLM-5.3 balance based on the OpenRouter model name alone.
+- The signed-in BigModel console currently shows about 1,999,075 universal
+  inference tokens plus 6,000,000 GLM-4.6V tokens. Direct Infisical-backed smoke
+  calls passed without payment: `glm-5.3` returned the requested JSON using 217
+  total tokens, and `glm-5.3-flash` correctly analyzed a synthetic project brand
+  PNG using a Base64 Data URL and 267 total tokens.
 - The repository previously relied on ignored `.env` files and process
   environment variables. It is now bound to the existing Infisical project,
   while applications continue to consume process environment variables.
@@ -79,12 +84,11 @@ Out of scope:
 - The working tree contains unrelated active changes, including `.env.example`,
   backend media work, and deployment files. Changes must avoid or carefully
   preserve those edits.
-- Existing OpenRouter credit already proved GLM-5.3 text calls, so no separate
-  purchase is required for the current synthetic Agent path. The direct
-  BigModel account balance and checkout amount remain unknown until its signed-in
-  billing surface is inspected; direct purchase is only justified for the
-  separately benchmarked vision path or a deliberate provider-direct routing
-  decision.
+- Existing OpenRouter credit and the BigModel account's free resource packages
+  are sufficient for the current synthetic text and vision evaluation. No
+  checkout is justified now. A direct purchase becomes relevant only after the
+  free packages approach exhaustion and a separately benchmarked vision path or
+  deliberate provider-direct routing decision is approved.
 
 ## Chosen approach
 
@@ -122,10 +126,11 @@ Rejected alternatives:
 2. **Complete — GLM provider implementation**
    Harden the OpenRouter Agent request and add the direct BigModel screenshot
    adapter with focused tests.
-3. **Pending exact checkout — Account and purchase preparation**
-   Inspect the official billing surface, choose the smallest useful balance
-   only if the direct vision benchmark needs it, and stop for confirmation of
-   the exact amount before payment.
+3. **Complete — Account and purchase preparation**
+   Inspected the signed-in billing surface and chose no purchase because the
+   existing free packages cover the bounded text and vision proofs. Reassess at
+   a defined low-balance threshold and confirm the exact amount before any
+   future payment.
 4. **Complete — Verification and review**
    CLI readback, focused provider tests, the full repository check, and durable
    secret-delivery guidance pass. Account purchase remains separately blocked
