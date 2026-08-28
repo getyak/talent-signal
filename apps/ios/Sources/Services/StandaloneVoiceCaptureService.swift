@@ -24,15 +24,53 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
     private var finalURL: URL?
     private var liveSpeechRecorder: Any?
     private let activityCoordinator = StandaloneRecordingActivityCoordinator()
+    private var interruptionObserver: NSObjectProtocol?
+    private var mediaServicesResetObserver: NSObjectProtocol?
 
     init(audioSession: AVAudioSession = .sharedInstance()) {
         self.audioSession = audioSession
         super.init()
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: audioSession,
+            queue: .main
+        ) { [weak self] notification in
+            guard let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: rawType) == .began else { return }
+            Task { @MainActor in self?.stopForInterruption() }
+        }
+        mediaServicesResetObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification,
+            object: audioSession,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.stopForInterruption() }
+        }
+    }
+
+    deinit {
+        if let interruptionObserver {
+            NotificationCenter.default.removeObserver(interruptionObserver)
+        }
+        if let mediaServicesResetObserver {
+            NotificationCenter.default.removeObserver(mediaServicesResetObserver)
+        }
     }
 
     var isRecording: Bool {
         if case .recording = phase { return true }
         return false
+    }
+
+    var recordingStartedAt: Date? {
+        guard case let .recording(startedAt) = phase else { return nil }
+        return startedAt
+    }
+
+    func reconcileOrphanedLiveActivities() async {
+        if isRecording { return }
+        if case .transcribing = phase { return }
+        await activityCoordinator.reconcileOrphans()
     }
 
     func start(draftID: UUID, authorizationConfirmed: Bool) async {
@@ -131,29 +169,33 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
                 return nil
             }
         }
-        guard let recorder, recorder.isRecording,
-              let temporaryURL, let finalURL else { return nil }
+        guard let recorder else {
+            await failActiveRecordingIfNeeded()
+            return nil
+        }
         timer?.invalidate()
         timer = nil
         recorder.stop()
         self.recorder = nil
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        let sealedURL: URL
         do {
-            try removeIfPresent(finalURL)
-            try FileManager.default.moveItem(at: temporaryURL, to: finalURL)
-            try FileManager.default.setAttributes(
-                [.protectionKey: FileProtectionType.complete],
-                ofItemAtPath: finalURL.path
-            )
-            phase = .transcribing
-            await activityCoordinator.markOrganizing()
-            let text = try await transcribe(fileURL: finalURL, locale: locale)
+            sealedURL = try sealFallbackRecording()
+        } catch {
+            phase = .failed("The recording could not be finalized. The local typed Draft remains available.")
+            await activityCoordinator.end(dismissImmediately: true)
+            return nil
+        }
+        phase = .transcribing
+        await activityCoordinator.markOrganizing()
+        do {
+            let text = try await transcribe(fileURL: sealedURL, locale: locale)
             transcript = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            phase = .ready(fileName: finalURL.lastPathComponent)
+            phase = .ready(fileName: sealedURL.lastPathComponent)
             await activityCoordinator.markReadyToReview()
             return transcript.isEmpty ? nil : transcript
         } catch {
-            phase = .ready(fileName: finalURL.lastPathComponent)
+            phase = .ready(fileName: sealedURL.lastPathComponent)
             transcript = ""
             await activityCoordinator.markReadyToReview()
             return nil
@@ -165,19 +207,19 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
             Task { _ = await stopAndTranscribe() }
             return
         }
-        guard let recorder, recorder.isRecording else { return }
+        guard isRecording else { return }
         timer?.invalidate()
         timer = nil
-        recorder.stop()
+        recorder?.stop()
         self.recorder = nil
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-        if let temporaryURL, let finalURL {
-            try? removeIfPresent(finalURL)
-            try? FileManager.default.moveItem(at: temporaryURL, to: finalURL)
+        do {
+            let finalURL = try sealFallbackRecording()
             phase = .ready(fileName: finalURL.lastPathComponent)
             Task { await activityCoordinator.markReadyToReview() }
-        } else {
+        } catch {
             phase = .failed("Recording was interrupted. The local draft is still available for typed input.")
+            Task { await activityCoordinator.end(dismissImmediately: true) }
         }
     }
 
@@ -248,6 +290,29 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
         try FileManager.default.removeItem(at: url)
     }
 
+    private func sealFallbackRecording() throws -> URL {
+        guard let temporaryURL, let finalURL,
+              FileManager.default.fileExists(atPath: temporaryURL.path) else {
+            throw StandaloneVoiceCaptureError.interruptedBeforeFileWasReady
+        }
+        try removeIfPresent(finalURL)
+        try FileManager.default.moveItem(at: temporaryURL, to: finalURL)
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: finalURL.path
+        )
+        return finalURL
+    }
+
+    private func failActiveRecordingIfNeeded() async {
+        guard isRecording else { return }
+        timer?.invalidate()
+        timer = nil
+        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        phase = .failed("Recording stopped before it could be finalized. The local draft remains available for typed input.")
+        await activityCoordinator.end(dismissImmediately: true)
+    }
+
     private func transcribe(fileURL: URL, locale: Locale) async throws -> String {
         guard #available(iOS 26.0, *) else {
             throw StandaloneVoiceCaptureError.transcriptionUnavailable
@@ -272,9 +337,7 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
         case .installed:
             break
         case .supported, .downloading:
-            if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
-                try await request.downloadAndInstall()
-            }
+            throw StandaloneVoiceCaptureError.transcriptionUnavailable
         case .unsupported:
             throw StandaloneVoiceCaptureError.transcriptionUnavailable
         @unknown default:
@@ -355,9 +418,7 @@ private final class StandaloneLiveSpeechRecorder {
         case .installed:
             break
         case .supported, .downloading:
-            if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
-                try await request.downloadAndInstall()
-            }
+            throw StandaloneVoiceCaptureError.transcriptionUnavailable
         case .unsupported:
             throw StandaloneVoiceCaptureError.transcriptionUnavailable
         @unknown default:
@@ -483,6 +544,7 @@ private extension AVAudioPCMBuffer {
 enum StandaloneVoiceCaptureError: LocalizedError {
     case startFailed
     case transcriptionUnavailable
+    case interruptedBeforeFileWasReady
 
     var errorDescription: String? {
         switch self {
@@ -490,6 +552,8 @@ enum StandaloneVoiceCaptureError: LocalizedError {
             return "The foreground recorder did not start."
         case .transcriptionUnavailable:
             return "On-device transcription is unavailable. The recording remains local and you can type the Signal."
+        case .interruptedBeforeFileWasReady:
+            return "The interrupted recording file was not ready to seal."
         }
     }
 }

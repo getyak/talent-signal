@@ -76,6 +76,15 @@ actor PendingCaptureInbox {
         }
     }
 
+#if DEBUG
+    func removeAllForTesting() throws {
+        try prepareQueue()
+        for metadata in try queuedMetadata() {
+            try remove(id: metadata.id)
+        }
+    }
+#endif
+
     func saveDraft(_ draft: RecognizedCaptureDraft, for id: UUID) throws {
         try prepareQueue()
         guard try load(id: id) != nil else { return }

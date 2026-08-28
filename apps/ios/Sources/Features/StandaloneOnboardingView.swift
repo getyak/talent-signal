@@ -20,11 +20,14 @@ struct StandaloneOnboardingView: View {
     @StateObject private var store: StandaloneOnboardingStore
     @StateObject private var calendarService = StandaloneCalendarService()
     @StateObject private var voiceService = StandaloneVoiceCaptureService()
+    @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @ObservedObject private var intentRouter = CaptureIntentRouter.shared
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appLanguage) private var appLanguage
+    @FocusState private var signalTextFocused: Bool
 
     @State private var displayName = ""
     @State private var selectedTemplate = "Hire someone"
@@ -35,10 +38,17 @@ struct StandaloneOnboardingView: View {
     @State private var captureAuthorized = false
     @State private var todayDetail: TodayDetail?
     @State private var showsSettings = false
+    @State private var showsDeleteImportedSourceConfirmation = false
+    @State private var pendingSharedCaptureDeletion: SharedCaptureEnvelope?
+    @State private var retainedSharedCaptures: [SharedCaptureEnvelope] = []
     @State private var sharedCaptureNotice: String?
+    @State private var showsWelcomeQueuedShortcutDeletion = false
+    @State private var showsSettingsQueuedShortcutDeletion = false
 
     private let forceDemoEngine: Bool
     private let simulatesActionButton: Bool
+    private let pendingShortcutFixtureID: UUID?
+    private let clearsPendingShortcutFixtures: Bool
     private let initialURL: URL?
 
     init(
@@ -47,16 +57,50 @@ struct StandaloneOnboardingView: View {
     ) {
         let reset = arguments.contains("--standalone-onboarding-reset")
         _store = StateObject(wrappedValue: StandaloneOnboardingStore(reset: reset))
+        _retainedSharedCaptures = State(
+            initialValue: (try? SharedCaptureInbox().retained()) ?? []
+        )
         forceDemoEngine = arguments.contains("--demo-proposal-engine")
             || arguments.contains("--standalone-demo")
         simulatesActionButton = arguments.contains("--simulate-action-button")
             || arguments.contains("--standalone-demo")
+#if DEBUG
+        pendingShortcutFixtureID = Self.value(
+            after: "--standalone-pending-shortcut-fixture",
+            in: arguments
+        ).flatMap(UUID.init(uuidString:))
+        clearsPendingShortcutFixtures = arguments.contains(
+            "--standalone-clear-pending-shortcut-fixtures"
+        )
+#else
+        pendingShortcutFixtureID = nil
+        clearsPendingShortcutFixtures = false
+#endif
         self.initialURL = initialURL
+    }
+
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize
+            || UIApplication.shared.preferredContentSizeCategory.isAccessibilityCategory
     }
 
     var body: some View {
         ZStack {
             Color.tsCanvas.ignoresSafeArea()
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel(localized("Standalone appearance"))
+                .accessibilityValue(colorScheme == .dark ? "dark" : "light")
+                .accessibilityIdentifier("standalone-appearance")
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel(localized("Standalone content size"))
+                .accessibilityValue(
+                    usesAccessibilityLayout ? "accessibility" : "standard"
+                )
+                .accessibilityIdentifier("standalone-content-size")
             VStack(spacing: 0) {
                 if store.state.route != .today {
                     progressHeader
@@ -65,9 +109,13 @@ struct StandaloneOnboardingView: View {
                     routeContent
                         .frame(maxWidth: 620, alignment: .leading)
                         .padding(.horizontal, 22)
-                        .padding(.top, 24)
+                        .padding(
+                            .top,
+                            store.state.route == .today && usesAccessibilityLayout ? 12 : 24
+                        )
                         .padding(.bottom, 40)
                 }
+                .id(store.state.route)
                 .scrollDismissesKeyboard(.interactively)
             }
         }
@@ -80,6 +128,12 @@ struct StandaloneOnboardingView: View {
                 selectedCalendarIDs: Array(calendarService.selectedCalendarIDs).sorted()
             )
         }
+        .onChange(of: calendarService.selectedCalendarIDs) { selectedCalendarIDs in
+            store.observeCalendar(
+                calendarService.permission,
+                selectedCalendarIDs: Array(selectedCalendarIDs).sorted()
+            )
+        }
         .onChange(of: voiceService.phase) { phase in
             switch phase {
             case .idle: break
@@ -87,6 +141,7 @@ struct StandaloneOnboardingView: View {
                 store.updateCaptureState(.requestingPermission)
             case .recording:
                 store.updateCaptureState(.recording)
+                consumeLiveActivityStopRequestIfNeeded()
             case .transcribing:
                 store.updateCaptureState(.transcribing)
             case let .ready(fileName):
@@ -96,13 +151,11 @@ struct StandaloneOnboardingView: View {
                 captureMode = .text
             }
         }
+        .onChange(of: captureHandoff.pendingSeed?.id) { _ in
+            Task { await importPendingIntentCapture() }
+        }
         .onChange(of: voiceService.elapsedSeconds) { _ in
-            guard voiceService.isRecording,
-                  let draftID = store.state.captureDraft?.id,
-                  (try? LiveActivityStopRequestBridge.consume(draftID: draftID)) == true else {
-                return
-            }
-            Task { await finishVoiceRecording() }
+            consumeLiveActivityStopRequestIfNeeded()
         }
         .onChange(of: store.state.route) { route in
             if route != .capture, voiceService.isRecording {
@@ -111,6 +164,11 @@ struct StandaloneOnboardingView: View {
         }
         .onChange(of: store.state.pursuit?.id) { _ in
             importNextSharedCapture()
+            Task {
+                await captureHandoff.restorePendingCapture()
+                captureHandoff.resume()
+                await importPendingIntentCapture()
+            }
         }
         .onChange(of: intentRouter.request) { request in
             guard let request else { return }
@@ -137,13 +195,27 @@ struct StandaloneOnboardingView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 importNextSharedCapture()
-                Task { await calendarService.refresh() }
+                consumeLiveActivityStopRequestIfNeeded()
+                Task {
+                    await captureHandoff.restorePendingCapture()
+                    captureHandoff.resume()
+                    await importPendingIntentCapture()
+                    await voiceService.reconcileOrphanedLiveActivities()
+                    await calendarService.refresh()
+                }
             } else if phase != .active, voiceService.isRecording {
                 voiceService.stopForInterruption()
             }
         }
         .task {
+            await clearPendingShortcutFixturesIfNeeded()
+            await seedPendingShortcutFixtureIfNeeded()
             importNextSharedCapture()
+            await CaptureHandoffStore.shared.restorePendingCapture()
+            captureHandoff.resume()
+            await importPendingIntentCapture()
+            await voiceService.reconcileOrphanedLiveActivities()
+            calendarService.restoreSelection(Set(store.state.selectedCalendarIDs))
             await calendarService.refresh()
             if let initialURL { handleDeepLink(initialURL) }
         }
@@ -152,6 +224,17 @@ struct StandaloneOnboardingView: View {
         }
         .sheet(isPresented: $showsSettings) {
             standaloneSettings
+        }
+        .alert(
+            localized("Delete queued Shortcut capture?"),
+            isPresented: $showsWelcomeQueuedShortcutDeletion
+        ) {
+            Button(localized("Cancel"), role: .cancel) {}
+            Button(localized("Delete Queued Capture"), role: .destructive) {
+                Task { await deletePendingShortcutCapture() }
+            }
+        } message: {
+            Text(localized("This removes the protected screenshot waiting for a Pursuit. It does not delete the original image from Photos or Files."))
         }
         .onOpenURL { url in
             handleDeepLink(url)
@@ -172,10 +255,13 @@ struct StandaloneOnboardingView: View {
                     .accessibilityLabel(localized("Onboarding step \(stepNumber) of 9"))
             }
             GeometryReader { proxy in
+                let availableWidth = proxy.size.width.isFinite
+                    ? max(0, proxy.size.width)
+                    : 0
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.tsLine).frame(height: 2)
                     Capsule().fill(Color.tsVermilion)
-                        .frame(width: proxy.size.width * CGFloat(stepNumber) / 9, height: 2)
+                        .frame(width: availableWidth * CGFloat(stepNumber) / 9, height: 2)
                 }
             }
             .frame(height: 2)
@@ -238,6 +324,35 @@ struct StandaloneOnboardingView: View {
             Button(localized("Get Started")) { store.showIdentity() }
                 .buttonStyle(TSPrimaryButtonStyle())
                 .accessibilityIdentifier("standalone-get-started")
+            Button { openSettings() } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(localized("Manage retained sources"))
+                        .font(.body.weight(.semibold))
+                    Text(localized("Review or delete imported Share and Shortcut evidence."))
+                        .font(.footnote)
+                        .foregroundStyle(Color.tsMutedInk)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(TSSecondaryButtonStyle())
+            .accessibilityIdentifier("standalone-manage-retained-sources")
+            if captureHandoff.savedSeed != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(localized("Shortcut screenshot queued"), systemImage: "lock.doc")
+                        .font(.body.weight(.semibold))
+                    Text(localized("It remains protected on this device. Create a Pursuit to import it, or delete it now."))
+                        .font(.footnote)
+                        .foregroundStyle(Color.tsMutedInk)
+                    Button(localized("Delete Queued Capture"), role: .destructive) {
+                        showsWelcomeQueuedShortcutDeletion = true
+                    }
+                    .accessibilityIdentifier("standalone-delete-queued-shortcut-welcome")
+                }
+                .padding(14)
+                .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).stroke(Color.tsLine) }
+                .accessibilityIdentifier("standalone-queued-shortcut-source")
+            }
 #if DEBUG
             Button(localized("Continue as Demo User")) {
                 store.begin(displayName: "Demo Recruiter", demoAccount: true)
@@ -376,7 +491,7 @@ struct StandaloneOnboardingView: View {
                 captureMode = .text
                 store.chooseSource(.text)
             }
-            Text(localized("Later: Share Extension · Contacts · Gmail"))
+            Text(localized("Available now: Share Extension · Later: Contacts · Gmail"))
                 .font(.footnote)
                 .foregroundStyle(Color.tsMutedInk)
         }
@@ -453,6 +568,9 @@ struct StandaloneOnboardingView: View {
             if !calendarService.calendars.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(localized("Calendars")).font(.subheadline.weight(.semibold))
+                    Text(localized("Choose only the calendars needed for this Pursuit. No events are read until you select one."))
+                        .font(.footnote)
+                        .foregroundStyle(Color.tsMutedInk)
                     ForEach(calendarService.calendars) { calendar in
                         Toggle(
                             calendar.title,
@@ -467,6 +585,11 @@ struct StandaloneOnboardingView: View {
             }
             if calendarService.isLoading {
                 ProgressView("Reading the bounded Calendar window…")
+            } else if calendarService.selectedCalendarIDs.isEmpty {
+                emptyState(
+                    title: localized("Choose a calendar to begin"),
+                    body: localized("No events have been read. Select only the calendar needed for this Pursuit, or continue with a Demo Meeting, Voice, or Text.")
+                )
             } else if calendarService.meetings.isEmpty {
                 emptyState(
                     title: "No meeting needs choosing",
@@ -505,7 +628,7 @@ struct StandaloneOnboardingView: View {
             .disabled(voiceService.isRecording)
             if captureMode == .voice { voiceCapture } else { textCapture }
             notice
-            Button(localized("Process This Signal")) {
+            Button(localized("Process On Device")) {
                 Task {
                     await store.process(
                         using: AdaptiveStandaloneProposalEngine(forceDemo: forceDemoEngine)
@@ -520,7 +643,20 @@ struct StandaloneOnboardingView: View {
                         .isEmpty != false
             )
             .accessibilityIdentifier("standalone-process-signal")
-            Text(localized("The Source and Draft are already saved locally. Processing creates a Proposal, not a fact."))
+            Button(localized("Review Without AI")) {
+                Task {
+                    await store.process(using: ManualStandaloneProposalEngine())
+                }
+            }
+            .buttonStyle(TSSecondaryButtonStyle())
+            .disabled(
+                voiceService.isRecording
+                    || store.state.captureDraft?.text
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty != false
+            )
+            .accessibilityIdentifier("standalone-review-without-ai")
+            Text(localized("The Source and Draft are already saved locally. Either route creates a Proposal, not a fact; the manual route copies your exact Signal without model interpretation."))
                 .font(.footnote)
                 .foregroundStyle(Color.tsMutedInk)
         }
@@ -528,6 +664,22 @@ struct StandaloneOnboardingView: View {
 
     private var textCapture: some View {
         VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(localized(
+                    store.state.captureDraft?.sharedPayloadKind == nil
+                        ? "SIGNAL · EDITABLE"
+                        : "WORKING SIGNAL · EDITABLE"
+                ))
+                .font(.caption.weight(.bold))
+                .tracking(1)
+                .foregroundStyle(Color.tsMutedInk)
+                Spacer()
+                if signalTextFocused {
+                    Button(localized("Done")) { signalTextFocused = false }
+                        .font(.body.weight(.semibold))
+                        .accessibilityIdentifier("standalone-dismiss-signal-keyboard")
+                }
+            }
             TextEditor(
                 text: Binding(
                     get: { store.state.captureDraft?.text ?? "" },
@@ -541,6 +693,7 @@ struct StandaloneOnboardingView: View {
             .overlay { RoundedRectangle(cornerRadius: 16).stroke(Color.tsLine) }
             .accessibilityLabel(localized("Signal text"))
             .accessibilityIdentifier("standalone-signal-text")
+            .focused($signalTextFocused)
             Button(localized("Use the showcase Signal")) {
                 store.updateDraftText(StandaloneDemoProposalCatalog.showcaseSignal)
             }
@@ -627,10 +780,22 @@ struct StandaloneOnboardingView: View {
                 demoBadge(proposal.engineLabel.uppercased())
                 reviewSection("SOURCE", icon: "quote.opening") {
                     Text(proposal.sourceSummary).font(.headline)
-                    Text(store.state.captureDraft?.text ?? "")
-                        .font(.body)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .textSelection(.enabled)
+                    if store.state.captureDraft?.sharedPayloadKind == nil {
+                        Text(store.state.captureDraft?.text ?? "")
+                            .font(.body)
+                            .foregroundStyle(Color.tsMutedInk)
+                            .textSelection(.enabled)
+                    } else {
+                        sharedProvenanceDetails
+                        if let workingSignal = store.state.captureDraft?.text,
+                           !workingSignal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            provenanceText(
+                                label: "WORKING SIGNAL USED FOR PROPOSAL",
+                                value: workingSignal,
+                                icon: "doc.text.magnifyingglass"
+                            )
+                        }
+                    }
                 }
                 reviewSection("MATCHED PURSUIT", icon: "scope") {
                     Text(store.state.pursuit?.outcome ?? "Unknown Pursuit").font(.headline)
@@ -745,46 +910,86 @@ struct StandaloneOnboardingView: View {
     }
 
     private var today: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: usesAccessibilityLayout ? 16 : 22) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(localized("Today"))
-                        .font(sizeCategory.isAccessibilityCategory ? .title.bold() : .largeTitle.bold())
-                    Text(localized("One supported move, with its evidence still attached."))
-                        .font(sizeCategory.isAccessibilityCategory ? .subheadline : .body)
+                        .font(usesAccessibilityLayout ? .title2.bold() : .largeTitle.bold())
+                    if !usesAccessibilityLayout {
+                        Text(localized("One supported move, with its evidence still attached."))
+                            .font(.body)
                         .foregroundStyle(Color.tsMutedInk)
+                    }
                 }
                 Spacer()
-                Button { showsSettings = true } label: {
+                Button { openSettings() } label: {
                     Image(systemName: "gearshape")
                         .frame(width: 44, height: 44)
                         .background(Color.tsSurface, in: Circle())
                 }
                 .accessibilityLabel(localized("Settings"))
+                .accessibilityIdentifier("standalone-open-settings")
             }
             if let pursuit = store.state.pursuit, let progress = store.state.progress {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text(pursuit.outcome).font(.title2.bold())
+                VStack(alignment: .leading, spacing: usesAccessibilityLayout ? 14 : 18) {
+                    Text(pursuit.outcome)
+                        .font(usesAccessibilityLayout ? .headline.bold() : .title2.bold())
+                        .accessibilityIdentifier("standalone-today-primary-card")
+                    Button { todayDetail = .source } label: {
+                        if usesAccessibilityLayout {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(localized(sourceEvidenceLabel))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.tsMutedInk)
+                                Text(localized("Open the retained source and full provenance"))
+                                    .font(.footnote.weight(.semibold))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 14))
+                        } else {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "quote.opening")
+                                    .frame(width: 26)
+                                    .foregroundStyle(Color.tsConfirmed)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(localized(sourceEvidenceLabel))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color.tsMutedInk)
+                                    Text(progress.sourceSummary)
+                                        .font(.body.weight(.semibold))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.tsMutedInk)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(localized("\(sourceEvidenceLabel), \(progress.sourceSummary)"))
+                    .accessibilityHint(localized("Opens the retained source"))
+                    .accessibilityIdentifier("standalone-today-evidence-link")
                     ForEach(progress.confirmedFacts.prefix(1)) { fact in
                         summaryRow(label: "Verified progress", value: fact.proposedValue, icon: "checkmark.seal")
                     }
                     ForEach(progress.unresolved.prefix(1)) { unknown in
                         summaryRow(label: "Unresolved", value: unknown.question, icon: "questionmark.circle")
                     }
-                    if let action = progress.acceptedActions.first ?? store.state.proposal?.nextActions.first {
+                    if let action = progress.acceptedActions.first {
                         summaryRow(label: "Next action", value: action.title, icon: "arrow.right.circle")
                     }
-                    Text(localized("PROVENANCE")).font(.caption.weight(.bold)).tracking(1)
-                    Text(progress.sourceSummary)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.tsMutedInk)
                 }
                 .tsCard()
-                .accessibilityIdentifier("standalone-today-primary-card")
                 LazyVGrid(
                     columns: Array(
                         repeating: GridItem(.flexible(), spacing: 10),
-                        count: sizeCategory.isAccessibilityCategory ? 1 : 2
+                        count: usesAccessibilityLayout ? 1 : 2
                     ),
                     spacing: 10
                 ) {
@@ -812,16 +1017,90 @@ struct StandaloneOnboardingView: View {
                         store.resetDemoData()
                         showsSettings = false
                     }
+                    .accessibilityIdentifier("standalone-reset-demo-data")
+                }
+                Section(localized("Retained imported sources")) {
+                    if captureHandoff.savedSeed != nil {
+                        Button(role: .destructive) {
+                            showsSettingsQueuedShortcutDeletion = true
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(localized("Delete queued Shortcut capture"))
+                                Text(localized("Protected locally · not imported into a Pursuit"))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.tsMutedInk)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .accessibilityIdentifier("standalone-delete-queued-shortcut-settings")
+                    }
+                    if retainedSharedCaptures.isEmpty {
+                        Text(localized("No retained Share or Shortcut sources"))
+                            .foregroundStyle(Color.tsMutedInk)
+                            .accessibilityIdentifier("standalone-no-retained-sources")
+                    } else {
+                        ForEach(retainedSharedCaptures) { envelope in
+                            Button(role: .destructive) {
+                                pendingSharedCaptureDeletion = envelope
+                                showsDeleteImportedSourceConfirmation = true
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(retainedSourceDeleteLabel(envelope.kind))
+                                    Text(envelope.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundStyle(Color.tsMutedInk)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .accessibilityIdentifier(
+                                "standalone-delete-retained-source-\(envelope.id.uuidString.lowercased())"
+                            )
+                        }
+                    }
                 }
                 Section("Boundary") {
                     Text(localized("Reset removes only standalone local onboarding records. It does not change Calendar permissions or user events."))
+                    Text(localized("Imported and queued Share or Shortcut sources remain listed here after reset until you delete them individually."))
                 }
+            }
+            .onAppear {
+                refreshRetainedSharedCaptures()
             }
             .navigationTitle(localized("Settings"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(localized("Done")) { showsSettings = false }
                 }
+            }
+            .alert(
+                localized("Delete imported source?"),
+                isPresented: $showsDeleteImportedSourceConfirmation
+            ) {
+                Button(localized("Cancel"), role: .cancel) {}
+                Button(localized("Delete Source and Derived State"), role: .destructive) {
+                    guard let envelope = pendingSharedCaptureDeletion else { return }
+                    do {
+                        let inbox = try SharedCaptureInbox()
+                        store.deleteRetainedCapture(envelope.id, using: inbox)
+                        refreshRetainedSharedCaptures()
+                    } catch {
+                        sharedCaptureNotice = "The imported source was not deleted: \(error.localizedDescription)"
+                    }
+                }
+            } message: {
+                Text(localized("This removes the retained Share or Shortcut item and the local Draft, Proposal, and verified progress derived from it. It does not delete the original item from the source app."))
+            }
+            .confirmationDialog(
+                localized("Delete queued Shortcut capture?"),
+                isPresented: $showsSettingsQueuedShortcutDeletion,
+                titleVisibility: .visible
+            ) {
+                Button(localized("Delete Queued Capture"), role: .destructive) {
+                    Task { await deletePendingShortcutCapture() }
+                }
+                Button(localized("Cancel"), role: .cancel) {}
+            } message: {
+                Text(localized("This removes the protected screenshot waiting for a Pursuit. It does not delete the original image from Photos or Files."))
             }
         }
     }
@@ -837,7 +1116,12 @@ struct StandaloneOnboardingView: View {
                         Text(localized("Activation: \(store.state.activationStatus.rawValue)"))
                     case .source:
                         pageTitle(store.state.progress?.sourceSummary ?? "Source", eyebrow: "SOURCE")
-                        Text(store.state.selectedMeeting?.isDemo == true ? "Demo Meeting" : "User-selected source")
+                        if store.state.captureDraft?.sharedPayloadKind == nil {
+                            Text(store.state.selectedMeeting?.isDemo == true ? "Demo Meeting" : "User-selected source")
+                        } else {
+                            sharedProvenanceDetails
+                            sharedImagePreview
+                        }
                     case .signal:
                         pageTitle("Captured Signal", eyebrow: "SIGNAL")
                         Text(store.state.captureDraft?.text ?? "Unavailable").textSelection(.enabled)
@@ -868,10 +1152,20 @@ struct StandaloneOnboardingView: View {
             return "Demo meeting · not connected"
         }
         switch store.state.lastObservedCalendarPermission {
-        case .fullAccess, .connectedEmpty, .connectedWithMeetings: return "Connected"
+        case .fullAccess:
+            return store.state.selectedCalendarIDs.isEmpty
+                ? "Full access · choose a calendar"
+                : "Connected"
+        case .connectedEmpty, .connectedWithMeetings: return "Connected"
         case .denied, .restricted, .writeOnly: return "Skipped · text remains available"
         case .notDetermined: return "Not connected"
         }
+    }
+
+    private var sourceEvidenceLabel: String {
+        store.state.selectedMeeting?.isDemo == true
+            ? "DEMO SOURCE EVIDENCE"
+            : "SOURCE EVIDENCE"
     }
 
     private var actionCapability: String {
@@ -893,6 +1187,7 @@ struct StandaloneOnboardingView: View {
                     title: "Shared \(kind.rawValue.capitalized)",
                     body: "Imported through the App Group inbox · original source retained locally"
                 )
+                sharedProvenanceDetails
                 sharedImagePreview
             }
         } else if let meeting = store.state.selectedMeeting {
@@ -912,11 +1207,60 @@ struct StandaloneOnboardingView: View {
         }
     }
 
+    @ViewBuilder
+    private var sharedProvenanceDetails: some View {
+        if let sourceText = store.state.captureDraft?.sharedSourceText,
+           !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            provenanceText(
+                label: store.state.captureDraft?.sharedPayloadKind == .image
+                    ? "EXTRACTED SOURCE TEXT · VERIFY AGAINST IMAGE"
+                    : "SHARED SOURCE TEXT",
+                value: sourceText,
+                icon: "doc.text"
+            )
+        }
+        if let recruiterNote = store.state.captureDraft?.sharedRecruiterNote,
+           !recruiterNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            provenanceText(
+                label: "RECRUITER NOTE",
+                value: recruiterNote,
+                icon: "pencil.line"
+            )
+        }
+        if let sourceURL = store.state.captureDraft?.sharedSourceURL {
+            provenanceText(
+                label: "SHARED URL",
+                value: sourceURL.absoluteString,
+                icon: "link"
+            )
+        }
+    }
+
+    private func provenanceText(label: String, value: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(localized(label), systemImage: icon)
+                .font(.caption.weight(.bold))
+                .tracking(0.8)
+                .foregroundStyle(Color.tsMutedInk)
+            Text(value)
+                .font(.body)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay { RoundedRectangle(cornerRadius: 14).stroke(Color.tsLine) }
+    }
+
     private var calendarStatus: some View {
         let status: (String, String, Color) = {
             switch calendarService.permission {
             case .notDetermined: return ("Not requested", "You decide when the system prompt appears.", .tsMutedInk)
-            case .fullAccess, .connectedEmpty, .connectedWithMeetings: return ("Full access", "Calendar can be read for meeting selection.", .tsConfirmed)
+            case .fullAccess:
+                return calendarService.selectedCalendarIDs.isEmpty
+                    ? ("Full access · no calendar selected", "No events have been read. Choose only the calendar needed for this Pursuit.", .tsWarning)
+                    : ("Full access", "Only the selected calendars can be read for meeting selection.", .tsConfirmed)
+            case .connectedEmpty, .connectedWithMeetings: return ("Full access", "Only the selected calendars can be read for meeting selection.", .tsConfirmed)
             case .writeOnly: return ("Write-only is not connected", "Reading meetings requires Full Access.", .tsWarning)
             case .denied: return ("Access denied", "Continue with Voice or Text; Talent Signal will not ask again automatically.", .tsWarning)
             case .restricted: return ("Access restricted", "This device does not currently allow Calendar reading.", .tsWarning)
@@ -963,12 +1307,17 @@ struct StandaloneOnboardingView: View {
                 .frame(maxHeight: 220)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
                 .accessibilityLabel(localized("Shared image retained as source evidence"))
+                .accessibilityValue(localized(
+                    store.state.captureDraft?.sharedSourceText
+                        ?? "No text equivalent was extracted. Do not confirm image-based facts without inspecting the retained source."
+                ))
         }
     }
 
     private func importNextSharedCapture() {
         do {
             let inbox = try SharedCaptureInbox()
+            try store.reconcileSharedCaptureTransactions(using: inbox)
             for envelope in try inbox.pending() {
                 if store.state.importedSharedEnvelopeIDs.contains(envelope.id) {
                     try inbox.markImported(envelope.id)
@@ -986,10 +1335,128 @@ struct StandaloneOnboardingView: View {
         }
     }
 
+    @MainActor
+    private func importPendingIntentCapture() async {
+        guard let seed = captureHandoff.pendingSeed else { return }
+        guard store.state.pursuit != nil else {
+            sharedCaptureNotice = "A Shortcut screenshot is safely queued. Create a Pursuit before importing it."
+            return
+        }
+        do {
+            let inbox = try SharedCaptureInbox()
+            try store.reconcileSharedCaptureTransactions(using: inbox)
+            let envelope = try StandaloneShortcutCaptureBridge.stage(seed, in: inbox)
+            if !store.state.importedSharedEnvelopeIDs.contains(envelope.id) {
+                guard store.importSharedCapture(envelope) else { return }
+            }
+            try inbox.markImported(envelope.id)
+            try await PendingCaptureInbox.shared.remove(id: seed.id)
+            await captureHandoff.advanceToNextCapture()
+            captureHandoff.resume()
+            sharedCaptureNotice = nil
+        } catch {
+            sharedCaptureNotice = "The Shortcut screenshot remains queued and will retry: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func deletePendingShortcutCapture() async {
+        guard let seed = captureHandoff.savedSeed else { return }
+        do {
+            try await PendingCaptureInbox.shared.remove(id: seed.id)
+            await captureHandoff.advanceToNextCapture()
+            captureHandoff.resume()
+            sharedCaptureNotice = captureHandoff.savedSeed == nil
+                ? nil
+                : localized("Another Shortcut screenshot remains safely queued.")
+        } catch {
+            sharedCaptureNotice = "The queued Shortcut screenshot was not deleted: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func seedPendingShortcutFixtureIfNeeded() async {
+#if DEBUG
+        guard let pendingShortcutFixtureID else { return }
+        do {
+            let data = Data(
+                "synthetic-pending-shortcut-\(pendingShortcutFixtureID.uuidString)".utf8
+            )
+            let seed = try await PendingCaptureInbox.shared.stage(
+                imageData: data,
+                fileName: "synthetic-pending-shortcut.png",
+                mediaType: "image/png",
+                origin: .appShortcut
+            )
+            captureHandoff.present(seed)
+        } catch {
+            sharedCaptureNotice = "The synthetic queued Shortcut fixture could not be prepared: \(error.localizedDescription)"
+        }
+#endif
+    }
+
+    @MainActor
+    private func clearPendingShortcutFixturesIfNeeded() async {
+#if DEBUG
+        guard clearsPendingShortcutFixtures else { return }
+        do {
+            try await PendingCaptureInbox.shared.removeAllForTesting()
+            await captureHandoff.advanceToNextCapture()
+        } catch {
+            sharedCaptureNotice = "The synthetic Shortcut fixture queue could not be cleared: \(error.localizedDescription)"
+        }
+#endif
+    }
+
     private func finishVoiceRecording() async {
         if let transcript = await voiceService.stopAndTranscribe() {
             store.updateDraftText(transcript)
         }
+    }
+
+    private func consumeLiveActivityStopRequestIfNeeded() {
+        guard voiceService.isRecording,
+              let draftID = store.state.captureDraft?.id else { return }
+        do {
+            guard try LiveActivityStopRequestBridge.consume(
+                draftID: draftID,
+                recordingStartedAt: voiceService.recordingStartedAt
+            ) else { return }
+            Task { await finishVoiceRecording() }
+        } catch {
+            sharedCaptureNotice = "The lock-screen Stop request could not be read. Recording remains under foreground control: \(error.localizedDescription)"
+        }
+    }
+
+    private func openSettings() {
+        refreshRetainedSharedCaptures()
+        showsSettings = true
+    }
+
+    private func refreshRetainedSharedCaptures() {
+        do {
+            let inbox = try SharedCaptureInbox()
+            try store.reconcileSharedCaptureTransactions(using: inbox)
+            retainedSharedCaptures = try inbox.retained()
+        } catch SharedCaptureInboxError.appGroupUnavailable {
+            retainedSharedCaptures = []
+        } catch {
+            sharedCaptureNotice = "Retained imported sources could not be inventoried: \(error.localizedDescription)"
+        }
+    }
+
+    private func retainedSourceDeleteLabel(_ kind: SharedCapturePayloadKind) -> String {
+        switch kind {
+        case .image: return localized("Delete retained image source")
+        case .text: return localized("Delete retained text source")
+        case .url: return localized("Delete retained URL source")
+        }
+    }
+
+    private static func value(after flag: String, in arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: flag),
+              arguments.indices.contains(index + 1) else { return nil }
+        return arguments[index + 1]
     }
 
     private func handleDeepLink(_ url: URL) {

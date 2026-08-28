@@ -36,6 +36,16 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertFalse(draft.idempotencyKey.uuidString.isEmpty)
     }
 
+    @MainActor
+    func testLiveActivityActiveStateHasABoundedStaleDeadline() {
+        let start = Date(timeIntervalSince1970: 100)
+
+        XCTAssertEqual(
+            StandaloneRecordingActivityCoordinator.activeStaleDate(from: start),
+            Date(timeIntervalSince1970: 700)
+        )
+    }
+
     func testCalendarPermissionNeverActivatesOnboarding() {
         var state = readyForSourceChoice()
         XCTAssertTrue(state.chooseSource(.calendar))
@@ -69,6 +79,7 @@ final class StandaloneOnboardingTests: XCTestCase {
         let first = try XCTUnwrap(state.progress)
         XCTAssertEqual(state.activationStatus, .verifiedProgress)
         XCTAssertEqual(first.confirmedFacts.map(\.id), [fact.id])
+        XCTAssertTrue(first.acceptedActions.isEmpty)
 
         XCTAssertTrue(state.confirm(now: Date(timeIntervalSince1970: 80)))
         XCTAssertEqual(state.progress?.id, first.id)
@@ -133,6 +144,31 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertEqual(proposal.engineLabel, "Demo Engine · fixture v1")
     }
 
+    func testManualNoModelRouteCompletesArbitraryTextWithoutFoundationModels() async throws {
+        var state = readyForSourceChoice()
+        XCTAssertTrue(state.chooseSource(.text))
+        let exactSignal = "Candidate requested a four-day week; compensation remains unresolved."
+        state.updateDraftText(exactSignal)
+        let generation = try XCTUnwrap(state.beginProcessing())
+        let draft = try XCTUnwrap(state.captureDraft)
+        let pursuit = try XCTUnwrap(state.pursuit)
+
+        let proposal = try await ManualStandaloneProposalEngine()
+            .generate(draft: draft, pursuit: pursuit)
+
+        XCTAssertEqual(proposal.engineLabel, "Manual structure · no model")
+        XCTAssertTrue(proposal.inferences.isEmpty)
+        XCTAssertTrue(proposal.nextActions.isEmpty)
+        XCTAssertEqual(proposal.facts.first?.proposedValue, exactSignal)
+        XCTAssertEqual(proposal.facts.first?.evidenceExcerpt, exactSignal)
+        XCTAssertTrue(state.receiveProposal(proposal, generation: generation))
+        let fact = try XCTUnwrap(state.proposal?.facts.first)
+        state.selectFact(fact.id, selected: true)
+        XCTAssertTrue(state.confirm())
+        XCTAssertEqual(state.activationStatus, .verifiedProgress)
+        XCTAssertEqual(state.progress?.confirmedFacts.first?.proposedValue, exactSignal)
+    }
+
     func testExplicitlyAcceptedActionCanCreateProgressWhileUnknownRemains() throws {
         var state = try proposalReadyState()
         let proposal = try XCTUnwrap(state.proposal)
@@ -180,6 +216,48 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertEqual(restored.captureDraft?.idempotencyKey, state.captureDraft?.idempotencyKey)
         XCTAssertEqual(restored.captureDraft?.text, state.captureDraft?.text)
         XCTAssertEqual(restored.route, .capture)
+    }
+
+    func testFilePersistenceRestoresExplicitCalendarScope() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let fileURL = directory.appending(path: "session.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = FileStandaloneOnboardingStore(fileURL: fileURL)
+        var state = readyForSourceChoice()
+        state.observeCalendar(
+            .connectedWithMeetings,
+            selectedCalendarIDs: ["work-calendar", "search-calendar"]
+        )
+
+        try persistence.save(state)
+        let restored = try XCTUnwrap(persistence.load())
+
+        XCTAssertEqual(restored.selectedCalendarIDs, ["work-calendar", "search-calendar"])
+    }
+
+    func testFilePersistenceProtectsSensitiveSessionWhileDeviceIsLocked() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let fileURL = directory.appending(path: "session.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = FileStandaloneOnboardingStore(fileURL: fileURL)
+        var state = readyForSourceChoice()
+        XCTAssertTrue(state.chooseSource(.text))
+        state.updateDraftText("Synthetic private Signal")
+
+        try persistence.save(state)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let protection = attributes[.protectionKey] as? FileProtectionType
+#if targetEnvironment(simulator)
+        XCTAssertTrue(
+            protection == nil || protection == .complete,
+            "Simulator filesystems may not expose the device Data Protection class."
+        )
+#else
+        XCTAssertEqual(protection, .complete)
+#endif
     }
 
     func testRelaunchRecoversInterruptedProcessingWithoutLosingDraft() throws {
@@ -308,6 +386,47 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertNil(persistence.state)
     }
 
+    @MainActor
+    func testLaunchResetFailureHidesPriorEvidenceAndSurfacesRecovery() {
+        let prior = readyForSourceChoice()
+        let persistence = ControlledStandalonePersistence(state: prior)
+        persistence.rejectResets = true
+
+        let store = StandaloneOnboardingStore(persistence: persistence, reset: true)
+
+        XCTAssertEqual(store.state.route, .welcome)
+        XCTAssertNil(store.state.pursuit)
+        XCTAssertEqual(persistence.state?.sessionID, prior.sessionID)
+        XCTAssertTrue(store.persistenceNotice?.contains("Prior evidence is hidden") == true)
+    }
+
+    @MainActor
+    func testResetDemoDataPreservesUserAuthoredShareCapturesAndPayloads() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let capture = try inbox.appendImage(
+            data: Data("synthetic-user-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png",
+            sourceText: "Synthetic source text"
+        )
+        let persistence = ControlledStandalonePersistence(state: readyForSourceChoice())
+        let resetter = ControlledDemoDataResetter()
+        let store = StandaloneOnboardingStore(
+            persistence: persistence,
+            demoDataResetter: resetter
+        )
+
+        store.resetDemoData()
+
+        XCTAssertEqual(resetter.resetCount, 1)
+        XCTAssertEqual(try inbox.pending().map(\.id), [capture.id])
+        XCTAssertNotNil(inbox.payloadURL(for: capture))
+        XCTAssertNil(store.persistenceNotice)
+    }
+
     func testSharedCaptureInboxAtomicallyQueuesImageTextAndURL() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
@@ -318,19 +437,28 @@ final class StandaloneOnboardingTests: XCTestCase {
             data: Data("image".utf8),
             fileExtension: "png",
             mediaType: "image/png",
+            sourceText: "Candidate says remote only.",
             note: "Candidate shared a written update.",
             now: Date(timeIntervalSince1970: 1)
         )
         let text = try inbox.appendText(
             "Remote preference confirmed.",
+            note: "Recruiter should verify the working location.",
             now: Date(timeIntervalSince1970: 2)
         )
         let url = try inbox.appendURL(
             URL(string: "https://example.com/brief")!,
+            note: "Recruiter-provided context",
             now: Date(timeIntervalSince1970: 3)
         )
 
         XCTAssertEqual(try inbox.pending().map(\.id), [image.id, text.id, url.id])
+        XCTAssertEqual(image.sourceText, "Candidate says remote only.")
+        XCTAssertEqual(image.recruiterNote, "Candidate shared a written update.")
+        XCTAssertEqual(text.sourceText, "Remote preference confirmed.")
+        XCTAssertEqual(text.recruiterNote, "Recruiter should verify the working location.")
+        XCTAssertNil(url.sourceText)
+        XCTAssertEqual(url.recruiterNote, "Recruiter-provided context")
         XCTAssertNotNil(inbox.payloadURL(for: image))
         let temporaryFiles = try FileManager.default.contentsOfDirectory(
             at: directory.appending(path: "Temporary"),
@@ -340,6 +468,30 @@ final class StandaloneOnboardingTests: XCTestCase {
 
         try inbox.markImported(image.id)
         XCTAssertEqual(try inbox.pending().map(\.id), [text.id, url.id])
+    }
+
+    func testShortcutScreenshotStagesIntoStandaloneInboxWithStableIdentity() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let seed = PendingCaptureSeed(
+            id: UUID(uuidString: "81818181-8181-4818-8818-818181818181")!,
+            imageData: Data("synthetic-shortcut-image".utf8),
+            fileName: "conversation.png",
+            mediaType: "image/png",
+            createdAt: Date(timeIntervalSince1970: 42),
+            origin: .appShortcut
+        )
+
+        let first = try StandaloneShortcutCaptureBridge.stage(seed, in: inbox)
+        let retry = try StandaloneShortcutCaptureBridge.stage(seed, in: inbox)
+
+        XCTAssertEqual(first.id, seed.id)
+        XCTAssertEqual(retry, first)
+        XCTAssertEqual(first.sourceApplication, "App Shortcut")
+        XCTAssertEqual(try inbox.pending().map(\.id), [seed.id])
+        XCTAssertNotNil(inbox.payloadURL(for: first))
     }
 
     func testSharedCaptureResetDeletesEnvelopesAndPayloads() throws {
@@ -359,18 +511,365 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
+    func testScopedSharedCaptureDeletionCommitsEnvelopeAndPayloadOnly() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let image = try inbox.appendImage(
+            data: Data("synthetic-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        let retainedText = try inbox.appendText("Retain this separate capture")
+        try inbox.markImported(image.id)
+
+        let transaction = try inbox.stageDeletion(image.id)
+        try inbox.commitDeletion(transaction)
+
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        try relaunchedInbox.reconcileDeletionTransactions(retainedEnvelopeIDs: [])
+        XCTAssertNil(try relaunchedInbox.envelope(id: image.id))
+        XCTAssertNil(relaunchedInbox.payloadURL(for: image))
+        XCTAssertEqual(try relaunchedInbox.pending().map(\.id), [retainedText.id])
+    }
+
+    func testInterruptedScopedDeletionRollsBackOnInboxRecovery() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let image = try inbox.appendImage(
+            data: Data("synthetic-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        try inbox.markImported(image.id)
+        _ = try inbox.stageDeletion(image.id)
+
+        let recovered = try SharedCaptureInbox(rootURL: directory)
+        try recovered.reconcileDeletionTransactions(retainedEnvelopeIDs: [image.id])
+
+        let restoredEnvelope = try XCTUnwrap(recovered.envelope(id: image.id))
+        XCTAssertEqual(restoredEnvelope.id, image.id)
+        XCTAssertEqual(restoredEnvelope.payloadFileName, image.payloadFileName)
+        XCTAssertEqual(restoredEnvelope.mediaType, image.mediaType)
+        XCTAssertNotNil(recovered.payloadURL(for: image))
+    }
+
+    func testScopedDeletionFinishesAfterSessionStateCommittedBeforeInboxMarker() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let image = try inbox.appendImage(
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        try inbox.markImported(image.id)
+        _ = try inbox.stageDeletion(image.id)
+
+        var persistedState = readyForSourceChoice()
+        XCTAssertTrue(persistedState.importSharedCapture(image))
+        XCTAssertTrue(persistedState.discardImportedCapture(image.id))
+
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        try relaunchedInbox.reconcileDeletionTransactions(
+            retainedEnvelopeIDs: persistedState.importedSharedEnvelopeIDs
+        )
+
+        XCTAssertNil(try relaunchedInbox.envelope(id: image.id))
+        XCTAssertNil(relaunchedInbox.payloadURL(for: image))
+        XCTAssertTrue(try relaunchedInbox.retained().isEmpty)
+    }
+
+    func testCommittedDeletionMarkerFinishesPhysicalRemovalAfterRelaunch() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let image = try inbox.appendImage(
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        try inbox.markImported(image.id)
+        _ = try inbox.stageDeletion(image.id)
+        let transactionDirectory = directory
+            .appending(path: "Deleting", directoryHint: .isDirectory)
+            .appending(path: image.id.uuidString.lowercased(), directoryHint: .isDirectory)
+        try Data().write(
+            to: transactionDirectory.appending(path: "committed"),
+            options: .atomic
+        )
+
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        try relaunchedInbox.reconcileDeletionTransactions(retainedEnvelopeIDs: [])
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: transactionDirectory.path))
+        XCTAssertNil(try relaunchedInbox.envelope(id: image.id))
+        XCTAssertNil(relaunchedInbox.payloadURL(for: image))
+    }
+
+    func testEmptyPreManifestDeletionDirectoryDoesNotStopLaterRecovery() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let retainedID = UUID(uuidString: "ffffffff-ffff-4fff-8fff-ffffffffffff")!
+        let image = try inbox.appendImage(
+            id: retainedID,
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        try inbox.markImported(image.id)
+        _ = try inbox.stageDeletion(image.id)
+        let emptyTransaction = directory
+            .appending(path: "Deleting", directoryHint: .isDirectory)
+            .appending(
+                path: "00000000-0000-4000-8000-000000000000",
+                directoryHint: .isDirectory
+            )
+        try FileManager.default.createDirectory(
+            at: emptyTransaction,
+            withIntermediateDirectories: false
+        )
+
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        try relaunchedInbox.reconcileDeletionTransactions(
+            retainedEnvelopeIDs: [retainedID]
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: emptyTransaction.path))
+        let restored = try XCTUnwrap(relaunchedInbox.envelope(id: retainedID))
+        XCTAssertEqual(restored.id, image.id)
+        XCTAssertEqual(restored.kind, image.kind)
+        XCTAssertEqual(restored.payloadFileName, image.payloadFileName)
+        XCTAssertEqual(restored.mediaType, image.mediaType)
+        XCTAssertNotNil(relaunchedInbox.payloadURL(for: image))
+    }
+
+    @MainActor
+    func testResetAfterImportKeepsSourceVisibleAndIndividuallyDeletable() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let image = try inbox.appendImage(
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png",
+            sourceText: "Synthetic source retained through reset"
+        )
+        try inbox.markImported(image.id)
+        var importedState = readyForSourceChoice()
+        XCTAssertTrue(importedState.importSharedCapture(image))
+        let persistence = ControlledStandalonePersistence(state: importedState)
+        let store = StandaloneOnboardingStore(
+            persistence: persistence,
+            demoDataResetter: ControlledDemoDataResetter()
+        )
+
+        store.resetDemoData()
+
+        XCTAssertNil(store.state.captureDraft)
+        XCTAssertTrue(store.state.importedSharedEnvelopeIDs.isEmpty)
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        XCTAssertEqual(try relaunchedInbox.retained().map(\.id), [image.id])
+
+        store.deleteRetainedCapture(image.id, using: relaunchedInbox)
+
+        XCTAssertNil(try relaunchedInbox.envelope(id: image.id))
+        XCTAssertNil(relaunchedInbox.payloadURL(for: image))
+        XCTAssertTrue(try relaunchedInbox.retained().isEmpty)
+    }
+
+    func testDiscardImportedCaptureRemovesAllDerivedLocalState() async throws {
+        var state = readyForSourceChoice()
+        let envelope = SharedCaptureEnvelope(
+            id: UUID(uuidString: "91919191-9191-4919-8919-919191919191")!,
+            kind: .text,
+            sourceText: "Synthetic source evidence"
+        )
+        XCTAssertTrue(state.importSharedCapture(envelope))
+        let generation = try XCTUnwrap(state.beginProcessing())
+        let draft = try XCTUnwrap(state.captureDraft)
+        let pursuit = try XCTUnwrap(state.pursuit)
+        let proposal = try await ManualStandaloneProposalEngine()
+            .generate(draft: draft, pursuit: pursuit)
+        XCTAssertTrue(state.receiveProposal(proposal, generation: generation))
+        let fact = try XCTUnwrap(state.proposal?.facts.first)
+        state.selectFact(fact.id, selected: true)
+        XCTAssertTrue(state.confirm())
+
+        XCTAssertTrue(state.discardImportedCapture(envelope.id))
+
+        XCTAssertNil(state.captureDraft)
+        XCTAssertNil(state.proposal)
+        XCTAssertNil(state.progress)
+        XCTAssertEqual(state.activationStatus, .notStarted)
+        XCTAssertEqual(state.actionPracticeState, .notOffered)
+        XCTAssertEqual(state.route, .sourceChoice)
+        XCTAssertFalse(state.importedSharedEnvelopeIDs.contains(envelope.id))
+    }
+
+    @MainActor
+    func testImportedCaptureDeletionRollsBackFilesWhenSessionSaveFails() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let envelope = try inbox.appendImage(
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png",
+            sourceText: "Synthetic private evidence"
+        )
+        var importedState = readyForSourceChoice()
+        XCTAssertTrue(importedState.importSharedCapture(envelope))
+        try inbox.markImported(envelope.id)
+        let persistence = ControlledStandalonePersistence(state: importedState)
+        let store = StandaloneOnboardingStore(persistence: persistence)
+        persistence.rejectSaves = true
+
+        store.deleteImportedCapture(using: inbox)
+
+        XCTAssertEqual(store.state.captureDraft?.sharedEnvelopeID, envelope.id)
+        XCTAssertNotNil(try inbox.envelope(id: envelope.id))
+        XCTAssertNotNil(inbox.payloadURL(for: envelope))
+        XCTAssertNotNil(store.persistenceNotice)
+    }
+
+    @MainActor
+    func testImportedCaptureDeletionCommitsFilesAndDerivedStateTogether() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let envelope = try inbox.appendImage(
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png",
+            sourceText: "Synthetic private evidence"
+        )
+        var importedState = readyForSourceChoice()
+        XCTAssertTrue(importedState.importSharedCapture(envelope))
+        try inbox.markImported(envelope.id)
+        let persistence = ControlledStandalonePersistence(state: importedState)
+        let store = StandaloneOnboardingStore(persistence: persistence)
+
+        store.deleteImportedCapture(using: inbox)
+
+        XCTAssertNil(store.state.captureDraft)
+        XCTAssertNil(store.state.proposal)
+        XCTAssertNil(store.state.progress)
+        XCTAssertNil(try inbox.envelope(id: envelope.id))
+        XCTAssertNil(inbox.payloadURL(for: envelope))
+        XCTAssertNil(store.persistenceNotice)
+    }
+
+    func testSharedImageTransactionRecoversEnvelopeAndPayloadAfterInterruption() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        _ = try SharedCaptureInbox(rootURL: directory)
+        let id = UUID(uuidString: "61616161-6161-4616-8616-616161616161")!
+        let payloadFileName = "\(id.uuidString.lowercased()).png"
+        let envelope = SharedCaptureEnvelope(
+            id: id,
+            kind: .image,
+            recruiterNote: "Synthetic recovery note",
+            payloadFileName: payloadFileName,
+            mediaType: "image/png"
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let temporaryDirectory = directory.appending(path: "Temporary", directoryHint: .isDirectory)
+        try encoder.encode(envelope).write(
+            to: temporaryDirectory.appending(path: "\(id.uuidString.lowercased()).json.tmp"),
+            options: .atomic
+        )
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(
+            to: temporaryDirectory.appending(path: "\(payloadFileName).tmp"),
+            options: .atomic
+        )
+
+        let recoveredInbox = try SharedCaptureInbox(rootURL: directory)
+        let recovered = try XCTUnwrap(recoveredInbox.pending().first)
+
+        XCTAssertEqual(recovered.id, envelope.id)
+        XCTAssertEqual(recovered.kind, envelope.kind)
+        XCTAssertEqual(recovered.recruiterNote, envelope.recruiterNote)
+        XCTAssertEqual(recovered.payloadFileName, envelope.payloadFileName)
+        XCTAssertEqual(recovered.mediaType, envelope.mediaType)
+        XCTAssertNotNil(recoveredInbox.payloadURL(for: recovered))
+        XCTAssertTrue(
+            try FileManager.default.contentsOfDirectory(
+                at: temporaryDirectory,
+                includingPropertiesForKeys: nil
+            ).isEmpty
+        )
+    }
+
+    func testCorruptSharedEnvelopeIsVisibleInsteadOfSilentlyDiscarded() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let corruptURL = directory
+            .appending(path: "Inbox", directoryHint: .isDirectory)
+            .appending(path: "corrupt.json")
+        try Data("not-json".utf8).write(to: corruptURL, options: .atomic)
+
+        XCTAssertThrowsError(try inbox.pending()) { error in
+            guard case let SharedCaptureInboxError.corruptEnvelope(fileName) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertEqual(fileName, "corrupt.json")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: corruptURL.path))
+        }
+    }
+
+    func testUnsupportedSharedEnvelopeRemainsVisibleForRecoveryOrReset() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let envelopeURL = directory
+            .appending(path: "Inbox", directoryHint: .isDirectory)
+            .appending(path: "future.json")
+        let futureEnvelope = """
+        {"schemaVersion":999,"id":"71717171-7171-4717-8717-717171717171","kind":"text","createdAt":"2026-08-28T00:00:00Z","sourceText":"Future schema evidence"}
+        """
+        try Data(futureEnvelope.utf8).write(to: envelopeURL, options: .atomic)
+
+        XCTAssertThrowsError(try inbox.pending()) { error in
+            guard case SharedCaptureInboxError.unsupportedSchema(999) = error else {
+                return XCTFail("Expected unsupported schema error, got \(error)")
+            }
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: envelopeURL.path))
+    }
+
     func testSharedCaptureImportsIdempotentlyIntoTheSameReviewFlow() throws {
         var state = readyForSourceChoice()
         let envelope = SharedCaptureEnvelope(
             id: UUID(uuidString: "51515151-5151-4515-8515-515151515151")!,
             kind: .text,
-            text: "Remote preference confirmed. Visa status remains unclear."
+            sourceText: "Remote preference confirmed. Visa status remains unclear.",
+            recruiterNote: "Recruiter wants to confirm the work-authorization detail."
         )
 
         XCTAssertTrue(state.importSharedCapture(envelope))
         XCTAssertEqual(state.route, .capture)
         XCTAssertEqual(state.captureDraft?.sharedEnvelopeID, envelope.id)
         XCTAssertEqual(state.captureDraft?.idempotencyKey, envelope.id)
+        XCTAssertEqual(state.captureDraft?.sharedSourceText, envelope.sourceText)
+        XCTAssertEqual(state.captureDraft?.sharedRecruiterNote, envelope.recruiterNote)
+        XCTAssertEqual(state.captureDraft?.text, envelope.sourceText)
+        XCTAssertFalse(state.captureDraft?.text.contains("Recruiter wants") == true)
         XCTAssertFalse(state.importSharedCapture(envelope))
 
         let generation = try XCTUnwrap(state.beginProcessing())
@@ -382,7 +881,58 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertTrue(proposal.sourceSummary.contains("Share Sheet"))
     }
 
-    func testLiveActivityStopRequestIsDraftScopedAndConsumedOnce() throws {
+    func testSharedImageUsesExtractedSourceTextWithoutMergingRecruiterNote() throws {
+        var state = readyForSourceChoice()
+        let envelope = SharedCaptureEnvelope(
+            kind: .image,
+            sourceText: "Candidate prefers remote work.",
+            recruiterNote: "Recruiter should confirm time zone.",
+            payloadFileName: "synthetic.png",
+            mediaType: "image/png"
+        )
+
+        XCTAssertTrue(state.importSharedCapture(envelope))
+
+        XCTAssertEqual(state.captureDraft?.text, "Candidate prefers remote work.")
+        XCTAssertEqual(state.captureDraft?.sharedSourceText, "Candidate prefers remote work.")
+        XCTAssertEqual(state.captureDraft?.sharedRecruiterNote, "Recruiter should confirm time zone.")
+        XCTAssertFalse(state.captureDraft?.text.contains("Recruiter should") == true)
+    }
+
+    func testLegacySharedCapturePreservesTheOnlyRecoverableProvenanceRole() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let legacyText = Data("""
+        {
+          "id": "51515151-5151-4515-8515-515151515152",
+          "schemaVersion": 1,
+          "kind": "text",
+          "createdAt": "1970-01-01T00:00:00Z",
+          "text": "Legacy shared source"
+        }
+        """.utf8)
+        let legacyImage = Data("""
+        {
+          "id": "51515151-5151-4515-8515-515151515153",
+          "schemaVersion": 1,
+          "kind": "image",
+          "createdAt": "1970-01-01T00:00:00Z",
+          "text": "Legacy recruiter note",
+          "payloadFileName": "legacy.png",
+          "mediaType": "image/png"
+        }
+        """.utf8)
+
+        let textEnvelope = try decoder.decode(SharedCaptureEnvelope.self, from: legacyText)
+        let imageEnvelope = try decoder.decode(SharedCaptureEnvelope.self, from: legacyImage)
+
+        XCTAssertEqual(textEnvelope.sourceText, "Legacy shared source")
+        XCTAssertNil(textEnvelope.recruiterNote)
+        XCTAssertNil(imageEnvelope.sourceText)
+        XCTAssertEqual(imageEnvelope.recruiterNote, "Legacy recruiter note")
+    }
+
+    func testMismatchedLiveActivityStopRequestIsDiscardedAsStale() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -400,16 +950,70 @@ final class StandaloneOnboardingTests: XCTestCase {
                 rootURL: directory
             )
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             try LiveActivityStopRequestBridge.consume(
                 draftID: requestedDraftID,
                 rootURL: directory
             )
         )
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
+    func testMatchingLiveActivityStopRequestIsConsumedOnce() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let draftID = UUID()
+
+        try LiveActivityStopRequestBridge.write(draftID: draftID, rootURL: directory)
+
+        XCTAssertTrue(try LiveActivityStopRequestBridge.consume(draftID: draftID, rootURL: directory))
+        XCTAssertFalse(try LiveActivityStopRequestBridge.consume(draftID: draftID, rootURL: directory))
+    }
+
+    func testMatchingLiveActivityStopRequestExpiresBeforeLaterRetry() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let draftID = UUID()
+        let retryStartedAt = Date(timeIntervalSince1970: 1_000)
+
+        try LiveActivityStopRequestBridge.write(
+            draftID: draftID,
+            rootURL: directory,
+            now: Date(timeIntervalSince1970: 700)
+        )
+
         XCTAssertFalse(
             try LiveActivityStopRequestBridge.consume(
-                draftID: requestedDraftID,
-                rootURL: directory
+                draftID: draftID,
+                rootURL: directory,
+                recordingStartedAt: retryStartedAt,
+                now: Date(timeIntervalSince1970: 1_010)
+            )
+        )
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
+    func testFreshMatchingLiveActivityStopRequestCanStopCurrentRecording() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let draftID = UUID()
+        let recordingStartedAt = Date(timeIntervalSince1970: 1_000)
+
+        try LiveActivityStopRequestBridge.write(
+            draftID: draftID,
+            rootURL: directory,
+            now: Date(timeIntervalSince1970: 1_005)
+        )
+
+        XCTAssertTrue(
+            try LiveActivityStopRequestBridge.consume(
+                draftID: draftID,
+                rootURL: directory,
+                recordingStartedAt: recordingStartedAt,
+                now: Date(timeIntervalSince1970: 1_010)
             )
         )
     }
@@ -424,8 +1028,8 @@ final class StandaloneOnboardingTests: XCTestCase {
         try LiveActivityStopRequestBridge.write(draftID: first, rootURL: directory)
         try LiveActivityStopRequestBridge.write(draftID: latest, rootURL: directory)
 
-        XCTAssertFalse(try LiveActivityStopRequestBridge.consume(draftID: first, rootURL: directory))
         XCTAssertTrue(try LiveActivityStopRequestBridge.consume(draftID: latest, rootURL: directory))
+        XCTAssertFalse(try LiveActivityStopRequestBridge.consume(draftID: first, rootURL: directory))
     }
 
     func testSystemCaptureUsesOneUnassignedInboxItemUntilPursuitExists() throws {
@@ -485,6 +1089,7 @@ final class StandaloneOnboardingTests: XCTestCase {
 private final class ControlledStandalonePersistence: StandaloneOnboardingPersisting {
     var state: StandaloneOnboardingState?
     var rejectSaves = false
+    var rejectResets = false
 
     init(state: StandaloneOnboardingState?) {
         self.state = state
@@ -497,9 +1102,21 @@ private final class ControlledStandalonePersistence: StandaloneOnboardingPersist
         self.state = state
     }
 
-    func reset() throws { state = nil }
+    func reset() throws {
+        if rejectResets { throw ControlledPersistenceError.resetRejected }
+        state = nil
+    }
+}
+
+private final class ControlledDemoDataResetter: StandaloneDemoDataResetting {
+    private(set) var resetCount = 0
+
+    func resetAncillaryDemoData() throws {
+        resetCount += 1
+    }
 }
 
 private enum ControlledPersistenceError: Error {
+    case resetRejected
     case saveRejected
 }

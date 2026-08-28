@@ -1,6 +1,114 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Another Shortcut screenshot remains safely queued." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "另一张快捷指令截图仍安全地排队等待处理。" } } }
+    },
+    "Delete Queued Capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除排队中的捕获" } } }
+    },
+    "Delete queued Shortcut capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除排队中的快捷指令捕获" } } }
+    },
+    "Delete queued Shortcut capture?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除排队中的快捷指令捕获？" } } }
+    },
+    "Imported and queued Share or Shortcut sources remain listed here after reset until you delete them individually." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置后，已导入和排队中的分享或快捷指令来源仍会列在此处，直到你逐项删除。" } } }
+    },
+    "It remains protected on this device. Create a Pursuit to import it, or delete it now." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "它仍受保护地保存在此设备上。创建 Pursuit 以导入，或立即删除。" } } }
+    },
+    "Protected locally · not imported into a Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地受保护 · 尚未导入 Pursuit" } } }
+    },
+    "Shortcut screenshot queued" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷指令截图已排队" } } }
+    },
+    "Standalone content size" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独立流程文字尺寸" } } }
+    },
+    "This removes the protected screenshot waiting for a Pursuit. It does not delete the original image from Photos or Files." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会移除等待归入 Pursuit 的受保护截图，不会删除照片或文件中的原图。" } } }
+    },
+    "Standalone appearance" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独立流程外观" } } }
+    },
+    "Manage retained sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "管理保留的来源" } } }
+    },
+    "Review or delete imported Share and Shortcut evidence." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看或删除从分享与快捷指令导入的证据。" } } }
+    },
+    "DEMO SOURCE EVIDENCE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "演示来源证据" } } }
+    },
+    "Delete retained image source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除保留的图片来源" } } }
+    },
+    "Delete retained text source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除保留的文本来源" } } }
+    },
+    "Delete retained URL source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除保留的链接来源" } } }
+    },
+    "Full access · no calendar selected" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已获完整访问权限 · 尚未选择日历" } } }
+    },
+    "Full access · choose a calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已获完整访问权限 · 请选择日历" } } }
+    },
+    "Imported Share and Shortcut sources remain listed here after reset until you delete them individually." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置后，已导入的分享与快捷指令来源仍会列在这里，直到你逐项删除。" } } }
+    },
+    "No retained Share or Shortcut sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有保留的分享或快捷指令来源" } } }
+    },
+    "No events have been read. Choose only the calendar needed for this Pursuit." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未读取任何日程。仅选择此 Pursuit 所需的日历。" } } }
+    },
+    "Open the retained source and full provenance" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开保留的来源与完整出处" } } }
+    },
+    "Only the selected calendars can be read for meeting selection." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅会读取已选择的日历来挑选会议。" } } }
+    },
+    "Retained imported sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留的已导入来源" } } }
+    },
+    "SOURCE EVIDENCE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源证据" } } }
+    },
+    "Available now: Share Extension · Later: Contacts · Gmail" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "现在可用：分享扩展 · 稍后提供：通讯录 · Gmail" } } }
+    },
+    "Choose a calendar to begin" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一个日历以开始" } } }
+    },
+    "Delete Imported Source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除已导入来源" } } }
+    },
+    "Delete Source and Derived State" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除来源及其派生状态" } } }
+    },
+    "Delete imported source?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除已导入的来源？" } } }
+    },
+    "No events have been read. Select only the calendar needed for this Pursuit, or continue with a Demo Meeting, Voice, or Text." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未读取任何日程。仅选择此 Pursuit 所需的日历，或使用演示会议、语音或文本继续。" } } }
+    },
+    "Process On Device" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在设备端处理" } } }
+    },
+    "Review Without AI" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不使用 AI 审阅" } } }
+    },
+    "The Source and Draft are already saved locally. Either route creates a Proposal, not a fact; the manual route copies your exact Signal without model interpretation." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源和草稿已在本地保存。任一路径都只会创建 Proposal，不会直接成为事实；手动路径会原样复制你的 Signal，不进行模型解读。" } } }
+    },
+    "This removes the retained Share or Shortcut item and the local Draft, Proposal, and verified progress derived from it. It does not delete the original item from the source app." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会删除保留的分享或快捷指令项目，以及由其派生的本地草稿、Proposal 和已验证进展。不会删除来源 App 中的原始项目。" } } }
+    },
     "Allow Calendar Access" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "允许访问日历" } } }
     },
@@ -112,9 +220,6 @@
     "Activity" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动" } } }
     },
-    "Activity type" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动类型" } } }
-    },
     "Add activity" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加活动" } } }
     },
@@ -133,14 +238,8 @@
     "Calendar. No linked moments." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历。暂无关联活动。" } } }
     },
-    "Collapse month" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起月历" } } }
-    },
     "Conversation" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会谈" } } }
-    },
-    "Expand month" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "展开月历" } } }
     },
     "Duration" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时长" } } }
@@ -153,12 +252,6 @@
     },
     "Meeting" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会议" } } }
-    },
-    "Next month" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下个月" } } }
-    },
-    "No activity" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无活动" } } }
     },
     "No confirmed relationship is available." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无可用的已确认关系。" } } }
@@ -198,12 +291,6 @@
     },
     "Preview only · no Calendar data was read" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅为预览 · 未读取系统日历数据" } } }
-    },
-    "Preview · Calendar not read" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览 · 未读取系统日历" } } }
-    },
-    "Previous month" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上个月" } } }
     },
     "Relationship" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系" } } }
@@ -814,17 +901,11 @@
     "Creating an editable transcript…" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在生成可编辑的转写…" } } }
     },
-    "Foreground voice · 1 minute max" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "前台语音 · 最长 1 分钟" } } }
-    },
     "Keep Talent Signal in the foreground to use voice input." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用语音输入时，请让 Talent Signal 保持在前台。" } } }
     },
     "Listening" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在聆听" } } }
-    },
-    "Listening to you" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在听你说" } } }
     },
     "Microphone permission was not granted. No audio was recorded." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未获得麦克风权限，因此没有录制任何音频。" } } }
@@ -850,9 +931,6 @@
     "Tap stop to transcribe with Doubao · 1 minute max" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "点击停止后由豆包转写 · 最长 1 分钟" } } }
     },
-    "Tap the red stop button to create an editable transcript." : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "轻点红色停止按钮，生成可编辑的转写文本。" } } }
-    },
     "Use Doubao voice transcription?" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用豆包语音转写？" } } }
     },
@@ -871,6 +949,12 @@
     "Waiting for microphone permission…" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在等待麦克风权限…" } } }
     },
+    "Why is this recording needed?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为什么需要这段录音？" } } }
+    },
+    "Activity type" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动类型" } } }
+    },
     "Add photos" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加照片" } } }
     },
@@ -880,11 +964,35 @@
     "Choose up to ten task images. Selection alone does not make them evidence." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最多选择十张任务图片；仅选择图片不会使其成为证据。" } } }
     },
+    "Collapse month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起月历" } } }
+    },
+    "Expand month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "展开月历" } } }
+    },
+    "Foreground voice · 1 minute max" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "前台语音 · 最长 1 分钟" } } }
+    },
     "Image" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片" } } }
     },
+    "Listening to you" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在听你说" } } }
+    },
     "Media album" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "媒体相册" } } }
+    },
+    "more images" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张更多图片" } } }
+    },
+    "Next month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下个月" } } }
+    },
+    "No activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无活动" } } }
+    },
+    "of" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "共" } } }
     },
     "One image was larger than 8 MB and was not added." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一张图片超过 8 MB，未被添加。" } } }
@@ -895,6 +1003,12 @@
     "Opens the stored task image" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开已存储的任务图片" } } }
     },
+    "Preview · Calendar not read" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览 · 未读取系统日历" } } }
+    },
+    "Previous month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上个月" } } }
+    },
     "Removal was not confirmed. The image remains attached locally." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未确认移除；图片仍保留在本地附件中。" } } }
     },
@@ -904,8 +1018,14 @@
     "Removing image" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在移除图片" } } }
     },
+    "Tap the red stop button to create an editable transcript." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "轻点红色停止按钮，生成可编辑的转写文本。" } } }
+    },
     "Task images · not evidence" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "任务图片 · 非证据" } } }
+    },
+    "task images, not evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张任务图片，非证据" } } }
     },
     "Task images, not evidence" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "任务图片，非证据" } } }
@@ -924,18 +1044,6 @@
     },
     "Uploading image" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在上传图片" } } }
-    },
-    "more images" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张更多图片" } } }
-    },
-    "of" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "共" } } }
-    },
-    "task images, not evidence" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张任务图片，非证据" } } }
-    },
-    "Why is this recording needed?" : {
-      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为什么需要这段录音？" } } }
     }
   },
   "version" : "1.0"
