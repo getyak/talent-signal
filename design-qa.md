@@ -1,0 +1,1190 @@
+# Design QA — Conversation-first relationship intake
+
+## Evidence
+
+- Source visual truth: `/tmp/talent-signal-simulator-current.png`
+  - The previously shipped iOS Today surface the user explicitly asked to preserve: top Today / Sessions / People navigation and a quiet bottom Agent entry.
+- Implementation screenshot: `/tmp/talent-signal-top-nav-global-input-2.png`
+- Combined comparison: `/tmp/talent-signal-nav-comparison.png`
+- Viewport and density: iPhone 17 Pro Simulator, 402 × 874 pt at 3×.
+- Source pixels: 1206 × 2622.
+- Implementation pixels: 1206 × 2622.
+- Density normalization: none required; both captures use the same simulator pixel dimensions and device density.
+- State: light appearance, synthetic preview, Today selected, primary review card visible, global Agent input idle.
+
+## Full-view comparison evidence
+
+The combined comparison preserves the same editorial hierarchy, top navigation geometry, warm surface palette, large Today title, calendar continuation, primary proposal card, and persistent bottom entry. The implementation intentionally changes only the bottom entry semantics: the source orb becomes a paperclip for direct screenshot review, the copy becomes a global natural-language invitation, and the waveform uses the existing vermilion action token.
+
+## Focused-region comparison evidence
+
+The top navigation and bottom input are readable at full capture scale in the combined comparison, so a separate crop was not needed. The top rail retains the prior capsule selection, text-only labels, spacing, and menu orb. The bottom region keeps the source capsule silhouette and thumb reach while exposing separate 44–48 pt screenshot and Agent targets.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the existing Georgia editorial display face and system UI weights remain unchanged; top navigation weight, eyebrow tracking, body wrapping, and CTA hierarchy match the source surface.
+- Spacing and layout rhythm: the top navigation returns to its prior location and proportions. The global input is the final safe-area element, with the proposal CTA still fully visible above it.
+- Colors and visual tokens: warm surface/canvas, ink, muted ink, line opacity, and vermilion action color all use the existing Talent Signal tokens.
+- Image and asset fidelity: no new raster artwork, placeholder imagery, handcrafted SVG, emoji, or CSS-style drawing was introduced. Existing SF Symbols and the product signal orb remain native and sharp.
+- Copy and content: the persistent entry now truthfully says it accepts anything; screenshot import is represented by a paperclip; preview and proposal authority labels remain visible.
+
+## Findings
+
+No actionable P0, P1, or P2 visual differences remain.
+
+- [P3] The paperclip and waveform make the global composer slightly more utilitarian than the source orb-only entry. This is an intentional affordance improvement for the newly unified input and does not change the page hierarchy.
+
+## Comparison history
+
+1. Earlier implementation: `/tmp/talent-signal-conversation-dock.png`
+   - Finding: P1 — navigation had moved below the composer, changing a familiar global hierarchy the user wanted preserved.
+   - Fix: restored the original top text navigation with matched capsule selection; reduced the bottom area to one global input capsule with direct screenshot and Agent affordances.
+2. Post-fix implementation: `/tmp/talent-signal-top-nav-global-input-2.png`
+   - Evidence: `/tmp/talent-signal-nav-comparison.png` shows the original top navigation structure retained and the global input at the bottom.
+   - Result: the P1 hierarchy mismatch is resolved.
+3. Contact proposal before confirmation:
+   `/tmp/talent-signal-contact-ui-attachments.p0vYtf/04A7D970-1C8B-4969-8498-3B582B076278.png`
+   - Finding: P1 — the first rendered proposal retained the previously selected
+     relationship scope above a globally entered new contact, which could imply
+     that the new person would be attached to that unrelated record.
+   - Fix: hide relationship scope while a global contact proposal is active;
+     keep name and relationship editable inside the proposal itself.
+4. Contact proposal final matrix:
+   - Light, editable, before confirmation:
+     `/tmp/talent-signal-contact-ui-matrix.yJ3TED/93DDBA3C-26AD-440E-8719-D105770BA048.png`
+   - AX5 Dynamic Type, dark appearance, Simplified Chinese:
+     `/tmp/talent-signal-contact-ui-zh-final.AlQYCN/D9926294-4CC5-4BD4-8023-C43709B8CCF1.png`
+   - Result: the proposal remains one column, the entire decision stays
+     readable, disabled save remains legible, the bottom composer remains
+     reachable, and no unrelated person scope is presented.
+
+## Contact proposal behavioral proof
+
+- `testNaturalContactProposalIsEditableAndRestoresAfterRelaunch` executes
+  global input → parsed proposal → editable fields → no write → terminate →
+  relaunch → protected proposal recovery → dismiss and verified removal.
+- `testContactProposalAX5DarkChineseKeepsReviewAndComposerReachable` executes
+  Chinese natural input at AX5 in dark appearance and verifies the editable
+  identity, relationship, safe unavailable-workspace state, 50 pt confirmation
+  target, and reachable composer.
+- Unit coverage proves the same proposal and idempotency key survive relaunch,
+  edits do not mint a second key, failed protected dismissal stays visibly open,
+  and the recovery expires at seven days.
+
+## Implementation checklist
+
+- [x] Preserve top Today / Sessions / People navigation.
+- [x] Keep one global Agent input at the bottom safe area.
+- [x] Keep screenshot capture direct and visibly separate from Send.
+- [x] Preserve 44 pt minimum targets and reduced-motion navigation behavior.
+- [x] Keep consequential contact writes behind an explicit confirmation card.
+- [x] Keep a proposal editable and recoverable without changing its write key.
+- [x] Avoid showing an unrelated selected relationship during global intake.
+- [x] Keep the proposal decision legible at AX5, in dark mode, and in Chinese.
+
+final result: passed
+
+---
+
+# Design QA — iOS Today evidence-first decision frame
+
+## Evidence
+
+- Evidence level: 1, executable iPhone 17 Pro Simulator interaction on iOS
+  26.5.
+- Before, standard English:
+  `/tmp/talent-signal-ios-today-baseline-artifacts.euUrFd/EA20EEC6-0D22-4734-B392-3A066BE3298C.png`
+- After, standard English:
+  `/tmp/talent-signal-ios-today-evidence-first-v4-artifacts.RTOcPH/662BAAD9-D2C0-4194-8877-BDC3F078CEF9.png`
+- After, Simplified Chinese, dark appearance, AX5 Dynamic Type, initial frame:
+  `/tmp/talent-signal-ios-today-evidence-first-v6-artifacts.eSjsqf/515F1CC9-41D7-4FDE-A478-0BE632CD90C9.png`
+- After, Simplified Chinese, dark appearance, AX5 Dynamic Type, action after
+  evidence:
+  `/tmp/talent-signal-ios-today-evidence-first-v6-artifacts.eSjsqf/460F0F63-2F50-4CDF-A7CE-0EF1FB39032D.png`
+- Full focused result bundle:
+  `/tmp/talent-signal-ios-today-evidence-first-v4.xcresult`
+- Final AX5 visual rerun:
+  `/tmp/talent-signal-ios-today-evidence-first-v6.xcresult`
+
+## Structural comparison
+
+Two directions were compared. Direction A retained the early review button,
+single-line owner/evidence metadata, redundant Open Pursuit action, and
+AI-branded eyebrow. Direction B ordered the decision as change, target outcome,
+target date, evidence/owner, then action; it removed redundant navigation and
+described the proposed work instead of advertising AI. Direction B was
+selected because Today must answer what deserves attention and why before it
+asks the recruiter to commit.
+
+## Finding and resolution
+
+The prior focus card led AX5 users to the consequence before showing its target
+date or evidence, could truncate its authority metadata, and labeled the item
+as an AI insight. Its secondary Open Pursuit button was partly obscured by the
+persistent global input and duplicated the primary route.
+
+The finished card leads with Proposed change, then preserves canonical target
+outcome, date, evidence freshness, and owner before Review proposal. Raw dates
+and evidence state remain canonical in the projection and are formatted only
+at the language boundary. Known workspace vocabulary is localized for display;
+recruiter-authored content remains untouched.
+
+The first AX5 render was rejected even after tests passed: the calendar glance
+expanded into a clipped wall and mixed English remained in the Chinese target
+outcome. The calendar is now a bounded secondary glance with a complete
+VoiceOver label, a numeric decorative date mark that cannot clip, and a compact
+optical scale. The decision body continues to honor uncapped AX5 text and can
+scroll behind the unchanged global composer.
+
+## Behavioral and accessibility proof
+
+- Three focused model/localization tests and two standard/AX5 UI tests passed
+  with zero failures in the full result bundle.
+- The final AX5 rerun passed independently after the date-mark correction.
+- Tests assert target outcome, date, and evidence precede the action in visual
+  geometry; the date is localized; English workspace vocabulary is absent from
+  the Chinese outcome; and the action remains reachable after scrolling.
+- The compact calendar remains below 180 pt at AX5 and the decision card begins
+  in the initial viewport. Its accessibility label retains the full next-event
+  person, kind, and date/time even when visible copy is truncated.
+- The original Today / Sessions / People navigation and bottom global Agent
+  input remain in their prior positions and styles. No route change or preview
+  interaction gains write authority.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — one supported decision leads Today.
+- Hierarchy: 3 — consequence follows target and evidence.
+- Platform interaction: 3 — native scroll, button, date, and VoiceOver behavior.
+- Accessibility: 3 — Chinese, dark appearance, AX5, ordering, and reachability
+  are executable.
+- Visual craft: 3 — no clipped date tile, mixed-language workspace copy, or
+  redundant action.
+- Vetoes: none.
+
+final result: passed
+
+---
+
+# Design QA — iOS Proposal evidence-to-decision review
+
+## Evidence
+
+- Evidence level: 1, executable iPhone 17 Pro Simulator interaction on iOS
+  26.5 with a real local Proposal fixture and canonical backend readback.
+- Before, Simplified Chinese, dark appearance, AX5 evidence frame:
+  `/tmp/talent-signal-ios-proposal-baseline-artifacts.BVJlt7/D12A9F56-1CF6-45B3-B3B4-071379076C5F.png`.
+- Before, Simplified Chinese, dark appearance, AX5 decision frame:
+  `/tmp/talent-signal-ios-proposal-baseline-artifacts.BVJlt7/BBAC99C1-92DD-4717-8F0A-B65F54F58999.png`.
+- After, standard English evidence and change frame:
+  `/tmp/talent-signal-ios-proposal-final-artifacts.1Hkxn1/3306F61C-F565-4E51-ABD0-3B0387952D33.png`.
+- After, Simplified Chinese, dark appearance, AX5 evidence frame:
+  `/tmp/talent-signal-ios-proposal-final-artifacts.1Hkxn1/DCD74D84-A319-4210-A98F-AD3AFE9FFB4D.png`.
+- After, Simplified Chinese, dark appearance, AX5 decision frame:
+  `/tmp/talent-signal-ios-proposal-final-artifacts.1Hkxn1/FAD78AF3-F293-455B-9D3F-850ADB50A7A8.png`.
+- After, canonical receipt readback:
+  `/tmp/talent-signal-ios-proposal-final-artifacts.1Hkxn1/6BE02DFA-2A02-4555-A703-7B5AB1192CAF.png`.
+- Final result bundle:
+  `/tmp/talent-signal-ios-proposal-final.xcresult`.
+
+## Structural comparison
+
+Direction A retained the form-like composition: one dense provenance sentence,
+nested proposal cards, and a fixed two-column decision grid. Direction B keeps
+one ordered review: exact evidence, compact source summary, optional audit
+details, current and proposed values, suggestion rationale, evidence authority,
+then one explicit decision. Direction B was selected because the screen is a
+human decision gate, not an upload form or an Agent transcript.
+
+## Finding and resolution
+
+The baseline passed behavior tests but failed visual review at AX5. Exact
+evidence and every provenance attribute were fused into an oversized card, the
+four decisions collapsed into narrow columns with broken words, and a Chinese
+interface still exposed English controls.
+
+The finished review preserves exact evidence verbatim and keeps source,
+observed time, and timezone visible. Lower-frequency identity, channel,
+attribution, review, and fragment details remain one native disclosure away.
+Proposal items are no longer nested cards: current value, proposed value,
+reason, effect, and evidence authority form one continuous reading order.
+Confirm, correct, reject, and leave unresolved are full-width native choices
+with no default selection. The consequential apply control appears only after
+all item decisions and still cannot perform an external write.
+
+At AX5, the exact quote intentionally receives the initial viewport instead of
+being truncated or reduced below the user's text setting. The prior provenance
+wall is gone, all four decisions remain complete and full width, the surface
+scrolls natively, and the Chinese interface boundary is executable.
+
+## Behavioral and accessibility proof
+
+- The preview journey keeps the exact evidence visible but exposes no apply
+  control and cannot claim canonical success.
+- The connected journey requires an explicit item decision, applies once, and
+  presents success only after Proposal, Pursuit, and receipt readback agree.
+- The Chinese dark AX5 test asserts localized navigation, evidence, disclosure,
+  decision title and choice copy; the confirm row occupies more than 78% of the
+  viewport width and remains hittable after scrolling.
+- The existing store suite retains edit validation, unavailable-evidence
+  blocking, response-loss locking, relaunch reconciliation, malformed readback
+  rejection, retry, conflict, and no-external-effect invariants.
+- The original Today / Sessions / People navigation and bottom global Agent
+  input were not changed; this remains a focused review sheet over that shell.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — one evidence-backed decision flow.
+- Hierarchy: 3 — evidence and effect precede authority and apply.
+- Platform interaction: 3 — native navigation, scrolling, disclosure, selection,
+  and button behavior.
+- Accessibility: 3 — uncapped AX5 content, full-width choices, localized labels,
+  minimum targets, and inspectable provenance.
+- Visual craft: 3 — one calm material evidence block and no nested card wall.
+- Vetoes: none.
+
+final result: passed
+
+---
+
+# Design QA — iOS Pursuit room global continuity
+
+## Evidence
+
+- Evidence level: 1, executable iPhone 17 Pro Simulator interaction on iOS
+  26.5.
+- Final standard English:
+  `/tmp/talent-signal-pursuit-global-frame-artifacts.ZqbgZx/5BC16BB8-A928-4942-9DB8-E5D83E1F1928.png`.
+- AX5 veto before optical-scale correction:
+  `/tmp/talent-signal-pursuit-global-frame-artifacts.ZqbgZx/CD2202E0-7C88-45BC-955F-5737BA7563D1.png`.
+- Final Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-pursuit-global-frame-v2-artifacts.TzneyL/DDF2E4DB-499D-4007-BBF4-4AD4FCC9FAC9.png`.
+- Final localized Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-pursuit-localized-v2-artifacts.K0ZYL1/2446F017-4CBB-449C-BB1D-48F6F11EF636.png`.
+- Final localized standard English:
+  `/tmp/talent-signal-pursuit-localized-standard-artifacts.iywpQ5/938F46D4-3F60-49EE-B20B-2DB0EABF19DD.png`.
+- Standard and AX5 continuity result bundle:
+  `/tmp/talent-signal-ios-pursuit-global-frame.xcresult`.
+- Final AX5 result bundle:
+  `/tmp/talent-signal-ios-pursuit-global-frame-v2.xcresult`.
+- Final localized AX5 and standard result bundles:
+  `/tmp/talent-signal-ios-pursuit-localized-v2.xcresult` and
+  `/tmp/talent-signal-ios-pursuit-localized-standard.xcresult`.
+
+## Structural comparison and resolution
+
+The old iOS Pursuit destination was a separate sheet with its own
+`NavigationStack` and Close control. Opening it from Today or from a living
+Person removed the familiar Today / Sessions / People navigation and the
+bottom global Agent input. A smaller sheet could reduce visual weight but
+would preserve that context break.
+
+The implemented direction keeps Pursuit inside the archive's page-content
+layer. The unchanged global top navigation and bottom input remain outside it
+as safe-area chrome. The underlying People state stays alive but is hidden from
+accessibility and hit testing while the Pursuit room is open, so Back returns
+to the same Person rather than rebuilding the directory. Choosing another
+global tab dismisses the room. Proposal review remains a separate focused
+sheet because it is a consequential human-decision boundary.
+
+For the final AX5 hierarchy, two rendered structures were compared. Direction
+A kept Target outcome as a standalone full-width paragraph before Current
+frame. Direction B made Target outcome the first governed row inside Current
+frame, followed by Target date, Milestone, Current blocker, and Next action.
+Direction B was selected: it gives the large accessibility-sized evidence a
+clear semantic anchor before it fills the viewport, preserves the full text,
+and produces a more precise scan path at standard size.
+
+## Hierarchy, action safety, and accessibility
+
+- The first working frame is Target outcome, Target date, Milestone, Current
+  blocker, and Next action. Evidence authority, confirmation, and Pursuit type
+  move to a quiet Decision record after the work and outcome controls.
+- Standard definition rows use an aligned grid. Accessibility Dynamic Type
+  changes each row to a vertical label/value stack without clipping or
+  horizontal compression.
+- The initial AX5 render failed visual review: the editorial title and status
+  chrome consumed the viewport. Their optical scale is now capped at the
+  largest standard Dynamic Type size, while the target outcome and other body
+  evidence continue to honor AX5 without truncation. Current frame begins in
+  the first viewport and the rest remains scrollable above the global input.
+- The inline Back control is at least 44 pt, route arrival focuses the Pursuit
+  heading for accessibility, and the title stays inside the viewport in both
+  tested states.
+- Pursuit interface chrome is localized through the app language boundary:
+  headings, field labels, dates, evidence authority, action states, receipts,
+  warnings, and recovery controls use Simplified Chinese while recruiter-owned
+  titles and evidence remain unchanged source content.
+- Owned-action outcome recording retains its existing draft, recovery,
+  canonical receipt, and explicit no-external-write language. Proposal review
+  still requires a separate explicit decision; no route transition executes a
+  write.
+- The final localized AX5 and standard runs each passed one executable UI test
+  with zero failures. A real-device VoiceOver journey remains outside this
+  evidence.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — the five-part current frame leads with outcome.
+- Information hierarchy: 3 — current work precedes audit detail.
+- Evidence/control: 3 — authority and receipts remain inspectable; action and
+  Proposal boundaries are unchanged.
+- Platform interaction: 3 — persistent global chrome, inline Back, native
+  scroll, and focused decision sheet.
+- Accessibility: 3 — AX5, dark mode, Simplified Chinese geometry, 44 pt target,
+  route focus, wrapping, and adaptive rows verified at Level 1.
+- State completeness: 3 for the changed route — Today/People entry, Person
+  return, tab escape, Proposal continuation, refresh, no-gap, no-action, and
+  recovery states remain represented.
+- Visual craft: 3 — the original navigation is untouched, the composer stays
+  global, and oversized AX5 chrome was corrected without shrinking body copy.
+- Vetoes: none after correction.
+
+final result: passed
+
+---
+
+# Design QA — iOS Sessions and People retrieval hierarchy
+
+## Evidence
+
+- Evidence level: 1, executable iPhone 17e Simulator interaction on iOS 26.5.
+- Before Sessions:
+  `/tmp/talent-signal-ios-retrieval.naCgFR/74065744-92B8-420A-9F07-B57010B8E100.png`
+- Before People:
+  `/tmp/talent-signal-ios-retrieval.naCgFR/DB8B98BF-202D-42D0-BCB3-EDD054BA6C99.png`
+- After Sessions, standard English:
+  `/tmp/talent-signal-retrieval-rerun-export.Y4wU7M/73E3F61E-8CF5-461D-99CC-BD0AACC965AA.png`
+- After People, standard English:
+  `/tmp/talent-signal-retrieval-rerun-export.Y4wU7M/169F2ABB-67D5-4B47-B244-6A65833228E8.png`
+- After Sessions, Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-retrieval-rerun-export.Y4wU7M/02CB0D23-58D8-475C-A551-0025E5939902.png`
+- After People, Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-retrieval-rerun-export.Y4wU7M/10445075-F482-4EE5-82C8-864102570E5D.png`
+- Search-clear recovery with keyboard and global input visible:
+  `/tmp/talent-signal-search-proof.eMoCPE/7F766561-0F17-4D59-8D4A-9B902A9051D5.png`
+- Focused result bundles:
+  `/tmp/talent-signal-ios-retrieval-complete.xcresult` and
+  `/tmp/talent-signal-ios-retrieval-search-semantic.xcresult`.
+
+## Finding and chosen direction
+
+Sessions and People were retrieval surfaces presented as editorial landing
+pages. Repeated large titles and explanatory copy consumed the first viewport.
+Sessions used generic Agent symbols, long relative timestamps, and a one-line
+question that hid the decisive phrase. People exposed no direct search and
+showed only two partial identity rows below its introduction.
+
+Two directions were compared: retain the large headers with reduced spacing,
+or make retrieval the first interaction with a shared search field, compact
+result header, and identity-led rows. The second direction was selected because
+it supports the recruiter's immediate task without creating a new navigation or
+input model.
+
+## Resolution
+
+- Sessions and People now begin with direct search and compact result counts.
+- Search covers person, role or Pursuit, question, context, and latest preview;
+  no-match and clear-recovery states are explicit.
+- Session rows use person initials, compact relative time, a complete two-line
+  question when needed, relationship context, and a bounded preview.
+- People rows retain stable person identity, Pursuit context, governed-source
+  count, and confirmed-identity clue count. Search changes no canonical state.
+- The preview authority boundary remains visible in plain language.
+- The original Today / Sessions / People navigation remains at the top, and the
+  original global Agent input remains at the bottom.
+
+## Accessibility correction and proof
+
+The first AX5 run was a release veto: navigation and search chrome scaled into
+the content, initials became ellipses, and the People name wrapped by letter.
+Fixed optical symbol and initials sizes, capped chrome-only Dynamic Type, and
+uncapped wrapping body text removed that failure. At final AX5, the navigation,
+search, and global input remain stable while the session question, person name,
+role, and evidence metadata enlarge and scroll normally.
+
+Search result headers expose localized labels and counts as stable accessibility
+elements. The final tests cover filter, no-match, clear recovery, 44 pt search
+and clear targets, standard layout, Chinese dark AX5, Today regression, and
+opening an existing Agent Session. Simulator proof does not replace a manual
+VoiceOver journey on a real recruiter device.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — search and the current directory are immediate.
+- Hierarchy: 3 — identity or question leads; metadata remains subordinate.
+- Platform interaction: 3 — native search, List, swipe, and navigation behavior.
+- Accessibility: 3 — AX5, dark mode, Chinese, target sizes, wrapping, and result
+  count semantics verified.
+- State completeness: 3 — normal, filter, no-match, clear, and reopen covered.
+- Visual craft: 3 — restrained editorial rows without marketing-page overhead.
+- Vetoes: none after correction.
+
+final result: passed
+
+---
+
+# Design QA — iOS living-person detail continuity
+
+## Evidence
+
+- Evidence level: 1, executable iPhone 17e Simulator interaction on iOS 26.5.
+- Before, standard English:
+  `/tmp/talent-signal-person-detail-baseline.b3pkqN/CA9AB99B-4938-4CA5-A100-47B1E0F08F1A.png`
+- Before, Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-person-detail-baseline.b3pkqN/60A42DC1-D2B3-4E7E-9531-6DCA69CDF137.png`
+- After, standard English:
+  `/tmp/talent-signal-person-detail-final.g5RZOl/B0F95F74-29D4-49D9-94B7-E32D27D31789.png`
+- After, Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-person-detail-final.g5RZOl/AA7C6177-F809-44FF-9616-71B7E7DE45E4.png`
+- Focused result bundle:
+  `/tmp/talent-signal-ios-person-detail-final.xcresult`.
+- Navigation and retrieval regression bundle:
+  `/tmp/talent-signal-ios-person-detail-regression.xcresult`.
+- Preview identity-semantics result bundle:
+  `/tmp/talent-signal-ios-person-detail-semantics.xcresult`.
+
+## Mobile task and design read
+
+The recruiter starts in People, opens one stable identity, identifies the
+current Pursuit context, optionally continues into that Pursuit, returns to the
+same person, and then returns to the directory. The person is canonical; role,
+status, target outcome, and evidence authority are Pursuit-scoped projections.
+The page is read-only and performs no create, attach, merge, or external write.
+
+The surface uses the restrained iOS retrieval character: identity leads,
+current work is the only visual dependency, evidence authority is secondary,
+and governed identity counts remain inspectable without becoming metrics or a
+person score.
+
+## Structural comparison and resolution
+
+Direction A retained the Person sheet and reduced its title. It could improve
+spacing but still removed Today / Sessions / People and the global Agent input,
+making a living identity feel like a temporary inspector. Direction B replaced
+the sheet route with an inline People detail. It preserves the user's familiar
+global frame, gives the directory a direct 44 pt back transition, and opens a
+Pursuit only when that contextual row is explicitly chosen. Direction B was
+implemented.
+
+The old page also led with a large vermilion `Stable person identity` label and
+an explanatory paragraph before showing any actual relationship context. The
+finished hierarchy removes both, uses the person's name once, leads immediately
+into Current work, and keeps Sources, Identity clues, and Contexts as quiet
+definition rows. Duplicate count copy under the name was removed after AX5
+visual review showed it delayed the current Pursuit.
+
+## Accessibility and behavioral proof
+
+- Standard interaction proves People → person → Pursuit → person → directory,
+  with the top navigation and bottom global input restored throughout the
+  inline person states.
+- The role row exposes Pursuit title, target outcome, role/status, evidence
+  authority, and a stable identifier as one button; its evidence state never
+  uses color alone.
+- Sources, Identity clues, and Contexts retain distinct labels, values, and
+  horizontal separation in executable preview data.
+- Chinese dark AX5 keeps the person name and current Pursuit visible before the
+  persistent global input. Body content remains uncapped and scrollable; only
+  navigation and section chrome retain a stable optical scale.
+- The regression bundle passed six preview-backed tests and skipped two
+  canonical fixture tests because that backend fixture was not configured.
+  Those skips are not presented as canonical-data proof.
+- Simulator accessibility hierarchy was inspected. A real-device VoiceOver
+  linear journey and recruiter field study remain outside this evidence.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — identity and the current Pursuit are immediate.
+- Information hierarchy: 3 — one person, one contextual continuation, quiet
+  identity metadata.
+- Evidence/control: 3 — evidence authority is named and the governed Pursuit is
+  one tap away; no consequence is staged here.
+- Platform interaction: 3 — persistent tabs, inline back, native scroll, and a
+  focused Pursuit transition behave predictably.
+- Accessibility: 3 — AX5, dark mode, Chinese, 44 pt back target, wrapping, and
+  semantic row separation are verified at Level 1.
+- State completeness: 3 for the changed read-only path — optional profile,
+  no-role copy, available/partial/unavailable/recruiter-authored evidence copy,
+  and back recovery are implemented; canonical fixture execution is noted
+  separately.
+- Visual craft: 3 — scarce vermilion, no modal hero, no duplicate identity copy,
+  and no person-ranking device.
+- Vetoes: none after correction.
+
+final result: passed
+
+---
+
+# Design QA — iOS progressive screenshot review
+
+## Evidence
+
+- Evidence level: 1, executable iPhone Simulator interaction.
+- Standard English, light appearance:
+  `/tmp/talent-signal-ios-capture-progressive-final-v2.png`
+- Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-ios-capture-localized-ax5-final.png`
+- Focused UI result bundle:
+  `/tmp/talent-signal-ios-capture-progressive-v3.xcresult`
+- Localized evidence-boundary result bundle:
+  `/tmp/talent-signal-ios-capture-localization-v4.xcresult`
+- Device: iPhone 17e Simulator, 390 × 844 pt at 3×.
+
+## Finding and resolution
+
+The review previously presented evidence, identity clues, and relationship
+scope as three equally prominent cards. It read like an upload form and repeated
+speaker state in several controls before the recruiter reached the identity
+decision.
+
+The finished surface has two progressive steps. Reviewed OCR and original-image
+inspection remain first. Name and one visible identity clue form the second
+step, while optional relationship fields stay behind a concise 44 pt disclosure
+row. Speaker provenance is one compact menu and still permits an explicitly
+unresolved result. No field, source metadata, identity review, or consequential
+write gate was removed.
+
+Executable testing found that the first `DisclosureGroup` implementation looked
+correct but did not reliably reveal its fields through the accessibility tree.
+It was replaced with an explicit stateful button that reports collapsed or
+expanded state and makes the entire row tappable.
+
+## Behavioral proof
+
+- The default review exposes inspectable source, editable OCR, unresolved
+  speaker status, name, handle, and handle type without preselecting a Person.
+- Relationship label, purpose, and role do not crowd the initial view; tapping
+  Relationship details reveals all three fields.
+- Identity review is absent before Save and check identity. The existing later
+  create, attach, conflict, merge, and receipt boundaries remain unchanged.
+- The familiar Today / Sessions / People navigation and bottom global composer
+  were not modified by this review-surface change.
+
+## Accessibility and limits
+
+The standard small-screen capture has no clipped speaker label. In the AX5 dark
+capture, the evidence editor, speaker state, 44 pt menu, guidance, and second-step
+heading remain readable without horizontal overflow. All 89 static interface
+keys used by `RelationshipCaptureView` now resolve through the catalog, including
+source inspection, progress, identity decisions, completion, recovery, field
+labels, menu roles, and accessibility names and values. Choosing Unresolved in
+the speaker menu preserves the unresolved state language instead of presenting
+the contradictory `reviewed · unresolved` label.
+
+The Chinese AX5 test deliberately supplies an English conversation sentence.
+The controls become Chinese while the editable evidence stays byte-for-byte
+equal to the supplied sentence. This is the intended locale boundary, not mixed
+interface copy. Free-form backend or provider diagnostics may still arrive in
+their source language; this run does not claim structured localization for all
+remote error payloads or VoiceOver-user research.
+
+final result: passed
+
+---
+
+# Design QA — Cross-surface voice composer continuity
+
+## Evidence
+
+- Evidence level: 1, executable Web workspace and iPhone Simulator interaction.
+- Web state: signed-in synthetic fixture workspace, narrow Agent rail, light
+  appearance, scoped relationship.
+- iOS result bundle:
+  `/tmp/talent-signal-ios-input-continuity.xcresult`
+- Web automated proof: 48 passed files plus one intentionally skipped file; 266
+  passed tests plus one intentionally skipped test.
+- iOS automated proof: 12 voice lifecycle unit tests and 3 composer UI tests.
+
+## Finding and resolution
+
+The first Web implementation placed microphone and Send beside the attachment
+control and textarea. In the narrow Agent rail this became four columns, reduced
+the useful writing area, and let the first-use disclosure extend beyond the
+composer boundary.
+
+The finished control uses the same compact state grammar as iOS. When the draft
+is empty, the trailing primary position is voice; after typed or transcribed
+text appears, that position becomes Send. The disclosure is contained inside
+the composer width. Today / Agent / People navigation and the existing global
+input location do not change.
+
+## Behavioral proof
+
+- First use states that temporary audio is sent to Doubao, is not retained by
+  Talent Signal, and cannot reach the Agent until Send.
+- Recording is foreground-only, capped at 60 seconds, locally converted to a
+  bounded 16 kHz mono WAV, and cancellable before and during transcription.
+- The server rejects invalid WAV data and cross-origin requests before remote
+  transcription.
+- The client accepts only the matching draft receipt with
+  `temporary_audio_stored_by_talent_signal: false`.
+- The in-app browser had no microphone device; the rendered failure named that
+  condition, preserved the empty composer, and offered a dismissible recovery.
+- Typing a message replaced the microphone with Send in place and performed no
+  write.
+- On iPhone, deterministic voice stopped into an editable composer draft and
+  did not create an Agent response. AX5 kept Photos, composer, and the review
+  boundary in one vertical flow.
+
+## Accessibility and limits
+
+The Web microphone exposes a pressed recording state, polite status updates,
+named cancellation controls, visible failure text, and keyboard focus styling.
+The iPhone run verified 48 pt voice control height and AX5 reachability. This run
+does not claim physical microphone quality, VoiceOver-user research, or field
+latency; the browser environment exposed no hardware microphone, and the iOS
+voice transcript used the deterministic test adapter.
+
+final result: passed
+
+---
+
+# Design QA — iOS conversation-first contact recovery
+
+## Evidence
+
+- Unknown outcome:
+  `/tmp/talent-signal-contact-response-loss-readonly-attachments/D7C9540A-6CE7-4553-B0CA-8ED66C5DFF8F.png`
+- Reconciled receipt:
+  `/tmp/talent-signal-contact-response-loss-readonly-attachments/06213498-FF07-4163-BC43-E7BA221BF598.png`
+- Executable result bundle:
+  `/tmp/talent-signal-contact-response-loss-e2e-final-readonly.xcresult`
+- Device: iPhone 17 Simulator, 1206 × 2622 pixels, light appearance, English.
+- Additional regression: AX5 dark Simplified Chinese contact review in
+  `/tmp/talent-signal-contact-localized-ui.xcresult`.
+
+## Finding and resolution
+
+A committed contact creation can lose its network response. On relaunch the
+new person then appears in identity search, so recomputing the destination from
+the latest result could silently turn the original create into attach. The
+finished recovery state preserves the exact recruiter-confirmed operation,
+shows refreshed lookup as read-only context, and labels the only primary action
+Retry same operation. The successful state changes to completed language and a
+canonical receipt; its controls are read-only.
+
+The familiar top Today / Sessions / People navigation was not changed. The
+global message, attachment, and voice input remains anchored at the bottom and
+reachable throughout review.
+
+## Behavioral proof
+
+- The proxy committed the first resource capture and deliberately dropped its
+  response.
+- Relaunch restored the proposal under the signed-in account and showed the
+  newly created identity without allowing it to change the target.
+- Retry sent the same idempotency key and byte-equivalent semantic request: both
+  canonical JSON hashes were identical and the proxy reported no differing
+  path.
+- The backend returned the original canonical result; the UI showed one source
+  receipt and retained the original note as provenance.
+- No merge or external Contacts write occurred.
+
+final result: passed
+
+---
+
+# Design QA — iOS conversation-first contact proposal
+
+## Evidence
+
+- Default light proposal:
+  `/tmp/talent-signal-contact-ui-final-attachments/287C4E39-B835-47D7-9AC7-3D88DCD17C08.png`
+- AX5 dark Simplified Chinese proposal:
+  `/tmp/talent-signal-contact-ui-final-attachments/CE25CF7D-3A9F-4644-B805-A2D472D52521.png`
+- Focused result bundle:
+  `/tmp/talent-signal-contact-final-suite.xcresult`
+- Device: iPhone 17 Pro Simulator, portrait, 1206 × 2622 pixels.
+
+## Finding and resolution
+
+The proposal card previously treated an exact local name match as its duplicate
+check. A name is not identity evidence, and a connected workspace failure was
+not represented as a distinct lookup state. The contact write also described
+the governed source as a personal note even when it confirmed an email, phone,
+or LinkedIn handle.
+
+The iOS path now performs a read-only account-scoped search using the parsed
+identity clue, accepts only current or expired governed handle matches as
+authoritative candidates, and keeps same-name results visibly non-authoritative
+when no clue exists. Checking, no-match, conflict, failure, retry, and explicit
+separate-person choices remain inside the same proposal card. Save stays
+disabled until checking completes. The reviewed source is encoded as a
+`contact_record` / `contact_field`, and the success state includes the retained
+person and source-receipt suffix.
+
+## Mobile review
+
+The top session control and bottom global composer were unchanged. The contact
+operation remains the visual lead without replacing the familiar navigation or
+introducing another form. The identity clue is included by default but remains
+reversible before the one final confirmation. At AX5 in dark Simplified
+Chinese, the editable name, relationship, identity clue, workspace status,
+50-point confirmation control, safety boundary, and bottom composer all remain
+visible and reachable without horizontal clipping.
+
+## Behavioral proof and limit
+
+- 9 focused iOS domain/decoding tests passed for English, Chinese, ordinary
+  questions, missing names, phone, LinkedIn, source preservation, same-name
+  caution, and governed identity-match decoding.
+- 2 focused iOS UI tests passed, including relaunch recovery and AX5 dark
+  Simplified Chinese; the identity clue remains included after proposal staging.
+- The backend suite passed 173 tests, including confirmed/expired handle search
+  behavior and privacy-preserving hashed lookup.
+- The Simulator proof intentionally used the disconnected preview safety state,
+  so it does not claim a live canonical create/attach receipt. That final
+  authorized end-to-end proof remains required before the broader plan closes.
+
+final result: passed with canonical receipt proof pending
+
+---
+
+# Design QA — iOS global screenshot handoff
+
+## Evidence
+
+- Before: `/tmp/talent-signal-ios-paperclip-before.pLX9Sm/attachments/6AAD7ADB-95CA-45B0-80AF-3EA00ABBCD02.png`
+- After cancellation: `/tmp/talent-signal-ios-paperclip-after.LZT45P/attachments/2E5DB363-3199-4FBB-A755-8CAA0C5E4E61.png`
+- Direct system Photos picker: `/tmp/talent-signal-ios-paperclip-after.LZT45P/attachments/70503033-13BF-4034-847E-864FE40F4D70.png`
+- Governed source review: `/tmp/talent-signal-ios-paperclip-ax-after/attachments/13333B25-0EEA-4537-85A8-66B10FFF52C2.png`
+- AX5 dark Simplified Chinese cancellation:
+  `/tmp/talent-signal-ios-paperclip-ax-final2-attachments/C6822CF1-F977-431C-BF87-4B77409F0DA8.png`
+- AX5 dark Simplified Chinese localized recovery:
+  `/tmp/talent-signal-ios-paperclip-ax-final2-attachments/FED07A74-CCD0-41FE-B630-A5706DD11254.png`
+- Before/after comparison:
+  `/tmp/talent-signal-ios-paperclip-before-after.png`
+- Device: iPhone 17 Pro Simulator, 1206 × 2622 pixels.
+
+## Finding and resolution
+
+The paperclip previously opened a second capture workbench containing both a
+text Signal form and an image-import card. That duplicated the persistent
+global Agent input and made a simple attachment action feel like an upload
+workflow.
+
+The paperclip now directly opens the system Photos picker. Cancelling returns
+to one quiet Open Photos row, never to the text Signal form. Selecting an image
+continues into the existing on-device text and identity review, with no contact
+or external write from selection alone. Interrupted screenshot review remains
+recoverable through the existing pending-capture handoff.
+
+Visual QA found and fixed a second-order iOS defect: the scaled screenshot
+thumbnail could draw outside its layout frame and collide with source text at
+AX5. The final source card clamps the thumbnail to a 76-point rounded frame,
+replaces the generated filename with a stable conversation-screenshot label,
+and localizes the review, safety, and no-text recovery states in Simplified
+Chinese.
+
+## Behavioral and accessibility proof
+
+- Today / Sessions / People remain in the existing top navigation; the bottom
+  global input remains the only creation surface.
+- The system picker opens directly and cancellation performs no write.
+- The selected image reaches governed review; the generated technical filename
+  is absent from the visible hierarchy.
+- The Open Photos target remains at least 55.5 points high at AX5 and is
+  hittable in dark appearance.
+- The AX5 dark Simplified Chinese run verifies readable source layout, localized
+  failure recovery, and absence of the text Signal controls.
+- All evidence is local Simulator state; no contact, message, meeting, ATS,
+  CRM, reminder, canonical record, or external system was written.
+
+final result: passed
+
+---
+
+# Design QA — iOS global input and retrieval hierarchy
+
+## Evidence
+
+- Sessions before: `/tmp/talent-signal-ios-shared-sessions-export/B13DA727-E80B-4BAB-8A86-113BC880715D.png`
+- Sessions after: `/tmp/talent-signal-ios-people-after.qWNR70/attachments/2C1A3724-7ADF-40AC-AB66-AA654B20CCD2.png`
+- Sessions comparison: `/tmp/talent-signal-ios-sessions-before-after.png`
+- People divider before: `/tmp/talent-signal-ios-nav-after.Gda6k3/attachments/FA8AF66A-608D-4AA9-96B5-3AEC3A7DCFA2.png`
+- People divider after: `/tmp/talent-signal-ios-people-after.qWNR70/attachments/FAF133E3-E0D2-4530-B24A-1AD8B638C32A.png`
+- People comparison: `/tmp/talent-signal-ios-people-divider-before-after.png`
+- Result bundles:
+  `/tmp/talent-signal-ios-nav-after.Gda6k3/nav-after.xcresult` and
+  `/tmp/talent-signal-ios-people-after.qWNR70/people-after.xcresult`
+- Device and state: iPhone 17 Pro Simulator, 1206 × 2622 pixels, light
+  appearance, synthetic preview workspace.
+
+## Findings and resolution
+
+Sessions exposed a second creation intent through a high-emphasis upper-right
+plus button even though the global Agent input was persistently reachable at
+the bottom. The redundant control is removed. Today / Sessions / People remain
+unchanged in the top rail, Sessions remains a retrieval surface, and new work
+starts only through the bottom global input.
+
+Visual inspection also found that the People row `Divider` inherited vertical
+orientation and crossed identity content. It now uses an explicit one-point
+horizontal rule, preserving row density and stable identity metadata without
+changing any person, role, or evidence state.
+
+## Behavioral and accessibility proof
+
+- Three focused iOS UI tests passed: direct Sessions/People retrieval, paging
+  Today → Sessions → People in both directions, and top navigation remaining
+  above the screenshot-capable global input.
+- A regression assertion verifies that `new-agent-session` is absent while
+  `relationship-guide` remains present on Sessions and People.
+- Release and Debug Simulator builds succeeded.
+- The iOS localization boundary passed with 315 catalog keys, 172 transitional
+  inline bilingual calls, and 210 raw SwiftUI literals.
+- Opening these retrieval surfaces performed no canonical or external write.
+
+final result: passed
+
+---
+
+# Design QA — Dark appearance and review targets
+
+## Evidence
+
+- Today: `/tmp/talent-signal-dark-audit-01-today.png`
+- People: `/tmp/talent-signal-dark-audit-02-people.png`
+- Agent workspace: `/tmp/talent-signal-dark-audit-03-agent.png`
+- Pursuit decision controls:
+  `/tmp/talent-signal-dark-audit-04-proposal-controls.png`
+- Viewport: in-app browser, 1280 × 720 CSS pixels.
+
+## Findings and resolution
+
+Today, People, and Agent retained the same attention order in dark appearance:
+warm-black canvas, scarce vermilion, readable secondary metadata, and no new
+elevation or glow. The Pursuit decision choices were semantically clear but
+used 35 px pills, below the product's mobile/touch target standard.
+
+Confirm, Edit, Reject, and Keep unresolved now use 44 px minimum targets.
+Review submission, recovery, and next-review controls use the same minimum.
+The selected Confirm state was verified in dark appearance; no submission was
+attempted and the canonical write remained disabled without a decision basis.
+
+## Evidence limits
+
+This run verifies rendered light/dark states, visible focus, DOM semantics, and
+minimum CSS target geometry. It does not claim full color-contrast or
+screen-reader certification across every browser and platform.
+
+final result: passed
+
+---
+
+# Design QA — Today to Pursuit decision continuity
+
+## Evidence
+
+- Step 1, Today before correction:
+  `/tmp/talent-signal-pursuit-audit-01-today.png`
+- Step 2, prior Pursuit arrival:
+  `/tmp/talent-signal-pursuit-audit-02-room.png`
+- Step 3, Today after correction:
+  `/tmp/talent-signal-pursuit-audit-03-today-after.png`
+- Step 4, exact review arrival:
+  `/tmp/talent-signal-pursuit-audit-05-review-focused.png`
+- Before/after arrival comparison:
+  `/tmp/talent-signal-pursuit-audit-comparison.png`
+- Viewport: in-app browser, 1280 × 720 CSS pixels.
+- State: light appearance, synthetic fixture, one review-ready Proposal.
+
+## Finding and resolution
+
+Today correctly gave the Proposal visual priority, but its primary Open
+Pursuit room action landed at the top of a large overview. The decision Today
+had just highlighted was below the first viewport, forcing the recruiter to
+rediscover it inside the governed object.
+
+Review-ready items now say Review proposal and link to the exact Proposal.
+Action- and gap-led items still open the Pursuit overview. The proposal is a
+named region, receives programmatic focus after fragment navigation, and uses
+the existing consequential focus token. Raw target-outcome and milestone enums
+are also presented as readable phrases without changing canonical values.
+
+## Behavioral proof
+
+- The Today focus item and compact review continuations use the Proposal
+  fragment only when the attention kind is review and status is needs_review.
+- The browser arrived with the Proposal visible, the exact evidence and
+  before/proposed values in the first viewport, and the Proposal region as the
+  active element.
+- A review-ready Today item exposes only Review proposal; it no longer also
+  presents a second Agent-run input while the human decision is pending.
+- No decision was preselected and Submit exact review remained disabled.
+- The transition performed no canonical or external write.
+
+## Accessibility evidence and limit
+
+DOM inspection confirmed a labeled Proposal region and programmatic focus on
+arrival. The radio group retained distinct Confirm, Edit, Reject, and Keep
+unresolved choices. This run does not claim full screen-reader or platform
+accessibility compliance; it verifies the rendered DOM, focus destination, and
+visible focus treatment only.
+
+final result: passed
+
+---
+
+# Design QA — People directory hierarchy
+
+## Evidence
+
+- Before: `/tmp/talent-signal-web-people-audit.png`
+- After: `/tmp/talent-signal-web-people-after.png`
+- Combined comparison: `/tmp/talent-signal-web-people-comparison.png`
+- Viewport: in-app browser, 1280 × 720 CSS pixels.
+- State: light appearance, synthetic fixture directory, no active query.
+
+## Finding and resolution
+
+The prior three-line display heading consumed most of the first viewport and
+made People materially denser to enter than Today or Agent. Only one directory
+row was partly visible, so a retrieval surface behaved like a marketing hero.
+
+The finished hierarchy uses the same single-word product title pattern as
+Today, keeps the safety boundary in the supporting sentence, aligns content to
+the shared 1260 px editorial measure, and reduces the transition into results.
+Two complete relationship rows are now visible without reducing their 44 px
+open controls or compressing identity and evidence metadata.
+
+## Implementation checklist
+
+- [x] Preserve the existing People route and search behavior.
+- [x] Preserve Today / Agent / People navigation and the global New action.
+- [x] Preserve distinct same-name records instead of visually merging them.
+- [x] Keep context, source count, and confirmed-identity count visible.
+- [x] Match the Today page's title, measure, and vertical rhythm.
+- [x] Verify the finished hierarchy in the real browser.
+
+final result: passed
+
+---
+
+# Design QA — Web Agent input consolidation
+
+## Evidence
+
+- Before: `/tmp/talent-signal-web-before-input-consolidation.png`
+- After: `/tmp/talent-signal-web-after-input-consolidation.png`
+- Combined comparison:
+  `/tmp/talent-signal-web-input-consolidation-comparison.png`
+- Viewport: in-app browser, 1280 × 720 CSS pixels.
+- State: light appearance, synthetic fixture relationship, Agent composer idle.
+
+## Findings and resolution
+
+The previous workspace exposed four capture concepts at once: a high-emphasis
+Add source rail action, Import screenshot in the page bar, image attachment in
+Chat, and a persistent Choose source launcher inside the contact page. This
+made the governed evidence model feel like an upload workflow instead of an
+Agent conversation.
+
+The finished state has one primary intent surface. The quiet New rail action
+focuses the existing Agent composer, including on a same-route transition. The
+composer's single attachment disclosure separates temporary task images from
+governed sources with plain authority copy. The full source composer remains
+available only after the recruiter explicitly chooses Governed source; no
+source or contact write occurs from opening it.
+
+## Browser behavioral proof
+
+- Activating Start a new Agent message moved focus to
+  `relationship-agent-composer` and removed the transient compose intent from
+  the URL.
+- Opening Add an attachment or governed source exposed exactly Task images and
+  Governed source.
+- Choosing Governed source opened the existing provenance-aware source
+  composer with Note, Transcript, File, Link, and Screenshot modes.
+- The default contact page no longer exposed Import screenshot, Choose source,
+  Add another governed source, or the high-emphasis Add source rail control.
+
+## Implementation checklist
+
+- [x] Preserve Today / Agent / People navigation.
+- [x] Route the global New action to one Agent composer.
+- [x] Keep temporary task media distinct from governed evidence.
+- [x] Preserve provenance, authorization, review, and deletion paths.
+- [x] Keep consequential writes behind their existing explicit review steps.
+- [x] Remove redundant capture launchers from the default page hierarchy.
+- [x] Verify focus, progressive disclosure, and governed-source expansion in
+      the real browser.
+
+final result: passed
+
+---
+
+# Design QA — Web natural contact intake and duplicate bridge
+
+## Evidence
+
+- Contact proposal:
+  `/tmp/talent-signal-web-contact-proposal-final.png`
+- Reversible merge preview:
+  `/tmp/talent-signal-web-contact-merge-preview-final.png`
+- Viewport: in-app browser, 1280 × 720 CSS pixels.
+- State: signed-in synthetic fixture workspace, light appearance.
+
+## Finding and resolution
+
+The compact contact card initially kept a sticky disabled commit action in the
+first viewport while its identity result sat below the fold. That made the
+consequence look more important than the evidence used to choose it. The
+finished card lets identity check lead, keeps extracted details and source
+details collapsed when the message is complete, and places the final action at
+the end of review.
+
+`Add Noor Vega for Design` now reads back exactly `Noor Vega` and `Design`; it
+does not require form-like `search` or `role` suffixes. When an exact-name page
+matches the person already open and at least one other page exists, the card
+offers Review possible duplicate. This opens the current reversible merge
+preview. For an unrelated current page the bridge remains absent.
+
+## Behavioral proof
+
+- One message staged the contact card and cleared the composer without a write.
+- Name and relationship were extracted independently and the original message
+  remained visible as the source note.
+- Account-scoped search showed distinct matching pages and left create disabled
+  until the recruiter made an identity decision.
+- The duplicate bridge opened Identity maintenance with the current page as the
+  stable target; no merge decision was selected or submitted.
+- Today / Agent / People navigation and the global bottom composer were
+  preserved.
+
+final result: passed
+
+---
+
+# Design QA — iOS Ask input-first empty session
+
+## Evidence
+
+- Evidence level: 1, executable iPhone 17e Simulator interaction on iOS 26.5.
+- Before, standard English:
+  `/tmp/talent-signal-ask-audit.iIw8Py/5C291ED3-AF84-4B15-9D24-D94886FE2CA9.png`
+- Before, AX5 Dynamic Type:
+  `/tmp/talent-signal-ask-audit.iIw8Py/B27EA86E-F7D9-4034-AF8F-B2DB96C215AB.png`
+- After, standard English:
+  `/tmp/talent-signal-ask-final.wDU0sZ/1B533C6F-8ED0-4BDE-AB7F-39F754C1231E.png`
+- After, Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-ask-final.wDU0sZ/29FFEEF0-8DAB-4822-9D56-1514D26EE192.png`
+- Focused result bundle:
+  `/tmp/talent-signal-ios-ask-simplification-v2.xcresult`
+
+## Finding and resolution
+
+The prior empty session repeated the selected person as a large editorial
+heading, then exposed three equally weighted horizontal prompt pills. The
+standard layout clipped the last prompt, while AX5 turned the prompts into a
+stack of oversized rows that displaced the conversation and made a simple
+message entry feel like another form. At AX5 the attachment and voice symbols
+also scaled beyond their fixed circular controls.
+
+The finished session keeps the relationship selector as the only context
+header, moves the three optional starters into one native menu, and leaves the
+conversation and bottom composer as the visual lead. The menu still requires
+an explicit choice before sending and remains disabled for preview data. SF
+Symbols use a fixed optical size inside controls that expand from 44 to 52 pt
+at accessibility categories, so the target grows without icon overflow.
+
+The familiar Today / Sessions / People navigation and the global input entry
+were not moved or restyled. This change is scoped to the Ask sheet opened from
+that existing entry.
+
+## Behavioral and accessibility proof
+
+- Standard and Chinese dark AX5 tests verify the relationship scope, optional
+  prompt menu, attachment, voice, composer, and preview authority boundary all
+  remain reachable in one column.
+- Voice input still produces an editable draft and does not create an Agent
+  response until Send is tapped.
+- The canonical prompt-menu path is encoded in the fixture-backed UI test. Its
+  current local run skipped because the Pursuit backend fixture was unavailable;
+  the preview, AX5, and voice paths executed successfully.
+- Dynamic Type enlarges conversation content. Persistent relationship-selector
+  chrome is optically capped at XXXL while its complete value remains exposed
+  to assistive technology; no text or control crosses the viewport, and both
+  media controls retain at least a 44 pt target.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — the composer is the unmistakable primary action.
+- Hierarchy: 3 — relationship context appears once; starters are progressive.
+- Platform interaction: 3 — native Menu, PhotosPicker, text, and voice patterns.
+- Accessibility: 3 — AX5, dark mode, Chinese, target size, and wrapping verified.
+- Visual craft: 3 — no clipped prompt strip, icon spill, or competing title.
+- Vetoes: none.
+
+final result: passed
+
+---
+
+# Design QA — iOS Agent evidence-bound conversation
+
+## Evidence
+
+- Evidence level: 1, fixture-backed iPhone 17 Pro Simulator interaction on
+  iOS 26.5.
+- Before, standard English response:
+  `/tmp/talent-signal-ios-ask-response-baseline-artifacts.LUK2kR/F916899D-B2E3-4EE8-9405-92B2586DC7DD.png`
+- Before, Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-ios-ask-response-ax5-baseline-artifacts.aI8vsy/2A805D50-B4CE-4DF1-9A2E-9297E2404AA6.png`
+- After, standard English response:
+  `/tmp/talent-signal-ios-ask-response-final3-artifacts.SamdXm/CA637797-9A64-450D-9B7E-5251349CA0F2.png`
+- After, Simplified Chinese, dark appearance, AX5 Dynamic Type:
+  `/tmp/talent-signal-ios-ask-response-final3-artifacts.SamdXm/86F61D35-0717-4D61-9521-5A6E12334147.png`
+- Exact evidence detail:
+  `/tmp/talent-signal-ios-ask-response-final3-artifacts.SamdXm/D1B21EC1-999F-4E2C-8640-CD86FFCFB4C3.png`
+- Focused result bundle:
+  `/tmp/talent-signal-ios-ask-response-final3.xcresult`
+
+## Finding and resolution
+
+The populated conversation was functionally sound but did not yet read like a
+quiet IM tool. A solid graphite user bubble was the heaviest element; the first
+answer heading repeated the selected person's name; review state was icon-only;
+and controlled Agent headings plus citation provenance remained English in a
+Chinese interface. At AX5, relationship-selector chrome and a hidden verbose
+starter instruction consumed nearly the whole first viewport, then automatic
+bottom anchoring opened a long response at its conclusion.
+
+The finished response uses a quiet bordered question bubble and shows the exact
+short starter the recruiter chose. Accessibility-size responses anchor at the
+beginning of the new turn. The relationship selector stays compact as persistent
+chrome, while the conversation keeps full Dynamic Type. The response now leads
+with `Current understanding`, keeps exact evidence content unchanged, exposes a
+text-and-symbol `Needs review` state, and localizes controlled block titles,
+dates, actor kind, and review status. Existing owned work remains distinct from
+a proposed action and still declares that it creates no external effect.
+
+The established Today / Sessions / People navigation and bottom global Agent
+entry were not moved or restyled.
+
+## Behavioral, safety, and accessibility proof
+
+- Three UI tests passed against the canonical fixture: the standard cited
+  answer and evidence-dispute recovery, the Chinese dark AX5 populated answer,
+  and the AX5 input-first empty session.
+- The AX5 test verifies the short Chinese question, localized response headings,
+  localized candidate/review provenance, bounded bubble width, citation
+  reachability, and persistent bottom composer.
+- The standard path still opens the exact cited fragment, marks the saved answer
+  stale after a dispute, and opens the referenced existing Pursuit action.
+- One unit test verifies source-timezone boundaries and localized citation
+  provenance. Release build and the localization boundary passed.
+- Exact excerpts, person names, and backend evidence content are never silently
+  translated. No contact, message, calendar event, or external system write is
+  authorized by this presentation layer.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — the selected question and beginning of the answer lead.
+- Hierarchy: 3 — understanding, evidence, and owned work are distinguishable.
+- Platform interaction: 3 — native scrolling, sheets, Menu, and pinned composer.
+- Accessibility: 3 — AX5, dark mode, Chinese, wrapping, and provenance verified.
+- Visual craft: 3 — quiet bubble, compact chrome, and no duplicate person title.
+- Vetoes: none.
+
+final result: passed

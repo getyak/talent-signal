@@ -906,14 +906,14 @@ struct RelationshipAskView: View {
 
     private var starterPromptMenu: some View {
         Menu {
-            Button(appLanguage.text("What changed?", zhHans: "发生了什么变化？")) {
-                send(appLanguage.text("What changed?", zhHans: "发生了什么变化？"))
+            Button(whatChangedPrompt) {
+                send(whatChangedPrompt)
             }
-            Button(appLanguage.text("Prepare questions", zhHans: "准备问题")) {
-                send(appLanguage.text("Prepare questions", zhHans: "准备问题"))
+            Button(prepareQuestionsPrompt) {
+                send(prepareQuestionsPrompt)
             }
-            Button(appLanguage.text("Do nothing?", zhHans: "可以不行动吗？")) {
-                send(appLanguage.text("Do nothing?", zhHans: "可以不行动吗？"))
+            Button(doNothingPrompt) {
+                send(doNothingPrompt)
             }
         } label: {
             Label(
@@ -935,6 +935,18 @@ struct RelationshipAskView: View {
             )
         )
         .accessibilityIdentifier("ask-prompt-menu")
+    }
+
+    private var whatChangedPrompt: String {
+        appLanguage.text("What changed?", zhHans: "发生了什么变化？")
+    }
+
+    private var prepareQuestionsPrompt: String {
+        appLanguage.text("Prepare questions", zhHans: "准备问题")
+    }
+
+    private var doNothingPrompt: String {
+        appLanguage.text("Do nothing?", zhHans: "可以不行动吗？")
     }
 
     private var composer: some View {
