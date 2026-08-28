@@ -687,7 +687,10 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
                     ),
                     attribution: .init(actorKind: "recruiter", status: "confirmed"),
                     reviewStatus: "reviewed",
-                    parser: .init(name: "ios-agent-contact-intake", version: "1.0.0")
+                    parser: .init(
+                        name: draft.interpreter?.name ?? "ios-agent-contact-intake",
+                        version: draft.interpreter?.version ?? "1.0.0"
+                    )
                 )
             ]
         )

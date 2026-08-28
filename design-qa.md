@@ -86,6 +86,100 @@ final result: passed
 
 ---
 
+# Design QA — iOS natural contact understanding
+
+## Evidence
+
+- Surface and persona: global iOS Agent input for a time-constrained recruiter
+  capturing a person from an ordinary note.
+- Evidence level: 1, executable iPhone 17 Pro Simulator interaction on iOS 26.5
+  plus canonical fixture-backed identity operations.
+- Natural English contact review:
+  `/tmp/contact-intent-proof.5tkONZ/base/54FDDA33-AA61-4FB0-8A48-46420246D8E8.png`
+- Ordinary identity question routed to relationship clarification:
+  `/tmp/contact-intent-proof.5tkONZ/base/105AEB7E-E14F-4359-80A7-D3678969FE59.png`
+- Simplified Chinese, dark appearance, AX5 contact review:
+  `/tmp/contact-intent-proof.5tkONZ/ax5/2E3A4072-4BBB-4E8D-ABD1-ADE075078AEB.png`
+- Simplified Chinese, dark appearance, AX5 contact edit:
+  `/tmp/contact-intent-proof.5tkONZ/ax5/931DC7CF-C09D-455C-ABC6-EADA779005D7.png`
+- Focused interaction bundle:
+  `/tmp/talent-signal-contact-intent-ui-complete.xcresult`
+- Final single-spinner progress and cancellation render:
+  `/tmp/contact-intent-final.KlGGWf/878E7739-4FE1-4F60-9E28-D430ED0303AE.png`
+- Final cancellation result bundle:
+  `/tmp/talent-signal-contact-intent-cancel-final-ui.xcresult`
+- Final exact-source model-validation suite, 22/22 passing:
+  `/tmp/talent-signal-contact-intent-unit-literal-proof.xcresult`
+- Focused Chinese AX5 bundle:
+  `/tmp/talent-signal-contact-intent-ax5-zh-ui.xcresult`
+- Canonical create/attach bundle:
+  `/tmp/talent-signal-contact-intent-canonical-live-ui.xcresult`
+- Canonical identity-conflict bundle:
+  `/tmp/talent-signal-contact-intent-conflict-live-proof2-ui.xcresult`
+
+## Finding and resolution
+
+The remaining input friction was semantic rather than visual: the compact
+composer still expected command-like phrasing before it would stage a contact.
+That made the recruiter learn the implementation vocabulary and made the
+experience feel like a form hidden inside chat.
+
+The finished input accepts a short ordinary note with name, exact email, phone,
+or LinkedIn clue, and optional relationship context. It immediately echoes the
+immutable source and presents one quiet contact-review card. A deterministic
+high-precision parser owns obvious notes; a bounded on-device model may propose
+narrative extraction, but every field must occur verbatim in the source. The
+model has no identity or write authority.
+
+Questions remain questions. An unscoped identity question advances to the
+existing `Who is this about?` clarification while retaining the exact composer
+text. During bounded interpretation, one left-hand progress row exposes a
+44-point Cancel action; cancellation restores the untouched note. The familiar
+Send symbol remains visually stable, avoiding a second routing metaphor.
+
+The established Today / Sessions / People navigation and original bottom
+global input were not moved or restyled. The contact card, edit disclosure, and
+terminal receipt remain inside the conversation above that composer.
+
+## Behavioral, safety, and accessibility proof
+
+- No-match, confirmed current owner, and current-versus-historical conflict
+  paths used canonical backend lookup and explicit confirmation. No candidate
+  was preselected, and the conflict could remain unresolved without inheriting
+  a relationship scope.
+- Create and attach returned canonical readback and a Session-restorable
+  receipt. Merge remained a separate reversible preview and was not exercised
+  as an automatic consequence of interpretation.
+- The exact source note remains visible and stored with interpreter provenance.
+  Proposed interpretation, identity decision, action, and receipt are distinct
+  states.
+- Chinese dark AX5 keeps review and edit controls reachable, text wrapping
+  complete, and the pinned composer visible. The new progress/cancel semantics
+  expose separate accessibility elements.
+- No visual confidence, quality, fit, protected-trait, personality, or
+  acceptance-probability score is produced.
+- The compatible physical-device Foundation Models runtime has not yet been
+  executed; Simulator proof covers deterministic behavior, injected structured
+  model validation, cancellation, failure, and unavailable-model fallback.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — one ordinary message leads directly to one review.
+- Hierarchy: 3 — source, proposal, decision, and receipt remain distinct.
+- Platform interaction: 3 — native text entry, progress, cancellation, and
+  disclosure behavior.
+- Accessibility: 3 — Chinese dark AX5, 44-point actions, wrapping, and child
+  semantics verified.
+- Visual craft: 3 — no form chrome, command chips, duplicate spinner, or routing
+  icon change competes with the contact decision.
+- Safety/provenance: 3 — exact-source validation and explicit tool authority.
+- Vetoes: none in Simulator scope; physical-device model availability remains
+  an explicit proof gap.
+
+final result: pass with physical-device follow-up
+
+---
+
 # Design QA — iOS explicit global Agent scope
 
 ## Finding and selected direction
@@ -98,15 +192,23 @@ risk.
 
 The selected direction starts a new global Ask with no relationship selected.
 Contact-shaped language can proceed to the existing reviewable contact proposal
-without inventing a relationship. A generic relationship question stays
-disabled until the recruiter explicitly chooses a Person and context. Selecting
+without inventing a relationship. A generic relationship question now advances
+to one lightweight Agent clarification only after the recruiter taps the arrow:
+`Who is this about?` The message remains editable and is not sent until the
+recruiter explicitly chooses a Person and context and confirms Send. Selecting
 one moves the exact draft atomically; if protected persistence fails, the draft
 remains recoverable as a global draft and the UI explains the boundary.
 
-The selector keeps the existing visual treatment, but its complete 44-point row
-is now tappable. Existing contextual Sessions remain scoped and do not steal
-keyboard focus. The Today / Sessions / People navigation and bottom global
-input were not moved or restyled.
+Three structures were compared. A persistent empty relationship selector was
+rejected because it still made a global message look like a form. Inline
+horizontal chips were retained at standard sizes, but rejected at AX5 after the
+first render clipped the Pursuit context. The selected responsive structure
+puts complete, full-width relationship rows in the conversation scroll at
+accessibility sizes while the composer remains pinned. The selector's complete
+44-point row is tappable, no-match search has an explicit clear recovery, and
+scope animation follows Reduce Motion. Existing contextual Sessions remain
+scoped and do not steal keyboard focus. The Today / Sessions / People
+navigation and bottom global input were not moved or restyled.
 
 ## Evidence
 
@@ -125,6 +227,18 @@ input were not moved or restyled.
   `/tmp/talent-signal-global-scope-ax5-zh.xcresult`.
 - Atomic global-draft transition model bundle:
   `/tmp/talent-signal-global-draft-atomic-model-v2.xcresult`.
+- Input-first, draft restoration, contact intent, and progressive clarification
+  result bundle: `/tmp/talent-signal-progressive-scope-ui.xcresult`.
+- Rejected AX5 horizontal-chip render:
+  `/tmp/talent-signal-progressive-scope-detail-artifacts.MjYCtT/595D732F-2477-4E79-93DD-0C344C3369B2.png`.
+- Selected AX5 full-width relationship rows:
+  `/tmp/talent-signal-progressive-scope-scroll-artifacts.GPlXUC/726BDB65-92AC-4E66-B50C-B2DD8B2E3012.png`.
+- Final standard and Simplified Chinese dark AX5 clarification bundle:
+  `/tmp/talent-signal-progressive-scope-scroll-ui.xcresult`.
+- Unified final six-journey bundle on the current implementation:
+  `/tmp/talent-signal-progressive-scope-final-ui.xcresult`.
+- Contextual Session regression bundle after one infrastructure-only SIGTERM
+  retry: `/tmp/talent-signal-progressive-scope-context-ui-retry.xcresult`.
 
 The standard journey verifies empty, direct-contact, relaunch, and generic
 relationship-question states. The model journey verifies rollback and exact
@@ -136,8 +250,10 @@ boundary, capture controls, and composer readable without clipping.
 
 - Task legibility: 3 — global means unscoped until the message supplies intent.
 - Hierarchy: 3 — contact review and relationship context remain distinct.
-- Platform interaction: 3 — one-tap typing and a full-row native selector.
-- Accessibility: 3 — explicit disabled reason, 44-point target, AX5 verified.
+- Platform interaction: 3 — one-tap typing, progressive clarification, and a
+  full-row native selector.
+- Accessibility: 3 — 44-point targets, Reduce Motion, no-match recovery, and
+  complete AX5 context rows verified.
 - Visual craft: 3 — no new form, modal, navigation, or bottom-bar treatment.
 - Vetoes: none.
 

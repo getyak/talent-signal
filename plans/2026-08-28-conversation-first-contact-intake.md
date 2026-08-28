@@ -402,8 +402,8 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   that destination visible above the receipt before another Ask can be sent.
 - An unresolved identity case now clears the relationship that preceded the
   contact review. The global field can still accept another concise contact
-  intent, but a generic follow-up remains disabled until a relationship is
-  chosen and exposes that reason accessibly. Bound create/attach passed in
+  intent; a generic follow-up opens relationship clarification but is not sent
+  until a relationship is chosen. Bound create/attach passed in
   `/tmp/talent-signal-ios-contact-scope-continuity.xcresult`; unresolved and
   response-loss recovery passed in
   `/tmp/talent-signal-ios-contact-unresolved-continuity.xcresult`; and the clean
@@ -425,8 +425,9 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   `/tmp/talent-signal-global-input-focus-ax5-zh.xcresult`.
 - Removed the implicit first-relationship selection from a brand-new global
   Ask. Contact-shaped language can reach a reviewable contact proposal while
-  still unscoped; a generic relationship question remains disabled until the
-  recruiter explicitly chooses both Person and context.
+  still unscoped; a generic relationship question advances only to a local
+  `Who is this about?` clarification until the recruiter explicitly chooses
+  both Person and context and confirms Send.
 - Protected the unscoped draft in the existing account-scoped Session envelope
   with the same seven-day retention boundary. Envelope version 5 adds only the
   optional global draft while retaining version 1–4 migration; version 4
@@ -446,3 +447,78 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   `/tmp/talent-signal-global-scope-ax5-zh.xcresult`; and atomic rollback,
   retry, relaunch, account isolation, and expiry pass in
   `/tmp/talent-signal-global-draft-atomic-model-v2.xcresult`.
+- Removed the remaining form-first chrome from an empty global Ask. The
+  relationship selector is absent until a message actually needs relationship
+  context; prompt suggestions disappear once the recruiter starts composing.
+- Kept the clarification safe and recoverable. The original message remains in
+  the composer, no Agent request or tool write occurs on the first arrow tap,
+  no-match search has a 44-point clear action, and scope transitions follow
+  Reduce Motion.
+- Rejected the first AX5 clarification render even though its UI test passed:
+  horizontal chips clipped `Chief Product Officer search`. At accessibility
+  sizes the selected structure now moves complete full-width relationship rows
+  into the conversation scroll above the pinned composer; standard sizes keep
+  the lighter horizontal treatment.
+- Five input-first, contact, restoration, and clarification journeys pass in
+  `/tmp/talent-signal-progressive-scope-ui.xcresult`; final standard and Chinese
+  dark AX5 clarification pass in
+  `/tmp/talent-signal-progressive-scope-scroll-ui.xcresult`; and an existing
+  contextual Session preserves exact relationship scope and no autofocus in
+  `/tmp/talent-signal-progressive-scope-context-ui-retry.xcresult`.
+- The final current-code matrix consolidates empty, one-tap typing, relaunch,
+  clarification/no-match, Chinese dark AX5, and contextual Session coverage as
+  six passes with zero failures in
+  `/tmp/talent-signal-progressive-scope-final-ui.xcresult`.
+- Removed the last command-language dependency from the iOS global input and
+  Web contact parser. A concise note such as `Maya Chen, maya@example.com,
+  Chief Product Officer` or `陈晓 xiao.chen@example.com，产品负责人搜索` now stages
+  the same reviewable contact proposal without `Add`, `Create`, or a form.
+- Kept interpretation bounded and layered. A deterministic exact-clue parser
+  owns the high-precision path; iOS may use an on-device Foundation Models
+  structured-output fallback for narrative phrasing. Every accepted name,
+  identity clue, and relationship context must be an exact substring of the
+  recruiter's immutable source message. Model failure, invention, or
+  unavailability cannot create authority.
+- Preserved the ordinary Ask path. Questions such as `Can you check Maya Chen,
+  maya@example.com?` are not diverted into contact tools; when unscoped they
+  advance to the existing relationship clarification with the exact draft
+  retained.
+- Made interpretation cancellable and recoverable in the unchanged bottom
+  composer. The Agent exposes one quiet `Understanding this message…` row; a
+  recruiter can cancel it without losing a character. The final button remains
+  the familiar Send affordance instead of previewing system routing through a
+  command or scope icon.
+- Kept the authority chain explicit: source note -> interpretation proposal ->
+  account-scoped canonical lookup -> unselected create, attach, or unresolved
+  review -> recruiter confirmation -> canonical readback and receipt. Merge
+  remains a separate reversible identity-maintenance preview and is never an
+  interpretation side effect.
+- The final focused iOS model suite passed 22/22 in
+  `/tmp/talent-signal-contact-intent-unit-literal-proof.xcresult`, including natural
+  English and Chinese, ordinary questions, pronouns, narrative fallback,
+  invented or merely normalized model fields, unavailable/error fallback, and
+  old persisted drafts.
+  Web contact-intake tests passed as part of 270 passing tests with one skip;
+  Web typecheck also passed.
+- Three new iOS interaction tests passed in
+  `/tmp/talent-signal-contact-intent-ui-complete.xcresult`: natural contact
+  input, ordinary identity-question routing, and interruption cancellation.
+  Simplified Chinese dark AX5 passed independently in
+  `/tmp/talent-signal-contact-intent-ax5-zh-ui.xcresult`.
+- The final single-spinner interpretation render and exact-draft cancellation
+  passed 1/1 in
+  `/tmp/talent-signal-contact-intent-cancel-final-ui.xcresult`; its inspected
+  screenshot is
+  `/tmp/contact-intent-final.KlGGWf/878E7739-4FE1-4F60-9E28-D430ED0303AE.png`.
+- Canonical fixture-backed proof used the current local API rather than preview
+  authority. No-match create and confirmed-owner attach passed in
+  `/tmp/talent-signal-contact-intent-canonical-live-ui.xcresult`; the corrected
+  current-versus-historical conflict path passed in
+  `/tmp/talent-signal-contact-intent-conflict-live-proof2-ui.xcresult`. Each
+  path required an explicit identity decision and restored its terminal receipt
+  from Sessions.
+- Remaining proof boundary: the deterministic and injected-model paths are
+  executable in Simulator, but the actual Apple Intelligence Foundation Models
+  runtime still needs a compatible physical-device run. Until then the
+  deterministic parser and clarification fallback remain the production-safe
+  behavior when the model is unavailable.

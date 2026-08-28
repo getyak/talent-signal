@@ -88,6 +88,9 @@
     "Finish reviewing the contact first" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先完成联系人审阅" } } }
     },
+    "I couldn't support a contact name from this message. Add the person's name, or choose a relationship to ask about it." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这条消息中没有足够依据确认联系人姓名。请补充姓名，或选择一段关系继续提问。" } } }
+    },
     "Identity check needs retry" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份检查需要重试" } } }
     },
@@ -1411,6 +1414,21 @@
     "This relationship is selected, but the draft remains protected as a global draft until this device can save the move." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系已选择；在此设备能够保存这次移动前，草稿仍作为全局草稿受到保护。" } } }
     },
+    "Choose a person and relationship for this message." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为这条消息选择人物和关系。" } } }
+    },
+    "Choose a relationship for this message" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为这条消息选择关系" } } }
+    },
+    "Who is this about?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这条消息与谁有关？" } } }
+    },
+    "No matching relationships" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有匹配的关系" } } }
+    },
+    "Try another person or context." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请尝试其他人物或情境。" } } }
+    },
     "Upload failed. Retry keeps the same image identity." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传失败。重试会继续使用同一图片标识。" } } }
     },
@@ -1776,6 +1794,9 @@
     },
     "Try a prompt" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "试试建议问题" } } }
+    },
+    "Understanding this message…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在理解这条消息…" } } }
     },
     "Offers optional starters without sending until you choose one." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提供可选的开场问题；只有选择后才会发送。" } } }

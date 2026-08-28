@@ -292,6 +292,7 @@ struct RelationshipAskView: View {
     @State private var selectedScope: AskScope?
     @State private var scopeQuery = ""
     @State private var isChoosingScope = false
+    @State private var isRequestingScope = false
     @State private var draft = ""
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var mediaDrafts: [AskMediaDraft] = []
@@ -299,6 +300,10 @@ struct RelationshipAskView: View {
     @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
     @State private var isSending = false
+    @State private var isInterpretingContact = false
+    @State private var contactInterpretationTask: Task<Void, Never>?
+    @State private var contactInterpretationSource: String?
+    @State private var contactInterpretationNotice: String?
     @State private var pendingObjective: String?
 #if DEBUG
     @State private var fixtureAskFailureConsumed = false
@@ -336,7 +341,8 @@ struct RelationshipAskView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if contactDraft == nil || contactSaveMessage != nil {
+                if shouldShowScopeBar,
+                   contactDraft == nil || contactSaveMessage != nil {
                     scopeBar
                         .transition(.opacity)
                 }
@@ -531,6 +537,18 @@ struct RelationshipAskView: View {
         }
         .onChange(of: draft) { value in
             guard !isSending else { return }
+            if contactInterpretationNotice != nil,
+               value.trimmingCharacters(in: .whitespacesAndNewlines)
+                != contactInterpretationSource {
+                contactInterpretationNotice = nil
+                contactInterpretationSource = nil
+            }
+            if selectedScope == nil,
+               value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                isRequestingScope = false
+                isChoosingScope = false
+                scopeQuery = ""
+            }
             if let selectedScope {
                 sessionStore.saveDraft(
                     value,
@@ -566,6 +584,8 @@ struct RelationshipAskView: View {
             }
         }
         .onDisappear {
+            contactInterpretationTask?.cancel()
+            contactInterpretationTask = nil
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
@@ -599,7 +619,7 @@ struct RelationshipAskView: View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
                 composerFocused = false
-                withAnimation(.easeOut(duration: 0.18)) {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
                     isChoosingScope.toggle()
                 }
             } label: {
@@ -608,9 +628,20 @@ struct RelationshipAskView: View {
                         scopeChip(selectedScope)
                     } else {
                         HStack {
-                            Text(appLanguage.text("Choose a relationship", zhHans: "选择一段关系"))
+                            Image(systemName: "person.crop.circle.badge.questionmark")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.tsVermilion)
+                                .accessibilityHidden(true)
+                            Text(
+                                appLanguage.text(
+                                    isRequestingScope
+                                        ? "Who is this about?"
+                                        : "Choose a relationship"
+                                )
+                            )
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.tsInk)
+                                .fixedSize(horizontal: false, vertical: true)
                             Spacer()
                             Image(systemName: "chevron.down")
                                 .font(.caption.weight(.semibold))
@@ -633,7 +664,9 @@ struct RelationshipAskView: View {
                 alignment: .leading
             )
             .accessibilityLabel(
-                appLanguage.text("Selected relationship", zhHans: "已选择的关系")
+                selectedScope == nil
+                    ? appLanguage.text("Choose a relationship for this message")
+                    : appLanguage.text("Selected relationship", zhHans: "已选择的关系")
             )
             .accessibilityValue(
                 selectedScope.map {
@@ -642,8 +675,9 @@ struct RelationshipAskView: View {
             )
             .accessibilityHint(
                 appLanguage.text(
-                    "Choose a different person or relationship.",
-                    zhHans: "选择其他人物或关系。"
+                    selectedScope == nil
+                        ? "Choose a person and relationship for this message."
+                        : "Choose a different person or relationship."
                 )
             )
             .accessibilityIdentifier("ask-scope-selector")
@@ -662,36 +696,82 @@ struct RelationshipAskView: View {
                     .accessibilityIdentifier("ask-scope-search")
                 }
                 .frame(minHeight: 44)
-
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) {
-                        ForEach(filteredScopes) { scope in
-                            Button {
-                                selectScope(scope)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(scope.person.displayLabel)
-                                        .font(.subheadline.weight(.semibold))
-                                    Text(scope.context.displayLabel)
-                                        .font(.caption)
-                                        .foregroundStyle(Color.tsMutedInk)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 9)
-                                .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier(
-                                "ask-scope-option-\(scope.person.id)-\(scope.context.id)"
-                            )
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private var scopeChoices: some View {
+        if filteredScopes.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Label(
+                    appLanguage.text("No matching relationships"),
+                    systemImage: "magnifyingglass"
+                )
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                Text(appLanguage.text("Try another person or context."))
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(appLanguage.text("Clear search")) {
+                    scopeQuery = ""
+                }
+                .font(.caption.weight(.semibold))
+                .frame(minHeight: 44)
+            }
+            .accessibilityIdentifier("ask-scope-no-results")
+        } else if dynamicTypeSize.isAccessibilitySize
+                    || sizeCategory.isAccessibilityCategory {
+            LazyVStack(spacing: 8) {
+                ForEach(filteredScopes) { scope in
+                    scopeOption(scope, fillsWidth: true)
+                }
+            }
+        } else {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(filteredScopes) { scope in
+                        scopeOption(scope, fillsWidth: false)
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+
+    private func scopeOption(_ scope: AskScope, fillsWidth: Bool) -> some View {
+        Button {
+            selectScope(scope)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(scope.person.displayLabel)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .lineLimit(fillsWidth ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(scope.context.displayLabel)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(fillsWidth ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(
+                maxWidth: fillsWidth ? .infinity : nil,
+                minHeight: 44,
+                alignment: .leading
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(
+            "ask-scope-option-\(scope.person.id)-\(scope.context.id)"
+        )
     }
 
     private func scopeChip(_ scope: AskScope) -> some View {
@@ -746,6 +826,11 @@ struct RelationshipAskView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
+                    if isChoosingScope {
+                        scopeChoices
+                            .id("ask-scope-choices")
+                    }
+
                     if conversationItems.isEmpty, contactDraft == nil {
                         starterGrid
                             .padding(.top, 24)
@@ -966,7 +1051,9 @@ struct RelationshipAskView: View {
 
     private var starterGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
-            starterPromptMenu
+            if trimmedDraft.isEmpty, !isRequestingScope {
+                starterPromptMenu
+            }
 
             if !isCanonical {
                 Label(
@@ -1013,8 +1100,18 @@ struct RelationshipAskView: View {
                 .background(Color.tsCanvas, in: Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(selectedScope == nil || isSending || !isCanonical)
-        .opacity(selectedScope == nil || isSending || !isCanonical ? 0.58 : 1)
+        .disabled(
+            isSending
+                || isInterpretingContact
+                || (selectedScope != nil && !isCanonical)
+        )
+        .opacity(
+            isSending
+                || isInterpretingContact
+                || (selectedScope != nil && !isCanonical)
+                ? 0.58
+                : 1
+        )
         .accessibilityHint(
             appLanguage.text(
                 "Offers optional starters without sending until you choose one."
@@ -1039,6 +1136,7 @@ struct RelationshipAskView: View {
         let controlSize = composerControlSize
 
         return VStack(spacing: 8) {
+            contactInterpretationStatus
             voiceInputStatus
 
             if !mediaDrafts.isEmpty, !isSending {
@@ -1101,7 +1199,12 @@ struct RelationshipAskView: View {
                 )
                 .focused($composerFocused)
                 .lineLimit(1...5)
-                .disabled(voiceInput.isBusy || isSending || hasBlockingContactProposal)
+                .disabled(
+                    voiceInput.isBusy
+                        || isSending
+                        || isInterpretingContact
+                        || hasBlockingContactProposal
+                )
                 .padding(.horizontal, 15)
                 .padding(.vertical, 12)
                 .background(
@@ -1153,6 +1256,46 @@ struct RelationshipAskView: View {
         dynamicTypeSize.isAccessibilitySize || sizeCategory.isAccessibilityCategory
             ? 52
             : 44
+    }
+
+    @ViewBuilder
+    private var contactInterpretationStatus: some View {
+        if isInterpretingContact {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(Color.tsInk)
+                Text(appLanguage.text("Understanding this message…"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ask-contact-interpreting")
+                Spacer(minLength: 8)
+                Button(appLanguage.text("Cancel")) {
+                    cancelContactInterpretation()
+                }
+                .font(.caption.weight(.semibold))
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("ask-contact-interpretation-cancel")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+        } else if let contactInterpretationNotice {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "person.crop.circle.badge.questionmark")
+                    .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityHidden(true)
+                Text(contactInterpretationNotice)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityIdentifier("ask-contact-clarification")
+        }
     }
 
     private var composerPrimaryControlSize: CGFloat {
@@ -1303,6 +1446,7 @@ struct RelationshipAskView: View {
 
     private var composerPrimaryDisabled: Bool {
         if hasBlockingContactProposal { return true }
+        if isInterpretingContact { return true }
         if !trimmedDraft.isEmpty { return !canSendDraft }
         if voiceInput.phase == .transcribing
             || voiceInput.phase == .requestingPermission {
@@ -1318,11 +1462,10 @@ struct RelationshipAskView: View {
         if isSending {
             return appLanguage.text("Reading the record…")
         }
+        if isInterpretingContact {
+            return appLanguage.text("Understanding this message…")
+        }
         if !trimmedDraft.isEmpty {
-            if selectedScope == nil,
-               ConversationContactIntake.propose(trimmedDraft) == nil {
-                return appLanguage.text("Choose a relationship before sending")
-            }
             return appLanguage.text("Send")
         }
         if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
@@ -1432,15 +1575,31 @@ struct RelationshipAskView: View {
         contactDraft != nil && contactSaveMessage == nil
     }
 
+    private var shouldShowScopeBar: Bool {
+        selectedScope != nil
+            || isRequestingScope
+            || sessionID != nil
+            || initialSeed != nil
+            || activeSessionID != nil
+    }
+
     private var canSendDraft: Bool {
         let isContactIntent = ConversationContactIntake.propose(trimmedDraft) != nil
         if isContactIntent {
             return !isSending
+                && !isInterpretingContact
+                && !isSavingContact
+                && mediaDrafts.isEmpty
+        }
+        if selectedScope == nil {
+            return !isSending
+                && !isInterpretingContact
                 && !isSavingContact
                 && mediaDrafts.isEmpty
         }
         return selectedScope != nil
             && !isSending
+            && !isInterpretingContact
             && !isSavingContact
             && isCanonical
             && mediaDrafts.allSatisfy { $0.phase == .ready }
@@ -1669,41 +1828,21 @@ struct RelationshipAskView: View {
     private func send(_ objective: String) {
         let trimmed = objective.trimmingCharacters(in: .whitespacesAndNewlines)
         let mediaIDs = mediaDrafts.compactMap(\.readyMediaID)
-        guard !trimmed.isEmpty, !isSending else { return }
+        guard !trimmed.isEmpty, !isSending, !isInterpretingContact else { return }
         if mediaIDs.isEmpty,
            let proposedContact = ConversationContactIntake.propose(trimmed) {
-            errorMessage = nil
-            isChoosingScope = false
-            contactDraft = proposedContact
-            contactOperationKey = "ios:contact:\(UUID().uuidString.lowercased())"
-            pendingContactTarget = nil
-            pendingContactCapturedAt = nil
-            pendingContactConfirmIdentityClue = nil
-            selectedContactPersonID = nil
-            selectedContactContextID = nil
-            createDistinctContact = false
-            saveContactForIdentityReview = false
-            confirmContactIdentityClue = proposedContact.identityClue != nil
-            contactSaveMessage = nil
-            contactSaveError = nil
-            startContactLookup(for: proposedContact)
-            if let contactOperationKey,
-               !sessionStore.saveContactProposal(
-                    proposedContact,
-                    idempotencyKey: contactOperationKey,
-                    clearingGlobalDraft: true
-               ) {
-                contactSaveError = appLanguage.text(
-                    "The proposal is open, but this device could not protect it for relaunch."
-                )
-            }
-            draft = ""
-            composerFocused = false
+            stageContactProposal(proposedContact)
             return
         }
-        guard
-              let selectedScope,
-              mediaIDs.count == mediaDrafts.count else { return }
+        if mediaIDs.isEmpty, selectedScope == nil {
+            beginContactInterpretation(trimmed)
+            return
+        }
+        guard let selectedScope else {
+            requestRelationshipScope()
+            return
+        }
+        guard mediaIDs.count == mediaDrafts.count else { return }
         errorMessage = nil
         pendingObjective = trimmed
         isSending = true
@@ -1759,6 +1898,104 @@ struct RelationshipAskView: View {
             }
             isSending = false
         }
+    }
+
+    private func beginContactInterpretation(_ source: String) {
+        contactInterpretationTask?.cancel()
+        contactInterpretationSource = source
+        contactInterpretationNotice = nil
+        errorMessage = nil
+        isInterpretingContact = true
+        composerFocused = false
+        contactInterpretationTask = Task {
+            do {
+                try await waitForFixtureContactInterpretationIfNeeded()
+            } catch {
+                return
+            }
+            let result = await AdaptiveConversationContactIntentInterpreter()
+                .interpret(source)
+            guard !Task.isCancelled,
+                  contactInterpretationSource == source else { return }
+            isInterpretingContact = false
+            contactInterpretationTask = nil
+            switch result {
+            case let .contact(proposal):
+                contactInterpretationSource = nil
+                stageContactProposal(proposal)
+            case .notContact:
+                contactInterpretationSource = nil
+                requestRelationshipScope()
+            case .needsClarification:
+                contactInterpretationNotice = appLanguage.text(
+                    "I couldn't support a contact name from this message. Add the person's name, or choose a relationship to ask about it."
+                )
+                composerFocused = true
+            }
+        }
+    }
+
+    private func waitForFixtureContactInterpretationIfNeeded() async throws {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flagIndex = arguments.firstIndex(
+            of: "--fixture-contact-interpretation-delay-seconds"
+        ), arguments.indices.contains(flagIndex + 1),
+           let seconds = Double(arguments[flagIndex + 1]),
+           seconds > 0 else { return }
+        try await Task.sleep(for: .milliseconds(Int(seconds * 1_000)))
+#endif
+    }
+
+    private func cancelContactInterpretation() {
+        contactInterpretationTask?.cancel()
+        contactInterpretationTask = nil
+        contactInterpretationSource = nil
+        isInterpretingContact = false
+        composerFocused = true
+    }
+
+    private func requestRelationshipScope() {
+        errorMessage = nil
+        isRequestingScope = true
+        scopeQuery = ""
+        composerFocused = false
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
+            isChoosingScope = true
+        }
+    }
+
+    private func stageContactProposal(_ proposedContact: ConversationContactDraft) {
+        errorMessage = nil
+        contactInterpretationNotice = nil
+        contactInterpretationSource = nil
+        isChoosingScope = false
+        isRequestingScope = false
+        contactDraft = proposedContact
+        contactOperationKey = "ios:contact:\(UUID().uuidString.lowercased())"
+        pendingContactTarget = nil
+        pendingContactCapturedAt = nil
+        pendingContactConfirmIdentityClue = nil
+        selectedContactPersonID = nil
+        selectedContactContextID = nil
+        createDistinctContact = false
+        saveContactForIdentityReview = false
+        confirmContactIdentityClue = proposedContact.identityClue != nil
+        contactSaveMessage = nil
+        contactSaveError = nil
+        startContactLookup(for: proposedContact)
+        if let contactOperationKey,
+           !sessionStore.saveContactProposal(
+                proposedContact,
+                idempotencyKey: contactOperationKey,
+                clearingGlobalDraft: true
+           ) {
+            contactSaveError = appLanguage.text(
+                "The proposal is open, but this device could not protect it for relaunch."
+            )
+        }
+        draft = ""
+        composerFocused = false
     }
 
     private func waitForFixtureAskDelayIfNeeded() async throws {
@@ -2144,6 +2381,7 @@ struct RelationshipAskView: View {
         activeSessionID = nil
         scopeQuery = ""
         isChoosingScope = false
+        isRequestingScope = false
         errorMessage = nil
 
         if shouldPromoteDraft {
