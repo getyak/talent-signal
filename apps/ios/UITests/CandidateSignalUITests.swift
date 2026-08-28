@@ -168,9 +168,18 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-response-turn").exists)
+        let scope = element("ask-scope-selector")
+        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            (scope.value as? String)?.contains("Leila Hartmann") == true
+        )
         let composer = element("ask-composer")
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertTrue((composer.value as? String)?.contains("Prepare for the") == true)
+        XCTAssertFalse(
+            app.keyboards.firstMatch.exists,
+            "A contextual Session should lead with its relationship, not steal focus."
+        )
         preserveScreenshot("Meeting preparation returned to Session")
     }
 
@@ -440,11 +449,9 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(promptMenu.exists)
         XCTAssertFalse(promptMenu.isEnabled)
         XCTAssertFalse(app.buttons["What changed?"].exists)
-        XCTAssertTrue(
-            (element("ask-scope-selector").value as? String)?
-                .contains("Leila Hartmann") == true
-        )
+        XCTAssertEqual(element("ask-scope-selector").value as? String, "None")
         XCTAssertTrue(app.buttons["Add photos"].exists)
+        XCTAssertFalse(app.buttons["Add photos"].isEnabled)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
         XCTAssertFalse(element("ask-scope-search").exists)
         XCTAssertFalse(app.staticTexts["A quieter Agent"].exists)
@@ -462,6 +469,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertEqual(element("ask-scope-selector").value as? String, "None")
         XCTAssertTrue(
             app.keyboards.firstMatch.waitForExistence(timeout: 3),
             "A new global intent should need no second tap before typing."
@@ -474,6 +482,71 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(send.exists)
         XCTAssertTrue(send.isEnabled)
         preserveScreenshot("Global Agent input opens ready to type")
+    }
+
+    func testGlobalAgentDraftRestoresWithoutImplicitRelationship() {
+        app.launchArguments = [
+            "--persist-preview-agent",
+            "--reset-preview-agent",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertEqual(element("ask-scope-selector").value as? String, "None")
+        let message = "Add Amara Singh for the health search"
+        composer.typeText(message)
+        XCTAssertEqual(composer.value as? String, message)
+
+        app.terminate()
+        app.launchArguments = ["--persist-preview-agent"]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let restoredComposer = app.textFields["ask-composer"]
+        XCTAssertTrue(restoredComposer.waitForExistence(timeout: 5))
+        XCTAssertEqual(restoredComposer.value as? String, message)
+        XCTAssertEqual(element("ask-scope-selector").value as? String, "None")
+        XCTAssertTrue(app.buttons["ask-send"].isEnabled)
+        preserveScreenshot("Global Agent draft restores without a relationship")
+
+        app.buttons["ask-send"].tap()
+        XCTAssertTrue(element("contact-proposal-card").waitForExistence(timeout: 5))
+        app.buttons["contact-dismiss-proposal"].tap()
+        XCTAssertTrue(element("contact-proposal-card").waitForNonExistence(timeout: 5))
+    }
+
+    func testUnscopedQuestionWaitsForRelationshipWithoutLosingTheDraft() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        let message = "What changed in this relationship?"
+        composer.typeText(message)
+
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.exists)
+        XCTAssertFalse(send.isEnabled)
+        XCTAssertEqual(send.label, "Choose a relationship before sending")
+
+        let selector = element("ask-scope-selector")
+        selector.tap()
+        let scope = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "ask-scope-option-")
+        ).firstMatch
+        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        scope.tap()
+
+        XCTAssertEqual(composer.value as? String, message)
+        XCTAssertTrue(
+            (selector.value as? String)?.contains("Leila Hartmann") == true
+        )
+        XCTAssertEqual(send.label, "Send")
     }
 
     func testVoiceInputInsertsAnEditableDraftWithoutSending() {
@@ -919,13 +992,12 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(promptMenu.exists)
         XCTAssertGreaterThanOrEqual(promptMenu.frame.height, 44)
         XCTAssertFalse(app.buttons["What changed?"].exists)
-        XCTAssertTrue(
-            (scope.value as? String)?.contains("Leila Hartmann") == true
-        )
+        XCTAssertEqual(scope.value as? String, "未选择")
 
         let photos = app.buttons["ask-add-photos"]
         let voice = app.buttons["ask-voice"]
         XCTAssertTrue(photos.exists)
+        XCTAssertFalse(photos.isEnabled)
         XCTAssertTrue(voice.exists)
         XCTAssertGreaterThanOrEqual(photos.frame.height, 44)
         XCTAssertLessThanOrEqual(photos.frame.width, 60)

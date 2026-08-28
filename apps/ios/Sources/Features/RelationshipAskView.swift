@@ -492,8 +492,6 @@ struct RelationshipAskView: View {
                         zhHans: "当前工作区中找不到刚审阅的关系。"
                     )
                 }
-            } else if selectedScope == nil {
-                selectedScope = availableScopes.first
             }
             if contactDraft == nil,
                let restoredContact = sessionStore.contactProposalDraft {
@@ -533,12 +531,17 @@ struct RelationshipAskView: View {
         }
         .onChange(of: draft) { value in
             guard !isSending else { return }
-            guard let selectedScope else { return }
-            sessionStore.saveDraft(
-                value,
-                personID: selectedScope.person.id,
-                relationshipContextID: selectedScope.context.id
-            )
+            if let selectedScope {
+                sessionStore.saveDraft(
+                    value,
+                    personID: selectedScope.person.id,
+                    relationshipContextID: selectedScope.context.id
+                )
+            } else if activeSessionID == nil,
+                      initialSeed == nil,
+                      contactDraft == nil {
+                sessionStore.saveGlobalDraft(value)
+            }
         }
         .onChange(of: selectedPhotoItems) { items in
             guard !items.isEmpty else { return }
@@ -595,24 +598,32 @@ struct RelationshipAskView: View {
     private var scopeBar: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
+                composerFocused = false
                 withAnimation(.easeOut(duration: 0.18)) {
                     isChoosingScope.toggle()
                 }
             } label: {
-                if let selectedScope {
-                    scopeChip(selectedScope)
-                } else {
-                    HStack {
-                        Text(appLanguage.text("Choose a relationship", zhHans: "选择一段关系"))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.tsInk)
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.tsMutedInk)
+                Group {
+                    if let selectedScope {
+                        scopeChip(selectedScope)
+                    } else {
+                        HStack {
+                            Text(appLanguage.text("Choose a relationship", zhHans: "选择一段关系"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.tsInk)
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.tsMutedInk)
+                        }
                     }
-                    .frame(minHeight: 44)
                 }
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: scopeSelectorMinimumHeight,
+                    alignment: .leading
+                )
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(isSending)
@@ -621,8 +632,6 @@ struct RelationshipAskView: View {
                 minHeight: scopeSelectorMinimumHeight,
                 alignment: .leading
             )
-            .accessibilityElement(children: .ignore)
-            .accessibilityAddTraits(.isButton)
             .accessibilityLabel(
                 appLanguage.text("Selected relationship", zhHans: "已选择的关系")
             )
@@ -658,15 +667,7 @@ struct RelationshipAskView: View {
                     HStack(spacing: 8) {
                         ForEach(filteredScopes) { scope in
                             Button {
-                                selectedScope = scope
-                                activeSessionID = nil
-                                scopeQuery = ""
-                                isChoosingScope = false
-                                errorMessage = nil
-                                draft = sessionStore.draft(
-                                    personID: scope.person.id,
-                                    relationshipContextID: scope.context.id
-                                )
+                                selectScope(scope)
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(scope.person.displayLabel)
@@ -1689,7 +1690,8 @@ struct RelationshipAskView: View {
             if let contactOperationKey,
                !sessionStore.saveContactProposal(
                     proposedContact,
-                    idempotencyKey: contactOperationKey
+                    idempotencyKey: contactOperationKey,
+                    clearingGlobalDraft: true
                ) {
                 contactSaveError = appLanguage.text(
                     "The proposal is open, but this device could not protect it for relaunch."
@@ -2110,14 +2112,71 @@ struct RelationshipAskView: View {
     }
 
     private func restoreDraft(preferred: String? = nil) {
-        guard let selectedScope else { return }
-        let saved = sessionStore.draft(
-            personID: selectedScope.person.id,
-            relationshipContextID: selectedScope.context.id
-        )
+        let saved: String
+        if let selectedScope {
+            saved = sessionStore.draft(
+                personID: selectedScope.person.id,
+                relationshipContextID: selectedScope.context.id
+            )
+        } else if sessionID == nil,
+                  initialSeed == nil,
+                  contactDraft == nil {
+            saved = sessionStore.globalDraft()
+        } else {
+            return
+        }
         draft = saved.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? preferred ?? ""
             : saved
+    }
+
+    private func selectScope(_ scope: AskScope) {
+        let priorScope = selectedScope
+        let unscopedDraft = draft
+        let shouldPromoteDraft = priorScope == nil
+            && !unscopedDraft.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).isEmpty
+        let wasGlobalComposition = activeSessionID == nil
+            && initialSeed == nil
+
+        selectedScope = scope
+        activeSessionID = nil
+        scopeQuery = ""
+        isChoosingScope = false
+        errorMessage = nil
+
+        if shouldPromoteDraft {
+            if wasGlobalComposition {
+                if !sessionStore.promoteGlobalDraft(
+                    unscopedDraft,
+                    personID: scope.person.id,
+                    relationshipContextID: scope.context.id
+                ) {
+                    errorMessage = appLanguage.text(
+                        "This relationship is selected, but the draft remains protected as a global draft until this device can save the move."
+                    )
+                }
+            } else {
+                sessionStore.saveDraft(
+                    unscopedDraft,
+                    personID: scope.person.id,
+                    relationshipContextID: scope.context.id
+                )
+            }
+            draft = unscopedDraft
+            if !voiceOverEnabled {
+                Task { @MainActor in
+                    await Task.yield()
+                    composerFocused = true
+                }
+            }
+        } else {
+            draft = sessionStore.draft(
+                personID: scope.person.id,
+                relationshipContextID: scope.context.id
+            )
+        }
     }
 
     private func reviewIdempotencyKey(

@@ -423,3 +423,26 @@ review-and-receipt loop. Static mockups or passing builds alone are insufficient
   AX5 preserves the one-column scope, preview boundary, 44-point capture
   controls, and uncropped composer in
   `/tmp/talent-signal-global-input-focus-ax5-zh.xcresult`.
+- Removed the implicit first-relationship selection from a brand-new global
+  Ask. Contact-shaped language can reach a reviewable contact proposal while
+  still unscoped; a generic relationship question remains disabled until the
+  recruiter explicitly chooses both Person and context.
+- Protected the unscoped draft in the existing account-scoped Session envelope
+  with the same seven-day retention boundary. Envelope version 5 adds only the
+  optional global draft while retaining version 1–4 migration; version 4
+  remains the durable contact-tool receipt addition.
+- Made both scope transitions atomic. Choosing a relationship moves the exact
+  global draft into that scope, while opening a contact proposal clears it only
+  in the same successful persist. Failure rolls back to the protected global
+  draft instead of leaving an ambiguous or duplicated intent.
+- Expanded the relationship selector's real hit region to its full 44-point
+  row after UI evidence showed that tapping the visually empty center could
+  leave the keyboard focused and fail to open choices.
+- Four standard global-intent journeys pass in
+  `/tmp/talent-signal-global-scope-ui-v2.xcresult`; contextual Session scope and
+  no-focus behavior pass in
+  `/tmp/talent-signal-contextual-session-scope-ui.xcresult`; Simplified Chinese
+  dark AX5 passes in
+  `/tmp/talent-signal-global-scope-ax5-zh.xcresult`; and atomic rollback,
+  retry, relaunch, account isolation, and expiry pass in
+  `/tmp/talent-signal-global-draft-atomic-model-v2.xcresult`.

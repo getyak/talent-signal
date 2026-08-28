@@ -86,6 +86,65 @@ final result: passed
 
 ---
 
+# Design QA — iOS explicit global Agent scope
+
+## Finding and selected direction
+
+The bottom entry was visually global, but a new Ask silently selected the first
+available relationship. A concise contact intent could therefore appear to
+target Leila Hartmann before the Agent had analyzed the message. That mixed a
+global IM interaction with form-style preselection and created a wrong-target
+risk.
+
+The selected direction starts a new global Ask with no relationship selected.
+Contact-shaped language can proceed to the existing reviewable contact proposal
+without inventing a relationship. A generic relationship question stays
+disabled until the recruiter explicitly chooses a Person and context. Selecting
+one moves the exact draft atomically; if protected persistence fails, the draft
+remains recoverable as a global draft and the UI explains the boundary.
+
+The selector keeps the existing visual treatment, but its complete 44-point row
+is now tappable. Existing contextual Sessions remain scoped and do not steal
+keyboard focus. The Today / Sessions / People navigation and bottom global
+input were not moved or restyled.
+
+## Evidence
+
+- Evidence level: 1, fixture-backed iPhone 17 Pro Simulator on iOS 26.5.
+- Rejected implicit-scope state:
+  `/tmp/talent-signal-global-input-focus.ooNbRf/0E30CC00-5541-4DC3-BA0E-A3D7703FFDE6.png`.
+- Empty explicit global state:
+  `/tmp/talent-signal-global-scope-ui-v2.MUWJ4t/33C72746-7A2E-4511-A43F-5C943FC9B9B3.png`.
+- Restored unscoped contact intent:
+  `/tmp/talent-signal-global-scope-ui-v2.MUWJ4t/3B37D620-EF52-4EFD-9356-E72B9F865DC8.png`.
+- Standard global-intent result bundle:
+  `/tmp/talent-signal-global-scope-ui-v2.xcresult`.
+- Contextual Session scope regression bundle:
+  `/tmp/talent-signal-contextual-session-scope-ui.xcresult`.
+- Simplified Chinese, dark appearance, AX5 result bundle:
+  `/tmp/talent-signal-global-scope-ax5-zh.xcresult`.
+- Atomic global-draft transition model bundle:
+  `/tmp/talent-signal-global-draft-atomic-model-v2.xcresult`.
+
+The standard journey verifies empty, direct-contact, relaunch, and generic
+relationship-question states. The model journey verifies rollback and exact
+relaunch recovery for both global-to-relationship and global-to-contact
+proposal transitions. The AX5 journey keeps the unselected scope, preview
+boundary, capture controls, and composer readable without clipping.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — global means unscoped until the message supplies intent.
+- Hierarchy: 3 — contact review and relationship context remain distinct.
+- Platform interaction: 3 — one-tap typing and a full-row native selector.
+- Accessibility: 3 — explicit disabled reason, 44-point target, AX5 verified.
+- Visual craft: 3 — no new form, modal, navigation, or bottom-bar treatment.
+- Vetoes: none.
+
+final result: passed
+
+---
+
 # Design QA — iOS one-tap global Agent input
 
 ## Finding and selected direction

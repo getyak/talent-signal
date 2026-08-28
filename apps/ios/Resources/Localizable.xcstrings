@@ -1408,6 +1408,9 @@
     "This edit is visible, but it could not be protected for relaunch." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此编辑当前可见，但暂时无法保护以便重新启动后恢复。" } } }
     },
+    "This relationship is selected, but the draft remains protected as a global draft until this device can save the move." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系已选择；在此设备能够保存这次移动前，草稿仍作为全局草稿受到保护。" } } }
+    },
     "Upload failed. Retry keeps the same image identity." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传失败。重试会继续使用同一图片标识。" } } }
     },
