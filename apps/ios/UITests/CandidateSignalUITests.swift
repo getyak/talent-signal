@@ -121,9 +121,18 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-response-turn").exists)
+        let scope = element("ask-scope-selector")
+        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            (scope.value as? String)?.contains("Leila Hartmann") == true
+        )
         let composer = element("ask-composer")
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertTrue((composer.value as? String)?.contains("Prepare for the") == true)
+        XCTAssertFalse(
+            app.keyboards.firstMatch.exists,
+            "A contextual Session should lead with its relationship, not steal focus."
+        )
         preserveScreenshot("Meeting preparation returned to Session")
     }
 
@@ -390,17 +399,130 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(ask.waitForExistence(timeout: 5))
         ask.tap()
 
-        XCTAssertTrue(element("ask-scope-selector").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertTrue(element("ask-composer").exists)
         XCTAssertTrue(app.buttons["What changed?"].exists)
         XCTAssertTrue(app.buttons["Prepare questions"].exists)
         XCTAssertTrue(app.buttons["Do nothing?"].exists)
         XCTAssertTrue(app.buttons["Add text, photo, or voice"].exists)
+        let promptMenu = app.buttons["ask-prompt-menu"]
+        XCTAssertTrue(promptMenu.exists)
+        XCTAssertTrue(promptMenu.isEnabled)
+        XCTAssertFalse(app.buttons["What changed?"].exists)
+        XCTAssertTrue(app.buttons["Add photos"].exists)
+        XCTAssertFalse(app.buttons["Add photos"].isEnabled)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
         XCTAssertFalse(element("ask-scope-search").exists)
         XCTAssertFalse(app.staticTexts["A quieter Agent"].exists)
         XCTAssertFalse(app.staticTexts["Draft authority only"].exists)
         preserveScreenshot("Conversation-first Ask with embedded tools")
+    }
+
+    func testGlobalAgentInputMovesDirectlyIntoTyping() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let globalInput = app.buttons["relationship-guide"]
+        XCTAssertTrue(globalInput.waitForExistence(timeout: 5))
+        globalInput.tap()
+
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertFalse(element("ask-scope-selector").exists)
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForExistence(timeout: 3),
+            "A new global intent should need no second tap before typing."
+        )
+
+        let message = "Add Maya Chen for the product search"
+        composer.typeText(message)
+        XCTAssertEqual(composer.value as? String, message)
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.exists)
+        XCTAssertTrue(send.isEnabled)
+        preserveScreenshot("Global Agent input opens ready to type")
+    }
+
+    func testGlobalAgentDraftRestoresWithoutImplicitRelationship() {
+        app.launchArguments = [
+            "--persist-preview-agent",
+            "--reset-preview-agent",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertFalse(element("ask-scope-selector").exists)
+        let message = "Add Amara Singh for the health search"
+        composer.typeText(message)
+        XCTAssertEqual(composer.value as? String, message)
+
+        app.terminate()
+        app.launchArguments = ["--persist-preview-agent"]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let restoredComposer = app.textFields["ask-composer"]
+        XCTAssertTrue(restoredComposer.waitForExistence(timeout: 5))
+        XCTAssertEqual(restoredComposer.value as? String, message)
+        XCTAssertFalse(element("ask-scope-selector").exists)
+        XCTAssertTrue(app.buttons["ask-send"].isEnabled)
+        preserveScreenshot("Global Agent draft restores without a relationship")
+
+        app.buttons["ask-send"].tap()
+        XCTAssertTrue(element("contact-proposal-card").waitForExistence(timeout: 5))
+        app.buttons["contact-dismiss-proposal"].tap()
+        XCTAssertTrue(element("contact-proposal-card").waitForNonExistence(timeout: 5))
+    }
+
+    func testUnscopedQuestionWaitsForRelationshipWithoutLosingTheDraft() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        let message = "What changed in this relationship?"
+        composer.typeText(message)
+
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.exists)
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertEqual(send.label, "Choose a relationship for this message")
+
+        send.tap()
+
+        let selector = element("ask-scope-selector")
+        XCTAssertTrue(selector.waitForExistence(timeout: 5))
+        XCTAssertEqual(selector.value as? String, "None")
+        XCTAssertTrue(element("ask-scope-search").exists)
+        XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForNonExistence(timeout: 3),
+            "Relationship clarification should not leave the composer keyboard over the choices."
+        )
+        preserveScreenshot("Agent asks for relationship after message")
+
+        let search = element("ask-scope-search")
+        search.tap()
+        search.typeText("No matching relationship")
+        XCTAssertTrue(element("ask-scope-no-results").waitForExistence(timeout: 5))
+        app.buttons["Clear search"].tap()
+        let scope = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "ask-scope-option-")
+        ).firstMatch
+        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        scope.tap()
+
+        XCTAssertEqual(composer.value as? String, message)
+        XCTAssertTrue(
+            (selector.value as? String)?.contains("Leila Hartmann") == true
+        )
+        XCTAssertEqual(send.label, "Send")
+        XCTAssertFalse(element("ask-scope-search").exists)
     }
 
     func testVoiceInputInsertsAnEditableDraftWithoutSending() {
@@ -474,7 +596,10 @@ final class CandidateSignalUITests: XCTestCase {
         guard let fixture = try await preparePursuitProposalFixtureIfAvailable() else {
             throw XCTSkip("The canonical Pursuit workspace fixture was not configured.")
         }
-        app.launchArguments = ["--workspace-backend-url", fixture.backendURL]
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--fixture-ask-delay-seconds", "3",
+        ]
         app.launch()
 
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
@@ -504,8 +629,24 @@ final class CandidateSignalUITests: XCTestCase {
         let prompt = app.buttons["What changed?"]
         XCTAssertTrue(prompt.waitForExistence(timeout: 5))
         prompt.tap()
+        let pendingTurn = element("ask-pending-turn")
+        XCTAssertTrue(pendingTurn.waitForExistence(timeout: 2))
+        XCTAssertTrue(element("ask-loading").exists)
+        let pendingMessage = element("ask-user-message")
+        XCTAssertEqual(pendingMessage.label, "What changed?")
+        let pendingComposer = element("ask-composer")
+        XCTAssertFalse(String(describing: pendingComposer.value).contains("What changed?"))
+        XCTAssertFalse(pendingComposer.isEnabled)
+        XCTAssertFalse(element("ask-response-turn").exists)
+        preserveScreenshot("Canonical Ask pending turn")
         XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 15))
+        XCTAssertTrue(pendingTurn.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(element("ask-composer").isEnabled)
         XCTAssertFalse(app.staticTexts["Preview data · connect a workspace to send"].exists)
+        let userMessage = element("ask-user-message")
+        XCTAssertTrue(userMessage.exists)
+        XCTAssertEqual(userMessage.label, "What changed?")
+        XCTAssertLessThan(userMessage.frame.width, 280)
         preserveScreenshot("Canonical Ask evidence-bound response")
 
         let evidence = app.buttons.matching(
@@ -551,6 +692,134 @@ final class CandidateSignalUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         preserveScreenshot("Ask opens the exact existing Pursuit action")
+    }
+
+    func testCanonicalAskResponseChineseDarkAX5KeepsEvidenceAndComposerReachable() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable() else {
+            throw XCTSkip("The canonical Pursuit workspace fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--fixture-ask-delay-seconds", "3",
+            "--force-dark",
+            "-AppleInterfaceStyle", "Dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+
+        element("ask-scope-selector").tap()
+        let scopeSearch = element("ask-scope-search")
+        XCTAssertTrue(scopeSearch.waitForExistence(timeout: 5))
+        scopeSearch.tap()
+        scopeSearch.typeText("Leila")
+        let canonicalPerson = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "ask-scope-option-\(fixture.personID)-"
+            )
+        ).firstMatch
+        XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
+        canonicalPerson.tap()
+
+        let promptMenu = app.buttons["ask-prompt-menu"]
+        XCTAssertTrue(promptMenu.waitForExistence(timeout: 5))
+        promptMenu.tap()
+        let prompt = app.buttons["发生了什么变化？"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 5))
+        prompt.tap()
+
+        let pendingTurn = element("ask-pending-turn")
+        XCTAssertTrue(pendingTurn.waitForExistence(timeout: 2))
+        XCTAssertTrue(element("ask-loading").exists)
+        XCTAssertEqual(element("ask-user-message").label, "发生了什么变化？")
+        XCTAssertFalse(element("ask-composer").isEnabled)
+        preserveScreenshot("Canonical Ask pending turn Chinese dark AX5")
+
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 15))
+        XCTAssertTrue(pendingTurn.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(element("ask-composer").isEnabled)
+        XCTAssertTrue(app.staticTexts["当前理解"].exists)
+        XCTAssertTrue(app.staticTexts["已有负责人下一步"].exists)
+        XCTAssertFalse(app.staticTexts["Existing owned next move"].exists)
+
+        let userMessage = element("ask-user-message")
+        XCTAssertTrue(userMessage.exists)
+        XCTAssertEqual(userMessage.label, "发生了什么变化？")
+        XCTAssertLessThanOrEqual(
+            userMessage.frame.width,
+            app.windows.firstMatch.frame.width - 40
+        )
+
+        let evidence = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "ask-citation-")
+        ).firstMatch
+        XCTAssertTrue(evidence.exists)
+        XCTAssertTrue(evidence.label.contains("候选人"))
+        XCTAssertTrue(evidence.label.contains("已审阅"))
+        XCTAssertTrue(element("ask-composer").exists)
+        preserveScreenshot("Canonical Ask response Chinese dark AX5")
+    }
+
+    func testCanonicalAskFailureRestoresQuestionAndRetriesSameIntent() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable() else {
+            throw XCTSkip("The canonical Pursuit workspace fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--fixture-ask-delay-seconds", "3",
+            "--fixture-ask-fail-once",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+
+        element("ask-scope-selector").tap()
+        let scopeSearch = element("ask-scope-search")
+        XCTAssertTrue(scopeSearch.waitForExistence(timeout: 5))
+        scopeSearch.tap()
+        scopeSearch.typeText("Leila")
+        let canonicalPerson = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "ask-scope-option-\(fixture.personID)-"
+            )
+        ).firstMatch
+        XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
+        canonicalPerson.tap()
+
+        let promptMenu = app.buttons["ask-prompt-menu"]
+        XCTAssertTrue(promptMenu.waitForExistence(timeout: 5))
+        promptMenu.tap()
+        let prompt = app.buttons["What changed?"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 5))
+        prompt.tap()
+
+        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 2))
+        XCTAssertTrue(element("ask-error").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("ask-pending-turn").exists)
+        XCTAssertTrue(
+            String(describing: element("ask-composer").value).contains("What changed?")
+        )
+        preserveScreenshot("Canonical Ask failure restores question")
+
+        let retry = app.buttons["ask-retry"]
+        XCTAssertTrue(retry.exists)
+        XCTAssertTrue(retry.isHittable)
+        retry.tap()
+        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 2))
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 15))
+        XCTAssertFalse(element("ask-error").exists)
     }
 
     func testAppleLoginKeepsOneCalmPrimaryAction() {
@@ -602,6 +871,43 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("ask-composer").exists)
         XCTAssertTrue(element("ask-preview-send-boundary").exists)
         preserveScreenshot("Ask AX5 single-column tools")
+        let composer = element("ask-composer")
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertFalse(element("ask-scope-selector").exists)
+        XCTAssertTrue(composer.exists)
+        let promptMenu = app.buttons["ask-prompt-menu"]
+        XCTAssertTrue(promptMenu.exists)
+        XCTAssertGreaterThanOrEqual(promptMenu.frame.height, 44)
+        XCTAssertFalse(app.buttons["What changed?"].exists)
+
+        let photos = app.buttons["ask-add-photos"]
+        let voice = app.buttons["ask-voice"]
+        XCTAssertTrue(photos.exists)
+        XCTAssertFalse(photos.isEnabled)
+        XCTAssertTrue(voice.exists)
+        XCTAssertGreaterThanOrEqual(photos.frame.height, 44)
+        XCTAssertLessThanOrEqual(photos.frame.width, 60)
+        XCTAssertGreaterThanOrEqual(voice.frame.height, 44)
+        XCTAssertLessThanOrEqual(voice.frame.width, 60)
+        XCTAssertLessThanOrEqual(composer.frame.maxX, app.frame.maxX)
+        XCTAssertTrue(element("ask-preview-send-boundary").exists)
+        preserveScreenshot("Ask Chinese dark AX5 input-first")
+
+        typeTextReliably("发生了什么变化？", into: composer)
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertEqual(send.label, "为这条消息选择关系")
+        send.tap()
+
+        let scope = element("ask-scope-selector")
+        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        XCTAssertEqual(scope.value as? String, "未选择")
+        XCTAssertTrue(element("ask-scope-search").exists)
+        XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        XCTAssertLessThanOrEqual(scope.frame.maxX, app.frame.maxX)
+        XCTAssertLessThanOrEqual(composer.frame.maxY, app.frame.maxY)
+        preserveScreenshot("Ask Chinese dark AX5 relationship clarification")
     }
 
     func testSettingsSwitchesTheCoreWorkspaceBetweenChineseAndEnglish() {
@@ -2210,6 +2516,664 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Capture chooser opens audio idle")
     }
 
+    func testNaturalContactProposalIsEditableAndRestoresAfterRelaunch() {
+        app.launchArguments = ["--persist-preview-agent", "--reset-preview-agent"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["relationship-guide"].waitForExistence(timeout: 8)
+        )
+        app.buttons["relationship-guide"].tap()
+        XCTAssertTrue(
+            element("relationship-ask-sheet").waitForExistence(timeout: 5)
+        )
+        if app.buttons["contact-dismiss-proposal"].exists {
+            app.buttons["contact-dismiss-proposal"].tap()
+        }
+
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        let message = "Add Maya Chen for the Chief Product Officer search, maya@example.com"
+        typeTextReliably(message, into: composer)
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.isEnabled)
+        send.tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("contact-proposal-card").waitForExistence(timeout: 5))
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "Review this contact")
+        XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "Maya Chen")
+        XCTAssertEqual(
+            app.staticTexts["contact-summary-relationship"].label,
+            "Chief Product Officer"
+        )
+        XCTAssertFalse(app.textFields["contact-proposal-name"].exists)
+        XCTAssertFalse(composer.isEnabled)
+        XCTAssertFalse(app.buttons["ask-add-photos"].isEnabled)
+        XCTAssertFalse(app.buttons["ask-voice"].isEnabled)
+        XCTAssertTrue(app.buttons["contact-edit-details"].exists)
+        assertAccessibilityOrder([
+            "contact-user-message",
+            "contact-proposal-summary",
+            "contact-workspace-unavailable",
+            "contact-confirm-save",
+        ])
+        preserveScreenshot("Conversation-first contact proposal")
+
+        tapWhenVisible(app.buttons["contact-edit-details"])
+        XCTAssertTrue(app.textFields["contact-proposal-name"].waitForExistence(timeout: 3))
+        XCTAssertEqual(
+            app.textFields["contact-proposal-name"].value as? String,
+            "Maya Chen"
+        )
+        XCTAssertEqual(
+            app.textFields["contact-proposal-relationship"].value as? String,
+            "Chief Product Officer"
+        )
+        tapWhenVisible(app.buttons["contact-finish-details"])
+        XCTAssertFalse(app.textFields["contact-proposal-name"].exists)
+        XCTAssertTrue(app.switches["contact-confirm-identity-clue"].exists)
+        XCTAssertEqual(
+            app.switches["contact-confirm-identity-clue"].value as? String,
+            "1"
+        )
+        XCTAssertTrue(app.buttons["contact-confirm-save"].exists)
+        XCTAssertFalse(app.buttons["contact-confirm-save"].isEnabled)
+        XCTAssertTrue(element("contact-workspace-unavailable").exists)
+        XCTAssertFalse(element("contact-save-success").exists)
+        XCTAssertTrue(
+            app.staticTexts["Proposed only · nothing changes until you confirm"].exists
+        )
+        preserveScreenshot("Collapsed contact proposal after edit review")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(
+            app.buttons["relationship-guide"].waitForExistence(timeout: 8)
+        )
+        app.buttons["relationship-guide"].tap()
+        XCTAssertTrue(element("contact-proposal-card").waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.keyboards.firstMatch.exists,
+            "A restored contact decision should not steal focus from review."
+        )
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "Maya Chen")
+        XCTAssertFalse(app.textFields["contact-proposal-name"].exists)
+        XCTAssertFalse(app.textFields["ask-composer"].isEnabled)
+        XCTAssertFalse(element("contact-save-success").exists)
+        preserveScreenshot("Contact proposal restored after relaunch")
+
+        tapWhenVisible(app.buttons["contact-dismiss-proposal"])
+        XCTAssertTrue(
+            element("contact-proposal-card").waitForNonExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.textFields["ask-composer"].isEnabled)
+        XCTAssertTrue(app.buttons["ask-add-photos"].isEnabled)
+        XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
+    }
+
+    func testGlobalAgentUnderstandsContactWithoutCommandOrScopeForm() {
+        app.launchArguments = ["--persist-preview-agent", "--reset-preview-agent"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["relationship-guide"].waitForExistence(timeout: 8)
+        )
+        app.buttons["relationship-guide"].tap()
+        XCTAssertTrue(
+            element("relationship-ask-sheet").waitForExistence(timeout: 5)
+        )
+
+        let composer = app.textFields["ask-composer"]
+        let message = "Maya Chen, maya@example.com, Chief Product Officer"
+        typeTextReliably(message, into: composer)
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertEqual(send.label, "Send")
+        XCTAssertFalse(element("ask-scope-selector").exists)
+        send.tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "Maya Chen")
+        XCTAssertEqual(
+            app.staticTexts["contact-summary-relationship"].label,
+            "Chief Product Officer"
+        )
+        XCTAssertFalse(element("ask-scope-selector").exists)
+        XCTAssertFalse(element("contact-save-success").exists)
+        XCTAssertFalse(composer.isEnabled)
+        preserveScreenshot("Global Agent contact without command")
+
+        tapWhenVisible(app.buttons["contact-dismiss-proposal"])
+    }
+
+    func testIdentityQuestionStaysOutOfContactToolsAndRequestsScope() {
+        app.launchArguments = ["--persist-preview-agent", "--reset-preview-agent"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["relationship-guide"].waitForExistence(timeout: 8)
+        )
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        let message = "Can you check Maya Chen, maya@example.com?"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("ask-scope-selector").waitForExistence(timeout: 10))
+        XCTAssertTrue(element("ask-scope-search").exists)
+        XCTAssertFalse(element("contact-proposal-turn").exists)
+        XCTAssertFalse(element("contact-proposal-card").exists)
+        XCTAssertEqual(composer.value as? String, message)
+        preserveScreenshot("Identity question requests relationship scope")
+    }
+
+    func testContactUnderstandingCanCancelWithoutLosingExactMessage() {
+        app.launchArguments = [
+            "--persist-preview-agent",
+            "--reset-preview-agent",
+            "--fixture-contact-interpretation-delay-seconds", "3",
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["relationship-guide"].waitForExistence(timeout: 8)
+        )
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        let message = "Met Maya Chen for Product — maya@example.com"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("ask-contact-interpreting").waitForExistence(timeout: 2))
+        XCTAssertFalse(composer.isEnabled)
+        let cancel = app.buttons["ask-contact-interpretation-cancel"]
+        XCTAssertTrue(cancel.isEnabled)
+        preserveScreenshot("Global Agent contact understanding in progress")
+        cancel.tap()
+
+        XCTAssertTrue(
+            element("ask-contact-interpreting").waitForNonExistence(timeout: 3)
+        )
+        XCTAssertTrue(composer.isEnabled)
+        XCTAssertEqual(composer.value as? String, message)
+        XCTAssertFalse(element("contact-proposal-turn").exists)
+        XCTAssertFalse(element("ask-scope-selector").exists)
+    }
+
+    func testCanonicalContactNoMatchCreatesOnlyAfterExplicitConfirmation() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
+              let email = fixture.contactNoMatchEmail else {
+            throw XCTSkip("The canonical contact identity fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        if app.buttons["contact-dismiss-proposal"].exists {
+            app.buttons["contact-dismiss-proposal"].tap()
+        }
+        let composer = app.textFields["ask-composer"]
+        let message = "Noor Vega, \(email), Design"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertFalse(composer.isEnabled)
+        XCTAssertTrue(element("contact-identity-no-match").waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "Create a new contact?")
+        let confirm = app.buttons["contact-confirm-save"]
+        XCTAssertTrue(confirm.isEnabled)
+        tapWhenVisible(confirm)
+        let success = app.staticTexts["contact-save-success"]
+        XCTAssertTrue(success.waitForExistence(timeout: 20))
+        XCTAssertTrue(success.label.contains("Saved to Noor Vega"))
+        assertCompactContactReceipt()
+        assertContactContinuationScope(person: "Noor Vega", context: "Design")
+        XCTAssertTrue(element("contact-receipt-boundary").exists)
+        preserveScreenshot("Canonical contact no-match creation receipt")
+        assertContactReceiptRestoresInSessions(
+            sessionTitle: "Added Noor Vega",
+            outcomeTitle: "Contact created",
+            person: "Noor Vega",
+            context: "Design"
+        )
+    }
+
+    func testCanonicalContactReceiptAX5DarkChineseOpensPeopleDetail() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
+              let email = fixture.contactNoMatchEmail else {
+            throw XCTSkip("The canonical contact identity fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
+            "--force-dark",
+            "-AppleInterfaceStyle", "Dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        let composer = app.textFields["ask-composer"]
+        let message = "陈晓 \(email)，产品负责人搜索"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "陈晓")
+        XCTAssertTrue(element("contact-identity-no-match").waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "创建新联系人？")
+        tapWhenVisible(app.buttons["contact-confirm-save"])
+        XCTAssertTrue(
+            app.staticTexts["contact-save-success"].waitForExistence(timeout: 20)
+        )
+        assertCompactContactReceipt()
+        tapWhenVisible(app.buttons["contact-dismiss-proposal"])
+
+        let liveReceipt = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "agent-contact-receipt-"
+            )
+        ).firstMatch
+        XCTAssertTrue(liveReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["联系人已创建"].exists)
+        XCTAssertTrue(app.buttons["contact-receipt-open-person"].exists)
+        XCTAssertLessThanOrEqual(liveReceipt.frame.maxX, app.frame.maxX + 1)
+        preserveScreenshot("Contact tool receipt AX5 dark Chinese")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["archive-tab-sessions"])
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        let sessionTitle = app.staticTexts["已添加 陈晓"]
+        XCTAssertTrue(sessionTitle.waitForExistence(timeout: 5))
+        sessionTitle.tap()
+
+        let restoredReceipt = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "agent-contact-receipt-"
+            )
+        ).firstMatch
+        XCTAssertTrue(restoredReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["已恢复的引用 · 请在人物中核对当前状态"].exists
+        )
+        let openPerson = app.buttons["contact-receipt-open-person"]
+        XCTAssertTrue(openPerson.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(openPerson.frame.height, 44)
+        preserveScreenshot("Restored contact tool receipt AX5 dark Chinese")
+
+        tapWhenVisible(openPerson)
+        XCTAssertTrue(element("workspace-person-detail").waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["陈晓"].exists)
+        XCTAssertTrue(app.buttons["archive-tab-people"].exists)
+        XCTAssertTrue(app.buttons["relationship-guide"].exists)
+        preserveScreenshot("Contact receipt to People AX5 dark Chinese")
+    }
+
+    func testCanonicalContactLookupFailurePreservesMessageAndRetries() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
+              let email = fixture.contactNoMatchEmail else {
+            throw XCTSkip("The canonical contact identity fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--fixture-contact-lookup-delay-seconds", "3",
+            "--fixture-contact-lookup-fail-once",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        let composer = app.textFields["ask-composer"]
+        let message = "Noor Vega, \(email), Design"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertTrue(element("contact-identity-checking").waitForExistence(timeout: 2))
+        XCTAssertEqual(
+            app.staticTexts["contact-proposal-title"].label,
+            "Checking existing contacts"
+        )
+        XCTAssertFalse(composer.isEnabled)
+        preserveScreenshot("Contact identity check pending")
+
+        XCTAssertTrue(element("contact-identity-check-failed").waitForExistence(timeout: 6))
+        XCTAssertEqual(
+            app.staticTexts["contact-proposal-title"].label,
+            "Identity check needs retry"
+        )
+        XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "Noor Vega")
+        XCTAssertFalse(app.textFields["contact-proposal-name"].exists)
+        let retry = app.buttons["contact-retry-identity-check"]
+        XCTAssertTrue(retry.exists)
+        XCTAssertTrue(retry.isHittable)
+        preserveScreenshot("Contact identity check recovery")
+
+        retry.tap()
+        XCTAssertTrue(element("contact-identity-checking").waitForExistence(timeout: 2))
+        XCTAssertTrue(element("contact-identity-no-match").waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "Create a new contact?")
+        XCTAssertTrue(app.buttons["contact-confirm-save"].isEnabled)
+        XCTAssertFalse(element("contact-save-success").exists)
+    }
+
+    func testCanonicalContactConfirmedMatchAttachesWithoutPreselection() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
+              let email = fixture.contactSingleEmail,
+              let personID = fixture.contactSinglePersonID else {
+            throw XCTSkip("The canonical contact identity fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        let composer = app.textFields["ask-composer"]
+        let message = "Samira Current, \(email), Product"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertFalse(composer.isEnabled)
+        let match = app.buttons["contact-match-\(personID)"]
+        XCTAssertTrue(match.waitForExistence(timeout: 15))
+        XCTAssertEqual(
+            app.staticTexts["contact-proposal-title"].label,
+            "Choose the existing contact"
+        )
+        XCTAssertTrue(element("contact-no-preselection").exists)
+        XCTAssertFalse(app.buttons["contact-confirm-save"].isEnabled)
+        tapWhenVisible(match)
+        XCTAssertEqual(
+            app.staticTexts["contact-proposal-title"].label,
+            "Add to the existing contact?"
+        )
+        XCTAssertTrue(app.buttons["contact-confirm-save"].isEnabled)
+        tapWhenVisible(app.buttons["contact-confirm-save"])
+        let success = app.staticTexts["contact-save-success"]
+        XCTAssertTrue(success.waitForExistence(timeout: 20))
+        XCTAssertTrue(success.label.contains("Saved to Samira Current"))
+        assertCompactContactReceipt()
+        assertContactContinuationScope(person: "Samira Current")
+        XCTAssertTrue(element("contact-receipt-boundary").exists)
+        preserveScreenshot("Canonical contact confirmed match attachment receipt")
+        assertContactReceiptRestoresInSessions(
+            sessionTitle: "Updated Samira Current",
+            outcomeTitle: "Added to existing contact",
+            person: "Samira Current",
+            context: nil
+        )
+    }
+
+    func testCanonicalContactConflictLocksHistoryAndSavesResolutionCase() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
+              let email = fixture.contactConflictEmail,
+              let currentPersonID = fixture.contactConflictCurrentPersonID,
+              let historicalPersonID = fixture.contactConflictHistoricalPersonID else {
+            throw XCTSkip("The canonical contact conflict fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        let composer = app.textFields["ask-composer"]
+        let message = "Robin Lee, \(email), Search"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertFalse(composer.isEnabled)
+        let current = app.buttons["contact-match-\(currentPersonID)"]
+        let historical = app.buttons["contact-match-\(historicalPersonID)"]
+        XCTAssertTrue(current.waitForExistence(timeout: 15))
+        XCTAssertTrue(historical.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "Identity needs review")
+        XCTAssertEqual(
+            element("contact-no-preselection").label,
+            "Current and historical owners differ · choose the current owner or keep this unresolved"
+        )
+        XCTAssertTrue(current.isEnabled)
+        XCTAssertFalse(historical.isEnabled)
+        XCTAssertFalse(app.buttons["contact-create-distinct"].exists)
+        XCTAssertTrue(
+            app.buttons["contact-save-for-identity-review"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.buttons["contact-remove-identity-clue"]
+                .waitForExistence(timeout: 5)
+        )
+        preserveScreenshot("Canonical contact conflict review")
+
+        tapWhenVisible(app.buttons["contact-save-for-identity-review"])
+        XCTAssertTrue(app.buttons["contact-confirm-save"].isEnabled)
+        tapWhenVisible(app.buttons["contact-confirm-save"])
+        let success = app.staticTexts["contact-save-success"]
+        XCTAssertTrue(success.waitForExistence(timeout: 20))
+        XCTAssertTrue(
+            success.label.contains("Saved for identity review")
+        )
+        assertCompactContactReceipt()
+        XCTAssertTrue(element("contact-receipt-boundary").exists)
+        preserveScreenshot("Canonical contact conflict resolution case receipt")
+        assertUnresolvedContactHasNoInheritedScope()
+        assertContactReceiptRestoresInSessions(
+            sessionTitle: "Review Robin Lee’s identity",
+            outcomeTitle: "Saved for identity review",
+            person: nil,
+            context: nil
+        )
+    }
+
+    func testCanonicalContactResponseLossRelaunchRetriesSameOperation() async throws {
+        let proxyURL = testConfiguration(
+            "TS_IOS_RESPONSE_LOSS_PROXY_URL",
+            fallback: "http://127.0.0.1:4321"
+        )
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
+              let email = fixture.contactNoMatchEmail,
+              let healthURL = URL(string: "\(proxyURL)/health/live"),
+              let (_, healthResponse) = try? await URLSession.shared.data(from: healthURL),
+              let healthHTTPResponse = healthResponse as? HTTPURLResponse,
+              (200...299).contains(healthHTTPResponse.statusCode) else {
+            throw XCTSkip("The canonical contact response-loss fixture was not configured.")
+        }
+        let stateURL = try XCTUnwrap(
+            URL(string: "\(proxyURL)/__response_loss_proxy/state")
+        )
+        let (initialData, initialResponse) = try await URLSession.shared.data(from: stateURL)
+        XCTAssertEqual((initialResponse as? HTTPURLResponse)?.statusCode, 200)
+        let initial = try JSONDecoder().decode(ResponseLossProxyState.self, from: initialData)
+        guard let initialPosts = initial.resourceCapturePostCount,
+              let initialDrops = initial.droppedResourceCaptureResponseCount else {
+            throw XCTSkip("The contact response-loss counters were not configured.")
+        }
+
+        app.launchArguments = [
+            "--workspace-backend-url", proxyURL,
+            "--workspace-account-id", fixture.accountID,
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        if app.buttons["contact-dismiss-proposal"].exists {
+            app.buttons["contact-dismiss-proposal"].tap()
+        }
+        let composer = app.textFields["ask-composer"]
+        let message = "Mina Patel, \(email), Finance"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertFalse(composer.isEnabled)
+        XCTAssertTrue(element("contact-identity-no-match").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["contact-confirm-save"])
+        XCTAssertTrue(
+            app.staticTexts["contact-save-error"].waitForExistence(timeout: 15)
+        )
+        XCTAssertFalse(app.staticTexts["contact-save-success"].exists)
+        preserveScreenshot("Canonical contact response lost after commit")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        XCTAssertTrue(element("contact-proposal-card").waitForExistence(timeout: 8))
+        XCTAssertEqual(element("contact-user-message").label, message)
+        XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "Mina Patel")
+        XCTAssertFalse(app.textFields["contact-proposal-name"].exists)
+        let refreshedMatch = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'contact-match-'")
+        ).firstMatch
+        XCTAssertTrue(refreshedMatch.waitForExistence(timeout: 15))
+        XCTAssertFalse(refreshedMatch.isEnabled)
+        XCTAssertTrue(
+            element("contact-pending-write-boundary").waitForExistence(timeout: 5)
+        )
+        XCTAssertEqual(
+            app.staticTexts["contact-proposal-title"].label,
+            "Confirm the original save"
+        )
+        XCTAssertFalse(app.buttons["contact-dismiss-proposal"].isEnabled)
+        let retry = app.buttons["contact-confirm-save"]
+        XCTAssertTrue(retry.isEnabled)
+        XCTAssertTrue(retry.label.contains("Retry same operation"))
+        tapWhenVisible(retry)
+        XCTAssertTrue(
+            app.staticTexts["contact-save-success"].waitForExistence(timeout: 20)
+        )
+        XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "Contact saved")
+        XCTAssertTrue(app.buttons["contact-dismiss-proposal"].isEnabled)
+        assertCompactContactReceipt()
+        assertContactContinuationScope(person: "Mina Patel")
+        preserveScreenshot("Canonical contact relaunch reconciled same operation")
+
+        let (finalData, finalResponse) = try await URLSession.shared.data(from: stateURL)
+        XCTAssertEqual((finalResponse as? HTTPURLResponse)?.statusCode, 200)
+        let final = try JSONDecoder().decode(ResponseLossProxyState.self, from: finalData)
+        XCTAssertEqual(
+            try XCTUnwrap(final.resourceCapturePostCount),
+            initialPosts + 2
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(final.droppedResourceCaptureResponseCount),
+            initialDrops + 1
+        )
+        assertContactReceiptRestoresInSessions(
+            sessionTitle: "Added Mina Patel",
+            outcomeTitle: "Contact created",
+            person: "Mina Patel",
+            context: nil
+        )
+    }
+
+    func testContactProposalAX5DarkChineseKeepsReviewAndComposerReachable() {
+        app.launchArguments = [
+            "--persist-preview-agent",
+            "--reset-preview-agent",
+            "--force-dark",
+            "-AppleInterfaceStyle", "Dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["relationship-guide"].waitForExistence(timeout: 8)
+        )
+        app.buttons["relationship-guide"].tap()
+        if app.buttons["contact-dismiss-proposal"].exists {
+            app.buttons["contact-dismiss-proposal"].tap()
+        }
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        let message = "陈晓 xiao.chen@example.com，产品负责人搜索"
+        typeTextReliably(message, into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(element("contact-proposal-turn").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("contact-proposal-card").waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            element("contact-user-message").label,
+            message.replacingOccurrences(of: "，", with: ",")
+        )
+        XCTAssertEqual(app.staticTexts["contact-proposal-title"].label, "审阅此联系人")
+        XCTAssertEqual(app.staticTexts["contact-summary-name"].label, "陈晓")
+        XCTAssertEqual(app.staticTexts["contact-summary-relationship"].label, "产品负责人搜索")
+        XCTAssertFalse(app.textFields["contact-proposal-name"].exists)
+        XCTAssertEqual(
+            app.switches["contact-confirm-identity-clue"].value as? String,
+            "1"
+        )
+        XCTAssertLessThan(
+            element("signal-capture-hub").frame.height,
+            app.windows.firstMatch.frame.height * 0.8
+        )
+        XCTAssertFalse(element("audio-signal-recording").exists)
+        preserveScreenshot("Capture Signal purpose-bound chooser")
+
+        tapWhenVisible(app.buttons["capture-hub-audio"])
+        XCTAssertTrue(element("audio-signal-idle").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("audio-signal-recording").exists)
+        preserveScreenshot("Capture chooser opens audio idle")
+        XCTAssertTrue(app.textFields["ask-composer"].exists)
+        XCTAssertFalse(app.textFields["ask-composer"].isEnabled)
+        preserveScreenshot("Conversation-first contact proposal AX5 dark Chinese")
+
+        tapWhenVisible(app.buttons["contact-edit-details"])
+        XCTAssertTrue(app.textFields["contact-proposal-name"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.textFields["contact-proposal-name"].value as? String, "陈晓")
+        XCTAssertTrue(app.buttons["contact-finish-details"].exists)
+        preserveScreenshot("Contact proposal edit AX5 dark Chinese")
+
+        tapWhenVisible(app.buttons["contact-dismiss-proposal"])
+    }
+
     func testAudioSignalAX5DarkKeepsConsentAndStopReachable() throws {
         app.launchArguments = [
             "--scenario", "audio-signal-capture",
@@ -2403,6 +3367,145 @@ final class CandidateSignalUITests: XCTestCase {
         return (200...299).contains(workspaceHTTPResponse.statusCode)
     }
 
+    private func typeTextReliably(_ text: String, into field: XCUIElement) {
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let keyboard = app.keyboards.firstMatch
+
+        for _ in 0..<3 {
+            field.tap()
+            if keyboard.waitForExistence(timeout: 1.5) {
+                field.typeText(text)
+                return
+            }
+        }
+
+        XCTFail("Expected the text field to accept keyboard focus")
+    }
+
+    private func assertCompactContactReceipt() {
+        XCTAssertTrue(element("contact-completed-receipt").exists)
+        XCTAssertTrue(element("contact-saved-identity-clue").exists)
+        XCTAssertFalse(element("contact-identity-state").exists)
+        XCTAssertFalse(app.switches["contact-confirm-identity-clue"].exists)
+        XCTAssertFalse(app.buttons["contact-confirm-save"].exists)
+        XCTAssertTrue(app.textFields["ask-composer"].isEnabled)
+        XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
+    }
+
+    private func assertContactContinuationScope(
+        person: String,
+        context: String? = nil
+    ) {
+        let selector = element("ask-scope-selector")
+        XCTAssertTrue(selector.waitForExistence(timeout: 5))
+        let value = selector.value as? String
+        XCTAssertTrue(value?.contains(person) == true)
+        if let context {
+            XCTAssertTrue(value?.contains(context) == true)
+        }
+    }
+
+    private func assertUnresolvedContactHasNoInheritedScope() {
+        let selector = element("ask-scope-selector")
+        XCTAssertTrue(selector.waitForExistence(timeout: 5))
+        XCTAssertEqual(selector.value as? String, "None")
+
+        let composer = app.textFields["ask-composer"]
+        typeTextReliably("What changed in this relationship?", into: composer)
+        let priorContactProposalCount = app.descendants(matching: .any)
+            .matching(identifier: "contact-proposal-turn")
+            .count
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertEqual(send.label, "Send")
+        send.tap()
+        XCTAssertTrue(element("ask-scope-search").waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.descendants(matching: .any)
+                .matching(identifier: "contact-proposal-turn")
+                .count,
+            priorContactProposalCount
+        )
+    }
+
+    private func assertContactReceiptRestoresInSessions(
+        sessionTitle: String,
+        outcomeTitle: String,
+        person: String?,
+        context: String?
+    ) {
+        tapWhenVisible(app.buttons["contact-dismiss-proposal"])
+        let liveReceipt = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "agent-contact-receipt-"
+            )
+        ).firstMatch
+        XCTAssertTrue(liveReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[outcomeTitle].exists)
+        XCTAssertFalse(element("contact-user-message").exists)
+        preserveScreenshot("Agent contact tool history receipt")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(
+            element("canonical-pursuit-today").waitForExistence(timeout: 15)
+        )
+        XCTAssertTrue(
+            app.buttons["archive-tab-sessions"].waitForExistence(timeout: 5)
+        )
+        app.buttons["archive-tab-sessions"].tap()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        let session = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label BEGINSWITH %@",
+                "agent-session-",
+                sessionTitle
+            )
+        ).firstMatch
+        XCTAssertTrue(session.waitForExistence(timeout: 5))
+        session.tap()
+
+        let restoredReceipt = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "agent-contact-receipt-"
+            )
+        ).firstMatch
+        XCTAssertTrue(restoredReceipt.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[outcomeTitle].exists)
+        if let person {
+            XCTAssertTrue(
+                app.staticTexts[
+                    "Restored reference · verify current state in People"
+                ].exists
+            )
+            assertContactContinuationScope(person: person, context: context)
+            let openPerson = app.buttons["contact-receipt-open-person"]
+            XCTAssertTrue(openPerson.waitForExistence(timeout: 5))
+            preserveScreenshot("Restored Agent contact tool history")
+            tapWhenVisible(openPerson)
+            XCTAssertTrue(
+                element("workspace-person-detail").waitForExistence(timeout: 8)
+            )
+            XCTAssertTrue(app.staticTexts[person].exists)
+            XCTAssertTrue(app.buttons["archive-tab-people"].exists)
+            XCTAssertTrue(app.buttons["relationship-guide"].exists)
+            preserveScreenshot("Contact receipt opens canonical People detail")
+        } else {
+            XCTAssertTrue(
+                app.staticTexts[
+                    "Restored reference · identity still needs review"
+                ].exists
+            )
+            XCTAssertFalse(app.buttons["contact-receipt-open-person"].exists)
+            let selector = element("ask-scope-selector")
+            XCTAssertTrue(selector.waitForExistence(timeout: 5))
+            XCTAssertEqual(selector.value as? String, "None")
+            preserveScreenshot("Restored Agent contact tool history")
+        }
+    }
+
     private func tapWhenVisible(_ element: XCUIElement, maxSwipes: Int = 14) {
         var swipes = 0
         while !element.exists, swipes < maxSwipes {
@@ -2564,17 +3667,22 @@ private struct ResponseLossProxyState: Decodable {
     let droppedResponseCount: Int
     let actionCompletionPostCount: Int
     let droppedActionResponseCount: Int
+    let resourceCapturePostCount: Int?
+    let droppedResourceCaptureResponseCount: Int?
 
     enum CodingKeys: String, CodingKey {
         case reviewPostCount = "review_post_count"
         case droppedResponseCount = "dropped_response_count"
         case actionCompletionPostCount = "action_completion_post_count"
         case droppedActionResponseCount = "dropped_action_response_count"
+        case resourceCapturePostCount = "resource_capture_post_count"
+        case droppedResourceCaptureResponseCount = "dropped_resource_capture_response_count"
     }
 }
 
 private struct IOSPursuitProposalFixture: Decodable {
     let backendURL: String
+    let accountID: String
     let proposalID: String
     let pursuitID: String
     let personID: String
@@ -2584,9 +3692,16 @@ private struct IOSPursuitProposalFixture: Decodable {
     let sameNameSecondPersonID: String
     let sameNameSecondContextID: String
     let sameNameSecondRoleID: String
+    let contactNoMatchEmail: String?
+    let contactSingleEmail: String?
+    let contactSinglePersonID: String?
+    let contactConflictEmail: String?
+    let contactConflictCurrentPersonID: String?
+    let contactConflictHistoricalPersonID: String?
 
     enum CodingKeys: String, CodingKey {
         case backendURL = "backend_url"
+        case accountID = "account_id"
         case proposalID = "proposal_id"
         case pursuitID = "pursuit_id"
         case personID = "person_id"
@@ -2596,6 +3711,12 @@ private struct IOSPursuitProposalFixture: Decodable {
         case sameNameSecondPersonID = "same_name_second_person_id"
         case sameNameSecondContextID = "same_name_second_context_id"
         case sameNameSecondRoleID = "same_name_second_role_id"
+        case contactNoMatchEmail = "contact_no_match_email"
+        case contactSingleEmail = "contact_single_email"
+        case contactSinglePersonID = "contact_single_person_id"
+        case contactConflictEmail = "contact_conflict_email"
+        case contactConflictCurrentPersonID = "contact_conflict_current_person_id"
+        case contactConflictHistoricalPersonID = "contact_conflict_historical_person_id"
     }
 }
 

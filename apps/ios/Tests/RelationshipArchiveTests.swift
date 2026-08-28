@@ -938,6 +938,148 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testGlobalAgentDraftRestoresWithoutInventingRelationshipScope() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "global-agent-draft-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let clock = AgentSessionTestClock(
+            now: Date(timeIntervalSince1970: 1_780_000_000)
+        )
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let message = "Add Amara Singh for the health search"
+        let first = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+
+        first.saveGlobalDraft(message)
+
+        XCTAssertEqual(first.globalDraft(), message)
+        XCTAssertTrue(first.sessions.isEmpty)
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        XCTAssertTrue(
+            first.draft(
+                personID: person.id,
+                relationshipContextID: context.id
+            ).isEmpty
+        )
+
+        let restored = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        XCTAssertEqual(restored.globalDraft(), message)
+        XCTAssertTrue(restored.sessions.isEmpty)
+        let otherAccount = AgentSessionStore(
+            persistence: FileAgentSessionPersistence(
+                accountID: "account-two",
+                rootURL: root
+            ),
+            now: { clock.now }
+        )
+        XCTAssertTrue(otherAccount.globalDraft().isEmpty)
+
+        clock.now.addTimeInterval(7 * 24 * 60 * 60)
+        XCTAssertTrue(restored.globalDraft().isEmpty)
+        XCTAssertTrue(
+            AgentSessionStore(
+                persistence: persistence,
+                now: { clock.now }
+            ).globalDraft().isEmpty
+        )
+    }
+
+    @MainActor
+    func testGlobalDraftPromotionToRelationshipIsAtomic() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let message = "What changed in this relationship?"
+        store.saveGlobalDraft(message)
+        persistence.failSave = true
+
+        XCTAssertFalse(
+            store.promoteGlobalDraft(
+                message,
+                personID: person.id,
+                relationshipContextID: context.id
+            )
+        )
+        XCTAssertEqual(store.globalDraft(), message)
+        XCTAssertTrue(
+            store.draft(
+                personID: person.id,
+                relationshipContextID: context.id
+            ).isEmpty
+        )
+
+        persistence.failSave = false
+        XCTAssertTrue(
+            store.promoteGlobalDraft(
+                message,
+                personID: person.id,
+                relationshipContextID: context.id
+            )
+        )
+        XCTAssertTrue(store.globalDraft().isEmpty)
+        XCTAssertEqual(
+            store.draft(
+                personID: person.id,
+                relationshipContextID: context.id
+            ),
+            message
+        )
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertTrue(restored.globalDraft().isEmpty)
+        XCTAssertEqual(
+            restored.draft(
+                personID: person.id,
+                relationshipContextID: context.id
+            ),
+            message
+        )
+    }
+
+    @MainActor
+    func testContactProposalPromotionClearsGlobalDraftAtomically() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let message = "Add Amara Singh for the health search"
+        let proposal = try XCTUnwrap(ConversationContactIntake.propose(message))
+        store.saveGlobalDraft(message)
+        persistence.failSave = true
+
+        XCTAssertFalse(
+            store.saveContactProposal(
+                proposal,
+                idempotencyKey: "ios:contact:atomic",
+                clearingGlobalDraft: true
+            )
+        )
+        XCTAssertEqual(store.globalDraft(), message)
+        XCTAssertNil(store.contactProposalDraft)
+
+        persistence.failSave = false
+        XCTAssertTrue(
+            store.saveContactProposal(
+                proposal,
+                idempotencyKey: "ios:contact:atomic",
+                clearingGlobalDraft: true
+            )
+        )
+        XCTAssertTrue(store.globalDraft().isEmpty)
+        XCTAssertEqual(store.contactProposalDraft, proposal)
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertTrue(restored.globalDraft().isEmpty)
+        XCTAssertEqual(restored.contactProposalDraft, proposal)
+    }
+
+    @MainActor
     func testAgentRetentionPrunesAContinuingStoreAtExactCutoffs() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "live-agent-retention-\(UUID().uuidString)")
@@ -1036,6 +1178,418 @@ final class RelationshipArchiveTests: XCTestCase {
             now: { clock.now }
         )
         XCTAssertTrue(relaunched.sessions.isEmpty)
+    }
+
+    @MainActor
+    func testContactProposalRestoresEditsAndOneOperationKeyAfterRelaunch() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "contact-proposal-recovery-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let first = AgentSessionStore(persistence: persistence)
+        var draft = try XCTUnwrap(
+            ConversationContactIntake.propose(
+                "Add Maya Chen for the product search, maya@example.com"
+            )
+        )
+
+        XCTAssertTrue(
+            first.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:stable"
+            )
+        )
+        draft.relationshipContext = "Chief Product Officer"
+        XCTAssertTrue(
+            first.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:stable"
+            )
+        )
+
+        let relaunched = AgentSessionStore(persistence: persistence)
+        XCTAssertEqual(relaunched.contactProposalDraft, draft)
+        XCTAssertEqual(
+            relaunched.contactProposalOperationKey,
+            "ios:contact:stable"
+        )
+        XCTAssertTrue(relaunched.clearContactProposal())
+        XCTAssertNil(
+            AgentSessionStore(persistence: persistence).contactProposalDraft
+        )
+    }
+
+    @MainActor
+    func testConfirmedContactOperationRestoresExactRetryIntentAndCaptureTime() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "contact-operation-recovery-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let clock = AgentSessionTestClock(
+            now: Date(timeIntervalSince1970: 1_780_100_000)
+        )
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let first = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        let draft = try XCTUnwrap(
+            ConversationContactIntake.propose(
+                "Add Mina Patel for Finance, email mina@example.com"
+            )
+        )
+        let originalCapturedAt = clock.now
+        let target = ConversationContactTarget.newPerson
+
+        XCTAssertTrue(
+            first.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:response-lost",
+                pendingTarget: target,
+                pendingConfirmIdentityClue: true
+            )
+        )
+        clock.now.addTimeInterval(90)
+        XCTAssertTrue(
+            first.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:response-lost",
+                pendingTarget: target,
+                pendingConfirmIdentityClue: true
+            )
+        )
+
+        let relaunched = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        XCTAssertEqual(relaunched.contactProposalPendingTarget, target)
+        XCTAssertEqual(relaunched.contactProposalPendingConfirmIdentityClue, true)
+        XCTAssertEqual(relaunched.contactProposalCapturedAt, originalCapturedAt)
+        XCTAssertEqual(
+            relaunched.contactProposalOperationKey,
+            "ios:contact:response-lost"
+        )
+    }
+
+    @MainActor
+    func testCanonicalContactReceiptPersistsOnlyMinimalReferencesAndDeduplicatesRetry() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "contact-receipt-history-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = Date(timeIntervalSince1970: 1_780_200_000)
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let store = AgentSessionStore(
+            persistence: persistence,
+            now: { now }
+        )
+        let result = ResourceCaptureResult(
+            captureID: "capture-contact-1",
+            identity: .init(
+                status: "resolved",
+                personID: "person-noor",
+                relationshipContextID: "context-design",
+                resolutionCaseID: nil,
+                candidatePersonIDs: []
+            ),
+            resource: .init(
+                id: "resource-contact-12345678",
+                processingState: "ready",
+                duplicateOfResourceID: nil,
+                fragmentCount: 1
+            )
+        )
+
+        let sessionID = try XCTUnwrap(
+            store.recordContactReceipt(
+                operationKey: "ios:contact:stable-receipt",
+                outcome: .createdPerson,
+                result: result,
+                personDisplayLabel: "Noor Vega",
+                contextDisplayLabel: "Design"
+            )
+        )
+        let retriedSessionID = try XCTUnwrap(
+            store.recordContactReceipt(
+                operationKey: "ios:contact:stable-receipt",
+                outcome: .createdPerson,
+                result: result,
+                personDisplayLabel: "Noor Vega",
+                contextDisplayLabel: "Design"
+            )
+        )
+
+        XCTAssertEqual(retriedSessionID, sessionID)
+        XCTAssertEqual(store.sessions.count, 1)
+        let mismatchedReadback = ResourceCaptureResult(
+            captureID: "capture-contact-mismatch",
+            identity: result.identity,
+            resource: .init(
+                id: "resource-contact-mismatch",
+                processingState: "ready",
+                duplicateOfResourceID: nil,
+                fragmentCount: 1
+            )
+        )
+        XCTAssertNil(
+            store.recordContactReceipt(
+                operationKey: "ios:contact:stable-receipt",
+                outcome: .createdPerson,
+                result: mismatchedReadback,
+                personDisplayLabel: "Noor Vega",
+                contextDisplayLabel: "Design"
+            )
+        )
+        XCTAssertEqual(store.sessions.count, 1)
+        let live = try XCTUnwrap(store.session(id: sessionID))
+        XCTAssertEqual(live.personID, "person-noor")
+        XCTAssertEqual(live.relationshipContextID, "context-design")
+        XCTAssertEqual(live.contactReceipts.count, 1)
+        XCTAssertFalse(try XCTUnwrap(live.contactReceipts.first).requiresRefresh)
+        XCTAssertTrue(live.latestPreview.contains("receipt 12345678"))
+        XCTAssertEqual(live.displayTitle(in: .english), "Added Noor Vega")
+        XCTAssertEqual(live.displayTitle(in: .simplifiedChinese), "已添加 Noor Vega")
+        XCTAssertEqual(
+            live.latestPreview(in: .simplifiedChinese),
+            "联系人已创建 · 回执 12345678"
+        )
+
+        let persistedData = try XCTUnwrap(persistence.load())
+        let persistedText = try XCTUnwrap(
+            String(data: persistedData, encoding: .utf8)
+        )
+        XCTAssertFalse(persistedText.contains("noor@example.com"))
+        XCTAssertFalse(persistedText.contains("Add Noor Vega for Design"))
+        XCTAssertTrue(persistedText.contains("resource-contact-12345678"))
+
+        let restored = AgentSessionStore(
+            persistence: persistence,
+            now: { now }
+        )
+        let restoredReceipt = try XCTUnwrap(
+            restored.session(id: sessionID)?.contactReceipts.first
+        )
+        XCTAssertTrue(restoredReceipt.requiresRefresh)
+        XCTAssertEqual(restoredReceipt.captureID, result.captureID)
+        XCTAssertEqual(restoredReceipt.resourceID, result.resource.id)
+        XCTAssertNil(restoredReceipt.currentPerson(in: .preview))
+
+        let currentPerson = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let currentReceipt = AgentContactReceipt(
+            id: UUID(),
+            operationKey: "ios:contact:current-person",
+            outcome: .matchedExisting,
+            captureID: "capture-current-person",
+            resourceID: "resource-current-person",
+            duplicateOfResourceID: nil,
+            personID: currentPerson.id,
+            relationshipContextID: currentPerson.contexts.first?.id,
+            resolutionCaseID: nil,
+            personDisplayLabel: currentPerson.displayLabel,
+            contextDisplayLabel: currentPerson.contexts.first?.displayLabel,
+            createdAt: now,
+            requiresRefresh: true
+        )
+        XCTAssertEqual(
+            currentReceipt.currentPerson(in: .preview)?.id,
+            currentPerson.id
+        )
+    }
+
+    @MainActor
+    func testIdentityReviewReceiptHasNoFakeRelationshipScope() throws {
+        let store = AgentSessionStore()
+        let result = ResourceCaptureResult(
+            captureID: "capture-conflict-1",
+            identity: .init(
+                status: "needs_review",
+                personID: nil,
+                relationshipContextID: nil,
+                resolutionCaseID: "identity-case-87654321",
+                candidatePersonIDs: ["person-current", "person-historical"]
+            ),
+            resource: .init(
+                id: "resource-conflict-12345678",
+                processingState: "ready",
+                duplicateOfResourceID: nil,
+                fragmentCount: 1
+            )
+        )
+        let identitySessionID = try XCTUnwrap(
+            store.recordContactReceipt(
+                operationKey: "ios:contact:identity-review",
+                outcome: .identityReview,
+                result: result,
+                personDisplayLabel: "Robin Lee",
+                contextDisplayLabel: nil
+            )
+        )
+        let identitySession = try XCTUnwrap(
+            store.session(id: identitySessionID)
+        )
+
+        XCTAssertTrue(identitySession.isIdentityReview)
+        XCTAssertNil(identitySession.personID)
+        XCTAssertNil(identitySession.relationshipContextID)
+        XCTAssertEqual(identitySession.resolutionCaseID, "identity-case-87654321")
+        XCTAssertEqual(identitySession.contextDisplayLabel, "Identity review")
+        XCTAssertTrue(identitySession.latestPreview.contains("case 87654321"))
+        XCTAssertEqual(
+            identitySession.displayTitle(in: .simplifiedChinese),
+            "核对 Robin Lee 的身份"
+        )
+        XCTAssertEqual(
+            identitySession.displayContextLabel(in: .simplifiedChinese),
+            "身份核对"
+        )
+
+        let contradictoryReadback = ResourceCaptureResult(
+            captureID: "capture-conflict-contradictory",
+            identity: .init(
+                status: "needs_review",
+                personID: "person-current",
+                relationshipContextID: "context-current",
+                resolutionCaseID: "identity-case-contradictory",
+                candidatePersonIDs: ["person-current"]
+            ),
+            resource: .init(
+                id: "resource-conflict-contradictory",
+                processingState: "ready",
+                duplicateOfResourceID: nil,
+                fragmentCount: 1
+            )
+        )
+        XCTAssertNil(
+            store.recordContactReceipt(
+                operationKey: "ios:contact:identity-review-contradictory",
+                outcome: .identityReview,
+                result: contradictoryReadback,
+                personDisplayLabel: "Robin Lee",
+                contextDisplayLabel: nil
+            )
+        )
+        XCTAssertEqual(store.sessions.count, 1)
+
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let askSessionID = store.record(
+            sessionID: identitySessionID,
+            objective: "What changed?",
+            response: relationshipAskResponseFixture(),
+            person: person,
+            context: context
+        )
+        XCTAssertNotEqual(askSessionID, identitySessionID)
+        XCTAssertTrue(
+            try XCTUnwrap(store.session(id: identitySessionID)).turns.isEmpty
+        )
+    }
+
+    @MainActor
+    func testVersionThreeRelationshipSessionMigratesWithoutInventingScope() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let writer = AgentSessionStore(persistence: persistence)
+        let sessionID = writer.record(
+            sessionID: nil,
+            objective: "What changed?",
+            response: relationshipAskResponseFixture(),
+            person: person,
+            context: context
+        )
+        let currentData = try XCTUnwrap(persistence.data)
+        var envelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: currentData) as? [String: Any]
+        )
+        envelope["version"] = 3
+        var sessions = try XCTUnwrap(envelope["sessions"] as? [[String: Any]])
+        sessions = sessions.map { session in
+            var legacy = session
+            legacy.removeValue(forKey: "scopeKind")
+            legacy.removeValue(forKey: "identityResolutionCaseID")
+            legacy.removeValue(forKey: "contactReceipts")
+            return legacy
+        }
+        envelope["sessions"] = sessions
+        persistence.data = try JSONSerialization.data(withJSONObject: envelope)
+
+        let restored = AgentSessionStore(persistence: persistence)
+        let session = try XCTUnwrap(restored.session(id: sessionID))
+        XCTAssertEqual(session.personID, person.id)
+        XCTAssertEqual(session.relationshipContextID, context.id)
+        XCTAssertFalse(session.isIdentityReview)
+        XCTAssertTrue(session.contactReceipts.isEmpty)
+    }
+
+    @MainActor
+    func testContactProposalExpiresAtDraftRetentionBoundary() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "contact-proposal-retention-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let clock = AgentSessionTestClock(
+            now: Date(timeIntervalSince1970: 1_780_000_000)
+        )
+        let persistence = FileAgentSessionPersistence(
+            accountID: "account-one",
+            rootURL: root
+        )
+        let store = AgentSessionStore(
+            persistence: persistence,
+            now: { clock.now }
+        )
+        let draft = try XCTUnwrap(
+            ConversationContactIntake.propose("Add Maya Chen for product")
+        )
+        XCTAssertTrue(
+            store.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:expires"
+            )
+        )
+
+        clock.now.addTimeInterval(7 * 24 * 60 * 60)
+
+        XCTAssertNil(store.contactProposalDraft)
+        XCTAssertNil(store.contactProposalOperationKey)
+        XCTAssertNil(
+            AgentSessionStore(
+                persistence: persistence,
+                now: { clock.now }
+            ).contactProposalDraft
+        )
+    }
+
+    @MainActor
+    func testContactProposalDismissalStaysOpenWhenProtectedClearFails() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let draft = try XCTUnwrap(
+            ConversationContactIntake.propose("Add Maya Chen for product")
+        )
+        XCTAssertTrue(
+            store.saveContactProposal(
+                draft,
+                idempotencyKey: "ios:contact:clear-retry"
+            )
+        )
+
+        persistence.failSave = true
+
+        XCTAssertFalse(store.clearContactProposal())
+        XCTAssertEqual(store.contactProposalDraft, draft)
+        XCTAssertEqual(
+            store.contactProposalOperationKey,
+            "ios:contact:clear-retry"
+        )
     }
 
     @MainActor
