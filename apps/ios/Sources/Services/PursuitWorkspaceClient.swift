@@ -59,6 +59,182 @@ struct PursuitEvidenceReviewResult: Equatable {
     let decidedAt: String
 }
 
+private struct ConversationContactCaptureBody: Encodable {
+    let contractVersion: String
+    let idempotencyKey: String
+    let channel: String
+    let purpose: String
+    let capturedAt: String
+    let sourceTimezone: String
+    let personScope: PersonScope
+    let resource: Resource
+    let confirmedIdentityHandles: [IdentityHandle]?
+    let fragments: [Fragment]
+
+    enum CodingKeys: String, CodingKey {
+        case contractVersion = "contract_version"
+        case idempotencyKey = "idempotency_key"
+        case channel, purpose
+        case capturedAt = "captured_at"
+        case sourceTimezone = "source_timezone"
+        case personScope = "person_scope"
+        case resource
+        case confirmedIdentityHandles = "confirmed_identity_handles"
+        case fragments
+    }
+
+    enum PersonScope: Encodable {
+        case newPerson(
+            displayLabel: String,
+            relationshipContext: RelationshipContext,
+            bindingBasis: String
+        )
+        case confirmed(
+            personID: String,
+            relationshipContext: RelationshipContext,
+            bindingBasis: String
+        )
+        case unresolved(
+            displayNameHint: String,
+            handles: [IdentityHandle],
+            relationshipContext: RelationshipContext,
+            reason: String
+        )
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case displayLabel = "display_label"
+            case personID = "person_id"
+            case displayNameHint = "display_name_hint"
+            case handles
+            case relationshipContext = "relationship_context"
+            case bindingBasis = "binding_basis"
+            case reason
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case let .newPerson(displayLabel, relationshipContext, bindingBasis):
+                try container.encode("new_person", forKey: .status)
+                try container.encode(displayLabel, forKey: .displayLabel)
+                try container.encode(relationshipContext, forKey: .relationshipContext)
+                try container.encode(bindingBasis, forKey: .bindingBasis)
+            case let .confirmed(personID, relationshipContext, bindingBasis):
+                try container.encode("confirmed", forKey: .status)
+                try container.encode(personID, forKey: .personID)
+                try container.encode(relationshipContext, forKey: .relationshipContext)
+                try container.encode(bindingBasis, forKey: .bindingBasis)
+            case let .unresolved(displayNameHint, handles, relationshipContext, reason):
+                try container.encode("unresolved", forKey: .status)
+                try container.encode(displayNameHint, forKey: .displayNameHint)
+                try container.encode(handles, forKey: .handles)
+                try container.encode(relationshipContext, forKey: .relationshipContext)
+                try container.encode(reason, forKey: .reason)
+            }
+        }
+    }
+
+    struct RelationshipContext: Encodable {
+        let status: String
+        let relationshipContextID: String?
+        let label: String?
+        let purpose: String?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case relationshipContextID = "relationship_context_id"
+            case label, purpose
+        }
+    }
+
+    struct Resource: Encodable {
+        let clientResourceID: String
+        let kind: String
+        let displayName: String
+        let mediaType: String
+        let observedAt: String
+        let sourceTimezone: String
+        let retention: Retention
+
+        enum CodingKeys: String, CodingKey {
+            case clientResourceID = "client_resource_id"
+            case kind
+            case displayName = "display_name"
+            case mediaType = "media_type"
+            case observedAt = "observed_at"
+            case sourceTimezone = "source_timezone"
+            case retention
+        }
+    }
+
+    struct Retention: Encodable {
+        let requestedMode: String
+        let sourceScope: String
+
+        enum CodingKeys: String, CodingKey {
+            case requestedMode = "requested_mode"
+            case sourceScope = "source_scope"
+        }
+    }
+
+    struct IdentityHandle: Encodable {
+        let type: String
+        let value: String
+        let sourceClientResourceID: String
+
+        enum CodingKeys: String, CodingKey {
+            case type, value
+            case sourceClientResourceID = "source_client_resource_id"
+        }
+    }
+
+    struct Fragment: Encodable {
+        let clientResourceID: String
+        let kind: String
+        let sequence: Int
+        let text: String
+        let locator: Locator
+        let attribution: Attribution
+        let reviewStatus: String
+        let parser: Parser
+
+        enum CodingKeys: String, CodingKey {
+            case clientResourceID = "client_resource_id"
+            case kind, sequence, text, locator, attribution
+            case reviewStatus = "review_status"
+            case parser
+        }
+    }
+
+    struct Locator: Encodable {
+        let kind: String
+        let revision: Int?
+        let field: String?
+        let sourceRecordVersion: String?
+
+        enum CodingKeys: String, CodingKey {
+            case kind, revision, field
+            case sourceRecordVersion = "source_record_version"
+        }
+    }
+
+    struct Attribution: Encodable {
+        let actorKind: String
+        let status: String
+
+        enum CodingKeys: String, CodingKey {
+            case actorKind = "actor_kind"
+            case status
+        }
+    }
+
+    struct Parser: Encodable {
+        let name: String
+        let version: String
+    }
+}
+
 struct ChatMediaAsset: Codable, Equatable, Identifiable {
     let id: String
     let fileName: String
@@ -85,6 +261,16 @@ struct ChatMediaContent: Equatable {
 
 protocol PursuitWorkspaceServing {
     func loadWorkspace() async throws -> PursuitWorkspaceSnapshot
+    func findContactMatches(
+        identityClue: ConversationContactDraft.IdentityClue
+    ) async throws -> [WorkspacePerson]
+    func saveContactDraft(
+        _ draft: ConversationContactDraft,
+        target: ConversationContactTarget,
+        confirmIdentityClue: Bool,
+        capturedAt: Date,
+        idempotencyKey: String
+    ) async throws -> ResourceCaptureResult
     func ask(
         objective: String,
         personID: String,
@@ -143,6 +329,22 @@ protocol PursuitWorkspaceServing {
 }
 
 extension PursuitWorkspaceServing {
+    func findContactMatches(
+        identityClue: ConversationContactDraft.IdentityClue
+    ) async throws -> [WorkspacePerson] {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func saveContactDraft(
+        _ draft: ConversationContactDraft,
+        target: ConversationContactTarget,
+        confirmIdentityClue: Bool,
+        capturedAt: Date,
+        idempotencyKey: String
+    ) async throws -> ResourceCaptureResult {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
     func ask(
         objective: String,
         personID: String,
@@ -349,6 +551,164 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             proposals: result.2.proposals,
             loadedAt: Date()
         )
+    }
+
+    func findContactMatches(
+        identityClue: ConversationContactDraft.IdentityClue
+    ) async throws -> [WorkspacePerson] {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        let result: WorkspacePeopleEnvelope = try await post(
+            path: "v1/people/search",
+            token: login.accessToken,
+            body: WorkspacePeopleSearchBody(query: identityClue.value)
+        )
+        guard result.contractVersion == TalentSignalAPIContract.version else {
+            throw PursuitWorkspaceClientError.scopeReadbackMismatch
+        }
+        return ConversationContactMatchPolicy.authoritativeMatches(in: result.people)
+    }
+
+    func saveContactDraft(
+        _ draft: ConversationContactDraft,
+        target: ConversationContactTarget,
+        confirmIdentityClue: Bool,
+        capturedAt: Date,
+        idempotencyKey: String
+    ) async throws -> ResourceCaptureResult {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        let observedAt = Self.contactTimestamp(capturedAt)
+        let clientResourceID = "ios-contact:\(idempotencyKey.suffix(72))"
+        let personScope: ConversationContactCaptureBody.PersonScope
+        switch target {
+        case .newPerson:
+            personScope = .newPerson(
+                displayLabel: draft.name,
+                relationshipContext: .init(
+                    status: "proposed",
+                    relationshipContextID: nil,
+                    label: draft.relationshipContext,
+                    purpose: "Recruiter-defined relationship context"
+                ),
+                bindingBasis: "The signed-in recruiter reviewed the Agent proposal and explicitly chose to create a new person."
+            )
+        case let .existingPerson(personID, relationshipContextID):
+            personScope = .confirmed(
+                personID: personID,
+                relationshipContext: .init(
+                    status: relationshipContextID == nil ? "proposed" : "existing",
+                    relationshipContextID: relationshipContextID,
+                    label: relationshipContextID == nil ? draft.relationshipContext : nil,
+                    purpose: relationshipContextID == nil
+                        ? "Recruiter-defined relationship context"
+                        : nil
+                ),
+                bindingBasis: "The signed-in recruiter reviewed the visible identity match and explicitly chose this person."
+            )
+        case .unresolved:
+            let handles = draft.identityClue.map {
+                [ConversationContactCaptureBody.IdentityHandle(
+                    type: $0.type,
+                    value: $0.value,
+                    sourceClientResourceID: clientResourceID
+                )]
+            } ?? []
+            personScope = .unresolved(
+                displayNameHint: draft.name,
+                handles: handles,
+                relationshipContext: .init(
+                    status: "proposed",
+                    relationshipContextID: nil,
+                    label: draft.relationshipContext,
+                    purpose: "Recruiter-defined relationship context"
+                ),
+                reason: "The recruiter preserved this source for identity review because current and historical identity ownership conflict."
+            )
+        }
+        let confirmedHandles: [ConversationContactCaptureBody.IdentityHandle]?
+        if target != .unresolved, confirmIdentityClue, let clue = draft.identityClue {
+            confirmedHandles = [
+                .init(
+                    type: clue.type,
+                    value: clue.value,
+                    sourceClientResourceID: clientResourceID
+                )
+            ]
+        } else {
+            confirmedHandles = nil
+        }
+        let body = ConversationContactCaptureBody(
+            contractVersion: TalentSignalAPIContract.version,
+            idempotencyKey: idempotencyKey,
+            channel: "chat",
+            purpose: "Preserve a recruiter-reviewed contact note after explicit identity confirmation",
+            capturedAt: observedAt,
+            sourceTimezone: TimeZone.current.identifier,
+            personScope: personScope,
+            resource: .init(
+                clientResourceID: clientResourceID,
+                kind: "contact_record",
+                displayName: "Agent contact intake",
+                mediaType: "text/plain",
+                observedAt: observedAt,
+                sourceTimezone: TimeZone.current.identifier,
+                retention: .init(
+                    requestedMode: "ephemeral",
+                    sourceScope: "reviewed_selected_text"
+                )
+            ),
+            confirmedIdentityHandles: confirmedHandles,
+            fragments: [
+                .init(
+                    clientResourceID: clientResourceID,
+                    kind: "contact_field",
+                    sequence: 0,
+                    text: draft.sourceNote,
+                    locator: .init(
+                        kind: "contact_field",
+                        revision: nil,
+                        field: "source_note",
+                        sourceRecordVersion: "1"
+                    ),
+                    attribution: .init(actorKind: "recruiter", status: "confirmed"),
+                    reviewStatus: "reviewed",
+                    parser: .init(
+                        name: draft.interpreter?.name ?? "ios-agent-contact-intake",
+                        version: draft.interpreter?.version ?? "1.0.0"
+                    )
+                )
+            ]
+        )
+        let result: ResourceCaptureResult = try await post(
+            path: "v1/resource-captures",
+            token: login.accessToken,
+            body: body
+        )
+        switch target {
+        case .unresolved:
+            guard ["needs_review", "unresolved"].contains(result.identity.status),
+                  result.identity.personID == nil,
+                  result.identity.resolutionCaseID != nil else {
+                throw PursuitWorkspaceClientError.scopeReadbackMismatch
+            }
+        case .newPerson, .existingPerson:
+            guard result.identity.status == "bound", result.identity.personID != nil else {
+                throw PursuitWorkspaceClientError.scopeReadbackMismatch
+            }
+        }
+        if case let .existingPerson(expectedPersonID, expectedContextID) = target {
+            guard result.identity.personID == expectedPersonID,
+                  expectedContextID == nil
+                    || result.identity.relationshipContextID == expectedContextID else {
+                throw PursuitWorkspaceClientError.scopeReadbackMismatch
+            }
+        }
+        return result
     }
 
     func ask(
@@ -739,6 +1099,12 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fractional.date(from: value) != nil
             || ISO8601DateFormatter().date(from: value) != nil
+    }
+
+    private static func contactTimestamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 
     static func validatedEvidenceReviewResult(
@@ -1278,6 +1644,10 @@ private struct WorkspacePeopleEnvelope: Decodable {
         case contractVersion = "contract_version"
         case people
     }
+}
+
+private struct WorkspacePeopleSearchBody: Encodable {
+    let query: String
 }
 
 private struct WorkspaceProposalListEnvelope: Decodable {

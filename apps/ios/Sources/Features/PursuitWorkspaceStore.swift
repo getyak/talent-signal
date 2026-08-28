@@ -332,6 +332,36 @@ final class PursuitWorkspaceStore: ObservableObject {
         )
     }
 
+    func saveContactDraft(
+        _ draft: ConversationContactDraft,
+        target: ConversationContactTarget,
+        confirmIdentityClue: Bool,
+        capturedAt: Date,
+        idempotencyKey: String
+    ) async throws -> ResourceCaptureResult {
+        guard let service else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        let result = try await service.saveContactDraft(
+            draft,
+            target: target,
+            confirmIdentityClue: confirmIdentityClue,
+            capturedAt: capturedAt,
+            idempotencyKey: idempotencyKey
+        )
+        await load()
+        return result
+    }
+
+    func findContactMatches(
+        identityClue: ConversationContactDraft.IdentityClue
+    ) async throws -> [WorkspacePerson] {
+        guard let service else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        return try await service.findContactMatches(identityClue: identityClue)
+    }
+
     func createChatMedia(
         personID: String,
         relationshipContextID: String,

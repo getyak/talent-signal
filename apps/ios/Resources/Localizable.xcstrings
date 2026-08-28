@@ -1044,6 +1044,144 @@
     },
     "Uploading image" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在上传图片" } } }
+    },
+    "Add another contact…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加另一位联系人…" } } }
+    },
+    "Added to existing contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入现有联系人" } } }
+    },
+    "Added %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已添加 %@" } } }
+    },
+    "Added to existing contact · receipt %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入现有联系人 · 回执 %@" } } }
+    },
+    "Add to the existing contact?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到已有联系人？" } } }
+    },
+    "Checking existing contacts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查已有联系人" } } }
+    },
+    "Choose the existing contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择已有联系人" } } }
+    },
+    "Confirm the original save" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对原保存结果" } } }
+    },
+    "Contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人" } } }
+    },
+    "Contact saved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人已保存" } } }
+    },
+    "Contact created" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人已创建" } } }
+    },
+    "Contact tool" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人工具" } } }
+    },
+    "Open in People" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在人物中打开" } } }
+    },
+    "Created contact · receipt %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人已创建 · 回执 %@" } } }
+    },
+    "Canonical IDs saved · original source stays separate" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存规范 ID · 原始来源仍独立保留" } } }
+    },
+    "Restored reference · verify current state in People" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已恢复的引用 · 请在人物中核对当前状态" } } }
+    },
+    "Restored reference · identity still needs review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已恢复的引用 · 身份仍需核对" } } }
+    },
+    "Restored reference · person is no longer available in People" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已恢复的引用 · 该人物已不在人物列表中" } } }
+    },
+    "Review case" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅案例" } } }
+    },
+    "Review %@’s identity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对 %@ 的身份" } } }
+    },
+    "Saved for identity review · case %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存待身份核对 · 案例 %@" } } }
+    },
+    "Saved receipt · %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回执已保存 · %@" } } }
+    },
+    "Source receipt" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源回执" } } }
+    },
+    "Updated %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已更新 %@" } } }
+    },
+    "Use the bottom field. Successful Agent responses and confirmed tool receipts appear here without becoming relationship truth." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从底部输入框开始。Agent 成功回复与已确认的工具回执会出现在这里，但不会因此成为关系事实。" } } }
+    },
+    "Create a new contact?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建新联系人？" } } }
+    },
+    "Done editing" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成编辑" } } }
+    },
+    "Edit contact details" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑联系人详情" } } }
+    },
+    "Finish reviewing the contact first" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先完成联系人审阅" } } }
+    },
+    "I couldn't support a contact name from this message. Add the person's name, or choose a relationship to ask about it." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这条消息中没有足够依据确认联系人姓名。请补充姓名，或选择一段关系继续提问。" } } }
+    },
+    "Identity check needs retry" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份检查需要重试" } } }
+    },
+    "Identity check" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份检查" } } }
+    },
+    "Identity needs review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份需要审阅" } } }
+    },
+    "Included in the saved source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已包含在保存的来源中" } } }
+    },
+    "Name needed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要姓名" } } }
+    },
+    "Not included in the saved source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未包含在保存的来源中" } } }
+    },
+    "Relationship needed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要关系" } } }
+    },
+    "Review this contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅此联系人" } } }
+    },
+    "Choose a relationship before sending" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发送前请选择一段关系" } } }
+    },
+    "This relationship is selected, but the draft remains protected as a global draft until this device can save the move." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系已选择；在此设备能够保存这次移动前，草稿仍作为全局草稿受到保护。" } } }
+    },
+    "Choose a person and relationship for this message." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为这条消息选择人物和关系。" } } }
+    },
+    "Choose a relationship for this message" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为这条消息选择关系" } } }
+    },
+    "Who is this about?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这条消息与谁有关？" } } }
+    },
+    "No matching relationships" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有匹配的关系" } } }
+    },
+    "Try another person or context." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请尝试其他人物或情境。" } } }
+    },
+    "Understanding this message…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在理解这条消息…" } } }
     }
   },
   "version" : "1.0"
