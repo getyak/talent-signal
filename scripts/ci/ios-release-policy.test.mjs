@@ -165,7 +165,7 @@ test("iOS CI has enough time to finish the isolated UI suite", () => {
   const iosJob = ciWorkflow.match(/  ios:\n([\s\S]*?)(?=\n  required:)/);
 
   assert.ok(iosJob, "expected the iOS CI job");
-  assert.match(iosJob[1], /timeout-minutes: 60/);
+  assert.match(iosJob[1], /timeout-minutes: 75/);
 });
 
 test("automatic releases classify the verified default-branch tip without executing repository code", () => {
