@@ -26,6 +26,7 @@ struct StandaloneOnboardingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.sizeCategory) private var sizeCategory
     @Environment(\.appLanguage) private var appLanguage
+    @FocusState private var signalTextFocused: Bool
 
     @State private var displayName = ""
     @State private var selectedTemplate = "Hire someone"
@@ -37,6 +38,8 @@ struct StandaloneOnboardingView: View {
     @State private var todayDetail: TodayDetail?
     @State private var showsSettings = false
     @State private var showsDeleteImportedSourceConfirmation = false
+    @State private var pendingSharedCaptureDeletion: SharedCaptureEnvelope?
+    @State private var retainedSharedCaptures: [SharedCaptureEnvelope] = []
     @State private var sharedCaptureNotice: String?
 
     private let forceDemoEngine: Bool
@@ -178,8 +181,11 @@ struct StandaloneOnboardingView: View {
         ) {
             Button(localized("Cancel"), role: .cancel) {}
             Button(localized("Delete Source and Derived State"), role: .destructive) {
+                guard let envelope = pendingSharedCaptureDeletion else { return }
                 do {
-                    store.deleteImportedCapture(using: try SharedCaptureInbox())
+                    let inbox = try SharedCaptureInbox()
+                    store.deleteRetainedCapture(envelope.id, using: inbox)
+                    refreshRetainedSharedCaptures()
                 } catch {
                     sharedCaptureNotice = "The imported source was not deleted: \(error.localizedDescription)"
                 }
@@ -604,6 +610,14 @@ struct StandaloneOnboardingView: View {
             .overlay { RoundedRectangle(cornerRadius: 16).stroke(Color.tsLine) }
             .accessibilityLabel(localized("Signal text"))
             .accessibilityIdentifier("standalone-signal-text")
+            .focused($signalTextFocused)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button(localized("Done")) { signalTextFocused = false }
+                        .accessibilityIdentifier("standalone-dismiss-signal-keyboard")
+                }
+            }
             Button(localized("Use the showcase Signal")) {
                 store.updateDraftText(StandaloneDemoProposalCatalog.showcaseSignal)
             }
@@ -832,7 +846,7 @@ struct StandaloneOnboardingView: View {
                     }
                 }
                 Spacer()
-                Button { showsSettings = true } label: {
+                Button { openSettings() } label: {
                     Image(systemName: "gearshape")
                         .frame(width: 44, height: 44)
                         .background(Color.tsSurface, in: Circle())
@@ -847,10 +861,10 @@ struct StandaloneOnboardingView: View {
                     Button { todayDetail = .source } label: {
                         if sizeCategory.isAccessibilityCategory {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(localized("SOURCE EVIDENCE"))
+                                Text(localized(sourceEvidenceLabel))
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.tsMutedInk)
-                                Text(progress.sourceSummary)
+                                Text(localized("Open the retained source and full provenance"))
                                     .font(.footnote.weight(.semibold))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
@@ -863,7 +877,7 @@ struct StandaloneOnboardingView: View {
                                     .frame(width: 26)
                                     .foregroundStyle(Color.tsConfirmed)
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(localized("SOURCE EVIDENCE"))
+                                    Text(localized(sourceEvidenceLabel))
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(Color.tsMutedInk)
                                     Text(progress.sourceSummary)
@@ -881,7 +895,7 @@ struct StandaloneOnboardingView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(localized("Source evidence, \(progress.sourceSummary)"))
+                    .accessibilityLabel(localized("\(sourceEvidenceLabel), \(progress.sourceSummary)"))
                     .accessibilityHint(localized("Opens the retained source"))
                     .accessibilityIdentifier("standalone-today-evidence-link")
                     ForEach(progress.confirmedFacts.prefix(1)) { fact in
@@ -926,15 +940,31 @@ struct StandaloneOnboardingView: View {
                         store.resetDemoData()
                         showsSettings = false
                     }
-                    if store.state.captureDraft?.sharedEnvelopeID != nil {
-                        Button(localized("Delete Imported Source"), role: .destructive) {
-                            showsSettings = false
-                            showsDeleteImportedSourceConfirmation = true
+                }
+                Section(localized("Retained imported sources")) {
+                    if retainedSharedCaptures.isEmpty {
+                        Text(localized("No retained Share or Shortcut sources"))
+                            .foregroundStyle(Color.tsMutedInk)
+                    } else {
+                        ForEach(retainedSharedCaptures) { envelope in
+                            Button(role: .destructive) {
+                                pendingSharedCaptureDeletion = envelope
+                                showsDeleteImportedSourceConfirmation = true
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(retainedSourceDeleteLabel(envelope.kind))
+                                    Text(envelope.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundStyle(Color.tsMutedInk)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                     }
                 }
                 Section("Boundary") {
                     Text(localized("Reset removes only standalone local onboarding records. It does not change Calendar permissions or user events."))
+                    Text(localized("Imported Share and Shortcut sources remain listed here after reset until you delete them individually."))
                 }
             }
             .navigationTitle(localized("Settings"))
@@ -993,10 +1023,20 @@ struct StandaloneOnboardingView: View {
             return "Demo meeting · not connected"
         }
         switch store.state.lastObservedCalendarPermission {
-        case .fullAccess, .connectedEmpty, .connectedWithMeetings: return "Connected"
+        case .fullAccess:
+            return store.state.selectedCalendarIDs.isEmpty
+                ? "Full access · choose a calendar"
+                : "Connected"
+        case .connectedEmpty, .connectedWithMeetings: return "Connected"
         case .denied, .restricted, .writeOnly: return "Skipped · text remains available"
         case .notDetermined: return "Not connected"
         }
+    }
+
+    private var sourceEvidenceLabel: String {
+        store.state.selectedMeeting?.isDemo == true
+            ? "DEMO SOURCE EVIDENCE"
+            : "SOURCE EVIDENCE"
     }
 
     private var actionCapability: String {
@@ -1087,7 +1127,11 @@ struct StandaloneOnboardingView: View {
         let status: (String, String, Color) = {
             switch calendarService.permission {
             case .notDetermined: return ("Not requested", "You decide when the system prompt appears.", .tsMutedInk)
-            case .fullAccess, .connectedEmpty, .connectedWithMeetings: return ("Full access", "Calendar can be read for meeting selection.", .tsConfirmed)
+            case .fullAccess:
+                return calendarService.selectedCalendarIDs.isEmpty
+                    ? ("Full access · no calendar selected", "No events have been read. Choose only the calendar needed for this Pursuit.", .tsWarning)
+                    : ("Full access", "Only the selected calendars can be read for meeting selection.", .tsConfirmed)
+            case .connectedEmpty, .connectedWithMeetings: return ("Full access", "Only the selected calendars can be read for meeting selection.", .tsConfirmed)
             case .writeOnly: return ("Write-only is not connected", "Reading meetings requires Full Access.", .tsWarning)
             case .denied: return ("Access denied", "Continue with Voice or Text; Talent Signal will not ask again automatically.", .tsWarning)
             case .restricted: return ("Access restricted", "This device does not currently allow Calendar reading.", .tsWarning)
@@ -1144,6 +1188,7 @@ struct StandaloneOnboardingView: View {
     private func importNextSharedCapture() {
         do {
             let inbox = try SharedCaptureInbox()
+            try store.reconcileSharedCaptureTransactions(using: inbox)
             for envelope in try inbox.pending() {
                 if store.state.importedSharedEnvelopeIDs.contains(envelope.id) {
                     try inbox.markImported(envelope.id)
@@ -1170,6 +1215,7 @@ struct StandaloneOnboardingView: View {
         }
         do {
             let inbox = try SharedCaptureInbox()
+            try store.reconcileSharedCaptureTransactions(using: inbox)
             let envelope = try StandaloneShortcutCaptureBridge.stage(seed, in: inbox)
             if !store.state.importedSharedEnvelopeIDs.contains(envelope.id) {
                 guard store.importSharedCapture(envelope) else { return }
@@ -1194,10 +1240,38 @@ struct StandaloneOnboardingView: View {
         guard voiceService.isRecording,
               let draftID = store.state.captureDraft?.id else { return }
         do {
-            guard try LiveActivityStopRequestBridge.consume(draftID: draftID) else { return }
+            guard try LiveActivityStopRequestBridge.consume(
+                draftID: draftID,
+                recordingStartedAt: voiceService.recordingStartedAt
+            ) else { return }
             Task { await finishVoiceRecording() }
         } catch {
             sharedCaptureNotice = "The lock-screen Stop request could not be read. Recording remains under foreground control: \(error.localizedDescription)"
+        }
+    }
+
+    private func openSettings() {
+        refreshRetainedSharedCaptures()
+        showsSettings = true
+    }
+
+    private func refreshRetainedSharedCaptures() {
+        do {
+            let inbox = try SharedCaptureInbox()
+            try store.reconcileSharedCaptureTransactions(using: inbox)
+            retainedSharedCaptures = try inbox.retained()
+        } catch SharedCaptureInboxError.appGroupUnavailable {
+            retainedSharedCaptures = []
+        } catch {
+            sharedCaptureNotice = "Retained imported sources could not be inventoried: \(error.localizedDescription)"
+        }
+    }
+
+    private func retainedSourceDeleteLabel(_ kind: SharedCapturePayloadKind) -> String {
+        switch kind {
+        case .image: return localized("Delete retained image source")
+        case .text: return localized("Delete retained text source")
+        case .url: return localized("Delete retained URL source")
         }
     }
 

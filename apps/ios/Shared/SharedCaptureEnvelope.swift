@@ -135,7 +135,6 @@ struct SharedCaptureInbox {
             throw SharedCaptureInboxError.appGroupUnavailable
         }
         try prepareDirectories()
-        try recoverPendingDeletions()
         try recoverPendingTransactions()
     }
 
@@ -234,8 +233,34 @@ struct SharedCaptureInbox {
     }
 
     func pending() throws -> [SharedCaptureEnvelope] {
+        try envelopes(in: inboxDirectory)
+    }
+
+    func retained() throws -> [SharedCaptureEnvelope] {
+        try envelopes(in: importedDirectory)
+    }
+
+    func reconcileDeletionTransactions(retainedEnvelopeIDs: Set<UUID>) throws {
+        for directory in try fileManager.contentsOfDirectory(
+            at: deletingDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        ) where (try? directory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            if fileManager.fileExists(atPath: directory.appending(path: "committed").path) {
+                try fileManager.removeItem(at: directory)
+                continue
+            }
+            let manifest = try deletionManifest(at: directory)
+            if retainedEnvelopeIDs.contains(manifest.id) {
+                try recoverDeletion(at: directory)
+            } else {
+                try fileManager.removeItem(at: directory)
+            }
+        }
+    }
+
+    private func envelopes(in directory: URL) throws -> [SharedCaptureEnvelope] {
         try fileManager.contentsOfDirectory(
-            at: inboxDirectory,
+            at: directory,
             includingPropertiesForKeys: nil
         )
         .filter { $0.pathExtension == "json" }
@@ -297,7 +322,7 @@ struct SharedCaptureInbox {
             directoryHint: .isDirectory
         )
         if fileManager.fileExists(atPath: transactionDirectory.path) {
-            try recoverDeletion(at: transactionDirectory)
+            throw SharedCaptureInboxError.deletionAlreadyInProgress(id)
         }
         try fileManager.createDirectory(
             at: transactionDirectory,
@@ -415,36 +440,9 @@ struct SharedCaptureInbox {
         }
     }
 
-    private func recoverPendingDeletions() throws {
-        for directory in try fileManager.contentsOfDirectory(
-            at: deletingDirectory,
-            includingPropertiesForKeys: [.isDirectoryKey]
-        ) where (try? directory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-            if fileManager.fileExists(atPath: directory.appending(path: "committed").path) {
-                try fileManager.removeItem(at: directory)
-            } else {
-                try recoverDeletion(at: directory)
-            }
-        }
-    }
-
     private func recoverDeletion(at directory: URL) throws {
         guard fileManager.fileExists(atPath: directory.path) else { return }
-        let manifestURL = directory.appending(path: "manifest.json")
-        guard fileManager.fileExists(atPath: manifestURL.path) else {
-            if try fileManager.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: nil
-            ).isEmpty {
-                try fileManager.removeItem(at: directory)
-                return
-            }
-            throw SharedCaptureInboxError.corruptDeletionTransaction(directory.lastPathComponent)
-        }
-        let manifest = try Self.decoder.decode(
-            DeletionManifest.self,
-            from: Data(contentsOf: manifestURL)
-        )
+        let manifest = try deletionManifest(at: directory)
         for move in manifest.moves.reversed() {
             let staged = directory.appending(path: move.stagedFileName)
             guard fileManager.fileExists(atPath: staged.path) else { continue }
@@ -455,6 +453,23 @@ struct SharedCaptureInbox {
             try fileManager.moveItem(at: staged, to: source)
         }
         try fileManager.removeItem(at: directory)
+    }
+
+    private func deletionManifest(at directory: URL) throws -> DeletionManifest {
+        let manifestURL = directory.appending(path: "manifest.json")
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            if try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ).isEmpty {
+                try fileManager.removeItem(at: directory)
+            }
+            throw SharedCaptureInboxError.corruptDeletionTransaction(directory.lastPathComponent)
+        }
+        return try Self.decoder.decode(
+            DeletionManifest.self,
+            from: Data(contentsOf: manifestURL)
+        )
     }
 
     private func recoverPendingTransactions() throws {
@@ -573,6 +588,7 @@ enum SharedCaptureInboxError: LocalizedError {
     case captureNotFound(UUID)
     case corruptDeletionTransaction(String)
     case deletionRollbackConflict(String)
+    case deletionAlreadyInProgress(UUID)
 
     var errorDescription: String? {
         switch self {
@@ -598,6 +614,8 @@ enum SharedCaptureInboxError: LocalizedError {
             return "Shared capture deletion \(name) cannot be verified. The staged files were retained."
         case let .deletionRollbackConflict(path):
             return "Shared capture deletion could not roll back because \(path) already exists. Both copies were retained for recovery."
+        case let .deletionAlreadyInProgress(id):
+            return "Shared capture \(id.uuidString) already has a protected deletion in progress. Relaunch Talent Signal to reconcile it before retrying."
         }
     }
 }

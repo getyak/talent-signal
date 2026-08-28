@@ -541,6 +541,15 @@ final class CandidateSignalUITests: XCTestCase {
         app.navigationBars["Language"].buttons.element(boundBy: 0).tap()
         app.buttons["close-relationship-menu"].tap()
         XCTAssertEqual(app.buttons["archive-tab-today"].label, "Today")
+
+        // The gate launches each UI journey in a fresh runner while retaining
+        // the app container. Terminate and verify a cold relaunch so the
+        // language write is durably English before the next isolated journey.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        XCTAssertEqual(app.buttons["archive-tab-today"].label, "Today")
+        app.terminate()
     }
 
     func testSettingsKeepsItsHierarchyInDarkMode() {

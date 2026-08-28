@@ -39,6 +39,7 @@ final class StandaloneOnboardingUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["Hire a VP of Engineering"].exists)
+        XCTAssertTrue(app.staticTexts["DEMO SOURCE EVIDENCE"].exists)
         let evidenceLink = app.buttons["standalone-today-evidence-link"]
         XCTAssertTrue(evidenceLink.waitForExistence(timeout: 5))
         XCTAssertTrue(evidenceLink.isHittable, "Source evidence should be reachable in the initial Today viewport")
@@ -108,6 +109,52 @@ final class StandaloneOnboardingUITests: XCTestCase {
             app.descendants(matching: .any)["standalone-offer-action-button"]
                 .waitForExistence(timeout: 5)
         )
+    }
+
+    @MainActor
+    func testStandaloneAX5LongMixedSignalHasKeyboardExitAndReachableManualReview() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--standalone-onboarding-reset",
+            "-AppleInterfaceStyle", "Dark",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        tap("standalone-demo-user", in: app)
+        tap("standalone-create-pursuit", in: app)
+        tap("standalone-finish-demo", in: app)
+        tap("standalone-source-type-a-signal", in: app)
+
+        let signal = app.textViews["standalone-signal-text"]
+        XCTAssertTrue(signal.waitForExistence(timeout: 5))
+        signal.tap()
+        signal.typeText(
+            "候选人希望每周四天远程工作，并要求在书面 offer 前澄清薪酬区间、签证支持和跨时区协作方式。 "
+                + "The recruiter must preserve this exact mixed-script source, keep compensation unresolved, "
+                + "and avoid converting preference or uncertainty into a confirmed fact."
+        )
+
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        let dismissKeyboard = app.buttons["standalone-dismiss-signal-keyboard"]
+        XCTAssertTrue(dismissKeyboard.waitForExistence(timeout: 5))
+        XCTAssertTrue(dismissKeyboard.isHittable)
+        let keyboardAttachment = XCTAttachment(screenshot: app.screenshot())
+        keyboardAttachment.name = "Standalone AX5 dark long mixed Signal with keyboard exit"
+        keyboardAttachment.lifetime = .keepAlways
+        add(keyboardAttachment)
+
+        dismissKeyboard.tap()
+        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2))
+        let manualReview = app.buttons["standalone-review-without-ai"]
+        for _ in 0..<6 where !manualReview.isHittable { app.swipeUp() }
+        XCTAssertTrue(manualReview.waitForExistence(timeout: 5))
+        XCTAssertTrue(manualReview.isHittable)
+        manualReview.tap()
+
+        XCTAssertTrue(app.staticTexts["MANUAL STRUCTURE · NO MODEL"].waitForExistence(timeout: 8))
     }
 
     @MainActor

@@ -527,9 +527,11 @@ final class StandaloneOnboardingTests: XCTestCase {
         let transaction = try inbox.stageDeletion(image.id)
         try inbox.commitDeletion(transaction)
 
-        XCTAssertNil(try inbox.envelope(id: image.id))
-        XCTAssertNil(inbox.payloadURL(for: image))
-        XCTAssertEqual(try inbox.pending().map(\.id), [retainedText.id])
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        try relaunchedInbox.reconcileDeletionTransactions(retainedEnvelopeIDs: [])
+        XCTAssertNil(try relaunchedInbox.envelope(id: image.id))
+        XCTAssertNil(relaunchedInbox.payloadURL(for: image))
+        XCTAssertEqual(try relaunchedInbox.pending().map(\.id), [retainedText.id])
     }
 
     func testInterruptedScopedDeletionRollsBackOnInboxRecovery() throws {
@@ -546,12 +548,103 @@ final class StandaloneOnboardingTests: XCTestCase {
         _ = try inbox.stageDeletion(image.id)
 
         let recovered = try SharedCaptureInbox(rootURL: directory)
+        try recovered.reconcileDeletionTransactions(retainedEnvelopeIDs: [image.id])
 
         let restoredEnvelope = try XCTUnwrap(recovered.envelope(id: image.id))
         XCTAssertEqual(restoredEnvelope.id, image.id)
         XCTAssertEqual(restoredEnvelope.payloadFileName, image.payloadFileName)
         XCTAssertEqual(restoredEnvelope.mediaType, image.mediaType)
         XCTAssertNotNil(recovered.payloadURL(for: image))
+    }
+
+    func testScopedDeletionFinishesAfterSessionStateCommittedBeforeInboxMarker() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let image = try inbox.appendImage(
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        try inbox.markImported(image.id)
+        _ = try inbox.stageDeletion(image.id)
+
+        var persistedState = readyForSourceChoice()
+        XCTAssertTrue(persistedState.importSharedCapture(image))
+        XCTAssertTrue(persistedState.discardImportedCapture(image.id))
+
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        try relaunchedInbox.reconcileDeletionTransactions(
+            retainedEnvelopeIDs: persistedState.importedSharedEnvelopeIDs
+        )
+
+        XCTAssertNil(try relaunchedInbox.envelope(id: image.id))
+        XCTAssertNil(relaunchedInbox.payloadURL(for: image))
+        XCTAssertTrue(try relaunchedInbox.retained().isEmpty)
+    }
+
+    func testCommittedDeletionMarkerFinishesPhysicalRemovalAfterRelaunch() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let image = try inbox.appendImage(
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png"
+        )
+        try inbox.markImported(image.id)
+        _ = try inbox.stageDeletion(image.id)
+        let transactionDirectory = directory
+            .appending(path: "Deleting", directoryHint: .isDirectory)
+            .appending(path: image.id.uuidString.lowercased(), directoryHint: .isDirectory)
+        try Data().write(
+            to: transactionDirectory.appending(path: "committed"),
+            options: .atomic
+        )
+
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        try relaunchedInbox.reconcileDeletionTransactions(retainedEnvelopeIDs: [])
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: transactionDirectory.path))
+        XCTAssertNil(try relaunchedInbox.envelope(id: image.id))
+        XCTAssertNil(relaunchedInbox.payloadURL(for: image))
+    }
+
+    @MainActor
+    func testResetAfterImportKeepsSourceVisibleAndIndividuallyDeletable() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = try SharedCaptureInbox(rootURL: directory)
+        let image = try inbox.appendImage(
+            data: Data("synthetic-private-image".utf8),
+            fileExtension: "png",
+            mediaType: "image/png",
+            sourceText: "Synthetic source retained through reset"
+        )
+        try inbox.markImported(image.id)
+        var importedState = readyForSourceChoice()
+        XCTAssertTrue(importedState.importSharedCapture(image))
+        let persistence = ControlledStandalonePersistence(state: importedState)
+        let store = StandaloneOnboardingStore(
+            persistence: persistence,
+            demoDataResetter: ControlledDemoDataResetter()
+        )
+
+        store.resetDemoData()
+
+        XCTAssertNil(store.state.captureDraft)
+        XCTAssertTrue(store.state.importedSharedEnvelopeIDs.isEmpty)
+        let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
+        XCTAssertEqual(try relaunchedInbox.retained().map(\.id), [image.id])
+
+        store.deleteRetainedCapture(image.id, using: relaunchedInbox)
+
+        XCTAssertNil(try relaunchedInbox.envelope(id: image.id))
+        XCTAssertNil(relaunchedInbox.payloadURL(for: image))
+        XCTAssertTrue(try relaunchedInbox.retained().isEmpty)
     }
 
     func testDiscardImportedCaptureRemovesAllDerivedLocalState() async throws {
@@ -837,6 +930,53 @@ final class StandaloneOnboardingTests: XCTestCase {
 
         XCTAssertTrue(try LiveActivityStopRequestBridge.consume(draftID: draftID, rootURL: directory))
         XCTAssertFalse(try LiveActivityStopRequestBridge.consume(draftID: draftID, rootURL: directory))
+    }
+
+    func testMatchingLiveActivityStopRequestExpiresBeforeLaterRetry() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let draftID = UUID()
+        let retryStartedAt = Date(timeIntervalSince1970: 1_000)
+
+        try LiveActivityStopRequestBridge.write(
+            draftID: draftID,
+            rootURL: directory,
+            now: Date(timeIntervalSince1970: 700)
+        )
+
+        XCTAssertFalse(
+            try LiveActivityStopRequestBridge.consume(
+                draftID: draftID,
+                rootURL: directory,
+                recordingStartedAt: retryStartedAt,
+                now: Date(timeIntervalSince1970: 1_010)
+            )
+        )
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
+    func testFreshMatchingLiveActivityStopRequestCanStopCurrentRecording() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let draftID = UUID()
+        let recordingStartedAt = Date(timeIntervalSince1970: 1_000)
+
+        try LiveActivityStopRequestBridge.write(
+            draftID: draftID,
+            rootURL: directory,
+            now: Date(timeIntervalSince1970: 1_005)
+        )
+
+        XCTAssertTrue(
+            try LiveActivityStopRequestBridge.consume(
+                draftID: draftID,
+                rootURL: directory,
+                recordingStartedAt: recordingStartedAt,
+                now: Date(timeIntervalSince1970: 1_010)
+            )
+        )
     }
 
     func testLiveActivityStopRequestAtomicallyReplacesAnOlderRequest() throws {

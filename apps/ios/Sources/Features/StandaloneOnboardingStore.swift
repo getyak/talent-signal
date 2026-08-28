@@ -235,14 +235,28 @@ final class StandaloneOnboardingStore: ObservableObject {
         mutate { $0.discardProposal() }
     }
 
+    func reconcileSharedCaptureTransactions(using inbox: SharedCaptureInbox) throws {
+        try inbox.reconcileDeletionTransactions(
+            retainedEnvelopeIDs: state.importedSharedEnvelopeIDs
+        )
+    }
+
     func deleteImportedCapture(using inbox: SharedCaptureInbox) {
         guard let envelopeID = state.captureDraft?.sharedEnvelopeID else { return }
+        deleteRetainedCapture(envelopeID, using: inbox)
+    }
+
+    func deleteRetainedCapture(_ envelopeID: UUID, using inbox: SharedCaptureInbox) {
         do {
             let transaction = try inbox.stageDeletion(envelopeID)
             var next = state
-            guard next.discardImportedCapture(envelopeID) else {
-                try inbox.rollbackDeletion(transaction)
-                return
+            if next.captureDraft?.sharedEnvelopeID == envelopeID {
+                guard next.discardImportedCapture(envelopeID) else {
+                    try inbox.rollbackDeletion(transaction)
+                    return
+                }
+            } else {
+                next.importedSharedEnvelopeIDs.remove(envelopeID)
             }
             if commit(next) {
                 do {

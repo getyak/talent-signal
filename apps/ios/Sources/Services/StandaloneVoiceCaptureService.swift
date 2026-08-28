@@ -62,6 +62,11 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
         return false
     }
 
+    var recordingStartedAt: Date? {
+        guard case let .recording(startedAt) = phase else { return nil }
+        return startedAt
+    }
+
     func reconcileOrphanedLiveActivities() async {
         if isRecording { return }
         if case .transcribing = phase { return }
@@ -332,9 +337,7 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
         case .installed:
             break
         case .supported, .downloading:
-            if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
-                try await request.downloadAndInstall()
-            }
+            throw StandaloneVoiceCaptureError.transcriptionUnavailable
         case .unsupported:
             throw StandaloneVoiceCaptureError.transcriptionUnavailable
         @unknown default:
@@ -415,9 +418,7 @@ private final class StandaloneLiveSpeechRecorder {
         case .installed:
             break
         case .supported, .downloading:
-            if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
-                try await request.downloadAndInstall()
-            }
+            throw StandaloneVoiceCaptureError.transcriptionUnavailable
         case .unsupported:
             throw StandaloneVoiceCaptureError.transcriptionUnavailable
         @unknown default:

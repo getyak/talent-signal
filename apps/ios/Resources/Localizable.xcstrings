@@ -1,6 +1,45 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "DEMO SOURCE EVIDENCE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "演示来源证据" } } }
+    },
+    "Delete retained image source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除保留的图片来源" } } }
+    },
+    "Delete retained text source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除保留的文本来源" } } }
+    },
+    "Delete retained URL source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除保留的链接来源" } } }
+    },
+    "Full access · no calendar selected" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已获完整访问权限 · 尚未选择日历" } } }
+    },
+    "Full access · choose a calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已获完整访问权限 · 请选择日历" } } }
+    },
+    "Imported Share and Shortcut sources remain listed here after reset until you delete them individually." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置后，已导入的分享与快捷指令来源仍会列在这里，直到你逐项删除。" } } }
+    },
+    "No retained Share or Shortcut sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有保留的分享或快捷指令来源" } } }
+    },
+    "No events have been read. Choose only the calendar needed for this Pursuit." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未读取任何日程。仅选择此 Pursuit 所需的日历。" } } }
+    },
+    "Open the retained source and full provenance" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开保留的来源与完整出处" } } }
+    },
+    "Only the selected calendars can be read for meeting selection." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅会读取已选择的日历来挑选会议。" } } }
+    },
+    "Retained imported sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留的已导入来源" } } }
+    },
+    "SOURCE EVIDENCE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源证据" } } }
+    },
     "Available now: Share Extension · Later: Contacts · Gmail" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "现在可用：分享扩展 · 稍后提供：通讯录 · Gmail" } } }
     },
