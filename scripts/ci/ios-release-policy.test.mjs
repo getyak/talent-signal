@@ -234,6 +234,31 @@ test("manual Fastlane builds require the same Release environment", () => {
     fastfile,
     /lane :beta do[\s\S]*?configure_ios_environment\("Release"\)/,
   );
+  assert.match(fastfile, /APP_IDENTIFIER = "com\.talentsignal\.app"/);
+  assert.match(
+    fastfile,
+    /SHARE_EXTENSION_IDENTIFIER = "com\.talentsignal\.app\.share"/,
+  );
+  assert.match(
+    fastfile,
+    /LIVE_ACTIVITY_IDENTIFIER = "com\.talentsignal\.app\.live-activity"/,
+  );
+  assert.match(
+    fastfile,
+    /lane :prepare_signing do[\s\S]*?app_identifier: APP_IDENTIFIERS[\s\S]*?force: true,[\s\S]*?readonly: false/,
+  );
+  assert.match(
+    fastfile,
+    /lane :beta do[\s\S]*?app_identifier: APP_IDENTIFIERS[\s\S]*?readonly: true/,
+  );
+  assert.match(
+    fastfile,
+    /SHARE_EXTENSION_IDENTIFIER => "match AppStore #\{SHARE_EXTENSION_IDENTIFIER\}"/,
+  );
+  assert.match(
+    fastfile,
+    /LIVE_ACTIVITY_IDENTIFIER => "match AppStore #\{LIVE_ACTIVITY_IDENTIFIER\}"/,
+  );
 });
 
 test("signing refresh is explicit, entitlement-checked, and separately authorized", () => {
@@ -254,10 +279,10 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   assert.match(refreshWorkflow, /secret-path: \/release/);
   assert.match(refreshWorkflow, /MATCH_MAINTENANCE_DEPLOY_KEY/);
   assert.match(refreshWorkflow, /fastlane run sigh/);
+  assert.match(refreshWorkflow, /fastlane ios prepare_signing/);
   assert.match(refreshWorkflow, /readonly:true/);
   assert.match(refreshWorkflow, /sync-refreshed-ios-profile\.rb/);
   assert.doesNotMatch(refreshWorkflow, /MATCH_FORCE/);
-  assert.doesNotMatch(refreshWorkflow, /fastlane ios prepare_signing/);
   assert.doesNotMatch(refreshWorkflow, /fastlane ios beta/);
   assert.match(refreshWorkflow, /Remove temporary signing material/);
 });

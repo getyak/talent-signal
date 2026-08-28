@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_profile_refresh:
-        description: Sync the regenerated App Store profile for com.talentsignal.app
+        description: Regenerate the App Store profiles for the app and extensions
         required: true
         default: false
         type: boolean
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   refresh:
-    name: Refresh App Store profile
+    name: Refresh App Store profiles
     runs-on: macos-26
     timeout-minutes: 30
     environment:
@@ -125,6 +125,13 @@ jobs:
           GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
         run: git ls-remote --exit-code "$MATCH_GIT_URL" HEAD
 
+      - name: Regenerate app and extension profiles
+        env:
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+          MATCH_TEAM_ID: ${{ env.DEVELOPMENT_TEAM }}
+        run: bundle exec fastlane ios prepare_signing
+
       - name: Download regenerated App Store profile
         env:
           FASTLANE_SKIP_UPDATE_CHECK: "1"
@@ -162,9 +169,9 @@ jobs:
       - name: Summarize signing refresh
         run: |
           {
-            echo "### App Store profile refreshed"
+            echo "### App Store profiles refreshed"
             echo ""
-            echo "- App identifier: \`com.talentsignal.app\`"
+            echo "- App identifiers: \`com.talentsignal.app\`, \`com.talentsignal.app.share\`, \`com.talentsignal.app.live-activity\`"
             echo "- Profile type: \`appstore\`"
             echo "- Required entitlement: \`com.apple.developer.applesignin\`"
             echo "- Next proof: rerun the verified TestFlight release"
