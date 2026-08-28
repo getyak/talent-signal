@@ -125,6 +125,13 @@ jobs:
           GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
         run: git ls-remote --exit-code "$MATCH_GIT_URL" HEAD
 
+      - name: Regenerate app and extension profiles
+        env:
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-maintenance-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
+          MATCH_TEAM_ID: ${{ env.DEVELOPMENT_TEAM }}
+        run: bundle exec fastlane ios prepare_signing
+
       - name: Download regenerated App Store profile
         env:
           FASTLANE_SKIP_UPDATE_CHECK: "1"
