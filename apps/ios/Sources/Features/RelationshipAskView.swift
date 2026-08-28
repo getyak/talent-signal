@@ -189,6 +189,60 @@ final class VoiceInputStore: ObservableObject {
     }
 }
 
+private struct VoiceListeningVisualizer: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let barCount = 13
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0, paused: reduceMotion)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .center, spacing: 4) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    Capsule()
+                        .fill(index == barCount / 2 ? Color.tsVermilion : Color.tsInk.opacity(0.72))
+                        .frame(width: 3, height: barHeight(index: index, time: time))
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 42)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func barHeight(index: Int, time: TimeInterval) -> CGFloat {
+        guard !reduceMotion else {
+            return CGFloat(10 + (index * 7) % 22)
+        }
+        let phase = time * 3.0 + Double(index) * 0.74
+        let envelope = 0.5 + 0.5 * sin(phase)
+        let stagger = 0.72 + 0.28 * sin(phase * 0.53 + Double(index))
+        return 9 + CGFloat(envelope * stagger) * 27
+    }
+}
+
+private struct VoiceRecordButtonHalo: View {
+    let isActive: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if isActive {
+            TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: reduceMotion)) { context in
+                let pulse: CGFloat = reduceMotion
+                    ? 0
+                    : CGFloat(
+                        (sin(context.date.timeIntervalSinceReferenceDate * 3.2) + 1) / 2
+                    )
+                Circle()
+                    .stroke(Color.tsVermilion.opacity(0.18 + pulse * 0.18), lineWidth: 1.5)
+                    .scaleEffect(1.08 + pulse * 0.12)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
 @MainActor
 struct RelationshipAskView: View {
     let snapshot: PursuitWorkspaceSnapshot
@@ -222,6 +276,7 @@ struct RelationshipAskView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .caption2) private var scopeContextFontSize: CGFloat = 11
     @State private var selectedScope: AskScope?
     @State private var scopeQuery = ""
@@ -443,6 +498,7 @@ struct RelationshipAskView: View {
         ) {
             Button(appLanguage.text("Start voice input")) {
                 hasAcceptedVoiceDisclosure = true
+                voiceHaptic(.soft)
                 startVoiceInput()
             }
             .accessibilityIdentifier("confirm-voice-input-disclosure")
@@ -808,9 +864,9 @@ struct RelationshipAskView: View {
             HStack(alignment: .bottom, spacing: 8) {
                 Button { onCapture(nil) } label: {
                     Image(systemName: "paperclip")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.tsInk)
-                        .frame(width: 44, height: 44)
+                        .frame(width: composerControlSize, height: composerControlSize)
                         .background(Color.tsCanvas, in: Circle())
                 }
                 .disabled(voiceInput.isBusy)
@@ -841,12 +897,18 @@ struct RelationshipAskView: View {
                                 .tint(Color.tsSurface)
                         } else {
                             Image(systemName: composerPrimarySymbol)
-                                .font(.body.weight(.semibold))
+                                .font(.system(size: 17, weight: .semibold))
                         }
                     }
                     .foregroundStyle(composerPrimaryForeground)
-                    .frame(width: 44, height: 44)
+                    .frame(
+                        width: composerPrimaryControlSize,
+                        height: composerPrimaryControlSize
+                    )
                     .background(composerPrimaryBackground, in: Circle())
+                    .overlay {
+                        VoiceRecordButtonHalo(isActive: voiceInput.isRecording)
+                    }
                 }
                 .disabled(composerPrimaryDisabled)
                 .opacity(composerPrimaryDisabled ? 0.35 : 1)
@@ -861,6 +923,20 @@ struct RelationshipAskView: View {
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(Color.tsSurface.opacity(0.98))
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
+            value: voiceInput.phase
+        )
+    }
+
+    private var composerControlSize: CGFloat {
+        dynamicTypeSize.isAccessibilitySize || sizeCategory.isAccessibilityCategory
+            ? 52
+            : 44
+    }
+
+    private var composerPrimaryControlSize: CGFloat {
+        voiceInput.isRecording ? max(48, composerControlSize) : composerControlSize
     }
 
     @ViewBuilder
@@ -878,42 +954,67 @@ struct RelationshipAskView: View {
             }
             .accessibilityIdentifier("ask-voice-requesting-permission")
         case let .recording(startedAt):
-            HStack(spacing: 10) {
-                Image(systemName: "waveform")
-                    .foregroundStyle(Color.tsVermilion)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(appLanguage.text("Listening"))
-                        .font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "waveform.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.tsVermilion)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(appLanguage.text("Listening to you"))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.tsInk)
+                            .accessibilityIdentifier("ask-voice-recording")
+                        Text(appLanguage.text("Foreground voice · 1 minute max"))
+                            .font(.caption2)
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
+                    Spacer(minLength: 8)
+                    Text(startedAt, style: .timer)
+                        .font(.subheadline.monospacedDigit().weight(.semibold))
                         .foregroundStyle(Color.tsInk)
-                    Text(
-                        appLanguage.text(
-                            "Tap stop to transcribe with Doubao · 1 minute max"
-                        )
+                    Button {
+                        cancelVoiceInput()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .frame(width: 44, height: 44)
+                            .background(Color.tsSurfaceMuted, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(appLanguage.text("Cancel"))
+                    .accessibilityIdentifier("ask-voice-cancel")
+                }
+                VoiceListeningVisualizer()
+                Text(
+                    appLanguage.text(
+                        "Tap the red stop button to create an editable transcript."
                     )
-                    .font(.caption2)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Text(startedAt, style: .timer)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.tsInk)
-                Button(appLanguage.text("Cancel")) {
-                    cancelVoiceInput()
-                }
-                .font(.caption.weight(.semibold))
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("ask-voice-cancel")
+                )
+                .font(.caption2)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .accessibilityIdentifier("ask-voice-recording")
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                Color.tsCanvas,
+                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.tsVermilion.opacity(0.28), lineWidth: 1)
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         case .transcribing:
             HStack(spacing: 10) {
                 ProgressView()
+                    .tint(Color.tsInk)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(appLanguage.text("Creating an editable transcript…"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
+                        .accessibilityIdentifier("ask-voice-transcribing")
                     Text(
                         appLanguage.text(
                             "Nothing is sent to the Agent until you tap Send."
@@ -930,7 +1031,13 @@ struct RelationshipAskView: View {
                 .frame(minHeight: 44)
                 .accessibilityIdentifier("ask-voice-cancel-transcription")
             }
-            .accessibilityIdentifier("ask-voice-transcribing")
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Color.tsCanvas,
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+            .transition(.opacity)
         case let .failed(message):
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "exclamationmark.circle")
@@ -940,6 +1047,7 @@ struct RelationshipAskView: View {
                     .font(.caption)
                     .foregroundStyle(Color.tsInk)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ask-voice-failed")
                 Spacer(minLength: 8)
                 if voiceInput.microphonePermission == .denied {
                     Button(appLanguage.text("Settings")) {
@@ -959,7 +1067,6 @@ struct RelationshipAskView: View {
                     .frame(minHeight: 44)
                 }
             }
-            .accessibilityIdentifier("ask-voice-failed")
         }
     }
 
@@ -1014,6 +1121,7 @@ struct RelationshipAskView: View {
             return
         }
         if voiceInput.isRecording {
+            voiceHaptic(.rigid)
             voiceOperation?.cancel()
             voiceOperation = Task {
                 await voiceInput.stopAndTranscribe()
@@ -1029,6 +1137,7 @@ struct RelationshipAskView: View {
             isVoiceDisclosurePresented = true
             return
         }
+        voiceHaptic(.soft)
         startVoiceInput()
     }
 
@@ -1047,9 +1156,16 @@ struct RelationshipAskView: View {
     }
 
     private func cancelVoiceInput() {
+        voiceHaptic(.light)
         voiceOperation?.cancel()
         voiceOperation = nil
         voiceInput.cancel()
+    }
+
+    private func voiceHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
     }
 
     private func insertVoiceTranscript(_ transcript: String) {

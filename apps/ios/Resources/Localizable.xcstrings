@@ -19,6 +19,9 @@
     "Activity" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动" } } }
     },
+    "Activity type" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活动类型" } } }
+    },
     "Add activity" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加活动" } } }
     },
@@ -37,8 +40,14 @@
     "Calendar. No linked moments." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历。暂无关联活动。" } } }
     },
+    "Collapse month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起月历" } } }
+    },
     "Conversation" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会谈" } } }
+    },
+    "Expand month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "展开月历" } } }
     },
     "Duration" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时长" } } }
@@ -51,6 +60,12 @@
     },
     "Meeting" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会议" } } }
+    },
+    "Next month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下个月" } } }
+    },
+    "No activity" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无活动" } } }
     },
     "No confirmed relationship is available." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无可用的已确认关系。" } } }
@@ -90,6 +105,12 @@
     },
     "Preview only · no Calendar data was read" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅为预览 · 未读取系统日历数据" } } }
+    },
+    "Preview · Calendar not read" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览 · 未读取系统日历" } } }
+    },
+    "Previous month" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上个月" } } }
     },
     "Relationship" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关系" } } }
@@ -700,11 +721,17 @@
     "Creating an editable transcript…" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在生成可编辑的转写…" } } }
     },
+    "Foreground voice · 1 minute max" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "前台语音 · 最长 1 分钟" } } }
+    },
     "Keep Talent Signal in the foreground to use voice input." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用语音输入时，请让 Talent Signal 保持在前台。" } } }
     },
     "Listening" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在聆听" } } }
+    },
+    "Listening to you" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在听你说" } } }
     },
     "Microphone permission was not granted. No audio was recorded." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未获得麦克风权限，因此没有录制任何音频。" } } }
@@ -729,6 +756,9 @@
     },
     "Tap stop to transcribe with Doubao · 1 minute max" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "点击停止后由豆包转写 · 最长 1 分钟" } } }
+    },
+    "Tap the red stop button to create an editable transcript." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "轻点红色停止按钮，生成可编辑的转写文本。" } } }
     },
     "Use Doubao voice transcription?" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用豆包语音转写？" } } }
