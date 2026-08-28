@@ -102,6 +102,8 @@ services:
       HOST: "0.0.0.0"
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      CHAT_MEDIA_STORAGE_PROVIDER: ${CHAT_MEDIA_STORAGE_PROVIDER:-local}
+      CHAT_MEDIA_LOCAL_DIRECTORY: /var/lib/talent-signal/chat-media
       TALENT_SIGNAL_AGENT_PROVIDER: ${TALENT_SIGNAL_AGENT_PROVIDER:-deterministic}
       TALENT_SIGNAL_AGENT_MODEL: ${TALENT_SIGNAL_AGENT_MODEL:-}
       TALENT_SIGNAL_AGENT_REFERER: ${TALENT_SIGNAL_AGENT_REFERER:-http://localhost:3000}
@@ -118,6 +120,8 @@ services:
       DOUBAO_ASR_ACCESS_TOKEN: ${DOUBAO_ASR_ACCESS_TOKEN:-}
       DOUBAO_ASR_SECRET_KEY: ${DOUBAO_ASR_SECRET_KEY:-}
     init: true
+    volumes:
+      - talent_signal_chat_media:/var/lib/talent-signal/chat-media
     ports:
       - "127.0.0.1:${BACKEND_PORT:-4317}:4317"
     depends_on:
@@ -148,3 +152,4 @@ services:
 
 volumes:
   talent_signal_postgres:
+  talent_signal_chat_media:

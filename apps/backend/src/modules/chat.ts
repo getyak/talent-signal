@@ -19,6 +19,10 @@ import {
   completeIdempotency,
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
+import {
+  bindChatMediaToManifest,
+  listManifestChatMedia,
+} from "./chatMedia.js";
 import { loadSnapshot } from "./wiki.js";
 
 const CHAT_POLICY_VERSION = "chat-context.v1";
@@ -339,6 +343,7 @@ export async function getChatTaskReadback(
     snapshot_status: manifest.snapshot_status,
     authorization_scope: manifest.authorization_scope,
     citations: readbackCitations,
+    media: await listManifestChatMedia(pool, auth.accountId, manifest.id),
     created_at: manifest.created_at.toISOString(),
   };
 }
@@ -764,6 +769,7 @@ export async function createChatTask(
       ),
     );
     const createdAt = new Date();
+    const mediaIds = request.media_ids ?? [];
 
     await client.query(
       `INSERT INTO context_manifests(
@@ -811,6 +817,14 @@ export async function createChatTask(
         ],
       );
     }
+    const media = await bindChatMediaToManifest(
+      client,
+      auth.accountId,
+      request.person_id,
+      request.relationship_context_id,
+      manifestId,
+      mediaIds,
+    );
 
     const activeAttention = await loadActiveAttention(
       client,
@@ -832,6 +846,7 @@ export async function createChatTask(
           ? "no_action"
           : "answer",
       blocks,
+      media,
       created_at: createdAt.toISOString(),
     };
     await appendAudit(
@@ -847,6 +862,7 @@ export async function createChatTask(
         knowledge_snapshot_id: snapshot.id,
         included_block_count: selectedBlocks.length,
         included_evidence_count: evidenceFragmentIds.length,
+        included_media_count: media.length,
         disposition: response.disposition,
       },
     );

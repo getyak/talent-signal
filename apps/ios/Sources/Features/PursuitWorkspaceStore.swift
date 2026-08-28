@@ -317,7 +317,8 @@ final class PursuitWorkspaceStore: ObservableObject {
         objective: String,
         personID: String,
         relationshipContextID: String,
-        idempotencyKey: String
+        idempotencyKey: String,
+        mediaIDs: [String] = []
     ) async throws -> RelationshipAskResponse {
         guard let service else {
             throw PursuitWorkspaceClientError.askUnavailable
@@ -326,8 +327,47 @@ final class PursuitWorkspaceStore: ObservableObject {
             objective: objective,
             personID: personID,
             relationshipContextID: relationshipContextID,
+            idempotencyKey: idempotencyKey,
+            mediaIDs: mediaIDs
+        )
+    }
+
+    func createChatMedia(
+        personID: String,
+        relationshipContextID: String,
+        fileName: String,
+        mediaType: String,
+        byteSize: Int,
+        width: Int?,
+        height: Int?,
+        idempotencyKey: String
+    ) async throws -> ChatMediaAsset {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.createChatMedia(
+            personID: personID,
+            relationshipContextID: relationshipContextID,
+            fileName: fileName,
+            mediaType: mediaType,
+            byteSize: byteSize,
+            width: width,
+            height: height,
             idempotencyKey: idempotencyKey
         )
+    }
+
+    func uploadChatMedia(id: String, data: Data, mediaType: String) async throws -> ChatMediaAsset {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.uploadChatMedia(id: id, data: data, mediaType: mediaType)
+    }
+
+    func deleteChatMedia(id: String) async throws {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        try await service.deleteChatMedia(id: id)
+    }
+
+    func loadChatMedia(id: String) async throws -> ChatMediaContent {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.loadChatMedia(id: id)
     }
 
     func revalidateAsk(
