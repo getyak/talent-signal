@@ -34,6 +34,24 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Diagnose GitHub OIDC claims
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
+        env:
+          OIDC_AUDIENCE: infisical://talent-signal/testflight
+        run: |
+          token_response="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$OIDC_AUDIENCE")"
+          TOKEN_RESPONSE="$token_response" ruby -rjson -rbase64 -e '
+            token = JSON.parse(ENV.fetch("TOKEN_RESPONSE")).fetch("value")
+            payload = token.split(".").fetch(1)
+            payload += "=" * ((4 - payload.length % 4) % 4)
+            claims = JSON.parse(Base64.urlsafe_decode64(payload))
+            %w[iss sub aud repository environment ref job_workflow_ref].each do |name|
+              puts "#{name}=#{claims[name] || "<unset>"}"
+            end
+          '
+
       - name: Load release secrets from Infisical
         if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
         uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
