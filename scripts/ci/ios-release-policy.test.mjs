@@ -152,6 +152,17 @@ test("external link reachability is advisory to the release gate", () => {
   assert.match(advisoryStep[1], /fail: false/);
 });
 
+test("iOS CI has enough time to finish the isolated UI suite", () => {
+  const ciWorkflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/ci.yml"),
+    "utf8",
+  );
+  const iosJob = ciWorkflow.match(/  ios:\n([\s\S]*?)(?=\n  required:)/);
+
+  assert.ok(iosJob, "expected the iOS CI job");
+  assert.match(iosJob[1], /timeout-minutes: 60/);
+});
+
 test("automatic releases classify the verified default-branch tip without executing repository code", () => {
   const releaseWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/release-ios.yml"),
