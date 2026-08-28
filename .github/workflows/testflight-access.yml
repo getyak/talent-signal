@@ -51,6 +51,23 @@ jobs:
               puts "#{name}=#{claims[name] || "<unset>"}"
             end
           '
+          oidc_token="$(printf '%s' "$token_response" | jq -r .value)"
+          http_status="$(curl --silent --show-error \
+            --output "$RUNNER_TEMP/infisical-oidc-response.json" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode "identityId=${{ vars.INFISICAL_TESTFLIGHT_IDENTITY_ID }}" \
+            --data-urlencode "jwt=$oidc_token" \
+            'https://app.infisical.com/api/v1/auth/oidc-auth/login')"
+          if [ "$http_status" = 200 ]; then
+            jq '{authenticated:(.accessToken | type == "string"), expiresIn}' \
+              "$RUNNER_TEMP/infisical-oidc-response.json"
+          else
+            echo "Infisical OIDC diagnostic status=$http_status"
+            jq 'del(.accessToken)' "$RUNNER_TEMP/infisical-oidc-response.json"
+            exit 1
+          fi
 
       - name: Load release secrets from Infisical
         if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
