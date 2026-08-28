@@ -596,14 +596,22 @@ struct StandaloneOnboardingView: View {
 
     private var textCapture: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(localized(
-                store.state.captureDraft?.sharedPayloadKind == nil
-                    ? "SIGNAL · EDITABLE"
-                    : "WORKING SIGNAL · EDITABLE"
-            ))
-            .font(.caption.weight(.bold))
-            .tracking(1)
-            .foregroundStyle(Color.tsMutedInk)
+            HStack(alignment: .firstTextBaseline) {
+                Text(localized(
+                    store.state.captureDraft?.sharedPayloadKind == nil
+                        ? "SIGNAL · EDITABLE"
+                        : "WORKING SIGNAL · EDITABLE"
+                ))
+                .font(.caption.weight(.bold))
+                .tracking(1)
+                .foregroundStyle(Color.tsMutedInk)
+                Spacer()
+                if signalTextFocused {
+                    Button(localized("Done")) { signalTextFocused = false }
+                        .font(.body.weight(.semibold))
+                        .accessibilityIdentifier("standalone-dismiss-signal-keyboard")
+                }
+            }
             TextEditor(
                 text: Binding(
                     get: { store.state.captureDraft?.text ?? "" },
@@ -618,13 +626,6 @@ struct StandaloneOnboardingView: View {
             .accessibilityLabel(localized("Signal text"))
             .accessibilityIdentifier("standalone-signal-text")
             .focused($signalTextFocused)
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button(localized("Done")) { signalTextFocused = false }
-                        .accessibilityIdentifier("standalone-dismiss-signal-keyboard")
-                }
-            }
             Button(localized("Use the showcase Signal")) {
                 store.updateDraftText(StandaloneDemoProposalCatalog.showcaseSignal)
             }
