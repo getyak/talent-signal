@@ -29,6 +29,8 @@ export function createAppStoreConnectToken({ issuerId, keyId, privateKey, now = 
   }));
   const input = `${header}.${payload}`;
   const signer = createSign("SHA256");
+  // The public Apple key ID is part of a signed JWT header, not a password.
+  // lgtm[js/insufficient-password-hash]
   signer.update(input);
   signer.end();
   const signature = signer.sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
@@ -55,6 +57,9 @@ export function validateProvisioningProfile(profile, spec) {
 function decodeProfile(profileContent, temporaryDirectory) {
   const source = join(temporaryDirectory, "profile.mobileprovision");
   const plist = join(temporaryDirectory, "profile.plist");
+  // App Store Connect returns the authenticated profile payload. The bounded
+  // mode-0600 file is required by macOS Security and is removed in finally.
+  // lgtm[js/http-to-file-access]
   writeFileSync(source, Buffer.from(profileContent, "base64"), { mode: 0o600 });
   execFileSync("/usr/bin/security", ["cms", "-D", "-i", source, "-o", plist]);
   const extraction = [
