@@ -1,6 +1,36 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Another Shortcut screenshot remains safely queued." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "另一张快捷指令截图仍安全地排队等待处理。" } } }
+    },
+    "Delete Queued Capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除排队中的捕获" } } }
+    },
+    "Delete queued Shortcut capture" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除排队中的快捷指令捕获" } } }
+    },
+    "Delete queued Shortcut capture?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除排队中的快捷指令捕获？" } } }
+    },
+    "Imported and queued Share or Shortcut sources remain listed here after reset until you delete them individually." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置后，已导入和排队中的分享或快捷指令来源仍会列在此处，直到你逐项删除。" } } }
+    },
+    "It remains protected on this device. Create a Pursuit to import it, or delete it now." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "它仍受保护地保存在此设备上。创建 Pursuit 以导入，或立即删除。" } } }
+    },
+    "Protected locally · not imported into a Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地受保护 · 尚未导入 Pursuit" } } }
+    },
+    "Shortcut screenshot queued" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷指令截图已排队" } } }
+    },
+    "Standalone content size" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独立流程文字尺寸" } } }
+    },
+    "This removes the protected screenshot waiting for a Pursuit. It does not delete the original image from Photos or Files." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会移除等待归入 Pursuit 的受保护截图，不会删除照片或文件中的原图。" } } }
+    },
     "Standalone appearance" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独立流程外观" } } }
     },

@@ -118,6 +118,7 @@ final class StandaloneOnboardingUITests: XCTestCase {
             "--standalone-onboarding-reset",
             "--force-dark",
             "--simulate-action-button",
+            "--standalone-clear-pending-shortcut-fixtures",
             "-AppleInterfaceStyle", "Dark",
             "-UIPreferredContentSizeCategoryName",
             "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
@@ -128,6 +129,9 @@ final class StandaloneOnboardingUITests: XCTestCase {
         let appearance = app.descendants(matching: .any)["standalone-appearance"]
         XCTAssertTrue(appearance.waitForExistence(timeout: 5))
         XCTAssertEqual(appearance.value as? String, "dark")
+        let contentSize = app.descendants(matching: .any)["standalone-content-size"]
+        XCTAssertTrue(contentSize.waitForExistence(timeout: 5))
+        XCTAssertEqual(contentSize.value as? String, "accessibility")
 
         tap("standalone-demo-user", in: app)
         tap("standalone-create-pursuit", in: app)
@@ -219,6 +223,58 @@ final class StandaloneOnboardingUITests: XCTestCase {
             app.staticTexts["standalone-no-retained-sources"]
                 .waitForExistence(timeout: 5)
         )
+    }
+
+    @MainActor
+    func testQueuedShortcutRetriesAfterPursuitCreationAndLeavesNoHiddenQueue() {
+        let fixtureID = UUID()
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--standalone-onboarding-reset",
+            "--standalone-clear-pending-shortcut-fixtures",
+            "--standalone-pending-shortcut-fixture", fixtureID.uuidString,
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["standalone-queued-shortcut-source"]
+                .waitForExistence(timeout: 5)
+        )
+        tap("standalone-demo-user", in: app)
+        tap("standalone-create-pursuit", in: app)
+
+        XCTAssertTrue(app.textViews["standalone-signal-text"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["SHARE SHEET SOURCE"].exists)
+        XCTAssertFalse(
+            app.descendants(matching: .any)["standalone-queued-shortcut-source"].exists
+        )
+    }
+
+    @MainActor
+    func testFreshWelcomeCanDeleteQueuedShortcutCaptureAfterReset() {
+        let fixtureID = UUID()
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--standalone-onboarding-reset",
+            "--standalone-clear-pending-shortcut-fixtures",
+            "--standalone-pending-shortcut-fixture", fixtureID.uuidString,
+        ]
+        app.launch()
+
+        let queuedSource = app.descendants(matching: .any)["standalone-queued-shortcut-source"]
+        XCTAssertTrue(queuedSource.waitForExistence(timeout: 5))
+        let delete = app.buttons["Delete Queued Capture"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        if !delete.isHittable { app.swipeUp() }
+        XCTAssertTrue(delete.isHittable)
+        delete.tap()
+
+        let confirm = app.alerts["Delete queued Shortcut capture?"]
+            .buttons["Delete Queued Capture"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+
+        XCTAssertFalse(queuedSource.waitForExistence(timeout: 2))
     }
 
     @MainActor

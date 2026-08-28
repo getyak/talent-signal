@@ -24,7 +24,7 @@ struct StandaloneOnboardingView: View {
     @ObservedObject private var intentRouter = CaptureIntentRouter.shared
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appLanguage) private var appLanguage
     @FocusState private var signalTextFocused: Bool
@@ -42,9 +42,13 @@ struct StandaloneOnboardingView: View {
     @State private var pendingSharedCaptureDeletion: SharedCaptureEnvelope?
     @State private var retainedSharedCaptures: [SharedCaptureEnvelope] = []
     @State private var sharedCaptureNotice: String?
+    @State private var showsWelcomeQueuedShortcutDeletion = false
+    @State private var showsSettingsQueuedShortcutDeletion = false
 
     private let forceDemoEngine: Bool
     private let simulatesActionButton: Bool
+    private let pendingShortcutFixtureID: UUID?
+    private let clearsPendingShortcutFixtures: Bool
     private let initialURL: URL?
 
     init(
@@ -60,7 +64,24 @@ struct StandaloneOnboardingView: View {
             || arguments.contains("--standalone-demo")
         simulatesActionButton = arguments.contains("--simulate-action-button")
             || arguments.contains("--standalone-demo")
+#if DEBUG
+        pendingShortcutFixtureID = Self.value(
+            after: "--standalone-pending-shortcut-fixture",
+            in: arguments
+        ).flatMap(UUID.init(uuidString:))
+        clearsPendingShortcutFixtures = arguments.contains(
+            "--standalone-clear-pending-shortcut-fixtures"
+        )
+#else
+        pendingShortcutFixtureID = nil
+        clearsPendingShortcutFixtures = false
+#endif
         self.initialURL = initialURL
+    }
+
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize
+            || UIApplication.shared.preferredContentSizeCategory.isAccessibilityCategory
     }
 
     var body: some View {
@@ -72,6 +93,14 @@ struct StandaloneOnboardingView: View {
                 .accessibilityLabel(localized("Standalone appearance"))
                 .accessibilityValue(colorScheme == .dark ? "dark" : "light")
                 .accessibilityIdentifier("standalone-appearance")
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel(localized("Standalone content size"))
+                .accessibilityValue(
+                    usesAccessibilityLayout ? "accessibility" : "standard"
+                )
+                .accessibilityIdentifier("standalone-content-size")
             VStack(spacing: 0) {
                 if store.state.route != .today {
                     progressHeader
@@ -82,7 +111,7 @@ struct StandaloneOnboardingView: View {
                         .padding(.horizontal, 22)
                         .padding(
                             .top,
-                            store.state.route == .today && sizeCategory.isAccessibilityCategory ? 12 : 24
+                            store.state.route == .today && usesAccessibilityLayout ? 12 : 24
                         )
                         .padding(.bottom, 40)
                 }
@@ -135,6 +164,11 @@ struct StandaloneOnboardingView: View {
         }
         .onChange(of: store.state.pursuit?.id) { _ in
             importNextSharedCapture()
+            Task {
+                await captureHandoff.restorePendingCapture()
+                captureHandoff.resume()
+                await importPendingIntentCapture()
+            }
         }
         .onChange(of: intentRouter.request) { request in
             guard let request else { return }
@@ -163,6 +197,9 @@ struct StandaloneOnboardingView: View {
                 importNextSharedCapture()
                 consumeLiveActivityStopRequestIfNeeded()
                 Task {
+                    await captureHandoff.restorePendingCapture()
+                    captureHandoff.resume()
+                    await importPendingIntentCapture()
                     await voiceService.reconcileOrphanedLiveActivities()
                     await calendarService.refresh()
                 }
@@ -171,8 +208,11 @@ struct StandaloneOnboardingView: View {
             }
         }
         .task {
+            await clearPendingShortcutFixturesIfNeeded()
+            await seedPendingShortcutFixtureIfNeeded()
             importNextSharedCapture()
             await CaptureHandoffStore.shared.restorePendingCapture()
+            captureHandoff.resume()
             await importPendingIntentCapture()
             await voiceService.reconcileOrphanedLiveActivities()
             calendarService.restoreSelection(Set(store.state.selectedCalendarIDs))
@@ -184,6 +224,17 @@ struct StandaloneOnboardingView: View {
         }
         .sheet(isPresented: $showsSettings) {
             standaloneSettings
+        }
+        .alert(
+            localized("Delete queued Shortcut capture?"),
+            isPresented: $showsWelcomeQueuedShortcutDeletion
+        ) {
+            Button(localized("Cancel"), role: .cancel) {}
+            Button(localized("Delete Queued Capture"), role: .destructive) {
+                Task { await deletePendingShortcutCapture() }
+            }
+        } message: {
+            Text(localized("This removes the protected screenshot waiting for a Pursuit. It does not delete the original image from Photos or Files."))
         }
         .onOpenURL { url in
             handleDeepLink(url)
@@ -285,6 +336,23 @@ struct StandaloneOnboardingView: View {
             }
             .buttonStyle(TSSecondaryButtonStyle())
             .accessibilityIdentifier("standalone-manage-retained-sources")
+            if captureHandoff.savedSeed != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(localized("Shortcut screenshot queued"), systemImage: "lock.doc")
+                        .font(.body.weight(.semibold))
+                    Text(localized("It remains protected on this device. Create a Pursuit to import it, or delete it now."))
+                        .font(.footnote)
+                        .foregroundStyle(Color.tsMutedInk)
+                    Button(localized("Delete Queued Capture"), role: .destructive) {
+                        showsWelcomeQueuedShortcutDeletion = true
+                    }
+                    .accessibilityIdentifier("standalone-delete-queued-shortcut-welcome")
+                }
+                .padding(14)
+                .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).stroke(Color.tsLine) }
+                .accessibilityIdentifier("standalone-queued-shortcut-source")
+            }
 #if DEBUG
             Button(localized("Continue as Demo User")) {
                 store.begin(displayName: "Demo Recruiter", demoAccount: true)
@@ -842,12 +910,12 @@ struct StandaloneOnboardingView: View {
     }
 
     private var today: some View {
-        VStack(alignment: .leading, spacing: sizeCategory.isAccessibilityCategory ? 16 : 22) {
+        VStack(alignment: .leading, spacing: usesAccessibilityLayout ? 16 : 22) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(localized("Today"))
-                        .font(sizeCategory.isAccessibilityCategory ? .title2.bold() : .largeTitle.bold())
-                    if !sizeCategory.isAccessibilityCategory {
+                        .font(usesAccessibilityLayout ? .title2.bold() : .largeTitle.bold())
+                    if !usesAccessibilityLayout {
                         Text(localized("One supported move, with its evidence still attached."))
                             .font(.body)
                         .foregroundStyle(Color.tsMutedInk)
@@ -863,12 +931,12 @@ struct StandaloneOnboardingView: View {
                 .accessibilityIdentifier("standalone-open-settings")
             }
             if let pursuit = store.state.pursuit, let progress = store.state.progress {
-                VStack(alignment: .leading, spacing: sizeCategory.isAccessibilityCategory ? 14 : 18) {
+                VStack(alignment: .leading, spacing: usesAccessibilityLayout ? 14 : 18) {
                     Text(pursuit.outcome)
-                        .font(sizeCategory.isAccessibilityCategory ? .headline.bold() : .title2.bold())
+                        .font(usesAccessibilityLayout ? .headline.bold() : .title2.bold())
                         .accessibilityIdentifier("standalone-today-primary-card")
                     Button { todayDetail = .source } label: {
-                        if sizeCategory.isAccessibilityCategory {
+                        if usesAccessibilityLayout {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(localized(sourceEvidenceLabel))
                                     .font(.caption.weight(.semibold))
@@ -921,7 +989,7 @@ struct StandaloneOnboardingView: View {
                 LazyVGrid(
                     columns: Array(
                         repeating: GridItem(.flexible(), spacing: 10),
-                        count: sizeCategory.isAccessibilityCategory ? 1 : 2
+                        count: usesAccessibilityLayout ? 1 : 2
                     ),
                     spacing: 10
                 ) {
@@ -952,6 +1020,20 @@ struct StandaloneOnboardingView: View {
                     .accessibilityIdentifier("standalone-reset-demo-data")
                 }
                 Section(localized("Retained imported sources")) {
+                    if captureHandoff.savedSeed != nil {
+                        Button(role: .destructive) {
+                            showsSettingsQueuedShortcutDeletion = true
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(localized("Delete queued Shortcut capture"))
+                                Text(localized("Protected locally · not imported into a Pursuit"))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.tsMutedInk)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .accessibilityIdentifier("standalone-delete-queued-shortcut-settings")
+                    }
                     if retainedSharedCaptures.isEmpty {
                         Text(localized("No retained Share or Shortcut sources"))
                             .foregroundStyle(Color.tsMutedInk)
@@ -978,7 +1060,7 @@ struct StandaloneOnboardingView: View {
                 }
                 Section("Boundary") {
                     Text(localized("Reset removes only standalone local onboarding records. It does not change Calendar permissions or user events."))
-                    Text(localized("Imported Share and Shortcut sources remain listed here after reset until you delete them individually."))
+                    Text(localized("Imported and queued Share or Shortcut sources remain listed here after reset until you delete them individually."))
                 }
             }
             .onAppear {
@@ -1007,6 +1089,18 @@ struct StandaloneOnboardingView: View {
                 }
             } message: {
                 Text(localized("This removes the retained Share or Shortcut item and the local Draft, Proposal, and verified progress derived from it. It does not delete the original item from the source app."))
+            }
+            .confirmationDialog(
+                localized("Delete queued Shortcut capture?"),
+                isPresented: $showsSettingsQueuedShortcutDeletion,
+                titleVisibility: .visible
+            ) {
+                Button(localized("Delete Queued Capture"), role: .destructive) {
+                    Task { await deletePendingShortcutCapture() }
+                }
+                Button(localized("Cancel"), role: .cancel) {}
+            } message: {
+                Text(localized("This removes the protected screenshot waiting for a Pursuit. It does not delete the original image from Photos or Files."))
             }
         }
     }
@@ -1265,6 +1359,55 @@ struct StandaloneOnboardingView: View {
         }
     }
 
+    @MainActor
+    private func deletePendingShortcutCapture() async {
+        guard let seed = captureHandoff.savedSeed else { return }
+        do {
+            try await PendingCaptureInbox.shared.remove(id: seed.id)
+            await captureHandoff.advanceToNextCapture()
+            captureHandoff.resume()
+            sharedCaptureNotice = captureHandoff.savedSeed == nil
+                ? nil
+                : localized("Another Shortcut screenshot remains safely queued.")
+        } catch {
+            sharedCaptureNotice = "The queued Shortcut screenshot was not deleted: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func seedPendingShortcutFixtureIfNeeded() async {
+#if DEBUG
+        guard let pendingShortcutFixtureID else { return }
+        do {
+            let data = Data(
+                "synthetic-pending-shortcut-\(pendingShortcutFixtureID.uuidString)".utf8
+            )
+            let seed = try await PendingCaptureInbox.shared.stage(
+                imageData: data,
+                fileName: "synthetic-pending-shortcut.png",
+                mediaType: "image/png",
+                origin: .appShortcut
+            )
+            captureHandoff.present(seed)
+        } catch {
+            sharedCaptureNotice = "The synthetic queued Shortcut fixture could not be prepared: \(error.localizedDescription)"
+        }
+#endif
+    }
+
+    @MainActor
+    private func clearPendingShortcutFixturesIfNeeded() async {
+#if DEBUG
+        guard clearsPendingShortcutFixtures else { return }
+        do {
+            try await PendingCaptureInbox.shared.removeAllForTesting()
+            await captureHandoff.advanceToNextCapture()
+        } catch {
+            sharedCaptureNotice = "The synthetic Shortcut fixture queue could not be cleared: \(error.localizedDescription)"
+        }
+#endif
+    }
+
     private func finishVoiceRecording() async {
         if let transcript = await voiceService.stopAndTranscribe() {
             store.updateDraftText(transcript)
@@ -1308,6 +1451,12 @@ struct StandaloneOnboardingView: View {
         case .text: return localized("Delete retained text source")
         case .url: return localized("Delete retained URL source")
         }
+    }
+
+    private static func value(after flag: String, in arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: flag),
+              arguments.indices.contains(index + 1) else { return nil }
+        return arguments[index + 1]
     }
 
     private func handleDeepLink(_ url: URL) {
