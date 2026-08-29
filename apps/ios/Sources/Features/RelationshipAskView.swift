@@ -245,6 +245,11 @@ private struct VoiceRecordButtonHalo: View {
     }
 }
 
+enum RelationshipAskCaptureAction: Equatable, Sendable {
+    case screenshotReview
+    case foregroundAudio
+}
+
 @MainActor
 struct RelationshipAskView: View {
     let snapshot: PursuitWorkspaceSnapshot
@@ -277,7 +282,7 @@ struct RelationshipAskView: View {
     ) async throws -> PursuitEvidenceReviewResult
     let revalidateSessions: () async -> Void
     let onOpenProposal: (WorkspaceProposal) -> Void
-    let onCapture: (CaptureIntentDestination?) -> Void
+    let onCapture: (RelationshipAskCaptureAction) -> Void
     let onOpenPerson: (String) -> Void
     let voiceTranscriber: (any VoiceTranscriptionServing)?
 
@@ -500,11 +505,14 @@ struct RelationshipAskView: View {
                     )
                 }
             }
+            restoreContactProposal()
             restoreDraft(preferred: initialSeed?.suggestedObjective)
             if sessionID == nil,
                initialSeed == nil,
                contactDraft == nil,
-               !voiceOverEnabled {
+               !voiceOverEnabled,
+               !dynamicTypeSize.isAccessibilitySize,
+               !sizeCategory.isAccessibilityCategory {
                 await Task.yield()
                 composerFocused = true
             }
@@ -710,7 +718,7 @@ struct RelationshipAskView: View {
             .accessibilityIdentifier("ask-scope-no-results")
         } else if dynamicTypeSize.isAccessibilitySize
                     || sizeCategory.isAccessibilityCategory {
-            LazyVStack(spacing: 8) {
+            VStack(spacing: 8) {
                 ForEach(filteredScopes) { scope in
                     scopeOption(scope, fillsWidth: true)
                 }
@@ -1078,12 +1086,10 @@ struct RelationshipAskView: View {
         .disabled(
             isSending
                 || isInterpretingContact
-                || (selectedScope != nil && !isCanonical)
         )
         .opacity(
             isSending
                 || isInterpretingContact
-                || (selectedScope != nil && !isCanonical)
                 ? 0.58
                 : 1
         )
@@ -1135,37 +1141,26 @@ struct RelationshipAskView: View {
                 .accessibilityIdentifier("ask-media-notice")
             }
 
-            HStack(alignment: .bottom, spacing: 8) {
-                PhotosPicker(
-                    selection: $selectedPhotoItems,
-                    maxSelectionCount: 10,
-                    matching: .images
-                ) {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.tsInk)
-                        .frame(
-                            width: controlSize,
-                            height: controlSize
-                        )
-                        .background(Color.tsCanvas, in: Circle())
-                }
-                .disabled(
-                    voiceInput.isBusy
-                        || isSending
-                        || hasBlockingContactProposal
-                        || mediaDrafts.count >= 10
-                        || selectedScope == nil
-                )
-                .accessibilityLabel(
-                    appLanguage.text("Add photos")
-                )
-                .accessibilityHint(
+            HStack(alignment: .top, spacing: 7) {
+                Image(systemName: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityHidden(true)
+                Text(
                     appLanguage.text(
-                        "Choose up to ten task images. Selection alone does not make them evidence."
+                        "When you tap Send, your question and the minimum reviewed relationship context may be processed by Zhipu AI. Photos are not sent. No contact, message, or calendar change is made."
                     )
                 )
-                .accessibilityIdentifier("ask-add-photos")
+                .font(.caption2)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("ask-remote-ai-disclosure")
+
+            HStack(alignment: .bottom, spacing: 8) {
+                composerAttachmentControl(size: controlSize)
 
                 TextField(
                     composerPlaceholder,
@@ -1225,6 +1220,62 @@ struct RelationshipAskView: View {
             reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
             value: voiceInput.phase
         )
+    }
+
+    @ViewBuilder
+    private func composerAttachmentControl(size: CGFloat) -> some View {
+        if selectedScope == nil {
+            Button {
+                composerFocused = false
+                onCapture(.screenshotReview)
+            } label: {
+                composerAttachmentIcon(size: size)
+            }
+            .buttonStyle(.plain)
+            .disabled(
+                voiceInput.isBusy
+                    || isSending
+                    || isInterpretingContact
+                    || hasBlockingContactProposal
+            )
+            .accessibilityLabel(appLanguage.text("Review screenshot"))
+            .accessibilityHint(
+                appLanguage.text(
+                    "Choose a conversation screenshot. Identity and relationship stay unconfirmed until review."
+                )
+            )
+            .accessibilityIdentifier("ask-review-screenshot")
+        } else {
+            PhotosPicker(
+                selection: $selectedPhotoItems,
+                maxSelectionCount: 10,
+                matching: .images
+            ) {
+                composerAttachmentIcon(size: size)
+            }
+            .disabled(
+                voiceInput.isBusy
+                    || isSending
+                    || isInterpretingContact
+                    || hasBlockingContactProposal
+                    || mediaDrafts.count >= 10
+            )
+            .accessibilityLabel(appLanguage.text("Add photos"))
+            .accessibilityHint(
+                appLanguage.text(
+                    "Choose up to ten task images. Selection alone does not make them evidence."
+                )
+            )
+            .accessibilityIdentifier("ask-add-photos")
+        }
+    }
+
+    nonisolated private func composerAttachmentIcon(size: CGFloat) -> some View {
+        Image(systemName: "paperclip")
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(Color.tsInk)
+            .frame(width: size, height: size)
+            .background(Color.tsCanvas, in: Circle())
     }
 
     private var composerControlSize: CGFloat {
@@ -1447,6 +1498,10 @@ struct RelationshipAskView: View {
             return appLanguage.text("Understanding this message…")
         }
         if !trimmedDraft.isEmpty {
+            if selectedScope == nil,
+               ConversationContactIntake.propose(trimmedDraft) == nil {
+                return appLanguage.text("Choose a relationship for this message")
+            }
             return appLanguage.text("Send")
         }
         if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
@@ -1582,7 +1637,6 @@ struct RelationshipAskView: View {
             && !isSending
             && !isInterpretingContact
             && !isSavingContact
-            && isCanonical
             && mediaDrafts.allSatisfy { $0.phase == .ready }
     }
 
@@ -1810,7 +1864,20 @@ struct RelationshipAskView: View {
             requestRelationshipScope()
             return
         }
-        guard mediaIDs.count == mediaDrafts.count else { return }
+        guard isCanonical else {
+            errorMessage = appLanguage.text(
+                "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
+            )
+            composerFocused = false
+            return
+        }
+        guard mediaIDs.count == mediaDrafts.count else {
+            errorMessage = appLanguage.text(
+                "Wait for every photo to finish uploading, or remove the failed photo. Your question is still here."
+            )
+            composerFocused = false
+            return
+        }
         errorMessage = nil
         pendingObjective = trimmed
         isSending = true
@@ -2309,6 +2376,24 @@ struct RelationshipAskView: View {
         case nil:
             break
         }
+    }
+
+    private func restoreContactProposal() {
+        guard sessionID == nil,
+              initialSeed == nil,
+              contactDraft == nil,
+              let restoredDraft = sessionStore.contactProposalDraft else {
+            return
+        }
+        contactDraft = restoredDraft
+        contactOperationKey = sessionStore.contactProposalOperationKey
+        pendingContactTarget = sessionStore.contactProposalPendingTarget
+        pendingContactCapturedAt = sessionStore.contactProposalCapturedAt
+        pendingContactConfirmIdentityClue =
+            sessionStore.contactProposalPendingConfirmIdentityClue
+        confirmContactIdentityClue = restoredDraft.identityClue != nil
+        restorePendingContactChoice()
+        startContactLookup(for: restoredDraft)
     }
 
     private func initials(_ name: String) -> String {
@@ -3761,7 +3846,7 @@ private struct AskTurnView: View {
                                             Text(citation.sourceName)
                                                 .font(.caption.weight(.semibold))
                                                 .foregroundStyle(Color.tsInk)
-                                            Text(citation.compactProvenance)
+                                            Text(citation.compactProvenance(in: language))
                                                 .font(.caption2)
                                                 .foregroundStyle(Color.tsMutedInk)
                                         }
@@ -3776,8 +3861,8 @@ private struct AskTurnView: View {
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(
                                     language.text(
-                                        "Evidence from \(citation.sourceName), \(citation.compactProvenance)",
-                                        zhHans: "来自 \(citation.sourceName) 的证据，\(citation.compactProvenance)"
+                                        "Evidence from \(citation.sourceName), \(citation.compactProvenance(in: language))",
+                                        zhHans: "来自 \(citation.sourceName) 的证据，\(citation.compactProvenance(in: language))"
                                     )
                                 )
                                 .accessibilityHint(
@@ -4269,11 +4354,11 @@ private struct AskEvidenceReviewHistoryView: View {
 }
 
 extension RelationshipAskResponse.Citation {
-    var compactProvenance: String {
+    func compactProvenance(in language: AppLanguage) -> String {
         let day = observedDate.map { date in
             Self.observedDateFormatter(timeZone: resolvedSourceTimeZone).string(from: date)
         } ?? String(observedAt.prefix(10))
-        return "\(day) · \(attribution.actorKind.humanized) · \(reviewStatus.humanized)"
+        return "\(day) · \(language.workspaceValue(attribution.actorKind)) · \(language.workspaceValue(reviewStatus))"
     }
 
     var detailedObservedAt: String {
@@ -4351,7 +4436,7 @@ private struct AskCitationDetailView: View {
                         Text(citation.sourceName)
                             .font(.custom("Georgia", size: 28, relativeTo: .title2))
                             .foregroundStyle(Color.tsInk)
-                        Text(citation.compactProvenance)
+                        Text(citation.compactProvenance(in: language))
                             .font(.caption)
                             .foregroundStyle(Color.tsMutedInk)
                     }
@@ -4373,11 +4458,11 @@ private struct AskCitationDetailView: View {
                         )
                         citationLine(
                             language.text("Source state", zhHans: "来源状态"),
-                            "\(citation.reviewStatus.humanized) · capture v\(citation.captureVersion)"
+                            "\(language.workspaceValue(citation.reviewStatus)) · capture v\(citation.captureVersion)"
                         )
                         citationLine(
                             language.text("Attribution", zhHans: "归属"),
-                            "\(citation.attribution.actorKind.humanized) · \(citation.attribution.status.humanized)"
+                            "\(language.workspaceValue(citation.attribution.actorKind)) · \(language.workspaceValue(citation.attribution.status))"
                         )
                         if let reviewer = citation.lastReviewedBy {
                             citationLine(

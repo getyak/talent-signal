@@ -99,11 +99,11 @@ retrieval destination. Pursuit rooms remain directly reachable without
 competing for primary navigation. Evidence opens from its claim or record;
 Today stays sparse with one lead dependency and a complete no-action state.
 
-The Agent is a contextual threshold; Sessions retrieves conversations it has
-handled without owning relationship truth or execution authority. On mobile,
-Ask begins with one compact composer; scope, prompts, capture, and record
-navigation appear after intent. Capture accepts text, one image, or foreground
-voice before the Agent proposes structure; consequential review stays explicit.
+The Agent is a contextual threshold; Sessions retrieves conversations without
+owning truth or execution authority. On mobile, familiar top navigation owns
+retrieval and one bottom global composer owns intent; never combine them.
+Scope, capture, and record navigation follow intent. Text, one image, or voice
+becomes proposed structure before consequential review stays explicit.
 
 ## Agent-operated relationship workspace
 

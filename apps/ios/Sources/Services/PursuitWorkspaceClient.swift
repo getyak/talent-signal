@@ -35,7 +35,7 @@ struct PursuitWorkspaceSession: Equatable {
             userEmail: value(after: "--workspace-user-email", in: arguments)
                 ?? "recruiter@alpha.local",
             accessToken: nil,
-            accountID: nil,
+            accountID: value(after: "--workspace-account-id", in: arguments),
             userID: nil,
             userDisplayName: nil
         )

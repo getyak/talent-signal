@@ -13,10 +13,13 @@ import {
 } from "react";
 
 import { resolveAgentUiCommand } from "@/lib/agent-ui-command";
+import {
+  proposeAgentContactDraft,
+  type AgentContactDraft,
+} from "@/lib/agent-contact-intake";
 import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
 
-const DEFAULT_OBJECTIVE =
-  "What should I remember and do before the next conversation?";
+const DEFAULT_OBJECTIVE = "";
 const DRAFT_PREFIX = "talent-signal:relationship-agent-draft:v1";
 const DRAFT_EVENT = "talent-signal:relationship-agent-draft";
 
@@ -27,6 +30,7 @@ export type RelationshipAgentOperation = {
 };
 
 type ConversationState = {
+  contactDraft: AgentContactDraft | null;
   createOpen: boolean;
   key: string;
   operation: RelationshipAgentOperation | null;
@@ -36,6 +40,7 @@ type ConversationState = {
 
 function emptyConversation(key: string): ConversationState {
   return {
+    contactDraft: null,
     createOpen: false,
     key,
     operation: null,
@@ -210,6 +215,7 @@ export function useRelationshipAgentController({
 
   function clearStoredDraft() {
     if (!scopeKey) {
+      setVolatileDraft({ key: conversationKey, value: DEFAULT_OBJECTIVE });
       return;
     }
     try {
@@ -253,7 +259,10 @@ export function useRelationshipAgentController({
   }
 
   function setCreateOpen(next: boolean) {
-    updateConversation({ createOpen: next });
+    updateConversation({
+      contactDraft: next ? currentConversation.contactDraft : null,
+      createOpen: next,
+    });
   }
 
   function setOperation(
@@ -277,8 +286,10 @@ export function useRelationshipAgentController({
     detail: string,
     status: RelationshipAgentOperation["status"],
     submitted = objective.trim(),
+    contactDraft: AgentContactDraft | null = null,
   ) {
     updateConversation({
+      contactDraft,
       operation: { detail, status, title },
       response: null,
       submittedObjective: submitted,
@@ -292,12 +303,17 @@ export function useRelationshipAgentController({
     const submitted = commandObjective.trim();
 
     if (command === "create_person") {
-      setCreateOpen(true);
+      const contactDraft = proposeAgentContactDraft(submitted);
+      updateConversation({
+        contactDraft,
+        createOpen: true,
+      });
       stageOperation(
         "Contact creation staged",
-        "Complete the explicit person, relationship context, and first governed source. Nothing is created until you submit that reviewable form.",
+        "I prepared a reviewable contact draft and will check this account for an existing person before creation is available.",
         "staged",
         submitted,
+        contactDraft,
       );
       onAnnouncement("Agent opened a governed contact draft.");
       return true;
@@ -379,10 +395,37 @@ export function useRelationshipAgentController({
   }
 
   async function ask() {
-    if (!scope || !objective.trim()) {
+    if (!objective.trim()) return;
+    const submitted = objective.trim();
+    const contactDraft = proposeAgentContactDraft(submitted);
+    if (contactDraft) {
+      updateConversation({
+        contactDraft,
+        createOpen: true,
+        operation: {
+          detail:
+            "I extracted only the visible identity and relationship clues. Account-scoped matching runs before create or attach becomes available.",
+          status: "staged",
+          title: contactDraft.name
+            ? `Contact draft prepared for ${contactDraft.name}`
+            : "Contact draft needs a name",
+        },
+        response: null,
+        submittedObjective: submitted,
+      });
+      requestRef.current = null;
+      clearStoredDraft();
+      onAnnouncement(
+        "Agent prepared a contact draft. Nothing has been created.",
+      );
       return;
     }
-    const submitted = objective.trim();
+    if (!scope) {
+      onError(
+        "Start with a person update, for example “Add Maya Chen for the CPO search…”, or open an existing relationship before asking a scoped question.",
+      );
+      return;
+    }
     if (runUiCommand(submitted)) {
       return;
     }
@@ -476,6 +519,7 @@ export function useRelationshipAgentController({
   return {
     ask,
     clearGeneratedArtifacts,
+    contactDraft: currentConversation.contactDraft,
     createOpen: currentConversation.createOpen,
     objective,
     operation: currentConversation.operation,

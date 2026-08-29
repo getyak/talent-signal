@@ -106,3 +106,20 @@ compact inputs, bilingual labels, Session reopening, unread projections, and
 reduced-motion navigation. Focused unit and UI checks passed. The durable
 backend Session contract and physical-device accessibility proof remain the
 explicit next boundary, not hidden implementation debt in this slice.
+
+## 2026-08-28 populated-response refinement
+
+The same compact entry now continues into a quieter evidence-bound conversation
+instead of changing visual language after the Agent replies. User prompts are
+short IM-style bubbles; controlled response headings and provenance localize
+without translating exact evidence; review state is visible in text and symbol;
+and accessibility-size responses begin at the new turn rather than its tail.
+Persistent relationship chrome is compact at AX5 while its complete value stays
+available to assistive technology. The existing top navigation and bottom global
+Agent entry remain unchanged.
+
+Proof: three fixture-backed UI tests cover the standard answer/evidence dispute,
+Chinese dark AX5 populated answer, and AX5 empty session; one unit test covers
+source-timezone and localized provenance behavior. Release build, localization
+boundary, and visual inspection passed. The result bundle is
+`/tmp/talent-signal-ios-ask-response-final3.xcresult`.

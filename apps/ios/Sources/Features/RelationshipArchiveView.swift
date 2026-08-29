@@ -47,15 +47,44 @@ struct RelationshipArchiveView: View {
                 } ?? UserDefaultsPursuitActionCompletionStore()
             )
         )
-        _sessionStore = StateObject(
-            wrappedValue: resolvedService == nil
-                ? AgentSessionStore.preview(snapshot: .preview)
-                : AgentSessionStore(
-                    persistence: session?.accountID.map {
-                        FileAgentSessionPersistence(accountID: $0)
-                    }
-                )
+        let resolvedSessionStore: AgentSessionStore
+#if DEBUG
+        let usesPersistentPreview = ProcessInfo.processInfo.arguments.contains(
+            "--persist-preview-agent"
         )
+        if resolvedService == nil, usesPersistentPreview {
+            let previewStore = AgentSessionStore(
+                persistence: FileAgentSessionPersistence(
+                    accountID: "ui-test-preview-agent"
+                )
+            )
+            if ProcessInfo.processInfo.arguments.contains(
+                "--reset-preview-agent"
+            ) {
+                _ = previewStore.deleteAll()
+            }
+            resolvedSessionStore = previewStore
+        } else if resolvedService == nil {
+            resolvedSessionStore = AgentSessionStore.preview(snapshot: .preview)
+        } else {
+            resolvedSessionStore = AgentSessionStore(
+                persistence: session?.accountID.map {
+                    FileAgentSessionPersistence(accountID: $0)
+                }
+            )
+        }
+#else
+        if resolvedService == nil {
+            resolvedSessionStore = AgentSessionStore.preview(snapshot: .preview)
+        } else {
+            resolvedSessionStore = AgentSessionStore(
+                persistence: session?.accountID.map {
+                    FileAgentSessionPersistence(accountID: $0)
+                }
+            )
+        }
+#endif
+        _sessionStore = StateObject(wrappedValue: resolvedSessionStore)
         reviewBaseURL = session?.baseURL
         authenticatedAccessToken = session?.accessToken
         accountEmail = session?.userEmail
@@ -218,18 +247,24 @@ struct RelationshipArchiveView: View {
                             capturePresentation = nil
                         },
                         onCapture: { destination in
-                            deferredIntakePresentation = .init(
-                                initialDestination: destination
-                            )
+                            switch destination {
+                            case .screenshotReview:
+                                deferredCapturePresentation = .screenshot
+                            case .foregroundAudio:
+                                deferredIntakePresentation = .init(
+                                    initialDestination: .foregroundAudio
+                                )
+                            }
                             capturePresentation = nil
                         },
                         onOpenPerson: { personID in
-                            guard let person = snapshot.people.first(where: {
+                            guard let currentSnapshot = workspaceStore.snapshot,
+                                  let person = currentSnapshot.people.first(where: {
                                 $0.id == personID
                             }) else { return }
                             deferredArchiveSheet = .workspacePerson(
                                 person,
-                                roles(for: person.id, in: snapshot)
+                                roles(for: person.id, in: currentSnapshot)
                             )
                             capturePresentation = nil
                         },
@@ -243,6 +278,7 @@ struct RelationshipArchiveView: View {
                     backendURL: reviewBaseURL,
                     accessToken: authenticatedAccessToken,
                     workspaceID: workspaceStore.snapshot?.workspaceID,
+                    entryMode: .conversationImage,
                     onClose: { capturePresentation = nil },
                     onContinueInAgent: continueCaptureInAgent
                 )
@@ -334,6 +370,15 @@ struct RelationshipArchiveView: View {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--deterministic-voice-input") {
             return DeterministicVoiceTranscriber()
+        }
+        if let baseURL = reviewBaseURL,
+           URLFixtureLoader.isLoopback(baseURL),
+           authenticatedAccessToken == nil {
+            return URLSimulatedVoiceTranscriptionClient(
+                baseURL: baseURL,
+                accountSlug: workspaceLabel ?? "fixture-alpha",
+                userEmail: accountEmail ?? "recruiter@alpha.local"
+            )
         }
 #endif
         return reviewBaseURL.flatMap { baseURL in
@@ -1022,11 +1067,13 @@ private struct TodayUnreadSessionRow: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(session.title)
+                    Text(session.displayTitle(in: appLanguage))
                         .font(.headline)
                         .foregroundStyle(Color.tsInk)
                         .lineLimit(1)
-                    Text("\(session.personDisplayLabel) · \(session.contextDisplayLabel)")
+                    Text(
+                        "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
+                    )
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
                         .lineLimit(1)
@@ -1050,8 +1097,8 @@ private struct TodayUnreadSessionRow: View {
         .buttonStyle(.plain)
         .accessibilityLabel(
             appLanguage.text(
-                "Unread session: \(session.title), \(session.personDisplayLabel)",
-                zhHans: "未读会话：\(session.title)，\(session.personDisplayLabel)"
+                "Unread session: \(session.displayTitle(in: appLanguage)), \(session.personDisplayLabel)",
+                zhHans: "未读会话：\(session.displayTitle(in: appLanguage))，\(session.personDisplayLabel)"
             )
         )
         .accessibilityIdentifier("today-unread-session")
@@ -1077,7 +1124,7 @@ private struct TodayFocusCard: View {
                 )
                 Spacer(minLength: 10)
                 if let due = item.due {
-                    Text(due)
+                    Text(appLanguage.dueDate(due))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.tsMutedInk)
                 }
@@ -1129,8 +1176,8 @@ private struct TodayFocusCard: View {
                 if let owner = item.owner {
                     Label(owner, systemImage: "person")
                 }
-                if let evidence = item.evidenceFreshness {
-                    Label(shortEvidence(evidence), systemImage: "link")
+                if let evidence = localizedEvidenceSummary {
+                    Label(evidence, systemImage: "link")
                 }
             }
             .font(.caption)
@@ -1207,6 +1254,18 @@ private struct TodayFocusCard: View {
     private func shortEvidence(_ value: String) -> String {
         value.components(separatedBy: " · ").first ?? value
     }
+
+    private var localizedEvidenceSummary: String? {
+        if let observedAt = item.evidenceObservedAt {
+            return shortEvidence(
+                appLanguage.evidenceFreshness(
+                    observedAt: observedAt,
+                    sourceTimezone: item.evidenceSourceTimezone
+                )
+            )
+        }
+        return item.evidenceState.map(appLanguage.evidenceExplanation)
+    }
 }
 
 private struct TodayContinuationRow: View {
@@ -1233,7 +1292,11 @@ private struct TodayContinuationRow: View {
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 7) {
                         Text(
-                            [item.owner, item.due ?? appLanguage.workspaceTerm(item.eyebrow)]
+                            [
+                                item.owner,
+                                item.due.map { appLanguage.dueDate($0) }
+                                    ?? appLanguage.workspaceTerm(item.eyebrow),
+                            ]
                                 .compactMap { $0 }
                                 .joined(separator: " · ")
                         )
@@ -1290,12 +1353,7 @@ private struct PursuitAttentionRow: View {
                 RelationshipEyebrow(appLanguage.workspaceTerm(item.eyebrow))
                 Spacer(minLength: 8)
                 if let due = item.due {
-                    Text(
-                        appLanguage.text(
-                            "Due \(due)",
-                            zhHans: "截止 \(due)"
-                        )
-                    )
+                    Text(appLanguage.dueDate(due))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.tsMutedInk)
                 }
@@ -1329,7 +1387,7 @@ private struct PursuitAttentionRow: View {
             if let owner = item.owner {
                 TodayDecisionContextLine(
                     label: appLanguage.text("Owner", zhHans: "负责人"),
-                    value: "\(owner)\(item.due.map { appLanguage.text(" · due \($0)", zhHans: " · 截止 \($0)") } ?? "")"
+                    value: "\(owner)\(item.due.map { appLanguage.dueDate($0, prefixed: true) } ?? "")"
                 )
             }
             if let blocker = item.blocker {
@@ -1338,7 +1396,7 @@ private struct PursuitAttentionRow: View {
                     value: blocker
                 )
             }
-            if let evidenceFreshness = item.evidenceFreshness {
+            if let evidenceFreshness = localizedEvidenceSummary {
                 TodayDecisionContextLine(
                     label: appLanguage.text("Evidence", zhHans: "证据"),
                     value: evidenceFreshness
@@ -1406,6 +1464,16 @@ private struct PursuitAttentionRow: View {
         }
         .padding(.bottom, 22)
         .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+    }
+
+    private var localizedEvidenceSummary: String? {
+        if let observedAt = item.evidenceObservedAt {
+            return appLanguage.evidenceFreshness(
+                observedAt: observedAt,
+                sourceTimezone: item.evidenceSourceTimezone
+            )
+        }
+        return item.evidenceState.map(appLanguage.evidenceExplanation)
     }
 }
 
@@ -1513,8 +1581,7 @@ private struct AgentSessionListView: View {
                         .foregroundStyle(Color.tsInk)
                     Text(
                         appLanguage.text(
-                            "Ask from the bottom field. A successful Agent response will appear here without becoming relationship truth.",
-                            zhHans: "从底部输入框开始提问。Agent 成功回复后会出现在这里，但不会因此成为关系事实。"
+                            "Use the bottom field. Successful Agent responses and confirmed tool receipts appear here without becoming relationship truth."
                         )
                     )
                     .font(.subheadline)
@@ -1594,7 +1661,9 @@ private struct AgentSessionRow: View {
                         .font(.caption2)
                         .foregroundStyle(Color.tsMutedInk)
                 }
-                Text("\(session.personDisplayLabel) · \(session.contextDisplayLabel)")
+                Text(
+                    "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
+                )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(1)

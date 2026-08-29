@@ -103,6 +103,23 @@ export class TalentSignalHttpError extends Error {
   }
 }
 
+export type VoiceTranscriptionRequest = {
+  audio_base64: string;
+  client_request_id: string;
+  mime_type: "audio/wav";
+};
+
+export type VoiceTranscriptionDraft = {
+  audio_duration_ms?: number;
+  client_request_id: string;
+  model: string;
+  provider: "doubao";
+  provider_request_id: string;
+  status: "draft";
+  temporary_audio_stored_by_talent_signal: false;
+  transcript: string;
+};
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -480,6 +497,15 @@ export class TalentSignalClient {
 
   createChatTask(request: ChatTaskRequest): Promise<ChatTaskResponse> {
     return this.request("/v1/chat/tasks", {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  transcribeVoice(
+    request: VoiceTranscriptionRequest,
+  ): Promise<VoiceTranscriptionDraft> {
+    return this.request("/v1/voice-transcriptions", {
       method: "POST",
       body: request,
     });

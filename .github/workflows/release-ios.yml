@@ -124,7 +124,14 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.release_sha }}
 
+      - name: Require the release-scoped Infisical identity
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''
+        run: |
+          echo "::error::INFISICAL_TESTFLIGHT_IDENTITY_ID is required for TestFlight releases"
+          exit 1
+
       - name: Load release secrets from Infisical
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
         uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
         with:
           method: oidc
@@ -133,6 +140,25 @@ jobs:
           project-slug: talent-signal-8p1-x
           env-slug: staging
           secret-path: /release
+
+      - name: Validate release secrets
+        run: |
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID \
+            DEVELOPMENT_TEAM \
+            MATCH_DEPLOY_KEY \
+            MATCH_GIT_URL \
+            MATCH_KEYCHAIN_PASSWORD \
+            MATCH_PASSWORD \
+            TALENT_SIGNAL_API_BASE_URL \
+            TS_OAUTH_CLIENT_ID \
+            TS_OAUTH_SECRET; do
+            delimiter="TS_SECRET_${GITHUB_RUN_ID}_${RANDOM}"
+            printf '%s<<%s\n%s\n%s\n' \
+              "$name" "$delimiter" "${!name:-}" "$delimiter" >> "$GITHUB_ENV"
+          done
 
       - name: Validate release secrets
         run: |

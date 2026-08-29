@@ -5,29 +5,35 @@ import type {
   ResourceCaptureResponse,
 } from "@talent-signal/contracts";
 import {
-  ArrowRight,
+  ArrowUp,
   ChatCircleDots,
   FileImage,
-  Sparkle,
-  UserPlus,
 } from "@phosphor-icons/react";
 
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
+import type { AgentContactDraft } from "@/lib/agent-contact-intake";
+import { AgentVoiceInput } from "./agent-voice-input";
 
 export function RelationshipAgentStartPanel({
   createOpen,
+  contactDraft,
   identityResolutionCase,
+  objective,
+  onAsk,
   onCancelCreate,
   onCaseUpdated,
   onCommitted,
-  onCreateOpen,
   onDeferred,
   onResolved,
   onScreenshot,
+  onObjectiveChange,
 }: {
   createOpen: boolean;
+  contactDraft: AgentContactDraft | null;
   identityResolutionCase: IdentityResolutionCase | null;
+  objective: string;
+  onAsk: () => void;
   onCancelCreate: () => void;
   onCaseUpdated: (nextCase: IdentityResolutionCase) => void;
   onCommitted: (
@@ -38,7 +44,6 @@ export function RelationshipAgentStartPanel({
       | "created_relationship_context"
       | "reused_relationship",
   ) => void;
-  onCreateOpen: () => void;
   onDeferred: (caseId: string) => void;
   onResolved: (
     scope: RelationshipScope,
@@ -46,6 +51,7 @@ export function RelationshipAgentStartPanel({
     compilationError: string | null,
   ) => void;
   onScreenshot: () => void;
+  onObjectiveChange: (value: string) => void;
 }) {
   return (
     <aside
@@ -60,19 +66,9 @@ export function RelationshipAgentStartPanel({
         <div>
           <p>Relationship Agent</p>
           <strong id="relationship-chat-title">
-            Start from the person, not a blank prompt.
+            Start with one message.
           </strong>
         </div>
-      </div>
-      <div className="context-agent-actions">
-        <button data-active={createOpen} onClick={onCreateOpen} type="button">
-          <UserPlus aria-hidden="true" size={15} />
-          Create contact
-        </button>
-        <button onClick={onScreenshot} type="button">
-          <FileImage aria-hidden="true" size={15} />
-          Import screenshot
-        </button>
       </div>
       <div className="context-agent-thread">
         {identityResolutionCase ? (
@@ -83,36 +79,71 @@ export function RelationshipAgentStartPanel({
           />
         ) : createOpen ? (
           <AgentCreatePersonCard
+            initialDraft={contactDraft}
+            key={contactDraft?.sourceNote ?? "manual-contact-draft"}
             onCancel={onCancelCreate}
             onCommitted={onCommitted}
             onDeferred={onDeferred}
           />
         ) : (
           <div className="context-agent-welcome">
-            <span>
-              <Sparkle aria-hidden="true" size={16} weight="fill" />
-            </span>
+            <span><ChatCircleDots aria-hidden="true" size={16} /></span>
             <div>
-              <strong>Give me the first governed source.</strong>
+              <strong>Add a person as naturally as you would message a colleague.</strong>
               <p>
-                I can stage a new person and relationship page. You decide the
-                identity, context, and source before anything is created.
+                “Add Maya Chen for the CPO search. Elena referred her and she
+                can speak next Tuesday.” I will check People first, then prepare
+                create, attach, or identity review. Nothing changes silently.
               </p>
-              <button
-                className="context-primary-button context-primary-button--compact"
-                onClick={onCreateOpen}
-                type="button"
-              >
-                Create with Agent
-                <ArrowRight aria-hidden="true" size={15} />
-              </button>
             </div>
           </div>
         )}
       </div>
-      <footer className="context-agent-disabled-composer">
-        Open or create a relationship to ask questions and operate its page.
-      </footer>
+      <form
+        className="context-chat__composer context-chat__composer--start"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onAsk();
+        }}
+      >
+        <div className="context-chat__composer-row">
+          <button
+            aria-label="Import a conversation screenshot"
+            className="context-chat__media-picker"
+            onClick={onScreenshot}
+            type="button"
+          >
+            <FileImage aria-hidden="true" size={19} weight="duotone" />
+          </button>
+          <label className="context-chat__objective">
+            <span className="sr-only">Message the Relationship Agent</span>
+            <textarea
+              autoFocus
+              id="relationship-agent-composer"
+              maxLength={1_000}
+              onChange={(event) => onObjectiveChange(event.target.value)}
+              placeholder="Message, paste, or add anything…"
+              rows={2}
+              value={objective}
+            />
+          </label>
+          {objective.trim() ? (
+            <button
+              aria-label="Send to Agent"
+              className="context-primary-button"
+              type="submit"
+            >
+              <ArrowUp aria-hidden="true" size={18} weight="bold" />
+            </button>
+          ) : (
+            <AgentVoiceInput
+              onTranscript={(transcript) =>
+                onObjectiveChange(transcript.slice(0, 1_000))
+              }
+            />
+          )}
+        </div>
+      </form>
     </aside>
   );
 }

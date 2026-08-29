@@ -30,7 +30,7 @@ type Props = {
   error: string | null;
   expanded: boolean;
   projection: PursuitTodayProjection | null;
-  providerMode: "live_openrouter" | "safe_deterministic";
+  providerMode: "live_remote" | "safe_deterministic";
   sessionRecoveryHref: string | null;
 };
 
@@ -82,6 +82,18 @@ function kindCopy(item: PursuitTodayItem): string {
   }
   if (item.attentionKind === "action") return "Owned action";
   return "Open dependency";
+}
+
+function pursuitHref(item: PursuitTodayItem): string {
+  const room = `/workspace/pursuits/${item.pursuitId}`;
+  return item.attentionKind === "review" &&
+    item.proposalStatus === "needs_review"
+    ? `${room}#proposal`
+    : room;
+}
+
+function humanize(value: string): string {
+  return value.replaceAll("_", " ");
 }
 
 function AgentComposer({
@@ -182,8 +194,8 @@ function AgentComposer({
         <div>
           <h3 id="agent-composer-title">Ask within this Pursuit</h3>
           <p>
-            {providerMode === "live_openrouter"
-              ? "Pinned free model · synthetic-only remote processing · four governed tools"
+            {providerMode === "live_remote"
+              ? "Pinned remote model · synthetic-only processing · four governed tools"
               : "Safe deterministic provider · no model inference"}
           </p>
         </div>
@@ -305,7 +317,7 @@ function FocusItem({
       <dl className={styles.focusFacts}>
         <div>
           <dt>Target outcome</dt>
-          <dd>{item.targetOutcome}</dd>
+          <dd>{humanize(item.targetOutcome)}</dd>
         </div>
         <div>
           <dt>Target date</dt>
@@ -313,7 +325,7 @@ function FocusItem({
         </div>
         <div>
           <dt>Current milestone</dt>
-          <dd>{item.milestone}</dd>
+          <dd>{humanize(item.milestone)}</dd>
         </div>
       </dl>
 
@@ -344,18 +356,23 @@ function FocusItem({
       ) : null}
 
       <div className={styles.focusLink}>
-        <Link href={`/workspace/pursuits/${item.pursuitId}`}>
-          Open Pursuit room
+        <Link href={pursuitHref(item)}>
+          {item.attentionKind === "review" &&
+          item.proposalStatus === "needs_review"
+            ? "Review proposal"
+            : "Open Pursuit room"}
           <ArrowRight aria-hidden="true" size={17} />
         </Link>
         <span>No state changes from opening this view.</span>
       </div>
 
-      <AgentComposer
-        item={item}
-        providerMode={providerMode}
-        sessionRecoveryHref={sessionRecoveryHref}
-      />
+      {item.attentionKind !== "review" ? (
+        <AgentComposer
+          item={item}
+          providerMode={providerMode}
+          sessionRecoveryHref={sessionRecoveryHref}
+        />
+      ) : null}
     </article>
   );
 }
@@ -364,7 +381,7 @@ function Continuation({ item }: { item: PursuitTodayItem }) {
   return (
     <Link
       className={styles.continuation}
-      href={`/workspace/pursuits/${item.pursuitId}`}
+      href={pursuitHref(item)}
     >
       <div>
         <span>{kindCopy(item)}</span>

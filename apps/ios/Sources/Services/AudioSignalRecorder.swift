@@ -659,6 +659,93 @@ actor URLVoiceTranscriptionClient: VoiceTranscriptionServing {
     }
 }
 
+#if DEBUG
+actor URLSimulatedVoiceTranscriptionClient: VoiceTranscriptionServing {
+    private let baseURL: URL
+    private let accountSlug: String
+    private let userEmail: String
+    private let session: URLSession
+    private var accessToken: String?
+
+    init(
+        baseURL: URL,
+        accountSlug: String,
+        userEmail: String,
+        session: URLSession = .shared
+    ) {
+        self.baseURL = baseURL
+        self.accountSlug = accountSlug
+        self.userEmail = userEmail
+        self.session = session
+    }
+
+    func transcribe(
+        _ payload: VoiceDictationPayload
+    ) async throws -> VoiceTranscriptionDraft {
+        guard URLFixtureLoader.isLoopback(baseURL) else {
+            throw VoiceTranscriptionClientError.invalidRequest
+        }
+        let token = try await loginIfNeeded()
+        return try await URLVoiceTranscriptionClient(
+            baseURL: baseURL,
+            accessToken: token,
+            session: session
+        ).transcribe(payload)
+    }
+
+    private func loginIfNeeded() async throws -> String {
+        if let accessToken { return accessToken }
+        var request = URLRequest(
+            url: baseURL.appending(path: "v1/auth/simulated-login")
+        )
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONEncoder().encode(
+            SimulatedVoiceLoginRequest(
+                accountSlug: accountSlug,
+                userEmail: userEmail,
+                clientLabel: "ios-voice-dictation"
+            )
+        )
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode),
+              let login = try? JSONDecoder().decode(
+                SimulatedVoiceLoginResponse.self,
+                from: data
+              ),
+              login.contractVersion == TalentSignalAPIContract.version,
+              !login.accessToken.isEmpty else {
+            throw VoiceTranscriptionClientError.invalidResponse
+        }
+        accessToken = login.accessToken
+        return login.accessToken
+    }
+}
+
+private struct SimulatedVoiceLoginRequest: Encodable {
+    let accountSlug: String
+    let userEmail: String
+    let clientLabel: String
+
+    enum CodingKeys: String, CodingKey {
+        case accountSlug = "account_slug"
+        case userEmail = "user_email"
+        case clientLabel = "client_label"
+    }
+}
+
+private struct SimulatedVoiceLoginResponse: Decodable {
+    let contractVersion: String
+    let accessToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case contractVersion = "contract_version"
+        case accessToken = "access_token"
+    }
+}
+#endif
+
 private struct VoiceTranscriptionRequest: Encodable {
     let audioBase64: String
     let clientRequestID: UUID

@@ -2,17 +2,16 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-production_env="${TS_PRODUCTION_ENV_FILE:-/etc/talent-signal/production.env}"
 
-if [[ ! -r "$production_env" ]]; then
-  echo "Production environment file is not readable: $production_env" >&2
-  exit 1
+if [[ "${TS_INFISICAL_INJECTED:-false}" != "true" ]]; then
+  exec "$repository_root/scripts/infisical/run.sh" \
+    prod /shared /backend -- \
+    env TS_INFISICAL_INJECTED=true "$0" "$@"
 fi
 
 compose=(
   docker compose
   --project-name talent-signal-production
-  --env-file "$production_env"
   --file "$repository_root/compose.production.yaml"
 )
 

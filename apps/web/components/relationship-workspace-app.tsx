@@ -141,15 +141,36 @@ export function RelationshipWorkspaceApp({
   });
 
   useEffect(() => {
-    function openCapture() {
-      setCaptureOpen(true);
+    function focusAgent() {
+      window.requestAnimationFrame(() => {
+        const composer = document.getElementById(
+          "relationship-agent-composer",
+        );
+        composer?.scrollIntoView({ block: "center" });
+        composer?.focus({ preventScroll: true });
+
+        const location = new URL(window.location.href);
+        if (location.searchParams.get("intent") !== "compose") {
+          return;
+        }
+        location.searchParams.delete("intent");
+        window.history.replaceState(
+          null,
+          "",
+          `${location.pathname}${location.search}${location.hash}`,
+        );
+      });
     }
-    window.addEventListener("talent-signal:open-capture", openCapture);
+
+    window.addEventListener("talent-signal:focus-agent", focusAgent);
+    if (
+      new URL(window.location.href).searchParams.get("intent") ===
+      "compose"
+    ) {
+      focusAgent();
+    }
     return () =>
-      window.removeEventListener(
-        "talent-signal:open-capture",
-        openCapture,
-      );
+      window.removeEventListener("talent-signal:focus-agent", focusAgent);
   }, []);
 
   useEffect(() => {
@@ -791,13 +812,16 @@ export function RelationshipWorkspaceApp({
         </p>
         {!activeScope ? (
           <RelationshipAgentStartPanel
+            contactDraft={relationshipAgent.contactDraft}
             createOpen={relationshipAgent.createOpen}
             identityResolutionCase={identityResolutionCase}
+            objective={relationshipAgent.objective}
+            onAsk={() => void relationshipAgent.ask()}
             onCancelCreate={cancelAgentCreate}
             onCaseUpdated={handleIdentityCaseUpdated}
             onCommitted={handleInitialResourcesCommitted}
-            onCreateOpen={() => relationshipAgent.setCreateOpen(true)}
             onDeferred={(caseId) => void handleIdentityReviewCreated(caseId)}
+            onObjectiveChange={relationshipAgent.setObjective}
             onResolved={handleIdentityCaseResolved}
             onScreenshot={() => setCaptureOpen(true)}
           />
@@ -921,7 +945,6 @@ export function RelationshipWorkspaceApp({
                   );
                 }}
                 onIdentityCorrected={handleIdentityCorrected}
-                onOpen={openResourceComposer}
                 onReviewCapture={handleOpenCaptureReview}
                 onScreenshot={() => setCaptureOpen(true)}
                 open={resourceComposerOpen}
@@ -1028,7 +1051,6 @@ export function RelationshipWorkspaceApp({
                   );
                 }}
                 onIdentityCorrected={handleIdentityCorrected}
-                onOpen={openResourceComposer}
                 onReviewCapture={handleOpenCaptureReview}
                 onScreenshot={() => setCaptureOpen(true)}
                 open={resourceComposerOpen}

@@ -76,6 +76,14 @@ hide an owned action or gap from the same Pursuit. Pursuits with no pending
 review, owned action, or evidence-backed gap remain an explicit no-action count
 rather than invented work.
 
+When Today leads with a review-ready Proposal, its primary transition lands on
+and moves focus to the exact human decision gate in the Pursuit room. The
+recruiter should not have to rediscover the highlighted decision after opening
+its governed object. Action- and gap-led items continue to open the Pursuit
+overview because the room, not a Proposal, owns their current context. A
+review-ready item does not also expose another Agent-run input: the pending
+human decision is already the next step.
+
 Evidence-backed is a live authority statement, not permanent copy. When a
 source is deleted or loses authorization, the affected role, gap, Proposal,
 and Today item visibly become partial or unavailable. An explicitly

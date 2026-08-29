@@ -62,18 +62,18 @@ describe("persistent workspace shell", () => {
     );
   });
 
-  it("opens capture from a same-route shell transition and clears the intent on close", () => {
+  it("focuses the Agent composer from a same-route shell transition and clears the intent", () => {
     const navigation = read("components/workspace-shell-nav.tsx");
     const workspace = read("components/relationship-workspace-app.tsx");
 
     expect(navigation).toContain(
-      'window.dispatchEvent(new Event("talent-signal:open-capture"))',
+      'window.dispatchEvent(new Event("talent-signal:focus-agent"))',
     );
     expect(workspace).toContain(
-      'window.addEventListener("talent-signal:open-capture", openCapture)',
+      'window.addEventListener("talent-signal:focus-agent", focusAgent)',
     );
     expect(workspace).toContain('location.searchParams.delete("intent")');
-    expect(workspace).toContain("onClose={closeCapture}");
+    expect(navigation).toContain("/workspace?surface=desk&intent=compose");
   });
 });
 

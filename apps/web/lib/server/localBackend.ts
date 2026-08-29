@@ -41,6 +41,7 @@ import {
   type SourceAuthorizationDecisionRequest,
   type SourceAuthorizationDecisionResponse,
   type SubmitAnalysisProposalRequest,
+  type VoiceTranscriptionDraft,
   type WorkspaceReviewResponse,
 } from "@talent-signal/contracts";
 
@@ -1051,6 +1052,34 @@ export async function askRelationshipChat(
     person_id: input.person_id,
     relationship_context_id: input.relationship_context_id,
   });
+}
+
+export async function transcribeRelationshipVoice(input: {
+  audio_base64: string;
+  client_request_id: string;
+  mime_type: "audio/wav";
+}): Promise<VoiceTranscriptionDraft> {
+  if (
+    !UUID.test(input.client_request_id) ||
+    input.mime_type !== "audio/wav" ||
+    input.audio_base64.length < 60 ||
+    input.audio_base64.length > 3_333_336 ||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(input.audio_base64)
+  ) {
+    throw new Error("The temporary voice recording is invalid.");
+  }
+  const { client } = await authenticatedClient("web-relationship-voice");
+  const draft = await client.transcribeVoice(input);
+  if (
+    draft.client_request_id !== input.client_request_id ||
+    draft.provider !== "doubao" ||
+    draft.status !== "draft" ||
+    draft.temporary_audio_stored_by_talent_signal !== false ||
+    !draft.transcript.trim()
+  ) {
+    throw new Error("Voice transcription returned an invalid draft.");
+  }
+  return draft;
 }
 
 export async function decideBackendAssertion(
