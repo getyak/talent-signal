@@ -2815,9 +2815,10 @@ final class CandidateSignalUITests: XCTestCase {
         let composer = app.textFields["ask-composer"]
         let message = "Maya Chen, maya@example.com, Chief Product Officer"
         typeTextReliably(message, into: composer)
+        XCTAssertEqual(composer.value as? String, message)
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.isEnabled)
-        XCTAssertEqual(send.label, "Send")
+        XCTAssertEqual(send.label, "Send and let Agent link the relationship")
         XCTAssertFalse(element("ask-scope-selector").exists)
         send.tap()
 

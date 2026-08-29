@@ -77,9 +77,10 @@ the final source of truth; copying the supplied reference screenshots.
 4. **Completed — Verify the real surface.** The iOS app and UI-test bundle
    compile, focused Today/Ask/typing Simulator journeys pass, the compact Ask
    screenshot was reviewed, backend tests and typechecking pass, and canonical
-   documentation checks pass. The final 126-point detent compiled after the
-   screenshot-led reduction; a concurrent remote-Chat gate owned the Simulator
-   during the final repeat and was left undisturbed.
+   documentation checks pass. A contact proposal now promotes the compact
+   126-point sheet to the large detent in the proposal state transition; the
+   no-command contact smoke journey proves the generated proposal is visible
+   and reviewable rather than merely present outside the viewport.
 
 ## Decisions that may change direction
 

@@ -2275,6 +2275,7 @@ struct RelationshipAskView: View {
         contactInterpretationSource = nil
         isChoosingScope = false
         isRequestingScope = false
+        presentationDetent = .large
         contactDraft = proposedContact
         contactOperationKey = "ios:contact:\(UUID().uuidString.lowercased())"
         pendingContactTarget = nil
