@@ -178,13 +178,15 @@ Use:
 - surfaces that feel composed rather than tiled;
 - motion only when it explains a state transition.
 
-Exact tokens, typography choices, breakpoints, and component behavior belong in
-the implementation. The surrounding product is the reference for density and
-idiom.
+Exact tokens, breakpoints, and component behavior belong in implementation;
+the surrounding product is the reference for density and idiom.
 
 On working surfaces, headings name the current object, date, state, or
 decision. Reserve narrative promises and slogan-like copy for marketing or
 onboarding; do not use them as persistent product chrome.
+
+On public product proof, let evidence and direct interaction carry the depth;
+never use oversized type, empty space, or prolonged scrolling as a substitute.
 
 Avoid:
 
@@ -301,12 +303,10 @@ review into a chat reply.
 - Does the design preserve human dignity and avoid person-scoring?
 - Does the surface feel specific to trusted recruiting work?
 
-Functional audits gate release but do not establish design quality. Responsive,
-accessibility, performance, and test results cannot prove that a direction is
-distinctive or preferred. For a consequential visual change, compare at least
-two rendered structural directions against product truth, logo-off ownability,
-five-second clarity, and accessibility risk before spending effort on
-micro-detail.
+Functional audits gate release but do not establish design quality or
+preference. For a consequential visual change, compare at least two rendered
+directions against product truth, logo-off ownability, five-second clarity, and
+accessibility risk before micro-detail.
 
 Approved mark geometry, controlled material variants, practical exports, and
 usage constraints live in the repository

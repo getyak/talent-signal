@@ -75,6 +75,21 @@ const relationshipHistory = [
   },
 ] as const;
 
+const heroProof = [
+  {
+    label: "来源",
+    detail: "保留准确原话、说话人和时间",
+  },
+  {
+    label: "变化",
+    detail: "只提出可审阅的关系状态",
+  },
+  {
+    label: "决定",
+    detail: "事实确认与行动授权始终分开",
+  },
+] as const;
+
 export default function HomePage() {
   return (
     <>
@@ -116,9 +131,17 @@ export default function HomePage() {
                   看一条信号如何流动
                 </a>
               </div>
-              <p className={styles.heroProof}>
-                隐私设计 · 来源关联 · 人来治理
-              </p>
+              <ol className={styles.heroProof} aria-label="产品工作边界">
+                {heroProof.map((item, index) => (
+                  <li key={item.label}>
+                    <span>0{index + 1}</span>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <p>{item.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
             </div>
             <div className={styles.heroVisual}>
               <HeroSignalPreview />

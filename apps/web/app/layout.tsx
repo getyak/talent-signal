@@ -1,14 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 import { siteConfig } from "@/lib/site";
 import "./globals.css";
-
-const manrope = Manrope({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "optional",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -89,7 +82,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={manrope.variable}>
+      <body>
         <a className="skip-link" href="#main-content">
           跳到主要内容
         </a>

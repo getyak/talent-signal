@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowDown,
   Check,
   Crosshair,
   DeviceMobile,
@@ -11,9 +10,6 @@ import {
 import {
   AnimatePresence,
   motion,
-  useMotionValueEvent,
-  useScroll,
-  useTransform,
 } from "motion/react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -125,106 +121,12 @@ const chapters = [
   },
 ] as const;
 
-function chapterForProgress(progress: number) {
-  if (progress < 0.23) {
-    return 0;
-  }
-  if (progress < 0.48) {
-    return 1;
-  }
-  if (progress < 0.72) {
-    return 2;
-  }
-  return 3;
-}
-
 export function SignalJourney() {
-  const journeyRef = useRef<HTMLElement>(null);
   const autoRotateRef = useRef(true);
   const prefersReducedMotion = usePrefersReducedMotion();
   const [activeSourceIndex, setActiveSourceIndex] = useState(1);
   const [activeChapter, setActiveChapter] = useState(0);
   const source = signalJourneySources[activeSourceIndex];
-
-  // Motion useScroll tracks the target without a page-level scroll listener:
-  // https://motion.dev/docs/react-use-scroll
-  const { scrollYProgress } = useScroll({
-    target: journeyRef,
-    offset: ["start start", "end end"],
-  });
-
-  // Transform and opacity stay on the compositor-friendly path:
-  // https://motion.dev/docs/react-use-transform
-  const sourceX = useTransform(
-    scrollYProgress,
-    [0, 0.2, 0.46, 0.72, 1],
-    ["0%", "0%", "-12%", "-30%", "-36%"],
-  );
-  const sourceY = useTransform(
-    scrollYProgress,
-    [0, 0.23, 0.5, 0.72, 1],
-    ["0%", "0%", "-3%", "4%", "7%"],
-  );
-  const sourceScale = useTransform(
-    scrollYProgress,
-    [0, 0.22, 0.48, 0.74, 1],
-    [1, 1, 0.84, 0.68, 0.61],
-  );
-  const sourceOpacity = useTransform(
-    scrollYProgress,
-    [0, 0.72, 0.88, 1],
-    [1, 1, 0.44, 0.18],
-  );
-  const scanOpacity = useTransform(
-    scrollYProgress,
-    [0.12, 0.22, 0.42, 0.52],
-    [0, 1, 1, 0],
-  );
-  const scanX = useTransform(
-    scrollYProgress,
-    [0.14, 0.47],
-    ["-36%", "84%"],
-  );
-  const evidenceOpacity = useTransform(
-    scrollYProgress,
-    [0.2, 0.3, 0.47, 0.58],
-    [0, 1, 1, 0.28],
-  );
-  const evidenceX = useTransform(
-    scrollYProgress,
-    [0.2, 0.35, 0.54, 0.72],
-    ["-28%", "0%", "22%", "40%"],
-  );
-  const contactOpacity = useTransform(
-    scrollYProgress,
-    [0.43, 0.54, 0.72, 0.83],
-    [0, 1, 1, 0.18],
-  );
-  const contactX = useTransform(
-    scrollYProgress,
-    [0.43, 0.58, 0.76],
-    ["38%", "0%", "-18%"],
-  );
-  const contactScale = useTransform(
-    scrollYProgress,
-    [0.43, 0.58, 0.78],
-    [0.9, 1, 0.88],
-  );
-  const outputOpacity = useTransform(
-    scrollYProgress,
-    [0.69, 0.79, 1],
-    [0, 1, 1],
-  );
-  const outputY = useTransform(
-    scrollYProgress,
-    [0.69, 0.84, 1],
-    ["18%", "0%", "-2%"],
-  );
-
-  useMotionValueEvent(scrollYProgress, "change", (latest) => {
-    const next = chapterForProgress(latest);
-    setActiveChapter((current) => (current === next ? current : next));
-  });
 
   useEffect(() => {
     if (
@@ -254,51 +156,10 @@ export function SignalJourney() {
 
   function jumpToChapter(index: number) {
     setActiveChapter(index);
-    const section = journeyRef.current;
-    if (!section) {
-      return;
-    }
-
-    const sectionTop = window.scrollY + section.getBoundingClientRect().top;
-    const scrollableDistance = Math.max(
-      0,
-      section.offsetHeight - window.innerHeight,
-    );
-
-    window.scrollTo({
-      top: sectionTop + scrollableDistance * (index / (chapters.length - 1)),
-      behavior: prefersReducedMotion ? "auto" : "smooth",
-    });
   }
-
-  const animatedSourceStyle = prefersReducedMotion
-    ? undefined
-    : {
-        x: sourceX,
-        y: sourceY,
-        scale: sourceScale,
-        opacity: sourceOpacity,
-      };
-  const animatedScanStyle = prefersReducedMotion
-    ? undefined
-    : { x: scanX, opacity: scanOpacity };
-  const animatedEvidenceStyle = prefersReducedMotion
-    ? undefined
-    : { x: evidenceX, opacity: evidenceOpacity };
-  const animatedContactStyle = prefersReducedMotion
-    ? undefined
-    : {
-        x: contactX,
-        scale: contactScale,
-        opacity: contactOpacity,
-      };
-  const animatedOutputStyle = prefersReducedMotion
-    ? undefined
-    : { y: outputY, opacity: outputOpacity };
 
   return (
     <section
-      ref={journeyRef}
       id="signal-journey"
       className={styles.journey}
       aria-labelledby="signal-journey-title"
@@ -324,6 +185,12 @@ export function SignalJourney() {
                       activeChapter === index ? "step" : undefined
                     }
                     onClick={() => jumpToChapter(index)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        jumpToChapter(index);
+                      }
+                    }}
                   >
                     <span className={styles.chapterIcon}>
                       <Icon aria-hidden="true" size={17} />
@@ -343,21 +210,21 @@ export function SignalJourney() {
           </p>
         </div>
 
-        <div className={styles.stage}>
+        <div className={styles.stage} data-chapter={activeChapter}>
           <div className={styles.stageHeader}>
             <span>
               <i aria-hidden="true" />
               来源已关联
             </span>
             <strong aria-live="polite">
-              {chapters[activeChapter].title}
+              {activeChapter + 1} / {chapters.length} · {chapters[activeChapter].title}
             </strong>
           </div>
 
           <div className={styles.canvas}>
-            <motion.div
+            <div
               className={styles.sourceObject}
-              style={animatedSourceStyle}
+              aria-hidden={activeChapter !== 0 || undefined}
             >
               <div className={styles.sourceFrame}>
                 <AnimatePresence initial={false} mode="popLayout">
@@ -390,19 +257,18 @@ export function SignalJourney() {
                 <span>{source.label}</span>
                 <strong>{source.detail}</strong>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div
+            <div
               className={styles.scanLens}
-              style={animatedScanStyle}
               aria-hidden="true"
             >
               <span />
-            </motion.div>
+            </div>
 
-            <motion.div
+            <div
               className={styles.evidenceStack}
-              style={animatedEvidenceStyle}
+              aria-hidden={activeChapter !== 1 || undefined}
             >
               <div className={styles.evidenceHeading}>
                 <Crosshair aria-hidden="true" size={16} />
@@ -416,11 +282,11 @@ export function SignalJourney() {
                 </div>
               ))}
               <p>说话人、时间和来源区域始终保持关联。</p>
-            </motion.div>
+            </div>
 
-            <motion.article
+            <article
               className={styles.contactCard}
-              style={animatedContactStyle}
+              aria-hidden={activeChapter !== 2 || undefined}
             >
               <div className={styles.contactHeader}>
                 <div className={styles.personMark}>SC</div>
@@ -447,11 +313,11 @@ export function SignalJourney() {
                 <span>拟议关系状态</span>
                 <strong>保存前请审阅</strong>
               </div>
-            </motion.article>
+            </article>
 
-            <motion.div
+            <div
               className={styles.outputGroup}
-              style={animatedOutputStyle}
+              aria-hidden={activeChapter !== 3 || undefined}
             >
               <div className={styles.webOutput}>
                 <div className={styles.outputChrome}>
@@ -480,7 +346,7 @@ export function SignalJourney() {
                   />
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           <div className={styles.sourceSwitcher} aria-label="示例来源">
@@ -501,16 +367,11 @@ export function SignalJourney() {
           </div>
 
           <div className={styles.progress} aria-hidden="true">
-            <motion.span
+            <span
               style={{
-                scaleX: prefersReducedMotion ? 1 : scrollYProgress,
+                width: `${((activeChapter + 1) / chapters.length) * 100}%`,
               }}
             />
-          </div>
-
-          <div className={styles.mobileContinue} aria-hidden="true">
-            继续查看证据流转
-            <ArrowDown size={15} />
           </div>
         </div>
       </div>

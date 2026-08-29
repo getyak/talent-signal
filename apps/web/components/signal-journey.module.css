@@ -1,6 +1,6 @@
 .journey {
-  min-height: 430vh;
-  padding-bottom: 8vh;
+  border-top: 1px solid var(--line);
+  padding-block: clamp(72px, 7vw, 104px);
   position: relative;
 }
 
@@ -9,14 +9,10 @@
   display: grid;
   gap: clamp(42px, 5.6vw, 84px);
   grid-template-columns: minmax(240px, 0.32fr) minmax(0, 0.68fr);
-  min-height: 430vh;
 }
 
 .chapterRail {
   min-width: 0;
-  padding-top: clamp(112px, 14vh, 154px);
-  position: sticky;
-  top: 58px;
 }
 
 .chapterIntro > p {
@@ -138,11 +134,9 @@
     inset 0 1px 0 var(--edge-highlight),
     0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent),
     0 28px 80px color-mix(in srgb, var(--ink) 9%, transparent);
-  height: min(790px, calc(100vh - 104px));
-  min-height: 650px;
+  height: 660px;
   overflow: hidden;
-  position: sticky;
-  top: 76px;
+  position: relative;
 }
 
 .stageHeader {
@@ -203,6 +197,9 @@
   position: absolute;
   top: clamp(34px, 7vh, 68px);
   transform-origin: 38% 52%;
+  transition:
+    opacity 280ms ease,
+    transform 420ms var(--ease-out);
   width: clamp(236px, 31vw, 316px);
   z-index: 4;
 }
@@ -272,11 +269,15 @@
   );
   bottom: 10%;
   left: 5%;
+  opacity: 0;
   pointer-events: none;
   position: absolute;
   top: 4%;
   width: 25%;
   z-index: 6;
+  transition:
+    opacity 220ms ease,
+    transform 420ms var(--ease-out);
 }
 
 .scanLens span {
@@ -294,9 +295,15 @@
 .evidenceStack {
   display: grid;
   gap: 10px;
+  opacity: 0;
+  pointer-events: none;
   position: absolute;
   right: clamp(30px, 5vw, 70px);
   top: clamp(116px, 18vh, 174px);
+  transform: translateX(18px);
+  transition:
+    opacity 220ms ease,
+    transform 420ms var(--ease-out);
   width: min(380px, 44%);
   z-index: 7;
 }
@@ -372,9 +379,15 @@
     inset 0 1px 0 var(--edge-highlight),
     0 26px 72px color-mix(in srgb, var(--ink) 13%, transparent);
   left: 20%;
+  opacity: 0;
   overflow: hidden;
+  pointer-events: none;
   position: absolute;
   top: 18%;
+  transform: translateY(18px) scale(0.97);
+  transition:
+    opacity 220ms ease,
+    transform 420ms var(--ease-out);
   width: min(510px, 64%);
   z-index: 8;
 }
@@ -489,8 +502,51 @@
 
 .outputGroup {
   inset: 5% 3% 4% 5%;
+  opacity: 0;
+  pointer-events: none;
   position: absolute;
+  transform: translateY(18px);
+  transition:
+    opacity 220ms ease,
+    transform 420ms var(--ease-out);
   z-index: 9;
+}
+
+.stage[data-chapter="0"] .sourceObject {
+  transform: translate3d(44%, 0, 0) scale(0.96);
+}
+
+.stage[data-chapter="1"] .sourceObject {
+  opacity: 0.32;
+  transform: translate3d(-18%, 2%, 0) scale(0.7);
+}
+
+.stage[data-chapter="1"] .scanLens {
+  opacity: 1;
+  transform: translateX(96%);
+}
+
+.stage[data-chapter="1"] .evidenceStack,
+.stage[data-chapter="2"] .contactCard,
+.stage[data-chapter="3"] .outputGroup {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+.stage[data-chapter="2"] .sourceObject {
+  opacity: 0.12;
+  transform: translate3d(-28%, 7%, 0) scale(0.6);
+}
+
+.stage[data-chapter="2"] .evidenceStack {
+  opacity: 0.14;
+  transform: translateX(32px) scale(0.94);
+}
+
+.stage[data-chapter="3"] .sourceObject {
+  opacity: 0.08;
+  transform: translate3d(-34%, 8%, 0) scale(0.56);
 }
 
 .webOutput {
@@ -657,10 +713,6 @@
   width: 100%;
 }
 
-.mobileContinue {
-  display: none;
-}
-
 @media (max-width: 1100px) {
   .journeyFrame {
     gap: 34px;
@@ -668,7 +720,7 @@
   }
 
   .stage {
-    min-height: 620px;
+    height: 620px;
   }
 
   .sourceSwitcher {
@@ -703,8 +755,7 @@
 
 @media (max-width: 820px) {
   .journey {
-    min-height: auto;
-    padding-block: 74px 102px;
+    padding-block: 62px 82px;
   }
 
   .journeyFrame {
@@ -718,11 +769,23 @@
   }
 
   .chapterIntro h2 {
-    font-size: clamp(2.45rem, 11vw, 4rem);
+    font-size: clamp(2rem, 8vw, 2.8rem);
     max-width: 620px;
   }
 
   .chapterList {
+    display: grid;
+    gap: 0 18px;
+    grid-template-columns: 1fr 1fr;
+    margin-top: 32px;
+  }
+
+  .chapterList button {
+    min-height: 76px;
+    padding-block: 12px;
+  }
+
+  .chapterList small {
     display: none;
   }
 
@@ -731,10 +794,9 @@
   }
 
   .stage {
-    border-radius: 24px;
-    height: auto;
-    margin-top: 35px;
-    min-height: 0;
+    border-radius: 20px;
+    height: 610px;
+    margin-top: 28px;
     overflow: hidden;
     position: relative;
     top: auto;
@@ -749,11 +811,9 @@
   }
 
   .canvas {
-    display: grid;
-    gap: 26px;
-    height: auto;
-    overflow: visible;
-    padding: 28px 16px 32px;
+    height: calc(100% - 130px);
+    overflow: hidden;
+    padding: 0;
   }
 
   .canvas::before {
@@ -761,34 +821,27 @@
     height: 610px;
   }
 
-  .sourceObject,
-  .evidenceStack,
-  .contactCard,
-  .outputGroup {
-    inset: auto;
-    opacity: 1 !important;
-    position: relative;
-    transform: none !important;
-    width: 100%;
-  }
-
   .sourceObject {
-    justify-self: center;
-    max-width: 270px;
-    order: 1;
+    left: 50%;
+    max-width: 232px;
+    top: 26px;
+    width: 64%;
   }
 
   .sourceFrame {
     border-radius: 23px;
   }
 
-  .scanLens {
-    display: none;
+  .stage[data-chapter="0"] .sourceObject {
+    transform: translateX(-50%) scale(0.94);
   }
 
   .evidenceStack {
     gap: 9px;
-    order: 2;
+    left: 16px;
+    right: 16px;
+    top: 34px;
+    width: auto;
   }
 
   .evidenceToken {
@@ -796,7 +849,9 @@
   }
 
   .contactCard {
-    order: 3;
+    left: 16px;
+    top: 54px;
+    width: calc(100% - 32px);
   }
 
   .contactHeader {
@@ -809,8 +864,7 @@
   }
 
   .outputGroup {
-    height: 390px;
-    order: 4;
+    inset: 28px 14px 18px;
   }
 
   .webOutput {
@@ -831,7 +885,7 @@
     height: auto;
     justify-content: start;
     padding: 16px;
-    position: relative;
+    position: absolute;
   }
 
   .sourceSwitcher > div {
@@ -850,70 +904,21 @@
     display: none;
   }
 
-  .mobileContinue {
-    align-items: center;
-    color: var(--muted);
-    display: flex;
-    font-family: var(--font-mono), monospace;
-    font-size: 0.6rem;
-    gap: 7px;
-    justify-content: center;
-    letter-spacing: 0.05em;
-    padding: 18px;
-    text-transform: uppercase;
+  .stage[data-chapter="1"] .sourceObject,
+  .stage[data-chapter="2"] .sourceObject,
+  .stage[data-chapter="3"] .sourceObject {
+    opacity: 0.08;
+    transform: translateX(-68%) scale(0.58);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .journey {
-    min-height: auto;
-    padding-block: 72px 110px;
-  }
-
-  .journeyFrame {
-    align-items: start;
-    min-height: 0;
-  }
-
-  .chapterRail,
-  .stage {
-    position: relative;
-    top: auto;
-  }
-
-  .stage {
-    height: 760px;
-  }
-
-  .sourceObject {
-    opacity: 0.24 !important;
-    transform: translate3d(-32%, 7%, 0) scale(0.61) !important;
-  }
-
+  .sourceObject,
   .scanLens,
   .evidenceStack,
-  .contactCard {
-    display: none;
-  }
-
-  .outputGroup {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) and (max-width: 820px) {
-  .stage {
-    height: auto;
-  }
-
-  .sourceObject {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-
-  .evidenceStack,
-  .contactCard {
-    display: grid;
+  .contactCard,
+  .outputGroup,
+  .progress span {
+    transition: none;
   }
 }

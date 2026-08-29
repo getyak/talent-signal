@@ -22,6 +22,10 @@
   --warning: #8a5f19;
   --error: #a22f25;
   --focus: #9c2e21;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei";
+  --font-serif: "Songti SC", "STSong", Georgia;
   --font-mono:
     "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
   --shadow:
@@ -98,8 +102,7 @@ body {
     "liga" 1,
     "calt" 1;
   font-family:
-    var(--font-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-    "Noto Sans CJK SC", sans-serif;
+    var(--font-sans), sans-serif;
   font-optical-sizing: auto;
   margin: 0;
   min-width: 320px;
