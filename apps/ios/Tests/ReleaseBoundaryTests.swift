@@ -94,6 +94,11 @@ final class ReleaseBoundaryTests: XCTestCase {
                 url: URL(string: "talentsignal://standalone")
             )
         )
+        XCTAssertTrue(
+            TalentSignalRootRoute.opensAgentWorkShowcase(
+                arguments: ["TalentSignal", "--agent-work-showcase"]
+            )
+        )
 #else
         let arguments = [
             "TalentSignal",
@@ -107,6 +112,7 @@ final class ReleaseBoundaryTests: XCTestCase {
             "--standalone-demo",
             "--demo-proposal-engine",
             "--simulate-action-button",
+            "--agent-work-showcase",
         ]
 
         XCTAssertFalse(TalentSignalRootRoute.opensReviewWorkbench(arguments: arguments))
@@ -127,6 +133,9 @@ final class ReleaseBoundaryTests: XCTestCase {
             StandaloneOnboardingConfiguration.opens(
                 url: URL(string: "talentsignal://standalone")
             )
+        )
+        XCTAssertFalse(
+            TalentSignalRootRoute.opensAgentWorkShowcase(arguments: arguments)
         )
 #endif
     }

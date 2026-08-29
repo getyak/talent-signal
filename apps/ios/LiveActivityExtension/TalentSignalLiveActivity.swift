@@ -6,6 +6,7 @@ import WidgetKit
 struct TalentSignalLiveActivityBundle: WidgetBundle {
     var body: some Widget {
         SignalRecordingLiveActivity()
+        AgentWorkLiveActivity()
     }
 }
 

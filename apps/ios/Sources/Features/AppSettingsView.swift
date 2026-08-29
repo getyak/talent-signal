@@ -80,7 +80,7 @@ struct ActionButtonSetupView: View {
                             .foregroundStyle(Color.tsInk)
                         Text(
                             appLanguage.text(
-                                "Talent Signal offers three focused shortcuts. Choosing one never confirms a fact or sends anything."
+                                "Talent Signal offers focused shortcuts for capture, review, and retrieval. Choosing one never confirms a fact or sends anything."
                             )
                         )
                         .font(.subheadline)
@@ -89,32 +89,6 @@ struct ActionButtonSetupView: View {
                     }
                 }
                 .padding(.vertical, 6)
-            }
-
-            Section {
-                SettingsExplanationRow(
-                    systemImage: "waveform.badge.plus",
-                    title: appLanguage.text("Capture Signal"),
-                    detail: appLanguage.text(
-                        "Choose text, photo, or foreground voice in the app."
-                    )
-                )
-                SettingsExplanationRow(
-                    systemImage: "mic",
-                    title: appLanguage.text("Record Signal"),
-                    detail: appLanguage.text(
-                        "Open foreground recording; the microphone does not start automatically."
-                    )
-                )
-                SettingsExplanationRow(
-                    systemImage: "text.viewfinder",
-                    title: appLanguage.text("Review screenshot"),
-                    detail: appLanguage.text(
-                        "Save one image locally for later text and identity review."
-                    )
-                )
-            } header: {
-                Text(appLanguage.text("Available shortcuts"))
             }
 
             Section {
@@ -133,7 +107,7 @@ struct ActionButtonSetupView: View {
                 SettingsStepRow(
                     number: 3,
                     text: appLanguage.text(
-                        "Choose Talent Signal, then select Capture Signal, Record Signal, or Review screenshot."
+                        "Choose Talent Signal, then select the capture or review shortcut you want."
                     )
                 )
 
@@ -168,6 +142,90 @@ struct ActionButtonSetupView: View {
                         "Setup status is confirmed by you because iOS does not expose the current Action Button binding to this app."
                     )
                 )
+            }
+
+            Section {
+                SettingsExplanationRow(
+                    systemImage: "sparkles",
+                    title: appLanguage.text("Agent processing stays visible"),
+                    detail: appLanguage.text(
+                        "A Live Activity can show the trusted phase while you are away. When Actions are ready, review returns to the App."
+                    )
+                )
+                SettingsExplanationRow(
+                    systemImage: "rectangle.stack.badge.person.crop",
+                    title: appLanguage.text("Actions stay reviewable"),
+                    detail: appLanguage.text(
+                        "Add contact, update contact, meetings, and follow-ups remain separate cards with evidence and an exact effect."
+                    )
+                )
+#if DEBUG
+                NavigationLink {
+                    AgentWorkShowcaseView()
+                } label: {
+                    SettingsExplanationRow(
+                        systemImage: "testtube.2",
+                        title: appLanguage.text("Open Agent lifecycle demo"),
+                        detail: appLanguage.text(
+                            "Run the synthetic ActivityKit handoff from processing to action review."
+                        )
+                    )
+                }
+                .accessibilityIdentifier("open-agent-work-showcase")
+#endif
+            } header: {
+                Text(appLanguage.text("Agent handoff"))
+            } footer: {
+                Text(
+                    appLanguage.text(
+                        "The Live Activity exposes phase and attention only. Candidate details and consequential controls stay inside Talent Signal."
+                    )
+                )
+            }
+
+            Section {
+                SettingsExplanationRow(
+                    systemImage: "waveform.badge.plus",
+                    title: appLanguage.text("Capture Signal"),
+                    detail: appLanguage.text(
+                        "Choose text, photo, or foreground voice in the app."
+                    )
+                )
+                SettingsExplanationRow(
+                    systemImage: "mic",
+                    title: appLanguage.text("Record Signal"),
+                    detail: appLanguage.text(
+                        "Open foreground recording; the microphone does not start automatically."
+                    )
+                )
+                SettingsExplanationRow(
+                    systemImage: "text.viewfinder",
+                    title: appLanguage.text("Review screenshot"),
+                    detail: appLanguage.text(
+                        "Save one image locally for later text and identity review."
+                    )
+                )
+            } header: {
+                Text(appLanguage.text("Capture shortcuts"))
+            }
+
+            Section {
+                SettingsExplanationRow(
+                    systemImage: "checkmark.bubble",
+                    title: appLanguage.text("Review Signal"),
+                    detail: appLanguage.text(
+                        "Open the latest pending Proposal for a human decision."
+                    )
+                )
+                SettingsExplanationRow(
+                    systemImage: "scope",
+                    title: appLanguage.text("Open Pursuit"),
+                    detail: appLanguage.text(
+                        "Return to one stable Pursuit without recording a change."
+                    )
+                )
+            } header: {
+                Text(appLanguage.text("Review and retrieve"))
             }
 
             Section {

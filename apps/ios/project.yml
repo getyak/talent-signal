@@ -80,6 +80,8 @@ targets:
           - TalentSignalLiveActivity.entitlements
       - path: Shared/SharedCaptureEnvelope.swift
       - path: Shared/SignalRecordingActivity.swift
+      - path: Shared/AgentWorkActivity.swift
+      - path: Sources/App/AgentWorkDeepLink.swift
     settings:
       base:
         APPLICATION_EXTENSION_API_ONLY: YES

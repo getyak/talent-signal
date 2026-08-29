@@ -877,6 +877,51 @@
     "Action Button & Shortcuts" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作按钮与快捷指令" } } }
     },
+    "A Live Activity can show the trusted phase while you are away. When Actions are ready, review returns to the App." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你离开应用后，实时活动仍会显示可信的处理阶段；Actions 准备好时，审阅会回到应用内。" } } }
+    },
+    "Actions stay reviewable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Actions 始终可审阅" } } }
+    },
+    "Add contact, update contact, meetings, and follow-ups remain separate cards with evidence and an exact effect." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新增联系人、更新联系人、会议与跟进会保持为独立卡片，并显示证据与确切影响。" } } }
+    },
+    "Agent handoff" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 交接" } } }
+    },
+    "Agent processing stays visible" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 处理过程持续可见" } } }
+    },
+    "Capture shortcuts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录快捷指令" } } }
+    },
+    "Choose Talent Signal, then select the capture or review shortcut you want." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择 Talent Signal，再选择需要的记录或审阅快捷指令。" } } }
+    },
+    "Open Agent lifecycle demo" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Agent 生命周期演示" } } }
+    },
+    "Open the latest pending Proposal for a human decision." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开最新的待处理 Proposal，由人作出决定。" } } }
+    },
+    "Return to one stable Pursuit without recording a change." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回一个稳定的 Pursuit，不记录任何变更。" } } }
+    },
+    "Review Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅 Signal" } } }
+    },
+    "Review and retrieve" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅与找回" } } }
+    },
+    "Run the synthetic ActivityKit handoff from processing to action review." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行从处理到 action 审阅的合成 ActivityKit 交接。" } } }
+    },
+    "Talent Signal offers focused shortcuts for capture, review, and retrieval. Choosing one never confirms a fact or sends anything." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 提供聚焦于记录、审阅与找回的快捷指令；选择任一项都不会确认事实或发送内容。" } } }
+    },
+    "The Live Activity exposes phase and attention only. Candidate details and consequential controls stay inside Talent Signal." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "实时活动只展示阶段与是否需要关注；候选人详情和有后果的控制项留在 Talent Signal 应用内。" } } }
+    },
     "Approval & data" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审批与数据" } } }
     },
