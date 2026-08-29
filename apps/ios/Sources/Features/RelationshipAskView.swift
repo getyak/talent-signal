@@ -318,6 +318,7 @@ struct RelationshipAskView: View {
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var isPhotoLibraryPresented = false
     @State private var isFileImporterPresented = false
+    @State private var isHomeAttachmentChooserPresented = false
     @State private var mediaDrafts: [AskMediaDraft] = []
     @State private var mediaNotice: String?
     @State private var mediaImportTask: Task<Void, Never>?
@@ -356,7 +357,7 @@ struct RelationshipAskView: View {
     @State private var reinstatementReason = ""
     @State private var reviewPreparationError: String?
     @State private var isVoiceDisclosurePresented = false
-    @State private var presentationDetent: PresentationDetent = .height(126)
+    @State private var presentationDetent: PresentationDetent = .large
     @State private var voiceOperation: Task<Void, Never>?
     @StateObject private var voiceInput = VoiceInputStore()
     @AppStorage("voice-input-cloud-disclosure-v1")
@@ -366,10 +367,16 @@ struct RelationshipAskView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if isCompactEntry {
-                    Spacer(minLength: 0)
+                if isCompactEntry, isHomeAttachmentChooserPresented {
+                    homeAttachmentChooser
+                } else if isCompactEntry {
+                    compactEditorHeader
+                    starterGrid
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 2)
                     compactComposerContext
                     composer
+                    Spacer(minLength: 0)
                 } else {
                     if shouldShowScopeBar,
                        contactDraft == nil || contactSaveMessage != nil,
@@ -557,18 +564,25 @@ struct RelationshipAskView: View {
             }
             if sessionID == nil,
                initialSeed == nil,
-               contactDraft == nil,
-               !voiceOverEnabled,
-               !dynamicTypeSize.isAccessibilitySize,
-               !sizeCategory.isAccessibilityCategory {
+               contactDraft == nil {
                 await Task.yield()
                 switch initialEntryMode {
                 case .text:
-                    break
+                    presentationDetent = .large
+                    if !voiceOverEnabled,
+                       !dynamicTypeSize.isAccessibilitySize,
+                       !sizeCategory.isAccessibilityCategory {
+                        composerFocused = true
+                    }
                 case .attachment:
-                    isPhotoLibraryPresented = true
+                    presentationDetent = .medium
+                    isHomeAttachmentChooserPresented = true
                 case .voice:
-                    composerPrimaryAction()
+                    if !voiceOverEnabled,
+                       !dynamicTypeSize.isAccessibilitySize,
+                       !sizeCategory.isAccessibilityCategory {
+                        composerPrimaryAction()
+                    }
                 }
             }
             while !Task.isCancelled {
@@ -1185,7 +1199,11 @@ struct RelationshipAskView: View {
                     axis: .vertical
                 )
                 .focused($composerFocused)
-                .lineLimit(1...5)
+                .lineLimit(
+                    isCompactEntry
+                        ? (usesAccessibilityLayout ? 2...4 : 8...18)
+                        : 1...5
+                )
                 .disabled(
                     voiceInput.isBusy
                         || isSending
@@ -1194,10 +1212,22 @@ struct RelationshipAskView: View {
                 )
                 .padding(.horizontal, 15)
                 .padding(.vertical, 12)
+                .frame(
+                    minHeight: isCompactEntry
+                        ? (usesAccessibilityLayout ? 92 : 190)
+                        : nil,
+                    alignment: .topLeading
+                )
                 .background(
                     Color.tsCanvas,
-                    in: RoundedRectangle(cornerRadius: 20)
+                    in: RoundedRectangle(cornerRadius: isCompactEntry ? 22 : 20)
                 )
+                .overlay {
+                    if isCompactEntry {
+                        RoundedRectangle(cornerRadius: 22)
+                            .stroke(Color.tsLine, lineWidth: 1)
+                    }
+                }
                 .accessibilityIdentifier("ask-composer")
 
                 Button(action: composerPrimaryAction) {
@@ -1609,6 +1639,212 @@ struct RelationshipAskView: View {
             && !isRequestingScope
             && errorMessage == nil
             && reviewPreparationError == nil
+    }
+
+    @ViewBuilder
+    private var compactEditorHeader: some View {
+        if usesAccessibilityLayout {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(appLanguage.text("NEW MESSAGE", zhHans: "新消息"))
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.05)
+                    .foregroundStyle(Color.tsVermilion)
+                Spacer(minLength: 8)
+                Text(appLanguage.text("Text · Markdown", zhHans: "文本 · Markdown"))
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 8)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("ask-markdown-editor-header")
+        } else {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(appLanguage.text("NEW MESSAGE", zhHans: "新消息"))
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.15)
+                        .foregroundStyle(Color.tsVermilion)
+                    Spacer(minLength: 12)
+                    Label(
+                        appLanguage.text("Text · Markdown", zhHans: "文本 · Markdown"),
+                        systemImage: "text.alignleft"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                }
+                Text(
+                    appLanguage.text(
+                        "Write with room to think.",
+                        zhHans: "留一点空间，把想法写清楚。"
+                    )
+                )
+                .font(.custom("Georgia", size: 30, relativeTo: .title2))
+                .foregroundStyle(Color.tsInk)
+                .tracking(-0.45)
+                Text(
+                    appLanguage.text(
+                        "Plain text and Markdown stay editable until you choose Send.",
+                        zhHans: "普通文本和 Markdown 在发送前都可以继续编辑。"
+                    )
+                )
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 10)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("ask-markdown-editor-header")
+        }
+    }
+
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize || sizeCategory.isAccessibilityCategory
+    }
+
+    private var homeAttachmentChooser: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(appLanguage.text("ADD TO MESSAGE", zhHans: "添加到消息"))
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.15)
+                    .foregroundStyle(Color.tsVermilion)
+                Text(
+                    appLanguage.text(
+                        "Choose a source first.",
+                        zhHans: "先选择内容来源。"
+                    )
+                )
+                .font(.custom("Georgia", size: 30, relativeTo: .title2))
+                .foregroundStyle(Color.tsInk)
+                .tracking(-0.45)
+                .padding(.top, 8)
+                Text(
+                    appLanguage.text(
+                        "Nothing is imported until you make a choice.",
+                        zhHans: "在你选择之前，不会导入任何内容。"
+                    )
+                )
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+                .padding(.top, 7)
+
+                VStack(spacing: 10) {
+                    homeAttachmentChoice(
+                        title: appLanguage.text("Photos", zhHans: "照片"),
+                        detail: appLanguage.text(
+                            "Choose one or more images",
+                            zhHans: "选择一张或多张图片"
+                        ),
+                        symbol: "photo.on.rectangle",
+                        identifier: "home-attachment-photos"
+                    ) {
+                        composerFocused = false
+                        isPhotoLibraryPresented = true
+                    }
+                    homeAttachmentChoice(
+                        title: appLanguage.text("Image files", zhHans: "图片文件"),
+                        detail: appLanguage.text(
+                            "Browse JPEG, PNG, WebP, GIF, HEIC, or HEIF",
+                            zhHans: "浏览 JPEG、PNG、WebP、GIF、HEIC 或 HEIF"
+                        ),
+                        symbol: "folder",
+                        identifier: "home-attachment-files"
+                    ) {
+                        composerFocused = false
+                        isFileImporterPresented = true
+                    }
+                    homeAttachmentChoice(
+                        title: appLanguage.text(
+                            "Link a relationship",
+                            zhHans: "关联关系"
+                        ),
+                        detail: appLanguage.text(
+                            "Choose the Person and Pursuit context",
+                            zhHans: "选择人物与 Pursuit 上下文"
+                        ),
+                        symbol: "person.crop.circle.badge.plus",
+                        identifier: "home-attachment-relationship"
+                    ) {
+                        isHomeAttachmentChooserPresented = false
+                        requestRelationshipScope()
+                    }
+                }
+                .padding(.top, 22)
+
+                Button {
+                    isHomeAttachmentChooserPresented = false
+                    presentationDetent = .large
+                    Task { @MainActor in
+                        await Task.yield()
+                        composerFocused = true
+                    }
+                } label: {
+                    Label(
+                        appLanguage.text(
+                            "Write text or Markdown instead",
+                            zhHans: "改为编写文本或 Markdown"
+                        ),
+                        systemImage: "square.and.pencil"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.tsInk)
+                .padding(.top, 10)
+                .accessibilityIdentifier("home-attachment-write")
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 28)
+        }
+        .background(Color.tsSurface.ignoresSafeArea())
+        .accessibilityIdentifier("home-attachment-chooser")
+    }
+
+    private func homeAttachmentChoice(
+        title: String,
+        detail: String,
+        symbol: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(width: 44, height: 44)
+                    .background(Color.tsSurface, in: Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title). \(detail)")
+        .accessibilityIdentifier(identifier)
     }
 
     @ViewBuilder

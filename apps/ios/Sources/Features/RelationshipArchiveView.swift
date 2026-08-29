@@ -2789,8 +2789,8 @@ private struct RelationshipGuideRail: View {
             .buttonStyle(.plain)
             .accessibilityLabel(
                 appLanguage.text(
-                    "Add photos or image files to an Agent message",
-                    zhHans: "向 Agent 消息添加照片或图片文件"
+                    "Choose what to add to an Agent message",
+                    zhHans: "选择要添加到 Agent 消息的内容"
                 )
             )
             .accessibilityIdentifier("open-agent-attachments")

@@ -429,7 +429,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Conversation-first Ask with embedded tools")
     }
 
-    func testGlobalAgentInputStaysCompactUntilTyping() {
+    func testGlobalAgentInputOpensLargeFocusedMarkdownEditor() {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -441,17 +441,39 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertTrue(
-            app.keyboards.firstMatch.waitForNonExistence(timeout: 3),
-            "Opening a new Agent message should remain a compact input until the recruiter taps it."
+            element("ask-markdown-editor-header").exists,
+            "The home text entry should open the full writing surface."
+        )
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(
+            element("relationship-ask-sheet").frame.height,
+            app.windows.firstMatch.frame.height * 0.65
         )
 
-        let message = "Add Maya Chen for the product search"
+        let message = "# Search note\n\n- Add Maya Chen for the product search"
         typeTextReliably(message, into: composer)
         XCTAssertEqual(composer.value as? String, message)
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.exists)
         XCTAssertTrue(send.isEnabled)
-        preserveScreenshot("Global Agent input opens ready to type")
+        preserveScreenshot("Global Agent Markdown editor ready to type")
+    }
+
+    func testHomePlusShowsAttachmentSourcesBeforeOpeningAPicker() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let add = app.buttons["open-agent-attachments"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+
+        XCTAssertTrue(element("home-attachment-chooser").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["home-attachment-photos"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-files"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-relationship"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-write"].exists)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        preserveScreenshot("Home attachment source chooser")
     }
 
     func testUnscopedAgentAttachmentStaysInsideTheConversation() {
