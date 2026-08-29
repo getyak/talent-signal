@@ -214,10 +214,31 @@ enum StandaloneOnboardingConfiguration {
 }
 
 enum TalentSignalAuthenticationConfiguration {
-    static func requiresAuthentication(arguments: [String]) -> Bool {
+    static let previewWorkspaceEnvironmentKey = "TS_IOS_UI_TEST_PREVIEW_WORKSPACE"
+
+    static func requiresAuthentication(
+        arguments: [String],
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
 #if DEBUG
-        arguments.contains("--show-login")
-            || value(after: "--auth-backend-url", in: arguments) != nil
+        if arguments.contains("--show-login")
+            || value(after: "--auth-backend-url", in: arguments) != nil {
+            return true
+        }
+        if PursuitWorkspaceSession.configured(arguments: arguments) != nil {
+            return false
+        }
+        if arguments.contains("--preview-workspace")
+            || environment[previewWorkspaceEnvironmentKey] == "true" {
+            return false
+        }
+        if TalentSignalRootRoute.opensReviewWorkbench(arguments: arguments)
+            || TalentSignalRootRoute.opensCalendarHandoff(arguments: arguments)
+            || TalentSignalRootRoute.opensAgentWorkShowcase(arguments: arguments)
+            || StandaloneOnboardingConfiguration.isEnabled(arguments: arguments) {
+            return false
+        }
+        return true
 #else
         true
 #endif

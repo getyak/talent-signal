@@ -265,7 +265,7 @@ export async function uploadChatMediaContent(
 }
 
 export async function getChatMediaContent(
-  pool: Pool,
+  pool: Pick<Pool, "query"> | PoolClient,
   auth: AuthContext,
   storage: ChatMediaStorage,
   mediaId: string,

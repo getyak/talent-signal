@@ -26,8 +26,10 @@ import type {
 } from "./chatAnswerProvider.js";
 import {
   bindChatMediaToManifest,
+  getChatMediaContent,
   listManifestChatMedia,
 } from "./chatMedia.js";
+import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { loadSnapshot } from "./wiki.js";
 
 const CHAT_POLICY_VERSION = "chat-context.v2";
@@ -757,6 +759,7 @@ export async function createChatTask(
   auth: AuthContext,
   request: ChatTaskRequest,
   remoteChatProvider: RemoteChatAnswerProviding | null = null,
+  chatMediaStorage: ChatMediaStorage | null = null,
 ): Promise<ChatTaskMutationResult> {
   return inTransaction(pool, async (client) => {
     const idempotency = await claimIdempotency(
@@ -904,12 +907,32 @@ export async function createChatTask(
       | "fallback"
       | "media_not_sent" = "disabled";
     let remoteChatResult: RemoteChatAnswerResult | null = null;
-    if (remoteChatProvider && mediaIds.length === 0) {
+    if (
+      remoteChatProvider &&
+      (mediaIds.length === 0 ||
+        (remoteChatProvider.supportsImageInput && chatMediaStorage))
+    ) {
       try {
+        const images = mediaIds.length === 0 || !chatMediaStorage
+          ? []
+          : await Promise.all(media.map(async (item) => {
+              const stored = await getChatMediaContent(
+                client,
+                auth,
+                chatMediaStorage,
+                item.id,
+              );
+              return {
+                file_name: item.file_name,
+                media_type: item.media_type,
+                data: stored.body,
+              };
+            }));
         remoteChatResult = await remoteChatProvider.answer({
           objective: request.objective,
           context_blocks: selectedBlocks.map(remoteContextBlock),
           allowed_citation_ids: evidenceFragmentIds,
+          images,
         });
         const nextBlocks = insertAfterPersonBrief(
           blocks,

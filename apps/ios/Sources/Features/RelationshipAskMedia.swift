@@ -3,6 +3,7 @@ import UIKit
 
 struct AskMediaDraft: Identifiable {
     enum Phase: Equatable {
+        case waitingForContext
         case uploading
         case ready
         case failed(String)
@@ -16,6 +17,7 @@ struct AskMediaDraft: Identifiable {
     let mediaType: String
     let width: Int
     let height: Int
+    var routingText: String
     var remoteAsset: ChatMediaAsset?
     var phase: Phase
 
@@ -79,6 +81,15 @@ struct AskMediaDraftTray: View {
     @ViewBuilder
     private func phaseOverlay(_ draft: AskMediaDraft) -> some View {
         switch draft.phase {
+        case .waitingForContext:
+            Image(systemName: "sparkles")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                .padding(8)
+                .background(.ultraThinMaterial, in: Circle())
+                .accessibilityLabel(
+                    appLanguage.text("Ready for Agent context")
+                )
         case .uploading, .removing:
             ProgressView()
                 .tint(.white)

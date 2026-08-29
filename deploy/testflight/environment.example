@@ -7,6 +7,9 @@ TALENT_SIGNAL_API_BASE_URL=https://your-mac.your-tailnet.ts.net
 TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING=false
 TALENT_SIGNAL_CHAT_PROVIDER=zhipu
 TALENT_SIGNAL_CHAT_MODEL=glm-5.3
+# Leave empty unless the environment has separately admitted private image
+# processing with TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING=true.
+TALENT_SIGNAL_CHAT_VISION_MODEL=
 TALENT_SIGNAL_CHAT_TIMEOUT_MS=15000
 ZHIPU_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 ZHIPU_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
@@ -14,6 +17,7 @@ ZHIPU_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
 # Recruiter dictation belongs in Infisical staging:/shared. The App ID and
 # Access Token remain server-only. This voice-specific gate does not admit
 # screenshots or candidate evidence to other remote model paths.
+TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING=false
 TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION=true
 VOICE_ASR_PROVIDER=doubao
 DOUBAO_ASR_BASE_URL=https://openspeech.bytedance.com

@@ -1720,6 +1720,7 @@ export async function buildApp(
         request.auth,
         request.body,
         remoteChatProvider,
+        chatMediaStorage,
       );
       return reply
         .header("idempotent-replayed", result.replayed)

@@ -11,11 +11,13 @@ struct RelationshipArchiveView: View {
     @StateObject private var sessionStore: AgentSessionStore
     @State private var selectedPage: RelationshipArchivePage = .today
     @State private var presentedSheet: RelationshipArchiveSheet?
+    @State private var askPresentation: RelationshipAskPresentation?
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
     @State private var isRelationshipCalendarPresented = false
     @State private var deferredIntakePresentation: AgentIntakePresentation?
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
+    @State private var deferredAskPresentation: RelationshipAskPresentation?
     @State private var deferredCapturePresentation: RelationshipCapturePresentation?
     private let reviewBaseURL: URL?
     private let authenticatedAccessToken: String?
@@ -108,16 +110,32 @@ struct RelationshipArchiveView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             RelationshipArchiveHeader(
                 selectedPage: $selectedPage,
-                onOpenMenu: { presentedSheet = .menu }
+                onOpenMenu: { presentedSheet = .menu },
+                onOpenCalendar: { isRelationshipCalendarPresented = true }
             )
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             RelationshipGuideRail(
                 onGuide: {
-                    capturePresentation = .ask(sessionID: nil, seed: nil)
+                    askPresentation = .init(
+                        sessionID: nil,
+                        seed: nil,
+                        entryMode: .text
+                    )
                 },
-                onCapture: {
-                    intakePresentation = .init(initialDestination: nil)
+                onAttach: {
+                    askPresentation = .init(
+                        sessionID: nil,
+                        seed: nil,
+                        entryMode: .attachment
+                    )
+                },
+                onVoice: {
+                    askPresentation = .init(
+                        sessionID: nil,
+                        seed: nil,
+                        entryMode: .voice
+                    )
                 }
             )
         }
@@ -186,93 +204,95 @@ struct RelationshipArchiveView: View {
                 )
             }
         }
+        .sheet(item: $askPresentation, onDismiss: completeDeferredTransition) { presentation in
+            if let snapshot = workspaceStore.snapshot {
+                RelationshipAskView(
+                    snapshot: snapshot,
+                    isCanonical: workspaceStore.isCanonical,
+                    workspaceStore: workspaceStore,
+                    sessionStore: sessionStore,
+                    sessionID: presentation.sessionID,
+                    initialSeed: presentation.seed,
+                    initialEntryMode: presentation.entryMode,
+                    ask: { objective, personID, contextID, idempotencyKey, mediaIDs in
+                        try await workspaceStore.ask(
+                            objective: objective,
+                            personID: personID,
+                            relationshipContextID: contextID,
+                            idempotencyKey: idempotencyKey,
+                            mediaIDs: mediaIDs
+                        )
+                    },
+                    saveContact: {
+                        draft,
+                        target,
+                        confirmIdentityClue,
+                        capturedAt,
+                        idempotencyKey in
+                        try await workspaceStore.saveContactDraft(
+                            draft,
+                            target: target,
+                            confirmIdentityClue: confirmIdentityClue,
+                            capturedAt: capturedAt,
+                            idempotencyKey: idempotencyKey
+                        )
+                    },
+                    reviewEvidence: {
+                        fragmentID,
+                        expectedReviewStatus,
+                        expectedLastReviewID,
+                        decision,
+                        reason,
+                        idempotencyKey in
+                        return try await workspaceStore.reviewEvidence(
+                            fragmentID: fragmentID,
+                            expectedReviewStatus: expectedReviewStatus,
+                            expectedLastReviewID: expectedLastReviewID,
+                            decision: decision,
+                            reason: reason,
+                            idempotencyKey: idempotencyKey
+                        )
+                    },
+                    revalidateSessions: {
+                        await revalidateSessionEvidence()
+                    },
+                    onOpenProposal: { proposal in
+                        deferredArchiveSheet = .proposal(proposal)
+                        askPresentation = nil
+                    },
+                    onCapture: { destination in
+                        switch destination {
+                        case .screenshotReview:
+                            deferredCapturePresentation = .screenshot
+                        case .foregroundAudio:
+                            deferredIntakePresentation = .init(
+                                initialDestination: .foregroundAudio
+                            )
+                        }
+                        askPresentation = nil
+                    },
+                    onOpenPerson: { personID in
+                        guard let currentSnapshot = workspaceStore.snapshot,
+                              let person = currentSnapshot.people.first(where: {
+                                $0.id == personID
+                              }) else { return }
+                        deferredArchiveSheet = .workspacePerson(
+                            person,
+                            roles(for: person.id, in: currentSnapshot)
+                        )
+                        askPresentation = nil
+                    },
+                    voiceTranscriber: composerVoiceTranscriber
+                )
+            } else {
+                PursuitWorkspaceLoadingView()
+            }
+        }
         .fullScreenCover(
             item: $capturePresentation,
             onDismiss: completeDeferredTransition
         ) { presentation in
             switch presentation {
-            case let .ask(sessionID, seed):
-                if let snapshot = workspaceStore.snapshot {
-                    RelationshipAskView(
-                        snapshot: snapshot,
-                        isCanonical: workspaceStore.isCanonical,
-                        workspaceStore: workspaceStore,
-                        sessionStore: sessionStore,
-                        sessionID: sessionID,
-                        initialSeed: seed,
-                        ask: { objective, personID, contextID, idempotencyKey, mediaIDs in
-                            try await workspaceStore.ask(
-                                objective: objective,
-                                personID: personID,
-                                relationshipContextID: contextID,
-                                idempotencyKey: idempotencyKey,
-                                mediaIDs: mediaIDs
-                            )
-                        },
-                        saveContact: {
-                            draft,
-                            target,
-                            confirmIdentityClue,
-                            capturedAt,
-                            idempotencyKey in
-                            try await workspaceStore.saveContactDraft(
-                                draft,
-                                target: target,
-                                confirmIdentityClue: confirmIdentityClue,
-                                capturedAt: capturedAt,
-                                idempotencyKey: idempotencyKey
-                            )
-                        },
-                        reviewEvidence: {
-                            fragmentID,
-                            expectedReviewStatus,
-                            expectedLastReviewID,
-                            decision,
-                            reason,
-                            idempotencyKey in
-                            return try await workspaceStore.reviewEvidence(
-                                fragmentID: fragmentID,
-                                expectedReviewStatus: expectedReviewStatus,
-                                expectedLastReviewID: expectedLastReviewID,
-                                decision: decision,
-                                reason: reason,
-                                idempotencyKey: idempotencyKey
-                            )
-                        },
-                        revalidateSessions: {
-                            await revalidateSessionEvidence()
-                        },
-                        onOpenProposal: { proposal in
-                            deferredArchiveSheet = .proposal(proposal)
-                            capturePresentation = nil
-                        },
-                        onCapture: { destination in
-                            switch destination {
-                            case .screenshotReview:
-                                deferredCapturePresentation = .screenshot
-                            case .foregroundAudio:
-                                deferredIntakePresentation = .init(
-                                    initialDestination: .foregroundAudio
-                                )
-                            }
-                            capturePresentation = nil
-                        },
-                        onOpenPerson: { personID in
-                            guard let currentSnapshot = workspaceStore.snapshot,
-                                  let person = currentSnapshot.people.first(where: {
-                                $0.id == personID
-                            }) else { return }
-                            deferredArchiveSheet = .workspacePerson(
-                                person,
-                                roles(for: person.id, in: currentSnapshot)
-                            )
-                            capturePresentation = nil
-                        },
-                        voiceTranscriber: composerVoiceTranscriber
-                    )
-                } else {
-                    PursuitWorkspaceLoadingView()
-                }
             case .screenshot:
                 CandidateSignalView(
                     backendURL: reviewBaseURL,
@@ -411,18 +431,11 @@ struct RelationshipArchiveView: View {
                 PursuitTodayView(
                     snapshot: snapshot,
                     isPreview: !workspaceStore.isCanonical,
-                    calendarActivities: RelationshipCalendarProjection.activities(
-                        snapshot: snapshot,
-                        isPreview: !workspaceStore.isCanonical
-                    ),
                     unreadSessions: sessionStore.unreadSessions,
                     actionRecovery: workspaceStore.latestActionRecovery(
                         in: snapshot
                     ),
                     onOpenSession: openSession,
-                    onOpenCalendar: {
-                        isRelationshipCalendarPresented = true
-                    },
                     onOpenAttention: openAttention,
                     onOpenPursuit: { presentedSheet = .pursuit($0) },
                     onOpenActionRecovery: { pursuitID in
@@ -440,7 +453,11 @@ struct RelationshipArchiveView: View {
                     persistenceNotice: sessionStore.persistenceNotice,
                     onOpen: openSession,
                     onNewSession: {
-                        capturePresentation = .ask(sessionID: nil, seed: nil)
+                        askPresentation = .init(
+                            sessionID: nil,
+                            seed: nil,
+                            entryMode: .text
+                        )
                     },
                     onMarkUnread: sessionStore.markUnread,
                     onDelete: sessionStore.delete
@@ -467,7 +484,11 @@ struct RelationshipArchiveView: View {
 
     private func openSession(_ session: AgentSession) {
         sessionStore.markRead(session.id)
-        capturePresentation = .ask(sessionID: session.id, seed: nil)
+        askPresentation = .init(
+            sessionID: session.id,
+            seed: nil,
+            entryMode: .text
+        )
     }
 
     private func stageCalendarPreparation(
@@ -499,18 +520,20 @@ struct RelationshipArchiveView: View {
                 && $0.relationshipContextID == activity.relationshipContextID
         }
         if let matchingSession {
-            deferredCapturePresentation = .ask(
+            deferredAskPresentation = .init(
                 sessionID: matchingSession.id,
-                seed: nil
+                seed: nil,
+                entryMode: .text
             )
         } else {
-            deferredCapturePresentation = .ask(
+            deferredAskPresentation = .init(
                 sessionID: nil,
                 seed: .meetingPreparation(
                     personID: activity.personID,
                     relationshipContextID: activity.relationshipContextID,
                     suggestedObjective: objective
-                )
+                ),
+                entryMode: .text
             )
         }
     }
@@ -540,6 +563,10 @@ struct RelationshipArchiveView: View {
     }
 
     private func completeDeferredTransition() {
+        if let deferredAskPresentation {
+            askPresentation = deferredAskPresentation
+            self.deferredAskPresentation = nil
+        }
         if let deferredCapturePresentation {
             capturePresentation = deferredCapturePresentation
             self.deferredCapturePresentation = nil
@@ -567,7 +594,11 @@ struct RelationshipArchiveView: View {
         )
         Task {
             await workspaceStore.load()
-            deferredCapturePresentation = .ask(sessionID: nil, seed: seed)
+            deferredAskPresentation = .init(
+                sessionID: nil,
+                seed: seed,
+                entryMode: .text
+            )
             capturePresentation = nil
             intakePresentation = nil
         }
@@ -631,19 +662,18 @@ struct RelationshipArchiveView: View {
     }
 }
 
+private struct RelationshipAskPresentation: Identifiable {
+    let id = UUID()
+    let sessionID: UUID?
+    let seed: AgentSessionSeed?
+    let entryMode: RelationshipAskEntryMode
+}
+
 private enum RelationshipCapturePresentation: Identifiable {
-    case ask(sessionID: UUID?, seed: AgentSessionSeed?)
     case screenshot
 
     var id: String {
         switch self {
-        case let .ask(sessionID, seed):
-            return [
-                "ask",
-                sessionID?.uuidString ?? "new",
-                seed?.personID ?? "unscoped",
-                seed?.relationshipContextID ?? "unscoped",
-            ].joined(separator: "-")
         case .screenshot:
             return "screenshot"
         }
@@ -684,6 +714,7 @@ private struct PursuitWorkspaceRefreshNotice: View {
 private struct RelationshipArchiveHeader: View {
     @Binding var selectedPage: RelationshipArchivePage
     let onOpenMenu: () -> Void
+    let onOpenCalendar: () -> Void
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var selectionNamespace
@@ -744,6 +775,21 @@ private struct RelationshipArchiveHeader: View {
                     )
                 }
             }
+
+            Button(action: onOpenCalendar) {
+                Image(systemName: "calendar")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                appLanguage.text(
+                    "Open relationship calendar",
+                    zhHans: "打开关系日历"
+                )
+            )
+            .accessibilityIdentifier("today-calendar-peek")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
@@ -760,11 +806,9 @@ private struct RelationshipArchiveHeader: View {
 private struct PursuitTodayView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
-    let calendarActivities: [RelationshipCalendarActivity]
     let unreadSessions: [AgentSession]
     let actionRecovery: PursuitActionRecoveryItem?
     let onOpenSession: (AgentSession) -> Void
-    let onOpenCalendar: () -> Void
     let onOpenAttention: (PursuitAttentionItem) -> Void
     let onOpenPursuit: (WorkspacePursuit) -> Void
     let onOpenActionRecovery: (String) -> Void
@@ -793,12 +837,6 @@ private struct PursuitTodayView: View {
                         .padding(.top, 22)
                 }
 
-                TodayRelationshipCalendarPeek(
-                    activities: calendarActivities,
-                    onOpen: onOpenCalendar
-                )
-                    .padding(.top, isPreview ? 16 : 22)
-
                 if let unread = unreadSessions.first {
                     Text(
                         appLanguage.text(
@@ -821,7 +859,7 @@ private struct PursuitTodayView: View {
                     .padding(.top, 6)
                 }
 
-                if let actionRecovery {
+                if let actionRecovery = attentionRecovery {
                     Text(
                         appLanguage.text(
                             actionRecovery.status == .recorded
@@ -847,11 +885,22 @@ private struct PursuitTodayView: View {
                 }
 
                 if attentionItems.isEmpty {
-                    if actionRecovery == nil {
+                    if attentionRecovery == nil {
                         PursuitNoActionView()
                             .padding(.top, topWorkSpacing)
                     }
                 } else if let focus = attentionItems.first {
+                    Text(
+                        appLanguage.text(
+                            "People needing attention",
+                            zhHans: "需要关注的人"
+                        )
+                    )
+                    .font(.caption.weight(.bold))
+                    .tracking(1.1)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .padding(.top, topWorkSpacing)
+
                     TodayFocusCard(
                         item: focus,
                         pursuit: snapshot.pursuit(id: focus.pursuitID),
@@ -863,7 +912,7 @@ private struct PursuitTodayView: View {
                             }
                         }
                     )
-                    .padding(.top, topWorkSpacing)
+                    .padding(.top, 6)
 
                     if attentionItems.count > 1 {
                         Text(appLanguage.text("Next", zhHans: "接下来"))
@@ -904,12 +953,6 @@ private struct PursuitTodayView: View {
                     }
                 }
 
-                Label(noActionSummary, systemImage: "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .frame(minHeight: 72, alignment: .leading)
-                    .padding(.top, 16)
-                    .accessibilityIdentifier("no-action-summary")
             }
             .padding(.horizontal, 24)
             .padding(.top, 30)
@@ -924,7 +967,7 @@ private struct PursuitTodayView: View {
     private var summary: String {
         let total = attentionItems.count
             + unreadSessions.count
-            + (actionRecovery == nil ? 0 : 1)
+            + (attentionRecovery == nil ? 0 : 1)
         if total == 0 {
             return ""
         }
@@ -935,7 +978,7 @@ private struct PursuitTodayView: View {
     }
 
     private var topWorkSpacing: CGFloat {
-        unreadSessions.isEmpty && actionRecovery == nil ? 34 : 24
+        unreadSessions.isEmpty && attentionRecovery == nil ? 34 : 24
     }
 
     private var formattedToday: String {
@@ -958,10 +1001,17 @@ private struct PursuitTodayView: View {
     }
 
     private var attentionItems: [PursuitAttentionItem] {
-        guard let actionRecovery else { return snapshot.todayItems }
+        guard let actionRecovery = attentionRecovery else { return snapshot.todayItems }
         return snapshot.todayItems.filter {
             $0.pursuitID != actionRecovery.pursuitID
         }
+    }
+
+    private var attentionRecovery: PursuitActionRecoveryItem? {
+        guard let actionRecovery, actionRecovery.status != .recorded else {
+            return nil
+        }
+        return actionRecovery
     }
 
     private var attentionDisclosureLabel: String {
@@ -983,18 +1033,6 @@ private struct PursuitTodayView: View {
         }
     }
 
-    private var noActionSummary: String {
-        if snapshot.noActionPursuitCount == 0 {
-            return appLanguage.text(
-                "All active work is accounted for",
-                zhHans: "所有活跃目标均已覆盖"
-            )
-        }
-        return appLanguage.text(
-            "\(snapshot.noActionPursuitCount) need no action",
-            zhHans: "\(snapshot.noActionPursuitCount) 个暂不行动"
-        )
-    }
 }
 
 private struct TodayActionRecoveryCard: View {
@@ -2736,15 +2774,29 @@ private struct WorkspacePersonDetailView: View {
 
 private struct RelationshipGuideRail: View {
     let onGuide: () -> Void
-    let onCapture: () -> Void
+    let onAttach: () -> Void
+    let onVoice: () -> Void
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         HStack(spacing: 0) {
+            Button(action: onAttach) {
+                Image(systemName: "plus")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(width: 48, height: 48)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                appLanguage.text(
+                    "Add photos or image files to an Agent message",
+                    zhHans: "向 Agent 消息添加照片或图片文件"
+                )
+            )
+            .accessibilityIdentifier("open-agent-attachments")
+
             Button(action: onGuide) {
                 HStack(spacing: 10) {
-                    RelationshipSignalOrb()
-                        .frame(width: 28, height: 28)
                     Text(appLanguage.text("Ask anything", zhHans: "问点什么"))
                         .font(.subheadline)
                         .foregroundStyle(Color.tsMutedInk)
@@ -2760,7 +2812,7 @@ private struct RelationshipGuideRail: View {
             )
             .accessibilityIdentifier("relationship-guide")
 
-            Button(action: onCapture) {
+            Button(action: onVoice) {
                 Image(systemName: "waveform")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
@@ -2769,11 +2821,11 @@ private struct RelationshipGuideRail: View {
             .buttonStyle(.plain)
             .accessibilityLabel(
                 appLanguage.text(
-                    "Add text, photo, or voice",
-                    zhHans: "添加文本、图片或语音"
+                    "Dictate an Agent message",
+                    zhHans: "用语音输入 Agent 消息"
                 )
             )
-            .accessibilityIdentifier("capture-relationship-moment")
+            .accessibilityIdentifier("dictate-agent-message")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 9)

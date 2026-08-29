@@ -136,12 +136,16 @@ Relationship Ask has its own narrower
 `TALENT_SIGNAL_CHAT_PROVIDER=zhipu`, pin `TALENT_SIGNAL_CHAT_MODEL=glm-5.3`,
 and keep the environment-specific `ZHIPU_API_KEY` in that environment's
 `/shared` path. The backend sends only the user's submitted question and the
-minimum selected, published, reviewed relationship blocks. It does not send
-Chat photos, raw screenshots, whole transcripts, provider keys, or contact,
-message, and calendar write authority. The server rejects citations outside
-the supplied evidence manifest and falls back to the deterministic response
-when the provider is disabled or fails. This gate does not enable the broader
-Agent runtime or `TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING`.
+minimum selected, published, reviewed relationship blocks. Chat photos remain
+local unless the same environment also sets
+`TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING=true` and pins
+`TALENT_SIGNAL_CHAT_VISION_MODEL`; only then are manifest-bound images sent as
+unreviewed task material to that vision model. This still does not admit whole
+transcripts, provider keys, or contact, message, and calendar write authority.
+The server rejects citations outside the supplied evidence manifest and falls
+back to the deterministic response when the provider is disabled or fails.
+The remote Chat gate alone does not enable the broader Agent runtime or image
+processing.
 
 Use a dedicated credential for each environment. In particular, do not copy
 `dev:/shared/ZHIPU_API_KEY` into `staging:/shared`; create a staging key in the

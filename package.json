@@ -27,6 +27,7 @@
     "eval:v1-atoms": "node scripts/evals/capture-v1-atomic-scores.mjs",
     "hooks:install": "./scripts/install-git-hooks.sh",
     "ios:check": "./scripts/ios/check.sh",
+    "ios:e2e:remote-chat": "./scripts/ios/check-remote-chat-e2e.sh",
     "ios:configure": "node scripts/ios/configure-build-environment.mjs --configuration Debug",
     "ios:generate": "./scripts/ios/generate.sh",
     "ios:localization:check": "node scripts/ios/check-localization.mjs",

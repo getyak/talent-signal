@@ -123,6 +123,50 @@ describe("Zhipu Chat answer provider", () => {
       }).answer(request()),
     ).rejects.toThrow("unsupported response kind");
   });
+
+  it("sends governed images only through an explicitly configured vision model", async () => {
+    const fetcher = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const body = String(init?.body);
+      expect(body).toContain('"model":"glm-5.3-flash"');
+      expect(body).toContain("data:image/png;base64,aGVsbG8=");
+      return new Response(
+        JSON.stringify({
+          id: "provider-vision-1",
+          model: "glm-5.3-flash",
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                kind: "answer",
+                title: "Attachment reading",
+                body: "The screenshot appears to show a scheduling constraint.",
+                citation_ids: [],
+              }),
+            },
+          }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
+    const result = await new ZhipuChatAnswerProvider({
+      apiKey: "synthetic-zhipu-key",
+      model: "glm-5.3",
+      visionModel: "glm-5.3-flash",
+      fetcher,
+    }).answer({
+      ...request(),
+      images: [{
+        file_name: "conversation.png",
+        media_type: "image/png",
+        data: new TextEncoder().encode("hello"),
+      }],
+    });
+
+    expect(result).toMatchObject({
+      model: "glm-5.3-flash",
+      citation_ids: [],
+      provider_request_id: "provider-vision-1",
+    });
+  });
 });
 
 describe("environment Chat provider admission", () => {
@@ -152,5 +196,28 @@ describe("environment Chat provider admission", () => {
         ZHIPU_API_KEY: "synthetic-key",
       }),
     ).toThrow("explicitly pinned");
+  });
+
+  it("requires explicit sensitive-processing admission for vision", () => {
+    expect(() =>
+      createEnvironmentChatAnswerProvider({
+        TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING: "true",
+        TALENT_SIGNAL_CHAT_PROVIDER: "zhipu",
+        TALENT_SIGNAL_CHAT_MODEL: "glm-5.3",
+        TALENT_SIGNAL_CHAT_VISION_MODEL: "glm-5.3-flash",
+        ZHIPU_API_KEY: "synthetic-key",
+      }),
+    ).toThrow("ALLOW_SENSITIVE_AI_PROCESSING=true");
+
+    expect(
+      createEnvironmentChatAnswerProvider({
+        TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING: "true",
+        TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: "true",
+        TALENT_SIGNAL_CHAT_PROVIDER: "zhipu",
+        TALENT_SIGNAL_CHAT_MODEL: "glm-5.3",
+        TALENT_SIGNAL_CHAT_VISION_MODEL: "glm-5.3-flash",
+        ZHIPU_API_KEY: "synthetic-key",
+      })?.supportsImageInput,
+    ).toBe(true);
   });
 });

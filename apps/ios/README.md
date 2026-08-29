@@ -55,13 +55,16 @@ open apps/ios/TalentSignal.xcodeproj
 ```
 
 Set `TALENT_SIGNAL_API_BASE_URL` in the ignored root `.env`, then select the
-`TalentSignal` scheme and an iOS 16+ simulator or device. `ios:generate` parses
+`TalentSignal` scheme and an iOS 16+ simulator or device. A normal Debug launch
+opens the account-scoped login flow; it never falls back to synthetic people
+when the backend or session is missing. `ios:generate` parses
 the value as data, validates it, and writes an ignored
 `apps/ios/Config/Environment.local.xcconfig`; it never sources `.env` as shell
 code. Re-run `pnpm ios:configure` after changing the URL without regenerating
-the Xcode project. Add `--show-login` to the Debug scheme launch arguments when
-testing the account-scoped login flow; deterministic fixture routes remain the
-default for local UI development.
+the Xcode project. Use `--preview-workspace` only when intentionally inspecting
+the synthetic relationship workspace; UI tests inject the same boundary through
+a Debug-only launch environment. Explicit fixture and showcase routes remain
+available without authentication.
 
 Release builds require an HTTPS `TALENT_SIGNAL_API_BASE_URL` and use
 Sign in with Apple before opening the workspace. Configure the App ID capability
@@ -162,10 +165,25 @@ text selection, then reopening the standalone Debug showcase.
 pnpm ios:check
 ```
 
+To prove the signed-in, canonical Ask journey reaches the admitted Zhipu
+provider and renders its answer in the current viewport, run:
+
+```bash
+pnpm ios:e2e:remote-chat
+```
+
+This focused test injects the development secret at process start, enables
+remote Chat processing only for its isolated backend, and fails unless the
+UI exposes a `Zhipu AI` answer block. The regular `ios:check` remains
+deterministic and does not require or invoke a remote model. Treat the test
+result and its screenshot attachment as proof: reopening the installed test app
+does not retain the test's temporary backend session and returns to account
+setup instead of silently opening Preview data.
+
 The check script builds Release without signing, boots an available iPhone
-simulator, and runs the unit and UI tests. The relationship-capture UI test
-expects the authorized synthetic backend fixture on `127.0.0.1:4317`; it skips
-when that fixture is unavailable.
+simulator, and runs the unit and UI tests. When Docker is available it starts
+an isolated local backend and synthetic fixtures for backend-dependent
+journeys; otherwise those journeys may skip.
 
 The release identity is:
 

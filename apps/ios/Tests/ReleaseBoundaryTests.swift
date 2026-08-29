@@ -51,7 +51,41 @@ final class ReleaseBoundaryTests: XCTestCase {
     func testAuthenticationDebugRouteAllowsOnlyLoopbackHTTP() {
         XCTAssertTrue(
             TalentSignalAuthenticationConfiguration.requiresAuthentication(
-                arguments: ["TalentSignal", "--show-login"]
+                arguments: ["TalentSignal"],
+                environment: [:]
+            )
+        )
+        XCTAssertFalse(
+            TalentSignalAuthenticationConfiguration.requiresAuthentication(
+                arguments: ["TalentSignal", "--preview-workspace"],
+                environment: [:]
+            )
+        )
+        XCTAssertFalse(
+            TalentSignalAuthenticationConfiguration.requiresAuthentication(
+                arguments: ["TalentSignal"],
+                environment: [
+                    TalentSignalAuthenticationConfiguration
+                        .previewWorkspaceEnvironmentKey: "true",
+                ]
+            )
+        )
+        XCTAssertTrue(
+            TalentSignalAuthenticationConfiguration.requiresAuthentication(
+                arguments: ["TalentSignal", "--show-login"],
+                environment: [
+                    TalentSignalAuthenticationConfiguration
+                        .previewWorkspaceEnvironmentKey: "true",
+                ]
+            )
+        )
+        XCTAssertFalse(
+            TalentSignalAuthenticationConfiguration.requiresAuthentication(
+                arguments: [
+                    "TalentSignal",
+                    "--workspace-backend-url", "http://127.0.0.1:4317",
+                ],
+                environment: [:]
             )
         )
         XCTAssertEqual(

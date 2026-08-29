@@ -20,6 +20,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>TS_IOS_BACKEND_URL</key>
 	<string>$(TS_IOS_BACKEND_URL)</string>
+	<key>TS_IOS_EXPECT_REMOTE_CHAT</key>
+	<string>$(TS_IOS_EXPECT_REMOTE_CHAT)</string>
 	<key>TS_IOS_PURSUIT_FIXTURE_URL</key>
 	<string>$(TS_IOS_PURSUIT_FIXTURE_URL)</string>
 	<key>TS_IOS_RESPONSE_LOSS_PROXY_URL</key>

@@ -1198,6 +1198,12 @@
     "Add photos" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加照片" } } }
     },
+    "Add task images or link a relationship. Attachments remain proposals, not reviewed evidence." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加任务图片或关联一段关系。附件仍是提议，不是已审阅证据。" } } }
+    },
+    "Add to this message" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到这条消息" } } }
+    },
     "An image did not upload. Retry or remove it before Send." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一张图片上传失败。发送前请重试或移除。" } } }
     },
@@ -1215,6 +1221,9 @@
     },
     "Image" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片" } } }
+    },
+    "Image from Files" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件中的图片" } } }
     },
     "Listening to you" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在听你说" } } }
@@ -1237,6 +1246,12 @@
     "One image was larger than 8 MB and was not added." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一张图片超过 8 MB，未被添加。" } } }
     },
+    "One file was not a supported image or was larger than 8 MB." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一个文件不是支持的图片格式，或超过了 8 MB。" } } }
+    },
+    "One image file could not be read; the rest are unchanged." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一个图片文件无法读取；其余内容未受影响。" } } }
+    },
     "One selected image could not be read; the rest are unchanged." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一张所选图片无法读取，其余图片未受影响。" } } }
     },
@@ -1252,6 +1267,9 @@
     "Removal was not confirmed. The image remains attached locally." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未确认移除；图片仍保留在本地附件中。" } } }
     },
+    "Ready for Agent context" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待关联 Agent 上下文" } } }
+    },
     "Remove image" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除图片" } } }
     },
@@ -1263,6 +1281,9 @@
     },
     "Task images · not evidence" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "任务图片 · 非证据" } } }
+    },
+    "The selected file could not be opened. Your message is unchanged." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法打开所选文件；你的消息没有改变。" } } }
     },
     "task images, not evidence" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "张任务图片，非证据" } } }
