@@ -12,12 +12,16 @@ pull request / push
         |      docs + workflow policy
         |      web lint/typecheck/test/build
         |      backend typecheck/test/build
-        |      iOS build/test when relevant
+        |      iOS Release build + unit tests + bounded UI smoke when relevant
         |
         +--> Security required
                dependency review on pull requests
                credential hygiene
-               CodeQL for web, Actions, and relevant Swift changes
+               CodeQL for web and Actions
+
+main / weekly / manual Security
+        |
+        +--> Swift CodeQL when relevant
 
 successful main CI + iOS product change
         |
@@ -49,26 +53,47 @@ weekly updates for GitHub Actions, pnpm, and Bundler.
 
 ## Release gates
 
-An ordinary workflow dispatch defaults to **not** publishing TestFlight. A
-manual caller must explicitly set `publish_testflight`, and an automatic
-release is considered only when the verified `main` change touches iOS release
-inputs. The `testflight` GitHub Environment permits only `main`; it intentionally
-has no required reviewer because internal TestFlight delivery is the continuous
+An ordinary release workflow dispatch defaults to **not** publishing
+TestFlight. A manual caller must explicitly set `publish_testflight`, and an
+automatic release is considered only when the verified `main` tip contains iOS
+release inputs that have changed since the latest successful semantic release.
+The `testflight` GitHub Environment permits only `main`; it intentionally has
+no required reviewer because internal TestFlight delivery is the continuous
 delivery target.
 
-CI and `Release iOS` use `scripts/ci/has-ios-changes.sh` as the shared source of
-truth for iOS change classification. The release-specific set includes product,
+On a `main` push, CI also compares the current tip with the latest reachable
+semantic release tag. Unreleased iOS work therefore remains in scope after a
+newer non-iOS push cancels an older run. The replacement run tests the complete
+unreleased iOS range, and `Release iOS` applies the equivalent cumulative
+comparison before publication. The release-specific set includes product,
 Fastlane, signing dependency, versioning, classifier, and release-workflow
 changes. A change to the release decision itself therefore receives the same
 real TestFlight proof as an iOS product change.
+
+The blocking iOS job compiles the Release configuration, runs the full unit
+suite, and executes the small no-external-write UI set in
+`scripts/ios/ci-smoke-tests.txt`. This protects compilation, core navigation,
+explicit-action, language, accessibility, and retained-evidence boundaries
+without starting a fresh XCTest runner for every UI journey. Use the CI
+workflow's manual `full` scope for the complete isolated UI regression suite;
+the default manual and automatic scope is `smoke`. Keep the smoke list bounded
+and move scenario expansion to full regression rather than silently restoring
+a long blocking gate.
+
+Swift CodeQL still runs on relevant `main` pushes, the weekly Security run, and
+manual Security runs. It is not duplicated in pull-request latency because the
+blocking iOS Release compilation and tests already reject build failures, while
+the main and scheduled scans preserve repository-wide Swift security analysis.
 
 The release job exchanges GitHub's OIDC token for a short-lived Infisical token,
 loads only `staging:/release`, and checks required names without printing their
 values. It joins the internal TestFlight tailnet as an ephemeral `tag:ci` node,
 writes the validated `TALENT_SIGNAL_API_BASE_URL` into the app build
 configuration, verifies tailnet reachability and a current Apple
-authentication challenge before signing, writes signing material only under
-the runner temporary directory, verifies
+authentication challenge before signing, retries that end-to-end contract probe
+three times across a short bounded window to absorb transient tailnet path
+negotiation, writes signing material only under the runner temporary directory,
+verifies
 read access to the isolated private match repository, and removes those files
 even after failure. Fastlane waits for App Store Connect build processing. The
 tag and GitHub prerelease are created only after that stronger acceptance
@@ -175,6 +200,9 @@ again. The hook never mutates a commit during push.
 
 - Use `gh run list`, `gh run view RUN_ID`, and `gh run rerun RUN_ID --failed`
   to inspect or retry checks.
+- If an iOS regression requires the complete UI suite, dispatch `CI` with
+  `ios_test_scope=full`. Do not enlarge the blocking smoke list as a substitute
+  for an explicit full run.
 - A failed TestFlight upload creates no release tag. Rerun the failed workflow
   after correcting credentials or signing state.
 - A missing, non-HTTPS, redirected, unreachable, or contract-stale iOS API URL

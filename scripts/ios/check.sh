@@ -428,6 +428,41 @@ if [ "${#ios_ui_tests[@]}" -eq 0 ]; then
   exit 2
 fi
 
+ios_ui_test_scope="${IOS_UI_TEST_SCOPE:-full}"
+if [ "$ios_ui_test_scope" = "smoke" ]; then
+  ios_smoke_test_file="$repository_root/scripts/ios/ci-smoke-tests.txt"
+  declare -a ios_smoke_tests=()
+
+  while IFS= read -r ios_smoke_test; do
+    smoke_test_discovered="false"
+    if [ -z "$ios_smoke_test" ] || [[ "$ios_smoke_test" == \#* ]]; then
+      continue
+    fi
+    for ios_ui_test in "${ios_ui_tests[@]}"; do
+      if [ "$ios_ui_test" = "$ios_smoke_test" ]; then
+        smoke_test_discovered="true"
+        break
+      fi
+    done
+    if [ "$smoke_test_discovered" != "true" ]; then
+      echo "Configured iOS smoke test was not discovered: $ios_smoke_test" >&2
+      exit 2
+    fi
+    ios_smoke_tests+=("$ios_smoke_test")
+  done < "$ios_smoke_test_file"
+
+  if [ "${#ios_smoke_tests[@]}" -eq 0 ]; then
+    echo "No iOS smoke tests were configured." >&2
+    exit 2
+  fi
+  ios_ui_tests=("${ios_smoke_tests[@]}")
+elif [ "$ios_ui_test_scope" != "full" ]; then
+  echo "IOS_UI_TEST_SCOPE must be smoke or full, got: $ios_ui_test_scope" >&2
+  exit 2
+fi
+
+echo "iOS UI test scope: $ios_ui_test_scope (${#ios_ui_tests[@]} journeys)"
+
 for ios_ui_test in "${ios_ui_tests[@]}"; do
   run_ios_test_part "$ios_ui_test" "${ios_ui_test##*/}"
 done

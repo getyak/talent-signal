@@ -66,19 +66,27 @@ jobs:
                 "The verified CI revision is no longer the current default-branch tip; a newer CI run will decide its release.",
               );
             } else {
-              const commit = await github.rest.repos.getCommit({
+              const releases = await github.paginate(github.rest.repos.listReleases, {
                 owner,
                 repo,
-                ref: releaseSha,
+                per_page: 100,
               });
-              const parentSha = commit.data.parents[0]?.sha;
-              if (!parentSha) {
+              const latestRelease = releases.find(
+                ({ draft, tag_name: tagName }) =>
+                  !draft && /^v\d+\.\d+\.\d+$/.test(tagName),
+              );
+
+              if (!latestRelease) {
+                core.notice("No previous semantic TestFlight release was found.");
                 shouldRelease = true;
               } else {
+                core.info(
+                  `Checking iOS changes since ${latestRelease.tag_name}`,
+                );
                 const comparison = await github.rest.repos.compareCommitsWithBasehead({
                   owner,
                   repo,
-                  basehead: `${parentSha}...${releaseSha}`,
+                  basehead: `${latestRelease.tag_name}...${releaseSha}`,
                   per_page: 100,
                 });
                 const files = comparison.data.files ?? [];
@@ -197,8 +205,18 @@ jobs:
         run: |
           node scripts/ios/configure-build-environment.mjs --configuration Release
           api_hostname="$(node -e 'process.stdout.write(new URL(process.env.TALENT_SIGNAL_API_BASE_URL).hostname)')"
-          tailscale ping --c 10 --timeout 10s --until-direct=false "$api_hostname"
-          node scripts/ios/probe-auth-backend.mjs
+          tailscale ping --c 3 --timeout 10s --until-direct=false "$api_hostname"
+          for attempt in 1 2 3; do
+            if node scripts/ios/probe-auth-backend.mjs; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::The iOS authentication backend failed three bounded probes."
+              exit 1
+            fi
+            echo "::notice::Retrying the end-to-end iOS API probe after a transient tailnet failure."
+            sleep "$((attempt * 5))"
+          done
 
       - name: Compute release version
         id: version

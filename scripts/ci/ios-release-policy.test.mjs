@@ -157,7 +157,7 @@ test("external link reachability is advisory to the release gate", () => {
   assert.match(advisoryStep[1], /fail: false/);
 });
 
-test("iOS CI has enough time to finish the isolated UI suite", () => {
+test("iOS CI blocks on a bounded smoke suite and keeps full coverage explicit", () => {
   const ciWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/ci.yml"),
     "utf8",
@@ -165,10 +165,38 @@ test("iOS CI has enough time to finish the isolated UI suite", () => {
   const iosJob = ciWorkflow.match(/  ios:\n([\s\S]*?)(?=\n  required:)/);
 
   assert.ok(iosJob, "expected the iOS CI job");
-  assert.match(iosJob[1], /timeout-minutes: 75/);
+  assert.match(iosJob[1], /name: iOS release smoke/);
+  assert.match(iosJob[1], /timeout-minutes: 30/);
+  assert.match(
+    iosJob[1],
+    /IOS_UI_TEST_SCOPE: \$\{\{ inputs\.ios_test_scope \|\| 'smoke' \}\}/,
+  );
+  assert.match(ciWorkflow, /ios_test_scope:/);
+  assert.match(ciWorkflow, /- smoke\n\s+- full/);
+
+  const smokeTests = readFileSync(
+    join(repositoryRoot, "scripts/ios/ci-smoke-tests.txt"),
+    "utf8",
+  )
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  assert.ok(smokeTests.length >= 5 && smokeTests.length <= 10);
+
+  const uiSources = [
+    "apps/ios/UITests/CandidateSignalUITests.swift",
+    "apps/ios/UITests/StandaloneOnboardingUITests.swift",
+  ].map((path) => readFileSync(join(repositoryRoot, path), "utf8"));
+  for (const selector of smokeTests) {
+    const method = selector.split("/").at(-1);
+    assert.ok(
+      uiSources.some((source) => source.includes(`func ${method}(`)),
+      `expected smoke selector ${selector} to exist`,
+    );
+  }
 });
 
-test("automatic releases classify the verified default-branch tip without executing repository code", () => {
+test("automatic releases classify all changes since the last successful release", () => {
   const releaseWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/release-ios.yml"),
     "utf8",
@@ -180,14 +208,28 @@ test("automatic releases classify the verified default-branch tip without execut
   assert.ok(prepareJob, "expected the release preparation job");
   assert.match(prepareJob[1], /actions\/github-script@[0-9a-f]{40} # v8/);
   assert.match(prepareJob[1], /process\.env\.VERIFIED_SHA !== releaseSha/);
+  assert.match(prepareJob[1], /repos\.listReleases/);
+  assert.match(prepareJob[1], /latestRelease\.tag_name/);
   assert.match(prepareJob[1], /compareCommitsWithBasehead/);
+  assert.doesNotMatch(prepareJob[1], /const parentSha/);
   assert.match(prepareJob[1], /"apps\/ios\/"/);
   assert.match(prepareJob[1], /"\.github\/workflows\/release-ios\.yml"/);
   assert.doesNotMatch(prepareJob[1], /actions\/checkout/);
   assert.doesNotMatch(prepareJob[1], /\.\/scripts\/ci\/has-ios-changes\.sh/);
 
+  const ciWorkflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/ci.yml"),
+    "utf8",
+  );
+  assert.match(ciWorkflow, /--merged "\$HEAD_SHA" --sort=-v:refname/);
+  assert.match(ciWorkflow, /grep -E '\^v\[0-9\]\+/);
+  assert.match(ciWorkflow, /Checking unreleased iOS changes since/);
+
   assert.match(releaseWorkflow, /TALENT_SIGNAL_API_BASE_URL/);
   assert.match(releaseWorkflow, /probe-auth-backend\.mjs/);
+  assert.match(releaseWorkflow, /tailscale ping --c 3/);
+  assert.match(releaseWorkflow, /for attempt in 1 2 3/);
+  assert.match(releaseWorkflow, /failed three bounded probes/);
   assert.match(
     releaseWorkflow,
     /tailscale\/github-action@[0-9a-f]{40} # v4\.1\.3/,
@@ -234,6 +276,21 @@ test("automatic releases classify the verified default-branch tip without execut
     releaseWorkflow,
     /if: vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''/,
   );
+});
+
+test("Swift CodeQL runs after merge without extending pull-request latency", () => {
+  const securityWorkflow = readFileSync(
+    join(repositoryRoot, ".github/workflows/security.yml"),
+    "utf8",
+  );
+  const swiftJob = securityWorkflow.match(
+    /  codeql-swift:\n([\s\S]*?)(?=\n  required:)/,
+  );
+
+  assert.ok(swiftJob, "expected the Swift CodeQL job");
+  assert.match(swiftJob[1], /github\.event_name != 'pull_request'/);
+  assert.match(securityWorkflow, /schedule:\n\s+- cron:/);
+  assert.match(securityWorkflow, /workflow_dispatch:/);
 });
 
 test("manual Fastlane builds require the same Release environment", () => {
