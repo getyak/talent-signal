@@ -37,13 +37,18 @@ publishing local uncommitted iOS work.
   end-to-end authentication POST never reached the healthy API. Treat that
   local-host network path as intermittently available and retry only the
   pre-signing contract probe within a short bounded window.
+- A hand-created `v0.1.17` GitHub Release pointed at `ca02b25` with no IPA while
+  App Store Connect still reported `0.1.16 (20260829054418)`. The automatic
+  decision treated any non-draft semantic GitHub Release as TestFlight proof,
+  compared `v0.1.17..ca02b25`, and skipped the upload. A semantic tag is not a
+  release receipt.
 - PR run `33229201916` completed the new iOS release smoke in 20 minutes 29
   seconds, versus roughly 52 minutes for the equivalent old full gate.
 
 ## Approach
 
-1. Use the latest successful semantic release as the cumulative baseline for
-   both main CI scope and automatic release scope.
+1. Use the latest automation-owned TestFlight receipt as the cumulative
+   baseline for both main CI scope and automatic release scope.
 2. Keep the blocking iOS gate to Release compilation, full unit coverage, and
    an auditable bounded UI smoke set. Preserve all isolated UI journeys behind
    the existing CI workflow's explicit `full` dispatch mode.
@@ -54,6 +59,9 @@ publishing local uncommitted iOS work.
 5. Verify policy locally, then use a real branch run to measure the new gate.
    Publish the pre-existing remote `main` only after its already-running full
    iOS verification succeeds.
+6. Admit a release as the cumulative baseline only when GitHub Actions owns it
+   and it carries both the uploaded IPA and a machine-readable receipt created
+   after Apple processing. Treat missing proof conservatively as unreleased.
 
 ## Milestones
 
@@ -61,6 +69,8 @@ publishing local uncommitted iOS work.
 - [x] Implement cumulative release detection and bounded iOS smoke policy.
 - [x] Move Swift CodeQL out of pull-request blocking latency.
 - [x] Pass workflow, policy, documentation, and focused iOS checks.
+- [x] Replace semantic-tag inference with an automation-owned TestFlight
+      receipt and prove the false-Release regression locally.
 - [ ] Prove the branch CI duration and recover current `main` to TestFlight.
 
 ## Reconsideration signals
@@ -71,3 +81,13 @@ publishing local uncommitted iOS work.
 - TestFlight tags cease to represent every successful internal release.
 - External TestFlight or App Store distribution replaces the internal delivery
   boundary.
+
+## Verification evidence
+
+- `node --test scripts/ci/ios-release-policy.test.mjs`: 14 passed, including
+  manual-owner, missing-IPA, missing-receipt, and receipt-payload coverage.
+- `check-actions-pinned.sh`, `actionlint`, Bash syntax checks, and
+  `pnpm docs:check`: passed on 2026-08-29.
+- The live GitHub release inventory selected no trusted baseline: `v0.1.17`
+  and `v0.1.16` have no assets, while bot-owned `v0.1.15` has an IPA but no
+  post-processing receipt. This is the intended conservative recovery state.

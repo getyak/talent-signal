@@ -40,6 +40,12 @@ jobs:
       release_sha: ${{ steps.decision.outputs.release_sha }}
       should_release: ${{ steps.decision.outputs.should_release }}
     steps:
+      - name: Check out release policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
       - name: Evaluate release policy
         id: decision
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
@@ -71,17 +77,19 @@ jobs:
                 repo,
                 per_page: 100,
               });
-              const latestRelease = releases.find(
-                ({ draft, tag_name: tagName }) =>
-                  !draft && /^v\d+\.\d+\.\d+$/.test(tagName),
+              const { selectLatestTestFlightRelease } = require(
+                `${process.env.GITHUB_WORKSPACE}/scripts/ci/testflight-release-receipt.cjs`,
               );
+              const latestRelease = selectLatestTestFlightRelease(releases);
 
               if (!latestRelease) {
-                core.notice("No previous semantic TestFlight release was found.");
+                core.notice(
+                  "No trusted TestFlight release receipt was found; publishing conservatively.",
+                );
                 shouldRelease = true;
               } else {
                 core.info(
-                  `Checking iOS changes since ${latestRelease.tag_name}`,
+                  `Checking iOS changes since trusted receipt ${latestRelease.tag_name}`,
                 );
                 const comparison = await github.rest.repos.compareCommitsWithBasehead({
                   owner,
@@ -96,6 +104,7 @@ jobs:
                   ".github/workflows/release-ios.yml",
                   "scripts/ci/has-ios-changes.sh",
                   "scripts/ci/next-ios-version.sh",
+                  "scripts/ci/testflight-release-receipt.cjs",
                 ]);
                 const releasePrefixes = ["apps/ios/", "fastlane/", "scripts/ios/"];
                 shouldRelease =
@@ -290,6 +299,20 @@ jobs:
         with:
           subject-path: build/ios/TalentSignal.ipa
 
+      - name: Create TestFlight release receipt
+        id: receipt
+        env:
+          BUILD_NUMBER: ${{ steps.release_metadata.outputs.build_number }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          receipt="$RUNNER_TEMP/testflight-release-receipt.json"
+          PROCESSED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            node scripts/ci/testflight-release-receipt.cjs "$receipt"
+          echo "path=$receipt" >> "$GITHUB_OUTPUT"
+
       - name: Tag successful TestFlight release
         env:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
@@ -313,6 +336,7 @@ jobs:
         run: |
           gh release create "$RELEASE_TAG" \
             build/ios/TalentSignal.ipa \
+            "${{ steps.receipt.outputs.path }}" \
             --generate-notes \
             --prerelease \
             --title "$RELEASE_TAG" \

@@ -39,24 +39,41 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Select latest trusted TestFlight release
+        id: testflight_release
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const { selectLatestTestFlightRelease } = require(
+              `${process.env.GITHUB_WORKSPACE}/scripts/ci/testflight-release-receipt.cjs`,
+            );
+            const latestRelease = selectLatestTestFlightRelease(releases);
+            core.setOutput("tag", latestRelease?.tag_name ?? "");
+
       - name: Detect iOS-related changes
         id: filter
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
           EVENT_NAME: ${{ github.event_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LATEST_TESTFLIGHT_TAG: ${{ steps.testflight_release.outputs.tag || '' }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           comparison_base="$BASE_SHA"
           if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "main" ]; then
-            latest_release_tag="$(
-              git tag --list 'v*' --merged "$HEAD_SHA" --sort=-v:refname \
-                | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-                | head -n 1 || true
-            )"
-            if [ -n "$latest_release_tag" ]; then
-              comparison_base="$(git rev-parse "$latest_release_tag^{commit}")"
-              echo "Checking unreleased iOS changes since $latest_release_tag"
+            comparison_base=""
+            if [ -n "$LATEST_TESTFLIGHT_TAG" ]; then
+              comparison_base="$(git rev-parse "$LATEST_TESTFLIGHT_TAG^{commit}")"
+              echo "Checking unreleased iOS changes since trusted receipt $LATEST_TESTFLIGHT_TAG"
+            else
+              echo "No trusted TestFlight release receipt; requiring iOS checks"
             fi
           fi
 

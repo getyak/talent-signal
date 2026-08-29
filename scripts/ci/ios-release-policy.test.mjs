@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import testflightReleaseReceipt from "./testflight-release-receipt.cjs";
 import {
   APP_GROUP,
   PROFILE_SPECS,
@@ -19,6 +20,11 @@ import {
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const classifier = join(repositoryRoot, "scripts/ci/has-ios-changes.sh");
+const {
+  buildTestFlightReleaseReceipt,
+  isTrustedTestFlightRelease,
+  selectLatestTestFlightRelease,
+} = testflightReleaseReceipt;
 
 function run(command, args, cwd) {
   return execFileSync(command, args, {
@@ -119,6 +125,20 @@ test("CI and release use explicit, shared iOS change sets", () => {
     base = head;
     head = writeCommit(
       temporaryDirectory,
+      "scripts/ci/testflight-release-receipt.cjs",
+      "module.exports = {};\n",
+      "Change TestFlight release receipt policy",
+    );
+    assert.equal(classify(temporaryDirectory, base, head), "false");
+    assert.equal(classify(temporaryDirectory, base, head, "--ci-files"), "true");
+    assert.equal(
+      classify(temporaryDirectory, base, head, "--release-files"),
+      "true",
+    );
+
+    base = head;
+    head = writeCommit(
+      temporaryDirectory,
       "apps/ios/App.swift",
       "// iOS product change\n",
       "Change iOS product",
@@ -196,7 +216,7 @@ test("iOS CI blocks on a bounded smoke suite and keeps full coverage explicit", 
   }
 });
 
-test("automatic releases classify all changes since the last successful release", () => {
+test("automatic releases classify all changes since the last trusted receipt", () => {
   const releaseWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/release-ios.yml"),
     "utf8",
@@ -209,21 +229,36 @@ test("automatic releases classify all changes since the last successful release"
   assert.match(prepareJob[1], /actions\/github-script@[0-9a-f]{40} # v8/);
   assert.match(prepareJob[1], /process\.env\.VERIFIED_SHA !== releaseSha/);
   assert.match(prepareJob[1], /repos\.listReleases/);
+  assert.match(prepareJob[1], /selectLatestTestFlightRelease/);
   assert.match(prepareJob[1], /latestRelease\.tag_name/);
   assert.match(prepareJob[1], /compareCommitsWithBasehead/);
   assert.doesNotMatch(prepareJob[1], /const parentSha/);
   assert.match(prepareJob[1], /"apps\/ios\/"/);
   assert.match(prepareJob[1], /"\.github\/workflows\/release-ios\.yml"/);
-  assert.doesNotMatch(prepareJob[1], /actions\/checkout/);
+  assert.match(prepareJob[1], /actions\/checkout@[0-9a-f]{40} # v7/);
+  assert.match(prepareJob[1], /persist-credentials: false/);
+  assert.match(
+    prepareJob[1],
+    /ref: \$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/,
+  );
   assert.doesNotMatch(prepareJob[1], /\.\/scripts\/ci\/has-ios-changes\.sh/);
 
   const ciWorkflow = readFileSync(
     join(repositoryRoot, ".github/workflows/ci.yml"),
     "utf8",
   );
-  assert.match(ciWorkflow, /--merged "\$HEAD_SHA" --sort=-v:refname/);
-  assert.match(ciWorkflow, /grep -E '\^v\[0-9\]\+/);
-  assert.match(ciWorkflow, /Checking unreleased iOS changes since/);
+  assert.match(ciWorkflow, /Select latest trusted TestFlight release/);
+  assert.match(ciWorkflow, /selectLatestTestFlightRelease/);
+  assert.match(ciWorkflow, /LATEST_TESTFLIGHT_TAG/);
+  assert.match(
+    ciWorkflow,
+    /No trusted TestFlight release receipt; requiring iOS checks/,
+  );
+
+  assert.match(releaseWorkflow, /Create TestFlight release receipt/);
+  assert.match(releaseWorkflow, /testflight-release-receipt\.cjs/);
+  assert.match(releaseWorkflow, /testflight-release-receipt\.json/);
+  assert.match(releaseWorkflow, /build\/ios\/TalentSignal\.ipa/);
 
   assert.match(releaseWorkflow, /TALENT_SIGNAL_API_BASE_URL/);
   assert.match(releaseWorkflow, /probe-auth-backend\.mjs/);
@@ -275,6 +310,84 @@ test("automatic releases classify all changes since the last successful release"
   assert.match(
     releaseWorkflow,
     /if: vars\.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''/,
+  );
+});
+
+test("only an automation-owned IPA and receipt release is a trusted baseline", () => {
+  const trustedRelease = {
+    assets: [
+      { name: "TalentSignal.ipa" },
+      { name: "testflight-release-receipt.json" },
+    ],
+    author: { login: "github-actions[bot]" },
+    draft: false,
+    tag_name: "v0.1.18",
+  };
+  const manualRelease = {
+    ...trustedRelease,
+    author: { login: "cubxxw" },
+    tag_name: "v0.1.19",
+  };
+
+  assert.equal(isTrustedTestFlightRelease(trustedRelease), true);
+  assert.equal(isTrustedTestFlightRelease(manualRelease), false);
+  assert.equal(
+    isTrustedTestFlightRelease({
+      ...trustedRelease,
+      assets: [{ name: "TalentSignal.ipa" }],
+    }),
+    false,
+  );
+  assert.equal(
+    isTrustedTestFlightRelease({
+      ...trustedRelease,
+      assets: [{ name: "testflight-release-receipt.json" }],
+    }),
+    false,
+  );
+  assert.equal(
+    selectLatestTestFlightRelease([manualRelease, trustedRelease]),
+    trustedRelease,
+  );
+});
+
+test("TestFlight receipts bind the processed build to its commit and workflow", () => {
+  const receipt = buildTestFlightReleaseReceipt({
+    buildNumber: "20260829120000",
+    commitSha: "abc123",
+    processedAt: "2026-08-29T12:05:00Z",
+    releaseTag: "v0.1.18",
+    releaseVersion: "0.1.18",
+    workflowRunUrl: "https://github.com/getyak/talent-signal/actions/runs/123",
+  });
+
+  assert.deepEqual(receipt, {
+    schemaVersion: 1,
+    app: {
+      bundleId: "com.talentsignal.app",
+      ipaAsset: "TalentSignal.ipa",
+    },
+    release: {
+      buildNumber: "20260829120000",
+      commitSha: "abc123",
+      processedAt: "2026-08-29T12:05:00Z",
+      tag: "v0.1.18",
+      testflightState: "processed",
+      version: "0.1.18",
+      workflowRunUrl: "https://github.com/getyak/talent-signal/actions/runs/123",
+    },
+  });
+  assert.throws(
+    () =>
+      buildTestFlightReleaseReceipt({
+        buildNumber: "20260829120000",
+        commitSha: "abc123",
+        processedAt: "2026-08-29T12:05:00Z",
+        releaseTag: "v0.1.19",
+        releaseVersion: "0.1.18",
+        workflowRunUrl: "https://github.com/getyak/talent-signal/actions/runs/123",
+      }),
+    /does not match/,
   );
 });
 

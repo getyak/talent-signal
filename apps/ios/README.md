@@ -207,7 +207,9 @@ bundle exec fastlane ios beta
 
 `prepare_signing` is an explicit provisioning or rotation step. CI runs Match
 in read-only mode, waits for App Store Connect to finish processing the build,
-and then creates the matching release tag. Uploads require:
+and then creates the matching release tag and receipt. See the
+[CI/CD operations guide](../../docs/operations/ci-cd.md#release-gates) for the
+authoritative release trust and recovery rules. Uploads require:
 
 - the public `TALENT_SIGNAL_API_BASE_URL` Actions variable in the `testflight`
   GitHub Environment;

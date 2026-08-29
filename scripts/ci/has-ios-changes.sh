@@ -23,6 +23,7 @@ case "$path_set" in
       scripts/ci/has-ios-changes.sh
       scripts/ci/ios-release-policy.test.mjs
       scripts/ci/next-ios-version.sh
+      scripts/ci/testflight-release-receipt.cjs
       scripts/ci/test-next-ios-version.sh
     )
     ;;
@@ -31,6 +32,7 @@ case "$path_set" in
       .github/workflows/release-ios.yml
       scripts/ci/has-ios-changes.sh
       scripts/ci/next-ios-version.sh
+      scripts/ci/testflight-release-receipt.cjs
     )
     ;;
   *)

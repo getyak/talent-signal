@@ -30,7 +30,7 @@ successful main CI + iOS product change
                 TestFlight upload -> processing complete
                 internal group automatic distribution
                 provenance attestation
-                version tag + GitHub prerelease + retained IPA
+                receipt + version tag + GitHub prerelease + retained IPA
 ```
 
 `CI required` and `Security required` are intentionally stable job names for
@@ -56,19 +56,27 @@ weekly updates for GitHub Actions, pnpm, and Bundler.
 An ordinary release workflow dispatch defaults to **not** publishing
 TestFlight. A manual caller must explicitly set `publish_testflight`, and an
 automatic release is considered only when the verified `main` tip contains iOS
-release inputs that have changed since the latest successful semantic release.
-The `testflight` GitHub Environment permits only `main`; it intentionally has
-no required reviewer because internal TestFlight delivery is the continuous
-delivery target.
+release inputs that have changed since the latest trusted TestFlight release
+receipt. The `testflight` GitHub Environment permits only `main`; it
+intentionally has no required reviewer because internal TestFlight delivery is
+the continuous delivery target.
 
-On a `main` push, CI also compares the current tip with the latest reachable
-semantic release tag. Unreleased iOS work therefore remains in scope after a
-newer non-iOS push cancels an older run. The replacement run tests the complete
+On a `main` push, CI and `Release iOS` select only a non-draft semantic GitHub
+release created by `github-actions[bot]` with both `TalentSignal.ipa` and
+`testflight-release-receipt.json`. The receipt is generated only after Fastlane
+has uploaded the exact build and App Store Connect has finished processing it;
+it binds the version, build number, commit, processing time, and workflow run.
+A hand-created tag, empty GitHub Release, draft, or copied IPA is not a release
+receipt and cannot suppress delivery. When no trusted receipt exists, CI runs
+the iOS gate and the release workflow publishes conservatively.
+
+This cumulative baseline keeps unreleased iOS work in scope after a newer
+non-iOS push cancels an older run. The replacement run tests the complete
 unreleased iOS range, and `Release iOS` applies the equivalent cumulative
 comparison before publication. The release-specific set includes product,
-Fastlane, signing dependency, versioning, classifier, and release-workflow
-changes. A change to the release decision itself therefore receives the same
-real TestFlight proof as an iOS product change.
+Fastlane, signing dependency, versioning, classifier, receipt policy, and
+release-workflow changes. A change to the release decision itself therefore
+receives the same real TestFlight proof as an iOS product change.
 
 The blocking iOS job compiles the Release configuration, runs the full unit
 suite, and executes the small no-external-write UI set in
@@ -96,8 +104,10 @@ negotiation, writes signing material only under the runner temporary directory,
 verifies
 read access to the isolated private match repository, and removes those files
 even after failure. Fastlane waits for App Store Connect build processing. The
-tag and GitHub prerelease are created only after that stronger acceptance
-point, not merely after transport upload.
+receipt, tag, and GitHub prerelease with its IPA are created only after that
+stronger acceptance point, not merely after transport upload. Editing or
+promoting that release later does not invalidate the receipt as long as its
+automation owner and both assets remain intact.
 
 Provisioning-profile renewal is a separate maintenance operation. The
 `Refresh iOS signing` workflow requires explicit confirmation and a dedicated
@@ -205,6 +215,10 @@ again. The hook never mutates a commit during push.
   for an explicit full run.
 - A failed TestFlight upload creates no release tag. Rerun the failed workflow
   after correcting credentials or signing state.
+- A manually created semantic release or tag does not count as a TestFlight
+  success. Leave it in place for auditability and dispatch `Release iOS` with
+  `publish_testflight=true`; version selection skips occupied tags and the new
+  automation-owned release becomes the next trusted baseline.
 - A missing, non-HTTPS, redirected, unreachable, or contract-stale iOS API URL
   fails before signing. Repair the `testflight` Environment variable or backend
   deployment; never substitute the marketing site or a Release fixture.
