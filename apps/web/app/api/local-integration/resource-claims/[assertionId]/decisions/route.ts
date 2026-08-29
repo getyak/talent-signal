@@ -87,7 +87,7 @@ export async function POST(
     return response(
       {
         code: "claim_decision_failed",
-        message: "The fact decision could not be saved.",
+        message: "无法保存事实决定。",
       },
       422,
     );

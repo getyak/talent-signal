@@ -83,8 +83,8 @@ describe("screenshot capture controller", () => {
 
     expect(next.phase).toBe("review");
     expect(next.error).toMatch(/could not be confirmed/i);
-    expect(next.analysisStatus).toMatch(/same request ID/i);
-    expect(next.analysisStatus).toMatch(/not create a duplicate/i);
+    expect(next.analysisStatus).toMatch(/同一请求 ID/);
+    expect(next.analysisStatus).toMatch(/不会创建重复审阅/);
   });
 
   it("makes cancellation explicit without discarding local minimization", () => {
@@ -106,6 +106,6 @@ describe("screenshot capture controller", () => {
     expect(next.cropTopPercent).toBe(12);
     expect(next.cropBottomPercent).toBe(84);
     expect(next.redactions).toHaveLength(1);
-    expect(next.analysisStatus).toMatch(/No source was saved/i);
+    expect(next.analysisStatus).toMatch(/未保存任何来源/);
   });
 });

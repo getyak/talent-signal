@@ -16,8 +16,8 @@ export function ThemeToggle() {
       className="icon-button theme-toggle"
       type="button"
       onClick={toggleTheme}
-      aria-label="Toggle color theme"
-      title="Toggle color theme"
+      aria-label="切换明暗主题"
+      title="切换明暗主题"
     >
       <span className="theme-toggle__dark" aria-hidden="true">
         <Moon aria-hidden="true" size={18} weight="regular" />

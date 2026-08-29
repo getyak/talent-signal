@@ -73,7 +73,7 @@ export async function analyzeWithAi(
   const availability = getAiAvailability();
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!availability.enabled || !apiKey) {
-    throw new Error("AI analysis is not configured.");
+    throw new Error("尚未配置 AI 分析。");
   }
 
   const response = await fetch(getEndpoint(), {
@@ -123,13 +123,13 @@ export async function analyzeWithAi(
   });
 
   if (!response.ok) {
-    throw new Error(`AI provider request failed with ${response.status}.`);
+    throw new Error(`AI 提供方请求失败，状态码：${response.status}。`);
   }
 
   const payload = (await response.json()) as ProviderResponse;
   const content = payload.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
-    throw new Error("AI provider returned no structured content.");
+    throw new Error("AI 提供方未返回结构化内容。");
   }
 
   const evidence = parseModelEvidence(content, conversation);

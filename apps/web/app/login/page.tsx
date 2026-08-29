@@ -29,9 +29,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  title: "登录",
   description:
-    "Sign in to the Talent Signal candidate knowledge workspace.",
+    "登录 Talent Signal 候选人知识工作台。",
   robots: {
     follow: false,
     index: false,
@@ -39,12 +39,12 @@ export const metadata: Metadata = {
 };
 
 const oauthErrors: Record<string, string> = {
-  AccessDenied: "Access was not granted for this account.",
+  AccessDenied: "该账号未获访问权限。",
   Configuration:
-    "This sign-in provider is not fully configured. Check its credentials and callback URL.",
+    "登录服务尚未完整配置，请检查凭据与回调地址。",
   OAuthCallbackError:
-    "The sign-in provider could not complete the callback. Please try again.",
-  OAuthSignin: "The sign-in provider could not be reached. Please try again.",
+    "登录服务无法完成回调，请重试。",
+  OAuthSignin: "暂时无法连接登录服务，请重试。",
 };
 
 export default async function LoginPage({
@@ -69,7 +69,7 @@ export default async function LoginPage({
   });
   const oauthError = parameters.error
     ? (oauthErrors[parameters.error] ??
-      "Sign in could not be completed. Please try another method.")
+      "无法完成登录，请尝试其他方式。")
     : "";
   const hasOAuth = availability.google || availability.apple;
   const hasConfiguredSignIn =
@@ -80,10 +80,10 @@ export default async function LoginPage({
 
   return (
     <main id="main-content" className="auth-page">
-      <section className="auth-story" aria-label="Talent Signal product context">
+      <section className="auth-story" aria-label="Talent Signal 产品背景">
         <Image
           src="/images/recruiter-notes.webp"
-          alt="A recruiter reviewing candidate notes with a red pencil."
+          alt="一位招聘顾问正在用红色铅笔审阅候选人笔记。"
           fill
           priority
           sizes="(max-width: 767px) 100vw, 52vw"
@@ -93,15 +93,15 @@ export default async function LoginPage({
           <BrandMark />
           <Link href="/">
             <ArrowLeft aria-hidden="true" size={16} />
-            Back to product
+            返回产品页
           </Link>
         </div>
         <div className="auth-story__copy">
-          <p>Candidate knowledge, with its sources intact.</p>
-          <h1>Return to the relationship, not the record.</h1>
+          <p>候选人知识，始终保留完整来源。</p>
+          <h1>回到关系，而不只是回到记录。</h1>
           <div>
             <ShieldCheck aria-hidden="true" size={18} />
-            Every meaningful change remains reviewable.
+            每一项重要变化都保持可审阅。
           </div>
         </div>
       </section>
@@ -113,18 +113,16 @@ export default async function LoginPage({
         </div>
         <div className="auth-panel__content">
           <header>
-            <p>Talent Signal workspace</p>
-            <h2 id="sign-in-title">Welcome back.</h2>
+            <p>Talent Signal 工作台</p>
+            <h2 id="sign-in-title">欢迎回来。</h2>
             <span>
-              Sign in to review candidate context, source evidence, and the
-              next move.
+              登录后审阅候选人背景、来源证据与下一步。
             </span>
           </header>
 
           {sessionExpired ? (
             <p className="auth-error" role="alert">
-              Your secure workspace session expired. Sign in again to return
-              to the same page; no cached relationship state was substituted.
+              安全工作台会话已过期。请重新登录以返回同一页面；系统没有用缓存的关系状态替代当前内容。
             </p>
           ) : null}
 
@@ -151,7 +149,7 @@ export default async function LoginPage({
                           size={19}
                           weight="bold"
                         />
-                        <span>Continue with Google</span>
+                        <span>使用 Google 继续</span>
                       </button>
                     </form>
                   ) : null}
@@ -171,7 +169,7 @@ export default async function LoginPage({
                           size={20}
                           weight="fill"
                         />
-                        <span>Continue with Apple</span>
+                        <span>使用 Apple 继续</span>
                       </button>
                     </form>
                   ) : null}
@@ -180,7 +178,7 @@ export default async function LoginPage({
 
               {hasOAuth && (availability.password || availability.email) ? (
                 <div className="auth-divider">
-                  <span>or use your account</span>
+                  <span>或使用工作台账号</span>
                 </div>
               ) : null}
 
@@ -195,19 +193,18 @@ export default async function LoginPage({
             </>
           ) : (
             <section className="auth-access-state" aria-labelledby="access-title">
-              <p>Private workspace access</p>
-              <h3 id="access-title">This workspace is not open yet.</h3>
+              <p>私密工作台访问</p>
+              <h3 id="access-title">该工作台尚未开放。</h3>
               <span>
-                Request a guided account, or inspect the browser-only evidence
-                review without sharing a conversation.
+                申请引导式账号，或体验仅在浏览器中运行的证据审阅，无需分享对话。
               </span>
               <div>
                 <a className="button" href={accessRequestHref}>
-                  Request access
+                  申请使用
                   <ArrowRight aria-hidden="true" size={17} />
                 </a>
                 <Link className="auth-demo-link" href="/demo">
-                  Try the live demo
+                  体验在线演示
                 </Link>
               </div>
             </section>
@@ -232,13 +229,12 @@ export default async function LoginPage({
                   <small>{availability.defaultAccountEmail}</small>
                 </p>
               </div>
-              <button type="submit">Use default account</button>
+              <button type="submit">使用默认账号</button>
             </form>
           )}
 
           <p className="auth-terms">
-            By continuing, you confirm that you are authorized to access the
-            candidate information in this workspace.
+            继续即表示你确认自己有权访问此工作台中的候选人信息。
           </p>
         </div>
       </section>

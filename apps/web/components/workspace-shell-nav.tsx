@@ -17,7 +17,7 @@ const items = [
   {
     href: "/workspace/today",
     icon: House,
-    label: "Today",
+    label: "今日",
     matches: (pathname: string) =>
       pathname === "/workspace/today" ||
       pathname.startsWith("/workspace/pursuits/"),
@@ -25,13 +25,13 @@ const items = [
   {
     href: "/workspace?surface=desk",
     icon: Sparkle,
-    label: "Agent",
+    label: "智能助理",
     matches: (pathname: string) => pathname === "/workspace",
   },
   {
     href: "/workspace/people",
     icon: UserCircle,
-    label: "People",
+    label: "联系人",
     matches: (pathname: string) => pathname.startsWith("/workspace/people"),
   },
   {
@@ -46,7 +46,7 @@ export function WorkspaceShellNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Workspace navigation" className={styles.navigation}>
+    <nav aria-label="工作台导航" className={styles.navigation}>
       {items.map((item) => {
         const Icon = item.icon;
         const current = item.matches(pathname);
@@ -87,13 +87,13 @@ export function WorkspaceCaptureLink() {
 
   return (
     <Link
-      aria-label="Start a new Agent message"
+      aria-label="开始一条新的智能助理消息"
       className={styles.capture}
       href="/workspace?surface=desk&intent=compose"
       onClick={focusAgent}
     >
       <ChatCircleDots aria-hidden="true" size={20} weight="duotone" />
-      <span>New</span>
+      <span>新建</span>
     </Link>
   );
 }

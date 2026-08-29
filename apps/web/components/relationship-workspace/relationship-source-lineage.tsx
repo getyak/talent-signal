@@ -12,41 +12,41 @@ export function RelationshipSourceLineage({
     <section aria-labelledby="lineage-title" className="context-lineage">
       <div className="context-lineage__heading">
         <div>
-          <p className="eyebrow">SOURCE LINEAGE</p>
-          <h2 id="lineage-title">How this contact came into view</h2>
+          <p className="eyebrow">来源链路</p>
+          <h2 id="lineage-title">这位联系人如何进入当前视图</h2>
         </div>
         <span>
           <ShieldCheck aria-hidden="true" size={15} weight="duotone" />
-          Traceable
+          可追溯
         </span>
       </div>
       <ol>
         <li>
           <i aria-hidden="true">01</i>
-          <span>Source</span>
+          <span>来源</span>
           <strong>{sourceKindLabel(workspace.capture.source.kind)}</strong>
           <small>
             {workspace.capture.source.source_timezone
-              ? `Time zone ${workspace.capture.source.source_timezone}`
-              : "Conversation date not confirmed"}
+              ? `时区 ${workspace.capture.source.source_timezone}`
+              : "对话日期尚未确认"}
           </small>
         </li>
         <li>
           <i aria-hidden="true">02</i>
-          <span>Identity anchor</span>
+          <span>身份锚点</span>
           <strong>{workspace.subject.display_label}</strong>
-          <small>Bound by the recruiter, not guessed from a face</small>
+          <small>由招聘顾问关联，不根据面孔猜测</small>
         </li>
         <li>
           <i aria-hidden="true">03</i>
-          <span>Relationship scope</span>
+          <span>关系范围</span>
           <strong>{workspace.assignment.display_label}</strong>
-          <small>Context stays inside this relationship</small>
+          <small>背景始终限定在此关系内</small>
         </li>
         <li>
           <i aria-hidden="true">04</i>
-          <span>Current projection</span>
-          <strong>Living contact</strong>
+          <span>当前投影</span>
+          <strong>持续更新的联系人</strong>
           <small>
             {sourceScopeLabel(
               workspace.capture.source.retention.source_scope,
@@ -55,8 +55,7 @@ export function RelationshipSourceLineage({
         </li>
       </ol>
       <p className="context-lineage__note">
-        The small chat avatar is source context, not a verified portrait. Until
-        the recruiter adds a confirmed photo, this page uses a neutral monogram.
+        聊天小头像只是来源背景，并非已核验肖像。在招聘顾问添加已确认照片前，本页使用中性的姓名首字标记。
       </p>
     </section>
   );

@@ -6,7 +6,7 @@ type BrandMarkProps = {
 
 export function BrandMark({ compact = false }: BrandMarkProps) {
   return (
-    <Link className="brand" href="/" aria-label="Talent Signal home">
+    <Link className="brand" href="/" aria-label="Talent Signal 首页">
       <svg
         className="brand__mark"
         aria-hidden="true"

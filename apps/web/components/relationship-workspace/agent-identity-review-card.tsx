@@ -26,7 +26,7 @@ type IdentityWorkflowResponse = {
 };
 
 function formatIdentityReviewDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("zh-CN", {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
@@ -94,8 +94,8 @@ export function AgentIdentityReviewCard({
     if (!reason.trim() || (decision === "bind_existing" && !bindReady)) {
       setError(
         decision === "leave_unresolved"
-          ? "Say what evidence is still missing before saving this for later."
-          : "Choose one person, one relationship context, and explain the identity decision.",
+          ? "保存以供稍后处理前，请说明仍缺少什么证据。"
+          : "请选择一位联系人、一项关系情境，并解释身份决定。",
       );
       return;
     }
@@ -122,7 +122,7 @@ export function AgentIdentityReviewCard({
                         status: "proposed",
                         label: newContextLabel.trim(),
                         purpose:
-                          "Recruiter-defined relationship context after identity review",
+                          "身份审阅后由招聘顾问定义的关系情境",
                       }
                     : {
                         status: "existing",
@@ -140,7 +140,7 @@ export function AgentIdentityReviewCard({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The identity decision could not be saved.",
+            : "无法保存身份决定。",
         );
       }
       if (
@@ -166,7 +166,7 @@ export function AgentIdentityReviewCard({
             display_label: usingNewContext
               ? newContextLabel.trim()
               : selectedExistingContext?.display_label ??
-                "Selected relationship",
+                "所选关系",
           },
         },
         payload.compilation,
@@ -176,7 +176,7 @@ export function AgentIdentityReviewCard({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The identity decision could not be saved.",
+          : "无法保存身份决定。",
       );
     } finally {
       setBusy(false);
@@ -194,29 +194,28 @@ export function AgentIdentityReviewCard({
         </span>
         <div>
           <strong id="agent-identity-review-title">
-            Identity still needs your decision
+            身份仍需要你的决定
           </strong>
           <p>
-            The source is saved, but it is not part of either person&apos;s Wiki
-            yet.
+            来源已保存，但尚未进入任何人物的 Wiki。
           </p>
         </div>
-        <i>Unresolved</i>
+        <i>未解决</i>
       </header>
 
       {identityCase.latest_decision?.decision === "leave_unresolved" ? (
         <div className="context-agent-identity-review__resume">
-          <strong>Previously left unresolved</strong>
+          <strong>先前保持为未解决</strong>
           <p>{identityCase.latest_decision.reason}</p>
           <small>
-            Saved {formatIdentityReviewDate(identityCase.latest_decision.decided_at)}
+            保存于 {formatIdentityReviewDate(identityCase.latest_decision.decided_at)}
           </small>
         </div>
       ) : null}
 
       <article className="context-agent-identity-review__source">
         <header>
-          <span>Governed source</span>
+          <span>受治理来源</span>
           <i>{identityCase.source.display_name}</i>
         </header>
         <blockquote>{identityCase.source.excerpt}</blockquote>
@@ -224,7 +223,7 @@ export function AgentIdentityReviewCard({
           <span>{identityCase.source.kind.replaceAll("_", " ")}</span>
           <span>
             {identityCase.source.fragment_count}{" "}
-            {identityCase.source.fragment_count === 1 ? "fragment" : "fragments"}
+            条片段
           </span>
           <span>{formatIdentityReviewDate(identityCase.source.observed_at)}</span>
         </footer>
@@ -232,8 +231,7 @@ export function AgentIdentityReviewCard({
 
       <div className="context-agent-identity-review__candidates">
         <p>
-          Compare only source-backed identity clues and relationship context.
-          Choosing a person does not confirm the source&apos;s claims.
+          只比较有来源支持的身份线索与关系情境。选择联系人并不确认来源中的结论。
         </p>
         {identityCase.candidates.map((candidate) => (
           <article
@@ -255,14 +253,14 @@ export function AgentIdentityReviewCard({
                 <small>
                   {candidate.context_count}{" "}
                   {candidate.context_count === 1
-                    ? "relationship"
-                    : "relationships"}{" "}
-                  · {candidate.capture_count} sources
+                    ? "项关系"
+                    : "项关系"}{" "}
+                  · {candidate.capture_count} 份来源
                 </small>
               </p>
               <CheckCircle aria-hidden="true" size={17} />
             </button>
-            <ul aria-label={`Why ${candidate.display_label} is possible`}>
+            <ul aria-label={`${candidate.display_label} 可能匹配的原因`}>
               {candidate.match_reasons.map((matchReason) => (
                 <li key={matchReason}>{matchReason}</li>
               ))}
@@ -273,10 +271,9 @@ export function AgentIdentityReviewCard({
 
       {selectedCandidate ? (
         <fieldset className="context-agent-identity-review__contexts">
-          <legend>Relationship context</legend>
+          <legend>关系情境</legend>
           <p>
-            Identity is shared; evidence remains inside the selected
-            relationship.
+            身份可以共享；证据仍限定在所选关系内。
           </p>
           <div>
             {selectedCandidate.relationship_contexts.map((context) => (
@@ -302,19 +299,19 @@ export function AgentIdentityReviewCard({
               type="button"
             >
               <Plus aria-hidden="true" size={13} />
-              New relationship
+              新关系
             </button>
           </div>
           {usingNewContext ? (
             <label>
-              <span>New relationship label</span>
+              <span>新关系标签</span>
               <input
                 maxLength={200}
                 onChange={(event) => {
                   setNewContextLabel(event.target.value);
                   resetRequest();
                 }}
-                placeholder="e.g. VP Product search"
+                placeholder="例如：产品副总裁寻访"
                 value={newContextLabel}
               />
             </label>
@@ -324,7 +321,7 @@ export function AgentIdentityReviewCard({
 
       <label className="context-agent-identity-review__reason">
         <span>
-          Decision note <small>Required</small>
+          决定笔记 <small>必填</small>
         </span>
         <textarea
           maxLength={500}
@@ -332,7 +329,7 @@ export function AgentIdentityReviewCard({
             setReason(event.target.value);
             resetRequest();
           }}
-          placeholder="What distinguishes the right person, or what evidence is still missing?"
+          placeholder="什么能够区分正确联系人，或仍缺少什么证据？"
           rows={2}
           value={reason}
         />
@@ -349,7 +346,7 @@ export function AgentIdentityReviewCard({
           onClick={() => void decideIdentity("leave_unresolved")}
           type="button"
         >
-          Leave unresolved
+          保持未解决
         </button>
         <button
           className="context-primary-button context-primary-button--compact"
@@ -362,7 +359,7 @@ export function AgentIdentityReviewCard({
           ) : (
             <Check aria-hidden="true" size={16} />
           )}
-          Confirm identity
+          确认身份
         </button>
       </footer>
     </section>

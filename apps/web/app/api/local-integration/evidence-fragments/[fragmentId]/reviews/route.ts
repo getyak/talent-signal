@@ -68,7 +68,7 @@ export async function POST(
     return response(
       {
         code: "evidence_review_failed",
-        message: "The evidence review could not be saved.",
+        message: "无法保存依据审阅。",
       },
       422,
     );

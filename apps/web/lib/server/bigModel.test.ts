@@ -115,7 +115,7 @@ describe("BigModel screenshot analysis", () => {
 
     vi.stubEnv("ZHIPU_BASE_URL", "https://open.bigmodel.cn/api/paas/v4");
     vi.stubEnv("TALENT_SIGNAL_ZHIPU_SCREENSHOT_MODEL", "glm-latest");
-    expect(() => getBigModelAvailability()).toThrow("pinned GLM vision model");
+    expect(() => getBigModelAvailability()).toThrow("固定版本的 GLM 视觉模型");
   });
 
   it("does not expose provider response content on failure", async () => {

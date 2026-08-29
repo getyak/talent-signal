@@ -31,10 +31,10 @@ export function RelationshipEvidenceProjection({
       <section aria-labelledby="confirmed-title" className="context-section">
         <div className="context-section__heading">
           <div>
-            <p className="eyebrow">KNOWN CONTEXT</p>
-            <h2 id="confirmed-title">Confirmed in this relationship</h2>
+            <p className="eyebrow">已知背景</p>
+            <h2 id="confirmed-title">在此关系中已确认</h2>
           </div>
-          <span>{active.length} active</span>
+          <span>{active.length} 项当前有效</span>
         </div>
         {active.length > 0 ? (
           <dl className="context-known">
@@ -44,20 +44,19 @@ export function RelationshipEvidenceProjection({
                 <dd>{state.value}</dd>
                 <a href={`#source-${state.evidence_id}`}>
                   <LinkSimple aria-hidden="true" size={15} />
-                  Source
+                  来源
                 </a>
               </div>
             ))}
           </dl>
         ) : (
           <p className="context-section__empty">
-            Confirm a proposed fact to add it here. Model output alone never
-            becomes remembered context.
+            确认一项拟议事实后，它才会出现在这里。模型输出本身绝不会变成已记住的背景。
           </p>
         )}
         {historical.length > 0 ? (
           <details className="context-retention context-known-history">
-            <summary>Previous fact versions ({historical.length})</summary>
+            <summary>先前事实版本（{historical.length}）</summary>
             <dl>
               {historical.map((state) => (
                 <div key={state.id}>
@@ -79,8 +78,8 @@ export function RelationshipEvidenceProjection({
       >
         <div className="context-section__heading">
           <div>
-            <p className="eyebrow">SOURCE</p>
-            <h2 id="source-title">Reviewed extracted text</h2>
+            <p className="eyebrow">来源</p>
+            <h2 id="source-title">已审阅的提取文本</h2>
           </div>
           <span>{workspace.source_authorization.state}</span>
         </div>
@@ -94,35 +93,35 @@ export function RelationshipEvidenceProjection({
               <blockquote>
                 {message.text ??
                   (sourceAuthorizationAvailable
-                    ? "Source text is no longer retained."
-                    : `Source authorization is ${workspace.source_authorization.state}. Restore or renew it from Sources before reviewing the evidence.`)}
+                    ? "来源文本已不再保留。"
+                    : `来源授权状态为 ${workspace.source_authorization.state}。请先从来源中恢复或续期，再审阅证据。`)}
               </blockquote>
             </figure>
           ))}
         </div>
         <details className="context-retention">
-          <summary>Retention and provenance</summary>
+          <summary>留存与来源</summary>
           <dl>
             <div>
-              <dt>Stored source</dt>
+              <dt>已存来源</dt>
               <dd>{workspace.capture.source.retention.source_scope}</dd>
             </div>
             <div>
-              <dt>Raw screenshot</dt>
-              <dd>Not stored by Talent Signal</dd>
+              <dt>原始截图</dt>
+              <dd>Talent Signal 不会保存</dd>
             </div>
             <div>
-              <dt>Retention until</dt>
+              <dt>留存至</dt>
               <dd>
                 {workspace.capture.source.retention.retention_until
                   ? formatDate(
                       workspace.capture.source.retention.retention_until,
                     )
-                  : "Review completion"}
+                  : "审阅完成"}
               </dd>
             </div>
             <div>
-              <dt>Producer</dt>
+              <dt>生成方</dt>
               <dd>{workspace.analysis.producer.name}</dd>
             </div>
           </dl>

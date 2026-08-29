@@ -83,7 +83,7 @@ function derivedUuid(seed: string): string {
 function canonicalUrl(value: string): string {
   const url = new URL(value.trim());
   if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("Use an HTTP or HTTPS public URL.");
+    throw new Error("请使用 HTTP 或 HTTPS 公开 URL。");
   }
   url.hash = "";
   return url.toString();
@@ -99,7 +99,7 @@ function personScope(input: ScopeFields): PersonScopeIntent {
       "identity_candidates",
     ].includes(mode)
   ) {
-    throw new Error("The relationship scope mode is invalid.");
+    throw new Error("关系范围模式无效。");
   }
   if (mode === "existing") {
     if (
@@ -108,7 +108,7 @@ function personScope(input: ScopeFields): PersonScopeIntent {
       !UUID.test(input.person_id) ||
       !UUID.test(input.relationship_context_id)
     ) {
-      throw new Error("The selected relationship scope is invalid.");
+      throw new Error("所选关系范围无效。");
     }
     return {
       status: "confirmed",
@@ -179,7 +179,7 @@ function personScope(input: ScopeFields): PersonScopeIntent {
     };
   }
   if (!input.person_id || !UUID.test(input.person_id)) {
-    throw new Error("The selected existing person is invalid.");
+    throw new Error("所选现有人物无效。");
   }
   return {
     status: "confirmed",
@@ -220,7 +220,7 @@ function textFragments(
   }
   const value = input.value.normalize("NFKC").trim();
   if (value.length === 0 || value.length > 40_000) {
-    throw new Error("Add between 1 and 40,000 characters.");
+    throw new Error("请输入 1 至 40,000 个字符。");
   }
   if (input.type === "note") {
     return {
@@ -280,7 +280,7 @@ async function commitText(
   if (
     !UUID.test(input.request_id)
   ) {
-    throw new Error("The resource request id is invalid.");
+    throw new Error("来源请求 ID 无效。");
   }
   const clientResourceId = `web-resource:${input.request_id}`;
   const scope = personScope(input);
@@ -404,7 +404,7 @@ async function commitFile(
     !(file instanceof File) ||
     !["resume", "document"].includes(documentKind)
   ) {
-    throw new Error("The document intake is incomplete.");
+    throw new Error("文档接收信息不完整。");
   }
 
   const clientResourceId = `web-resource:${requestId}`;
@@ -587,7 +587,7 @@ export async function POST(request: Request) {
         message:
           error instanceof Error
             ? error.message
-            : "The resource could not be committed.",
+            : "无法提交来源。",
       },
       422,
     );

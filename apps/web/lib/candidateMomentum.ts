@@ -472,24 +472,29 @@ export function getCaseEvidence(
 }
 
 export function getCaseIdentityLabel(fixtureCase: CandidateMomentumCase) {
-  return fixtureCase.context.candidate ?? "Identity unresolved";
+  return fixtureCase.context.candidate ?? "身份未解决";
 }
 
 export function getDispositionLabel(
   disposition: CandidateMomentumDisposition,
 ) {
   const labels: Record<CandidateMomentumDisposition, string> = {
-    block: "Blocked",
-    clarify: "Needs clarification",
-    no_action: "No action",
-    propose_action: "Action proposed",
+    block: "已阻止",
+    clarify: "需要澄清",
+    no_action: "无需行动",
+    propose_action: "已提议行动",
   };
   return labels[disposition];
 }
 
 export function getFieldLabel(field: string) {
-  return field
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  const labels: Record<string, string> = {
+    availability: "可用时间",
+    competing_process: "竞争流程",
+    decision_deadline: "决定截止时间",
+    relocation_requirement: "搬迁要求",
+    work_mode_constraint: "工作模式限制",
+    work_mode_preference: "工作模式偏好",
+  };
+  return labels[field] ?? field.replaceAll("_", " ");
 }

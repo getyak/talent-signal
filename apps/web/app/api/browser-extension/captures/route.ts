@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         message:
           error instanceof Error
             ? error.message
-            : "The reviewed handoff was rejected.",
+            : "已审阅的交接内容被拒绝。",
       },
       { status: 400 },
     );

@@ -70,7 +70,7 @@ export function loadRelationshipResourceList(
       throw new Error(
         "message" in payload && payload.message
           ? payload.message
-          : "Relationship resources could not be loaded.",
+          : "无法加载关系来源。",
       );
     }
     return payload.resources;
@@ -217,7 +217,7 @@ export function RelationshipResourceComposer({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "Existing people could not be loaded.",
+            : "无法加载现有人才。",
         );
       }
       const alternatives = payload.people.filter(
@@ -234,7 +234,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "Existing people could not be loaded.",
+          : "无法加载现有人才。",
       );
     } finally {
       setIdentityPeopleLoading(false);
@@ -267,7 +267,7 @@ export function RelationshipResourceComposer({
                   status: "proposed" as const,
                   label: identityNewContextLabel.trim(),
                   purpose:
-                    "Correct a governed source into the recruiter-selected relationship context",
+                    "将受治理来源更正到招聘顾问选择的关系背景",
                 },
           }
         : {
@@ -277,7 +277,7 @@ export function RelationshipResourceComposer({
               status: "proposed" as const,
               label: identityNewContextLabel.trim(),
               purpose:
-                "Correct a governed source into a newly created person and relationship context",
+                "将受治理来源更正到新建人物及其关系背景",
             },
           };
     const targetReady =
@@ -314,7 +314,7 @@ export function RelationshipResourceComposer({
               relationshipContextId,
             reason: identityCorrectionReason.trim(),
             binding_basis:
-              "The recruiter inspected this governed source and explicitly selected the corrected person and relationship context.",
+              "招聘顾问已检查此受治理来源，并明确选择更正后的人物与关系背景。",
             target,
           }),
         },
@@ -336,7 +336,7 @@ export function RelationshipResourceComposer({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The source identity could not be corrected.",
+            : "无法更正来源身份。",
         );
       }
       const readback = await onIdentityCorrected({
@@ -347,14 +347,14 @@ export function RelationshipResourceComposer({
       });
       if (readback === "unavailable") {
         setError(
-          "The identity correction was recorded, but the corrected relationship could not be read back. Reload before another decision.",
+          "身份更正已记录，但无法读回更正后的关系。请重新加载后再做其他决定。",
         );
       }
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "The source identity could not be corrected.",
+          : "无法更正来源身份。",
       );
     } finally {
       setBusy(false);
@@ -375,7 +375,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "Relationship resources could not be loaded.",
+          : "无法加载关系来源。",
       );
     } finally {
       setResourceLoading(false);
@@ -395,7 +395,7 @@ export function RelationshipResourceComposer({
           setError(
             caught instanceof Error
               ? caught.message
-              : "Relationship resources could not be loaded.",
+              : "无法加载关系来源。",
           );
         }
       })
@@ -425,7 +425,7 @@ export function RelationshipResourceComposer({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The source evidence could not be opened.",
+            : "无法打开来源依据。",
         );
       }
       setSelectedResource(payload);
@@ -455,7 +455,7 @@ export function RelationshipResourceComposer({
           setError(
             caught instanceof Error
               ? caught.message
-              : "The source opened, but its prior research status could not be restored.",
+              : "来源已打开，但无法恢复此前的研究状态。",
           );
         }
       }
@@ -463,7 +463,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The source evidence could not be opened.",
+          : "无法打开来源依据。",
       );
     }
   }
@@ -488,14 +488,14 @@ export function RelationshipResourceComposer({
           "message" in payload &&
           typeof payload.message === "string"
           ? payload.message
-          : "The prior public research status could not be restored.",
+          : "无法恢复此前的公开研究状态。",
       );
     }
     if (payload === null || "task_id" in payload) {
       return payload;
     }
     throw new Error(
-      "The prior public research status could not be restored.",
+      "无法恢复此前的公开研究状态。",
     );
   }
 
@@ -513,7 +513,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The prior public research status could not be restored.",
+          : "无法恢复此前的公开研究状态。",
       );
       throw caught;
     } finally {
@@ -535,7 +535,7 @@ export function RelationshipResourceComposer({
         selectedResource.resource.source_locator,
       ).hostname.toLowerCase();
     } catch {
-      setError("The saved public URL is invalid.");
+      setError("已保存的公开网址无效。")
       return;
     }
     setBusy(true);
@@ -568,7 +568,7 @@ export function RelationshipResourceComposer({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The bounded public research could not be completed.",
+            : "无法完成有边界的公开研究。",
         );
       }
       setResearchResult(payload);
@@ -579,7 +579,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The bounded public research could not be completed.",
+          : "无法完成有边界的公开研究。",
       );
     } finally {
       setBusy(false);
@@ -607,15 +607,15 @@ export function RelationshipResourceComposer({
             decision,
             reason:
               decision === "reviewed"
-                ? "The recruiter compared this extraction with the visible source."
-                : "The recruiter rejected this extraction as unreliable.",
+                ? "招聘顾问已将提取结果与可见来源进行比较。"
+                : "招聘顾问认为提取结果不可靠并予以驳回。",
           }),
         },
       );
       const payload = (await response.json()) as { message?: string };
       if (!response.ok) {
         throw new Error(
-          payload.message ?? "The evidence review could not be saved.",
+          payload.message ?? "无法保存依据审阅。",
         );
       }
       if (selectedResource) {
@@ -627,7 +627,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The evidence review could not be saved.",
+          : "无法保存依据审阅。",
       );
     } finally {
       setBusy(false);
@@ -643,7 +643,7 @@ export function RelationshipResourceComposer({
     }
     const correctedValue = claimEdits[claim.id]?.trim() ?? "";
     if (decision === "confirm" && !correctedValue) {
-      setError("Add the value you intend to confirm.");
+      setError("请添加你打算确认的值。")
       return;
     }
     const resourceId = selectedResource.resource.id;
@@ -669,7 +669,7 @@ export function RelationshipResourceComposer({
       const payload = (await response.json()) as { message?: string };
       if (!response.ok) {
         throw new Error(
-          payload.message ?? "The fact decision could not be saved.",
+          payload.message ?? "无法保存事实决定。",
         );
       }
       await openResource(resourceId);
@@ -679,7 +679,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The fact decision could not be saved.",
+          : "无法保存事实决定。",
       );
     } finally {
       setBusy(false);
@@ -707,7 +707,7 @@ export function RelationshipResourceComposer({
       };
       if (!response.ok) {
         throw new Error(
-          payload.message ?? "The governed source could not be deleted.",
+          payload.message ?? "无法删除受治理来源。",
         );
       }
       setSelectedResource(null);
@@ -715,10 +715,10 @@ export function RelationshipResourceComposer({
       const relationshipRemoved =
         !payload.compilation && !payload.compilation_error;
       const announcement = payload.compilation?.status === "published"
-        ? "Source lineage deleted. The relationship Wiki was rebuilt from the governed sources that remain."
+        ? "来源谱系已删除，关系 Wiki 已根据剩余受治理来源重建。"
         : payload.compilation_error
           ? `Source lineage deleted. Wiki recompilation needs attention: ${payload.compilation_error}`
-          : "Source lineage deleted. No active relationship remains.";
+          : "来源谱系已删除，没有活跃关系保留。";
       if (relationshipRemoved) {
         onEvidenceChanged(announcement, true);
         return;
@@ -729,7 +729,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The governed source could not be deleted.",
+          : "无法删除受治理来源。",
       );
     } finally {
       setBusy(false);
@@ -753,7 +753,7 @@ export function RelationshipResourceComposer({
         parsedExpiry <= new Date()
       ) {
         setError(
-          "Choose a source-authorization deadline in the future.",
+          "请选择未来的来源授权截止时间。",
         );
         return;
       }
@@ -793,7 +793,7 @@ export function RelationshipResourceComposer({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The source authorization could not be changed.",
+            : "无法更改来源授权。",
         );
       }
       await openResource(resourceId);
@@ -802,29 +802,21 @@ export function RelationshipResourceComposer({
       resetSourceAuthorizationDecision();
       const externalEffectFollowUp =
         payload.external_effects_requiring_follow_up > 0
-          ? ` ${payload.external_effects_requiring_follow_up} ${
-              payload.external_effects_requiring_follow_up === 1
-                ? "external effect still requires"
-                : "external effects still require"
-            } recruiter follow-up; nothing already completed was represented as undone.`
+          ? ` 仍有 ${payload.external_effects_requiring_follow_up} 项外部效果需要招聘顾问跟进；不会把已经完成的事项表述为已撤销。`
           : "";
       const authorizationMessage =
         payload.decision === "revoke"
           ? payload.compilation
-            ? `Source access revoked. ${payload.states_retracted} confirmed ${
-                payload.states_retracted === 1 ? "state was" : "states were"
-              } withdrawn, and the relationship Wiki was rebuilt from authorized sources that remain.`
-            : `Source access revoked. Wiki recompilation needs attention: ${
+            ? `来源访问权限已撤销。已撤回 ${payload.states_retracted} 项确认状态，并使用仍获授权的来源重新构建关系 Wiki。`
+            : `来源访问权限已撤销。Wiki 重新编译需要关注：${
                 payload.compilation_error ??
-                "no authorized relationship memory was publishable"
+                "没有可发布的已授权关系记忆"
               }`
           : payload.compilation
-            ? `Source access restored for review. ${payload.claims_reopened} ${
-                payload.claims_reopened === 1 ? "claim is" : "claims are"
-              } pending; no prior conclusion or action was restored automatically.`
-            : `Source access restored for review. Wiki recompilation needs attention: ${
+            ? `来源访问权限已恢复，可供审阅。共有 ${payload.claims_reopened} 项声明待处理；此前的结论或行动均未自动恢复。`
+            : `来源访问权限已恢复，可供审阅。Wiki 重新编译需要关注：${
                 payload.compilation_error ??
-                "the restored evidence still requires review"
+                "恢复的依据仍需审阅"
               }`;
       await onEvidenceChanged(
         `${authorizationMessage}${externalEffectFollowUp}`,
@@ -833,7 +825,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The source authorization could not be changed.",
+          : "无法更改来源授权。",
       );
     } finally {
       setBusy(false);
@@ -857,10 +849,10 @@ export function RelationshipResourceComposer({
     ) {
       setError(
         mode === "document"
-          ? "Choose one resume or document."
+          ? "请选择一份简历或文档。"
           : mode === "conversation"
-            ? "Analyze the transcript and confirm every speaker label."
-          : "Add the context you want to preserve.",
+            ? "请分析对话转写并确认每个说话人标签。"
+          : "请添加你希望保留的背景。",
       );
       return;
     }
@@ -870,7 +862,7 @@ export function RelationshipResourceComposer({
     }
     const capturedAt = requestCapturedAtRef.current;
     if (!capturedAt) {
-      setError("The source observation time could not be preserved.");
+      setError("无法保留来源观察时间。")
       return;
     }
     setBusy(true);
@@ -933,7 +925,7 @@ export function RelationshipResourceComposer({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The context could not be attached.",
+            : "无法附加背景。",
         );
       }
       setReceipt({
@@ -952,7 +944,7 @@ export function RelationshipResourceComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The context could not be attached.",
+          : "无法附加背景。",
       );
     } finally {
       setBusy(false);
@@ -967,14 +959,13 @@ export function RelationshipResourceComposer({
     >
       <div className="context-resource-composer__heading">
         <div>
-          <p className="eyebrow">ADD CONTEXT</p>
-          <h2 id="add-context-title">One person, more than one source.</h2>
+          <p className="eyebrow">添加背景</p>
+          <h2 id="add-context-title">一个人，可以有多个来源。</h2>
           <p>
-            Attach to {scopeLabel}. Each source keeps its own authority,
-            evidence location, and deletion path.
+            附加到 {scopeLabel}。每个来源都保留各自的权限、依据位置与删除路径。
           </p>
         </div>
-        <div aria-label="Context source type" role="tablist">
+        <div aria-label="背景来源类型" role="tablist">
           <button
             aria-selected={mode === "note"}
             onClick={() => {
@@ -985,7 +976,7 @@ export function RelationshipResourceComposer({
             type="button"
           >
             <PencilSimple aria-hidden="true" size={16} />
-            Note
+            备注
           </button>
           <button
             aria-selected={mode === "conversation"}
@@ -997,7 +988,7 @@ export function RelationshipResourceComposer({
             type="button"
           >
             <ChatCircleDots aria-hidden="true" size={16} />
-            Transcript
+            对话转写
           </button>
           <button
             aria-selected={mode === "document"}
@@ -1009,7 +1000,7 @@ export function RelationshipResourceComposer({
             type="button"
           >
             <UploadSimple aria-hidden="true" size={16} />
-            File
+            文件
           </button>
           <button
             aria-selected={mode === "url"}
@@ -1021,11 +1012,11 @@ export function RelationshipResourceComposer({
             type="button"
           >
             <LinkSimple aria-hidden="true" size={16} />
-            Link
+            链接
           </button>
           <button onClick={onScreenshot} type="button">
             <FileImage aria-hidden="true" size={16} />
-            Screenshot
+            截图
           </button>
         </div>
       </div>
@@ -1072,16 +1063,16 @@ export function RelationshipResourceComposer({
           >
             <UploadSimple aria-hidden="true" size={20} />
             <span>
-              <strong>{file?.name ?? "Choose PDF, DOCX, TXT, or Markdown"}</strong>
+              <strong>{file?.name ?? "选择 PDF、DOCX、TXT 或 Markdown"}</strong>
               <small>
                 {file
                   ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
-                  : "Raw file is parsed transiently and is not retained."}
+                  : "原始文件仅临时解析，不会保留。"}
               </small>
             </span>
           </button>
           <label>
-            <span>Document meaning</span>
+            <span>文档用途</span>
             <select
               onChange={(event) => {
                 setDocumentKind(
@@ -1091,8 +1082,8 @@ export function RelationshipResourceComposer({
               }}
               value={documentKind}
             >
-              <option value="resume">Resume</option>
-              <option value="document">Supporting document</option>
+              <option value="resume">简历</option>
+              <option value="document">补充文档</option>
             </select>
           </label>
           <label className="context-resource-checkbox">
@@ -1105,9 +1096,9 @@ export function RelationshipResourceComposer({
               type="checkbox"
             />
             <span>
-              Save visible URLs as research seeds
+              将可见网址保存为研究种子
               <small>
-                This does not fetch pages or authorize deep research.
+                这不会抓取页面，也不会授权深度研究。
               </small>
             </span>
           </label>
@@ -1115,7 +1106,7 @@ export function RelationshipResourceComposer({
       ) : (
         <div className="context-resource-composer__text">
           <label>
-            <span>{mode === "note" ? "Note title" : "Link label"}</span>
+            <span>{mode === "note" ? "备注标题" : "链接名称"}</span>
             <input
               maxLength={240}
               onChange={(event) => {
@@ -1124,14 +1115,14 @@ export function RelationshipResourceComposer({
               }}
               placeholder={
                 mode === "note"
-                  ? "e.g. Prep for Thursday call"
-                  : "e.g. Portfolio or public profile"
+                  ? "例如：准备周四通话"
+                  : "例如：作品集或公开资料页"
               }
               value={title}
             />
           </label>
           <label>
-            <span>{mode === "note" ? "Your note" : "Public URL"}</span>
+            <span>{mode === "note" ? "你的备注" : "公开网址"}</span>
             {mode === "note" ? (
               <textarea
                 maxLength={40_000}
@@ -1139,7 +1130,7 @@ export function RelationshipResourceComposer({
                   setValue(event.target.value);
                   resetRequest();
                 }}
-                placeholder="What do you want your future self to remember? This remains a recruiter-authored note, not candidate testimony."
+                placeholder="你希望未来的自己记住什么？这始终是招聘顾问撰写的备注，不是候选人陈述。"
                 rows={3}
                 value={value}
               />
@@ -1168,20 +1159,18 @@ export function RelationshipResourceComposer({
       {receipt ? (
         <p className="context-resource-composer__receipt" role="status">
           <CheckCircle aria-hidden="true" size={17} weight="fill" />
-          {receipt.resources} governed{" "}
-          {receipt.resources === 1 ? "resource" : "resources"} attached
+          已附加 {receipt.resources} 个受治理资源
           {receipt.linksFound > 0
-            ? ` · ${receipt.linksFound} visible links found`
+            ? ` · 发现 ${receipt.linksFound} 个可见链接`
             : ""}
           {receipt.warnings > 0
-            ? ` · ${receipt.warnings} parser warnings retained`
+            ? ` · 保留 ${receipt.warnings} 条解析警告`
             : ""}
         </p>
       ) : null}
       <footer>
         <p>
-          Every source remains separately reviewable. Saving a URL is not
-          permission to crawl it.
+          每个来源都可单独审阅；保存网址并不代表获准抓取。
         </p>
         <button
           className="context-primary-button context-primary-button--compact"
@@ -1202,19 +1191,17 @@ export function RelationshipResourceComposer({
           ) : (
             <Plus aria-hidden="true" size={17} />
           )}
-          {busy ? "Attaching source" : "Attach to person"}
+          {busy ? "正在附加来源" : "附加到人物"}
         </button>
       </footer>
 
       <div className="context-resource-ledger">
         <div>
-          <h3>Sources on this relationship</h3>
+          <h3>此关系的来源</h3>
           <span>
             {resourceLoading
-              ? "Loading…"
-              : `${resources.length} governed ${
-                  resources.length === 1 ? "source" : "sources"
-                }`}
+              ? "加载中……"
+              : `${resources.length} 个受治理来源`}
           </span>
         </div>
         {resources.length > 0 ? (
@@ -1242,25 +1229,25 @@ export function RelationshipResourceComposer({
                   <small>
                     {resource.kind.replaceAll("_", " ")} ·{" "}
                     {resource.source_authorization_state === "revoked"
-                      ? "Access revoked · evidence excluded from memory"
+                      ? "访问已撤销 · 依据已从记忆中排除"
                       : resource.source_authorization_state === "expired"
-                        ? "Authorization expired · evidence excluded from memory"
+                        ? "授权已过期 · 依据已从记忆中排除"
                       : resource.proposed_fragment_count > 0
-                      ? `${resource.proposed_fragment_count} excerpts need review`
+                      ? `${resource.proposed_fragment_count} 个摘录需要审阅`
                       : resource.pending_claim_count > 0
-                        ? `${resource.pending_claim_count} facts need review${
+                        ? `${resource.pending_claim_count} 项事实需要审阅${
                             resource.conflicted_claim_count > 0
-                              ? ` · ${resource.conflicted_claim_count} conflicting`
+                              ? ` · ${resource.conflicted_claim_count} 项冲突`
                               : ""
                           }`
-                      : "Evidence reviewed"}
+                      : "依据已审阅"}
                     {resource.duplicate_of_resource_id
-                      ? " · duplicate retained"
+                      ? " · 重复项已保留"
                       : ""}
                     {resource.source_authorization_state ===
                       "authorized" &&
                     resource.source_authorization_expires_at
-                      ? ` · authorized until ${formatDate(
+                      ? ` · 授权至 ${formatDate(
                           resource.source_authorization_expires_at,
                         )}`
                       : ""}
@@ -1276,7 +1263,7 @@ export function RelationshipResourceComposer({
           </div>
         ) : resourceLoading ? null : (
           <p className="context-resource-ledger__empty">
-            No additional note, transcript, file, or link is attached yet.
+            尚未附加其他备注、对话转写、文件或链接。
           </p>
         )}
       </div>
@@ -1285,7 +1272,7 @@ export function RelationshipResourceComposer({
         <div className="context-resource-review">
           <header>
             <div>
-              <p className="eyebrow">EVIDENCE REVIEW</p>
+              <p className="eyebrow">依据审阅</p>
               <h3>{selectedResource.resource.display_name}</h3>
               <span>
                 {selectedResource.resource.kind.replaceAll("_", " ")} ·{" "}
@@ -1293,13 +1280,9 @@ export function RelationshipResourceComposer({
                 "authorized"
                   ? selectedResource.resource.source_authorization_state ===
                     "expired"
-                    ? "authorization expired"
-                    : "access revoked"
-                  : `${selectedResource.fragments.length} addressable ${
-                      selectedResource.fragments.length === 1
-                        ? "fragment"
-                        : "fragments"
-                    }`}
+                    ? "授权已过期"
+                    : "访问已撤销"
+                  : `${selectedResource.fragments.length} 个可定位片段`}
               </span>
             </div>
             <div className="context-resource-review__actions">
@@ -1316,7 +1299,7 @@ export function RelationshipResourceComposer({
                 type="button"
               >
                 <PencilSimple aria-hidden="true" size={15} />
-                Wrong person?
+                人物不对？
               </button>
               <button
                 aria-expanded={sourceAuthorizationOpen}
@@ -1341,11 +1324,11 @@ export function RelationshipResourceComposer({
                 )}
                 {selectedResource.resource
                   .source_authorization_state === "authorized"
-                  ? "Revoke access"
+                  ? "撤销访问"
                   : selectedResource.resource
                         .source_authorization_state === "expired"
-                    ? "Renew access"
-                    : "Restore access"}
+                    ? "续期访问"
+                    : "恢复访问"}
               </button>
               <button
                 className="context-text-button"
@@ -1357,10 +1340,10 @@ export function RelationshipResourceComposer({
                 type="button"
               >
                 <Trash aria-hidden="true" size={15} />
-                Delete source
+                删除来源
               </button>
               <button
-                aria-label="Close evidence review"
+                aria-label="关闭依据审阅"
                 className="context-icon-button"
                 onClick={() => {
                   setSelectedResource(null);
@@ -1384,15 +1367,15 @@ export function RelationshipResourceComposer({
             <section className="context-identity-correction">
               <header>
                 <div>
-                  <p className="eyebrow">SOURCE AUTHORIZATION</p>
+                  <p className="eyebrow">来源授权</p>
                   <h4>
                     {selectedResource.resource
                       .source_authorization_state === "authorized"
-                      ? "Remove this source from relationship memory."
+                      ? "从关系记忆中移除此来源。"
                       : selectedResource.resource
                             .source_authorization_state === "expired"
-                        ? "Renew this source as reviewable evidence."
-                        : "Return this source as reviewable evidence."}
+                        ? "续期此来源，使其重新成为可审阅依据。"
+                        : "恢复此来源，使其重新成为可审阅依据。"}
                   </h4>
                 </div>
                 {selectedResource.resource
@@ -1405,14 +1388,14 @@ export function RelationshipResourceComposer({
               <p>
                 {selectedResource.resource
                   .source_authorization_state === "authorized"
-                  ? "Revoking access hides the evidence, withdraws dependent facts and pending actions, and rebuilds the Wiki from authorized sources that remain. It does not delete the governed source, so access can be restored later."
+                  ? "撤销访问会隐藏依据、撤回依赖事实与待处理行动，并根据剩余已授权来源重建 Wiki。受治理来源不会被删除，因此之后可以恢复访问。"
                   : selectedResource.resource
                         .source_authorization_state === "expired"
-                    ? "Renewing authorization reveals the governed evidence again, but every source-derived claim returns to recruiter review. Prior facts, approvals, and actions stay withdrawn."
-                    : "Restoring access reveals the governed evidence again, but every source-derived claim returns to recruiter review. Prior facts, approvals, and actions stay withdrawn."}
+                    ? "续期授权会重新显示受治理依据，但所有来源衍生声明都会回到招聘顾问审阅。此前事实、批准和行动保持撤回。"
+                    : "恢复访问会重新显示受治理依据，但所有来源衍生声明都会回到招聘顾问审阅。此前事实、批准和行动保持撤回。"}
               </p>
               <label className="context-identity-correction__reason">
-                <span>Why is this authorization changing?</span>
+                <span>为何更改此授权？</span>
                 <textarea
                   maxLength={500}
                   onChange={(event) => {
@@ -1424,8 +1407,8 @@ export function RelationshipResourceComposer({
                   placeholder={
                     selectedResource.resource
                       .source_authorization_state === "authorized"
-                      ? "For example: the candidate withdrew permission to use this conversation."
-                      : "For example: the recruiter confirmed renewed permission for this purpose."
+                      ? "例如：候选人撤回了使用此对话的许可。"
+                      : "例如：招聘顾问确认已就此用途续期许可。"
                   }
                   rows={3}
                   value={sourceAuthorizationReason}
@@ -1435,11 +1418,11 @@ export function RelationshipResourceComposer({
                 .source_authorization_state !== "authorized" ? (
                 <label className="context-identity-correction__reason">
                   <span>
-                    New authorization deadline
+                    新授权截止时间
                     {selectedResource.resource
                       .source_authorization_state === "expired"
-                      ? " (recommended)"
-                      : " (optional)"}
+                      ? "（建议）"
+                      : "（可选）"}
                   </span>
                   <input
                     onChange={(event) => {
@@ -1452,8 +1435,7 @@ export function RelationshipResourceComposer({
                     value={sourceAuthorizationExpiresAt}
                   />
                   <small>
-                    This governs use of the evidence, independently
-                    from how long the original file is retained.
+                    这会治理依据的使用，与原始文件保留时长相互独立。
                   </small>
                 </label>
               ) : null}
@@ -1466,7 +1448,7 @@ export function RelationshipResourceComposer({
                   }}
                   type="button"
                 >
-                  Cancel
+                  取消
                 </button>
                 <button
                   className={
@@ -1492,11 +1474,11 @@ export function RelationshipResourceComposer({
                   ) : null}
                   {selectedResource.resource
                     .source_authorization_state === "authorized"
-                    ? "Revoke and rebuild Wiki"
+                    ? "撤销并重建 Wiki"
                     : selectedResource.resource
                           .source_authorization_state === "expired"
-                      ? "Renew for review"
-                      : "Restore for review"}
+                      ? "续期并返回审阅"
+                      : "恢复并返回审阅"}
                 </button>
               </footer>
             </section>
@@ -1504,15 +1486,14 @@ export function RelationshipResourceComposer({
           {deleteResourceConfirm ? (
             <div className="context-resource-review__delete">
               <p>
-                This retracts this source, sources discovered from it, and
-                every dependent Wiki or Chat snapshot.
+                这会撤回此来源、由其发现的来源，以及所有依赖的 Wiki 或聊天快照。
               </p>
               <button
                 className="context-secondary-button"
                 onClick={() => setDeleteResourceConfirm(false)}
                 type="button"
               >
-                Keep source
+                保留来源
               </button>
               <button
                 className="context-danger-button"
@@ -1520,7 +1501,7 @@ export function RelationshipResourceComposer({
                 onClick={() => void deleteSelectedResource()}
                 type="button"
               >
-                Delete governed lineage
+                删除受治理谱系
               </button>
             </div>
           ) : null}
@@ -1528,19 +1509,16 @@ export function RelationshipResourceComposer({
             <section className="context-identity-correction">
               <header>
                 <div>
-                  <p className="eyebrow">IDENTITY CORRECTION</p>
-                  <h4>Move this governed source to the right person.</h4>
+                  <p className="eyebrow">身份更正</p>
+                  <h4>将此受治理来源移到正确的人物。</h4>
                 </div>
                 <Warning aria-hidden="true" size={19} />
               </header>
               <p>
-                This source and anything discovered from it move together.
-                Facts confirmed under {scopeLabel} are withdrawn; the new
-                relationship receives reviewable proposals, never automatic
-                truth.
+                此来源及由其发现的内容会一并移动。{scopeLabel} 下已确认事实将被撤回；新关系只会收到可审阅提议，绝不会自动成为事实。
               </p>
               <div
-                aria-label="Identity correction target type"
+                aria-label="身份更正目标类型"
                 className="context-identity-correction__mode"
                 role="group"
               >
@@ -1553,7 +1531,7 @@ export function RelationshipResourceComposer({
                   }}
                   type="button"
                 >
-                  Existing person
+                  现有人物
                 </button>
                 <button
                   aria-pressed={identityTargetMode === "new"}
@@ -1563,7 +1541,7 @@ export function RelationshipResourceComposer({
                   }}
                   type="button"
                 >
-                  New person
+                  新人物
                 </button>
               </div>
               {identityPeopleLoading ? (
@@ -1573,12 +1551,12 @@ export function RelationshipResourceComposer({
                     className="spin"
                     size={16}
                   />
-                  Loading governed people…
+                  正在加载受治理人才……
                 </p>
               ) : identityTargetMode === "existing" ? (
                 <div className="context-identity-correction__fields">
                   <label>
-                    <span>Correct person</span>
+                    <span>正确人物</span>
                     <select
                       disabled={busy}
                       onChange={(event) => {
@@ -1590,18 +1568,18 @@ export function RelationshipResourceComposer({
                       value={identityTargetPersonId}
                     >
                       <option disabled value="">
-                        Choose the correct person…
+                        选择正确人物……
                       </option>
                       {identityPeople.map((person) => (
                         <option key={person.id} value={person.id}>
                           {person.display_label} · {person.capture_count}{" "}
-                          sources
+                          个来源
                         </option>
                       ))}
                     </select>
                   </label>
                   <label>
-                    <span>Relationship context</span>
+                    <span>关系背景</span>
                     <select
                       disabled={busy}
                       onChange={(event) => {
@@ -1611,7 +1589,7 @@ export function RelationshipResourceComposer({
                       value={identityTargetContextId}
                     >
                       <option disabled value="">
-                        Choose the relationship context…
+                        选择关系背景……
                       </option>
                       {identityTargetPerson?.contexts.map((context) => (
                         <option key={context.id} value={context.id}>
@@ -1619,13 +1597,13 @@ export function RelationshipResourceComposer({
                         </option>
                       ))}
                       <option value="__new__">
-                        Create a separate context…
+                        创建独立背景……
                       </option>
                     </select>
                   </label>
                   {identityTargetContextId === "__new__" ? (
                     <label>
-                      <span>New context label</span>
+                      <span>新背景名称</span>
                       <input
                         disabled={busy}
                         maxLength={200}
@@ -1633,7 +1611,7 @@ export function RelationshipResourceComposer({
                           setIdentityNewContextLabel(event.target.value);
                           resetIdentityCorrectionRequest();
                         }}
-                        placeholder="e.g. VP Product · Northstar search"
+                        placeholder="例如：产品副总裁 · Northstar 寻访"
                         value={identityNewContextLabel}
                       />
                     </label>
@@ -1642,7 +1620,7 @@ export function RelationshipResourceComposer({
               ) : (
                 <div className="context-identity-correction__fields">
                   <label>
-                    <span>New person name</span>
+                    <span>新人物姓名</span>
                     <input
                       disabled={busy}
                       maxLength={200}
@@ -1650,12 +1628,12 @@ export function RelationshipResourceComposer({
                         setIdentityNewPersonLabel(event.target.value);
                         resetIdentityCorrectionRequest();
                       }}
-                      placeholder="e.g. Maya Chen"
+                      placeholder="例如：Maya Chen"
                       value={identityNewPersonLabel}
                     />
                   </label>
                   <label>
-                    <span>Relationship context</span>
+                    <span>关系背景</span>
                     <input
                       disabled={busy}
                       maxLength={200}
@@ -1663,14 +1641,14 @@ export function RelationshipResourceComposer({
                         setIdentityNewContextLabel(event.target.value);
                         resetIdentityCorrectionRequest();
                       }}
-                      placeholder="e.g. VP Product · Northstar search"
+                      placeholder="例如：产品副总裁 · Northstar 寻访"
                       value={identityNewContextLabel}
                     />
                   </label>
                 </div>
               )}
               <label className="context-identity-correction__reason">
-                <span>Why is this the right identity?</span>
+                <span>为什么这是正确身份？</span>
                 <textarea
                   disabled={busy}
                   maxLength={500}
@@ -1678,15 +1656,14 @@ export function RelationshipResourceComposer({
                     setIdentityCorrectionReason(event.target.value);
                     resetIdentityCorrectionRequest();
                   }}
-                  placeholder="e.g. The email address and employment history match the existing contact."
+                  placeholder="例如：邮箱地址与任职经历和现有联系人匹配。"
                   rows={2}
                   value={identityCorrectionReason}
                 />
               </label>
               <footer>
                 <p>
-                  Pending actions are revoked. In-flight effects must be
-                  reconciled before the move can proceed.
+                  待处理行动会被撤销；正在进行的效果必须先完成对账，才能继续移动。
                 </p>
                 <div>
                   <button
@@ -1695,7 +1672,7 @@ export function RelationshipResourceComposer({
                     onClick={() => setIdentityCorrectionOpen(false)}
                     type="button"
                   >
-                    Keep current identity
+                    保留当前身份
                   </button>
                   <button
                     className="context-primary-button context-primary-button--compact"
@@ -1724,7 +1701,7 @@ export function RelationshipResourceComposer({
                     ) : (
                       <ArrowRight aria-hidden="true" size={16} />
                     )}
-                    Move source lineage
+                    移动来源谱系
                   </button>
                 </div>
               </footer>
@@ -1735,10 +1712,10 @@ export function RelationshipResourceComposer({
           selectedResource.resource.source_locator ? (
             <section className="context-research-approval">
               <div>
-                <p className="eyebrow">PUBLIC RESEARCH</p>
-                <h4>Choose the boundary before AI reads beyond the seed.</h4>
+                <p className="eyebrow">公开研究</p>
+                <h4>AI 读取种子之外内容前，请先选择边界。</h4>
                 <p>
-                  Approved domain:{" "}
+                  已批准域名：{" "}
                   <strong>
                     {
                       new URL(
@@ -1746,13 +1723,12 @@ export function RelationshipResourceComposer({
                       ).hostname
                     }
                   </strong>
-                  . Every retrieved page returns as proposed evidence with
-                  its URL, retrieval time, freshness, and deletion lineage.
+                  。每个检索页面都会以拟议依据返回，并保留网址、检索时间、新鲜度与删除谱系。
                 </p>
               </div>
               <div className="context-research-approval__scope">
                 <label>
-                  <span>Maximum pages</span>
+                  <span>最大页数</span>
                   <select
                     disabled={busy}
                     onChange={(event) =>
@@ -1760,13 +1736,13 @@ export function RelationshipResourceComposer({
                     }
                     value={researchPageCount}
                   >
-                    <option value={1}>1 page</option>
-                    <option value={3}>Up to 3 pages</option>
-                    <option value={5}>Up to 5 pages</option>
+                    <option value={1}>1 页</option>
+                    <option value={3}>最多 3 页</option>
+                    <option value={5}>最多 5 页</option>
                   </select>
                 </label>
                 <label>
-                  <span>Follow links</span>
+                  <span>跟随链接</span>
                   <select
                     disabled={busy}
                     onChange={(event) =>
@@ -1774,8 +1750,8 @@ export function RelationshipResourceComposer({
                     }
                     value={researchLinkDepth}
                   >
-                    <option value={0}>Seed page only</option>
-                    <option value={1}>One same-domain layer</option>
+                    <option value={0}>仅种子页面</option>
+                    <option value={1}>同域一层</option>
                   </select>
                 </label>
               </div>
@@ -1789,10 +1765,9 @@ export function RelationshipResourceComposer({
                   type="checkbox"
                 />
                 <span>
-                  I approve this bounded public research
+                  我批准这次有边界的公开研究
                   <small>
-                    HTTPS only. Private networks and cross-domain redirects
-                    are blocked.
+                    仅限 HTTPS；私有网络与跨域重定向会被阻止。
                   </small>
                 </span>
               </label>
@@ -1823,12 +1798,8 @@ export function RelationshipResourceComposer({
                     )}
                     <span>
                       {researchResult.status === "running"
-                        ? "Research is still running. Its durable task can be checked after a refresh or interruption."
-                        : `${researchResult.pages.length} public ${
-                            researchResult.pages.length === 1
-                              ? "page"
-                              : "pages"
-                          } returned as proposed evidence · ${
+                        ? "研究仍在运行；刷新或中断后可以检查其持久任务。"
+                        : `${researchResult.pages.length} 个公开页面已作为拟议依据返回 · ${
                             researchResult.status
                           }`}
                     </span>
@@ -1836,10 +1807,7 @@ export function RelationshipResourceComposer({
                   {researchResult.warnings.length > 0 ? (
                     <div className="context-research-status__warnings">
                       <strong>
-                        {researchResult.warnings.length} page-level{" "}
-                        {researchResult.warnings.length === 1
-                          ? "warning"
-                          : "warnings"}
+                        {researchResult.warnings.length} 条页面级警告
                       </strong>
                       <ul>
                         {researchResult.warnings
@@ -1851,8 +1819,7 @@ export function RelationshipResourceComposer({
                           ))}
                       </ul>
                       <small>
-                        Retrieval warnings are operational evidence, not
-                        claims about this person.
+                        检索警告属于操作依据，不是关于此人的声明。
                       </small>
                     </div>
                   ) : null}
@@ -1860,8 +1827,7 @@ export function RelationshipResourceComposer({
               ) : null}
               <footer>
                 <p>
-                  Research never confirms a person fact and never contacts
-                  anyone.
+                  研究绝不会确认人物事实，也不会联系任何人。
                 </p>
                 <button
                   className="context-primary-button context-primary-button--compact"
@@ -1888,11 +1854,11 @@ export function RelationshipResourceComposer({
                   )}
                   {busy
                     ? researchResult?.status === "running"
-                      ? "Checking durable task"
-                      : "Researching public pages"
+                      ? "正在检查持久任务"
+                      : "正在研究公开页面"
                     : researchResult?.status === "running"
-                      ? "Check research status"
-                      : "Run public research"}
+                      ? "检查研究状态"
+                      : "运行公开研究"}
                 </button>
               </footer>
             </section>
@@ -1906,11 +1872,9 @@ export function RelationshipResourceComposer({
                   <FileImage aria-hidden="true" size={18} weight="duotone" />
                 </span>
                 <p>
-                  <strong>Screenshot facts still need your judgment</strong>
+                  <strong>截图事实仍需你判断</strong>
                   <small>
-                    Transcription review and fact decisions remain separate.
-                    Open the original capture review to confirm, dismiss, or
-                    leave each proposal unresolved.
+                    转写审阅与事实决定保持分离。打开原始采集审阅，逐项确认、驳回或保留为未解决。
                   </small>
                 </p>
               </div>
@@ -1923,7 +1887,7 @@ export function RelationshipResourceComposer({
                 }
                 type="button"
               >
-                Continue fact review
+                继续事实审阅
                 <ArrowRight aria-hidden="true" size={15} />
               </button>
             </section>
@@ -1932,8 +1896,8 @@ export function RelationshipResourceComposer({
             <section className="context-claim-review">
               <header>
                 <div>
-                  <p className="eyebrow">PROPOSED PERSON UPDATES</p>
-                  <h4>Decide what becomes part of this relationship.</h4>
+                  <p className="eyebrow">拟议人物更新</p>
+                  <h4>决定哪些内容成为这段关系的一部分。</h4>
                 </div>
                 <span>
                   {
@@ -1943,12 +1907,11 @@ export function RelationshipResourceComposer({
                       ),
                     ).length
                   }{" "}
-                  open
+                  项待处理
                 </span>
               </header>
               <p>
-                Each update keeps the exact source fragment. Conflicting
-                claims stay separate until you choose the current value.
+                每项更新都保留准确来源片段；在你选择当前值前，冲突声明保持分离。
               </p>
               <div className="context-claim-review__list">
                 {selectedResource.claim_proposals.map((claim) => {
@@ -1969,36 +1932,36 @@ export function RelationshipResourceComposer({
                           <strong>{fieldLabel(claim.field)}</strong>
                           <span>
                             {claim.review_status === "confirmed"
-                              ? "Confirmed for this relationship"
+                              ? "已为此关系确认"
                               : claim.review_status === "dismissed"
-                                ? "Dismissed by recruiter"
+                                ? "招聘顾问已驳回"
                                 : claim.temporal_relation === "supersedes"
-                                  ? "Review before replacing current value"
+                                  ? "替换当前值前请审阅"
                                   : claim.temporal_relation === "reinforces"
-                                    ? "Reinforces current value"
-                                    : "New proposed fact"}
+                                    ? "强化当前值"
+                                    : "新拟议事实"}
                           </span>
                         </div>
                         <i>{reviewLabel(claim.review_status)}</i>
                       </header>
                       {claim.prior_confirmed_value ? (
                         <div
-                          aria-label="Proposed fact change"
+                          aria-label="拟议事实变化"
                           className="context-claim-review__diff"
                         >
                           <span>
-                            <small>Before</small>
+                            <small>之前</small>
                             <del>{claim.prior_confirmed_value}</del>
                           </span>
                           <ArrowRight aria-hidden="true" size={15} />
                           <span>
-                            <small>Proposed</small>
+                            <small>拟议</small>
                             <ins>{claimEdits[claim.id] ?? ""}</ins>
                           </span>
                         </div>
                       ) : null}
                       <label>
-                        <span>Value to confirm</span>
+                        <span>待确认值</span>
                         <input
                           disabled={!open || busy}
                           maxLength={2_000}
@@ -2015,12 +1978,12 @@ export function RelationshipResourceComposer({
                         <Quotes aria-hidden="true" size={15} />
                         <span>
                           {claim.evidence_quote ??
-                            "No exact source quote is available."}
+                            "没有可用的准确来源引文。"}
                         </span>
                       </blockquote>
                       <p>
                         {claim.producer.name} {claim.producer.version} ·
-                        source fragment {claim.evidence_fragment_id.slice(0, 8)}
+                        来源片段 {claim.evidence_fragment_id.slice(0, 8)}
                       </p>
                       {open ? (
                         <footer>
@@ -2032,7 +1995,7 @@ export function RelationshipResourceComposer({
                             }
                             type="button"
                           >
-                            Dismiss
+                            驳回
                           </button>
                           <button
                             className="context-secondary-button"
@@ -2045,7 +2008,7 @@ export function RelationshipResourceComposer({
                             }
                             type="button"
                           >
-                            Leave unresolved
+                            保持未解决
                           </button>
                           <button
                             className="context-primary-button"
@@ -2059,7 +2022,7 @@ export function RelationshipResourceComposer({
                             type="button"
                           >
                             <Check aria-hidden="true" size={16} />
-                            Confirm for this relationship
+                            为此关系确认
                           </button>
                         </footer>
                       ) : null}
@@ -2102,7 +2065,7 @@ export function RelationshipResourceComposer({
                       }
                       type="button"
                     >
-                      Reject extraction
+                      驳回提取结果
                     </button>
                     <button
                       className="context-primary-button"
@@ -2117,7 +2080,7 @@ export function RelationshipResourceComposer({
                       type="button"
                     >
                       <Check aria-hidden="true" size={16} />
-                      Extraction matches source
+                      提取结果与来源一致
                     </button>
                   </footer>
                 ) : null}
@@ -2125,8 +2088,7 @@ export function RelationshipResourceComposer({
             ))}
           </div>
           <p>
-            Reviewing confirms transcription accuracy only. It does not make
-            the document&apos;s claims current facts about the person.
+            审阅只确认转写准确性，不会把文档中的声明变成关于此人的当前事实。
           </p>
         </div>
       ) : null}

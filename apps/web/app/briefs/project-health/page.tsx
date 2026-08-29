@@ -185,7 +185,7 @@ export default function ProjectHealthBriefPage() {
       <main className={styles.main} id="main-content">
         <section className={styles.brief} id="brief">
           <div className={styles.eyebrowRow}>
-            <p>Engineering decision brief</p>
+            <p>工程决策简报</p>
             <span>草案 · 等待决策</span>
           </div>
 
@@ -241,7 +241,7 @@ export default function ProjectHealthBriefPage() {
           <header className={styles.layerHeader}>
             <div>
               <p className={styles.layerNumber}>02</p>
-              <p className={styles.sectionLabel}>Engineering dossier</p>
+              <p className={styles.sectionLabel}>工程档案</p>
             </div>
             <div>
               <h2>问题不是“哪里不好”，而是下一阶段受什么约束。</h2>
@@ -335,7 +335,7 @@ export default function ProjectHealthBriefPage() {
           <header className={styles.layerHeader}>
             <div>
               <p className={styles.layerNumber}>03</p>
-              <p className={styles.sectionLabel}>Evidence trail</p>
+              <p className={styles.sectionLabel}>依据轨迹</p>
             </div>
             <div>
               <h2>每个结论都能下钻，也能看到它不能证明什么。</h2>

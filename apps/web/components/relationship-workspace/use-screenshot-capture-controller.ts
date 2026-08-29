@@ -130,7 +130,7 @@ export function screenshotCaptureControllerReducer(
         ...state,
         analysisPreviewImage: null,
         analysisStatus:
-          "Analysis canceled. No source was saved. Your crop and local masks remain ready to retry.",
+          "分析已取消。未保存任何来源；裁剪区域与本地遮罩仍可用于重试。",
         error: "",
         phase: "select",
       };
@@ -138,7 +138,7 @@ export function screenshotCaptureControllerReducer(
       return {
         ...state,
         analysisStatus:
-          "No source was saved. Your crop and local masks remain ready to retry.",
+          "未保存任何来源；裁剪区域与本地遮罩仍可用于重试。",
         error: action.error,
         phase: "select",
       };
@@ -155,7 +155,7 @@ export function screenshotCaptureControllerReducer(
       return {
         ...state,
         analysisStatus:
-          "Reading the transient screenshot. You can cancel; no person, source, or contact has been saved.",
+          "正在读取临时截图。你可以取消；尚未保存人物、来源或联系人。",
         error: "",
         phase: "analyzing",
       };
@@ -163,7 +163,7 @@ export function screenshotCaptureControllerReducer(
       return {
         ...state,
         analysisStatus:
-          "This is taking longer than usual. You can cancel; no source has been saved.",
+          "所需时间比平时更长。你可以取消；尚未保存任何来源。",
       };
     case "assignment_changed":
       return { ...state, assignmentLabel: action.value };
@@ -171,8 +171,8 @@ export function screenshotCaptureControllerReducer(
       return {
         ...state,
         analysisStatus: action.outcomeUnknown
-          ? "Outcome unknown. Retry uses the same request ID, so it is safe and will not create a duplicate review."
-          : "Nothing was committed. The reviewed draft remains ready to retry.",
+          ? "结果未知。重试会使用同一请求 ID，因此不会创建重复审阅。"
+          : "没有提交任何内容；已审阅草稿仍可用于重试。",
         error: action.error,
         phase: "review",
       };
@@ -335,7 +335,7 @@ async function prepareConversationImage(
     canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) {
-      throw new Error("The browser could not prepare the selected crop.");
+      throw new Error("浏览器无法准备所选裁剪区域。")
     }
     context.drawImage(
       bitmap,
@@ -498,7 +498,7 @@ export function useScreenshotCaptureController({
     ) {
       dispatch({
         type: "file_rejected",
-        error: "Choose one non-empty JPEG, PNG, or WebP image up to 8 MB.",
+        error: "请选择一张不超过 8 MB 的非空 JPEG、PNG 或 WebP 图片。",
       });
       if (inputRef.current) {
         inputRef.current.value = "";
@@ -520,7 +520,7 @@ export function useScreenshotCaptureController({
     if (!state.file) {
       dispatch({
         type: "file_rejected",
-        error: "Choose one conversation screenshot before starting analysis.",
+        error: "开始分析前，请选择一张对话截图。",
       });
       return;
     }
@@ -574,7 +574,7 @@ export function useScreenshotCaptureController({
         error:
           caught instanceof Error
             ? caught.message
-            : "The screenshot could not be analyzed.",
+            : "无法分析截图。",
       });
     } finally {
       window.clearTimeout(slowTimer);
@@ -626,7 +626,7 @@ export function useScreenshotCaptureController({
     if (draftToCommit.messages.some((message) => !message.text.trim())) {
       dispatch({
         type: "commit_failed",
-        error: "Every reviewed message needs visible source text before commit.",
+        error: "提交前，每条已审阅消息都必须包含可见的来源文字。",
         outcomeUnknown: false,
       });
       return;
@@ -654,7 +654,7 @@ export function useScreenshotCaptureController({
         error:
           caught instanceof Error
             ? caught.message
-            : "The reviewed capture could not be committed.",
+            : "无法提交已审阅的采集内容。",
         outcomeUnknown,
       });
     }

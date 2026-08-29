@@ -57,7 +57,7 @@ function configuredModel() {
     DEFAULT_BIGMODEL_SCREENSHOT_MODEL
   ).trim();
   if (!/^glm-[a-z0-9.-]+$/u.test(model) || /(?:latest|auto)/u.test(model)) {
-    throw new Error("Configure one explicitly pinned GLM vision model.");
+    throw new Error("请配置一个明确固定版本的 GLM 视觉模型。");
   }
   return model;
 }
@@ -85,7 +85,7 @@ export async function analyzeScreenshotWithBigModel(input: {
   const availability = getBigModelAvailability();
   const apiKey = process.env.ZHIPU_API_KEY;
   if (!availability.enabled || !apiKey) {
-    throw new Error("BigModel screenshot analysis is not configured.");
+    throw new Error("尚未配置 BigModel 截图分析。");
   }
 
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -141,7 +141,7 @@ export async function analyzeScreenshotWithBigModel(input: {
   }
   const content = payload.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
-    throw new Error("BigModel returned no structured screenshot analysis.");
+    throw new Error("BigModel 未返回结构化截图分析。");
   }
 
   return {

@@ -22,7 +22,7 @@ export function authSecret() {
   const configured = process.env.AUTH_SECRET?.trim();
   if (configured) return configured;
   if (process.env.NODE_ENV === "production") {
-    throw new Error("AUTH_SECRET is required in production.");
+    throw new Error("生产环境必须配置 AUTH_SECRET。");
   }
   return "talent-signal-local-development-secret-v2";
 }

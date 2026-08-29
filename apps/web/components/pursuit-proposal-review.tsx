@@ -33,17 +33,17 @@ type Props = {
 
 function changeLabel(value: PursuitProposal["items"][number]["change_kind"]) {
   return {
-    set_milestone: "Milestone",
-    set_pursuit_status: "Pursuit status",
-    set_role_status: "Role status",
-    add_gap: "New gap",
-    add_action: "New internal action",
+    set_milestone: "里程碑",
+    set_pursuit_status: "寻访状态",
+    set_role_status: "角色状态",
+    add_gap: "新增缺口",
+    add_action: "新增内部行动",
   }[value];
 }
 
 function displayValue(value: unknown): string {
   if (typeof value === "string") return value.replaceAll("_", " ");
-  if (value === null || value === undefined) return "Not recorded";
+  if (value === null || value === undefined) return "尚未记录";
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
     return String(record.title ?? record.label ?? JSON.stringify(record));
@@ -95,7 +95,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
     try {
       const reviewDecisions = proposal.items.map((item) => {
         const selected = decisions[item.id];
-        if (!selected) throw new Error("Every change needs a decision.");
+        if (!selected) throw new Error("每项变更都需要一个决定。");
         if (selected.decision !== "edit") {
           return { item_id: item.id, decision: selected.decision };
         }
@@ -105,7 +105,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
             editedValue = JSON.parse(selected.editedValue) as unknown;
           } catch {
             throw new Error(
-              `The edited ${changeLabel(item.change_kind).toLowerCase()} must be valid JSON.`,
+              `编辑后的${changeLabel(item.change_kind)}必须是有效 JSON。`,
             );
           }
         }
@@ -142,7 +142,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
       if (!response.ok || !payload.receipt) {
         throw new Error(
           payload.error?.message ??
-            "Canonical readback did not confirm the review. Nothing is shown as applied.",
+            "规范状态读取未能确认本次审阅，因此不会把任何内容显示为已应用。",
         );
       }
       const canonicalReceipt = {
@@ -157,7 +157,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "The review could not be verified.",
+          : "无法核验本次审阅。",
       );
     } finally {
       setSubmitting(false);
@@ -169,10 +169,10 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
       <div className={styles.receipt} role="status" aria-live="polite">
         <CheckCircle aria-hidden="true" size={24} weight="fill" />
         <div>
-          <p>Canonical receipt</p>
+          <p>规范回执</p>
           <h3>{receipt.summary}</h3>
           <span>
-            {receipt.changedFields.length} changed fields · {receipt.externalEffects} external effects
+            {receipt.changedFields.length} 个字段已改变 · {receipt.externalEffects} 项外部效果
           </span>
         </div>
       </div>
@@ -189,27 +189,27 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
     >
       <header>
         <div>
-          <p>Review-only Agent Proposal</p>
+          <p>仅供审阅的智能助理提案</p>
           <h2 id={`pursuit-proposal-${proposal.id}-title`}>
             {proposal.summary}
           </h2>
           <span>
-            {proposal.review_context.subject.display_label} · Pursuit revision {proposal.base_revision}
+            {proposal.review_context.subject.display_label} · 寻访修订版本 {proposal.base_revision}
           </span>
         </div>
         <div>
           <ShieldCheck aria-hidden="true" size={18} />
-          No external effects
+          无外部效果
         </div>
       </header>
 
       <div className={styles.proposalEvidence}>
-        <p>Exact evidence</p>
+        <p>准确证据</p>
         {proposal.review_context.evidence.map((evidence) => (
           <blockquote key={evidence.fragment_id}>
-            “{evidence.text ?? "Source text is no longer available."}”
+            “{evidence.text ?? "来源文本已不可用。"}”
             <cite>
-              {evidence.source_display_name} · {evidence.attribution_status} attribution · {evidence.review_status}
+              {evidence.source_display_name} · 归属状态：{evidence.attribution_status} · 审阅状态：{evidence.review_status}
             </cite>
           </blockquote>
         ))}
@@ -226,12 +226,12 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
               </legend>
               <div className={styles.beforeAfter}>
                 <p>
-                  <span>Before</span>
+                  <span>之前</span>
                   <strong>{displayValue(item.before_value)}</strong>
                 </p>
                 <PencilSimple aria-hidden="true" size={17} />
                 <p>
-                  <span>Proposed</span>
+                  <span>拟议</span>
                   <strong>{displayValue(item.proposed_value)}</strong>
                 </p>
               </div>
@@ -239,10 +239,10 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
               <div className={styles.decisionOptions}>
                 {(
                   [
-                    ["confirm", "Confirm"],
-                    ["edit", "Edit"],
-                    ["reject", "Reject"],
-                    ["keep_unresolved", "Keep unresolved"],
+                    ["confirm", "确认"],
+                    ["edit", "编辑"],
+                    ["reject", "驳回"],
+                    ["keep_unresolved", "保持未解决"],
                   ] as const
                 ).map(([value, label]) => (
                   <label key={value}>
@@ -259,7 +259,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
               </div>
               {selected?.decision === "edit" ? (
                 <label className={styles.editValue}>
-                  Edited value
+                  编辑后的值
                   {typeof item.proposed_value === "string" ? (
                     <input
                       maxLength={1_000}
@@ -298,19 +298,18 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
 
       <div className={styles.reviewCommit}>
         <label>
-          Decision basis
+          决定依据
           <textarea
             maxLength={1_000}
             onChange={(event) => setReason(event.target.value)}
-            placeholder="Record why these exact decisions are appropriate now…"
+            placeholder="记录这些具体决定为何此刻合适…"
             rows={3}
             value={reason}
           />
         </label>
         <div>
           <p>
-            {proposal.items.length - Object.keys(decisions).length} decisions remaining.
-            Submission applies only confirmed or edited items and returns canonical readback.
+            还剩 {proposal.items.length - Object.keys(decisions).length} 项决定。提交只会应用已确认或已编辑的项目，并返回规范状态读取。
           </p>
           <button
             disabled={
@@ -322,7 +321,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
             onClick={submitReview}
             type="button"
           >
-            {submitting ? "Verifying canonical write…" : "Submit exact review"}
+            {submitting ? "正在核验规范写入…" : "提交本次精确审阅"}
           </button>
         </div>
       </div>
@@ -331,13 +330,12 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
         <div className={styles.reviewError} role="alert">
           <WarningCircle aria-hidden="true" size={20} />
           <p>
-            <strong>Sign in before reviewing this Proposal</strong>
+            <strong>登录后再审阅该提案</strong>
             <span>
-              Your decisions remain visible on this page, but no canonical
-              write can be attempted until the account session is restored.
+              你的决定会继续显示在本页，但在账号会话恢复前，不会尝试任何规范写入。
             </span>
           </p>
-          <Link href={sessionRecoveryHref}>Sign in again</Link>
+          <Link href={sessionRecoveryHref}>重新登录</Link>
         </div>
       ) : null}
 
@@ -345,7 +343,7 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
         <div className={styles.reviewError} role="alert">
           <WarningCircle aria-hidden="true" size={20} />
           <p>
-            <strong>Review not verified</strong>
+            <strong>审阅尚未核验</strong>
             <span>{error}</span>
           </p>
         </div>

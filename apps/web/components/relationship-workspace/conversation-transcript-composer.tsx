@@ -63,7 +63,7 @@ export function ConversationTranscriptComposer({
       setAnalysisError(
         caught instanceof Error
           ? caught.message
-          : "The transcript could not be analyzed.",
+          : "无法分析对话稿。",
       );
     }
   }
@@ -73,7 +73,7 @@ export function ConversationTranscriptComposer({
       return;
     }
     if (nextFile.size <= 0 || nextFile.size > 256 * 1024) {
-      setAnalysisError("Choose one non-empty TXT or Markdown file up to 256 KB.");
+      setAnalysisError("请选择一个不超过 256 KB 的非空 TXT 或 Markdown 文件。");
       return;
     }
     try {
@@ -86,7 +86,7 @@ export function ConversationTranscriptComposer({
       setAnalysisSummary(null);
       setAnalysisError("");
     } catch {
-      setAnalysisError("The selected text file could not be read in the browser.");
+      setAnalysisError("无法在浏览器中读取所选文本文件。");
     }
   }
 
@@ -103,11 +103,11 @@ export function ConversationTranscriptComposer({
     <div className="context-transcript-import">
       <div className="context-transcript-import__source">
         <label>
-          <span>Conversation label</span>
+          <span>对话标签</span>
           <input
             maxLength={240}
             onChange={(event) => onTitleChange(event.target.value)}
-            placeholder="e.g. Aug 9 follow-up transcript"
+            placeholder="例如：8 月 9 日跟进对话稿"
             value={title}
           />
         </label>
@@ -125,12 +125,12 @@ export function ConversationTranscriptComposer({
         >
           <ChatCircleDots aria-hidden="true" size={20} />
           <span>
-            <strong>{fileName || "Choose TXT or Markdown"}</strong>
-            <small>Read locally, then review the exact text below.</small>
+            <strong>{fileName || "选择 TXT 或 Markdown"}</strong>
+            <small>在本地读取，再在下方审阅准确文本。</small>
           </span>
         </button>
         <label>
-          <span>Conversation text</span>
+          <span>对话文本</span>
           <textarea
             maxLength={40_000}
             onChange={(event) => {
@@ -138,7 +138,7 @@ export function ConversationTranscriptComposer({
               invalidateAnalysis();
             }}
             placeholder={
-              "Candidate: Availability: 15 September\nRecruiter: I’ll confirm the interview window."
+              "候选人：9 月 15 日有时间\n招聘顾问：我会确认面试时间。"
             }
             rows={6}
             value={value}
@@ -148,7 +148,7 @@ export function ConversationTranscriptComposer({
 
       <div className="context-transcript-import__analysis">
         <fieldset>
-          <legend>Unlabeled lines belong to</legend>
+          <legend>未标记行属于</legend>
           <div>
             {CONVERSATION_SPEAKERS.map((speaker) => (
               <button
@@ -161,16 +161,15 @@ export function ConversationTranscriptComposer({
                 type="button"
               >
                 {speaker === "unknown"
-                  ? "Not sure"
+                  ? "不确定"
                   : speaker === "candidate"
-                    ? "Candidate"
-                    : "Recruiter"}
+                    ? "候选人"
+                    : "招聘顾问"}
               </button>
             ))}
           </div>
           <small>
-            Choose Candidate only for a candidate-only export. Talent Signal
-            never guesses a speaker from wording or message order.
+            只有在文件仅包含候选人发言时，才选择“候选人”。Talent Signal 绝不会根据措辞或消息顺序猜测说话人。
           </small>
         </fieldset>
         <button
@@ -180,7 +179,7 @@ export function ConversationTranscriptComposer({
           type="button"
         >
           <Sparkle aria-hidden="true" size={17} weight="fill" />
-          Analyze speaker labels
+          分析说话人标签
         </button>
       </div>
 
@@ -198,13 +197,13 @@ export function ConversationTranscriptComposer({
         >
           <header>
             <div>
-              <p className="eyebrow">SPEAKER REVIEW</p>
-              <h3 id="transcript-review-title">Review every message owner.</h3>
+              <p className="eyebrow">说话人审阅</p>
+              <h3 id="transcript-review-title">逐条审阅消息归属。</h3>
             </div>
             <span>
-              {messages.length} messages · {analysisSummary?.labeled ?? 0} labeled
+              {messages.length} 条消息 · {analysisSummary?.labeled ?? 0} 条已标记
               {analysisSummary?.unknown
-                ? ` · ${analysisSummary.unknown} unknown`
+                ? ` · ${analysisSummary.unknown} 条未知`
                 : ""}
             </span>
           </header>
@@ -212,7 +211,7 @@ export function ConversationTranscriptComposer({
             {messages.map((message) => (
               <div data-speaker={message.speaker} key={message.sequence}>
                 <select
-                  aria-label={`Speaker for transcript message ${message.sequence + 1}`}
+                  aria-label={`对话稿第 ${message.sequence + 1} 条消息的说话人`}
                   onChange={(event) =>
                     updateSpeaker(
                       message.sequence,
@@ -221,9 +220,9 @@ export function ConversationTranscriptComposer({
                   }
                   value={message.speaker}
                 >
-                  <option value="candidate">Candidate</option>
-                  <option value="recruiter">Recruiter</option>
-                  <option value="unknown">Not sure</option>
+                  <option value="candidate">候选人</option>
+                  <option value="recruiter">招聘顾问</option>
+                  <option value="unknown">不确定</option>
                 </select>
                 <p>{message.text}</p>
               </div>
@@ -238,10 +237,9 @@ export function ConversationTranscriptComposer({
               type="checkbox"
             />
             <span>
-              I reviewed the speaker labels above
+              我已审阅上方的说话人标签
               <small>
-                Unknown messages remain context only and cannot create candidate
-                facts. Every fact still requires separate review.
+                说话人未知的消息只作为背景，不能创建候选人事实。每项事实仍需单独审阅。
               </small>
             </span>
           </label>

@@ -97,21 +97,21 @@ const syntheticCaptureAssets: CaptureAsset[] = [
   {
     id: "sample-whatsapp",
     kind: "synthetic",
-    label: "Conversation 01",
+    label: "对话 01",
     channel: "WhatsApp",
     preview: "/marketing/signal-journey/whatsapp-synthetic.webp",
   },
   {
     id: "sample-wechat",
     kind: "synthetic",
-    label: "Conversation 02",
+    label: "对话 02",
     channel: "WeChat",
     preview: "/marketing/signal-journey/wechat-synthetic.webp",
   },
   {
     id: "sample-boss",
     kind: "synthetic",
-    label: "Conversation 03",
+    label: "对话 03",
     channel: "BOSS",
     preview: "/marketing/signal-journey/boss-synthetic.webp",
   },
@@ -132,11 +132,11 @@ const people: Person[] = [
   {
     id: "leila",
     name: "Leila Hartmann",
-    role: "VP Product",
+    role: "产品副总裁",
     company: "Meridian Labs",
-    relationship: "Chief Product Officer search",
-    dependency: "Remote policy waits on the client.",
-    recency: "2h",
+    relationship: "首席产品官寻访",
+    dependency: "远程办公政策等待客户确认。",
+    recency: "2 小时",
     state: "changed",
     avatar: "/concepts/relationships/avatars/leila.webp",
     initials: "LH",
@@ -144,11 +144,11 @@ const people: Person[] = [
   {
     id: "nia",
     name: "Nia Williams",
-    role: "Independent board director",
-    company: "Portfolio relationship",
-    relationship: "Board chair mapping",
-    dependency: "Two sources disagree on travel limits.",
-    recency: "5h",
+    role: "独立董事",
+    company: "人才网络关系",
+    relationship: "董事长人才图谱",
+    dependency: "两个来源对出差限制的说法不一致。",
+    recency: "5 小时",
     state: "review",
     avatar: "/concepts/relationships/avatars/nia.webp",
     initials: "NW",
@@ -156,11 +156,11 @@ const people: Person[] = [
   {
     id: "maya",
     name: "Maya Ortiz",
-    role: "Operating Partner",
+    role: "运营合伙人",
     company: "Northlight Capital",
-    relationship: "Fractional CFO search",
-    dependency: "Founder meeting is ready to schedule.",
-    recency: "1d",
+    relationship: "兼职首席财务官寻访",
+    dependency: "创始人会议已经可以安排。",
+    recency: "1 天",
     state: "waiting",
     avatar: "/concepts/relationships/avatars/maya.webp",
     initials: "MO",
@@ -168,11 +168,11 @@ const people: Person[] = [
   {
     id: "amir",
     name: "Amir Okafor",
-    role: "VP Engineering",
+    role: "工程副总裁",
     company: "Rubicon Health",
-    relationship: "CTO succession",
-    dependency: "Stay quiet until the board responds.",
-    recency: "4d",
+    relationship: "首席技术官继任",
+    dependency: "董事会回复前保持安静。",
+    recency: "4 天",
     state: "quiet",
     avatar: "/concepts/relationships/avatars/amir.webp",
     initials: "AO",
@@ -180,86 +180,86 @@ const people: Person[] = [
   {
     id: "zhang",
     name: "张伟 / Wei Zhang-Sørensen",
-    role: "Chief People Officer",
-    company: "Independent",
-    relationship: "Leadership network",
-    dependency: "Identity evidence is not sufficient.",
-    recency: "2w",
+    role: "首席人力官",
+    company: "独立候选人",
+    relationship: "领导人才网络",
+    dependency: "身份依据不足。",
+    recency: "2 周",
     state: "identity",
     initials: "伟",
   },
 ];
 
 const collectionLabels: Record<CollectionView, string> = {
-  now: "Now",
-  all: "All",
-  quiet: "Quiet",
+  now: "现在",
+  all: "全部",
+  quiet: "安静",
 };
 
 const stateLabels: Record<Person["state"], string> = {
-  changed: "Changed",
-  waiting: "Waiting",
-  review: "Needs review",
-  quiet: "No action",
-  identity: "Identity review",
+  changed: "有变化",
+  waiting: "等待中",
+  review: "需要审阅",
+  quiet: "无需行动",
+  identity: "身份审阅",
 };
 
 const detailContent: Record<Person["id"], DetailContent> = {
   leila: {
-    conditionHeading: "The client controls one answer.",
+    conditionHeading: "一个答案掌握在客户手中。",
     conditionBody:
-      "Confirm whether remote work from Singapore is supported before Leila's Friday decision.",
-    changeTitle: "Decision window",
+      "在 Leila 周五做决定前，确认是否支持在新加坡远程办公。",
+    changeTitle: "决策窗口",
     quote: "I could do Singapore, but not full-time relocation.",
-    provenance: "WhatsApp screenshot / Thu 22:18 / Recruiter reviewed",
-    before: "Remote policy assumed flexible",
-    now: "Full-time relocation unresolved",
-    nextStep: "Ask the client one exact question.",
+    provenance: "WhatsApp 截图 / 周四 22:18 / 招聘顾问已审阅",
+    before: "此前假设远程政策灵活",
+    now: "是否需要长期搬迁未解决",
+    nextStep: "向客户确认一个明确问题。",
   },
   nia: {
-    conditionHeading: "Travel limits need one human review.",
+    conditionHeading: "出差限制需要一次人工审阅。",
     conditionBody:
-      "Two reviewed sources describe different travel limits. Neither should silently replace the other.",
-    changeTitle: "Travel availability",
+      "两个已审阅来源描述了不同的出差限制，任何一方都不应静默覆盖另一方。",
+    changeTitle: "出差可行性",
     quote:
       "Monthly travel is workable, but I would not want a weekly international cadence.",
-    provenance: "Call note / Aug 7, 08:40 / Conflicts with earlier email",
-    before: "Quarterly travel",
-    now: "Source conflict",
-    nextStep: "Ask Nia which cadence is current.",
+    provenance: "通话记录 / 8 月 7 日 08:40 / 与此前邮件冲突",
+    before: "按季度出差",
+    now: "来源冲突",
+    nextStep: "向 Nia 确认当前适用的频率。",
   },
   maya: {
-    conditionHeading: "The founder owns the calendar step.",
+    conditionHeading: "日程这一步由创始人负责。",
     conditionBody:
-      "Maya has offered a meeting window. The timezone remains the one missing detail.",
-    changeTitle: "Founder availability",
+      "Maya 已提供会议时间，时区仍是唯一缺失的细节。",
+    changeTitle: "创始人可用时间",
     quote: "I can meet the founder next Tuesday if we settle the timezone.",
-    provenance: "Recruiter note / Aug 6, 17:20 / Draft context",
-    before: "Meeting not scheduled",
-    now: "Tuesday offered",
-    nextStep: "Confirm one timezone before scheduling.",
+    provenance: "招聘顾问备注 / 8 月 6 日 17:20 / 草稿背景",
+    before: "会议尚未安排",
+    now: "已提供周二时间",
+    nextStep: "安排会议前确认时区。",
   },
   amir: {
-    conditionHeading: "No action until the board responds.",
+    conditionHeading: "董事会回复前不采取行动。",
     conditionBody:
-      "The relationship is intentionally quiet. A reminder would add pressure without changing the dependency.",
-    changeTitle: "Board dependency",
+      "这段关系有意保持安静。提醒只会增加压力，并不会改变依赖。",
+    changeTitle: "董事会依赖",
     quote: "Let's hold here until the board has aligned on the mandate.",
-    provenance: "Email / Aug 3, 14:05 / Recruiter reviewed",
-    before: "Follow-up considered",
-    now: "No action",
-    nextStep: "Wait for the board response.",
+    provenance: "邮件 / 8 月 3 日 14:05 / 招聘顾问已审阅",
+    before: "曾考虑跟进",
+    now: "无需行动",
+    nextStep: "等待董事会回复。",
   },
   zhang: {
-    conditionHeading: "Identity must be resolved first.",
+    conditionHeading: "必须先解决身份问题。",
     conditionBody:
-      "The imported clue is insufficient to attach this source to an existing relationship.",
-    changeTitle: "Identity evidence",
+      "导入的线索不足以将此来源附到现有关系。",
+    changeTitle: "身份依据",
     quote: "The card contains a name and title, but no current verified contact clue.",
-    provenance: "Imported contact card / Jul 24 / Unresolved identity",
-    before: "Possible match",
-    now: "Review required",
-    nextStep: "Resolve identity before sharing or attaching evidence.",
+    provenance: "导入的联系人名片 / 7 月 24 日 / 身份未解决",
+    before: "可能匹配",
+    now: "需要审阅",
+    nextStep: "分享或附加依据前先解决身份问题。",
   },
 };
 
@@ -349,7 +349,7 @@ function BrandOrb({
     <button
       aria-expanded={expanded}
       aria-haspopup="menu"
-      aria-label="Open Talent Signal menu"
+      aria-label="打开 Talent Signal 菜单"
       className={styles.brandOrb}
       onClick={onClick}
       type="button"
@@ -366,7 +366,7 @@ function BrandOrb({
 function BrandMenu({ onClose }: { onClose: () => void }) {
   const firstItemRef = useRef<HTMLButtonElement>(null);
   const [receipt, setReceipt] = useState(
-    "Workspace configuration stays separate from relationship evidence.",
+    "工作区设置与关系依据保持分离。",
   );
 
   useEffect(() => {
@@ -376,14 +376,14 @@ function BrandMenu({ onClose }: { onClose: () => void }) {
   return (
     <>
       <button
-        aria-label="Close Talent Signal menu"
+        aria-label="关闭 Talent Signal 菜单"
         className={styles.menuScrim}
         onClick={onClose}
         tabIndex={-1}
         type="button"
       />
       <section
-        aria-label="Talent Signal menu"
+        aria-label="Talent Signal 菜单"
         className={`${styles.contextMenu} ${styles.brandMenu}`}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -400,14 +400,14 @@ function BrandMenu({ onClose }: { onClose: () => void }) {
           </span>
           <span>
             <strong>Talent Signal</strong>
-            <small>Private relationship workspace</small>
+            <small>私密关系工作区</small>
           </span>
         </div>
         <div className={styles.menuGroup}>
           <button
             className={styles.menuItem}
             onClick={() =>
-              setReceipt("Settings are account-scoped. No relationship state changed.")
+              setReceipt("设置仅作用于账号，未更改任何关系状态。")
             }
             ref={firstItemRef}
             role="menuitem"
@@ -417,31 +417,31 @@ function BrandMenu({ onClose }: { onClose: () => void }) {
               <Gear size={18} />
             </span>
             <span className={styles.menuItemCopy}>
-              <strong>Settings</strong>
-              <small>Workspace, appearance, notifications</small>
+              <strong>设置</strong>
+              <small>工作区、外观与通知</small>
             </span>
           </button>
           <MenuItem
-            detail="Sources, retention, deletion"
+            detail="来源、保留与删除"
             icon={<ShieldCheck size={18} />}
-            label="Privacy and evidence"
+            label="隐私与依据"
             onClick={() =>
-              setReceipt("Evidence controls open without exposing conversation content.")
+              setReceipt("依据控制已打开，不会暴露对话内容。")
             }
           />
         </div>
         <div className={styles.menuGroup}>
           <MenuItem
-            detail="Guides and contact"
+            detail="指南与联系支持"
             icon={<Lifebuoy size={18} />}
-            label="Support"
-            onClick={() => setReceipt("Support opens outside the relationship record.")}
+            label="支持"
+            onClick={() => setReceipt("支持将在关系记录之外打开。")}
           />
           <MenuItem
-            detail="Living Archive glass study"
+            detail="持续更新档案的玻璃质感探索"
             icon={<Megaphone size={18} />}
-            label="What's new"
-            onClick={() => setReceipt("Version notes are ready to review.")}
+            label="新功能"
+            onClick={() => setReceipt("版本说明已可查看。")}
             trailing="0.3"
           />
         </div>
@@ -455,7 +455,7 @@ function BrandMenu({ onClose }: { onClose: () => void }) {
 
 function AgentRail({
   captureCount = 0,
-  label = "Ask what deserves attention…",
+  label = "询问什么值得关注……",
   onCapture,
   onOpen,
 }: {
@@ -466,18 +466,18 @@ function AgentRail({
 }) {
   return (
     <div className={styles.agentRail}>
-      <button aria-label="Search relationships" onClick={onOpen} type="button">
+      <button aria-label="搜索关系" onClick={onOpen} type="button">
         <MagnifyingGlass size={21} />
       </button>
       <button className={styles.agentRailPrompt} onClick={onOpen} type="button">
         <span>{label}</span>
-        <small>Draft authority only</small>
+        <small>仅限草稿权限</small>
       </button>
       <button
         aria-label={
           captureCount > 0
-            ? `Resume relationship capture, ${captureCount} sources`
-            : "Capture a relationship moment"
+            ? `继续关系采集，共 ${captureCount} 个来源`
+            : "记录关系时刻"
         }
         className={styles.captureLauncher}
         data-capture-launcher="true"
@@ -509,14 +509,14 @@ function ArchiveHeader({
           expanded={brandMenuOpen}
           onClick={() => setBrandMenuOpen((value) => !value)}
         />
-        <nav aria-label="Primary">
+        <nav aria-label="主导航">
           <button
             aria-current={active === "today" ? "page" : undefined}
             className={active === "today" ? styles.headerNavActive : ""}
             onClick={() => onChange("today")}
             type="button"
           >
-            Today
+            今天
           </button>
           <button
             aria-current={active === "people" ? "page" : undefined}
@@ -524,7 +524,7 @@ function ArchiveHeader({
             onClick={() => onChange("people")}
             type="button"
           >
-            People
+            人才
           </button>
           <button
             aria-current={active === "library" ? "page" : undefined}
@@ -532,7 +532,7 @@ function ArchiveHeader({
             onClick={() => onChange("library")}
             type="button"
           >
-            Library
+            资料库
           </button>
         </nav>
         <span aria-hidden="true" className={styles.headerBalance} />
@@ -630,11 +630,10 @@ function PeopleArchive({
 
       <div className={styles.archiveMain}>
         <section className={styles.archiveIntro}>
-          <span>Living relationship archive / 05</span>
-          <h1>People</h1>
+          <span>持续更新的关系档案 / 05</span>
+          <h1>人才</h1>
           <p>
-            A person can hold many roles. The relationship keeps its own
-            context.
+            一个人可以承担多个角色，每段关系都保留自己的背景。
           </p>
         </section>
 
@@ -645,15 +644,15 @@ function PeopleArchive({
         >
           <span>
             <Briefcase size={16} />
-            Chief Product Officer search
+            首席产品官寻访
           </span>
           <span>
-            3 in motion
+            3 项进行中
             <CaretDown size={13} weight="bold" />
           </span>
         </button>
 
-        <nav aria-label="Collection view" className={styles.collectionNav}>
+        <nav aria-label="集合视图" className={styles.collectionNav}>
           {(Object.keys(collectionLabels) as CollectionView[]).map((item) => (
             <button
               aria-pressed={collection === item}
@@ -668,16 +667,16 @@ function PeopleArchive({
           ))}
         </nav>
 
-        <section aria-label={`${collectionLabels[collection]} relationships`}>
+        <section aria-label={`${collectionLabels[collection]}关系`}>
           <div className={styles.collectionLabel}>
             <span>
               {collection === "now"
-                ? "Reasons to look"
+                ? "值得查看的原因"
                 : collection === "quiet"
-                  ? "Held without pressure"
-                  : "Relationship index"}
+                  ? "不施加压力地保留"
+                  : "关系索引"}
             </span>
-            <span>Reviewed evidence only</span>
+            <span>仅显示已审阅依据</span>
           </div>
           <div className={styles.peopleCollection}>
             {filtered.map((person) => (
@@ -731,35 +730,35 @@ function TodayArchive({
 
       <div className={`${styles.archiveMain} ${styles.todayMain}`}>
         <section className={`${styles.archiveIntro} ${styles.todayIntro}`}>
-          <span>Friday, August 7</span>
-          <h1>Today</h1>
-          <p>Two relationships deserve your judgment.</p>
+          <span>8 月 7 日，星期五</span>
+          <h1>今天</h1>
+          <p>有两段关系值得你做出判断。</p>
         </section>
 
         <section className={styles.todayFocus} aria-labelledby="today-focus-title">
           <div>
-            <span>Return to</span>
+            <span>回到</span>
             <p className={styles.todayContext}>
               Leila Hartmann
               <span aria-hidden="true"> / </span>
-              Chief Product Officer search
+              首席产品官寻访
             </p>
             <h2 id="today-focus-title">
-              One client answer is holding her decision.
+              客户的一项答复正在影响她的决定。
             </h2>
             <p>
-              Remote work from Singapore remains unresolved.
+              在新加坡远程办公仍未解决。
             </p>
-            <small>Changed after Thursday&apos;s conversation.</small>
+            <small>周四对话后发生了变化。</small>
           </div>
           <button onClick={() => onReview(leila)} type="button">
-            Review change
+            审阅变化
             <ArrowRight size={16} />
           </button>
         </section>
 
         <section className={styles.todaySecondary} aria-labelledby="today-next-title">
-          <h2 id="today-next-title">Continue</h2>
+          <h2 id="today-next-title">继续处理</h2>
           <button
             className={styles.todayResumeRow}
             onClick={() => onResume(nia)}
@@ -768,8 +767,8 @@ function TodayArchive({
             <Avatar person={nia} size="small" />
             <span>
               <strong>Nia Williams</strong>
-              <small>Board search</small>
-              <em>Needs review / 5h</em>
+              <small>董事寻访</small>
+              <em>需要审阅 / 5 小时</em>
             </span>
             <CaretRight aria-hidden="true" size={17} />
           </button>
@@ -783,8 +782,8 @@ function TodayArchive({
             </span>
             <span>
               <strong>Atlas Labs</strong>
-              <small>Client brief</small>
-              <em>Answer due Friday</em>
+              <small>客户简报</small>
+              <em>周五前需要答复</em>
             </span>
             <CaretRight aria-hidden="true" size={17} />
           </button>
@@ -792,13 +791,13 @@ function TodayArchive({
 
         <section className={styles.quietNote}>
           <Check size={17} weight="bold" />
-          <p>14 relationships need no action.</p>
+          <p>14 段关系无需行动。</p>
         </section>
       </div>
 
       <AgentRail
         captureCount={captureCount}
-        label="Ask what deserves attention…"
+        label="询问什么值得关注……"
         onCapture={onCapture}
         onOpen={() => onGuide("answer", leila)}
       />
@@ -836,14 +835,14 @@ function LibraryArchive({
 
       <div className={`${styles.archiveMain} ${styles.libraryMain}`}>
         <section className={styles.archiveIntro}>
-          <span>Reviewed context</span>
-          <h1>Library</h1>
-          <p>Assignment rooms, source evidence, and briefs you can trust.</p>
+          <span>已审阅背景</span>
+          <h1>资料库</h1>
+          <p>可信的项目空间、来源依据与简报。</p>
         </section>
 
         <section aria-labelledby="library-rooms">
           <div className={styles.collectionLabel}>
-            <span id="library-rooms">Assignment rooms</span>
+            <span id="library-rooms">项目空间</span>
             <span>02</span>
           </div>
           <button
@@ -855,8 +854,8 @@ function LibraryArchive({
               <Briefcase size={18} />
             </span>
             <span>
-              <strong>Chief Product Officer search</strong>
-              <small>3 relationships / 1 decision waiting</small>
+              <strong>首席产品官寻访</strong>
+              <small>3 段关系 / 1 项决定待处理</small>
             </span>
             <CaretRight size={16} />
           </button>
@@ -869,8 +868,8 @@ function LibraryArchive({
               <BookOpen size={18} />
             </span>
             <span>
-              <strong>Board chair mapping</strong>
-              <small>Evidence review 2 of 3 preserved</small>
+              <strong>董事长人才图谱</strong>
+              <small>已保留第 2/3 项依据审阅</small>
             </span>
             <CaretRight size={16} />
           </button>
@@ -878,8 +877,8 @@ function LibraryArchive({
 
         <section className={styles.libraryEvidence} aria-labelledby="library-evidence">
           <div className={styles.collectionLabel}>
-            <span id="library-evidence">Recent evidence</span>
-            <span>Reviewed</span>
+            <span id="library-evidence">最近依据</span>
+            <span>已审阅</span>
           </div>
           <button
             className={styles.libraryQuote}
@@ -889,7 +888,7 @@ function LibraryArchive({
             <Quotes size={18} weight="fill" />
             <span>
               <strong>&ldquo;I could do Singapore...&rdquo;</strong>
-              <small>Leila / WhatsApp screenshot / Thu 22:18</small>
+              <small>Leila / WhatsApp 截图 / 周四 22:18</small>
             </span>
             <CaretRight size={16} />
           </button>
@@ -898,7 +897,7 @@ function LibraryArchive({
 
       <AgentRail
         captureCount={captureCount}
-        label="Find a source or relationship…"
+        label="查找来源或关系……"
         onCapture={onCapture}
         onOpen={() => onGuide("find")}
       />
@@ -929,12 +928,12 @@ function ChangeReview({
   return (
     <div className={styles.phoneScreen}>
       <header className={styles.reviewNav}>
-        <button aria-label="Back to Today" onClick={onBack} type="button">
+        <button aria-label="返回今天" onClick={onBack} type="button">
           <ArrowLeft size={20} />
         </button>
-        <span>{phase === "resume" ? "Resume review" : "Review change"}</span>
+        <span>{phase === "resume" ? "继续审阅" : "审阅变化"}</span>
         <button
-          aria-label={`Open ${person.name} relationship`}
+          aria-label={`打开 ${person.name} 的关系页面`}
           onClick={() => onOpenPerson(person)}
           type="button"
         >
@@ -945,30 +944,30 @@ function ChangeReview({
       <div className={styles.reviewMain}>
         {phase === "resume" ? (
           <section className={styles.resumeSheet} aria-labelledby="resume-title">
-            <span>Resume with context</span>
-            <h1 id="resume-title">You stopped while reviewing {person.name.split(" ")[0]}.</h1>
-            <p>Your edits are saved. No message was sent.</p>
+            <span>带着背景继续</span>
+            <h1 id="resume-title">你上次停在审阅 {person.name.split(" ")[0]} 的位置。</h1>
+            <p>编辑已保存，未发送任何消息。</p>
             <div className={styles.resumeProgress}>
               <span className={styles.libraryIcon}>
                 <NotePencil size={18} />
               </span>
               <span>
                 <strong>{person.relationship}</strong>
-                <small>Evidence 2 of 3</small>
+                <small>第 2/3 项依据</small>
               </span>
             </div>
             <button onClick={() => setPhase("evidence")} type="button">
-              Continue review
+              继续审阅
               <ArrowRight size={17} />
             </button>
             <div className={styles.resumeQuiet}>
               <Check size={17} />
-              <span>Quiet now / 14 need no action</span>
+              <span>当前安静 / 14 段关系无需行动</span>
             </div>
           </section>
         ) : (
           <section className={styles.evidenceDecision} aria-labelledby="proposal-title">
-            <span>Why this is here</span>
+            <span>为何出现在这里</span>
             <div className={styles.reviewQuote}>
               <Quotes aria-hidden="true" size={19} weight="fill" />
               <blockquote>&ldquo;{detail.quote}&rdquo;</blockquote>
@@ -982,15 +981,14 @@ function ChangeReview({
             </span>
 
             <div className={styles.proposalBlock}>
-              <span>Proposed change</span>
+              <span>拟议变化</span>
               <h1 id="proposal-title">
                 {isLeila
-                  ? "Remote work remains unresolved for this search."
-                  : "Travel cadence remains unresolved for this search."}
+                  ? "这项寻访中的远程办公问题仍未解决。"
+                  : "这项寻访中的出差频率仍未解决。"}
               </h1>
               <p>
-                This changes relationship state only. It does not send a message
-                or write to an external system.
+                这只会更改关系状态，不会发送消息或写入外部系统。
               </p>
               <div className={styles.reviewActions}>
                 <button
@@ -998,14 +996,14 @@ function ChangeReview({
                   onClick={() => setDecision("unresolved")}
                   type="button"
                 >
-                  Keep unresolved
+                  保持未解决
                 </button>
                 <button
                   aria-pressed={decision === "confirmed"}
                   onClick={() => setDecision("confirmed")}
                   type="button"
                 >
-                  Confirm change
+                  确认变化
                 </button>
               </div>
             </div>
@@ -1016,12 +1014,12 @@ function ChangeReview({
                 <div>
                   <strong>
                     {decision === "confirmed"
-                      ? "Relationship state confirmed."
-                      : "The question remains unresolved."}
+                      ? "关系状态已确认。"
+                      : "问题仍未解决。"}
                   </strong>
-                  <p>No message was sent. You can undo this review.</p>
+                  <p>未发送任何消息，你可以撤销这次审阅。</p>
                   <button onClick={() => setDecision(null)} type="button">
-                    Undo
+                    撤销
                   </button>
                 </div>
               </div>
@@ -1029,11 +1027,11 @@ function ChangeReview({
 
             <dl className={styles.reviewDiff}>
               <div>
-                <dt>Before</dt>
+                <dt>之前</dt>
                 <dd>{detail.before}</dd>
               </div>
               <div>
-                <dt>Proposed</dt>
+                <dt>拟议</dt>
                 <dd>{detail.now}</dd>
               </div>
             </dl>
@@ -1053,21 +1051,21 @@ function PersonShareMenu({
 }) {
   const [receipt, setReceipt] = useState(
     person.state === "identity"
-      ? "Sharing is unavailable until identity evidence is resolved."
-      : "Nothing is shared until access and included evidence are reviewed.",
+      ? "身份依据解决前无法分享。"
+      : "访问权限和所含依据完成审阅前，不会分享任何内容。",
   );
 
   return (
     <>
       <button
-        aria-label="Close share menu"
+        aria-label="关闭分享菜单"
         className={styles.menuScrim}
         onClick={onClose}
         tabIndex={-1}
         type="button"
       />
       <section
-        aria-label={`Share ${person.name}`}
+        aria-label={`分享 ${person.name} 的关系`}
         className={`${styles.contextMenu} ${styles.personMenu}`}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -1077,37 +1075,37 @@ function PersonShareMenu({
         role="menu"
       >
         <div className={styles.personMenuHeading}>
-          <span>Private by default</span>
-          <h2>Share relationship</h2>
-          <p>Only recruiter-reviewed context can enter a shared view.</p>
+          <span>默认私密</span>
+          <h2>分享关系</h2>
+          <p>只有招聘顾问审阅过的背景才能进入共享视图。</p>
         </div>
         <div className={styles.menuGroup}>
           <MenuItem
             autoFocus
-            detail="Stage access and evidence first"
+            detail="先暂存访问权限与依据"
             disabled={person.state === "identity"}
             icon={<Copy size={18} />}
-            label="Create private link"
+            label="创建私密链接"
             onClick={() =>
-              setReceipt("Private link draft ready. No access has changed.")
+              setReceipt("私密链接草稿已就绪，访问权限未改变。")
             }
           />
           <MenuItem
-            detail="Reviewed facts with source notes"
+            detail="已审阅事实与来源注释"
             disabled={person.state === "identity"}
             icon={<Export size={18} />}
-            label="Export a brief"
+            label="导出简报"
             onClick={() =>
-              setReceipt("Export preview staged. No file has been created.")
+              setReceipt("导出预览已暂存，尚未创建文件。")
             }
           />
           <MenuItem
-            detail="People, expiry, and revocation"
+            detail="人员、到期与撤销"
             disabled={person.state === "identity"}
             icon={<ShieldCheck size={18} />}
-            label="Manage access"
+            label="管理访问权限"
             onClick={() =>
-              setReceipt("Access review opened. Existing access is unchanged.")
+              setReceipt("访问审阅已打开，现有权限未改变。")
             }
           />
         </div>
@@ -1133,20 +1131,20 @@ function PersonActionMenu({
   person: Person;
 }) {
   const [receipt, setReceipt] = useState(
-    "Actions apply to this relationship context, not the person globally.",
+    "操作只作用于这段关系背景，而不是这个人的全局状态。",
   );
 
   return (
     <>
       <button
-        aria-label="Close relationship actions"
+        aria-label="关闭关系操作"
         className={styles.menuScrim}
         onClick={onClose}
         tabIndex={-1}
         type="button"
       />
       <section
-        aria-label={`Actions for ${person.name}`}
+        aria-label={`${person.name} 的关系操作`}
         className={`${styles.contextMenu} ${styles.personMenu}`}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -1157,45 +1155,45 @@ function PersonActionMenu({
       >
         <div className={styles.personMenuHeading}>
           <span>{person.relationship}</span>
-          <h2>Relationship actions</h2>
-          <p>Edits remain staged until their evidence and effect are reviewed.</p>
+          <h2>关系操作</h2>
+          <p>在依据与影响完成审阅前，编辑会保持暂存。</p>
         </div>
         <div className={styles.menuGroup}>
           <MenuItem
             autoFocus
-            detail="Confirmed state and assignment context"
+            detail="已确认状态与项目背景"
             icon={<PencilSimple size={18} />}
-            label="Edit relationship"
+            label="编辑关系"
             onClick={() =>
-              setReceipt("Editor staged. No confirmed relationship state changed.")
+              setReceipt("编辑器已暂存，未更改已确认的关系状态。")
             }
           />
           <MenuItem
-            detail="Keep raw words before interpretation"
+            detail="解释前先保留原话"
             icon={<Plus size={18} />}
-            label="Add note or evidence"
+            label="添加备注或依据"
             onClick={onCapture}
           />
           <MenuItem
-            detail="Personal shortcut, never a person rank"
+            detail="个人快捷方式，绝不作为人物排名"
             icon={<Star size={18} weight={favorite ? "fill" : "regular"} />}
-            label={favorite ? "Remove from favorites" : "Add to favorites"}
+            label={favorite ? "从收藏中移除" : "添加到收藏"}
             onClick={() => {
               onFavoriteChange(!favorite);
               setReceipt(
                 favorite
-                  ? "Removed from personal shortcuts. Relationship state is unchanged."
-                  : "Added to personal shortcuts. Relationship state is unchanged.",
+                  ? "已从个人快捷方式中移除，关系状态未改变。"
+                  : "已添加到个人快捷方式，关系状态未改变。",
               );
             }}
             trailing={favorite ? <Check size={16} weight="bold" /> : null}
           />
           <MenuItem
-            detail="Sources, changes, and recovery"
+            detail="来源、变化与恢复"
             icon={<ShieldCheck size={18} />}
-            label="View relationship history"
+            label="查看关系历史"
             onClick={() =>
-              setReceipt("History opens as a read-only trust surface.")
+              setReceipt("历史记录以只读可信视图打开。")
             }
           />
         </div>
@@ -1227,15 +1225,15 @@ function PersonDetail({
   return (
     <div className={styles.phoneScreen}>
       <header className={styles.personNav}>
-        <button aria-label="Back to people" onClick={onBack} type="button">
+        <button aria-label="返回人才列表" onClick={onBack} type="button">
           <ArrowLeft size={20} />
         </button>
-        <span>Relationship 01</span>
+        <span>关系 01</span>
         <div className={styles.personNavActions}>
           <button
             aria-expanded={openMenu === "share"}
             aria-haspopup="menu"
-            aria-label={`Share ${person.name}`}
+            aria-label={`分享 ${person.name} 的关系`}
             onClick={() =>
               setOpenMenu((value) => (value === "share" ? null : "share"))
             }
@@ -1246,7 +1244,7 @@ function PersonDetail({
           <button
             aria-expanded={openMenu === "actions"}
             aria-haspopup="menu"
-            aria-label={`Actions for ${person.name}`}
+            aria-label={`${person.name} 的关系操作`}
             onClick={() =>
               setOpenMenu((value) => (value === "actions" ? null : "actions"))
             }
@@ -1268,7 +1266,7 @@ function PersonDetail({
               {favorite ? (
                 <span className={styles.favoriteIndicator}>
                   <Star size={11} weight="fill" />
-                  Personal shortcut
+                  个人快捷方式
                 </span>
               ) : null}
             </p>
@@ -1277,7 +1275,7 @@ function PersonDetail({
 
         <section className={styles.conditionSection} aria-labelledby="condition-title">
           <div className={styles.sectionIndex}>
-            <span>Current condition</span>
+            <span>当前情况</span>
             <span>01</span>
           </div>
           <h2 id="condition-title">{detail.conditionHeading}</h2>
@@ -1286,8 +1284,8 @@ function PersonDetail({
 
         <section className={styles.changeSection} aria-labelledby="change-title">
           <div className={styles.sectionIndex}>
-            <span>What changed</span>
-            <span>Confirmed</span>
+            <span>发生了什么变化</span>
+            <span>已确认</span>
           </div>
           <h2 id="change-title">{detail.changeTitle}</h2>
           <div className={styles.evidenceQuote}>
@@ -1297,38 +1295,38 @@ function PersonDetail({
           </div>
           <dl className={styles.stateChange}>
             <div>
-              <dt>Before</dt>
+              <dt>之前</dt>
               <dd>{detail.before}</dd>
             </div>
             <ArrowRight aria-hidden="true" size={18} />
             <div>
-              <dt>Now</dt>
+              <dt>现在</dt>
               <dd>{detail.now}</dd>
             </div>
           </dl>
           <button className={styles.historyLink} type="button">
-            View source and history
+            查看来源与历史
             <ArrowRight size={15} />
           </button>
         </section>
 
         <section className={styles.nextStepSection} aria-labelledby="next-step-title">
           <div className={styles.sectionIndex}>
-            <span>Smallest safe next step</span>
-            <span>Draft only</span>
+            <span>最小且稳妥的下一步</span>
+            <span>仅限草稿</span>
           </div>
           <h2 id="next-step-title">{detail.nextStep}</h2>
           <button onClick={() => onGuide("answer", person)} type="button">
-            Stage with the Guide
+            通过智能助理暂存
             <ArrowRight size={16} />
           </button>
-          <p>No message is sent from this page.</p>
+          <p>此页面不会发送任何消息。</p>
         </section>
       </div>
 
       <AgentRail
         captureCount={captureCount}
-        label={`Ask about ${person.name.split(" ")[0]}…`}
+        label={`询问关于 ${person.name.split(" ")[0]} 的情况……`}
         onCapture={() => onCapture(person)}
         onOpen={() => onGuide("answer", person)}
       />
@@ -1416,7 +1414,7 @@ function CaptureSheet({
                 id: `local-${file.name}-${file.size}-${file.lastModified}`,
                 kind: "local",
                 label: file.name,
-                channel: "Selected screenshot",
+                channel: "所选截图",
                 preview: typeof reader.result === "string" ? reader.result : "",
               });
             });
@@ -1510,7 +1508,7 @@ function CaptureSheet({
   return (
     <>
       <button
-        aria-label="Close quick add"
+        aria-label="关闭快速添加"
         className={styles.captureScrim}
         onClick={onClose}
         tabIndex={-1}
@@ -1552,17 +1550,17 @@ function CaptureSheet({
       >
         <header>
           <div>
-            <span>Draft only</span>
+            <span>仅限草稿</span>
             <h2 id="capture-title">
               {draft.phase === "collect"
-                ? "Quick add"
+                ? "快速添加"
                 : draft.phase === "review"
-                  ? "Review"
-                  : "Saved for review"}
+                  ? "审阅"
+                  : "已保存待审"}
             </h2>
           </div>
           <button
-            aria-label="Close quick add"
+            aria-label="关闭快速添加"
             onClick={onClose}
             ref={closeRef}
             type="button"
@@ -1575,35 +1573,35 @@ function CaptureSheet({
           {draft.phase === "collect" ? (
             <>
               <div className={styles.captureContextScope}>
-                <span>{contextSuggestion ? "Suggested relationship" : "Relationship"}</span>
-                <strong>{contextSuggestion?.name ?? "Unassigned"}</strong>
+                <span>{contextSuggestion ? "建议关系" : "关系"}</span>
+                <strong>{contextSuggestion?.name ?? "未分配"}</strong>
                 {contextSuggestion ? (
                   <button onClick={onClearContext} type="button">
-                    Clear
+                    清除
                   </button>
                 ) : (
-                  <small>Choose after the source is reviewed.</small>
+                  <small>来源审阅后再选择。</small>
                 )}
               </div>
 
-              <div aria-label="Add context" className={styles.captureInsertTray}>
+              <div aria-label="添加背景" className={styles.captureInsertTray}>
                 <button
-                  aria-label={`Add screenshots, ${draft.assets.length} of 8 selected`}
+                  aria-label={`添加截图，已选择 ${draft.assets.length}/8`}
                   aria-pressed={draft.assets.length > 0}
                   onClick={() => fileInputRef.current?.click()}
                   type="button"
                 >
                   <span><Images size={20} weight="duotone" /></span>
-                  <strong>Images</strong>
-                  <small>{draft.assets.length > 0 ? `${draft.assets.length} / 8` : "Add up to 8"}</small>
+                  <strong>图片</strong>
+                  <small>{draft.assets.length > 0 ? `${draft.assets.length} / 8` : "最多添加 8 张"}</small>
                 </button>
                 <button
                   aria-label={
                     draft.voiceState === "empty"
-                      ? "Add voice note"
+                      ? "添加语音备注"
                       : draft.voiceState === "recording"
-                        ? "Stop voice note preview"
-                        : "Remove staged voice note"
+                        ? "停止语音备注预览"
+                        : "移除已暂存语音备注"
                   }
                   aria-pressed={draft.voiceState !== "empty"}
                   onClick={cycleVoiceState}
@@ -1618,30 +1616,30 @@ function CaptureSheet({
                   </span>
                   <strong>
                     {draft.voiceState === "empty"
-                      ? "Voice"
+                      ? "语音"
                       : draft.voiceState === "recording"
-                        ? "Stop"
-                        : "Voice ready"}
+                        ? "停止"
+                        : "语音已就绪"}
                   </strong>
                   <small>
-                    {draft.voiceState === "recording" ? "Preview state" : "Your context"}
+                    {draft.voiceState === "recording" ? "预览状态" : "你的背景"}
                   </small>
                 </button>
                 <button
-                  aria-label={noteOpen ? "Hide text note" : "Add text note"}
+                  aria-label={noteOpen ? "隐藏文字备注" : "添加文字备注"}
                   aria-pressed={noteOpen || draft.note.trim().length > 0}
                   onClick={() => setNoteOpen((current) => !current)}
                   type="button"
                 >
                   <span><TextT size={20} /></span>
-                  <strong>Text</strong>
-                  <small>{draft.note.trim() ? "Note added" : "Add a note"}</small>
+                  <strong>文字</strong>
+                  <small>{draft.note.trim() ? "已添加备注" : "添加备注"}</small>
                 </button>
               </div>
 
               <input
                 accept="image/jpeg,image/png,image/webp"
-                aria-label="Choose conversation screenshots"
+                aria-label="选择对话截图"
                 className={styles.captureFileInput}
                 multiple
                 onChange={(event) => {
@@ -1653,11 +1651,11 @@ function CaptureSheet({
               />
 
               {draft.assets.length > 0 ? (
-                <section className={styles.captureSources} aria-label="Selected screenshots">
+                <section className={styles.captureSources} aria-label="已选截图">
                   <div className={styles.captureFilmstrip}>
                     {draft.assets.map((asset, index) => (
                       <button
-                        aria-label={`Source ${index + 1}, ${asset.channel}`}
+                        aria-label={`来源 ${index + 1}，${asset.channel}`}
                         aria-pressed={selectedAsset?.id === asset.id}
                         className={
                           selectedAsset?.id === asset.id
@@ -1685,13 +1683,13 @@ function CaptureSheet({
                     ))}
                     {draft.assets.length < 8 ? (
                       <button
-                        aria-label="Add more screenshots"
+                        aria-label="添加更多截图"
                         className={styles.captureAddTile}
                         onClick={() => fileInputRef.current?.click()}
                         type="button"
                       >
                         <Plus size={19} />
-                        <span>Add</span>
+                        <span>添加</span>
                       </button>
                     ) : null}
                   </div>
@@ -1700,7 +1698,7 @@ function CaptureSheet({
                       <span>{selectedAsset.channel}</span>
                       <div>
                         <button
-                          aria-label="Move selected source earlier"
+                          aria-label="将所选来源前移"
                           disabled={draft.assets[0]?.id === selectedAsset.id}
                           onClick={() => moveSelectedAsset(-1)}
                           type="button"
@@ -1708,7 +1706,7 @@ function CaptureSheet({
                           <ArrowLeft size={16} />
                         </button>
                         <button
-                          aria-label="Move selected source later"
+                          aria-label="将所选来源后移"
                           disabled={draft.assets.at(-1)?.id === selectedAsset.id}
                           onClick={() => moveSelectedAsset(1)}
                           type="button"
@@ -1716,7 +1714,7 @@ function CaptureSheet({
                           <ArrowRight size={16} />
                         </button>
                         <button
-                          aria-label="Remove selected source"
+                          aria-label="移除所选来源"
                           onClick={removeSelectedAsset}
                           type="button"
                         >
@@ -1730,7 +1728,7 @@ function CaptureSheet({
 
               {noteOpen ? (
                 <label className={styles.captureTextNote}>
-                  <span>Recruiter note</span>
+                  <span>招聘顾问备注</span>
                   <textarea
                     autoFocus
                     onChange={(event) =>
@@ -1739,7 +1737,7 @@ function CaptureSheet({
                         note: event.target.value,
                       }))
                     }
-                    placeholder="What should not be lost?"
+                    placeholder="哪些内容不应被遗漏？"
                     rows={2}
                     value={draft.note}
                   />
@@ -1752,14 +1750,14 @@ function CaptureSheet({
                   onClick={loadSyntheticExample}
                   type="button"
                 >
-                  Use example set
+                  使用示例集
                   <ArrowRight size={14} />
                 </button>
               ) : null}
 
               <div className={styles.capturePrivacyNote}>
                 <ShieldCheck size={15} weight="fill" />
-                <p>Context stays separate from evidence. This preview sends nothing.</p>
+                <p>背景与依据保持分离，此预览不会发送任何内容。</p>
               </div>
             </>
           ) : null}
@@ -1768,25 +1766,25 @@ function CaptureSheet({
             <section className={styles.captureReview} aria-labelledby="capture-review-title">
               <span>
                 {draft.assets.length > 0
-                  ? `${draft.assets.length} source${draft.assets.length === 1 ? "" : "s"}`
-                  : "Recruiter context only"}
+                  ? `${draft.assets.length} 个来源`
+                  : "仅招聘顾问背景"}
                 {contextItemCount > 0 && draft.assets.length > 0
-                  ? " / context separate"
+                  ? " / 背景分离"
                   : ""}
               </span>
 
               {resultKind === "organize" ? (
                 <>
                   <StackSimple size={24} weight="duotone" />
-                  <h3 id="capture-review-title">Keep these conversations separate.</h3>
-                  <p>Each source gets its own identity review before anything changes.</p>
+                  <h3 id="capture-review-title">保持这些对话相互独立。</h3>
+                  <p>任何内容变化前，每个来源都要单独进行身份审阅。</p>
                   <div className={styles.captureGroups}>
                     {draft.assets.map((asset, index) => (
                       <div key={asset.id}>
                         <span>{index + 1}</span>
                         <div>
                           <strong>{asset.channel}</strong>
-                          <small>Unassigned</small>
+                          <small>未分配</small>
                         </div>
                         <WarningCircle size={16} />
                       </div>
@@ -1798,17 +1796,17 @@ function CaptureSheet({
               {resultKind === "identity" ? (
                 <>
                   <WarningCircle size={24} weight="duotone" />
-                  <h3 id="capture-review-title">Who owned this phone?</h3>
-                  <p>Bubble sides can reverse who spoke. Choose only if you know.</p>
+                  <h3 id="capture-review-title">这部手机属于谁？</h3>
+                  <p>气泡左右可能颠倒说话人；只有确定时才选择。</p>
                   <blockquote>
                     “I have another offer. I need to decide by Wednesday.”
                   </blockquote>
                   <div className={styles.capturePerspective}>
                     {(
                       [
-                        ["candidate", "Candidate"],
-                        ["recruiter", "Recruiter"],
-                        ["unknown", "Keep unresolved"],
+                        ["candidate", "候选人"],
+                        ["recruiter", "招聘顾问"],
+                        ["unknown", "保持未解决"],
                       ] as const
                     ).map(([value, label]) => (
                       <button
@@ -1832,10 +1830,9 @@ function CaptureSheet({
               {resultKind === "local" ? (
                 <>
                   <ShieldCheck size={24} weight="duotone" />
-                  <h3 id="capture-review-title">Local files are staged.</h3>
+                  <h3 id="capture-review-title">本地文件已暂存。</h3>
                   <p>
-                    This public preview does not upload or analyze them. A real
-                    review would verify order, speaker, identity, and evidence.
+                    此公开预览不会上传或分析文件。正式审阅会核验顺序、说话人、身份与依据。
                   </p>
                 </>
               ) : null}
@@ -1843,17 +1840,17 @@ function CaptureSheet({
               {resultKind === "note" ? (
                 <>
                   <TextT size={24} weight="duotone" />
-                  <h3 id="capture-review-title">Your note stays your note.</h3>
-                  <p>It can guide review, but cannot become candidate testimony.</p>
+                  <h3 id="capture-review-title">你的备注始终是你的备注。</h3>
+                  <p>它可以辅助审阅，但不能变成候选人的陈述。</p>
                   <blockquote>
-                    {draft.note.trim() || "Voice note ready for transcript review."}
+                    {draft.note.trim() || "语音备注已可进行转写审阅。"}
                   </blockquote>
                 </>
               ) : null}
 
               <div className={styles.captureReviewBoundary}>
                 <ShieldCheck size={15} weight="fill" />
-                <p>AI may organize. Identity, facts, and actions still need review.</p>
+                <p>AI 可以整理，但身份、事实与行动仍需审阅。</p>
               </div>
             </section>
           ) : null}
@@ -1861,26 +1858,26 @@ function CaptureSheet({
           {draft.phase === "receipt" ? (
             <section className={styles.captureReceipt} aria-labelledby="capture-receipt-title">
               <ShieldCheck size={28} weight="fill" />
-              <span>Reviewable draft</span>
-              <h3 id="capture-receipt-title">Saved without acting.</h3>
-              <p>The source bundle remains available for later evidence review.</p>
+              <span>可审阅草稿</span>
+              <h3 id="capture-receipt-title">已保存，未执行行动。</h3>
+              <p>来源包会保留，供后续依据审阅。</p>
               <dl>
                 <div>
-                  <dt>Items</dt>
+                  <dt>项目</dt>
                   <dd>{itemCount}</dd>
                 </div>
                 <div>
-                  <dt>Confirmed</dt>
+                  <dt>已确认</dt>
                   <dd>0</dd>
                 </div>
                 <div>
-                  <dt>External</dt>
+                  <dt>外部操作</dt>
                   <dd>0</dd>
                 </div>
               </dl>
               <div className={styles.captureReceiptNote}>
                 <Check size={16} weight="bold" />
-                <p>No message, meeting, contact, or CRM record changed.</p>
+                <p>未更改消息、会议、联系人或 CRM 记录。</p>
               </div>
             </section>
           ) : null}
@@ -1894,7 +1891,7 @@ function CaptureSheet({
                 onClick={canPrepare ? onDelete : onClose}
                 type="button"
               >
-                {canPrepare ? "Discard" : "Close"}
+                {canPrepare ? "放弃" : "关闭"}
               </button>
               <button
                 className={styles.capturePrimaryAction}
@@ -1904,7 +1901,7 @@ function CaptureSheet({
                 }
                 type="button"
               >
-                Review{itemCount > 0 ? ` ${itemCount}` : ""}
+                审阅{itemCount > 0 ? ` ${itemCount}` : ""}
                 <ArrowRight size={16} />
               </button>
             </>
@@ -1917,7 +1914,7 @@ function CaptureSheet({
                 }
                 type="button"
               >
-                Back
+                返回
               </button>
               <button
                 className={styles.capturePrimaryAction}
@@ -1926,17 +1923,17 @@ function CaptureSheet({
                 }
                 type="button"
               >
-                Keep draft
+                保留草稿
                 <ArrowRight size={16} />
               </button>
             </>
           ) : (
             <>
               <button className={styles.captureDeleteAction} onClick={onDelete} type="button">
-                Delete
+                删除
               </button>
               <button className={styles.capturePrimaryAction} onClick={onClose} type="button">
-                Done
+                完成
                 <Check size={16} weight="bold" />
               </button>
             </>
@@ -1962,7 +1959,7 @@ function GuideSheet({
   const answerDetail = detailContent[answerPerson.id];
   const [mode, setMode] = useState<AgentMode>(initialMode);
   const [query, setQuery] = useState(
-    initialMode === "answer" ? `What changed with ${answerPerson.name}?` : "",
+    initialMode === "answer" ? `${answerPerson.name} 发生了什么变化？` : "",
   );
   const [noteReviewed, setNoteReviewed] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -1975,11 +1972,11 @@ function GuideSheet({
     setMode(nextMode);
     setNoteReviewed(false);
     if (nextMode === "find") {
-      setQuery("Who has reviewed APAC product leadership evidence?");
+      setQuery("谁拥有经过审阅的亚太产品领导力依据？");
     } else if (nextMode === "answer") {
-      setQuery(`What changed with ${answerPerson.name}?`);
+      setQuery(`${answerPerson.name} 发生了什么变化？`);
     } else if (nextMode === "remember") {
-      setQuery("Maya can meet the founder next Tuesday.");
+      setQuery("Maya 下周二可以与创始人见面。");
     }
   };
 
@@ -2010,10 +2007,10 @@ function GuideSheet({
     >
       <header>
         <div>
-          <span>Contextual Agent / Draft authority only</span>
-          <h2 id="guide-title">Guide</h2>
+          <span>情境智能助理 / 仅限草稿权限</span>
+          <h2 id="guide-title">智能助理</h2>
         </div>
-        <button aria-label="Close Guide" onClick={onClose} ref={closeRef} type="button">
+        <button aria-label="关闭智能助理" onClick={onClose} ref={closeRef} type="button">
           <X size={20} />
         </button>
       </header>
@@ -2022,13 +2019,13 @@ function GuideSheet({
         <div className={styles.guidePrompt}>
           <Compass size={23} weight="duotone" />
           <textarea
-            aria-label="Find, ask, or remember"
+            aria-label="查找、提问或记录"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find a relationship, ask what changed, or remember one moment."
+            placeholder="查找一段关系、询问变化，或记录一个时刻。"
             rows={3}
             value={query}
           />
-          <button aria-label="Record instead" type="button">
+          <button aria-label="改用语音记录" type="button">
             <Microphone size={19} />
           </button>
         </div>
@@ -2036,31 +2033,30 @@ function GuideSheet({
         {mode === "home" ? (
           <>
             <p className={styles.guideLead}>
-              One line is enough. The Guide can find, explain, or stage a note
-              without asking you to classify it first.
+              一句话就够了。智能助理可以查找、解释或暂存备注，不会要求你先分类。
             </p>
             <div className={styles.guideJobs}>
               <button onClick={() => choose("find")} type="button">
                 <MagnifyingGlass size={19} />
                 <span>
-                  <strong>Find a relationship</strong>
-                  <small>Match reviewed evidence, not a person score.</small>
+                  <strong>查找一段关系</strong>
+                  <small>匹配已审阅依据，而不是人物评分。</small>
                 </span>
                 <ArrowRight size={16} />
               </button>
               <button onClick={() => choose("answer")} type="button">
                 <Question size={19} />
                 <span>
-                  <strong>Ask what changed</strong>
-                  <small>Answer from one governed relationship.</small>
+                  <strong>询问发生了什么变化</strong>
+                  <small>从一段受治理的关系中作答。</small>
                 </span>
                 <ArrowRight size={16} />
               </button>
               <button onClick={() => choose("remember")} type="button">
                 <NotePencil size={19} />
                 <span>
-                  <strong>Remember a moment</strong>
-                  <small>Keep your words before interpretation.</small>
+                  <strong>记录一个时刻</strong>
+                  <small>解释前先保留你的原话。</small>
                 </span>
                 <ArrowRight size={16} />
               </button>
@@ -2071,7 +2067,7 @@ function GuideSheet({
               onClick={continueFromInput}
               type="button"
             >
-              Continue
+              继续
               <ArrowRight size={17} />
             </button>
           </>
@@ -2079,13 +2075,13 @@ function GuideSheet({
 
         {mode === "find" ? (
           <section className={styles.guideResult} aria-labelledby="find-title">
-            <span>Matches from confirmed evidence / 02</span>
-            <h3 id="find-title">Relevant relationships, not ranked people.</h3>
+            <span>来自已确认依据的匹配 / 02</span>
+            <h3 id="find-title">相关关系，而不是人物排名。</h3>
             <button onClick={() => onOpenPerson(people[0])} type="button">
               <Avatar person={people[0]} size="small" />
               <span>
                 <strong>Leila Hartmann</strong>
-                <small>APAC scope confirmed in one reviewed source.</small>
+                <small>一项已审阅来源确认了亚太范围。</small>
               </span>
               <CaretRight size={16} />
             </button>
@@ -2093,13 +2089,12 @@ function GuideSheet({
               <Avatar person={people[2]} size="small" />
               <span>
                 <strong>Maya Ortiz</strong>
-                <small>Regional operating experience, assignment context differs.</small>
+                <small>具备区域运营经验，但项目背景不同。</small>
               </span>
               <CaretRight size={16} />
             </button>
             <p>
-              Results are grouped by supported evidence. The Guide does not
-              predict quality or acceptance.
+              结果按有依据支持的证据分组。智能助理不会预测质量或接受意愿。
             </p>
           </section>
         ) : null}
@@ -2107,7 +2102,7 @@ function GuideSheet({
         {mode === "answer" ? (
           <section className={styles.guideResult} aria-labelledby="answer-title">
             <span>
-              Answer / {answerPerson.name} / {answerPerson.relationship}
+              回答 / {answerPerson.name} / {answerPerson.relationship}
             </span>
             <h3 id="answer-title">
               {answerDetail.changeTitle}: {answerDetail.now}.
@@ -2120,7 +2115,7 @@ function GuideSheet({
               onClick={() => onOpenPerson(answerPerson)}
               type="button"
             >
-              Open {answerPerson.name}&apos;s relationship
+              打开 {answerPerson.name} 的关系页面
               <ArrowRight size={16} />
             </button>
           </section>
@@ -2128,23 +2123,23 @@ function GuideSheet({
 
         {mode === "remember" ? (
           <section className={styles.noteReview} aria-labelledby="remember-title">
-            <span>User-authored moment</span>
-            <h3 id="remember-title">Keep the raw words. Stage the structure.</h3>
+            <span>用户撰写的时刻</span>
+            <h3 id="remember-title">保留原话，暂存结构。</h3>
             <blockquote>{query}</blockquote>
             {!noteReviewed ? (
               <>
                 <dl>
                   <div>
-                    <dt>Possible person</dt>
+                    <dt>可能的人</dt>
                     <dd>Maya Ortiz</dd>
                   </div>
                   <div>
-                    <dt>Possible context</dt>
-                    <dd>Fractional CFO search</dd>
+                    <dt>可能的背景</dt>
+                    <dd>兼职首席财务官寻访</dd>
                   </div>
                   <div>
-                    <dt>One missing answer</dt>
-                    <dd>Which timezone?</dd>
+                    <dt>一个缺失的答案</dt>
+                    <dd>哪个时区？</dd>
                   </div>
                 </dl>
                 <button
@@ -2152,7 +2147,7 @@ function GuideSheet({
                   onClick={() => setNoteReviewed(true)}
                   type="button"
                 >
-                  Review as a draft
+                  按草稿审阅
                   <ArrowRight size={17} />
                 </button>
               </>
@@ -2160,10 +2155,9 @@ function GuideSheet({
               <div className={styles.draftReceipt}>
                 <ShieldCheck size={21} weight="fill" />
                 <div>
-                  <strong>Draft preserved.</strong>
+                  <strong>草稿已保留。</strong>
                   <p>
-                    No relationship state changed. Add the timezone when you
-                    know it, then review the evidence attachment.
+                    关系状态未改变。确认时区后补充，再审阅依据附件。
                   </p>
                 </div>
               </div>
@@ -2174,7 +2168,7 @@ function GuideSheet({
 
       <footer>
         <ShieldCheck size={16} weight="fill" />
-        Reads the selected relationship. Every change remains reviewable.
+        读取所选关系；每项变化始终可供审阅。
       </footer>
     </section>
   );
@@ -2189,17 +2183,16 @@ function ConciergeScreen({
     <div className={`${styles.phoneScreen} ${styles.conciergeScreen}`}>
       <header className={styles.conciergeHeader}>
         <span>Talent Signal</span>
-        <span>Quiet Concierge / 05 relationships</span>
+        <span>安静助理 / 05 段关系</span>
       </header>
 
       <div className={styles.conciergeBody}>
         <section className={styles.conciergeIntro}>
           <Compass size={27} weight="duotone" />
-          <span>Agent threshold</span>
-          <h1>What are you trying to move?</h1>
+          <span>智能助理入口</span>
+          <h1>你想推动什么？</h1>
           <p>
-            Start with intent. The archive appears only when it helps answer
-            the question.
+            从意图开始。只有在有助于回答问题时，档案才会出现。
           </p>
         </section>
 
@@ -2208,50 +2201,50 @@ function ConciergeScreen({
           onClick={() => onOpenGuide("home")}
           type="button"
         >
-          <span>Ask, find, or remember in one line</span>
+          <span>用一句话提问、查找或记录</span>
           <ArrowRight size={19} />
         </button>
 
         <section className={styles.conciergeJobs} aria-labelledby="concierge-jobs">
           <div className={styles.sectionIndex}>
-            <span id="concierge-jobs">Three jobs</span>
-            <span>No setup</span>
+            <span id="concierge-jobs">三项工作</span>
+            <span>无需设置</span>
           </div>
           <button onClick={() => onOpenGuide("find")} type="button">
             <span>01</span>
-            <strong>Find the relevant relationship.</strong>
+            <strong>找到相关关系。</strong>
             <ArrowRight size={16} />
           </button>
           <button onClick={() => onOpenGuide("answer")} type="button">
             <span>02</span>
-            <strong>Understand what changed.</strong>
+            <strong>理解发生了什么变化。</strong>
             <ArrowRight size={16} />
           </button>
           <button onClick={() => onOpenGuide("remember")} type="button">
             <span>03</span>
-            <strong>Remember one moment.</strong>
+            <strong>记录一个时刻。</strong>
             <ArrowRight size={16} />
           </button>
         </section>
 
         <section className={styles.openRooms} aria-labelledby="open-rooms-title">
           <div className={styles.sectionIndex}>
-            <span id="open-rooms-title">Open rooms</span>
-            <span>Browse without Agent</span>
+            <span id="open-rooms-title">开放空间</span>
+            <span>无需智能助理即可浏览</span>
           </div>
           <button type="button">
             <Briefcase size={17} />
             <span>
-              <strong>Chief Product Officer search</strong>
-              <small>3 relationships in motion</small>
+              <strong>首席产品官寻访</strong>
+              <small>3 段关系进行中</small>
             </span>
             <CaretRight size={16} />
           </button>
           <button type="button">
             <UsersThree size={17} />
             <span>
-              <strong>Leadership network</strong>
-              <small>Identity review waiting</small>
+              <strong>领导人才网络</strong>
+              <small>身份审阅待处理</small>
             </span>
             <CaretRight size={16} />
           </button>
@@ -2260,7 +2253,7 @@ function ConciergeScreen({
 
       <div className={styles.conciergeBoundary}>
         <ShieldCheck size={17} weight="fill" />
-        Human ownership stays visible at every change.
+        每项变化都清晰显示人工责任归属。
       </div>
     </div>
   );
@@ -2352,14 +2345,13 @@ export function RelationshipMobileConcept({
       {!isProduct ? (
         <section className={styles.studyHeader} aria-labelledby="study-title">
         <div>
-          <span>Talent Signal mobile study / Iteration 04</span>
-          <h1 id="study-title">Evidence, then judgment.</h1>
+          <span>Talent Signal 移动端探索 / 第 04 版</span>
+          <h1 id="study-title">先看依据，再做判断。</h1>
           <p>
-            The app returns the recruiter to one exact relationship decision.
-            People remain relationships, never inventory.
+            应用让招聘顾问回到一个明确的关系决定。人物始终是关系，而不是库存。
           </p>
         </div>
-        <div aria-label="Design direction" className={styles.directionSwitch}>
+        <div aria-label="设计方向" className={styles.directionSwitch}>
           <button
             aria-pressed={direction === "archive"}
             className={direction === "archive" ? styles.directionActive : ""}
@@ -2373,8 +2365,8 @@ export function RelationshipMobileConcept({
           >
             <ListDashes size={18} />
             <span>
-              Editorial Today
-              <small>Selected</small>
+              编辑式今天
+              <small>已选择</small>
             </span>
           </button>
           <button
@@ -2389,8 +2381,8 @@ export function RelationshipMobileConcept({
           >
             <Compass size={18} />
             <span>
-              Agent Threshold
-              <small>Challenger</small>
+              智能助理入口
+              <small>备选方向</small>
             </span>
           </button>
         </div>
@@ -2481,73 +2473,66 @@ export function RelationshipMobileConcept({
           className={styles.decisionPanel}
           aria-label={
             isProduct
-              ? "How evidence becomes a reviewable relationship change"
-              : "Design decision"
+              ? "依据如何成为可审阅的关系变化"
+              : "设计决定"
           }
         >
           {captureOpen ? (
             <>
-              <span>One intentional bundle</span>
-              <h2>Collect freely. Resolve one thing.</h2>
+              <span>一个有意组织的来源包</span>
+              <h2>自由采集，只解决一件事。</h2>
               <p>
-                Screenshots keep the source. Voice and text keep the
-                recruiter&apos;s context. AI only chooses the smallest truthful
-                review state.
+                截图保留来源，语音与文字保留招聘顾问的背景。AI 只选择最小且真实的审阅状态。
               </p>
               <section
-                aria-label="Possible capture outcomes"
+                aria-label="可能的采集结果"
                 className={styles.captureOutcomeMap}
               >
                 <div>
                   <StackSimple size={19} />
                   <span>
-                    <strong>Needs organizing</strong>
-                    <small>Several conversations stay separate.</small>
+                    <strong>需要整理</strong>
+                    <small>多段对话保持分离。</small>
                   </span>
                 </div>
                 <div>
                   <WarningCircle size={19} />
                   <span>
-                    <strong>Needs one clarification</strong>
-                    <small>Identity, speaker, or time remains open.</small>
+                    <strong>需要一项澄清</strong>
+                    <small>身份、说话人或时间仍未解决。</small>
                   </span>
                 </div>
                 <div>
                   <Check size={19} />
                   <span>
-                    <strong>No supported change</strong>
-                    <small>Preserve the source without making work.</small>
+                    <strong>没有依据支持变化</strong>
+                    <small>保留来源，但不制造额外工作。</small>
                   </span>
                 </div>
               </section>
               <p className={styles.productInstruction}>
-                Try the synthetic example in the phone. The capture can be
-                closed and resumed, but this public preview never analyzes
-                private files or writes to another system.
+                可在手机中试用合成示例。采集可以关闭后继续，但此公开预览绝不会分析私密文件或写入其他系统。
               </p>
             </>
           ) : direction === "archive" ? (
             <>
               {isProduct ? (
                 <>
-                  <span>Evidence before interpretation</span>
-                  <h2>One source. One proposed change. Your decision.</h2>
+                  <span>先看依据，再做解释</span>
+                  <h2>一个来源，一项拟议变化，由你决定。</h2>
                   <p>
-                    The interface returns you to the exact relationship that
-                    changed, explains why it deserves attention, and keeps the
-                    Agent outside the decision boundary.
+                    界面让你回到发生变化的准确关系，解释它为何值得关注，并让智能助理停留在决策边界之外。
                   </p>
                 </>
               ) : (
                 <>
-                  <span>Selected theorem</span>
-                  <h2>Editorial Redline</h2>
+                  <span>已选择原则</span>
+                  <h2>编辑式红线</h2>
                   <p>
-                    One exact source and one proposed relationship change share
-                    a causal composition. The Agent stays at the threshold.
+                    一个准确来源与一项拟议关系变化共享因果结构；智能助理停在入口处。
                   </p>
                   <div
-                    aria-label="First viewport composition"
+                    aria-label="首屏构图"
                     className={styles.materialSwitch}
                   >
                     <button
@@ -2555,23 +2540,23 @@ export function RelationshipMobileConcept({
                       onClick={() => setMaterial("museum")}
                       type="button"
                     >
-                      <span>Open Page</span>
-                      <small>Selected / hierarchy through space</small>
+                      <span>开放页面</span>
+                      <small>已选择 / 通过留白建立层级</small>
                     </button>
                     <button
                       aria-pressed={material === "pebbles"}
                       onClick={() => setMaterial("pebbles")}
                       type="button"
                     >
-                      <span>Floating Briefs</span>
-                      <small>Challenger / clearer grouping, more chrome</small>
+                      <span>浮动简报</span>
+                      <small>备选 / 分组更清晰、界面装饰更多</small>
                     </button>
                   </div>
                 </>
               )}
 
               <section className={styles.desktopReviewCard}>
-                <span>Why this is here</span>
+                <span>为何出现在这里</span>
                 <div className={styles.desktopQuote}>
                   <Quotes size={22} weight="fill" />
                   <blockquote>
@@ -2579,95 +2564,91 @@ export function RelationshipMobileConcept({
                     <br />
                     but not full-time relocation.&rdquo;
                   </blockquote>
-                  <small>Leila / Thu 22:18 / recruiter reviewed</small>
+                  <small>Leila / 周四 22:18 / 招聘顾问已审阅</small>
                 </div>
                 <span aria-hidden="true" className={styles.desktopCausalSeam}>
                   <i />
                 </span>
                 <div className={styles.desktopProposal}>
-                  <span>Proposed change</span>
-                  <h3>Remote work remains unresolved for this search.</h3>
+                  <span>拟议变化</span>
+                  <h3>这项寻访中的远程办公问题仍未解决。</h3>
                   <div>
                     <button onClick={() => openReview(people[0])} type="button">
-                      Keep unresolved
+                      保持未解决
                     </button>
                     <button onClick={() => openReview(people[0])} type="button">
-                      Review change
+                      审阅变化
                     </button>
                   </div>
                 </div>
               </section>
 
               <section className={styles.desktopResumeCard}>
-                <span>Resume with context</span>
-                <h3>You stopped while reviewing Nia.</h3>
-                <p>Your edits are saved. No message was sent.</p>
+                <span>带着背景继续</span>
+                <h3>你上次停在审阅 Nia 的位置。</h3>
+                <p>编辑已保存，未发送任何消息。</p>
                 <div>
                   <span className={styles.libraryIcon}>
                     <NotePencil size={18} />
                   </span>
                   <span>
-                    <strong>Board search</strong>
-                    <small>Evidence 2 of 3</small>
+                    <strong>董事寻访</strong>
+                    <small>第 2/3 项依据</small>
                   </span>
                 </div>
                 <button onClick={() => openReview(people[1], "resume")} type="button">
-                  Continue review
+                  继续审阅
                   <ArrowRight size={17} />
                 </button>
               </section>
 
               {!isProduct ? (
-                <div aria-label="Color preview" className={styles.colorModeSwitch}>
-                  <span>Preview</span>
+                <div aria-label="颜色预览" className={styles.colorModeSwitch}>
+                  <span>预览</span>
                   <button
                     aria-pressed={!previewDark}
                     onClick={() => setPreviewDark(false)}
                     type="button"
                   >
-                    Light
+                    浅色
                   </button>
                   <button
                     aria-pressed={previewDark}
                     onClick={() => setPreviewDark(true)}
                     type="button"
                   >
-                    Dark
+                    深色
                   </button>
                 </div>
               ) : (
                 <p className={styles.productInstruction}>
-                  Try Today, People, and Library in the phone. Open the bottom
-                  Guide to find, explain, or stage a memory. Every result uses
-                  synthetic evidence and every change remains reviewable.
+                  可在手机中试用“今天”“人才”和“资料库”。打开底部智能助理来查找、解释或暂存记忆。所有结果均使用合成依据，每项变化始终可审阅。
                 </p>
               )}
             </>
           ) : (
             <>
-              <span>Surviving challenger</span>
-              <h2>Agent Threshold</h2>
+              <span>保留的备选方向</span>
+              <h2>智能助理入口</h2>
               <p>
-                Intent comes first and the archive appears on demand. Elegant
-                for focused work, but weaker when the recruiter wants to scan
-                people without forming a question.
+                意图优先，档案按需出现。适合专注工作，但当招聘顾问想直接浏览人才而尚未形成问题时，效果较弱。
               </p>
               <dl>
                 <div>
-                  <dt>Strength</dt>
-                  <dd>Lowest visible input and strongest Agent presence.</dd>
+                  <dt>优势</dt>
+                  <dd>可见输入最少，智能助理存在感最强。</dd>
                 </div>
                 <div>
-                  <dt>Cost</dt>
-                  <dd>Browseability and stable spatial memory are reduced.</dd>
+                  <dt>代价</dt>
+                  <dd>可浏览性与稳定空间记忆降低。</dd>
                 </div>
                 <div>
-                  <dt>Decision</dt>
-                  <dd>Use this composition as the expanded Guide state.</dd>
+                  <dt>决定</dt>
+                  <dd>将此构图用于智能助理展开状态。</dd>
                 </div>
               </dl>
               <p className={styles.tryNote}>
-                Return to Editorial Today for the durable home.
+                返回“编辑式今天”作为稳定首页。
               </p>
             </>
           )}

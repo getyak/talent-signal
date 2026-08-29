@@ -37,7 +37,20 @@ type AiResponse = {
   };
 };
 
-const candidateContext = "Leila Hartmann, VP Product candidate";
+const candidateContext = "Leila Hartmann，产品副总裁候选人";
+
+const actionStatusLabels: Record<ActionStatus, string> = {
+  confirmed: "已确认",
+  dismissed: "已驳回",
+  pending: "待审阅",
+};
+
+const verdictLabels: Record<AnalysisResult["insight"]["verdict"], string> = {
+  Advance: "推进",
+  "At risk": "存在风险",
+  "Resolve blocker": "解决阻碍",
+  Wait: "等待",
+};
 
 function ActionIcon({ type }: Pick<ProposedAction, "type">) {
   if (type === "create-meeting") {
@@ -48,14 +61,14 @@ function ActionIcon({ type }: Pick<ProposedAction, "type">) {
 
 function WorkbenchSkeleton() {
   return (
-    <div className="workbench-skeleton" aria-label="Analyzing conversation">
+    <div className="workbench-skeleton" aria-label="正在分析对话">
       <div className="skeleton-line skeleton-line--short" />
       <div className="skeleton-line" />
       <div className="skeleton-panel">
         <div className="skeleton-line skeleton-line--medium" />
         <div className="skeleton-line" />
       </div>
-      <span className="sr-only">Analyzing conversation</span>
+      <span className="sr-only">正在分析对话</span>
     </div>
   );
 }
@@ -66,10 +79,9 @@ function EmptyAnalysis({ evidence }: { evidence: Evidence[] }) {
       <div className="empty-analysis">
         <WarningCircle aria-hidden="true" size={28} />
         <div>
-          <h3>Evidence needs clarification</h3>
+          <h3>证据需要澄清</h3>
           <p>
-            The note contains a possible signal, but its speaker or meaning is
-            ambiguous. No operational change was proposed.
+            笔记中可能存在一条信号，但说话人或含义并不明确，因此没有提出任何操作性变更。
           </p>
           <div className="ambiguous-evidence">
             {evidence.map((item) => (
@@ -91,10 +103,9 @@ function EmptyAnalysis({ evidence }: { evidence: Evidence[] }) {
     <div className="empty-analysis">
       <NotePencil aria-hidden="true" size={28} />
       <div>
-        <h3>No operational update yet</h3>
+        <h3>暂时没有操作性更新</h3>
         <p>
-          This note has context, but no explicit deadline, constraint, offer, or
-          scheduling commitment.
+          这条笔记包含背景信息，但没有明确的期限、限制、录用意向或日程承诺。
         </p>
       </div>
     </div>
@@ -109,11 +120,10 @@ function ClarificationReview({ evidence }: { evidence: Evidence[] }) {
     >
       <WarningCircle aria-hidden="true" size={24} />
       <div>
-        <p className="metadata">Unresolved evidence</p>
-        <h3 id="clarification-review-title">Clarify before confirming.</h3>
+        <p className="metadata">未解决的证据</p>
+        <h3 id="clarification-review-title">先澄清，再确认。</h3>
         <p>
-          Relative dates and meeting windows stay outside the action list until
-          their source time is explicit.
+          在来源时间明确前，相对日期和会面时间窗口不会进入行动清单。
         </p>
         <div className="ambiguous-evidence">
           {evidence.map((item) => (
@@ -186,26 +196,26 @@ export function DemoWorkbench({
     ).length;
     if (nextResult.actions.length > 0) {
       setAnnouncement(
-        `Analysis complete. ${nextResult.actions.length} supported ${nextResult.actions.length === 1 ? "change is" : "changes are"} ready for review.${
+        `分析完成。${nextResult.actions.length} 项有依据的变更可供审阅。${
           unresolvedCount > 0
-            ? ` ${unresolvedCount} unresolved evidence ${unresolvedCount === 1 ? "item needs" : "items need"} clarification.`
+            ? `${unresolvedCount} 项未解决证据需要澄清。`
             : ""
         }`,
       );
     } else if (nextResult.evidence.length > 0) {
       setAnnouncement(
-        "Analysis complete. Evidence needs clarification. No operational change was proposed.",
+        "分析完成。证据需要澄清，没有提出操作性变更。",
       );
     } else {
       setAnnouncement(
-        "Analysis complete. No operational update was proposed.",
+        "分析完成，没有提出操作性更新。",
       );
     }
   }
 
   async function runAnalysis() {
     if (!input.trim()) {
-      const message = "Add a conversation note before analyzing evidence.";
+      const message = "请先添加对话笔记，再分析证据。";
       setErrorMessage(message);
       setAnnouncement(message);
       setPhase("error");
@@ -214,7 +224,7 @@ export function DemoWorkbench({
     }
 
     setPhase("loading");
-    setAnnouncement("Analyzing conversation evidence.");
+    setAnnouncement("正在分析对话证据。");
     setErrorMessage("");
     setStatuses({});
     setEditingId(null);
@@ -255,7 +265,7 @@ export function DemoWorkbench({
         throw new Error(
           "error" in payload && payload.error
             ? payload.error
-            : "Private AI analysis is unavailable.",
+            : "私密 AI 分析暂时不可用。",
         );
       }
 
@@ -269,7 +279,7 @@ export function DemoWorkbench({
       const message =
         error instanceof Error
           ? error.message
-          : "Private AI analysis is unavailable.";
+          : "私密 AI 分析暂时不可用。";
       setErrorMessage(message);
       setAnnouncement(message);
       setPhase("error");
@@ -292,11 +302,11 @@ export function DemoWorkbench({
       setAnnouncement(
         `${action.title} ${
           status === "confirmed"
-            ? "confirmed"
+            ? "已确认"
             : status === "dismissed"
-              ? "dismissed"
-              : "returned to review"
-        }. ${confirmedCount} of ${result.actions.length} supported ${result.actions.length === 1 ? "change" : "changes"} confirmed.`,
+              ? "已驳回"
+              : "已返回审阅"
+        }。已确认 ${confirmedCount}/${result.actions.length} 项有依据的变更。`,
       );
     }
   }
@@ -305,13 +315,13 @@ export function DemoWorkbench({
     if (editingId === action.id) {
       setEditingId(null);
       setAnnouncement(
-        `${action.title} edit saved locally. Review it before confirming.`,
+        `${action.title}的编辑已保存在本地，请在确认前审阅。`,
       );
       return;
     }
 
     setEditingId(action.id);
-    setAnnouncement(`${action.title} edit field ready.`);
+    setAnnouncement(`${action.title}的编辑字段已就绪。`);
   }
 
   function resetDemo() {
@@ -328,7 +338,7 @@ export function DemoWorkbench({
     setEdits({});
     setErrorMessage("");
     setAnalysisMeta(null);
-    setAnnouncement("Demo reset. Sample conversation restored.");
+    setAnnouncement("演示已重置，并恢复示例对话。");
   }
 
   function selectMode(nextMode: AnalysisMode) {
@@ -349,8 +359,8 @@ export function DemoWorkbench({
     setAnalysisMeta(null);
     setAnnouncement(
       nextMode === "local"
-        ? "Local browser-only analysis selected. Previous results cleared."
-        : "Private AI analysis selected. Previous results cleared.",
+        ? "已选择仅在浏览器中运行的本地分析，并清除之前的结果。"
+        : "已选择私密 AI 分析，并清除之前的结果。",
     );
   }
 
@@ -365,17 +375,17 @@ export function DemoWorkbench({
       <section className="demo-input" aria-labelledby="demo-input-title">
         <div className="demo-input__heading">
           <div>
-            <p className="metadata">Recruiter-controlled import</p>
-            <h1 id="demo-input-title">Try one conversation.</h1>
+            <p className="metadata">招聘顾问主动导入</p>
+            <h1 id="demo-input-title">试试一段对话。</h1>
           </div>
           <button className="text-button" type="button" onClick={resetDemo}>
             <ArrowCounterClockwise aria-hidden="true" size={16} />
-            Reset demo
+            重置演示
           </button>
         </div>
 
         <div className="field">
-          <label htmlFor="candidate-context">Candidate context</label>
+          <label htmlFor="candidate-context">候选人背景</label>
           <input
             id="candidate-context"
             value={candidateContext}
@@ -383,13 +393,12 @@ export function DemoWorkbench({
             aria-describedby="candidate-context-help"
           />
           <p id="candidate-context-help" className="field-helper">
-            Candidate identity and source speaker are seeded locally for this
-            product demonstration.
+            本产品演示会在本地预置候选人身份与来源说话人。
           </p>
         </div>
 
         <div className="field">
-          <label htmlFor="conversation-evidence">Conversation evidence</label>
+          <label htmlFor="conversation-evidence">对话证据</label>
           <textarea
             id="conversation-evidence"
             value={input}
@@ -405,8 +414,8 @@ export function DemoWorkbench({
           />
           <p id="conversation-evidence-help" className="field-helper">
             {mode === "local"
-              ? "Local rules run in your browser. The text is not transmitted or saved."
-              : `This note is sent to ${aiProvider} for transient analysis. Talent Signal does not persist it.`}
+              ? "本地规则仅在浏览器中运行，文本不会被传输或保存。"
+              : `该笔记会发送给 ${aiProvider} 进行临时分析，Talent Signal 不会将其持久化。`}
           </p>
           {phase === "error" && (
             <p id="conversation-evidence-error" className="field-error">
@@ -416,7 +425,7 @@ export function DemoWorkbench({
         </div>
 
         <fieldset className="analysis-mode">
-          <legend>Analysis route</legend>
+          <legend>分析路径</legend>
           <button
             type="button"
             data-active={mode === "local"}
@@ -425,8 +434,8 @@ export function DemoWorkbench({
           >
             <Cpu aria-hidden="true" size={17} />
             <span>
-              <strong>Local rules</strong>
-              <small>Browser only</small>
+              <strong>本地规则</strong>
+              <small>仅在浏览器中</small>
             </span>
           </button>
           <button
@@ -438,8 +447,8 @@ export function DemoWorkbench({
           >
             <ShieldCheck aria-hidden="true" size={17} />
             <span>
-              <strong>Private AI</strong>
-              <small>{aiEnabled ? "Explicit upload" : "Not configured"}</small>
+              <strong>私密 AI</strong>
+              <small>{aiEnabled ? "明确上传" : "尚未配置"}</small>
             </span>
           </button>
         </fieldset>
@@ -451,10 +460,10 @@ export function DemoWorkbench({
           disabled={phase === "loading"}
         >
           {phase === "loading"
-            ? "Analyzing evidence"
+            ? "正在分析证据"
             : mode === "ai"
-              ? "Analyze with private AI"
-              : "Analyze locally"}
+              ? "使用私密 AI 分析"
+              : "在本地分析"}
         </button>
         <p
           className="sr-only"
@@ -472,14 +481,13 @@ export function DemoWorkbench({
       >
         <div className="demo-output__heading">
           <div>
-            <p className="metadata">Review before change</p>
-            <h2 id="demo-output-title">Action review</h2>
+            <p className="metadata">变更前审阅</p>
+            <h2 id="demo-output-title">行动审阅</h2>
           </div>
           {phase === "ready" && result && result.actions.length > 0 && (
             <div className="analysis-summary">
               <p className="confirmation-count">
-                {actionSummary} of {result.actions.length} supported changes
-                confirmed
+                已确认 {actionSummary}/{result.actions.length} 项有依据的变更
               </p>
               {analysisMeta && (
                 <p className="analysis-origin">
@@ -511,8 +519,7 @@ export function DemoWorkbench({
               exit={{ opacity: 0 }}
             >
               <p>
-                Analyze the note, then review every proposed change with its
-                source still attached.
+                分析笔记后，逐项审阅拟议变更；每项变更都会继续关联其来源。
               </p>
             </motion.div>
           )}
@@ -539,12 +546,12 @@ export function DemoWorkbench({
             >
               <div className="demo-insight">
                 <div className="insight-heading">
-                  <p>Momentum insight</p>
-                  <span className="verdict">{result.insight.verdict}</span>
+                  <p>关系进展洞察</p>
+                  <span className="verdict">{verdictLabels[result.insight.verdict]}</span>
                 </div>
                 <p>{result.insight.rationale}</p>
                 <p className="next-action">
-                  <span>Next action</span>
+                  <span>下一步</span>
                   {result.insight.nextAction}
                 </p>
               </div>
@@ -576,7 +583,7 @@ export function DemoWorkbench({
                               ) : (
                                 <X aria-hidden="true" size={15} />
                               )}
-                              {status}
+                              {actionStatusLabels[status]}
                             </span>
                           )}
                         </div>
@@ -584,7 +591,7 @@ export function DemoWorkbench({
                         {editing ? (
                           <div className="inline-edit">
                             <label htmlFor={`edit-${action.id}`}>
-                              Proposed update
+                              拟议更新
                             </label>
                             <input
                               id={`edit-${action.id}`}
@@ -603,7 +610,7 @@ export function DemoWorkbench({
                         )}
 
                         <p className="evidence-reference">
-                          Source ·{" "}
+                          来源 ·{" "}
                           {result.evidence.find(
                             (item) => item.id === action.evidenceId,
                           )?.label}
@@ -623,7 +630,7 @@ export function DemoWorkbench({
                               onClick={() => toggleEdit(action)}
                             >
                               <PencilSimple aria-hidden="true" size={15} />
-                              {editing ? "Save edit" : "Edit"}
+                              {editing ? "保存编辑" : "编辑"}
                             </button>
                             <button
                               type="button"
@@ -632,7 +639,7 @@ export function DemoWorkbench({
                               }
                             >
                               <X aria-hidden="true" size={15} />
-                              Dismiss
+                              驳回
                             </button>
                             <button
                               className="confirm-action"
@@ -642,7 +649,7 @@ export function DemoWorkbench({
                               }
                             >
                               <Check aria-hidden="true" size={15} />
-                              Confirm
+                              确认
                             </button>
                           </div>
                         ) : (
@@ -653,7 +660,7 @@ export function DemoWorkbench({
                               updateStatus(action.id, "pending")
                             }
                           >
-                            Restore review
+                            恢复审阅
                           </button>
                         )}
                       </div>

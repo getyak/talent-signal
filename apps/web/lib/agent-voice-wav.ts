@@ -23,7 +23,7 @@ export function downsampleVoice(
     targetSampleRate <= 0 ||
     targetSampleRate > inputSampleRate
   ) {
-    throw new Error("Voice sample rates are invalid.");
+    throw new Error("语音采样率无效。")
   }
   const source = mergeSamples(chunks);
   if (source.length === 0) return source;

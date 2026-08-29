@@ -37,15 +37,15 @@ function AccountControls({
       {fixtureWorkspace ? (
         <span
           className={styles.environmentBadge}
-          title="Synthetic fixture workspace — evaluation data, not live recruiter records"
+          title="合成测试工作台——仅含评测数据，不是真实招聘记录"
         >
-          Fixture
+          测试
         </span>
       ) : null}
       <div className={styles.accountControls}>
         <ThemeToggle />
         <form action={signOutOfWorkspace}>
-          <button aria-label="Sign out" title="Sign out" type="submit">
+          <button aria-label="退出登录" title="退出登录" type="submit">
             <SignOut aria-hidden="true" size={18} />
           </button>
         </form>
@@ -65,7 +65,7 @@ export default async function WorkspaceLayout({
     return children;
   }
 
-  const accountName = session.user.name ?? session.user.email ?? "Recruiter";
+  const accountName = session.user.name ?? session.user.email ?? "招聘顾问";
   const backendAccount = (
     session as typeof session & {
       account?: { name: string; slug: string };
@@ -76,14 +76,14 @@ export default async function WorkspaceLayout({
   const fixtureWorkspace =
     backendAccount?.slug.startsWith("fixture-") ?? fixtureFallback;
   const accountTitle = fixtureWorkspace
-    ? `${accountName} · ${backendAccount?.name ?? "Fixture Alpha Search"} · synthetic fixture workspace`
-    : `${accountName} · ${backendAccount?.name ?? "account-scoped workspace"}`;
+    ? `${accountName} · ${backendAccount?.name ?? "Alpha 寻访测试"} · 合成测试工作台`
+    : `${accountName} · ${backendAccount?.name ?? "账号专属工作台"}`;
 
   return (
     <div className={styles.shell}>
-      <aside aria-label="Talent Signal workspace" className={styles.rail}>
+      <aside aria-label="Talent Signal 工作台" className={styles.rail}>
         <Link
-          aria-label="Talent Signal Today"
+          aria-label="Talent Signal 今日"
           className={styles.brand}
           href="/workspace/today"
         >
@@ -101,7 +101,7 @@ export default async function WorkspaceLayout({
 
       <header className={styles.mobileHeader}>
         <Link
-          aria-label="Talent Signal Today"
+          aria-label="Talent Signal 今日"
           className={styles.brand}
           href="/workspace/today"
         >

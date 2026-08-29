@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const alt =
-  "Talent Signal. Candidate momentum for relationship-led search.";
+  "Talent Signal，为关系驱动型寻访保留候选人进展。";
 export const size = {
   width: 1200,
   height: 630,
@@ -89,10 +89,10 @@ export default function OpenGraphImage() {
               lineHeight: 0.98,
             }}
           >
-            Know who needs you now.
+            知道此刻谁需要你的关注。
           </div>
           <div style={{ color: "#585650", fontSize: 28, lineHeight: 1.4 }}>
-            Evidence-backed candidate momentum for relationship-led search.
+            为关系驱动型寻访保留有证据支撑的候选人进展。
           </div>
         </div>
 

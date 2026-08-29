@@ -12,14 +12,14 @@ export async function POST(
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json(
-      { error: { code: "AUTH_REQUIRED", message: "Sign in is required." } },
+      { error: { code: "AUTH_REQUIRED", message: "需要登录。" } },
       { status: 401 },
     );
   }
   const { id } = await context.params;
   if (!zId(id)) {
     return NextResponse.json(
-      { error: { code: "PROPOSAL_ID_INVALID", message: "Proposal ID is invalid." } },
+      { error: { code: "PROPOSAL_ID_INVALID", message: "提案 ID 无效。" } },
       { status: 400 },
     );
   }
@@ -31,7 +31,7 @@ export async function POST(
       {
         error: {
           code: "PROPOSAL_REVIEW_INPUT_INVALID",
-          message: "Every proposed change requires one explicit decision.",
+          message: "每项拟议变更都需要一次明确决定。",
         },
       },
       { status: 400 },

@@ -49,10 +49,10 @@ type AgentResult = {
 };
 
 const evidenceCopy = {
-  available: "Evidence available",
-  partial: "Evidence partly available",
-  unavailable: "Evidence unavailable",
-  not_required: "Recruiter-authored",
+  available: "证据可用",
+  partial: "部分证据可用",
+  unavailable: "证据不可用",
+  not_required: "招聘顾问撰写",
 } as const;
 
 function formatDate(value: string): string {
@@ -68,7 +68,7 @@ function formatDate(value: string): string {
 }
 
 function formatDue(value: string | null): string {
-  if (!value) return "No due time";
+  if (!value) return "没有截止时间";
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
@@ -84,11 +84,11 @@ function formatDue(value: string | null): string {
 function kindCopy(item: PursuitTodayItem): string {
   if (item.attentionKind === "review") {
     return item.proposalStatus === "needs_review"
-      ? "Decision ready"
-      : "Review recovery";
+      ? "可作决定"
+      : "恢复审阅";
   }
-  if (item.attentionKind === "action") return "Owned action";
-  return "Open dependency";
+  if (item.attentionKind === "action") return "已分配行动";
+  return "待解决依赖项";
 }
 
 function pursuitHref(item: PursuitTodayItem): string {
@@ -115,7 +115,7 @@ function AgentComposer({
   const router = useRouter();
   const defaultObjective = useMemo(
     () =>
-      `Review only the authorized evidence for “${item.title}”. Stage one smallest evidence-supported Pursuit update, or record no_action when nothing safe changed.`,
+      `只审阅“${item.title}”范围内已授权的证据。暂存一项最小且有证据支持的寻访更新；如果没有安全、真实的变化，则记录无需行动。`,
     [item.title],
   );
   const [objective, setObjective] = useState(defaultObjective);
@@ -183,7 +183,7 @@ function AgentComposer({
       if (!response.ok || !payload.run?.terminal_receipt) {
         throw new Error(
           payload.error?.message ??
-            "The Agent result could not be verified. Nothing changed.",
+            "无法核验智能助理结果，任何状态都没有改变。",
         );
       }
       setResult({
@@ -258,7 +258,7 @@ function AgentComposer({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The Agent could not finish. Nothing changed.",
+          : "智能助理未能完成，任何状态都没有改变。",
       );
     } finally {
       setSubmitting(false);
@@ -267,8 +267,8 @@ function AgentComposer({
 
   const disabledReason =
     item.evidenceState === "unavailable"
-      ? "Source authority is unavailable, so a new run cannot cite it."
-      : "No reviewed, authorized capture is attached to this Pursuit yet.";
+      ? "来源权限不可用，因此新的运行无法引用它。"
+      : "该寻访尚未关联经过审阅且获得授权的采集内容。";
   const successfulResult =
     result?.status === "proposal_staged" || result?.status === "no_action";
 
@@ -279,19 +279,19 @@ function AgentComposer({
           <Sparkle size={18} weight="fill" />
         </span>
         <div>
-          <h3 id="agent-composer-title">Ask within this Pursuit</h3>
+          <h3 id="agent-composer-title">在本次寻访范围内询问</h3>
           <p>
             {providerMode === "live_remote"
-              ? "Pinned remote model · synthetic-only processing · four governed tools"
-              : "Safe deterministic provider · no model inference"}
+              ? "固定远程模型 · 仅处理合成内容 · 四项受治理工具"
+              : "安全的确定性服务 · 不进行模型推断"}
           </p>
         </div>
-        <ShieldCheck aria-label="Review-only; no external effects" size={20} />
+        <ShieldCheck aria-label="仅供审阅；无外部效果" size={20} />
       </header>
 
       {item.agentContext ? (
         <>
-          <label htmlFor={`objective-${item.pursuitId}`}>Run objective</label>
+          <label htmlFor={`objective-${item.pursuitId}`}>运行目标</label>
           <textarea
             id={`objective-${item.pursuitId}`}
             maxLength={1_000}
@@ -301,9 +301,7 @@ function AgentComposer({
           />
           <div className={styles.agentActions}>
             <p>
-              Reads {item.agentContext.evidenceRefs.length} exact evidence
-              {item.agentContext.evidenceRefs.length === 1 ? " fragment" : " fragments"}.
-              Output remains a Proposal or no_action.
+              读取 {item.agentContext.evidenceRefs.length} 条准确证据片段。输出只会是提案或无需行动。
             </p>
             <button
               disabled={
@@ -312,7 +310,7 @@ function AgentComposer({
               onClick={runAgent}
               type="button"
             >
-              {submitting ? "Running bounded check…" : "Run bounded Agent"}
+              {submitting ? "正在执行边界检查…" : "运行有边界的智能助理"}
               {!submitting && <ArrowRight aria-hidden="true" size={16} />}
             </button>
           </div>
@@ -328,7 +326,7 @@ function AgentComposer({
         <div className={styles.runError} role="alert">
           <WarningCircle aria-hidden="true" size={19} />
           <p>
-            <strong>Run not verified</strong>
+            <strong>运行结果未核验</strong>
             <span>{error}</span>
           </p>
         </div>
@@ -348,18 +346,18 @@ function AgentComposer({
           <div>
             <strong>
               {result.status === "proposal_staged"
-                ? "Proposal staged for review"
+                ? "提案已暂存，等待审阅"
                 : result.status === "no_action"
-                  ? "No action is the supported result"
-                  : `Agent stopped safely: ${result.status}`}
+                  ? "有证据支持的结果是无需行动"
+                  : `智能助理已安全停止：${humanize(result.status)}`}
             </strong>
             <p>
-              {result.reason.replaceAll("_", " ").toLowerCase()} · {result.externalEffectCount} external effects
+              {humanize(result.reason)} · {result.externalEffectCount} 项外部效果
             </p>
           </div>
           {result.proposalId ? (
             <Link href={`/workspace/pursuits/${item.pursuitId}#proposal`}>
-              Review
+              审阅
               <ArrowRight aria-hidden="true" size={15} />
             </Link>
           ) : null}
@@ -385,7 +383,7 @@ function FocusItem({
         <div>
           <p className={styles.kicker}>
             <span>{kindCopy(item)}</span>
-            <span>Revision {item.revision}</span>
+            <span>修订版本 {item.revision}</span>
           </p>
           <h2>{item.attentionTitle}</h2>
           <p className={styles.contextLine}>
@@ -403,15 +401,15 @@ function FocusItem({
 
       <dl className={styles.focusFacts}>
         <div>
-          <dt>Target outcome</dt>
+          <dt>目标结果</dt>
           <dd>{humanize(item.targetOutcome)}</dd>
         </div>
         <div>
-          <dt>Target date</dt>
+          <dt>目标日期</dt>
           <dd>{formatDate(item.targetDate)}</dd>
         </div>
         <div>
-          <dt>Current milestone</dt>
+          <dt>当前里程碑</dt>
           <dd>{humanize(item.milestone)}</dd>
         </div>
       </dl>
@@ -422,7 +420,7 @@ function FocusItem({
             <div>
               <Clock aria-hidden="true" size={18} />
               <p>
-                <span>Owned action</span>
+                <span>已分配行动</span>
                 <strong>{item.action.title}</strong>
                 <small>
                   {item.action.owner} · {formatDue(item.action.dueAt)}
@@ -434,7 +432,7 @@ function FocusItem({
             <div>
               <Path aria-hidden="true" size={18} />
               <p>
-                <span>Close condition</span>
+                <span>关闭条件</span>
                 <strong>{item.gap.closeCondition}</strong>
               </p>
             </div>
@@ -446,11 +444,11 @@ function FocusItem({
         <Link href={pursuitHref(item)}>
           {item.attentionKind === "review" &&
           item.proposalStatus === "needs_review"
-            ? "Review proposal"
-            : "Open Pursuit room"}
+            ? "审阅提案"
+            : "打开寻访房间"}
           <ArrowRight aria-hidden="true" size={17} />
         </Link>
-        <span>No state changes from opening this view.</span>
+        <span>打开此视图不会改变任何状态。</span>
       </div>
 
       {item.attentionKind !== "review" ? (
@@ -509,21 +507,20 @@ export function PursuitTodayPage({
       <main className={styles.main} id="main-content">
         <header className={styles.hero}>
           <div>
-            <p className={styles.eyebrow}>Governed attention</p>
-            <h1>Today</h1>
+            <p className={styles.eyebrow}>受治理的注意力</p>
+            <h1>今日</h1>
             <p>
-              One supported decision first. The rest stays quiet until it needs
-              your judgment.
+              先处理一项有依据的决定；其余内容保持安静，直到真正需要你的判断。
             </p>
           </div>
           <div className={styles.summary}>
             <span>
               {projection?.attentionCount ?? 0}
-              <small>to consider</small>
+              <small>待考虑</small>
             </span>
             <span>
               {projection?.noActionCount ?? 0}
-              <small>no action</small>
+              <small>无需行动</small>
             </span>
           </div>
         </header>
@@ -535,13 +532,11 @@ export function PursuitTodayPage({
           >
             <WarningCircle aria-hidden="true" size={23} />
             <div>
-              <h2>Sign in to continue this Pursuit.</h2>
+              <h2>登录后继续本次寻访。</h2>
               <p>
-                The last verified Today projection remains visible. New Agent
-                and review writes are paused until the account session is
-                restored.
+                上一次核验的今日视图仍保持可见。在账号会话恢复前，新的智能助理与审阅写入都会暂停。
               </p>
-              <Link href={activeSessionRecoveryHref}>Sign in again</Link>
+              <Link href={activeSessionRecoveryHref}>重新登录</Link>
             </div>
           </section>
         ) : null}
@@ -550,12 +545,12 @@ export function PursuitTodayPage({
           <section className={styles.pageError} role="alert">
             <WarningCircle aria-hidden="true" size={23} />
             <div>
-              <h2>Canonical readback is unavailable.</h2>
+              <h2>规范状态读取暂时不可用。</h2>
               <p>{error}</p>
               <Link href={activeSessionRecoveryHref ?? "/workspace/today"}>
                 {activeSessionRecoveryHref
-                  ? "Sign in again"
-                  : "Retry readback"}
+                  ? "重新登录"
+                  : "重试读取"}
               </Link>
             </div>
           </section>
@@ -563,7 +558,7 @@ export function PursuitTodayPage({
           <div className={styles.todayGrid}>
             <section aria-labelledby="focus-heading">
               <p className={styles.sectionLabel} id="focus-heading">
-                Focus
+                重点
               </p>
               <FocusItem
                 item={focus}
@@ -574,7 +569,7 @@ export function PursuitTodayPage({
             </section>
             <aside aria-labelledby="continue-heading">
               <p className={styles.sectionLabel} id="continue-heading">
-                Continue
+                继续
               </p>
               {continuations.length > 0 ? (
                 <div className={styles.continuations}>
@@ -586,8 +581,8 @@ export function PursuitTodayPage({
                 <div className={styles.quietState}>
                   <CheckCircle aria-hidden="true" size={22} />
                   <p>
-                    <strong>No other governed work is asking for attention.</strong>
-                    <span>Quiet is a valid state.</span>
+                    <strong>没有其他受治理的工作需要关注。</strong>
+                    <span>安静是一种有效状态。</span>
                   </p>
                 </div>
               )}
@@ -595,15 +590,14 @@ export function PursuitTodayPage({
                 <div className={styles.queueBoundary}>
                   <p>
                     <strong>
-                      {hiddenAttentionCount} lower-priority items stay quiet.
+                      {hiddenAttentionCount} 项较低优先级内容保持安静。
                     </strong>
                     <span>
-                      The full queue is available when you intentionally need
-                      it; it is not mounted into the focused view.
+                      当你明确需要时可以打开完整队列；它不会默认进入聚焦视图。
                     </span>
                   </p>
                   <Link href="/workspace/today?view=all">
-                    Open full queue
+                    打开完整队列
                     <ArrowRight aria-hidden="true" size={15} />
                   </Link>
                 </div>
@@ -612,10 +606,10 @@ export function PursuitTodayPage({
                   TODAY_FOCUSED_ITEM_LIMIT ? (
                 <div className={styles.queueBoundary}>
                   <p>
-                    <strong>Full attention queue is open.</strong>
-                    <span>Return to the bounded view for ordinary work.</span>
+                    <strong>完整注意事项队列已打开。</strong>
+                    <span>日常工作可返回有边界的聚焦视图。</span>
                   </p>
-                  <Link href="/workspace/today">Return to focus</Link>
+                  <Link href="/workspace/today">返回重点</Link>
                 </div>
               ) : null}
             </aside>
@@ -623,14 +617,14 @@ export function PursuitTodayPage({
         ) : (
           <section className={styles.empty}>
             <CheckCircle aria-hidden="true" size={30} weight="duotone" />
-            <p className={styles.eyebrow}>No supported attention</p>
-            <h2>Nothing needs to be invented today.</h2>
+            <p className={styles.eyebrow}>没有有依据的关注事项</p>
+            <h2>今天不需要凭空制造任务。</h2>
             <p>
               {projection?.totalPursuits
-                ? `${projection.noActionCount} active ${projection.noActionCount === 1 ? "Pursuit has" : "Pursuits have"} no pending review, owned action, or evidence-backed gap.`
-                : "No active Pursuit has reached this workspace yet."}
+                ? `${projection.noActionCount} 项活跃寻访没有待审阅内容、已分配行动或有证据支撑的缺口。`
+                : "还没有活跃寻访进入此工作台。"}
             </p>
-            <Link href="/workspace">Open the relationship desk</Link>
+            <Link href="/workspace">打开关系工作台</Link>
           </section>
         )}
       </main>

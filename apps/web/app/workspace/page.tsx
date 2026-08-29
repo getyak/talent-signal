@@ -18,9 +18,9 @@ import WorkspaceLoading from "./loading";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Candidate workspace",
+  title: "候选人工作台",
   description:
-    "A source-linked candidate knowledge workspace for relationship-led search.",
+    "面向关系驱动型寻访、始终关联来源的候选人知识工作台。",
   robots: {
     follow: false,
     index: false,
@@ -160,7 +160,7 @@ export default async function WorkspacePage({
             : null;
         if (status !== 404) {
           integrationError =
-            "The account-scoped localhost backend could not be reached. No verified state is claimed.";
+            "无法连接账号专属的本地后端，当前不声称任何状态已经核验。";
         }
       }
     }

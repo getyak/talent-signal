@@ -18,9 +18,9 @@ describe("persistent workspace shell", () => {
     expect(layout).toContain("<AccountControls");
     expect(layout).toContain("fixtureWorkspace");
     expect(layout).toContain(
-      "Synthetic fixture workspace — evaluation data, not live recruiter records",
+      "合成测试工作台——仅含评测数据，不是真实招聘记录",
     );
-    expect(navigation).toContain('aria-label="Workspace navigation"');
+    expect(navigation).toContain('aria-label="工作台导航"');
     expect(navigation).toContain('aria-current={current ? "page" : undefined}');
     expect(navigation).toContain('href: "/workspace/today"');
     expect(navigation).toContain('href: "/workspace?surface=desk"');
@@ -43,9 +43,9 @@ describe("persistent workspace shell", () => {
   it("uses a route-neutral local loading state inside the persistent shell", () => {
     const loading = read("app/workspace/loading.tsx");
 
-    expect(loading).toContain("Opening the current workspace");
-    expect(loading).toContain("Navigation and account controls remain available");
-    expect(loading).not.toContain("Opening evidence review");
+    expect(loading).toContain("正在打开当前工作台");
+    expect(loading).toContain("导航与账号控制仍可使用");
+    expect(loading).not.toContain("正在打开依据审阅");
     expect(loading).not.toContain("review-loading__rail");
   });
 
@@ -123,7 +123,7 @@ describe("relationship workspace initial read", () => {
     expect(login).toContain(
       'parameters.reason === "backend_session_expired"',
     );
-    expect(login).toContain("no cached relationship state was substituted");
+    expect(login).toContain("系统没有用缓存的关系状态替代当前内容");
   });
 
   it("funnels relationship feature requests through one expiry boundary", () => {
@@ -146,9 +146,9 @@ describe("relationship workspace initial read", () => {
     expect(request).toContain(
       'responseCode(payload) === "backend_session_expired"',
     );
-    expect(status).toContain("Sign in to continue this relationship");
-    expect(status).toContain("last verified relationship remains visible");
-    expect(status).toContain("No relationship state was substituted");
+    expect(status).toContain("登录后继续处理这段关系");
+    expect(status).toContain("上一次核验的关系仍保持可见");
+    expect(status).toContain("系统没有替换任何关系状态");
     expect(status).toContain("busy && !sessionRecoveryHref");
   });
 
@@ -164,7 +164,7 @@ describe("relationship workspace initial read", () => {
     expect(resources).toContain("onReviewCapture(");
     expect(resources).not.toContain("href={`/workspace?capture=");
     expect(root).toContain("openWorkspaceReview(captureId)");
-    expect(root).toContain("Selected capture review opened without reloading");
+    expect(root).toContain("所选采集内容审阅已打开，无需重新加载关系工作台");
     expect(readback).toContain("expectedCaptureId: captureId");
     expect(readback).toContain("payload.subject.id");
     expect(readback).toContain("activeScopeKeyRef.current");
@@ -181,10 +181,10 @@ describe("relationship workspace initial read", () => {
 
     expect(resources).toContain("await onIdentityCorrected({");
     expect(resources).not.toContain("router.push(");
-    expect(resources).toContain("identity correction was recorded");
+    expect(resources).toContain("身份更正已记录");
     expect(root).toContain("openWorkspaceReview(input.captureId");
     expect(root).toContain("setRelationshipScope(correctedScope)");
-    expect(root).toContain("now open without reloading");
+    expect(root).toContain("现在无需重新加载即可打开");
     expect(readback).toContain("expectedScope.relationshipContextId");
     expect(readback).toContain("targetScopeKey");
     expect(readback).toContain("originScopeKey");
@@ -199,12 +199,12 @@ describe("relationship workspace initial read", () => {
       expect(source).toContain("workspaceSessionExpired(");
       expect(source).toContain("useWorkspaceSessionRecovery(");
       expect(source).toContain("Boolean(sessionRecoveryHref)");
-      expect(source).toContain("Sign in again");
+      expect(source).toContain("重新登录");
     }
-    expect(today).toContain("last verified Today projection remains visible");
-    expect(today).toContain("New Agent");
-    expect(proposal).toContain("Your decisions remain visible on this page");
-    expect(proposal).toContain("no canonical");
+    expect(today).toContain("上一次核验的今日视图仍保持可见");
+    expect(today).toContain("新的智能助理");
+    expect(proposal).toContain("你的决定会继续显示在本页");
+    expect(proposal).toContain("不会尝试任何规范写入");
   });
 
   it("binds refreshed Pursuit state to its canonical object identity", () => {
@@ -216,6 +216,6 @@ describe("relationship workspace initial read", () => {
     expect(room).toContain("key={pursuit.id}");
     expect(reviewGate).toContain("reviewedProposalIds");
     expect(reviewGate).toContain("key={pending.id}");
-    expect(reviewGate).toContain("Review next Proposal");
+    expect(reviewGate).toContain("审阅下一项提案");
   });
 });

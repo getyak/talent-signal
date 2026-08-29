@@ -4,9 +4,9 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
-  title: "Privacy principles",
+  title: "隐私原则",
   description:
-    "How Talent Signal approaches intentional evidence import, user confirmation, source traceability, and deletion.",
+    "了解 Talent Signal 如何处理主动导入的证据、用户确认、来源追溯与删除。",
   alternates: {
     canonical: "/privacy",
   },
@@ -19,73 +19,55 @@ export default function PrivacyPage() {
       <main id="main-content" className="prose-page">
         <article className="shell prose-page__inner">
           <header>
-            <p className="eyebrow">Privacy principles</p>
-            <h1>Candidate context deserves deliberate handling.</h1>
+            <p className="eyebrow">隐私原则</p>
+            <h1>候选人背景值得被审慎处理。</h1>
             <p>
-              Talent Signal is designed around intentional import, explicit
-              confirmation, and evidence that remains inspectable.
+              Talent Signal 围绕主动导入、明确确认和始终可查验的证据而设计。
             </p>
           </header>
 
           <section>
-            <h2>Intentional input</h2>
+            <h2>主动输入</h2>
             <p>
-              The product starts with a recruiter choosing a conversation
-              screenshot or note. It is not designed as a silent monitoring
-              layer across private communication tools.
+              一切从招聘顾问主动选择一张对话截图或一条笔记开始。产品并不是横跨私密沟通工具的静默监控层。
             </p>
           </section>
 
           <section>
-            <h2>Source-linked facts</h2>
+            <h2>关联来源的事实</h2>
             <p>
-              Extracted facts and proposed actions keep a reference to their
-              source. Verified statements remain separate from inferences and
-              recommendations.
+              提取出的事实和拟议行动始终保留来源引用；已核验陈述与推断、建议保持分离。
             </p>
           </section>
 
           <section>
-            <h2>Workspace sign-in</h2>
+            <h2>工作台登录</h2>
             <p>
-              The initialized web workspace uses encrypted session cookies.
-              Google and Apple sign-in sends the authentication request to the
-              selected identity provider under that provider&apos;s privacy
-              terms. Configured email sign-in verifies a server-side password
-              hash and does not store the plaintext password in the
-              application.
+              网页工作台使用加密的会话 Cookie。通过 Google 或 Apple 登录时，认证请求会依据对应身份提供商的隐私条款发送给所选服务。邮箱登录会在服务端验证密码哈希，应用不会保存明文密码。
             </p>
           </section>
 
           <section>
-            <h2>Confirmation before change</h2>
+            <h2>变更前确认</h2>
             <p>
-              Contact and calendar mutations require a clear review step. A
-              recruiter can confirm, edit, or dismiss each proposal.
+              联系人或日历变更必须经过清晰的审阅步骤；招聘顾问可以确认、编辑或驳回每项提案。
             </p>
           </section>
 
           <section>
-            <h2>Deletion across derivatives</h2>
+            <h2>连同衍生数据一起删除</h2>
             <p>
-              The product architecture treats source evidence and derived data
-              as one deletion scope. The goal is to avoid leaving detached
-              summaries after the original evidence is removed.
+              产品架构把来源证据与衍生数据视为同一删除范围，避免原始证据移除后仍遗留失去关联的摘要。
             </p>
           </section>
 
           <aside>
-            <h2>About the live demo</h2>
+            <h2>关于在线演示</h2>
             <p>
-              Local mode uses deterministic browser-side rules and does not
-              transmit the conversation text. When the optional private AI
-              route is configured, it runs only after the user selects it. The
-              note is sent to the configured model provider with zero-retention
-              and no-data-collection routing requested; Talent Signal does not
-              persist the note or include it in application logs.
+              本地模式使用浏览器端的确定性规则，不会传输对话文本。可选的私密 AI 路径只有在用户主动选择后才会运行；笔记会在请求零留存与不收集数据的前提下发送给已配置的模型服务商。Talent Signal 不会持久化该笔记，也不会把它写入应用日志。
             </p>
             <Link className="text-link" href="/demo">
-              Open live demo
+              打开在线演示
             </Link>
           </aside>
         </article>

@@ -9,17 +9,17 @@ import { blogPosts, editorialAuthor } from "@/lib/blog";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Recruiting research and practical methods",
+  title: "招聘研究与实践方法",
   description:
-    "Evidence-first recruiting research on candidate momentum, human oversight, living candidate briefs, and relationship-led search workflows.",
+    "围绕候选人进展、人工监督、持续更新的候选人简报与关系驱动型寻访工作流展开的证据优先研究。",
   alternates: {
     canonical: "/blog",
   },
   openGraph: {
     type: "website",
-    title: "Talent Signal research and practical methods",
+    title: "Talent Signal 研究与实践方法",
     description:
-      "Evidence-first methods for candidate momentum and relationship-led search.",
+      "面向候选人进展与关系驱动型寻访的证据优先方法。",
     url: "/blog",
     images: [
       {
@@ -32,9 +32,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Talent Signal research and practical methods",
+    title: "Talent Signal 研究与实践方法",
     description:
-      "Evidence-first methods for candidate momentum and relationship-led search.",
+      "面向候选人进展与关系驱动型寻访的证据优先方法。",
     images: [blogPosts[0].heroImage],
   },
 };
@@ -43,10 +43,10 @@ const blogSchema = {
   "@context": "https://schema.org",
   "@type": "Blog",
   "@id": `${siteConfig.url}/blog#blog`,
-  name: "Talent Signal research and practical methods",
+  name: "Talent Signal 研究与实践方法",
   description: metadata.description,
   url: `${siteConfig.url}/blog`,
-  inLanguage: "en",
+  inLanguage: "zh-CN",
   author: {
     "@type": "Organization",
     name: editorialAuthor.name,
@@ -77,12 +77,11 @@ export default function BlogPage() {
       <main id="main-content" className="blog-index">
         <header className="blog-index__hero shell">
           <div>
-            <p className="eyebrow">Research and practical methods</p>
-            <h1>Better context for relationship-led search.</h1>
+            <p className="eyebrow">研究与实践方法</p>
+            <h1>为关系驱动型寻访保留更好的背景。</h1>
           </div>
           <p>
-            Methods for preserving evidence, recruiter judgment, and the next
-            useful move across candidate conversations.
+            在候选人对话之间，保留证据、招聘顾问判断与下一个有用行动的方法。
           </p>
         </header>
 
@@ -91,7 +90,7 @@ export default function BlogPage() {
           aria-labelledby="featured-article-title"
         >
           <h2 id="featured-article-title" className="sr-only">
-            Featured article
+            精选文章
           </h2>
           <BlogPostPreview post={featuredPost} priority variant="featured" />
         </section>
@@ -101,10 +100,9 @@ export default function BlogPage() {
           aria-labelledby="latest-articles-title"
         >
           <header>
-            <h2 id="latest-articles-title">Latest articles</h2>
+            <h2 id="latest-articles-title">最新文章</h2>
             <p>
-              One connected body of work, built around evidence, time, and
-              recruiter-owned decisions.
+              一组围绕证据、时间与招聘顾问自主决定展开的连贯研究。
             </p>
           </header>
           <div className="blog-index__grid">
@@ -116,15 +114,13 @@ export default function BlogPage() {
 
         <aside className="blog-index__method shell">
           <div>
-            <h2>How this work is made</h2>
+            <h2>这些内容如何产生</h2>
             <p>
-              We separate product judgment from external fact, cite original
-              sources, show substantive updates, and do not publish private
-              candidate evidence.
+              我们把产品判断与外部事实分开，引用原始来源，明确展示实质性更新，并且不发布私密候选人证据。
             </p>
           </div>
           <Link className="text-link" href="/blog/about">
-            Read the editorial method
+            阅读编辑方法
             <ArrowRight aria-hidden="true" size={15} />
           </Link>
         </aside>

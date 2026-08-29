@@ -77,14 +77,14 @@ function parseRequestBody(value: unknown) {
 export async function POST(request: NextRequest) {
   if (!getAiAvailability().enabled) {
     return NextResponse.json(
-      { error: "AI analysis is unavailable." },
+      { error: "AI 分析当前不可用。" },
       { status: 503, headers: noStoreHeaders() },
     );
   }
 
   if (!sameOrigin(request)) {
     return NextResponse.json(
-      { error: "Cross-origin requests are not allowed." },
+      { error: "不允许跨源请求。" },
       { status: 403, headers: noStoreHeaders() },
     );
   }
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     "local";
   if (!consumeRateLimit(identifier)) {
     return NextResponse.json(
-      { error: "Too many analysis requests. Try again shortly." },
+      { error: "分析请求过多，请稍后重试。" },
       { status: 429, headers: noStoreHeaders() },
     );
   }
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     body = await request.json();
   } catch {
     return NextResponse.json(
-      { error: "Invalid JSON request." },
+      { error: "JSON 请求无效。" },
       { status: 400, headers: noStoreHeaders() },
     );
   }
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
   const input = parseRequestBody(body);
   if (!input) {
     return NextResponse.json(
-      { error: "Add a shorter conversation and valid candidate context." },
+      { error: "请添加更短的对话与有效的候选人背景。" },
       { status: 400, headers: noStoreHeaders() },
     );
   }

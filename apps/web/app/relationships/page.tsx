@@ -9,24 +9,24 @@ import { accessRequestHref } from "@/lib/site";
 import styles from "./relationships-page.module.css";
 
 export const metadata: Metadata = {
-  title: "Relationship intelligence",
+  title: "关系智能",
   description:
-    "Explore an evidence-first relationship workspace that returns recruiters to the exact change, uncertainty, or quiet state that deserves judgment.",
+    "探索证据优先的关系工作台，让招聘顾问回到真正需要判断的变化、不确定性或安静状态。",
   alternates: { canonical: "/relationships" },
 };
 
 const principles = [
   {
-    label: "Return, not dashboard",
-    detail: "Resume one unfinished relationship decision with its context intact.",
+    label: "回到关系，而非仪表盘",
+    detail: "带着完整背景，继续一项尚未完成的关系决定。",
   },
   {
-    label: "Evidence, not profile",
-    detail: "Every proposed change keeps the exact source and uncertainty attached.",
+    label: "证据，而非画像",
+    detail: "每项拟议变化都始终关联准确来源与不确定性。",
   },
   {
-    label: "Agent, not authority",
-    detail: "Find, explain, and stage. A human still confirms every consequential change.",
+    label: "智能助理，而非权威",
+    detail: "它可以查找、解释和暂存；每项重要变化仍由人确认。",
   },
 ] as const;
 
@@ -37,23 +37,21 @@ export default function RelationshipsPage() {
       <main className={styles.page} id="main-content">
         <section className={styles.hero} aria-labelledby="relationships-title">
           <div className="shell">
-            <p className={styles.eyebrow}>The relationship product</p>
+            <p className={styles.eyebrow}>关系产品</p>
             <div className={styles.heroGrid}>
               <h1 id="relationships-title">
-                Contacts are not inventory. They are decisions in motion.
+                联系人不是库存，而是持续变化中的决定。
               </h1>
               <div className={styles.heroAside}>
                 <p>
-                  Talent Signal helps an independent recruiter remember what
-                  changed, understand why it matters now, and choose the
-                  smallest safe next move.
+                  Talent Signal 帮助独立招聘顾问记住发生了什么变化、理解它为何此刻重要，并选择最小且稳妥的下一步。
                 </p>
                 <div className={styles.heroActions}>
                   <a href="#relationship-experience">
-                    Explore the product
+                    探索产品
                     <ArrowRight aria-hidden="true" size={17} />
                   </a>
-                  <Link href="/demo">Review one conversation</Link>
+                  <Link href="/demo">审阅一段对话</Link>
                 </div>
               </div>
             </div>
@@ -79,12 +77,11 @@ export default function RelationshipsPage() {
         >
           <div className={`shell ${styles.experienceHeading}`}>
             <div>
-              <p className={styles.eyebrow}>Interactive product view</p>
-              <h2 id="experience-title">Return to what deserves judgment.</h2>
+              <p className={styles.eyebrow}>交互式产品视图</p>
+              <h2 id="experience-title">回到真正需要判断的地方。</h2>
             </div>
             <p>
-              This walkthrough uses synthetic people and evidence. It sends no
-              message, changes no calendar, and assigns no score to a person.
+              本演示仅使用合成人物与证据；不会发送消息、修改日历，也不会给任何人评分。
             </p>
           </div>
           <RelationshipExperienceSwitcher />
@@ -93,41 +90,38 @@ export default function RelationshipsPage() {
         <section className={styles.agentBoundary} aria-labelledby="agent-title">
           <div className={`shell ${styles.agentGrid}`}>
             <div>
-              <p className={styles.eyebrow}>A quieter Agent</p>
-              <h2 id="agent-title">Present when useful. Absent when not.</h2>
+              <p className={styles.eyebrow}>更安静的智能助理</p>
+              <h2 id="agent-title">有用时出现，无需时退场。</h2>
               <p>
-                The Agent sits at the threshold of the archive. It can locate a
-                relationship, explain a change from source evidence, or stage a
-                memory. It cannot turn a suggestion into action on its own.
+                智能助理守在关系档案的入口。它可以定位一段关系、依据来源解释变化，或暂存一条记忆；但不能自行把建议变成行动。
               </p>
             </div>
 
             <div className={styles.agentJobs}>
               <div>
-                <span>Find</span>
-                <p>Retrieve relationships from supported evidence, never a person score.</p>
+                <span>查找</span>
+                <p>从有依据的证据中找回关系，绝不依赖人物评分。</p>
               </div>
               <div>
-                <span>Explain</span>
-                <p>Show what changed and why it returned to attention.</p>
+                <span>解释</span>
+                <p>说明发生了什么变化，以及它为何重新值得关注。</p>
               </div>
               <div>
-                <span>Remember</span>
-                <p>Preserve the recruiter&apos;s words before proposing structure.</p>
+                <span>记住</span>
+                <p>先保留招聘顾问的原话，再提出结构化建议。</p>
               </div>
               <p className={styles.boundaryNote}>
                 <ShieldCheck aria-hidden="true" size={18} weight="fill" />
-                Draft authority only. External effects require a separate human
-                decision.
+                仅有草稿权限。任何外部效果都需要一次独立的人工决定。
               </p>
             </div>
           </div>
           <div className={`shell ${styles.closingActions}`}>
             <a href={accessRequestHref}>
-              Request access
+              申请使用
               <ArrowRight aria-hidden="true" size={17} />
             </a>
-            <Link href="/blog/about">Read the evidence method</Link>
+            <Link href="/blog/about">阅读证据方法</Link>
           </div>
         </section>
       </main>

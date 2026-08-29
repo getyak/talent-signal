@@ -24,7 +24,7 @@ describe("agent voice WAV", () => {
 
   it("rejects an invalid upsample request", () => {
     expect(() => downsampleVoice([new Float32Array([1])], 8_000)).toThrow(
-      "Voice sample rates are invalid.",
+      "语音采样率无效。",
     );
   });
 });

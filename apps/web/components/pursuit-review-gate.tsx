@@ -40,10 +40,10 @@ export function PursuitReviewGate({
       <aside className={styles.section}>
         <header>
           <div>
-            <p>Human decision gate</p>
-            <h2>Review queue</h2>
+            <p>人工决策门</p>
+            <h2>审阅队列</h2>
           </div>
-          <span>{visible.length} awaiting attention</span>
+          <span>{visible.length} 项等待处理</span>
         </header>
         {visible.length ? (
           <div className={styles.history}>
@@ -55,7 +55,7 @@ export function PursuitReviewGate({
             ))}
           </div>
         ) : (
-          <p className={styles.quiet}>No Proposal currently needs attention.</p>
+          <p className={styles.quiet}>当前没有提案需要处理。</p>
         )}
       </aside>
 
@@ -63,15 +63,15 @@ export function PursuitReviewGate({
         <div className={styles.receipt} role="status" aria-live="polite">
           <CheckCircle aria-hidden="true" size={24} weight="fill" />
           <div>
-            <p>Canonical receipt</p>
+            <p>规范回执</p>
             <h3>{receipt.summary}</h3>
             <span>
-              {receipt.changedFields.length} changed fields · {receipt.externalEffects} external effects
+              {receipt.changedFields.length} 个字段已改变 · {receipt.externalEffects} 项外部效果
             </span>
           </div>
           {pending ? (
             <button onClick={() => setReceipt(null)} type="button">
-              Review next Proposal
+              审阅下一项提案
             </button>
           ) : null}
         </div>
@@ -85,9 +85,9 @@ export function PursuitReviewGate({
         <div className={styles.receipt}>
           <ShieldCheck aria-hidden="true" size={24} weight="fill" />
           <div>
-            <p>Review state</p>
-            <h3>No Proposal currently needs a decision.</h3>
-            <span>Conflict or failure recovery remains visible above.</span>
+            <p>审阅状态</p>
+            <h3>当前没有提案需要决定。</h3>
+            <span>冲突或失败恢复仍在上方保持可见。</span>
           </div>
         </div>
       ) : null}

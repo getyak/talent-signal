@@ -23,12 +23,12 @@ describe("analyzeConversation", () => {
     expect(
       result.evidence.find((item) => item.id === "deadline")?.ambiguities,
     ).toEqual([
-      "Resolve the source date and timezone before confirming this deadline.",
+      "确认期限前，请先明确来源日期与时区。",
     ]);
     expect(
       result.evidence.find((item) => item.id === "availability")?.ambiguities,
     ).toEqual([
-      "Resolve the exact date, local time, and timezone before scheduling.",
+      "安排日程前，请先明确准确日期、当地时间与时区。",
     ]);
   });
 
@@ -42,7 +42,7 @@ describe("analyzeConversation", () => {
       true,
     );
     expect(result.actions).toEqual([]);
-    expect(result.insight.nextAction).toContain("exact date and timezone");
+    expect(result.insight.nextAction).toContain("准确日期与时区");
   });
 
   it("acknowledges an explicit timezone without treating it as a source date", () => {
@@ -53,16 +53,16 @@ describe("analyzeConversation", () => {
     expect(result.evidence).toHaveLength(2);
     expect(result.actions).toEqual([]);
     expect(result.insight.rationale).toBe(
-      "The note states a timezone, but the source date is missing, so the relative time window is unresolved.",
+      "笔记写明了时区，但缺少来源日期，因此相对时间窗口仍未解决。",
     );
     expect(result.insight.nextAction).toBe(
-      "Clarify the exact calendar date before confirming a deadline or preparing a meeting.",
+      "确认期限或准备会议前，请先澄清准确的日历日期。",
     );
     expect(result.evidence[0]?.ambiguities[0]).toContain(
-      "Keep the stated timezone attached.",
+      "保留已声明的时区",
     );
     expect(result.evidence[1]?.ambiguities[0]).toContain(
-      "Keep the stated timezone attached.",
+      "保留已声明的时区",
     );
   });
 

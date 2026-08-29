@@ -44,7 +44,7 @@ export function GovernedCaptureDeletion({
   const [confirming, setConfirming] = useState(false);
 
   async function deleteCapture() {
-    onBusyChange("Deleting governed source");
+    onBusyChange("正在删除受治理来源");
     onError("");
     try {
       const response = await relationshipIntegrationFetch(
@@ -55,7 +55,7 @@ export function GovernedCaptureDeletion({
       const receipt = governedCaptureDeletionReceipt(payload);
       if (!response.ok || !receipt) {
         throw new Error(
-          payload.message ?? "The governed source could not be deleted.",
+          payload.message ?? "无法删除受治理来源。",
         );
       }
       setConfirming(false);
@@ -64,7 +64,7 @@ export function GovernedCaptureDeletion({
       onError(
         caught instanceof Error
           ? caught.message
-          : "The governed source could not be deleted.",
+          : "无法删除受治理来源。",
       );
     } finally {
       onBusyChange("");
@@ -79,20 +79,19 @@ export function GovernedCaptureDeletion({
         type="button"
       >
         <Trash aria-hidden="true" size={16} />
-        Delete governed source
+        删除受治理来源
       </button>
       {confirming ? (
         <div>
           <p>
-            This removes source text and registered derivatives. Audit-safe
-            identifiers remain without conversation content.
+            这会移除来源文本与已登记的衍生数据。审计安全标识符会保留，但不包含对话内容。
           </p>
           <button
             className="context-secondary-button"
             onClick={() => setConfirming(false)}
             type="button"
           >
-            Keep source
+            保留来源
           </button>
           <button
             className="context-danger-button"
@@ -101,7 +100,7 @@ export function GovernedCaptureDeletion({
             type="button"
           >
             <Trash aria-hidden="true" size={16} />
-            Delete now
+            立即删除
           </button>
         </div>
       ) : null}

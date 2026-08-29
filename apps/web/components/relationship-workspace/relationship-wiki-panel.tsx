@@ -75,7 +75,7 @@ export function knowledgeSnapshotWikiView(
         currentFactBlocks
           .map((block) => block.content.headline)
           .join("\n") ||
-        "No additional reviewed relationship state is ready yet.",
+        "尚无其他已审阅的关系状态可用。",
       citationDependencyIds: uniqueDependencies([
         identity,
         ...currentFactBlocks,
@@ -101,8 +101,8 @@ export function knowledgeSnapshotWikiView(
       kind: "fact_review",
       status: "needs_review",
       title: hasConflict
-        ? "Resolve conflicting evidence before relying on it"
-        : "Review proposed facts before relying on them",
+        ? "依赖这些内容前，请先解决冲突证据"
+        : "依赖这些内容前，请先审阅拟议事实",
     });
   }
   if (nextMove) {
@@ -122,7 +122,7 @@ export function knowledgeSnapshotWikiView(
       kind:
         nextMove.type === "next_action" ? "action_proposal" : "no_action",
       status: nextMove.type === "next_action" ? "proposed" : "confirmed",
-      title: nextMove.type === "next_action" ? "Proposed next move" : "No action",
+      title: nextMove.type === "next_action" ? "拟议下一步" : "无需行动",
     });
   }
   return { blocks, snapshotId: snapshot.id };
@@ -194,15 +194,15 @@ export function RelationshipWikiPanel({
     >
       <header>
         <div>
-          <p className="eyebrow">RELATIONSHIP WIKI</p>
+          <p className="eyebrow">关系 WIKI</p>
           <h2 id="relationship-wiki-title">
-            What this relationship currently supports.
+            当前证据支持对这段关系作出哪些理解。
           </h2>
         </div>
         {view ? (
           <span>
             <ShieldCheck aria-hidden="true" size={15} weight="duotone" />
-            {citationCount} governed references
+            {citationCount} 条受治理引用
           </span>
         ) : null}
       </header>
@@ -230,25 +230,24 @@ export function RelationshipWikiPanel({
               })}
             </ul>
             <footer>
-              Snapshot {view.snapshotId.slice(0, 8)} · compiled from the current
-              authorized source set
+              快照 {view.snapshotId.slice(0, 8)} · 根据当前已授权来源集合编译
             </footer>
           </article>
           <aside>
             {review ? (
               <article data-state="review">
-                <span>Needs judgment</span>
+                <span>需要判断</span>
                 <h3>{review.title}</h3>
                 <p>{review.body}</p>
                 <button onClick={onReviewSources} type="button">
-                  Review source
+                  审阅来源
                   <ArrowRight aria-hidden="true" size={14} />
                 </button>
               </article>
             ) : null}
             {nextMove ? (
               <article data-state="quiet">
-                <span>Next move</span>
+                <span>下一步</span>
                 <h3>{nextMove.title}</h3>
                 <p>{nextMove.body}</p>
               </article>
@@ -259,10 +258,9 @@ export function RelationshipWikiPanel({
         <div className="context-relationship-wiki__empty">
           <Quotes aria-hidden="true" size={26} weight="duotone" />
           <div>
-            <strong>Compile a source-linked view when you need it.</strong>
+            <strong>需要时再编译一份关联来源的视图。</strong>
             <p>
-              Confirmed facts, unresolved evidence, sources, and the smallest
-              supported next move will stay visibly separate.
+              已确认事实、未解决证据、来源与有依据的最小下一步会清晰分离。
             </p>
           </div>
           <button
@@ -276,7 +274,7 @@ export function RelationshipWikiPanel({
             ) : (
               <Sparkle aria-hidden="true" size={17} weight="fill" />
             )}
-            Compile Wiki
+            编译 Wiki
           </button>
         </div>
       )}

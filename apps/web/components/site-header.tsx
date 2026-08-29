@@ -110,7 +110,7 @@ export function SiteHeader() {
       <div className="site-header__inner">
         <BrandMark />
 
-        <nav className="desktop-nav" aria-label="Primary navigation">
+        <nav className="desktop-nav" aria-label="主导航">
           {navigation.map((item) => {
             const isCurrent = item.href === currentHref;
 
@@ -133,13 +133,13 @@ export function SiteHeader() {
             className="desktop-account-link desktop-header-action"
             href="/login?callbackUrl=/workspace"
           >
-            Sign in
+            登录
           </Link>
           <a
             className="button button--compact desktop-header-action"
             href={accessRequestHref}
           >
-            Request access
+            申请使用
           </a>
           <button
             ref={menuButtonRef}
@@ -147,7 +147,7 @@ export function SiteHeader() {
             type="button"
             aria-expanded={menuOpen}
             aria-controls="mobile-navigation"
-            aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+            aria-label={menuOpen ? "关闭导航" : "打开导航"}
             onClick={() => setMenuOpen((current) => !current)}
           >
             {menuOpen ? (
@@ -163,11 +163,11 @@ export function SiteHeader() {
         <nav
           id="mobile-navigation"
           className="mobile-nav"
-          aria-label="Mobile navigation"
+          aria-label="移动端导航"
         >
           <div className="mobile-nav__context">
-            <span>Follow the signal</span>
-            <strong>From evidence to one safe next move.</strong>
+            <span>沿着信号继续</span>
+            <strong>从证据走向一个稳妥的下一步。</strong>
           </div>
           {navigation.map((item) => {
             const isCurrent = item.href === currentHref;
@@ -191,14 +191,14 @@ export function SiteHeader() {
             href="/login?callbackUrl=/workspace"
             onClick={closeMenu}
           >
-            Sign in
+            登录
           </Link>
           <a
             className="button mobile-nav__access"
             href={accessRequestHref}
             onClick={closeMenu}
           >
-            Request access
+            申请使用
           </a>
         </nav>
       )}

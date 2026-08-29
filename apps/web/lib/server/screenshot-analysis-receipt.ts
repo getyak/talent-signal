@@ -23,7 +23,7 @@ function secret() {
       ? "talent-signal-local-analysis-receipt-secret"
       : "");
   if (!value) {
-    throw new Error("Screenshot analysis receipts are not configured.");
+    throw new Error("尚未配置截图分析回执。");
   }
   return value;
 }

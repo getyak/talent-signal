@@ -17,9 +17,9 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   description:
-    "An account-scoped directory of people, relationship contexts, and governed sources.",
+    "账号专属的联系人、关系情境与受治理来源目录。",
   robots: { follow: false, index: false },
-  title: "People",
+  title: "联系人",
 };
 
 export default async function PeoplePage({
@@ -57,7 +57,7 @@ export default async function PeoplePage({
       );
     } else {
       error =
-        "The account-scoped backend could not be reached. No relationship state is inferred from stale data.";
+        "无法连接账号专属后端；系统不会从陈旧数据推断关系状态。";
     }
   }
 

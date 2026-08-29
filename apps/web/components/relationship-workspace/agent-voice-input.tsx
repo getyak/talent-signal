@@ -32,14 +32,14 @@ const MAX_RECORDING_SECONDS = 60;
 
 function voiceErrorMessage(error: unknown) {
   if (error instanceof DOMException && error.name === "NotAllowedError") {
-    return "Microphone access is off. Allow it in browser settings, then try again.";
+    return "麦克风访问已关闭。请在浏览器设置中允许后重试。";
   }
   if (error instanceof DOMException && error.name === "NotFoundError") {
-    return "No microphone is available on this device.";
+    return "此设备没有可用麦克风。";
   }
   return error instanceof Error
     ? error.message
-    : "Voice input could not create an editable draft.";
+    : "语音输入未能创建可编辑草稿。";
 }
 
 export function AgentVoiceInput({
@@ -95,7 +95,7 @@ export function AgentVoiceInput({
     const sampleRate = sampleRateRef.current;
     releaseAudio();
     if (chunks.reduce((total, chunk) => total + chunk.length, 0) < sampleRate / 4) {
-      setError("No voice was recorded. Try one short phrase.");
+      setError("没有录到语音，请尝试说一句简短的话。");
       setPhase("failed");
       return;
     }
@@ -133,7 +133,7 @@ export function AgentVoiceInput({
         !payload.transcript?.trim()
       ) {
         throw new Error(
-          payload.message ?? "Voice transcription did not return an editable draft.",
+          payload.message ?? "语音转写没有返回可编辑草稿。",
         );
       }
       onTranscript(payload.transcript.trim());
@@ -156,7 +156,7 @@ export function AgentVoiceInput({
     setPhase("requesting");
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Voice input is not supported in this browser.");
+        throw new Error("此浏览器不支持语音输入。");
       }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -168,7 +168,7 @@ export function AgentVoiceInput({
       });
       if (document.visibilityState !== "visible") {
         for (const track of stream.getTracks()) track.stop();
-        throw new Error("Keep this tab visible while recording voice input.");
+        throw new Error("录制语音时，请让此标签页保持可见。");
       }
       const context = new AudioContext();
       const source = context.createMediaStreamSource(stream);
@@ -237,7 +237,7 @@ export function AgentVoiceInput({
       if (document.visibilityState === "visible" || !resourcesRef.current) return;
       releaseAudio();
       chunksRef.current = [];
-      setError("Voice stopped when this tab left the foreground. Nothing was sent.");
+      setError("标签页离开前台时，语音录制已停止，没有发送任何内容。");
       setPhase("failed");
     };
     document.addEventListener("visibilitychange", handleVisibility);
@@ -252,10 +252,10 @@ export function AgentVoiceInput({
   const busy = phase === "requesting" || phase === "transcribing";
   const buttonLabel =
     phase === "recording"
-      ? "Stop and transcribe"
+      ? "停止并转写"
       : busy
-        ? "Preparing voice input"
-        : "Start voice input";
+        ? "正在准备语音输入"
+        : "开始语音输入";
 
   return (
     <div className="context-chat__voice" data-phase={phase}>
@@ -285,43 +285,41 @@ export function AgentVoiceInput({
           {phase === "disclosure" ? (
             <>
               <div>
-                <strong>Turn voice into an editable draft?</strong>
+                <strong>把语音转换为可编辑草稿？</strong>
                 <p>
-                  Your temporary audio is sent to Doubao for transcription and
-                  is not stored by Talent Signal. Nothing reaches the Agent until
-                  you press Send.
+                  临时音频会发送给豆包进行转写，Talent Signal 不会保存。按下发送前，任何内容都不会进入智能助理。
                 </p>
               </div>
               <div className="context-chat__voice-actions">
-                <button onClick={reset} type="button">Not now</button>
+                <button onClick={reset} type="button">暂时不要</button>
                 <button onClick={() => void startRecording()} type="button">
-                  Start recording
+                  开始录音
                 </button>
               </div>
             </>
           ) : phase === "recording" ? (
             <>
               <div>
-                <strong>Listening · {elapsedSeconds}s</strong>
-                <p>Foreground only · {MAX_RECORDING_SECONDS} seconds max</p>
+                <strong>正在聆听 · {elapsedSeconds} 秒</strong>
+                <p>仅前台录制 · 最长 {MAX_RECORDING_SECONDS} 秒</p>
               </div>
-              <button aria-label="Cancel voice input" onClick={reset} type="button">
+              <button aria-label="取消语音输入" onClick={reset} type="button">
                 <X aria-hidden="true" size={16} />
               </button>
             </>
           ) : phase === "requesting" ? (
             <div>
-              <strong>Waiting for microphone permission…</strong>
-              <p>No audio is sent before recording stops.</p>
+              <strong>正在等待麦克风权限…</strong>
+              <p>录制停止前不会发送音频。</p>
             </div>
           ) : phase === "transcribing" ? (
             <>
               <div>
-                <strong>Creating an editable transcript…</strong>
-                <p>The current message draft stays unchanged until this finishes.</p>
+                <strong>正在创建可编辑对话稿…</strong>
+                <p>完成前，当前消息草稿保持不变。</p>
               </div>
               <button
-                aria-label="Cancel voice transcription"
+                aria-label="取消语音转写"
                 onClick={reset}
                 type="button"
               >
@@ -331,10 +329,10 @@ export function AgentVoiceInput({
           ) : (
             <>
               <div>
-                <strong>Voice draft not created</strong>
+                <strong>未创建语音草稿</strong>
                 <p>{error}</p>
               </div>
-              <button aria-label="Dismiss voice error" onClick={reset} type="button">
+              <button aria-label="关闭语音错误" onClick={reset} type="button">
                 <X aria-hidden="true" size={16} />
               </button>
             </>

@@ -18,9 +18,9 @@ describe("demo workbench accessibility contract", () => {
     expect(component).toContain('aria-live="polite"');
     expect(component).toContain('aria-atomic="true"');
     expect(component).toContain(
-      'setAnnouncement("Analyzing conversation evidence.")',
+      'setAnnouncement("正在分析对话证据。")',
     );
-    expect(component).toContain("Analysis complete.");
+    expect(component).toContain("分析完成。");
     expect(output).not.toContain("aria-live");
   });
 
@@ -32,8 +32,8 @@ describe("demo workbench accessibility contract", () => {
       "editingInputRef.current?.select();",
     );
     expect(component).toContain("ref={editingInputRef}");
-    expect(component).toContain("edit field ready.");
-    expect(component).toContain("returned to review");
-    expect(component).toContain("supported ${");
+    expect(component).toContain("编辑字段已就绪。");
+    expect(component).toContain("已返回审阅");
+    expect(component).toContain("项有依据的变更");
   });
 });

@@ -77,7 +77,7 @@ describe("screenshot capture proposal", () => {
           ],
         }),
       ),
-    ).toThrow(/exact source quote/i);
+    ).toThrow(/准确的来源引文/);
   });
 
   it("turns visible ambiguity into clarification and removes action authority", () => {

@@ -31,13 +31,13 @@ export function relationshipWorkspaceReadbackBoundaryError(
     boundary.expectedAccountId &&
     workspace.account_id !== boundary.expectedAccountId
   ) {
-    return "The update returned a workspace from a different account. Prior verified state remains visible.";
+    return "更新返回了其他账号的工作台。先前已核验状态保持可见。";
   }
   if (
     boundary.expectedCaptureId &&
     workspace.capture.id !== boundary.expectedCaptureId
   ) {
-    return "The update returned a different capture than the active review. Prior verified state remains visible.";
+    return "更新返回的采集内容与当前审阅不同。先前已核验状态保持可见。";
   }
   return null;
 }
@@ -68,7 +68,7 @@ export async function requestRelationshipWorkspaceMutation(
         message:
           "message" in payload && payload.message
             ? payload.message
-            : "Canonical state could not be updated.",
+            : "无法更新规范状态。",
         ok: false,
       };
     }
@@ -80,7 +80,7 @@ export async function requestRelationshipWorkspaceMutation(
           : null;
     if (!workspace || !isWorkspaceReviewResponse(workspace)) {
       return {
-        message: "The update returned no verified workspace readback.",
+        message: "更新没有返回已核验的工作台读取结果。",
         ok: false,
       };
     }
@@ -97,7 +97,7 @@ export async function requestRelationshipWorkspaceMutation(
       message:
         caught instanceof Error
           ? caught.message
-          : "Canonical state could not be updated.",
+          : "无法更新规范状态。",
       ok: false,
     };
   }

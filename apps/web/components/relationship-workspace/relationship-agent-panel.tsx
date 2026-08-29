@@ -108,60 +108,60 @@ export function RelationshipAgentPanel({
         </p>
         <i>
           <ShieldCheck aria-hidden="true" size={15} weight="duotone" />
-          Scoped
+          已限定范围
         </i>
       </div>
       <div className="context-chat__intro">
-        <p className="eyebrow">RELATIONSHIP AGENT</p>
-        <h1 id="relationship-chat-title">Ask, navigate, or change this page.</h1>
+        <p className="eyebrow">关系智能助理</p>
+        <h1 id="relationship-chat-title">询问、导航或修改此页面。</h1>
         <p>
           {reviewMode
-            ? "I am scoped to this person and relationship. Every answer and proposed change keeps its source boundary."
-            : "I am scoped to this person and relationship. Page changes remain staged until you review them."}
+            ? "我的范围仅限此人与此段关系。每个回答和拟议变化都会保留其来源边界。"
+            : "我的范围仅限此人与此段关系。页面变化会保持暂存，直到你完成审阅。"}
         </p>
       </div>
       <div className="context-agent-actions">
         {reviewMode ? (
           <button
             disabled={pendingCount === 0}
-            onClick={() => onRunCommand("Review pending changes")}
+            onClick={() => onRunCommand("审阅待确认的变化")}
             type="button"
           >
             <CheckCircle aria-hidden="true" size={15} />
             {pendingCount > 0
               ? `Review ${pendingCount} ${
-                  pendingCount === 1 ? "change" : "changes"
+                  pendingCount === 1 ? "项变化" : "项变化"
                 }`
-              : "No changes waiting"}
+              : "没有待审阅变化"}
           </button>
         ) : null}
-        <button onClick={() => onRunCommand("Add a source")} type="button">
+        <button onClick={() => onRunCommand("添加来源")} type="button">
           <Plus aria-hidden="true" size={15} />
-          Add source
+          添加来源
         </button>
         {reviewMode ? (
           <button
-            onClick={() => onRunCommand("Show the next move")}
+            onClick={() => onRunCommand("查看下一步")}
             type="button"
           >
             <ArrowRight aria-hidden="true" size={15} />
-            Next move
+            下一步
           </button>
         ) : null}
         <button
           data-active={createOpen}
-          onClick={() => onRunCommand("Create a contact")}
+          onClick={() => onRunCommand("创建联系人")}
           type="button"
         >
           <UserPlus aria-hidden="true" size={15} />
-          Create contact
+          创建联系人
         </button>
         <button
-          onClick={() => onRunCommand("Review a possible duplicate")}
+          onClick={() => onRunCommand("审阅可能的重复联系人")}
           type="button"
         >
           <AddressBook aria-hidden="true" size={15} />
-          Review duplicate
+          审阅重复联系人
         </button>
       </div>
 
@@ -187,12 +187,12 @@ export function RelationshipAgentPanel({
             <header>
               <span>
                 {operation.status === "staged"
-                  ? "Staged"
+                  ? "已暂存"
                   : operation.status === "no_change"
-                    ? "No change"
-                    : "Completed"}
+                    ? "无变化"
+                    : "已完成"}
               </span>
-              <i>Page operation</i>
+              <i>页面操作</i>
             </header>
             <strong>{operation.title}</strong>
             <p>{operation.detail}</p>
@@ -205,20 +205,19 @@ export function RelationshipAgentPanel({
               <Sparkle aria-hidden="true" size={15} weight="fill" />
             </span>
             <div>
-              <strong>Page changes are waiting</strong>
+              <strong>页面变化等待审阅</strong>
               <p>
-                {pendingCount} source-linked facts are staged on the living
-                page.
+                {pendingCount} 项关联来源的事实已暂存在持续更新页面上。
               </p>
             </div>
-            <i>Not applied</i>
+            <i>尚未应用</i>
           </header>
           <button
             className="context-primary-button context-primary-button--compact"
-            onClick={() => onRunCommand("Review pending changes")}
+            onClick={() => onRunCommand("审阅待确认的变化")}
             type="button"
           >
-            Review on page
+            在页面上审阅
             <ArrowRight aria-hidden="true" size={15} />
           </button>
         </div>
@@ -238,16 +237,14 @@ export function RelationshipAgentPanel({
             <div>
               <strong>
                 {priorBrief.stale
-                  ? "An earlier brief is no longer current"
-                  : "An earlier brief is recorded"}
+                  ? "较早的简报已不再是当前版本"
+                  : "已有一份较早简报记录"}
               </strong>
               <p>
-                {priorBrief.detail} Audit history preserves this scoped receipt,
-                not the answer body. Ask again to compile against currently
-                authorized evidence.
+                {priorBrief.detail} 审计历史只保留这份限定范围的回执，不保留回答正文。请再次询问，以当前获得授权的证据重新编译。
               </p>
             </div>
-            <i>Receipt only</i>
+            <i>仅保留回执</i>
           </header>
         </div>
       ) : null}
@@ -260,7 +257,7 @@ export function RelationshipAgentPanel({
         }}
       >
         <label>
-          <span className="sr-only">Ask about this relationship</span>
+          <span className="sr-only">询问这段关系</span>
           <textarea
             maxLength={1_000}
             onChange={(event) => onObjectiveChange(event.target.value)}
@@ -273,12 +270,12 @@ export function RelationshipAgentPanel({
           disabled={!objective.trim() || Boolean(busyLabel)}
           type="submit"
         >
-          {busyLabel === "Compiling a source-linked brief" ? (
+          {busyLabel === "正在编译关联来源的简报" ? (
             <CircleNotch aria-hidden="true" className="spin" size={18} />
           ) : (
             <Sparkle aria-hidden="true" size={18} weight="fill" />
           )}
-          Ask Agent
+          询问智能助理
         </button>
       </form>
 
@@ -286,8 +283,8 @@ export function RelationshipAgentPanel({
         <div className="context-chat__response">
           <p className="context-agent-user-message">{submittedObjective}</p>
           <div className="context-chat__response-meta">
-            <span>Snapshot {response.knowledge_snapshot_id.slice(0, 8)}</span>
-            <span>Manifest {response.context_manifest_id.slice(0, 8)}</span>
+            <span>快照 {response.knowledge_snapshot_id.slice(0, 8)}</span>
+            <span>清单 {response.context_manifest_id.slice(0, 8)}</span>
             <span>{response.disposition.replaceAll("_", " ")}</span>
           </div>
           {response.blocks.map((block) => (
@@ -301,15 +298,12 @@ export function RelationshipAgentPanel({
               <footer>
                 <span>
                   <LinkSimple aria-hidden="true" size={14} />
-                  {block.citation_dependency_ids.length} governed{" "}
-                  {block.citation_dependency_ids.length === 1
-                    ? "reference"
-                    : "references"}
+                  {block.citation_dependency_ids.length} 条受治理引用
                 </span>
                 {block.requires_user_decision ? (
                   reviewMode ? (
                     <a href="#next-move">
-                      Review before acting
+                      行动前审阅
                       <ArrowRight aria-hidden="true" size={14} />
                     </a>
                   ) : (
@@ -320,7 +314,7 @@ export function RelationshipAgentPanel({
                         onReviewSources();
                       }}
                     >
-                      Review source
+                      审阅来源
                       <ArrowRight aria-hidden="true" size={14} />
                     </a>
                   )
@@ -332,8 +326,8 @@ export function RelationshipAgentPanel({
       ) : (
         <p className="context-chat__empty">
           {reviewMode
-            ? "Nothing is synthesized until you ask. Proposed facts stay visible as review items; generated actions never execute from Chat."
-            : "Ask when you need a brief. The source ledger remains the stable object; Chat is a task-specific view over it."}
+            ? "在你询问前不会生成任何综合内容。拟议事实会作为审阅项保持可见；生成的行动绝不会从聊天中执行。"
+            : "需要简报时再询问。来源账本始终是稳定对象，聊天只是它上面的任务专属视图。"}
         </p>
       )}
     </section>

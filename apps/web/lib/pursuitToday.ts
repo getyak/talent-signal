@@ -155,18 +155,18 @@ export function buildPursuitTodayProjection(
       ? proposal.status === "needs_review"
         ? proposal.summary
         : proposal.status === "conflict"
-          ? "Review no longer matches the current Pursuit revision"
-          : "Proposal processing needs attention"
+          ? "审阅内容已与当前寻访版本不一致"
+          : "提案处理需要关注"
       : action
         ? action.title
-        : gap?.title ?? "Open dependency";
+        : gap?.title ?? "待解决的依赖";
     const attentionDetail = proposal
-      ? `${proposal.items.length} proposed ${proposal.items.length === 1 ? "change" : "changes"}; no state changes before review.`
+      ? `共 ${proposal.items.length} 项拟议变更；审阅前不会改变任何状态。`
       : action
-        ? `Owned by ${action.owner_display_name}${
-            action.due_at ? ` · due ${action.due_at}` : " · no due time recorded"
-          }.`
-        : gap?.close_condition ?? "No close condition is recorded.";
+        ? `负责人：${action.owner_display_name}${
+            action.due_at ? ` · 截止 ${action.due_at}` : " · 未记录截止时间"
+          }。`
+        : gap?.close_condition ?? "未记录关闭条件。";
     const sourceProposal = proposalForAgent(pursuitProposals);
 
     return [

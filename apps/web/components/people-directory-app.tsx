@@ -30,10 +30,10 @@ function initials(label: string) {
 function formatActivity(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "Activity recorded";
+    return "已有活动记录";
   }
   const includeYear = date.getUTCFullYear() !== new Date().getUTCFullYear();
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("zh-CN", {
     day: "numeric",
     month: "short",
     ...(includeYear ? { year: "numeric" } : {}),
@@ -57,12 +57,12 @@ function identityMatchLabel(
   match: PersonDirectoryItem["identity_matches"][number],
 ) {
   if (match.kind === "name") {
-    return "Name match";
+    return "姓名匹配";
   }
   if (match.kind === "confirmed_handle") {
-    return `Current ${match.handle_type}: ${match.display_hint}`;
+    return `当前 ${match.handle_type}：${match.display_hint}`;
   }
-  return `Historical ${match.handle_type}: ${match.display_hint}`;
+  return `历史 ${match.handle_type}：${match.display_hint}`;
 }
 
 export function PeopleDirectoryApp({
@@ -77,68 +77,66 @@ export function PeopleDirectoryApp({
         <div className={styles.page}>
           <section className={styles.hero}>
             <div>
-              <p className={styles.eyebrow}>Living relationship directory</p>
-              <h1>People</h1>
+              <p className={styles.eyebrow}>持续更新的关系目录</p>
+              <h1>联系人</h1>
               <p className={styles.intro}>
-                Relationships, with context attached. Find the person and
-                reopen the exact evidence—never a lead score or personality
-                label.
+                每段关系都带着自己的情境。找到联系人并重新打开准确证据——绝不是线索分数或性格标签。
               </p>
             </div>
 
             <form action="/workspace/people" className={styles.search}>
               <MagnifyingGlass aria-hidden="true" size={19} />
               <input
-                aria-label="Search people by name or confirmed contact handle"
+                aria-label="按姓名或已确认联系方式搜索联系人"
                 defaultValue={query}
                 maxLength={160}
                 name="query"
-                placeholder="Find by name, email, or phone…"
+                placeholder="按姓名、邮箱或电话查找…"
                 type="search"
               />
-              <button type="submit">Search</button>
+              <button type="submit">搜索</button>
             </form>
           </section>
 
           <section className={styles.directory}>
             <header>
               <div>
-                <p>{query ? "Search result" : "Recently active"}</p>
+                <p>{query ? "搜索结果" : "近期活跃"}</p>
                 <h2>
                   {query
-                    ? `People matching “${query}”`
-                    : "Relationships in motion"}
+                    ? `与“${query}”匹配的联系人`
+                    : "持续变化中的关系"}
                 </h2>
               </div>
-              <span>{people.length} visible</span>
+              <span>显示 {people.length} 人</span>
             </header>
 
             {error ? (
               <div className={styles.empty} role="status">
                 <span aria-hidden="true">!</span>
                 <div>
-                  <strong>Directory temporarily unavailable</strong>
+                  <strong>目录暂时不可用</strong>
                   <p>{error}</p>
                 </div>
                 {sessionRecoveryHref ? (
-                  <Link href={sessionRecoveryHref}>Sign in again</Link>
+                  <Link href={sessionRecoveryHref}>重新登录</Link>
                 ) : null}
               </div>
             ) : people.length === 0 ? (
               <div className={styles.empty}>
                 <AddressBook aria-hidden="true" size={24} weight="duotone" />
                 <div>
-                  <strong>{query ? "No matching person" : "No person yet"}</strong>
+                  <strong>{query ? "没有匹配联系人" : "还没有联系人"}</strong>
                   <p>
                     {query
-                      ? "Try a different name, email, or phone. Contact handles stay masked and are searched only when explicitly typed."
-                      : "Bring one governed source to create the first relationship page."}
+                      ? "请尝试其他姓名、邮箱或电话。联系方式会保持掩码，且只有在你明确输入时才会用于搜索。"
+                      : "导入一份受治理的来源，创建第一张关系页面。"}
                   </p>
                 </div>
                 {query ? (
-                  <Link href="/workspace/people">Clear search</Link>
+                  <Link href="/workspace/people">清除搜索</Link>
                 ) : (
-                  <Link href="/workspace">Open Agent</Link>
+                  <Link href="/workspace">打开智能助理</Link>
                 )}
               </div>
             ) : (
@@ -158,7 +156,7 @@ export function PeopleDirectoryApp({
                         <div className={styles.personIdentity}>
                           <h3>{person.display_label}</h3>
                           <span>
-                            Updated{" "}
+                            更新于{" "}
                             <time dateTime={person.last_activity_at}>
                               {formatActivity(person.last_activity_at)}
                             </time>
@@ -178,7 +176,7 @@ export function PeopleDirectoryApp({
                         </div>
 
                         <div className={styles.contexts}>
-                          <span>Relationship context</span>
+                          <span>关系情境</span>
                           {person.contexts.length > 0 ? (
                             <ul>
                               {person.contexts.slice(0, 3).map((context) => (
@@ -192,23 +190,23 @@ export function PeopleDirectoryApp({
                               ))}
                             </ul>
                           ) : (
-                            <p>No active context</p>
+                            <p>没有活跃情境</p>
                           )}
                         </div>
 
                         <dl className={styles.evidence}>
                           <div>
-                            <dt>Sources</dt>
+                            <dt>来源</dt>
                             <dd>{person.capture_count}</dd>
                           </div>
                           <div>
-                            <dt>Confirmed IDs</dt>
+                            <dt>已确认身份线索</dt>
                             <dd>{person.confirmed_identity_count}</dd>
                           </div>
                         </dl>
 
                         <Link
-                          aria-label={`Open ${person.display_label}`}
+                          aria-label={`打开 ${person.display_label}`}
                           className={styles.openPerson}
                           href={href}
                         >
@@ -225,10 +223,9 @@ export function PeopleDirectoryApp({
           <aside className={styles.methodNote}>
             <ChatCircleDots aria-hidden="true" size={20} weight="duotone" />
             <div>
-              <strong>The directory is an index, not a verdict.</strong>
+              <strong>目录是索引，不是结论。</strong>
               <p>
-                Open a relationship to inspect source words, uncertainty, and
-                the recruiter decisions that produced its current state.
+                打开一段关系，检查来源原话、不确定性，以及形成当前状态的招聘顾问决定。
               </p>
             </div>
           </aside>

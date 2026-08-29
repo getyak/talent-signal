@@ -16,22 +16,40 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  description: "Canonical Pursuit outcome, evidence-backed gaps, actions, and review.",
+  description: "规范的寻访目标、有证据支撑的缺口、行动与审阅。",
   robots: { follow: false, index: false },
-  title: "Pursuit room",
+  title: "寻访房间",
 };
 
 function formatDate(value: string | null): string {
-  if (!value) return "Not scheduled";
+  if (!value) return "尚未安排";
   const date = new Date(value.length === 10 ? `${value}T12:00:00Z` : value);
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat("en", {
+    : new Intl.DateTimeFormat("zh-CN", {
         day: "numeric",
         month: "short",
         year: "numeric",
         timeZone: "UTC",
       }).format(date);
+}
+
+const pursuitValueLabels: Record<string, string> = {
+  accepted_offer: "接受录用意向",
+  active: "进行中",
+  cancelled: "已取消",
+  completed: "已完成",
+  evidence_review: "证据审阅",
+  final_conversation: "最终沟通",
+  interviewing: "面试中",
+  mutual_final_decision: "双方最终决定",
+  offer_review: "录用意向审阅",
+  recruiting: "招聘",
+  shortlist_review: "候选名单审阅",
+};
+
+function displayPursuitValue(value: string): string {
+  return pursuitValueLabels[value] ?? value.replaceAll("_", " ");
 }
 
 export default async function PursuitRoomPage({
@@ -70,24 +88,24 @@ export default async function PursuitRoomPage({
     <div className={styles.page}>
       <main className={styles.main} id="main-content">
         <section className={styles.hero}>
-          <p className={styles.eyebrow}>{pursuit.type} pursuit</p>
+          <p className={styles.eyebrow}>{displayPursuitValue(pursuit.type)}寻访</p>
           <h1>{pursuit.title}</h1>
-          <p>{pursuit.target_outcome.replaceAll("_", " ")}</p>
+          <p>{displayPursuitValue(pursuit.target_outcome)}</p>
           <dl>
             <div>
-              <dt>Target date</dt>
+              <dt>目标日期</dt>
               <dd>{formatDate(pursuit.target_date)}</dd>
             </div>
             <div>
-              <dt>Milestone</dt>
-              <dd>{pursuit.milestone.replaceAll("_", " ")}</dd>
+              <dt>里程碑</dt>
+              <dd>{displayPursuitValue(pursuit.milestone)}</dd>
             </div>
             <div>
-              <dt>Status</dt>
-              <dd>{pursuit.status}</dd>
+              <dt>状态</dt>
+              <dd>{displayPursuitValue(pursuit.status)}</dd>
             </div>
             <div>
-              <dt>Revision</dt>
+              <dt>修订版本</dt>
               <dd>{pursuit.revision}</dd>
             </div>
           </dl>
@@ -98,10 +116,10 @@ export default async function PursuitRoomPage({
             <section className={styles.section}>
               <header>
                 <div>
-                  <p>Dependencies</p>
-                  <h2>Open gaps</h2>
+                  <p>依赖项</p>
+                  <h2>待解决缺口</h2>
                 </div>
-                <span>{openGaps.length} open</span>
+                <span>{openGaps.length} 项待解决</span>
               </header>
               {openGaps.length ? (
                 <div className={styles.rows}>
@@ -116,17 +134,17 @@ export default async function PursuitRoomPage({
                   ))}
                 </div>
               ) : (
-                <p className={styles.quiet}>No open gap is recorded.</p>
+                <p className={styles.quiet}>没有记录待解决缺口。</p>
               )}
             </section>
 
             <section className={styles.section}>
               <header>
                 <div>
-                  <p>Owned work</p>
-                  <h2>Internal actions</h2>
+                  <p>已分配工作</p>
+                  <h2>内部行动</h2>
                 </div>
-                <span>{openActions.length} open</span>
+                <span>{openActions.length} 项进行中</span>
               </header>
               {openActions.length ? (
                 <div className={styles.rows}>
@@ -134,16 +152,16 @@ export default async function PursuitRoomPage({
                     <article className={styles.row} key={action.id}>
                       <div>
                         <strong>{action.title}</strong>
-                        <span>{action.status.replaceAll("_", " ")}</span>
+                        <span>{displayPursuitValue(action.status)}</span>
                       </div>
                       <p>
-                        {action.owner_display_name} · {formatDate(action.due_at)} · no external effect
+                        {action.owner_display_name} · {formatDate(action.due_at)} · 无外部效果
                       </p>
                     </article>
                   ))}
                 </div>
               ) : (
-                <p className={styles.quiet}>No owned action is open.</p>
+                <p className={styles.quiet}>没有进行中的已分配行动。</p>
               )}
             </section>
           </div>

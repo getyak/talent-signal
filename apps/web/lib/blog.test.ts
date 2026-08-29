@@ -21,7 +21,12 @@ describe("blog content contract", () => {
   it("keeps every article substantive and search-ready", () => {
     for (const post of blogPosts) {
       expect(post.slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
-      expect(post.description.length).toBeGreaterThanOrEqual(120);
+      const minimumDescriptionLength = /\p{Script=Han}/u.test(post.description)
+        ? 36
+        : 120;
+      expect(post.description.length).toBeGreaterThanOrEqual(
+        minimumDescriptionLength,
+      );
       expect(post.description.length).toBeLessThanOrEqual(165);
       expect(post.keyTakeaways.length).toBeGreaterThanOrEqual(3);
       expect(getBlogPostWordCount(post)).toBeGreaterThan(650);

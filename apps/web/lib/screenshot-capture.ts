@@ -137,7 +137,7 @@ function decodeJsonObject(content: string): unknown {
   const start = content.indexOf("{");
   const end = content.lastIndexOf("}");
   if (start < 0 || end <= start) {
-    throw new Error("The model returned no JSON object.");
+    throw new Error("模型未返回 JSON 对象。")
   }
   return JSON.parse(content.slice(start, end + 1));
 }
@@ -260,7 +260,7 @@ export function parseScreenshotCaptureDraft(
     messages.map((message) => [message.source_message_id, message]),
   );
   if (messagesById.size !== messages.length) {
-    throw new Error("The transcription contains duplicate message IDs.");
+    throw new Error("对话转写中包含重复的消息 ID。")
   }
   const capturedAt = verifiedCapturedAt(parsed.captured_at);
 
@@ -272,7 +272,7 @@ export function parseScreenshotCaptureDraft(
       return [];
     }
     if (!message || !message.text.includes(assertion.evidence_quote)) {
-      throw new Error("A proposed fact does not contain an exact source quote.");
+      throw new Error("拟议事实不包含准确的来源引文。")
     }
     const temporalReferenceIsUnresolved =
       capturedAt === null &&
@@ -396,7 +396,7 @@ export function validateReviewedScreenshotEdit(
     }
   }
   if (!messageChanged) {
-    throw new Error("The reviewed transcription contains no human edit.");
+    throw new Error("已审阅转写中没有人工编辑。")
   }
   if (
     reviewed.assertions.length > 0 ||

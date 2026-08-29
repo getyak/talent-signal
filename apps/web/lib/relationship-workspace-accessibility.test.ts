@@ -170,11 +170,11 @@ const relationshipHistory = readFileSync(
 
 describe("relationship workspace accessibility contract", () => {
   it("keeps voice as an editable composer draft with foreground recovery", () => {
-    expect(agentVoiceInput).toContain("Nothing reaches the Agent until");
+    expect(agentVoiceInput).toContain("按下发送前，任何内容都不会进入智能助理");
     expect(agentVoiceInput).toContain("temporary_audio_stored_by_talent_signal !== false");
     expect(agentVoiceInput).toContain('document.addEventListener("visibilitychange"');
-    expect(agentVoiceInput).toContain("Nothing was sent.");
-    expect(agentVoiceInput).toContain("Cancel voice transcription");
+    expect(agentVoiceInput).toContain("没有发送任何内容");
+    expect(agentVoiceInput).toContain("取消语音转写");
     expect(agentVoiceInput).toContain("requestAbortRef.current?.abort()");
     expect(agentVoiceInput).toContain('aria-live="polite"');
     expect(agentVoiceInput).toContain('aria-pressed={phase === "recording"}');
@@ -221,11 +221,11 @@ describe("relationship workspace accessibility contract", () => {
   it("keeps slow screenshot analysis cancellable without claiming a saved source", () => {
     expect(captureController).toContain("analysisAbortRef");
     expect(captureController).toContain("signal: controller.signal");
-    expect(capturePanel).toContain("Cancel analysis");
+    expect(capturePanel).toContain("取消分析");
     expect(captureController).toContain(
-      "Analysis canceled. No source was saved.",
+      "分析已取消。未保存任何来源",
     );
-    expect(captureController).toContain("This is taking longer than usual.");
+    expect(captureController).toContain("所需时间比平时更长");
   });
 
   it("keeps identity creation blocked until the latest people lookup settles", () => {
@@ -271,11 +271,11 @@ describe("relationship workspace accessibility contract", () => {
 
   it("keeps unresolved identity evidence outside the relationship until recruiter judgment", () => {
     expect(identityReviewCard).toContain(
-      "The source is saved, but it is not part of either person",
+      "来源已保存，但尚未进入任何人物的 Wiki",
     );
     expect(identityReviewCard).toContain('decision: "bind_existing" | "leave_unresolved"');
     expect(identityReviewCard).toContain("expected_case_version: identityCase.version");
-    expect(identityReviewCard).toContain("Choosing a person does not confirm the source");
+    expect(identityReviewCard).toContain("选择联系人并不确认来源中的结论");
   });
 
   it("keeps new-person creation behind account-scoped identity lookup", () => {
@@ -283,12 +283,12 @@ describe("relationship workspace accessibility contract", () => {
       '"/api/local-integration/people/search"',
     );
     expect(agentCreatePersonCard).toContain("canCreateDistinctPerson({");
-    expect(agentCreatePersonCard).toContain("Current owner:");
-    expect(agentCreatePersonCard).toContain("Review {duplicateMatches.length");
+    expect(agentCreatePersonCard).toContain("当前归属：");
+    expect(agentCreatePersonCard).toContain("审阅{duplicateMatches.length");
     expect(agentCreatePersonCard).toContain(
-      "Opens the reversible merge preview. Nothing merges from this contact draft.",
+      "打开可逆的合并预览；此联系人草稿不会直接合并任何内容。",
     );
-    expect(agentCreatePersonCard).toContain("It never merges or contacts anyone.");
+    expect(agentCreatePersonCard).toContain("它不会合并人物或联系任何人。");
   });
 
   it("keeps person merge as a current preview, reasoned decision, and reversible receipt", () => {
@@ -305,10 +305,10 @@ describe("relationship workspace accessibility contract", () => {
       'decision: "reverse_person_merge"',
     );
     expect(personMergeReview).toContain(
-      "History alone never authorizes the split.",
+      "仅凭历史记录不能授权拆分。",
     );
     expect(personMergeReview).toContain(
-      "performs no external write",
+      "不会进行外部写入",
     );
   });
 
@@ -324,23 +324,23 @@ describe("relationship workspace accessibility contract", () => {
     expect(relationshipNextMove).toContain(
       'effect.outcome.status === "unknown"',
     );
-    expect(relationshipNextMove).toContain("Reconcile before retry");
+    expect(relationshipNextMove).toContain("重试前核对");
     expect(relationshipNextMove).toContain(
       "capture_id: workspace.capture.id",
     );
   });
 
   it("keeps effect reversal as review, approval, execution, and readback", () => {
-    expect(relationshipNextMove).toContain("Review reversal");
-    expect(relationshipNextMove).toContain("Approve exact reversal");
-    expect(relationshipNextMove).toContain("Remove item and verify");
-    expect(relationshipNextMove).toContain("Revoke reversal approval");
-    expect(relationshipNextMove).toContain("Removed and verified absent");
+    expect(relationshipNextMove).toContain("审阅撤销");
+    expect(relationshipNextMove).toContain("批准精确撤销");
+    expect(relationshipNextMove).toContain("移除事项并核验");
+    expect(relationshipNextMove).toContain("撤回撤销批准");
+    expect(relationshipNextMove).toContain("已移除，并核验为不存在");
     expect(relationshipNextMove).toContain(
       "reversalApprovalRequestRef.current",
     );
     expect(relationshipNextMove).toContain(
-      "Original effect and both audit receipts",
+      "原始效果与两份审计回执",
     );
     expect(styles).toMatch(
       /\.context-effect-reversal__actions button,[\s\S]*min-height: 44px;/,
@@ -354,9 +354,9 @@ describe("relationship workspace accessibility contract", () => {
     expect(relationshipNextMove).toContain(
       "const staleApprovalNeedsReview =",
     );
-    expect(relationshipNextMove).toContain("Prior approval is stale.");
+    expect(relationshipNextMove).toContain("先前批准已过时。");
     expect(relationshipNextMove).toContain(
-      "Approve revised internal action",
+      "批准修订后的内部行动",
     );
     expect(relationshipNextMove).toContain(
       'approval === null || approval.status === "stale"',
@@ -367,12 +367,12 @@ describe("relationship workspace accessibility contract", () => {
     expect(relationshipContactHeader).toContain(
       'workspace.source_authorization.state !== "authorized"',
     );
-    expect(relationshipFactReview).toContain("Source access is unavailable.");
+    expect(relationshipFactReview).toContain("来源访问不可用。");
     expect(relationshipNextMove).toContain(
-      "No action authority is available.",
+      "当前没有行动权限。",
     );
     expect(relationshipFactReview).toMatch(
-      /Its prior conclusions and actions\s+will not return/,
+      /先前结论与行动不会自动恢复/,
     );
   });
 
@@ -389,7 +389,7 @@ describe("relationship workspace accessibility contract", () => {
       /const refreshed = await refreshWorkspaceReview\(\s*workspace\.capture\.id,/,
     );
     expect(component).toContain(
-      "The current review could not refresh; reload before making another decision.",
+      "当前审阅无法刷新；请重新加载后再作下一项决定。",
     );
   });
 
@@ -401,7 +401,7 @@ describe("relationship workspace accessibility contract", () => {
       'state.state_status !== "active"',
     );
     expect(relationshipEvidenceProjection).toContain(
-      "Previous fact versions",
+      "先前事实版本",
     );
     expect(relationshipWiki).toContain(
       'block.block_key.startsWith("fact.")',
@@ -415,20 +415,20 @@ describe("relationship workspace accessibility contract", () => {
     expect(component).toContain("<RelationshipOnboarding");
     expect(component).toContain("<RelationshipAgentStartPanel");
     expect(relationshipContactHeader).toContain(
-      "Derived from review state. It never rates the person.",
+      "从审阅状态得出，绝不用于评价此人。",
     );
     expect(relationshipSourceLineage).toContain(
-      "Bound by the recruiter, not guessed from a face",
+      "由招聘顾问关联，不根据面孔猜测",
     );
     expect(relationshipResourceSection).toContain(
       "<RelationshipResourceComposer",
     );
     expect(relationshipOnboarding).toContain("<StartRelationshipPanel");
     expect(relationshipAgentStartPanel).toContain(
-      "Start with one message.",
+      "从一条消息开始。",
     );
     expect(relationshipAgentStartPanel).toContain(
-      'placeholder="Message, paste, or add anything…"',
+      'placeholder="输入消息、粘贴内容或添加任何资料…"',
     );
   });
 
@@ -457,10 +457,10 @@ describe("relationship workspace accessibility contract", () => {
       'stale: operation.status !== "completed"',
     );
     expect(relationshipAgentPanel).toContain(
-      "Audit history preserves this scoped receipt",
+      "审计历史只保留这份限定范围的回执",
     );
     expect(relationshipAgentPanel).toContain(
-      "not the answer body",
+      "不保留回答正文",
     );
     expect(relationshipAgentPanel).not.toContain("window.sessionStorage");
   });
@@ -469,9 +469,9 @@ describe("relationship workspace accessibility contract", () => {
     expect(relationshipFactReview).toContain(
       "const requiresSupersession = requiresFactSupersession({",
     );
-    expect(relationshipFactReview).toContain("Supersession required");
+    expect(relationshipFactReview).toContain("需要取代提案");
     expect(relationshipFactReview).toContain(
-      "Replacing it requires a separate source-linked",
+      "替换它需要一项独立且关联来源的取代提案",
     );
   });
 

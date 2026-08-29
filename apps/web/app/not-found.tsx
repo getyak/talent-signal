@@ -6,11 +6,11 @@ export default function NotFound() {
     <>
       <SiteHeader />
       <main id="main-content" className="not-found shell">
-        <p className="metadata">Page not found</p>
-        <h1>This signal went quiet.</h1>
-        <p>The page may have moved, or the address may be incomplete.</p>
+        <p className="metadata">找不到页面</p>
+        <h1>这条信号暂时安静了。</h1>
+        <p>页面可能已移动，或地址并不完整。</p>
         <Link className="button" href="/">
-          Return home
+          返回首页
         </Link>
       </main>
     </>

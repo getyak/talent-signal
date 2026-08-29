@@ -22,12 +22,12 @@ export const metadata: Metadata = {
   creator: siteConfig.name,
   publisher: siteConfig.name,
   keywords: [
-    "candidate momentum",
-    "executive search software",
-    "independent recruiter tools",
-    "candidate intelligence",
-    "recruiting workflow",
-    "boutique search firm",
+    "候选人进展",
+    "高管寻访软件",
+    "独立招聘顾问工具",
+    "候选人关系智能",
+    "招聘工作流",
+    "精品猎头团队",
   ],
   alternates: {
     canonical: "/",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    locale: "en_US",
+    locale: "zh_CN",
     url: "/",
     siteName: siteConfig.name,
     title: siteConfig.title,
@@ -82,7 +82,7 @@ const themeScript = `
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html
-      lang="en"
+      lang="zh-CN"
       data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
@@ -91,7 +91,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       </head>
       <body className={manrope.variable}>
         <a className="skip-link" href="#main-content">
-          Skip to content
+          跳到主要内容
         </a>
         {children}
       </body>

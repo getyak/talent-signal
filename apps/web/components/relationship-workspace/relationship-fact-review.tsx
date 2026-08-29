@@ -93,7 +93,7 @@ export function RelationshipFactReview({
             : {}),
         }),
       },
-      "Saving fact decision",
+      "正在保存事实决定",
     );
     if (next) {
       setEditing(null);
@@ -109,11 +109,11 @@ export function RelationshipFactReview({
     >
       <div className="context-section__heading">
         <div>
-          <p className="eyebrow">WHAT CHANGED</p>
-          <h2 id="changed-title">Evidence waiting for your judgment</h2>
+          <p className="eyebrow">发生了什么变化</p>
+          <h2 id="changed-title">等待你判断的证据</h2>
         </div>
         <span>
-          {reviewedCount}/{assertions.length} reviewed
+          已审阅 {reviewedCount}/{assertions.length}
         </span>
       </div>
 
@@ -150,13 +150,13 @@ export function RelationshipFactReview({
                     <span>{fieldLabel(assertion.field)}</span>
                     <i>
                       {ambiguous
-                        ? "Needs clarification"
+                        ? "需要澄清"
                         : reviewLabel(assertion.review_status)}
                     </i>
                   </div>
                   {isEditing ? (
                     <label className="context-fact__edit">
-                      <span className="sr-only">Corrected value</span>
+                      <span className="sr-only">修正后的值</span>
                       <input
                         autoFocus
                         maxLength={2_000}
@@ -171,8 +171,7 @@ export function RelationshipFactReview({
                       />
                       {needsCalendarDate ? (
                         <small>
-                          Add a complete calendar date. The screenshot did not
-                          provide a verified timestamp for “{assertion.value}”.
+                          请添加完整日历日期。截图没有为“{assertion.value}”提供已核验时间戳。
                         </small>
                       ) : null}
                     </label>
@@ -191,21 +190,17 @@ export function RelationshipFactReview({
                   </a>
                   {ambiguous && !isEditing ? (
                     <p className="context-fact__ambiguity">
-                      This extracted value is not anchored well enough to
-                      remember as-is. Correct it, keep it unresolved, or
-                      dismiss it.
+                      这项提取值缺少足够明确的锚点，不能按原样记住。请修正、保持未解决或驳回。
                     </p>
                   ) : null}
                   {requiresSupersession ? (
                     <div className="context-fact__ambiguity" role="status">
-                      <strong>Current value stays in place</strong>
+                      <strong>当前值保持不变</strong>
                       <span>
                         {currentFieldState?.value} → {valueUnderReview}
                       </span>
                       <small>
-                        Replacing it requires a separate source-linked
-                        supersession proposal. Keep this unresolved or dismiss
-                        it if that proposal is not available.
+                        替换它需要一项独立且关联来源的取代提案。如果该提案不可用，请保持未解决或驳回。
                       </small>
                     </div>
                   ) : null}
@@ -231,14 +226,14 @@ export function RelationshipFactReview({
                           type="button"
                         >
                           <Check aria-hidden="true" size={16} />
-                          Save and confirm
+                          保存并确认
                         </button>
                         <button
                           className="context-text-button"
                           onClick={() => setEditing(null)}
                           type="button"
                         >
-                          Cancel
+                          取消
                         </button>
                       </>
                     ) : (
@@ -257,7 +252,7 @@ export function RelationshipFactReview({
                             type="button"
                           >
                             <PencilSimple aria-hidden="true" size={16} />
-                            {needsCalendarDate ? "Add full date" : "Resolve"}
+                            {needsCalendarDate ? "添加完整日期" : "解决"}
                           </button>
                         ) : (
                           <>
@@ -268,7 +263,7 @@ export function RelationshipFactReview({
                                 type="button"
                               >
                                 <Warning aria-hidden="true" size={16} />
-                                Supersession required
+                                需要取代提案
                               </button>
                             ) : (
                               <button
@@ -284,11 +279,11 @@ export function RelationshipFactReview({
                                 type="button"
                               >
                                 <Check aria-hidden="true" size={16} />
-                                Confirm
+                                确认
                               </button>
                             )}
                             <button
-                              aria-label={`Edit ${fieldLabel(assertion.field)}`}
+                              aria-label={`编辑${fieldLabel(assertion.field)}`}
                               className="context-icon-button"
                               onClick={() => {
                                 setEditing(assertion.id);
@@ -315,7 +310,7 @@ export function RelationshipFactReview({
                           }
                           type="button"
                         >
-                          Unsure
+                          不确定
                         </button>
                         <button
                           className="context-text-button"
@@ -329,7 +324,7 @@ export function RelationshipFactReview({
                           }
                           type="button"
                         >
-                          Dismiss
+                          驳回
                         </button>
                       </>
                     )}
@@ -343,18 +338,14 @@ export function RelationshipFactReview({
         <div className="context-no-signal context-no-signal--page">
           <Warning aria-hidden="true" size={25} />
           <p>
-            <strong>Source access is unavailable.</strong> Restore or renew this
-            governed source from Sources. Its prior conclusions and actions
-            will not return automatically; the evidence comes back for review.
+            <strong>来源访问不可用。</strong>请从“来源”中恢复或续期该受治理来源。先前结论与行动不会自动恢复；证据会重新进入审阅。
           </p>
         </div>
       ) : (
         <div className="context-no-signal context-no-signal--page">
           <CheckCircle aria-hidden="true" size={25} />
           <p>
-            <strong>No operational change was proposed.</strong> The source
-            remains available as context, but it does not justify a fact or
-            next move.
+            <strong>没有提出操作性变更。</strong>来源仍可作为背景，但不足以支持一项事实或下一步。
           </p>
         </div>
       )}

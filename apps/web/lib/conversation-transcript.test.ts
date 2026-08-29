@@ -63,7 +63,7 @@ describe("conversation transcript review", () => {
       validateReviewedConversationMessages([
         { speaker: "model_guessed", text: "Location: London" },
       ]),
-    ).toThrow(/reviewed text and a speaker/i);
+    ).toThrow(/已审阅文字和说话人/);
   });
 
   it("keeps every message proposed and preserves unknown attribution", () => {

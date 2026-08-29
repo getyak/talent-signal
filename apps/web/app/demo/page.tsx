@@ -7,9 +7,9 @@ import { getAiAvailability } from "@/lib/server/ai-analysis";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Live product demo",
+  title: "在线产品演示",
   description:
-    "Try Talent Signal with local rules or an explicitly selected, private AI candidate-conversation review.",
+    "使用本地规则，或主动选择私密 AI，体验 Talent Signal 的候选人对话审阅。",
   alternates: {
     canonical: "/demo",
   },
@@ -24,8 +24,7 @@ export default function DemoPage() {
       <main id="main-content" className="demo-page">
         <div className="shell">
           <p className="demo-page__intro">
-            A controlled product preview. Local analysis stays in your browser;
-            the optional AI route runs only when you explicitly select it.
+            这是一个受控的产品预览。本地分析只在你的浏览器中运行；可选 AI 路径只有在你主动选择后才会启动。
           </p>
           <DemoWorkbench
             aiEnabled={ai.enabled}

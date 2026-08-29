@@ -97,7 +97,9 @@ body {
     "kern" 1,
     "liga" 1,
     "calt" 1;
-  font-family: var(--font-sans), sans-serif;
+  font-family:
+    var(--font-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans CJK SC", sans-serif;
   font-optical-sizing: auto;
   margin: 0;
   min-width: 320px;
@@ -173,6 +175,10 @@ h3 {
 
 p {
   text-wrap: pretty;
+}
+
+:lang(zh-CN) {
+  line-break: strict;
 }
 
 :focus-visible {

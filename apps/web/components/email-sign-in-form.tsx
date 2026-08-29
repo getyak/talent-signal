@@ -19,7 +19,7 @@ function SubmitButton({ enabled }: { enabled: boolean }) {
       type="submit"
       disabled={pending || !enabled}
     >
-      {pending ? "Checking account" : "Continue with email"}
+      {pending ? "正在检查账号" : "使用邮箱继续"}
       <ArrowRight aria-hidden="true" size={17} />
     </button>
   );
@@ -38,7 +38,7 @@ export function EmailSignInForm({
     <form className="email-sign-in" action={formAction}>
       <input type="hidden" name="redirectTo" value={callbackUrl} />
       <div className="auth-field">
-        <label htmlFor="sign-in-email">Email</label>
+        <label htmlFor="sign-in-email">邮箱</label>
         <input
           id="sign-in-email"
           name="email"
@@ -50,13 +50,13 @@ export function EmailSignInForm({
         />
       </div>
       <div className="auth-field">
-        <label htmlFor="sign-in-password">Password</label>
+        <label htmlFor="sign-in-password">密码</label>
         <input
           id="sign-in-password"
           name="password"
           type="password"
           autoComplete="current-password"
-          placeholder="Your password"
+          placeholder="输入密码"
           minLength={8}
           maxLength={128}
           required
@@ -71,8 +71,7 @@ export function EmailSignInForm({
       <SubmitButton enabled={enabled} />
       {!enabled && (
         <p className="auth-configuration-note">
-          Email sign-in becomes available when a default account and password
-          hash are configured.
+          配置默认账号和密码哈希后，即可使用邮箱登录。
         </p>
       )}
     </form>

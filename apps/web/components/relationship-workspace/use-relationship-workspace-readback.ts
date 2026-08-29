@@ -215,7 +215,7 @@ export function useRelationshipWorkspaceReadback({
       if (activeCaptureIdRef.current !== expectedCaptureId) {
         return {
           message:
-            "The requested review is no longer active. Its late readback was ignored.",
+            "请求的审阅已不再活跃，因此忽略其迟到的读取结果。",
           ok: false,
         };
       }
@@ -277,7 +277,7 @@ export function useRelationshipWorkspaceReadback({
       if (!accountId || !activeScope || !originScopeKey || !targetScopeKey) {
         return {
           message:
-            "A verified account and relationship are required before opening this capture.",
+            "打开此采集内容前，需要已核验的账号与关系。",
           ok: false,
         };
       }
@@ -304,7 +304,7 @@ export function useRelationshipWorkspaceReadback({
             message:
               "message" in payload && payload.message
                 ? payload.message
-                : "The requested capture review could not be opened.",
+                : "无法打开请求的采集内容审阅。",
             ok: false,
           };
         }
@@ -324,7 +324,7 @@ export function useRelationshipWorkspaceReadback({
         ) {
           return {
             message:
-              "The requested capture does not belong to the expected relationship. Prior verified state remains visible.",
+              "请求的采集内容不属于预期关系。先前已核验状态保持可见。",
             ok: false,
           };
         }
@@ -337,7 +337,7 @@ export function useRelationshipWorkspaceReadback({
         ) {
           return {
             message:
-              "The relationship changed before this capture opened. Its late readback was ignored.",
+              "此采集内容打开前，关系已发生变化，因此忽略其迟到的读取结果。",
             ok: false,
           };
         }
@@ -347,8 +347,8 @@ export function useRelationshipWorkspaceReadback({
         return {
           message:
             caught instanceof Error && caught.name === "AbortError"
-              ? "The capture changed before this review opened. Prior verified state remains visible."
-              : "The requested capture review could not be opened.",
+              ? "审阅打开前，采集内容已发生变化。先前已核验状态保持可见。"
+              : "无法打开请求的采集内容审阅。",
           ok: false,
         };
       }

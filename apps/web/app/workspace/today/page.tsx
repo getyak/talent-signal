@@ -16,9 +16,9 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   description:
-    "Governed Pursuit attention, pending review, owned actions, and bounded Agent work.",
+    "受治理的寻访关注事项、待审阅内容、已分配行动与边界明确的智能助理工作。",
   robots: { follow: false, index: false },
-  title: "Today",
+  title: "今日",
 };
 
 export default async function TodayPage({
@@ -45,7 +45,7 @@ export default async function TodayPage({
       sessionRecoveryHref = backendSessionRecoveryHref("/workspace/today");
     } else {
       error =
-        "The account-scoped Pursuit API could not be verified. Cached or fixture state was not substituted.";
+        "无法核验账号专属的寻访 API；系统没有使用缓存或测试状态替代。";
     }
   }
 

@@ -58,11 +58,11 @@ export function RelationshipExperienceSwitcher() {
   return (
     <>
       <div className={`shell ${styles.controlRow}`}>
-        <span className={styles.controlLabel}>View</span>
+        <span className={styles.controlLabel}>视图</span>
         <div
           className={styles.segmentedControl}
           role="group"
-          aria-label="Choose product preview"
+          aria-label="选择产品预览"
         >
           <button
             className={view === "desktop" ? styles.active : undefined}
@@ -71,7 +71,7 @@ export function RelationshipExperienceSwitcher() {
             onClick={() => updatePreviewView("desktop")}
           >
             <Desktop aria-hidden="true" size={17} />
-            Desktop
+            桌面端
           </button>
           <button
             className={view === "iphone" ? styles.active : undefined}
@@ -84,8 +84,7 @@ export function RelationshipExperienceSwitcher() {
           </button>
         </div>
         <p className={styles.liveStatus} aria-live="polite">
-          Showing the interactive {view === "iphone" ? "iPhone" : "desktop"}{" "}
-          view.
+          正在显示可交互的 {view === "iphone" ? "iPhone" : "桌面端"}视图。
         </p>
       </div>
 

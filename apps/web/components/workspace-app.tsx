@@ -69,12 +69,12 @@ function readableCandidateOption(value: string) {
 
 function getSourceState(source: WorkspaceDataSource) {
   if (source.kind === "synchronized-local") {
-    return "synchronized";
+    return "已同步";
   }
   if (source.kind === "fixture-local") {
-    return "local fixture";
+    return "本地测试数据";
   }
-  return "sample only";
+  return "仅示例";
 }
 
 function getAttentionCopy(
@@ -83,67 +83,65 @@ function getAttentionCopy(
 ) {
   if (hasUnresolvedIdentity(fixtureCase, review)) {
     return {
-      label: "Resolve identity",
-      title: "Choose the assignment context before reviewing any fact.",
+      label: "解决身份问题",
+      title: "审阅任何事实前，请先选择项目背景。",
       detail:
-        "The source names Alex Chen, but it does not contain enough binding evidence for either record.",
+        "来源中提到 Alex Chen，但不足以将其绑定到任何一条记录。",
     };
   }
   if (hasUnresolvedTime(fixtureCase, review)) {
     return {
-      label: "Resolve source time",
-      title: "Keep the relative date unresolved until its timezone is known.",
+      label: "解决来源时间",
+      title: "时区明确前，将相对日期保持为未解决。",
       detail:
-        "The capture happened two days later and the source timezone is missing.",
+        "采集发生在两天后，且来源时区缺失。",
     };
   }
   if (fixtureCase.expected.disposition === "block") {
     return {
-      label: "Boundary applied",
-      title: "Do not turn conversational tone into a candidate score.",
+      label: "已应用边界",
+      title: "不要把对话语气变成候选人评分。",
       detail:
-        "The requested output is outside the product boundary, so no assertion or action is created.",
+        "请求的输出超出产品边界，因此不会创建声明或行动。",
     };
   }
   if (fixtureCase.expected.disposition === "no_action") {
     return {
-      label: "No action is valid",
+      label: "无需行动是有效结果",
       title:
         fixtureCase.expected.assertions.length > 0
-          ? "Review the third-party statement without manufacturing follow-up."
-          : "Keep the conversation as context and create no task.",
+          ? "审阅第三方陈述，但不要制造跟进。"
+          : "将对话保留为背景，不创建任务。",
       detail:
         fixtureCase.expected.assertions.length > 0
-          ? "The source can support one attributed proposal, but it does not support candidate agreement."
-          : "No decision-relevant change, commitment, or dependency is present.",
+          ? "来源可以支持一项带归属的提议，但不支持候选人已同意的结论。"
+          : "没有与决策相关的变化、承诺或依赖。",
     };
   }
   if (!isFactReviewComplete(fixtureCase, review)) {
     return {
-      label: "Review proposed state",
-      title: `${fixtureCase.expected.assertions.length} source-linked ${
-        fixtureCase.expected.assertions.length === 1 ? "fact needs" : "facts need"
-      } an individual decision.`,
+      label: "审阅拟议状态",
+      title: `${fixtureCase.expected.assertions.length} 项关联来源的事实需要逐项决定。`,
       detail:
-        "Confirm, edit, or dismiss each proposal. Fact review does not approve the next action.",
+        "逐项确认、编辑或驳回提议。事实审阅不会批准下一步行动。",
     };
   }
   return {
-    label: "Decide on one action",
-    title: "The reviewed facts support one smallest safe next step.",
+    label: "决定一项行动",
+    title: "已审阅事实支持一个最小且稳妥的下一步。",
     detail:
-      "Inspect the exact target and local effect before making a separate approval decision.",
+      "单独做出批准决定前，请检查准确目标与本地效果。",
   };
 }
 
 function statusLabel(status: FactReviewStatus) {
   const labels: Record<FactReviewStatus, string> = {
-    ambiguous: "Ambiguous",
-    confirmed: "Confirmed",
-    dismissed: "Dismissed",
-    edited: "Edited",
-    proposed: "Proposed",
-    superseded: "Supersession proposed",
+    ambiguous: "有歧义",
+    confirmed: "已确认",
+    dismissed: "已驳回",
+    edited: "已编辑",
+    proposed: "拟议",
+    superseded: "拟议替代",
   };
   return labels[status];
 }
@@ -164,24 +162,24 @@ function OutcomeIcon({ status }: { status: OutcomeStatus }) {
 function outcomeCopy(status: OutcomeStatus) {
   const copy: Record<OutcomeStatus, { label: string; detail: string }> = {
     failed: {
-      label: "Failed",
+      label: "失败",
       detail:
-        "The fixture handoff failed. The approved proposal is retained and can be retried.",
+        "测试交接失败。已批准提议会保留，可重新尝试。",
     },
     pending: {
-      label: "Pending",
+      label: "待处理",
       detail:
-        "The proposal is approved locally, but no destination observation has been received.",
+        "提议已在本地批准，但尚未收到目标端观察结果。",
     },
     unknown: {
-      label: "Unknown",
+      label: "未知",
       detail:
-        "No observation returned. Treat the effect as unknown until it is reconciled.",
+        "没有返回观察结果。在对账完成前，将效果视为未知。",
     },
     verified: {
-      label: "Verified in fixture",
+      label: "已在测试中验证",
       detail:
-        "The local fixture handoff was observed. No message, meeting, contact, or ATS record was changed.",
+        "已观察到本地测试交接。未更改消息、会议、联系人或 ATS 记录。",
     },
   };
   return copy[status];
@@ -215,8 +213,8 @@ function CaseRailItem({
         </span>
         <span className="review-case-rail__progress">
           {progress.total > 0
-            ? `${progress.completed} of ${progress.total} review decisions`
-            : "No fact review required"}
+            ? `${progress.completed}/${progress.total} 项审阅决定`
+            : "无需事实审阅"}
         </span>
       </button>
     </li>
@@ -308,7 +306,7 @@ export function WorkspaceApp({
 
   function resolveTime() {
     if (!timeDraft.date || !timeDraft.time || !timeDraft.timezone) {
-      setTimeError("Choose an exact date, local time, and source timezone.");
+      setTimeError("请选择准确日期、当地时间和来源时区。")
       return;
     }
     updateReview((current) => ({
@@ -319,7 +317,7 @@ export function WorkspaceApp({
         availability: {
           ...current.factReviews.availability,
           status: "edited",
-          value: `${timeDraft.date} at ${timeDraft.time} (${timeDraft.timezone})`,
+          value: `${timeDraft.date} ${timeDraft.time}（${timeDraft.timezone}）`,
         },
       },
     }));
@@ -351,11 +349,11 @@ export function WorkspaceApp({
         </div>
 
         <div className="review-sidebar__scope">
-          <p>Evidence review</p>
-          <span>Eight synthetic cases</span>
+          <p>依据审阅</p>
+          <span>八个合成案例</span>
         </div>
 
-        <nav aria-label="Candidate momentum fixture cases">
+        <nav aria-label="候选人进展测试案例">
           <ol className="review-case-rail">
             {dataset.cases.map((item) => (
               <CaseRailItem
@@ -372,16 +370,16 @@ export function WorkspaceApp({
         <div className="review-sidebar__foot">
           <Link href="/workspace">
             <ArrowLeft aria-hidden="true" size={16} />
-            Canonical journey
+            规范流程
           </Link>
           <Link href="/">
             <ArrowSquareOut aria-hidden="true" size={16} />
-            Product site
+            产品网站
           </Link>
           <form action={signOutOfWorkspace}>
             <button type="submit">
               <SignOut aria-hidden="true" size={16} />
-              Sign out
+              退出登录
             </button>
           </form>
         </div>
@@ -400,8 +398,8 @@ export function WorkspaceApp({
             <ThemeToggle />
             <span>{initialsForUser(user.name, user.email)}</span>
             <div>
-              <strong>{user.name ?? "Recruiter"}</strong>
-              <small>{user.email ?? "Signed in"}</small>
+              <strong>{user.name ?? "招聘顾问"}</strong>
+              <small>{user.email ?? "已登录"}</small>
             </div>
           </div>
         </header>
@@ -409,18 +407,18 @@ export function WorkspaceApp({
         <main id="main-content" className="review-main" tabIndex={-1}>
           <section
             className="review-source-note"
-            aria-label="Workspace data source"
+            aria-label="工作区数据来源"
           >
             <strong>{source.label}</strong>
             <p>{source.detail}</p>
             <button type="button" onClick={() => window.location.reload()}>
               <ArrowCounterClockwise aria-hidden="true" size={15} />
-              Refresh source
+              刷新来源
             </button>
           </section>
 
           <div className="review-mobile-picker">
-            <label htmlFor="fixture-case">Review case</label>
+            <label htmlFor="fixture-case">审阅案例</label>
             <select
               id="fixture-case"
               value={fixtureCase.id}
@@ -448,21 +446,21 @@ export function WorkspaceApp({
                 {getCaseIdentityLabel(fixtureCase)}
               </h1>
               <span>
-                {fixtureCase.context.assignment ?? "Assignment unresolved"}
+                {fixtureCase.context.assignment ?? "项目未解决"}
               </span>
             </div>
             <div className="review-case-header__position">
               <span>
-                Case {selectedIndex + 1} of {dataset.cases.length}
+                第 {selectedIndex + 1}/{dataset.cases.length} 个案例
               </span>
               <small>
                 {progress.total > 0
-                  ? `${progress.completed} of ${progress.total} decisions complete`
-                  : "No fact decisions required"}
+                  ? `已完成 ${progress.completed}/${progress.total} 项决定`
+                  : "无需事实决定"}
               </small>
               <button type="button" onClick={resetSelectedCase}>
                 <ArrowCounterClockwise aria-hidden="true" size={15} />
-                Reset case
+                重置案例
               </button>
             </div>
           </header>
@@ -484,11 +482,11 @@ export function WorkspaceApp({
               >
                 <header>
                   <div>
-                    <p>Observed evidence</p>
-                    <h2 id="source-evidence-title">Exact source</h2>
+                    <p>观察到的依据</p>
+                    <h2 id="source-evidence-title">准确来源</h2>
                   </div>
                   <span>
-                    {new Intl.DateTimeFormat("en", {
+                    {new Intl.DateTimeFormat("zh-CN", {
                       dateStyle: "medium",
                       timeStyle: "short",
                       timeZone:
@@ -514,15 +512,15 @@ export function WorkspaceApp({
 
                 <dl className="review-source-metadata">
                   <div>
-                    <dt>Source timezone</dt>
+                    <dt>来源时区</dt>
                     <dd>
-                      {fixtureCase.context.source_timezone ?? "Not provided"}
+                      {fixtureCase.context.source_timezone ?? "未提供"}
                     </dd>
                   </div>
                   <div>
-                    <dt>Assignment</dt>
+                    <dt>项目</dt>
                     <dd>
-                      {fixtureCase.context.assignment ?? "Not yet bound"}
+                      {fixtureCase.context.assignment ?? "尚未绑定"}
                     </dd>
                   </div>
                 </dl>
@@ -535,20 +533,18 @@ export function WorkspaceApp({
                 >
                   <header>
                     <div>
-                      <p>Identity ambiguity</p>
+                      <p>身份歧义</p>
                       <h2 id="identity-resolution-title">
-                        Which Alex Chen does this source belong to?
+                        此来源属于哪位 Alex Chen？
                       </h2>
                     </div>
                     <LockKey aria-hidden="true" size={20} />
                   </header>
                   <p>
-                    No candidate fact or deadline action can be created until
-                    you choose a context. This choice stays in the fixture
-                    session.
+                    选择背景前，不能创建候选人事实或截止日期行动。此选择仅保留在测试会话中。
                   </p>
                   <fieldset>
-                    <legend>Candidate and assignment</legend>
+                    <legend>候选人与项目</legend>
                     {fixtureCase.context.candidate_options?.map((option) => (
                       <label key={option}>
                         <input
@@ -575,7 +571,7 @@ export function WorkspaceApp({
                   <section className="resolution-note" aria-live="polite">
                     <CheckCircle aria-hidden="true" size={18} />
                     <div>
-                      <strong>Context selected</strong>
+                      <strong>背景已选择</strong>
                       <p>
                         {readableCandidateOption(
                           review.identityResolution ?? "",
@@ -591,7 +587,7 @@ export function WorkspaceApp({
                         }))
                       }
                     >
-                      Change
+                      更改
                     </button>
                   </section>
                 )}
@@ -603,9 +599,9 @@ export function WorkspaceApp({
                 >
                   <header>
                     <div>
-                      <p>Time ambiguity</p>
+                      <p>时间歧义</p>
                       <h2 id="time-resolution-title">
-                        Resolve the source date and timezone.
+                        解决来源日期与时区。
                       </h2>
                     </div>
                     <Clock aria-hidden="true" size={20} />
@@ -613,7 +609,7 @@ export function WorkspaceApp({
                   <p>{fixtureCase.context.notes}</p>
                   <div className="time-resolution-fields">
                     <label>
-                      <span>Exact date</span>
+                      <span>准确日期</span>
                       <input
                         type="date"
                         value={timeDraft.date}
@@ -626,7 +622,7 @@ export function WorkspaceApp({
                       />
                     </label>
                     <label>
-                      <span>Local time</span>
+                      <span>当地时间</span>
                       <input
                         type="time"
                         value={timeDraft.time}
@@ -639,7 +635,7 @@ export function WorkspaceApp({
                       />
                     </label>
                     <label>
-                      <span>Source timezone</span>
+                      <span>来源时区</span>
                       <select
                         value={timeDraft.timezone}
                         onChange={(event) =>
@@ -649,7 +645,7 @@ export function WorkspaceApp({
                           }))
                         }
                       >
-                        <option value="">Choose timezone</option>
+                        <option value="">选择时区</option>
                         <option value="Asia/Singapore">
                           Asia/Singapore
                         </option>
@@ -668,7 +664,7 @@ export function WorkspaceApp({
                     onClick={resolveTime}
                   >
                     <Check aria-hidden="true" size={16} />
-                    Use this source time
+                    使用此来源时间
                   </button>
                 </section>
               )}
@@ -677,9 +673,9 @@ export function WorkspaceApp({
                 <section className="resolution-note" aria-live="polite">
                   <CheckCircle aria-hidden="true" size={18} />
                   <div>
-                    <strong>Source time resolved</strong>
+                    <strong>来源时间已解决</strong>
                     <p>
-                      {review.timeResolution.date} at{" "}
+                      {review.timeResolution.date}，{" "}
                       {review.timeResolution.time} (
                       {review.timeResolution.timezone})
                     </p>
@@ -702,7 +698,7 @@ export function WorkspaceApp({
                       }))
                     }
                   >
-                    Change
+                    更改
                   </button>
                 </section>
               )}
@@ -715,14 +711,14 @@ export function WorkspaceApp({
               >
                 <header>
                   <div>
-                    <p>Proposed understanding</p>
-                    <h2 id="proposed-state-title">Review each fact</h2>
+                    <p>拟议理解</p>
+                    <h2 id="proposed-state-title">逐项审阅事实</h2>
                   </div>
                   <span>
                     {fixtureCase.expected.assertions.length}{" "}
                     {fixtureCase.expected.assertions.length === 1
-                      ? "proposal"
-                      : "proposals"}
+                      ? "项提议"
+                      : "项提议"}
                   </span>
                 </header>
 
@@ -735,13 +731,13 @@ export function WorkspaceApp({
                     )}
                     <h3>
                       {fixtureCase.expected.disposition === "block"
-                        ? "Unsupported request blocked"
-                        : "No fact change proposed"}
+                        ? "不受支持的请求已阻止"
+                        : "没有拟议事实变化"}
                     </h3>
                     <p>
                       {fixtureCase.expected.disposition === "block"
-                        ? "Tone, response speed, and shared interests are not used to score candidate fit or quality."
-                        : "The conversation remains available as source context, but it does not support a new candidate fact."}
+                        ? "不会使用语气、回复速度和共同兴趣来评价候选人的适配度或质量。"
+                        : "对话仍可作为来源背景，但不足以支持新的候选人事实。"}
                     </p>
                   </div>
                 ) : (
@@ -775,7 +771,7 @@ export function WorkspaceApp({
                             </div>
                             {priorValue && (
                               <p>
-                                <span>Before</span>
+                                <span>之前</span>
                                 <del>{priorValue}</del>
                               </p>
                             )}
@@ -784,7 +780,7 @@ export function WorkspaceApp({
                           {editing ? (
                             <div className="fact-review__edit">
                               <label htmlFor={`edit-${assertion.field}`}>
-                                Edited value
+                                编辑后的值
                               </label>
                               <textarea
                                 id={`edit-${assertion.field}`}
@@ -799,7 +795,7 @@ export function WorkspaceApp({
                                   type="button"
                                   onClick={() => setEditingField(null)}
                                 >
-                                  Cancel
+                                  取消
                                 </button>
                                 <button
                                   type="button"
@@ -811,7 +807,7 @@ export function WorkspaceApp({
                                     aria-hidden="true"
                                     size={15}
                                   />
-                                  Save edit
+                                  保存编辑
                                 </button>
                               </div>
                             </div>
@@ -820,22 +816,22 @@ export function WorkspaceApp({
                               <div className="fact-review__value">
                                 {factReview.status === "edited" && (
                                   <p>
-                                    <span>Proposed</span>
+                                    <span>拟议</span>
                                     <del>{factReview.originalValue}</del>
                                   </p>
                                 )}
                                 <p>
                                   <span>
                                     {factReview.status === "edited"
-                                      ? "After"
-                                      : "Value"}
+                                      ? "之后"
+                                      : "值"}
                                   </span>
                                   <strong>{factReview.value}</strong>
                                 </p>
                               </div>
                               <div className="fact-review__evidence">
                                 <span>
-                                  Exact evidence, {evidence?.speaker}
+                                  准确依据，{evidence?.speaker}
                                 </span>
                                 <blockquote>
                                   “{assertion.evidence_quote}”
@@ -858,7 +854,7 @@ export function WorkspaceApp({
                                   )
                                 }
                               >
-                                Reopen review
+                                重新打开审阅
                               </button>
                             ) : (
                               <div className="fact-review__actions">
@@ -874,7 +870,7 @@ export function WorkspaceApp({
                                     aria-hidden="true"
                                     size={15}
                                   />
-                                  Edit
+                                  编辑
                                 </button>
                                 <button
                                   type="button"
@@ -886,7 +882,7 @@ export function WorkspaceApp({
                                   }
                                 >
                                   <X aria-hidden="true" size={15} />
-                                  Dismiss
+                                  驳回
                                 </button>
                                 <button
                                   type="button"
@@ -899,14 +895,13 @@ export function WorkspaceApp({
                                   }
                                 >
                                   <Check aria-hidden="true" size={15} />
-                                  Confirm
+                                  确认
                                 </button>
                               </div>
                             ))}
                           {ambiguousFactLocked && (
                             <p className="fact-review__locked">
-                              Resolve the source time before confirming or
-                              editing this value.
+                              确认或编辑此值前，请先解决来源时间。
                             </p>
                           )}
                         </article>
@@ -922,11 +917,11 @@ export function WorkspaceApp({
               >
                 <header>
                   <div>
-                    <p>Independent decision</p>
-                    <h2 id="action-review-title">One next action</h2>
+                    <p>独立决定</p>
+                    <h2 id="action-review-title">一个下一步行动</h2>
                   </div>
                   {fixtureCase.expected.action && (
-                    <span>Separate approval</span>
+                    <span>单独批准</span>
                   )}
                 </header>
 
@@ -941,17 +936,17 @@ export function WorkspaceApp({
                     )}
                     <h3>
                       {fixtureCase.expected.disposition === "clarify"
-                        ? "Clarification only"
+                        ? "仅需澄清"
                         : fixtureCase.expected.disposition === "block"
-                          ? "No action allowed"
-                          : "No action is the reviewed result"}
+                          ? "不允许行动"
+                          : "无需行动是审阅结果"}
                     </h3>
                     <p>
                       {fixtureCase.expected.disposition === "clarify"
-                        ? "Resolve the ambiguity without creating a meeting, deadline action, or candidate fact."
+                        ? "解决歧义，但不创建会议、截止日期行动或候选人事实。"
                         : fixtureCase.expected.disposition === "block"
-                          ? "The unsupported scoring request cannot create a candidate assessment or follow-up."
-                          : "This case does not manufacture urgency, sentiment, agreement, or a follow-up task."}
+                          ? "不受支持的评分请求不能创建候选人评估或跟进。"
+                          : "此案例不会制造紧迫感、情绪、同意或跟进任务。"}
                     </p>
                   </div>
                 ) : (
@@ -960,33 +955,32 @@ export function WorkspaceApp({
                     data-state={review.actionDecision}
                   >
                     <div className="action-proposal__title">
-                      <span>Prepare question</span>
+                      <span>准备问题</span>
                       <h3>{fixtureCase.expected.action.target}</h3>
                     </div>
                     <dl>
                       <div>
-                        <dt>Why now</dt>
+                        <dt>为何现在</dt>
                         <dd>{fixtureCase.expected.action.reason}</dd>
                       </div>
                       <div>
-                        <dt>Owner</dt>
+                        <dt>负责人</dt>
                         <dd>{fixtureCase.expected.action.owner}</dd>
                       </div>
                       <div>
-                        <dt>Due</dt>
+                        <dt>截止时间</dt>
                         <dd>{fixtureCase.expected.action.due}</dd>
                       </div>
                       <div>
-                        <dt>Exact local effect</dt>
+                        <dt>准确本地效果</dt>
                         <dd>
-                          Add one approved question to this fixture session.
-                          Nothing is sent or scheduled.
+                          向此测试会话添加一个已批准问题；不会发送消息或安排日程。
                         </dd>
                       </div>
                     </dl>
 
                     <div className="action-proposal__evidence">
-                      <span>Supporting source</span>
+                      <span>支持来源</span>
                       {fixtureCase.expected.action.evidence_message_ids.map(
                         (messageId) => (
                           <blockquote key={messageId}>
@@ -1005,8 +999,7 @@ export function WorkspaceApp({
                         {!canApproveAction(fixtureCase, review) && (
                           <p className="action-proposal__locked">
                             <LockKey aria-hidden="true" size={15} />
-                            Review every proposed fact before this separate
-                            decision becomes available.
+                            先审阅所有拟议事实，才能进行这项独立决定。
                           </p>
                         )}
                         <div className="action-proposal__actions">
@@ -1022,7 +1015,7 @@ export function WorkspaceApp({
                               }))
                             }
                           >
-                            Decline action
+                            拒绝行动
                           </button>
                           <button
                             className="review-primary-button"
@@ -1039,7 +1032,7 @@ export function WorkspaceApp({
                             }
                           >
                             <Check aria-hidden="true" size={16} />
-                            Approve local handoff
+                            批准本地交接
                           </button>
                         </div>
                       </>
@@ -1049,10 +1042,9 @@ export function WorkspaceApp({
                       <div className="action-decision-note">
                         <Prohibit aria-hidden="true" size={18} />
                         <div>
-                          <strong>Action declined</strong>
+                          <strong>行动已拒绝</strong>
                           <p>
-                            The evidence and reviewed facts remain intact. No
-                            local handoff was created.
+                            依据与已审阅事实保持完整，未创建本地交接。
                           </p>
                         </div>
                         <button
@@ -1064,7 +1056,7 @@ export function WorkspaceApp({
                             }))
                           }
                         >
-                          Restore proposal
+                          恢复提议
                         </button>
                       </div>
                     )}
@@ -1084,7 +1076,7 @@ export function WorkspaceApp({
                         </div>
                         <div className="fixture-outcome__control">
                           <label htmlFor={`outcome-${fixtureCase.id}`}>
-                            Fixture observation to inspect
+                            待检查的测试观察结果
                           </label>
                           <div>
                             <select
@@ -1096,12 +1088,12 @@ export function WorkspaceApp({
                                 )
                               }
                             >
-                              <option value="pending">Pending</option>
+                              <option value="pending">待处理</option>
                               <option value="verified">
-                                Verified in fixture
+                                已在测试中验证
                               </option>
-                              <option value="failed">Failed</option>
-                              <option value="unknown">Unknown</option>
+                              <option value="failed">失败</option>
+                              <option value="unknown">未知</option>
                             </select>
                             <button
                               type="button"
@@ -1112,12 +1104,11 @@ export function WorkspaceApp({
                                 }))
                               }
                             >
-                              Apply fixture result
+                              应用测试结果
                             </button>
                           </div>
                           <p>
-                            This control demonstrates outcome semantics. It
-                            does not contact or observe an external system.
+                            此控件用于演示结果语义，不会联系或观察外部系统。
                           </p>
                         </div>
                       </div>
@@ -1127,7 +1118,7 @@ export function WorkspaceApp({
               </section>
 
               <details className="review-boundaries">
-                <summary>Case boundaries preserved</summary>
+                <summary>案例边界已保留</summary>
                 <ul>
                   {fixtureCase.expected.must_not.map((boundary) => (
                     <li key={boundary}>{boundary}</li>

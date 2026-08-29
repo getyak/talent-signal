@@ -56,12 +56,12 @@ export async function loadCandidateWorkspace(): Promise<{
       signal: AbortSignal.timeout(2_500),
     });
     if (!response.ok) {
-      throw new Error("Local backend returned an error.");
+      throw new Error("本地后端返回错误。");
     }
 
     const payload: unknown = await response.json();
     if (!isCandidateMomentumDataset(payload)) {
-      throw new Error("Local backend returned an incompatible fixture set.");
+      throw new Error("本地后端返回了不兼容的测试数据集。");
     }
 
     return {
@@ -78,7 +78,7 @@ export async function loadCandidateWorkspace(): Promise<{
         detail:
           payload.data_mode === "synchronized"
             ? "This state was explicitly labeled synchronized by the configured localhost backend."
-            : "The configured localhost backend returned synthetic fixture state. No external system is implied.",
+            : "已配置的本地主机后端返回了合成测试状态，不代表任何外部系统。",
       },
     };
   } catch {

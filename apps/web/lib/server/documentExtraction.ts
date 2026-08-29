@@ -94,7 +94,7 @@ function assertExtractionBounds(
     throw new Error(
       characters === 0
         ? "No readable text was found in this document."
-        : "The extracted document exceeds the bounded review surface.",
+        : "提取后的文档超出有边界的审阅范围。",
     );
   }
 }
@@ -131,7 +131,7 @@ export async function extractDocument(
   clientResourceId: string,
 ): Promise<ExtractedDocument> {
   if (file.size <= 0 || file.size > MAX_FILE_BYTES) {
-    throw new Error("Choose one non-empty document up to 6 MB.");
+    throw new Error("请选择一个不超过 6 MB 的非空文档。");
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
   const suffix = extension(file.name);
@@ -145,7 +145,7 @@ export async function extractDocument(
     suffix === ".pdf"
   ) {
     if (new TextDecoder("ascii").decode(bytes.slice(0, 5)) !== "%PDF-") {
-      throw new Error("The selected file does not have a valid PDF header.");
+      throw new Error("所选文件没有有效的 PDF 文件头。");
     }
     const parser = new PDFParse({ data: bytes });
     try {
@@ -185,7 +185,7 @@ export async function extractDocument(
       );
     }
     if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-      throw new Error("The selected file does not have a valid DOCX container.");
+      throw new Error("所选文件没有有效的 DOCX 容器。");
     }
     const result = await mammoth.extractRawText({
       buffer: Buffer.from(bytes),
@@ -227,7 +227,7 @@ export async function extractDocument(
     }));
     completeText = values.join("\n\n");
   } else {
-    throw new Error("Use a PDF, DOCX, TXT, or Markdown document.");
+    throw new Error("请使用 PDF、DOCX、TXT 或 Markdown 文档。");
   }
 
   return {

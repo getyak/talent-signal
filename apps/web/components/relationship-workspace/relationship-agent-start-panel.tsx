@@ -64,9 +64,9 @@ export function RelationshipAgentStartPanel({
           <ChatCircleDots aria-hidden="true" size={18} weight="duotone" />
         </span>
         <div>
-          <p>Relationship Agent</p>
+          <p>关系智能助理</p>
           <strong id="relationship-chat-title">
-            Start with one message.
+            从一条消息开始。
           </strong>
         </div>
       </div>
@@ -89,11 +89,9 @@ export function RelationshipAgentStartPanel({
           <div className="context-agent-welcome">
             <span><ChatCircleDots aria-hidden="true" size={16} /></span>
             <div>
-              <strong>Add a person as naturally as you would message a colleague.</strong>
+              <strong>像给同事发消息一样，自然地添加联系人。</strong>
               <p>
-                “Add Maya Chen for the CPO search. Elena referred her and she
-                can speak next Tuesday.” I will check People first, then prepare
-                create, attach, or identity review. Nothing changes silently.
+                “添加 Maya Chen 到首席产品官寻访。Elena 推荐了她，她下周二可以沟通。”我会先检查联系人目录，再准备创建、关联或身份审阅。任何状态都不会静默改变。
               </p>
             </div>
           </div>
@@ -108,7 +106,7 @@ export function RelationshipAgentStartPanel({
       >
         <div className="context-chat__composer-row">
           <button
-            aria-label="Import a conversation screenshot"
+            aria-label="导入对话截图"
             className="context-chat__media-picker"
             onClick={onScreenshot}
             type="button"
@@ -116,20 +114,20 @@ export function RelationshipAgentStartPanel({
             <FileImage aria-hidden="true" size={19} weight="duotone" />
           </button>
           <label className="context-chat__objective">
-            <span className="sr-only">Message the Relationship Agent</span>
+            <span className="sr-only">给关系智能助理发消息</span>
             <textarea
               autoFocus
               id="relationship-agent-composer"
               maxLength={1_000}
               onChange={(event) => onObjectiveChange(event.target.value)}
-              placeholder="Message, paste, or add anything…"
+              placeholder="输入消息、粘贴内容或添加任何资料…"
               rows={2}
               value={objective}
             />
           </label>
           {objective.trim() ? (
             <button
-              aria-label="Send to Agent"
+              aria-label="发送给智能助理"
               className="context-primary-button"
               type="submit"
             >

@@ -103,7 +103,7 @@ export function StartRelationshipPanel({
               throw new Error(
                 "message" in payload && payload.message
                   ? payload.message
-                  : "Existing people could not be loaded.",
+                  : "无法加载现有人才。",
               );
             }
             if (requestId !== peopleRequestIdRef.current) {
@@ -125,7 +125,7 @@ export function StartRelationshipPanel({
             setError(
               caught instanceof Error
                 ? caught.message
-                : "Existing people could not be loaded.",
+                : "无法加载现有人才。",
             );
           })
           .finally(() => {
@@ -178,7 +178,7 @@ export function StartRelationshipPanel({
   async function submit() {
     if (!identityReady || !sourceReady) {
       setError(
-        "Choose an existing person and context, or explicitly create a new person, then add one source.",
+        "请选择现有人物及关系背景，或明确新建人物，然后添加一个来源。",
       );
       return;
     }
@@ -189,7 +189,7 @@ export function StartRelationshipPanel({
     const requestId = requestIdRef.current;
     const capturedAt = requestCapturedAtRef.current;
     if (!capturedAt) {
-      setError("The source observation time could not be preserved.");
+      setError("无法保留来源观察时间。")
       return;
     }
     const scopeMode = createNewPerson
@@ -263,7 +263,7 @@ export function StartRelationshipPanel({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The first source could not be committed.",
+            : "无法提交首个来源。",
         );
       }
       const first = payload.receipts[0];
@@ -272,7 +272,7 @@ export function StartRelationshipPanel({
         first?.identity.relationship_context_id;
       if (!first || !personId || !relationshipContextId) {
         throw new Error(
-          "The first source is waiting for identity review and cannot open a person page yet.",
+          "首个来源正在等待身份审阅，暂时无法打开人物页面。",
         );
       }
       onCommitted(
@@ -300,7 +300,7 @@ export function StartRelationshipPanel({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The first source could not be committed.",
+          : "无法提交首个来源。",
       );
     } finally {
       setBusy(false);
@@ -310,17 +310,16 @@ export function StartRelationshipPanel({
   return (
     <section className="context-start">
       <div className="context-start__intro">
-        <p className="eyebrow">FIRST GOVERNED SOURCE</p>
-        <h2>Choose the person, relationship, and source.</h2>
+        <p className="eyebrow">首个受治理来源</p>
+        <h2>选择人物、关系与来源。</h2>
         <p>
-          Identity is your decision. Extraction and source claims remain
-          separate review states.
+          身份由你决定；提取结果与来源声明保持为独立的审阅状态。
         </p>
       </div>
 
       <div className="context-start__identity">
         <label>
-          <span>Person</span>
+          <span>人物</span>
           <input
             autoComplete="off"
             maxLength={200}
@@ -334,13 +333,13 @@ export function StartRelationshipPanel({
               setCreateNewContext(false);
               resetRequest();
             }}
-            placeholder="Search or name a person"
+            placeholder="搜索或输入姓名"
             value={contactName}
           />
         </label>
         <div className="context-start__choices">
           {peopleLoading ? (
-            <span>Loading people…</span>
+            <span>正在加载人才……</span>
           ) : (
             matchingPeople.map((person) => (
               <button
@@ -362,7 +361,7 @@ export function StartRelationshipPanel({
                   <strong>{person.display_label}</strong>
                   <small>
                     {personContextSummary(person)} · {person.capture_count}{" "}
-                    {person.capture_count === 1 ? "source" : "sources"}
+                    个来源
                   </small>
                 </p>
               </button>
@@ -385,8 +384,8 @@ export function StartRelationshipPanel({
             >
               <Plus aria-hidden="true" size={17} />
               <p>
-                <strong>Create “{contactName.trim()}”</strong>
-                <small>This is an explicit new-person decision.</small>
+                <strong>创建“{contactName.trim()}”</strong>
+                <small>这是一次明确的新人物创建决定。</small>
               </p>
             </button>
           ) : null}
@@ -396,14 +395,13 @@ export function StartRelationshipPanel({
         !peopleLoading &&
         !peopleLookupFailed ? (
           <p className="context-start__lookup-note">
-            No current or historical owner matched this masked identity clue.
-            Enter the person&apos;s name before creating a new identity.
+            当前或历史归属中均未匹配到这条已遮蔽的身份线索。创建新身份前，请先输入姓名。
           </p>
         ) : null}
 
         {selectedPerson ? (
           <div className="context-start__contexts">
-            <span>Choose the relationship context</span>
+            <span>选择关系背景</span>
             {selectedPerson.contexts.map((context) => (
               <button
                 data-selected={selectedContextId === context.id}
@@ -430,20 +428,20 @@ export function StartRelationshipPanel({
               type="button"
             >
               <Plus aria-hidden="true" size={15} />
-              New relationship context
+              新建关系背景
             </button>
           </div>
         ) : null}
         {createNewPerson || createNewContext ? (
           <label>
-            <span>Relationship context</span>
+            <span>关系背景</span>
             <input
               maxLength={200}
               onChange={(event) => {
                 setContextLabel(event.target.value);
                 resetRequest();
               }}
-              placeholder="e.g. VP Product · Northstar search"
+              placeholder="例如：产品副总裁 · Northstar 寻访"
               value={contextLabel}
             />
           </label>
@@ -451,7 +449,7 @@ export function StartRelationshipPanel({
       </div>
 
       <div className="context-start__source">
-        <div aria-label="First source type" role="tablist">
+        <div aria-label="首个来源类型" role="tablist">
           {(["note", "conversation", "document", "url"] as const).map((sourceMode) => (
             <button
               aria-selected={mode === sourceMode}
@@ -473,15 +471,15 @@ export function StartRelationshipPanel({
                 <LinkSimple aria-hidden="true" size={16} />
               )}
               {sourceMode === "document"
-                ? "File"
+                ? "文件"
                 : sourceMode === "conversation"
-                  ? "Transcript"
-                  : sourceMode}
+                  ? "对话转写"
+                  : sourceMode === "note" ? "备注" : "链接"}
             </button>
           ))}
           <button onClick={onScreenshot} type="button">
             <FileImage aria-hidden="true" size={16} />
-            Screenshot
+            截图
           </button>
         </div>
 
@@ -527,12 +525,12 @@ export function StartRelationshipPanel({
             >
               <UploadSimple aria-hidden="true" size={20} />
               <span>
-                <strong>{file?.name ?? "Choose resume or document"}</strong>
-                <small>Raw file is parsed transiently and not retained.</small>
+                <strong>{file?.name ?? "选择简历或文档"}</strong>
+                <small>原始文件仅临时解析，不会保留。</small>
               </span>
             </button>
             <label>
-              <span>Document meaning</span>
+              <span>文档用途</span>
               <select
                 onChange={(event) =>
                   setDocumentKind(
@@ -541,8 +539,8 @@ export function StartRelationshipPanel({
                 }
                 value={documentKind}
               >
-                <option value="resume">Resume</option>
-                <option value="document">Supporting document</option>
+                <option value="resume">简历</option>
+                <option value="document">补充文档</option>
               </select>
             </label>
             <label className="context-resource-checkbox">
@@ -554,28 +552,28 @@ export function StartRelationshipPanel({
                 type="checkbox"
               />
               <span>
-                Save visible URLs as research seeds
-                <small>No page is fetched and no research is authorized.</small>
+                将可见网址保存为研究种子
+                <small>不会抓取页面，也不会授权研究。</small>
               </span>
             </label>
           </div>
         ) : (
           <div className="context-resource-composer__text">
             <label>
-              <span>{mode === "note" ? "Note title" : "Link label"}</span>
+              <span>{mode === "note" ? "备注标题" : "链接名称"}</span>
               <input
                 maxLength={240}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder={
                   mode === "note"
-                    ? "e.g. First-call context"
-                    : "e.g. Public profile"
+                    ? "例如：首次通话背景"
+                    : "例如：公开资料页"
                 }
                 value={title}
               />
             </label>
             <label>
-              <span>{mode === "note" ? "Your note" : "Public URL"}</span>
+              <span>{mode === "note" ? "你的备注" : "公开网址"}</span>
               {mode === "note" ? (
                 <textarea
                   maxLength={40_000}
@@ -611,8 +609,7 @@ export function StartRelationshipPanel({
       ) : null}
       <footer>
         <p>
-          The source stays separate from confirmed facts. Files remain
-          proposed until you review the extraction.
+          来源与已确认事实保持分离；在你审阅提取结果前，文件内容始终是提议状态。
         </p>
         <button
           className="context-primary-button"
@@ -625,7 +622,7 @@ export function StartRelationshipPanel({
           ) : (
             <ArrowRight aria-hidden="true" size={17} />
           )}
-          {busy ? "Creating person page" : "Open living person page"}
+          {busy ? "正在创建人物页面" : "打开持续更新的人物页面"}
         </button>
       </footer>
     </section>

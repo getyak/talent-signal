@@ -26,11 +26,10 @@ export function RelationshipOnboarding({
   return (
     <section className="context-onboarding">
       <header className="context-onboarding__header">
-        <p className="eyebrow">RELATIONSHIP INTELLIGENCE</p>
-        <h1>Begin with the source.</h1>
+        <p className="eyebrow">关系智能</p>
+        <h1>从来源开始。</h1>
         <p>
-          Bind one person and relationship, then review what the source can and
-          cannot support.
+          先关联一个人与一段关系，再审阅来源能够、以及不能支持什么。
         </p>
       </header>
       <div className="context-onboarding__workbench">
@@ -39,30 +38,30 @@ export function RelationshipOnboarding({
           onScreenshot={onScreenshot}
         />
         <aside
-          aria-label="From governed source to living Wiki"
+          aria-label="从受治理来源到持续更新的 Wiki"
           className="context-onboarding__artifact"
         >
           <div>
             <span>01</span>
             <p>
-              <strong>Bring one source</strong>
-              Note, transcript, file, link, or screenshot
+              <strong>导入一个来源</strong>
+              笔记、对话稿、文件、链接或截图
             </p>
           </div>
           <ArrowRight aria-hidden="true" size={19} />
           <div>
             <span>02</span>
             <p>
-              <strong>Bind the context</strong>
-              Person and relationship stay explicit
+              <strong>关联情境</strong>
+              人与关系始终明确
             </p>
           </div>
           <ArrowRight aria-hidden="true" size={19} />
           <div>
             <span>03</span>
             <p>
-              <strong>Compile the Wiki</strong>
-              Evidence governs every task view
+              <strong>编译 Wiki</strong>
+              每个任务视图都由证据治理
             </p>
           </div>
         </aside>
@@ -71,9 +70,8 @@ export function RelationshipOnboarding({
         <div className="context-deletion-receipt">
           <Prohibit aria-hidden="true" size={19} />
           <p>
-            <strong>Previous source deleted</strong>
-            {deletionSummary.derivatives} derivatives removed ·{" "}
-            {deletionSummary.lineage} audit-safe lineage entries retained.
+            <strong>先前来源已删除</strong>
+            已移除 {deletionSummary.derivatives} 项衍生数据 · 保留 {deletionSummary.lineage} 条审计安全的链路记录。
           </p>
         </div>
       ) : null}

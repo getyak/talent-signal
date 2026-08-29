@@ -16,14 +16,14 @@ export type SignInState = {
 function credentialsErrorMessage(error: AuthError, mode: "register" | "sign-in") {
   const code = "code" in error ? String(error.code) : "";
   if (code === "service_unavailable") {
-    return "Account access is temporarily unavailable. Check the local backend and try again.";
+    return "账号服务暂时不可用。请检查本地后端后重试。";
   }
   if (mode === "register" && code === "account_exists") {
-    return "An account already uses that username or email.";
+    return "该用户名或邮箱已被其他账号使用。";
   }
   return mode === "register"
-    ? "The account could not be created. Review the details and try again."
-    : "The username, email, or password is not recognized.";
+    ? "无法创建账号，请检查填写内容后重试。"
+    : "无法识别该用户名、邮箱或密码。";
 }
 
 export async function signInWithPasswordAccount(
@@ -35,7 +35,7 @@ export async function signInWithPasswordAccount(
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: "Enter your username or email and password." };
+    return { error: "请输入用户名或邮箱以及密码。" };
   }
 
   try {
@@ -58,7 +58,7 @@ export async function registerPasswordAccount(
   formData: FormData,
 ): Promise<SignInState> {
   if (formData.get("password") !== formData.get("confirmPassword")) {
-    return { error: "Passwords do not match." };
+    return { error: "两次输入的密码不一致。" };
   }
   const parsed = passwordRegistrationSchema.safeParse({
     username: formData.get("username"),
@@ -69,7 +69,7 @@ export async function registerPasswordAccount(
   if (!parsed.success) {
     return {
       error:
-        "Use a 3–40 character username, a valid email, and a password of at least 8 characters.",
+        "用户名需为 3–40 个字符，请填写有效邮箱，并设置至少 8 个字符的密码。",
     };
   }
 
@@ -105,8 +105,8 @@ export async function signInWithEmail(
       return {
         error:
           error.type === "CredentialsSignin"
-            ? "The email or password is not recognized."
-            : "Sign in could not be completed. Please try again.",
+            ? "无法识别该邮箱或密码。"
+            : "无法完成登录，请重试。",
       };
     }
     throw error;

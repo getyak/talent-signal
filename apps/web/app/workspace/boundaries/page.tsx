@@ -11,9 +11,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Boundary cases",
+  title: "边界案例",
   description:
-    "Authenticated synthetic boundary cases for the Talent Signal evidence-review workspace.",
+    "用于 Talent Signal 证据审阅工作台的已认证合成边界案例。",
   robots: {
     follow: false,
     index: false,
@@ -28,9 +28,9 @@ export default async function WorkspaceBoundariesPage() {
 
   const source: WorkspaceDataSource = {
     kind: "fixture-fallback",
-    label: "Frozen sample cases",
+    label: "冻结的示例案例",
     detail:
-      "These eight synthetic cases exercise the review interface only. Current backend behavior is verified separately by the runtime evaluation suite.",
+      "这八个合成案例只用于验证审阅界面；当前后端行为由运行时评测套件另行核验。",
   };
   return (
     <WorkspaceApp

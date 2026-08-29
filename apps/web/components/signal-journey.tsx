@@ -24,98 +24,103 @@ export const signalJourneySources = [
   {
     id: "wechat",
     label: "WeChat",
-    detail: "Private message",
+    detail: "私聊消息",
     image: "/marketing/signal-journey/wechat-synthetic.webp",
-    alt: "Synthetic Chinese recruiter conversation in a green messaging interface",
+    alt: "绿色聊天界面中的合成中文招聘对话",
     evidence: ["我周三前需要做决定。", "新加坡远程办公的安排还没有确认。"],
     facts: [
-      ["Decision deadline", "Needs full date", "ambiguous"],
-      ["Work mode constraint", "Not yet confirmed", "proposed"],
+      ["决策期限", "需要完整日期", "ambiguous"],
+      ["工作方式限制", "尚未确认", "proposed"],
     ],
   },
   {
     id: "whatsapp",
     label: "WhatsApp",
-    detail: "Candidate chat",
+    detail: "候选人对话",
     image: "/marketing/signal-journey/whatsapp-synthetic.webp",
-    alt: "Synthetic English recruiter conversation in a restrained green messaging interface",
+    alt: "克制绿色聊天界面中的合成英文招聘对话",
     evidence: [
       "I have another offer",
       "decide by Wednesday",
       "remote from Singapore is unresolved",
     ],
     facts: [
-      ["Competing process", "Another offer", "proposed"],
-      ["Decision deadline", "Needs full date", "ambiguous"],
-      ["Work mode constraint", "Still unresolved", "proposed"],
+      ["其他招聘流程", "另一份录用意向", "proposed"],
+      ["决策期限", "需要完整日期", "ambiguous"],
+      ["工作方式限制", "仍未解决", "proposed"],
     ],
   },
   {
     id: "line",
     label: "LINE-style",
-    detail: "Channel not verified",
+    detail: "渠道尚未核验",
     image: "/marketing/signal-journey/line-synthetic.webp",
-    alt: "Synthetic bilingual recruiter conversation in a cool mint messaging interface",
+    alt: "薄荷色聊天界面中的合成双语招聘对话",
     evidence: [
       "Wednesday is my decision deadline",
       "I can meet Tuesday afternoon",
       "2:00 PM Tuesday works",
     ],
     facts: [
-      ["Decision deadline", "Needs full date", "ambiguous"],
-      ["Availability", "Needs full date", "ambiguous"],
+      ["决策期限", "需要完整日期", "ambiguous"],
+      ["可沟通时间", "需要完整日期", "ambiguous"],
     ],
   },
   {
     id: "boss",
     label: "BOSS直聘",
-    detail: "Role conversation",
+    detail: "职位对话",
     image: "/marketing/signal-journey/boss-synthetic.webp",
-    alt: "Synthetic Chinese executive search conversation in a teal job platform interface",
+    alt: "青绿色招聘平台界面中的合成中文高管寻访对话",
     evidence: [
       "目前有一个竞品 offer",
       "最晚周三答复",
       "远程政策需要再确认",
     ],
     facts: [
-      ["Competing process", "Another offer", "proposed"],
-      ["Decision deadline", "Needs full date", "ambiguous"],
-      ["Work mode constraint", "Policy unresolved", "proposed"],
+      ["其他招聘流程", "另一份录用意向", "proposed"],
+      ["决策期限", "需要完整日期", "ambiguous"],
+      ["工作方式限制", "政策尚未明确", "proposed"],
     ],
   },
   {
     id: "xiaohongshu",
     label: "小红书",
-    detail: "Social message",
+    detail: "社交平台消息",
     image: "/marketing/signal-journey/xiaohongshu-synthetic.webp",
-    alt: "Synthetic Chinese talent outreach conversation in a restrained coral social messaging interface",
+    alt: "珊瑚色社交消息界面中的合成中文人才联络对话",
     evidence: ["但我需要先确认新加坡远程办公和决策时间"],
     facts: [
-      ["Decision deadline", "Open question", "ambiguous"],
+      ["决策期限", "待解问题", "ambiguous"],
     ],
   },
 ] as const;
 
+export const signalJourneyStateLabels = {
+  ambiguous: "待澄清",
+  proposed: "拟议",
+} as const;
+
 const chapters = [
   {
-    title: "Bring one screenshot",
-    detail: "Only the source you choose enters the workspace.",
+    title: "导入一张截图",
+    detail: "只有你选择的来源会进入工作台。",
     icon: DeviceMobile,
   },
   {
-    title: "Locate exact phrases",
-    detail: "Every proposed fact keeps its original words attached.",
+    title: "定位准确原话",
+    detail: "每一项拟议事实都始终关联原始措辞。",
     icon: Crosshair,
   },
   {
-    title: "Bind the relationship",
+    title: "关联对应关系",
     detail:
-      "You bind the person and search; uncertain channel or time stays visible.",
+      "由你关联联系人与寻访项目；不确定的渠道或时间保持可见。",
     icon: UserCircle,
   },
   {
-    title: "Review where work happens",
-    detail: "The same evidence appears on Web and iPhone.",
+    title: "在工作发生处审阅",
+    detail: "同一份证据会同时出现在网页端与 iPhone。",
     icon: LinkSimple,
   },
 ] as const;
@@ -301,9 +306,9 @@ export function SignalJourney() {
       <div className={`shell ${styles.journeyFrame}`}>
         <div className={styles.chapterRail}>
           <div className={styles.chapterIntro}>
-            <p>One source. One relationship.</p>
+            <p>一个来源，一段关系。</p>
             <h2 id="signal-journey-title">
-              Watch the signal keep its source.
+              看信号如何始终保留来源。
             </h2>
           </div>
 
@@ -334,7 +339,7 @@ export function SignalJourney() {
           </ol>
 
           <p className={styles.syntheticNote}>
-            Synthetic walkthrough. No real candidate data.
+            合成演示，不含任何真实候选人数据。
           </p>
         </div>
 
@@ -342,7 +347,7 @@ export function SignalJourney() {
           <div className={styles.stageHeader}>
             <span>
               <i aria-hidden="true" />
-              Source attached
+              来源已关联
             </span>
             <strong aria-live="polite">
               {chapters[activeChapter].title}
@@ -401,7 +406,7 @@ export function SignalJourney() {
             >
               <div className={styles.evidenceHeading}>
                 <Crosshair aria-hidden="true" size={16} />
-                Exact evidence
+                准确证据
               </div>
               {source.evidence.map((item, index) => (
                 <div key={item} className={styles.evidenceToken}>
@@ -410,7 +415,7 @@ export function SignalJourney() {
                   <Check aria-hidden="true" size={15} weight="bold" />
                 </div>
               ))}
-              <p>Speaker, time, and source region stay attached.</p>
+              <p>说话人、时间和来源区域始终保持关联。</p>
             </motion.div>
 
             <motion.article
@@ -420,13 +425,13 @@ export function SignalJourney() {
               <div className={styles.contactHeader}>
                 <div className={styles.personMark}>SC</div>
                 <div>
-                  <span>Context binding</span>
-                  <h3>Synthetic candidate</h3>
-                  <p>CPO search · identity bound by recruiter</p>
+                  <span>情境关联</span>
+                  <h3>合成候选人</h3>
+                  <p>首席产品官寻访 · 身份由招聘顾问关联</p>
                 </div>
                 <span className={styles.reviewed}>
                   <Check aria-hidden="true" size={13} weight="bold" />
-                  Recruiter selected
+                  招聘顾问已选择
                 </span>
               </div>
               <dl>
@@ -434,13 +439,13 @@ export function SignalJourney() {
                   <div key={label}>
                     <dt>{label}</dt>
                     <dd>{value}</dd>
-                    <small>{status}</small>
+                    <small>{signalJourneyStateLabels[status]}</small>
                   </div>
                 ))}
               </dl>
               <div className={styles.contactFooter}>
-                <span>Proposed relationship state</span>
-                <strong>Review before saving</strong>
+                <span>拟议关系状态</span>
+                <strong>保存前请审阅</strong>
               </div>
             </motion.article>
 
@@ -453,12 +458,12 @@ export function SignalJourney() {
                   <span />
                   <span />
                   <span />
-                  <strong>Talent Signal · Web</strong>
+                  <strong>Talent Signal · 网页端</strong>
                 </div>
                 <div className={styles.outputImage}>
                   <Image
                     src="/marketing/signal-journey/web-relationship-output.webp"
-                    alt="Talent Signal Web relationship workspace showing evidence and a client dependency"
+                    alt="展示证据与客户依赖项的 Talent Signal 网页端关系工作台"
                     fill
                     sizes="(max-width: 760px) 92vw, 720px"
                   />
@@ -469,7 +474,7 @@ export function SignalJourney() {
                 <div className={styles.phoneImage}>
                   <Image
                     src="/marketing/signal-journey/iphone-relationship-output.webp"
-                    alt="Talent Signal iPhone relationship view showing the same attached evidence"
+                    alt="展示同一份关联证据的 Talent Signal iPhone 关系视图"
                     fill
                     sizes="210px"
                   />
@@ -478,8 +483,8 @@ export function SignalJourney() {
             </motion.div>
           </div>
 
-          <div className={styles.sourceSwitcher} aria-label="Example sources">
-            <span>Try another source</span>
+          <div className={styles.sourceSwitcher} aria-label="示例来源">
+            <span>试试其他来源</span>
             <div>
               {signalJourneySources.map((item, index) => (
                 <button
@@ -504,7 +509,7 @@ export function SignalJourney() {
           </div>
 
           <div className={styles.mobileContinue} aria-hidden="true">
-            Continue through the evidence
+            继续查看证据流转
             <ArrowDown size={15} />
           </div>
         </div>

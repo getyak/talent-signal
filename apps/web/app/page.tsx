@@ -31,7 +31,7 @@ const softwareSchema = {
   description: siteConfig.description,
   audience: {
     "@type": "Audience",
-    audienceType: "Independent recruiters and boutique search firms",
+    audienceType: "独立招聘顾问与精品猎头团队",
   },
 };
 
@@ -50,28 +50,28 @@ const faqSchema = {
 
 const relationshipHistory = [
   {
-    state: "Observed",
-    detail: "The candidate says, “I need to decide by Wednesday.”",
+    state: "已观察",
+    detail: "候选人说：“我需要在周三前做决定。”",
   },
   {
-    state: "Proposed",
-    detail: "Another offer is staged; the relative date stays ambiguous.",
+    state: "已提议",
+    detail: "另一份录用意向已被识别；相对日期仍保持为待澄清。",
   },
   {
-    state: "Bound",
-    detail: "The recruiter chooses the person and relationship context.",
+    state: "已关联",
+    detail: "招聘顾问选择对应联系人与关系情境。",
   },
   {
-    state: "Reviewed",
-    detail: "The exact quote remains attached while the date needs clarification.",
+    state: "已审阅",
+    detail: "原话继续关联在事实旁，具体日期仍需澄清。",
   },
   {
-    state: "No action",
-    detail: "Nothing is scheduled or sent while the timing is unresolved.",
+    state: "无需行动",
+    detail: "在时间尚未明确时，不安排日程，也不发送消息。",
   },
   {
-    state: "Observed again",
-    detail: "A client reply would return as evidence. Success is not assumed.",
+    state: "再次观察",
+    detail: "客户回复会作为新证据返回；系统不会预设行动成功。",
   },
 ] as const;
 
@@ -92,33 +92,32 @@ export default function HomePage() {
           <div className={`shell ${styles.heroIntro}`}>
             <div className={styles.heroThesis}>
               <p className={styles.heroEyebrow}>
-                Evidence first relationship intelligence
+                证据优先的关系智能
               </p>
               <h1 id="hero-title">
-                Turn one screenshot into a living{" "}
-                <span>relationship.</span>
+                让一张截图成为持续更新的
+                <span>关系。</span>
               </h1>
               <p className={styles.heroPromise}>
-                Exact words in. Reviewable context out. Nothing changes until
-                you decide.
+                输入原话，得到可审阅的关系背景。没有你的决定，任何状态都不会改变。
               </p>
               <div className={styles.heroActions}>
                 <Link
                   className={`${styles.action} ${styles.actionPrimary}`}
                   href="/relationships"
                 >
-                  Explore relationships
+                  探索关系工作台
                   <ArrowRight aria-hidden="true" size={17} />
                 </Link>
                 <a
                   className={`${styles.action} ${styles.actionSecondary}`}
                   href="#signal-journey"
                 >
-                  Watch one signal move
+                  看一条信号如何流动
                 </a>
               </div>
               <p className={styles.heroProof}>
-                Private by design · source-linked · human governed
+                隐私设计 · 来源关联 · 人来治理
               </p>
             </div>
             <div className={styles.heroVisual}>
@@ -137,11 +136,10 @@ export default function HomePage() {
           <div className="shell">
             <div className={styles.sectionHeading}>
               <h2 id="history-title">
-                From exact words to an honest open question.
+                从一字不差的原话，到一个诚实的待解问题。
               </h2>
               <p>
-                This verified synthetic case keeps the relative date, open
-                question, and every human decision in one reviewable history.
+                这个经过验证的合成案例，把相对日期、待解问题和每一次人的决定都保留在同一条可审阅历史中。
               </p>
             </div>
 
@@ -163,28 +161,27 @@ export default function HomePage() {
           <div className={`shell ${styles.counterfactualInner}`}>
             <div>
               <h2 id="counterfactual-title">
-                Change the evidence. Change the move.
+                证据改变，下一步也随之改变。
               </h2>
               <p>
-                A next step survives only while its supporting evidence remains
-                in scope.
+                只有支持它的证据仍在授权范围内，下一步才继续成立。
               </p>
             </div>
 
             <div className={styles.retractionRail}>
               <div>
-                <span>Source removed</span>
+                <span>来源已移除</span>
                 <strong>“Remote from Singapore is still unresolved.”</strong>
               </div>
               <ArrowRight aria-hidden="true" size={24} />
               <div>
-                <span>State retracted</span>
-                <strong>Work-mode change becomes unsupported.</strong>
+                <span>状态已撤回</span>
+                <strong>工作方式的变化不再有证据支持。</strong>
               </div>
               <ArrowRight aria-hidden="true" size={24} />
               <div>
-                <span>Action revised</span>
-                <strong>No action remains without supporting evidence.</strong>
+                <span>行动已修订</span>
+                <strong>失去支持证据后，当前结论变为无需行动。</strong>
               </div>
             </div>
           </div>
@@ -198,86 +195,81 @@ export default function HomePage() {
           <div className={`shell ${styles.judgmentGrid}`}>
             <figure className={styles.judgmentLedger}>
               <div className={styles.judgmentLedgerHeader}>
-                <span>Decision boundary · synthetic candidate</span>
-                <span>Two human decisions</span>
+                <span>决策边界 · 合成候选人</span>
+                <span>两次人的决定</span>
               </div>
               <div className={styles.judgmentLedgerStage}>
                 <div>
-                  <span>Relationship state</span>
-                  <strong>Review what changed</strong>
+                  <span>关系状态</span>
+                  <strong>审阅发生了什么变化</strong>
                 </div>
                 <dl>
                   <div>
-                    <dt>Decision window</dt>
-                    <dd>Needs full date</dd>
+                    <dt>决策窗口</dt>
+                    <dd>需要完整日期</dd>
                   </div>
                   <div>
-                    <dt>Current pressure</dt>
-                    <dd>Competing offer</dd>
+                    <dt>当前压力</dt>
+                    <dd>另一份录用意向</dd>
                   </div>
                   <div>
-                    <dt>Work mode</dt>
-                    <dd>Needs clarification</dd>
+                    <dt>工作方式</dt>
+                    <dd>需要澄清</dd>
                   </div>
                 </dl>
-                <p>Confirm, edit, or dismiss</p>
+                <p>确认、编辑或驳回</p>
               </div>
               <div className={styles.authorityBoundary}>
-                <span>Confirmation grants no execution authority</span>
+                <span>确认事实不会授予执行权限</span>
               </div>
               <div className={styles.judgmentLedgerStage}>
                 <div>
-                  <span>External action</span>
-                  <strong>No action supported yet</strong>
+                  <span>外部行动</span>
+                  <strong>尚无证据支持任何行动</strong>
                 </div>
                 <dl>
                   <div>
-                    <dt>Missing</dt>
-                    <dd>Anchored date</dd>
+                    <dt>缺少</dt>
+                    <dd>明确的日历日期</dd>
                   </div>
                   <div>
-                    <dt>Authority</dt>
-                    <dd>Not granted</dd>
+                    <dt>权限</dt>
+                    <dd>尚未授予</dd>
                   </div>
                   <div>
-                    <dt>Next</dt>
-                    <dd>Recruiter decides</dd>
+                    <dt>下一步</dt>
+                    <dd>由招聘顾问决定</dd>
                   </div>
                 </dl>
-                <p data-locked="true">No approval available</p>
+                <p data-locked="true">当前不可批准</p>
               </div>
               <figcaption>
-                The same source can support a fact without authorizing an
-                action.
+                同一来源可以支持一项事实，但不会因此授权一次行动。
               </figcaption>
             </figure>
 
             <div className={styles.judgmentCopy}>
-              <h2 id="judgment-title">Two decisions. Never one permission.</h2>
+              <h2 id="judgment-title">两次决定，绝不是一次授权。</h2>
               <p>
-                Confirming what changed does not authorize a message, calendar
-                event, or record mutation. When an effect is supported, it
-                still receives a separate approval.
+                确认发生了什么变化，并不等于授权发送消息、创建日历事件或修改记录。即使某项外部效果有充分依据，它仍需单独批准。
               </p>
 
               <div className={styles.decisionPair}>
                 <article>
                   <CheckCircle aria-hidden="true" size={25} />
                   <div>
-                    <h3>Confirm the relationship state</h3>
+                    <h3>确认关系状态</h3>
                     <p>
-                      Accept or edit one proposed fact with its exact source
-                      attached.
+                      在原始来源始终关联可见的情况下，接受或编辑一项拟议事实。
                     </p>
                   </div>
                 </article>
                 <article>
                   <CheckCircle aria-hidden="true" size={25} />
                   <div>
-                    <h3>Approve the external action</h3>
+                    <h3>批准外部行动</h3>
                     <p>
-                      Review the final target, timing, and effect before
-                      anything leaves the workspace.
+                      在任何内容离开工作台前，审阅最终对象、时间与具体效果。
                     </p>
                   </div>
                 </article>
@@ -293,14 +285,13 @@ export default function HomePage() {
           <div className={`shell ${styles.researchGrid}`}>
             <div className={styles.researchIntro}>
               <h2 id="research-title">
-                Research for relationship-led search.
+                面向关系驱动型寻访的研究。
               </h2>
               <p>
-                Practical work on candidate momentum, evidence integrity, and
-                human decision authority.
+                围绕候选人进展、证据完整性与人的决策权限展开的实践研究。
               </p>
               <Link className={styles.textLink} href="/blog">
-                Browse all research
+                浏览全部研究
                 <ArrowRight aria-hidden="true" size={16} />
               </Link>
             </div>
@@ -320,47 +311,46 @@ export default function HomePage() {
           <div className={`shell ${styles.questionsGrid}`}>
             <div className={styles.trustBoundaryGrid}>
               <div className={styles.questionsIntro}>
-                <span>Relationship authority</span>
+                <span>关系权限</span>
                 <h2 id="questions-title">
-                  The system remembers context. The recruiter keeps authority.
+                  系统记住背景，招聘顾问保留权限。
                 </h2>
                 <p>
-                  Talent Signal reconstructs what changed. You decide what is
-                  true, what deserves attention, and what happens next.
+                  Talent Signal 还原发生了什么变化；由你决定什么是真的、什么值得关注，以及接下来发生什么。
                 </p>
               </div>
 
               <div
                 className={styles.trustBoundary}
                 role="group"
-                aria-label="Talent Signal relationship authority boundary"
+                aria-label="Talent Signal 关系权限边界"
               >
                 <div className={styles.systemScope}>
                   <article>
-                    <span>Remember</span>
-                    <h3>Evidence with provenance</h3>
-                    <p>Exact words · speaker · time · assignment</p>
+                    <span>记住</span>
+                    <h3>带来源的证据</h3>
+                    <p>原话 · 说话人 · 时间 · 寻访项目</p>
                   </article>
                   <article>
-                    <span>Propose</span>
-                    <h3>A reviewable change</h3>
-                    <p>Dependency · smallest next step · no action</p>
+                    <span>提议</span>
+                    <h3>可审阅的变化</h3>
+                    <p>依赖项 · 最小下一步 · 无需行动</p>
                   </article>
                 </div>
                 <div className={styles.decisionBoundary}>
-                  <span>Decision boundary</span>
-                  <strong>Confirmation grants no execution authority</strong>
+                  <span>决策边界</span>
+                  <strong>确认事实不会授予执行权限</strong>
                 </div>
                 <article className={styles.humanScope}>
-                  <span>Decide</span>
-                  <h3>The recruiter keeps authority</h3>
-                  <p>Fact confirmation · work attention · exact external effect</p>
+                  <span>决定</span>
+                  <h3>招聘顾问保留权限</h3>
+                  <p>事实确认 · 工作注意力 · 明确的外部效果</p>
                 </article>
               </div>
             </div>
 
             <div className={styles.trustQuestions}>
-              <span>Practical questions</span>
+              <span>常见问题</span>
               <FaqList />
             </div>
           </div>
@@ -369,47 +359,45 @@ export default function HomePage() {
         <section className={styles.closing} aria-labelledby="closing-title">
           <div className={`shell ${styles.closingInner}`}>
             <div className={styles.closingCopy}>
-              <h2 id="closing-title">Every claim needs a source.</h2>
+              <h2 id="closing-title">每个结论都需要来源。</h2>
               <p>
-                Inspect what this page demonstrates, what it does not claim,
-                and what you can verify next.
+                看清这个页面证明了什么、没有声称什么，以及你接下来可以核验什么。
               </p>
             </div>
 
             <div className={styles.closingStatus}>
-              <span>Current status</span>
-              <strong>Working prototype</strong>
-              <p>Synthetic evidence. No customer outcomes asserted.</p>
+              <span>当前状态</span>
+              <strong>可运行原型</strong>
+              <p>使用合成证据，不声称已取得客户结果。</p>
             </div>
 
             <div className={styles.proofRegister}>
               <article>
-                <span>Demonstrated</span>
+                <span>已演示</span>
                 <h3>
-                  Removing evidence retracts its dependent state and action.
+                  移除证据会撤回依赖它的状态与行动。
                 </h3>
-                <p>Inspectable above</p>
+                <p>可在上方查验</p>
               </article>
               <article>
-                <span>Demonstrated</span>
+                <span>已演示</span>
                 <h3>
-                  Confirming facts grants no authority to act externally.
+                  确认事实不会授予外部行动权限。
                 </h3>
-                <p>Inspectable above</p>
+                <p>可在上方查验</p>
               </article>
               <article data-claim="withheld">
-                <span>Not claimed</span>
+                <span>未作声称</span>
                 <h3>
-                  Customer outcomes, production adoption, or autonomous
-                  execution.
+                  客户结果、生产环境采用情况或自主执行能力。
                 </h3>
-                <p>Not asserted</p>
+                <p>不作断言</p>
               </article>
               <article>
-                <span>Verify next</span>
-                <h3>Explore how relationship judgment returns on mobile.</h3>
+                <span>下一步核验</span>
+                <h3>探索关系判断如何在移动端重新浮现。</h3>
                 <Link href="/relationships">
-                  Open relationship view
+                  打开关系视图
                   <ArrowRight aria-hidden="true" size={15} />
                 </Link>
               </article>
@@ -420,14 +408,14 @@ export default function HomePage() {
                 className={`${styles.action} ${styles.actionPrimary}`}
                 href="/relationships"
               >
-                Explore relationships
+                探索关系工作台
                 <ArrowRight aria-hidden="true" size={17} />
               </Link>
               <a
                 className={`${styles.action} ${styles.actionSecondary}`}
                 href={accessRequestHref}
               >
-                Request access
+                申请使用
               </a>
             </div>
           </div>

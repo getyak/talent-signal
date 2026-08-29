@@ -40,7 +40,7 @@ export async function POST(
         message:
           error instanceof Error
             ? error.message
-            : "The governed source could not be deleted.",
+            : "无法删除受治理来源。",
       },
       { status: 503 },
     );

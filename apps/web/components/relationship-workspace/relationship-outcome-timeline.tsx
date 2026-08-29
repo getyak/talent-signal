@@ -22,8 +22,8 @@ export function buildRelationshipOutcomeTimeline(
   const items: RelationshipOutcomeTimelineItem[] = [
     {
       id: "capture",
-      label: "Evidence captured",
-      detail: `${workspace.capture.messages.length} reviewed messages`,
+      label: "证据已采集",
+      detail: `${workspace.capture.messages.length} 条已审阅消息`,
       time: workspace.capture.created_at,
       state: "source",
     },
@@ -31,7 +31,7 @@ export function buildRelationshipOutcomeTimeline(
       id: state.id,
       label:
         state.state_status === "active"
-          ? `${fieldLabel(state.field)} confirmed`
+          ? `${fieldLabel(state.field)}已确认`
           : `${fieldLabel(state.field)} ${state.state_status}`,
       detail: state.value,
       time: workspace.analysis.created_at,
@@ -44,9 +44,9 @@ export function buildRelationshipOutcomeTimeline(
       id: approval.id,
       label:
         approval.status === "active"
-          ? "Next move approved"
-          : `Approval ${approval.status}`,
-      detail: `Action version ${approval.action_version}`,
+          ? "下一步已批准"
+          : `批准状态：${approval.status}`,
+      detail: `行动版本 ${approval.action_version}`,
       time: approval.granted_at,
       state: "approval",
     });
@@ -57,8 +57,8 @@ export function buildRelationshipOutcomeTimeline(
       id: effect.outcome.id,
       label:
         effect.outcome.status === "verified"
-          ? "Outcome verified"
-          : `Outcome ${effect.outcome.status}`,
+          ? "结果已核验"
+          : `结果状态：${effect.outcome.status}`,
       detail: effect.outcome.summary,
       time: effect.outcome.created_at,
       state: effect.outcome.status,
@@ -70,8 +70,8 @@ export function buildRelationshipOutcomeTimeline(
       id: reversalAttempt.outcome.id,
       label:
         reversalAttempt.outcome.status === "verified"
-          ? "Reversal verified"
-          : `Reversal ${reversalAttempt.outcome.status}`,
+          ? "撤销已核验"
+          : `撤销状态：${reversalAttempt.outcome.status}`,
       detail: reversalAttempt.outcome.summary,
       time: reversalAttempt.outcome.created_at,
       state: `reversal-${reversalAttempt.outcome.status}`,
@@ -95,8 +95,8 @@ export function RelationshipOutcomeTimeline({
     <section className="context-history">
       <div className="context-history__heading">
         <div>
-          <p className="eyebrow">RELATIONSHIP HISTORY</p>
-          <h2>Evidence to outcome</h2>
+          <p className="eyebrow">关系历史</p>
+          <h2>从证据到结果</h2>
         </div>
         <Clock aria-hidden="true" size={19} />
       </div>

@@ -35,10 +35,10 @@ export function GET() {
   const xml = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>${escapeXml("Talent Signal research and practical methods")}</title>
+    <title>${escapeXml("Talent Signal 招聘研究与实践方法")}</title>
     <link>${escapeXml(`${siteConfig.url}/blog`)}</link>
-    <description>${escapeXml("Evidence-first methods for candidate momentum and relationship-led search.")}</description>
-    <language>en</language>
+    <description>${escapeXml("面向候选人进展与关系驱动寻访的证据优先方法。")}</description>
+    <language>zh-CN</language>
     <lastBuildDate>${new Date(getLatestBlogUpdate()).toUTCString()}</lastBuildDate>
     <atom:link href="${escapeXml(`${siteConfig.url}/rss.xml`)}" rel="self" type="application/rss+xml" />${items}
   </channel>

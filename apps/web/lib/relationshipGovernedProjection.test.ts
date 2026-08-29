@@ -197,12 +197,12 @@ describe("relationship governed projection", () => {
   it("derives relationship attention without rating the person", () => {
     const pending = workspaceFixture();
     expect(relationshipCurrentDependency(pending)).toBe(
-      "Evidence needs review",
+      "证据需要审阅",
     );
 
     const confirmed = workspaceFixture({ confirmed: true });
     expect(relationshipCurrentDependency(confirmed)).toBe(
-      "Context is current",
+      "关系背景为最新状态",
     );
 
     const verifiedEffect = workspaceFixture({
@@ -212,12 +212,12 @@ describe("relationship governed projection", () => {
       } as WorkspaceReviewResponse["latest_effect"],
     });
     expect(relationshipCurrentDependency(verifiedEffect)).toBe(
-      "Next move recorded",
+      "下一步已记录",
     );
 
     confirmed.source_authorization.state = "revoked";
     expect(relationshipCurrentDependency(confirmed)).toBe(
-      "Source access revoked",
+      "来源访问状态：revoked",
     );
   });
 
@@ -268,7 +268,7 @@ describe("relationship governed projection", () => {
         })) as typeof fetch,
     );
     expect(missingReadback).toEqual({
-      message: "The update returned no verified workspace readback.",
+      message: "更新没有返回已核验的工作台读取结果。",
       ok: false,
     });
   });
@@ -292,7 +292,7 @@ describe("relationship governed projection", () => {
       ),
     ).toEqual({
       message:
-        "The update returned a workspace from a different account. Prior verified state remains visible.",
+        "更新返回了其他账号的工作台。先前已核验状态保持可见。",
       ok: false,
     });
     workspace.account_id = "account-1";
@@ -302,7 +302,7 @@ describe("relationship governed projection", () => {
         expectedCaptureId: "capture-1",
       }),
     ).toBe(
-      "The update returned a different capture than the active review. Prior verified state remains visible.",
+      "更新返回的采集内容与当前审阅不同。先前已核验状态保持可见。",
     );
   });
 

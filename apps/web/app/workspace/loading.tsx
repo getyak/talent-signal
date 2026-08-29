@@ -11,11 +11,10 @@ export default function WorkspaceLoading() {
       tabIndex={-1}
     >
       <header className={styles.header}>
-        <p className={styles.eyebrow}>Account-scoped readback</p>
-        <h1 id="workspace-loading-title">Opening the current workspace</h1>
+        <p className={styles.eyebrow}>账号范围内读取</p>
+        <h1 id="workspace-loading-title">正在打开当前工作台</h1>
         <p>
-          Navigation and account controls remain available while this view
-          catches up. Loading does not create or approve any external action.
+          视图同步期间，导航与账号控制仍可使用。加载不会创建或批准任何外部行动。
         </p>
       </header>
 

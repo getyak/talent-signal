@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Talent Signal",
     short_name: "Talent Signal",
     description:
-      "Evidence-backed candidate momentum for independent recruiters.",
+      "为独立招聘顾问提供有证据支撑的候选人关系进展。",
     start_url: "/",
     display: "standalone",
     background_color: "#f2f1ed",

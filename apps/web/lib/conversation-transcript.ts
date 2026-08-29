@@ -73,14 +73,14 @@ export function parseConversationTranscript(
   unlabeledSpeaker: ConversationSpeaker = "unknown",
 ): ConversationTranscriptAnalysis {
   if (!CONVERSATION_SPEAKERS.includes(unlabeledSpeaker)) {
-    throw new Error("Choose a supported speaker for unlabeled messages.");
+    throw new Error("请为未标注消息选择受支持的说话人。")
   }
   const normalized = input.normalize("NFKC").replace(/\r\n?/g, "\n").trim();
   if (!normalized) {
-    throw new Error("Paste a conversation or choose a text file first.");
+    throw new Error("请先粘贴对话或选择文本文件。")
   }
   if (normalized.length > MAX_TRANSCRIPT_CHARACTERS) {
-    throw new Error("Conversation text is limited to 40,000 characters.");
+    throw new Error("对话文字最多 40,000 个字符。")
   }
 
   const messages: ConversationTranscriptMessage[] = [];
@@ -118,7 +118,7 @@ export function parseConversationTranscript(
     });
   }
   if (messages.length === 0) {
-    throw new Error("No readable conversation messages were found.");
+    throw new Error("未找到可读取的对话消息。")
   }
   return {
     messages,
@@ -132,12 +132,12 @@ export function validateReviewedConversationMessages(
   input: unknown,
 ): ConversationTranscriptMessage[] {
   if (!Array.isArray(input) || input.length === 0 || input.length > MAX_MESSAGES) {
-    throw new Error("Review between 1 and 80 conversation messages.");
+    throw new Error("请审阅 1 至 80 条对话消息。")
   }
   let totalCharacters = 0;
   return input.map((item, sequence) => {
     if (!item || typeof item !== "object") {
-      throw new Error("Every conversation message needs reviewed text and a speaker.");
+      throw new Error("每条对话消息都需要已审阅文字和说话人。")
     }
     const value = item as Record<string, unknown>;
     const text =
@@ -151,11 +151,11 @@ export function validateReviewedConversationMessages(
       typeof speaker !== "string" ||
       !CONVERSATION_SPEAKERS.includes(speaker as ConversationSpeaker)
     ) {
-      throw new Error("Every conversation message needs reviewed text and a speaker.");
+      throw new Error("每条对话消息都需要已审阅文字和说话人。")
     }
     totalCharacters += text.length;
     if (totalCharacters > MAX_TRANSCRIPT_CHARACTERS) {
-      throw new Error("Conversation text is limited to 40,000 characters.");
+      throw new Error("对话文字最多 40,000 个字符。")
     }
     return {
       sequence,
@@ -170,7 +170,7 @@ export function reviewedConversationFragments(
   clientResourceId: string,
 ): EvidenceFragmentInput[] {
   if (!clientResourceId.trim() || clientResourceId.length > 128) {
-    throw new Error("The conversation source identifier is invalid.");
+    throw new Error("对话来源标识无效。")
   }
   return validateReviewedConversationMessages(input).map((message) => ({
     client_resource_id: clientResourceId,

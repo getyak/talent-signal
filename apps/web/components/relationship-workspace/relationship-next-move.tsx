@@ -95,10 +95,10 @@ export function RelationshipNextMove({
     if (!effect) {
       return;
     }
-    onBusyChange("Reviewing current destination");
+    onBusyChange("正在审阅当前目标位置");
     onError("");
     onAnnouncement(
-      "Reading the current destination before reversal review.",
+      "正在撤销审阅前读取当前目标位置。",
     );
     try {
       const response = await relationshipIntegrationFetch(
@@ -112,7 +112,7 @@ export function RelationshipNextMove({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The reversal preview could not be verified.",
+            : "无法核验撤销预览。",
         );
       }
       setReversalPreview(payload);
@@ -120,16 +120,16 @@ export function RelationshipNextMove({
       reversalApprovalRequestRef.current = null;
       onAnnouncement(
         payload.reversal_available
-          ? "Exact reversal preview ready. No destination state changed."
-          : "Automatic reversal is blocked by current destination state.",
+          ? "精确撤销预览已就绪，目标位置状态没有改变。"
+          : "当前目标位置状态阻止了自动撤销。",
       );
     } catch (caught) {
       onError(
         caught instanceof Error
           ? caught.message
-          : "The reversal preview could not be verified.",
+          : "无法核验撤销预览。",
       );
-      onAnnouncement("Reversal review failed. Nothing was removed.");
+      onAnnouncement("撤销审阅失败，没有移除任何内容。");
     } finally {
       onBusyChange("");
     }
@@ -154,13 +154,13 @@ export function RelationshipNextMove({
             (reversalApprovalRequestRef.current = crypto.randomUUID()),
         }),
       },
-      "Approving the exact reversal",
+      "正在批准精确撤销",
     );
     if (next) {
       reversalApprovalRequestRef.current = null;
       setReversalReviewed(false);
       onAnnouncement(
-        "Exact reversal approved. The destination is unchanged until separate execution.",
+        "精确撤销已批准。在单独执行前，目标位置保持不变。",
       );
     }
   }
@@ -172,8 +172,8 @@ export function RelationshipNextMove({
           <Sparkle aria-hidden="true" size={17} weight="fill" />
         </span>
         <div>
-          <p className="eyebrow">NEXT MOVE</p>
-          <h2>Smallest supported step</h2>
+          <p className="eyebrow">下一步</p>
+          <h2>有依据的最小步骤</h2>
         </div>
       </div>
 
@@ -184,16 +184,16 @@ export function RelationshipNextMove({
             <p>{action.reason}</p>
             <dl>
               <div>
-                <dt>Owner</dt>
-                <dd>You</dd>
+                <dt>负责人</dt>
+                <dd>你</dd>
               </div>
               <div>
-                <dt>Due</dt>
+                <dt>截止时间</dt>
                 <dd>{action.due}</dd>
               </div>
               <div>
-                <dt>Destination</dt>
-                <dd>Internal attention queue</dd>
+                <dt>目标位置</dt>
+                <dd>内部注意事项队列</dd>
               </div>
             </dl>
           </div>
@@ -202,8 +202,7 @@ export function RelationshipNextMove({
             <div className="context-next-move__gate">
               <ShieldCheck aria-hidden="true" size={18} />
               <p>
-                Confirm every required fact before this internal action can be
-                approved.
+                此内部行动获批前，请确认每项必需事实。
               </p>
             </div>
           ) : null}
@@ -212,9 +211,7 @@ export function RelationshipNextMove({
             <div className="context-next-move__gate">
               <Warning aria-hidden="true" size={18} />
               <p>
-                <strong>Prior approval is stale.</strong> The exact action
-                changed after approval. Review the current target and change
-                before approving this version.
+                <strong>先前批准已过时。</strong>批准后，具体行动发生了变化。批准此版本前，请审阅当前目标与变更。
               </p>
             </div>
           ) : null}
@@ -230,15 +227,15 @@ export function RelationshipNextMove({
                     method: "POST",
                     body: JSON.stringify({ capture_id: workspace.capture.id }),
                   },
-                  "Approving exact internal action",
+                  "正在批准精确内部行动",
                 )
               }
               type="button"
             >
               <ShieldCheck aria-hidden="true" size={18} />
               {staleApprovalNeedsReview
-                ? "Approve revised internal action"
-                : "Approve exact internal action"}
+                ? "批准修订后的内部行动"
+                : "批准精确内部行动"}
             </button>
           ) : null}
 
@@ -246,7 +243,7 @@ export function RelationshipNextMove({
             <div className="context-approved-action">
               <p>
                 <CheckCircle aria-hidden="true" size={18} weight="fill" />
-                Exact action approved
+                精确行动已批准
               </p>
               <button
                 className="context-primary-button"
@@ -260,13 +257,13 @@ export function RelationshipNextMove({
                         capture_id: workspace.capture.id,
                       }),
                     },
-                    "Writing and verifying internal attention",
+                    "正在写入并核验内部注意事项",
                   )
                 }
                 type="button"
               >
                 <ArrowRight aria-hidden="true" size={18} />
-                Add to Today and verify
+                添加到今日并核验
               </button>
             </div>
           ) : null}
@@ -284,8 +281,8 @@ export function RelationshipNextMove({
               <p>
                 <strong>
                   {effect.outcome.status === "verified"
-                    ? "Recorded in Today"
-                    : `Result ${effect.outcome.status}`}
+                    ? "已记录到今日"
+                    : `结果状态：${effect.outcome.status}`}
                 </strong>
                 {effect.outcome.summary}
               </p>
@@ -302,13 +299,13 @@ export function RelationshipNextMove({
                           capture_id: workspace.capture.id,
                         }),
                       },
-                      "Reconciling destination before retry",
+                      "正在重试前核对目标位置",
                     )
                   }
                   type="button"
                 >
                   <ArrowRight aria-hidden="true" size={17} />
-                  Reconcile before retry
+                  重试前核对
                 </button>
               ) : null}
             </div>
@@ -321,17 +318,15 @@ export function RelationshipNextMove({
             >
               <header>
                 <div>
-                  <p className="eyebrow">REVERSAL</p>
+                  <p className="eyebrow">撤销</p>
                   <h3 id="effect-reversal-title">
-                    Remove the local effect safely
+                    安全移除本地效果
                   </h3>
                 </div>
-                <span>Separate approval</span>
+                <span>单独批准</span>
               </header>
               <p>
-                Reversal removes only the labeled simulated Today item. The
-                original approval, execution, readback, and reversal decision
-                stay in history.
+                撤销只会移除带标记的模拟今日事项。原始批准、执行、读取与撤销决定都会保留在历史中。
               </p>
 
               {reversalAttempt?.outcome?.status === "verified" ? (
@@ -341,10 +336,10 @@ export function RelationshipNextMove({
                 >
                   <CheckCircle aria-hidden="true" size={23} weight="fill" />
                   <div>
-                    <strong>Removed and verified absent</strong>
+                    <strong>已移除，并核验为不存在</strong>
                     <p>{reversalAttempt.outcome.summary}</p>
                     <small>
-                      Original effect {effect.attempt_id.slice(0, 8)} · reversal{" "}
+                      原始效果 {effect.attempt_id.slice(0, 8)} · 撤销{" "}
                       {reversalAttempt.reversal_attempt_id.slice(0, 8)}
                     </small>
                   </div>
@@ -354,17 +349,17 @@ export function RelationshipNextMove({
                 <div className="context-effect-reversal__approved">
                   <dl>
                     <div>
-                      <dt>Exact item</dt>
+                      <dt>精确事项</dt>
                       <dd>
                         {reversalApproval.exact_preview.current_effect.title}
                       </dd>
                     </div>
                     <div>
-                      <dt>Destination</dt>
+                      <dt>目标位置</dt>
                       <dd>{reversalApproval.exact_preview.target.label}</dd>
                     </div>
                     <div>
-                      <dt>Bound version</dt>
+                      <dt>关联版本</dt>
                       <dd>
                         {
                           reversalApproval.exact_preview
@@ -373,7 +368,7 @@ export function RelationshipNextMove({
                       </dd>
                     </div>
                     <div>
-                      <dt>Reason</dt>
+                      <dt>原因</dt>
                       <dd>{reversalApproval.reason}</dd>
                     </div>
                   </dl>
@@ -391,13 +386,13 @@ export function RelationshipNextMove({
                               capture_id: workspace.capture.id,
                             }),
                           },
-                          "Reversing and verifying destination readback",
+                          "正在撤销并核验目标位置读取结果",
                         )
                       }
                       type="button"
                     >
                       <Prohibit aria-hidden="true" size={17} />
-                      Remove item and verify
+                      移除事项并核验
                     </button>
                     <button
                       className="context-text-button"
@@ -411,19 +406,17 @@ export function RelationshipNextMove({
                               capture_id: workspace.capture.id,
                             }),
                           },
-                          "Revoking the reversal approval",
+                          "正在撤销撤销批准",
                         )
                       }
                       type="button"
                     >
                       <X aria-hidden="true" size={16} />
-                      Revoke reversal approval
+                      撤回撤销批准
                     </button>
                   </div>
                   <small>
-                    Approval changes no destination state. The removal still
-                    requires the separate action above and a matching absence
-                    readback.
+                    批准不会改变目标位置状态。移除仍需执行上方的独立行动，并得到匹配的“不存在”读取结果。
                   </small>
                 </div>
               ) : (
@@ -435,9 +428,8 @@ export function RelationshipNextMove({
                     >
                       <Warning aria-hidden="true" size={18} />
                       <p>
-                        <strong>Nothing was removed.</strong>{" "}
-                        {reversalAttempt.outcome.summary} Open a fresh review
-                        before deciding again.
+                        <strong>没有移除任何内容。</strong>{" "}
+                        {reversalAttempt.outcome.summary} 请打开新的审阅后再作决定。
                       </p>
                     </div>
                   ) : null}
@@ -450,26 +442,26 @@ export function RelationshipNextMove({
                       type="button"
                     >
                       <ArrowRight aria-hidden="true" size={17} />
-                      Review reversal
+                      审阅撤销
                     </button>
                   ) : (
                     <div className="context-effect-reversal__preview">
                       <dl>
                         <div>
-                          <dt>Remove</dt>
+                          <dt>移除</dt>
                           <dd>{reversalPreview.reversal.title}</dd>
                         </div>
                         <div>
-                          <dt>From</dt>
+                          <dt>来自</dt>
                           <dd>{reversalPreview.target.label}</dd>
                         </div>
                         <div>
-                          <dt>Current version</dt>
+                          <dt>当前版本</dt>
                           <dd>{reversalPreview.expected_destination_version}</dd>
                         </div>
                         <div>
-                          <dt>Preserve</dt>
-                          <dd>Original effect and both audit receipts</dd>
+                          <dt>保留</dt>
+                          <dd>原始效果与两份审计回执</dd>
                         </div>
                       </dl>
 
@@ -480,7 +472,7 @@ export function RelationshipNextMove({
                         >
                           <Warning aria-hidden="true" size={18} />
                           <div>
-                            <strong>Automatic reversal paused</strong>
+                            <strong>自动撤销已暂停</strong>
                             {reversalPreview.blockers.map((blocker) => (
                               <p key={blocker.code}>{blocker.message}</p>
                             ))}
@@ -489,7 +481,7 @@ export function RelationshipNextMove({
                       ) : (
                         <div className="context-effect-reversal__decision">
                           <label htmlFor="effect-reversal-reason">
-                            Why should this item be removed?
+                            为什么应该移除此事项？
                           </label>
                           <textarea
                             id="effect-reversal-reason"
@@ -497,7 +489,7 @@ export function RelationshipNextMove({
                               setReversalReason(event.target.value);
                               reversalApprovalRequestRef.current = null;
                             }}
-                            placeholder="Record the recruiter-observed reason."
+                            placeholder="记录招聘顾问观察到的原因。"
                             rows={3}
                             value={reversalReason}
                           />
@@ -510,8 +502,7 @@ export function RelationshipNextMove({
                               type="checkbox"
                             />
                             <span>
-                              I reviewed the exact item, destination, current
-                              version, and preserved audit history.
+                              我已审阅精确事项、目标位置、当前版本与保留的审计历史。
                             </span>
                           </label>
                           <div className="context-effect-reversal__actions">
@@ -528,7 +519,7 @@ export function RelationshipNextMove({
                               type="button"
                             >
                               <ShieldCheck aria-hidden="true" size={17} />
-                              Approve exact reversal
+                              批准精确撤销
                             </button>
                             <button
                               className="context-text-button"
@@ -540,12 +531,11 @@ export function RelationshipNextMove({
                               }}
                               type="button"
                             >
-                              Keep item
+                              保留事项
                             </button>
                           </div>
                           <small>
-                            This approval grants no other action and does not
-                            remove the item yet.
+                            此批准不会授予其他行动权限，也不会立即移除事项。
                           </small>
                         </div>
                       )}
@@ -560,17 +550,14 @@ export function RelationshipNextMove({
         <div className="context-next-move__empty">
           <Warning aria-hidden="true" size={23} />
           <p>
-            <strong>No action authority is available.</strong> Restore or renew
-            the source, then review every returned proposal before considering
-            a new action.
+            <strong>当前没有行动权限。</strong>请恢复或续期来源，再审阅每项返回提案，然后再考虑新行动。
           </p>
         </div>
       ) : (
         <div className="context-next-move__empty">
           <CheckCircle aria-hidden="true" size={23} />
           <p>
-            <strong>No action is supported yet.</strong> Keep the context, or
-            capture the next conversation when something operational changes.
+            <strong>尚无证据支持行动。</strong>请保留背景，或在出现操作性变化时采集下一段对话。
           </p>
         </div>
       )}

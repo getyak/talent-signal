@@ -124,7 +124,7 @@ export function getAuthAvailability(
 export function encodeConfiguredPassword(password: string, salt: string) {
   const normalizedSalt = salt.toLowerCase();
   if (!/^[a-f0-9]{32,128}$/.test(normalizedSalt)) {
-    throw new Error("Password salt must be 16-64 bytes of hexadecimal.");
+    throw new Error("密码盐必须是 16 至 64 字节的十六进制值。");
   }
 
   const hash = scryptSync(password, normalizedSalt, 64).toString("hex");

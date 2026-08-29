@@ -8,9 +8,9 @@ import { editorialAuthor } from "@/lib/blog";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Editorial method",
+  title: "编辑方法",
   description:
-    "How Talent Signal researches, writes, sources, updates, and corrects public work about evidence-first relationship intelligence.",
+    "Talent Signal 如何研究、撰写、引用、更新和修正有关证据优先关系智能的公开内容。",
   alternates: {
     canonical: "/blog/about",
   },
@@ -20,7 +20,7 @@ const editorialSchema = {
   "@context": "https://schema.org",
   "@type": "AboutPage",
   "@id": `${siteConfig.url}/blog/about#page`,
-  name: "Talent Signal editorial method",
+  name: "Talent Signal 编辑方法",
   description: metadata.description,
   url: `${siteConfig.url}/blog/about`,
   mainEntity: {
@@ -45,72 +45,59 @@ export default function EditorialMethodPage() {
       <main id="main-content" className="editorial-page">
         <article className="shell editorial-page__inner">
           <header>
-            <p className="eyebrow">Editorial method</p>
-            <h1>Trust starts with how a claim is made.</h1>
+            <p className="eyebrow">编辑方法</p>
+            <h1>信任始于结论如何形成。</h1>
             <p>
-              Talent Signal Editorial turns product research into practical
-              guidance for independent recruiters and boutique search teams.
+              Talent Signal 编辑团队把产品研究转化为面向独立招聘顾问与精品猎头团队的实践指南。
             </p>
           </header>
 
           <div className="editorial-page__principles">
             <section id="who-writes">
-              <h2>Who writes</h2>
+              <h2>谁在写作</h2>
               <p>
-                Articles are published under Talent Signal Editorial while a
-                named publication owner is being established. The byline is an
-                organization identity, not a fictional person.
+                在明确的出版负责人制度建立前，文章以 Talent Signal 编辑团队名义发布。署名代表组织身份，不是虚构人物。
               </p>
             </section>
             <section id="how-we-research">
-              <h2>How we research</h2>
+              <h2>我们如何研究</h2>
               <p>
-                We begin with a recruiter question, inspect existing product
-                evidence, and use primary documentation for external claims.
-                Product judgment, examples, and external facts remain distinct.
+                我们从招聘顾问的问题出发，检查现有产品证据，并以一手文档支持外部事实。产品判断、示例与外部事实始终彼此分离。
               </p>
             </section>
             <section id="ai-assistance">
-              <h2>How AI may assist</h2>
+              <h2>AI 可以如何协助</h2>
               <p>
-                AI may help organize research or draft language. Its output is
-                not treated as evidence, authority, or publication approval.
-                Sources and visible claims must still agree.
+                AI 可以帮助整理研究或起草文字，但其输出不被视为证据、权威或发布批准。来源必须与公开结论一致。
               </p>
             </section>
             <section id="updates">
-              <h2>How we update</h2>
+              <h2>我们如何更新</h2>
               <p>
-                The modified date changes only after a substantive visible
-                edit. Material corrections preserve the canonical URL and are
-                explained when they could change a reader&apos;s decision.
+                只有发生实质且可见的编辑后，修改日期才会变化。重要修正会保留规范网址；若修正可能改变读者判断，我们会明确说明。
               </p>
             </section>
             <section id="privacy">
-              <h2>What we do not publish</h2>
+              <h2>我们不会发布什么</h2>
               <p>
-                We do not publish private candidate conversations, screenshots,
-                identities, or derived personal facts without explicit,
-                purpose-bound authorization. Illustrative examples remain
-                generic and are labeled by context.
+                未经明确、限定用途的授权，我们不会发布候选人的私密对话、截图、身份或衍生个人事实。示例会保持通用，并标明其情境。
               </p>
             </section>
           </div>
 
           <aside>
-            <h2>Questions or corrections</h2>
+            <h2>问题或更正</h2>
             <p>
-              Send the article URL, the claim in question, and the primary
-              source that supports the correction.
+              请发送文章网址、有疑问的结论，以及支持更正的一手来源。
             </p>
             <a className="text-link" href={`mailto:${siteConfig.email}`}>
-              Contact editorial
+              联系编辑团队
               <ArrowRight aria-hidden="true" size={15} />
             </a>
           </aside>
 
           <Link className="editorial-page__back" href="/blog">
-            Back to all articles
+            返回全部文章
           </Link>
         </article>
       </main>

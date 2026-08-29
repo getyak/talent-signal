@@ -67,7 +67,7 @@ function openRouterEndpoint() {
   ).replace(/\/+$/, "");
   const parsed = new URL(configured);
   if (parsed.protocol !== "https:" || parsed.hostname !== "openrouter.ai") {
-    throw new Error("OPENROUTER_BASE_URL must use the official OpenRouter host.");
+    throw new Error("OPENROUTER_BASE_URL 必须使用 OpenRouter 官方主机。");
   }
   return `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}/chat/completions`;
 }
@@ -202,7 +202,7 @@ async function analyzeWithOpenRouter(input: {
     availability.provider !== "OpenRouter" ||
     !apiKey
   ) {
-    throw new Error("OpenRouter screenshot analysis is not configured.");
+    throw new Error("尚未配置 OpenRouter 截图分析。");
   }
   const dataUrl = `data:${input.mimeType};base64,${Buffer.from(input.bytes).toString("base64")}`;
   const response = await fetchOpenRouter(openRouterEndpoint(), {
@@ -287,7 +287,7 @@ async function analyzeWithOpenRouter(input: {
   const payload = (await response.json()) as OpenRouterResponse;
   const content = payload.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
-    throw new Error("OpenRouter returned no structured screenshot analysis.");
+    throw new Error("OpenRouter 未返回结构化截图分析。");
   }
   return {
     draft: parseScreenshotCaptureDraft(content, {
@@ -321,7 +321,7 @@ export async function analyzeScreenshot(input: {
 }): Promise<ScreenshotAnalysis> {
   const availability = getScreenshotAnalysisAvailability();
   if (!availability.enabled) {
-    throw new Error("Screenshot analysis is not configured.");
+    throw new Error("尚未配置截图分析。");
   }
   if (availability.provider === "OpenRouter") {
     return analyzeWithOpenRouter(input);

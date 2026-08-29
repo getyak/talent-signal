@@ -235,10 +235,10 @@ function ImageRedactionEditor({
       aria-keyshortcuts="Enter Space ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight Delete"
       aria-label={
         enabled
-          ? "Conversation screenshot redaction editor. Drag to mask, or use the documented keyboard controls."
-          : "Selected conversation screenshot with local redactions previewed."
+          ? "对话截图遮挡编辑器。拖动以遮挡，或使用说明中的键盘控制。"
+          : "已选择的对话截图，正在预览本地遮挡效果。"
       }
-      aria-roledescription="image redaction editor"
+      aria-roledescription="图片遮挡编辑器"
       data-redacting={enabled}
       onKeyDown={onKeyDown}
       onPointerCancel={() => setDraft(null)}
@@ -416,28 +416,25 @@ export function CapturePanel({
               >
         <header className="context-capture__header">
           <div>
-            <p className="eyebrow">NEW EVIDENCE</p>
+            <p className="eyebrow">新依据</p>
             <Dialog.Title asChild>
               <h2 id="capture-title">
                 {phase === "review" || phase === "committing"
-                  ? "Review what the screenshot supports"
+                  ? "审阅截图能够支持的内容"
                   : phase === "binding"
-                    ? "Bind the source to one relationship"
-                    : "Import a conversation screenshot"}
+                    ? "将来源绑定到一段关系"
+                    : "导入对话截图"}
               </h2>
             </Dialog.Title>
             <Dialog.Description asChild>
               <p>
-                Only the image region you keep is sent to the configured cloud
-                provider for analysis. The original stays in browser memory for
-                this review and is not stored. Reviewed text and evidence quotes
-                are kept for up to 30 days, and can be deleted sooner.
+                只有你保留的图像区域会发送给已配置的云端提供方分析。原图仅在本次审阅期间留在浏览器内存中，不会存储。已审阅文字与依据引文最长保留 30 天，也可提前删除。
               </p>
             </Dialog.Description>
           </div>
           <Dialog.Close asChild>
             <button
-              aria-label="Close capture"
+              aria-label="关闭采集"
               className="context-icon-button"
               disabled={phase === "committing"}
               type="button"
@@ -477,12 +474,12 @@ export function CapturePanel({
               <div className="context-capture__identity">
               {phase !== "binding" ? (
                 <fieldset className="context-capture__owner">
-                  <legend>Whose screen is this?</legend>
+                  <legend>这是谁的屏幕？</legend>
                   <div>
                     {([
-                      ["recruiter", "Mine"],
-                      ["candidate", "Candidate's"],
-                      ["unknown", "Not sure"],
+                      ["recruiter", "我的"],
+                      ["candidate", "候选人的"],
+                      ["unknown", "不确定"],
                     ] as const).map(([value, label]) => (
                       <button
                         aria-pressed={screenshotOwner === value}
@@ -496,25 +493,23 @@ export function CapturePanel({
                     ))}
                   </div>
                   <small>
-                    This determines how bubble position may be interpreted. When
-                    unsure, speakers stay unassigned until review.
+                    这会影响对气泡位置的解释。不确定时，说话人会保持未分配，等待审阅。
                   </small>
                 </fieldset>
               ) : null}
               {phase === "binding" ? (
                 <>
               <label>
-                <span>Contact</span>
+                <span>联系人</span>
                 <input
                   autoComplete="off"
                   maxLength={160}
                   onChange={(event) => setContactName(event.target.value)}
-                  placeholder="e.g. 林晓 / Maya Chen"
+                  placeholder="例如：林晓 / Maya Chen"
                   value={contactName}
                 />
                 <small>
-                  You bind the identity. The model does not create a person
-                  record from a guessed name.
+                  身份由你绑定；模型不会根据猜测的姓名创建人物记录。
                 </small>
               </label>
               <div
@@ -530,13 +525,9 @@ export function CapturePanel({
                       <CheckCircle aria-hidden="true" size={18} weight="fill" />
                     </span>
                     <p>
-                      <strong>Use existing person · {selectedPerson.display_label}</strong>
+                      <strong>使用现有人物 · {selectedPerson.display_label}</strong>
                       <small>
-                        {selectedPerson.context_count} relationship{" "}
-                        {selectedPerson.context_count === 1
-                          ? "context"
-                          : "contexts"}{" "}
-                        · {selectedPerson.capture_count} captures
+                        {selectedPerson.context_count} 段关系背景 · {selectedPerson.capture_count} 次采集
                       </small>
                     </p>
                     <button
@@ -544,7 +535,7 @@ export function CapturePanel({
                       onClick={clearPerson}
                       type="button"
                     >
-                      Change
+                      更改
                     </button>
                   </div>
                 ) : createNewPerson ? (
@@ -556,9 +547,9 @@ export function CapturePanel({
                       <Plus aria-hidden="true" size={18} />
                     </span>
                     <p>
-                      <strong>Create “{contactName.trim()}” as a new person</strong>
+                      <strong>将“{contactName.trim()}”创建为新人物</strong>
                       <small>
-                        This will not merge with anyone who has the same name.
+                        这不会与任何同名人物合并。
                       </small>
                     </p>
                     <button
@@ -566,17 +557,17 @@ export function CapturePanel({
                       onClick={clearPerson}
                       type="button"
                     >
-                      Change
+                      更改
                     </button>
                   </div>
                 ) : contactName.trim() ? (
                   <>
                     <div className="context-identity-resolution__heading">
-                      <span>Resolve the person</span>
+                      <span>确认人物身份</span>
                       <small>
                         {peopleLoading
-                          ? "Checking existing people…"
-                          : "Names are suggestions only. You make the binding."}
+                          ? "正在检查现有人才……"
+                          : "姓名仅作建议，绑定由你决定。"}
                       </small>
                     </div>
                     {!peopleLoading && matchingPeople.length > 0 ? (
@@ -592,7 +583,7 @@ export function CapturePanel({
                               <strong>{person.display_label}</strong>
                               <small>
                                 {personContextSummary(person)}{" "}
-                                · {person.capture_count} captures
+                                · {person.capture_count} 次采集
                               </small>
                             </p>
                             <ArrowRight aria-hidden="true" size={16} />
@@ -609,7 +600,7 @@ export function CapturePanel({
                         type="button"
                       >
                         <Plus aria-hidden="true" size={16} />
-                        Create a new person named “{contactName.trim()}”
+                        新建人物“{contactName.trim()}”
                       </button>
                     ) : null}
                     {!peopleLoading &&
@@ -617,22 +608,19 @@ export function CapturePanel({
                     contactQueryIsHandle &&
                     matchingPeople.length === 0 ? (
                       <p className="context-start__lookup-note">
-                        No current or historical owner matched this masked
-                        identity clue. Enter the person&apos;s name before creating
-                        a new identity.
+                        当前或历史归属中均未匹配到这条已遮蔽的身份线索。创建新身份前，请输入姓名。
                       </p>
                     ) : null}
                   </>
                 ) : (
                   <p className="context-identity-resolution__empty">
-                    Enter a name, then choose an existing person or confirm a
-                    new one.
+                    输入姓名，然后选择现有人物或确认新建。
                   </p>
                 )}
               </div>
               {selectedPerson ? (
                 <div className="context-start__contexts context-capture__contexts">
-                  <span>Choose the relationship context</span>
+                  <span>选择关系背景</span>
                   {selectedPerson.contexts.map((context) => (
                     <button
                       data-selected={selectedContextId === context.id}
@@ -651,24 +639,24 @@ export function CapturePanel({
                     type="button"
                   >
                     <Plus aria-hidden="true" size={15} />
-                    New relationship context
+                    新建关系背景
                   </button>
                 </div>
               ) : null}
               {createNewPerson || createNewContext ? (
                 <label>
-                  <span>Relationship context</span>
+                  <span>关系背景</span>
                   <input
                     autoComplete="off"
                     maxLength={200}
                     onChange={(event) =>
                       setAssignmentLabel(event.target.value)
                     }
-                    placeholder="e.g. VP Product · Northstar search"
+                    placeholder="例如：产品副总裁 · Northstar 寻访"
                     value={assignmentLabel}
                   />
                   <small>
-                    Facts remain scoped to this search or relationship.
+                    事实始终限定在此寻访或关系范围内。
                   </small>
                 </label>
               ) : null}
@@ -735,12 +723,12 @@ export function CapturePanel({
                       onClick={() => inputRef.current?.click()}
                       type="button"
                     >
-                      Replace
+                      替换
                     </button>
                     <fieldset className="context-crop-controls">
-                      <legend>Minimize before cloud analysis</legend>
+                      <legend>云端分析前最小化范围</legend>
                       <label>
-                        <span>Keep from {cropTopPercent}%</span>
+                        <span>从 {cropTopPercent}% 开始保留</span>
                         <input
                           disabled={phase !== "select"}
                           max={cropBottomPercent - 10}
@@ -753,7 +741,7 @@ export function CapturePanel({
                         />
                       </label>
                       <label>
-                        <span>Keep through {cropBottomPercent}%</span>
+                        <span>保留至 {cropBottomPercent}%</span>
                         <input
                           disabled={phase !== "select"}
                           max="100"
@@ -766,7 +754,7 @@ export function CapturePanel({
                         />
                       </label>
                       <small>
-                        Shaded crop pixels never leave this browser.
+                        阴影裁剪区域的像素绝不会离开此浏览器。
                       </small>
                     </fieldset>
                     <div className="context-redaction-controls">
@@ -778,7 +766,7 @@ export function CapturePanel({
                         type="button"
                       >
                         <PencilSimple aria-hidden="true" size={15} />
-                        {redactionMode ? "Finish masking" : "Mask private details"}
+                        {redactionMode ? "完成遮蔽" : "遮蔽隐私信息"}
                       </button>
                       <span
                         aria-live="polite"
@@ -786,40 +774,32 @@ export function CapturePanel({
                         id="capture-redaction-status"
                       >
                         {redactions.length === 0
-                          ? "No local masks added."
-                          : `${redactions.length} local ${
-                              redactions.length === 1 ? "mask" : "masks"
-                            } added.`}
+                          ? "尚未添加本地遮罩。"
+                          : `已添加 ${redactions.length} 个本地遮罩。`}
                       </span>
                       {redactions.length > 0 ? (
                         <div>
                           <span>
-                            {redactions.length} local mask
-                            {redactions.length === 1 ? "" : "s"}
+                            {redactions.length} 个本地遮罩
                           </span>
                           <button
                             disabled={phase !== "select"}
                             onClick={undoRedaction}
                             type="button"
                           >
-                            Undo
+                            撤销
                           </button>
                           <button
                             disabled={phase !== "select"}
                             onClick={clearRedactions}
                             type="button"
                           >
-                            Clear
+                            清除
                           </button>
                         </div>
                       ) : null}
                       <small id="capture-redaction-help">
-                        Turn masking on, then drag over names, phone numbers, or
-                        unrelated messages. Masks are flattened into the image
-                        before any upload and cannot be recovered by the model.
-                        Keyboard: focus the image, press Enter to add a mask,
-                        arrows to move, Shift + arrows to resize, and Delete to
-                        undo.
+                        打开遮蔽后，在姓名、电话号码或无关消息上拖动。上传前遮罩会压平到图像中，模型无法恢复。键盘：聚焦图像后按 Enter 添加遮罩，方向键移动，Shift + 方向键调整大小，Delete 撤销。
                       </small>
                     </div>
                   </div>
@@ -830,15 +810,15 @@ export function CapturePanel({
                     <UploadSimple aria-hidden="true" size={24} />
                   </span>
                   <div>
-                    <strong>Drop one conversation screenshot</strong>
-                    <p>JPEG, PNG, or WebP · up to 8 MB</p>
+                    <strong>拖入一张对话截图</strong>
+                    <p>JPEG、PNG 或 WebP · 最大 8 MB</p>
                   </div>
                   <button
                     className="context-secondary-button"
                     onClick={() => inputRef.current?.click()}
                     type="button"
                   >
-                    Choose screenshot
+                    选择截图
                   </button>
                 </>
               )}
@@ -849,16 +829,16 @@ export function CapturePanel({
                 <p>
                   <strong>
                     {phase === "binding"
-                      ? "Source read · identity still yours"
+                      ? "来源已读取 · 身份仍由你决定"
                       : phase === "analyzing"
-                        ? "Transient analysis in progress"
-                      : "Before you continue"}
+                        ? "正在进行临时分析"
+                      : "继续之前"}
                   </strong>
                   {phase === "binding"
-                    ? "The model did not create a person. Choose an existing person or explicitly create a new one, then name the relationship context."
+                    ? "模型没有创建人物。请选择现有人物或明确创建新人物，再命名关系背景。"
                     : phase === "analyzing"
-                      ? "Canceling is safe: no source, person, or contact is saved until you finish review and explicitly commit it."
-                      : "Only upload a conversation you are authorized to process. Review every extracted fact before it becomes contact context."}
+                      ? "可以安全取消：完成审阅并明确提交前，不会保存来源、人物或联系人。"
+                      : "只上传你获准处理的对话。每项提取事实在成为联系人背景前都需审阅。"}
                 </p>
               </div>
             </div>
@@ -880,10 +860,10 @@ export function CapturePanel({
                 type="button"
               >
                 {phase === "analyzing"
-                  ? "Cancel analysis"
+                  ? "取消分析"
                   : phase === "binding"
-                    ? "Back to source"
-                    : "Cancel"}
+                    ? "返回来源"
+                    : "取消"}
               </button>
               <button
                 className="context-primary-button"
@@ -915,10 +895,10 @@ export function CapturePanel({
                   <Sparkle aria-hidden="true" size={18} weight="fill" />
                 )}
                 {phase === "analyzing"
-                  ? "Reading screenshot"
+                  ? "正在读取截图"
                   : phase === "binding"
-                    ? "Continue to evidence review"
-                    : "Read source"}
+                    ? "继续依据审阅"
+                    : "读取来源"}
               </button>
             </footer>
           </>
@@ -930,7 +910,7 @@ export function CapturePanel({
               <div className="context-review-source__image">
                 {reviewImage ? (
                   <BrowserLocalImage
-                    accessibleName="Exact conversation screenshot region analyzed and being reviewed"
+                    accessibleName="正在审阅的准确对话截图分析区域"
                     source={reviewImage}
                   />
                 ) : null}
@@ -938,9 +918,7 @@ export function CapturePanel({
               <div className="context-review-source__meta">
                 <span>
                   <ShieldCheck aria-hidden="true" size={15} />
-                  Original not stored · {redactions.length} local mask
-                  {redactions.length === 1 ? "" : "s"} flattened · reviewed text
-                  retained up to 30 days
+                  原图不存储 · 已压平 {redactions.length} 个本地遮罩 · 已审阅文字最长保留 30 天
                 </span>
                 <span>
                   {analysis?.meta.provider} · {analysis?.meta.model} · {draft.platform}
@@ -957,8 +935,8 @@ export function CapturePanel({
                 </div>
                 <p>
                   {selectedPersonId
-                    ? "Existing person selected by you"
-                    : "New person confirmed by you"}
+                    ? "你选择的现有人物"
+                    : "你确认的新人物"}
                 </p>
               </div>
 
@@ -966,7 +944,7 @@ export function CapturePanel({
                 <div className="context-transcription-notes">
                   <Warning aria-hidden="true" size={18} />
                   <div>
-                    <strong>Visible limits</strong>
+                    <strong>可见限制</strong>
                     {draft.transcription_notes.map((note) => (
                       <p key={note}>{note}</p>
                     ))}
@@ -976,9 +954,9 @@ export function CapturePanel({
 
               <section aria-labelledby="transcription-title">
                 <div className="context-review-heading">
-                  <h3 id="transcription-title">Transcription</h3>
+                  <h3 id="transcription-title">对话转写</h3>
                   <div className="context-review-heading__actions">
-                    <span>{draft.messages.length} messages</span>
+                    <span>{draft.messages.length} 条消息</span>
                     {transcriptEditing ? (
                       <>
                         <button
@@ -986,7 +964,7 @@ export function CapturePanel({
                           onClick={() => setTranscriptEditing(false)}
                           type="button"
                         >
-                          Done
+                          完成
                         </button>
                         <button
                           onClick={() => {
@@ -994,7 +972,7 @@ export function CapturePanel({
                           }}
                           type="button"
                         >
-                          Reset
+                          重置
                         </button>
                       </>
                     ) : (
@@ -1002,7 +980,7 @@ export function CapturePanel({
                         onClick={() => setTranscriptEditing(true)}
                         type="button"
                       >
-                        Edit transcription
+                        编辑转写
                       </button>
                     )}
                   </div>
@@ -1011,10 +989,8 @@ export function CapturePanel({
                   <div className="context-human-edit-note" role="status">
                     <PencilSimple aria-hidden="true" size={17} />
                     <p>
-                      <strong>Recruiter-edited transcription</strong>
-                      Model-derived facts and actions were removed. This source
-                      will enter review as human-drafted text with no automatic
-                      operational claim.
+                      <strong>招聘顾问编辑的转写</strong>
+                      模型衍生事实与行动已移除。此来源将以人工草拟文字进入审阅，不包含自动操作声明。
                     </p>
                   </div>
                 ) : null}
@@ -1027,9 +1003,9 @@ export function CapturePanel({
                       {transcriptEditing ? (
                         <>
                           <label>
-                            <span className="sr-only">Speaker</span>
+                            <span className="sr-only">说话人</span>
                             <select
-                              aria-label={`Speaker for message ${message.sequence + 1}`}
+                              aria-label={`消息 ${message.sequence + 1} 的说话人`}
                               onChange={(event) =>
                                 updateReviewedMessage(
                                   message.source_message_id,
@@ -1043,13 +1019,13 @@ export function CapturePanel({
                               }
                               value={message.speaker}
                             >
-                              <option value="candidate">Candidate</option>
-                              <option value="recruiter">Recruiter</option>
-                              <option value="unknown">Not sure</option>
+                              <option value="candidate">候选人</option>
+                              <option value="recruiter">招聘顾问</option>
+                              <option value="unknown">不确定</option>
                             </select>
                           </label>
                           <textarea
-                            aria-label={`Text for message ${message.sequence + 1}`}
+                            aria-label={`消息 ${message.sequence + 1} 的文字`}
                             maxLength={4_000}
                             onChange={(event) =>
                               updateReviewedMessage(
@@ -1074,7 +1050,7 @@ export function CapturePanel({
 
               <section aria-labelledby="draft-facts-title">
                 <div className="context-review-heading">
-                  <h3 id="draft-facts-title">Proposed facts</h3>
+                  <h3 id="draft-facts-title">拟议事实</h3>
                   <span>{draft.assertions.length}</span>
                 </div>
                 {draft.assertions.length > 0 ? (
@@ -1093,8 +1069,8 @@ export function CapturePanel({
                           data-state={assertion.status}
                         >
                           {assertion.status === "ambiguous"
-                            ? "Needs clarification before confirmation"
-                            : "Proposal only · not remembered"}
+                            ? "确认前需要澄清"
+                            : "仅为提议 · 尚未记忆"}
                         </span>
                         <blockquote>“{assertion.evidence_quote}”</blockquote>
                         {assertion.ambiguity ? (
@@ -1110,9 +1086,8 @@ export function CapturePanel({
                   <div className="context-no-signal">
                     <CheckCircle aria-hidden="true" size={22} />
                     <p>
-                      <strong>No operational update found</strong>
-                      The screenshot can still be retained as reviewed context
-                      without creating a fact or next move.
+                      <strong>未发现可操作更新</strong>
+                      截图仍可作为已审阅背景保留，不会创建事实或下一步。
                     </p>
                   </div>
                 )}
@@ -1122,7 +1097,7 @@ export function CapturePanel({
                 <div className="context-draft-action">
                   <Sparkle aria-hidden="true" size={19} weight="duotone" />
                   <p>
-                    <span>Suggested internal next move</span>
+                    <span>建议的内部下一步</span>
                     <strong>{draft.action.target}</strong>
                     <small>{draft.action.reason}</small>
                   </p>
@@ -1132,8 +1107,7 @@ export function CapturePanel({
 
             <footer className="context-capture__footer context-capture__footer--review">
               <p>
-                Committing creates proposals only. You will still confirm or
-                dismiss each fact on the contact page.
+                提交只会创建提议；你仍需在联系人页面逐项确认或驳回事实。
               </p>
               <button
                 className="context-secondary-button"
@@ -1143,7 +1117,7 @@ export function CapturePanel({
                 }}
                 type="button"
               >
-                Back
+                返回
               </button>
               <button
                 className="context-primary-button"
@@ -1165,8 +1139,8 @@ export function CapturePanel({
                   <ArrowRight aria-hidden="true" size={18} />
                 )}
                 {phase === "committing"
-                  ? "Creating review"
-                  : "Commit to evidence review"}
+                  ? "正在创建审阅"
+                  : "提交到依据审阅"}
               </button>
             </footer>
           </div>

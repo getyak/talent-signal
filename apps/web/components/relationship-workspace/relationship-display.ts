@@ -1,21 +1,21 @@
 import type { PersonDirectoryItem } from "@talent-signal/contracts";
 
 const fieldLabels: Record<string, string> = {
-  availability: "Availability",
-  competing_process: "Competing process",
-  current_employer: "Current company",
-  current_role: "Current role",
-  decision_deadline: "Decision deadline",
-  location: "Location",
-  notice_period: "Notice period",
-  relocation_requirement: "Relocation requirement",
-  work_mode_constraint: "Work mode constraint",
-  work_mode_preference: "Work mode preference",
+  availability: "可沟通时间",
+  competing_process: "其他招聘流程",
+  current_employer: "当前公司",
+  current_role: "当前职位",
+  decision_deadline: "决策期限",
+  location: "地点",
+  notice_period: "离职通知期",
+  relocation_requirement: "搬迁要求",
+  work_mode_constraint: "工作方式限制",
+  work_mode_preference: "工作方式偏好",
 };
 
 export function personContextSummary(person: PersonDirectoryItem) {
   if (person.contexts.length === 0) {
-    return "No active relationship context";
+    return "没有活跃关系情境";
   }
 
   const visibleContexts = person.contexts
@@ -24,7 +24,7 @@ export function personContextSummary(person: PersonDirectoryItem) {
     .join(" · ");
   const remainingCount = Math.max(0, person.contexts.length - 2);
   return remainingCount > 0
-    ? `${visibleContexts} · +${remainingCount} more`
+    ? `${visibleContexts} · 另有 ${remainingCount} 项`
     : visibleContexts;
 }
 
@@ -42,7 +42,7 @@ export function initials(value: string) {
 
 export function fieldLabel(field: string) {
   if (field.startsWith("professional_history.")) {
-    return "Professional history";
+    return "职业经历";
   }
   return fieldLabels[field] ?? field.replaceAll("_", " ");
 }
@@ -50,48 +50,48 @@ export function fieldLabel(field: string) {
 export function reviewLabel(status: string) {
   switch (status) {
     case "confirmed":
-      return "Confirmed";
+      return "已确认";
     case "dismissed":
-      return "Dismissed";
+      return "已驳回";
     case "unresolved":
-      return "Needs clarification";
+      return "需要澄清";
     default:
-      return "Proposed";
+      return "拟议";
   }
 }
 
 export function sourceKindLabel(kind: string) {
   switch (kind) {
     case "screenshot_metadata":
-      return "Conversation screenshot";
+      return "对话截图";
     case "transcript":
-      return "Reviewed conversation";
+      return "已审阅对话";
     case "fixture":
-      return "Synthetic capture";
+      return "合成采集内容";
     default:
-      return "Imported evidence";
+      return "导入证据";
   }
 }
 
 export function sourceScopeLabel(scope: string) {
   switch (scope) {
     case "reviewed_extracted_text":
-      return "Reviewed text only";
+      return "仅保留已审阅文本";
     case "reviewed_selected_text":
-      return "Reviewed selection";
+      return "已审阅选区";
     case "reviewed_evidence_crop":
-      return "Evidence crop retained";
+      return "保留证据裁剪区域";
     case "full_reviewed_source":
-      return "Full source retained";
+      return "保留完整来源";
     case "legacy_unknown":
-      return "Legacy scope unverified";
+      return "旧版范围尚未核验";
     default:
       return scope.replaceAll("_", " ");
   }
 }
 
 export function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("zh-CN", {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",

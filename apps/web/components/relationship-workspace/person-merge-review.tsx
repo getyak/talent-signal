@@ -33,7 +33,7 @@ export type PersonMergeWorkflowResponse = PersonMergeResponse & {
 };
 
 function formatPersonMergeDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("zh-CN", {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
@@ -132,7 +132,7 @@ export function PersonMergeReview({
           throw new Error(
             "message" in payload && payload.message
               ? payload.message
-              : "People could not be loaded for duplicate review.",
+              : "无法加载用于重复项审阅的人才。",
           );
         }
         setPeople(
@@ -151,7 +151,7 @@ export function PersonMergeReview({
         setError(
           caught instanceof Error
             ? caught.message
-            : "People could not be loaded for duplicate review.",
+            : "无法加载用于重复项审阅的人才。",
         );
       });
     return () => controller.abort();
@@ -210,7 +210,7 @@ export function PersonMergeReview({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The people directory search could not be completed.",
+            : "无法完成人才目录搜索。",
         );
       }
       setPeople(
@@ -228,7 +228,7 @@ export function PersonMergeReview({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The people directory search could not be completed.",
+          : "无法完成人才目录搜索。",
       );
     }
   }
@@ -241,7 +241,7 @@ export function PersonMergeReview({
     setReviewed(false);
     setError("");
     mergeRequestRef.current = null;
-    setBusy("Comparing evidence");
+    setBusy("正在比较依据");
     try {
       const parameters = new URLSearchParams({
         source_person_id: person.id,
@@ -258,7 +258,7 @@ export function PersonMergeReview({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The duplicate review could not be prepared.",
+            : "无法准备重复项审阅。",
         );
       }
       setPreview(payload);
@@ -266,7 +266,7 @@ export function PersonMergeReview({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The duplicate review could not be prepared.",
+          : "无法准备重复项审阅。",
       );
     } finally {
       setBusy("");
@@ -286,12 +286,12 @@ export function PersonMergeReview({
       })
     ) {
       setError(
-        "Review the evidence differences and record why these pages represent one person.",
+        "请审阅依据差异，并记录为何这些页面代表同一个人。",
       );
       return;
     }
     mergeRequestRef.current ??= crypto.randomUUID();
-    setBusy("Merging people");
+    setBusy("正在合并人物");
     setError("");
     try {
       const response = await relationshipIntegrationFetch(
@@ -319,7 +319,7 @@ export function PersonMergeReview({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The person merge was not applied.",
+            : "未能完成人物合并。",
         );
       }
       setResult(payload);
@@ -329,7 +329,7 @@ export function PersonMergeReview({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The person merge was not applied.",
+          : "未能完成人物合并。",
       );
     } finally {
       setBusy("");
@@ -347,12 +347,12 @@ export function PersonMergeReview({
       !reversalReason.trim()
     ) {
       setError(
-        "Confirm the relationship split and record why the merge should be reversed.",
+        "请确认关系拆分，并记录为何应撤销此次合并。",
       );
       return;
     }
     reversalRequestRef.current ??= crypto.randomUUID();
-    setBusy("Reversing merge");
+    setBusy("正在撤销合并");
     setError("");
     try {
       const response = await relationshipIntegrationFetch(
@@ -375,7 +375,7 @@ export function PersonMergeReview({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The person merge could not be reversed.",
+            : "无法撤销人物合并。",
         );
       }
       setResult(payload);
@@ -384,14 +384,14 @@ export function PersonMergeReview({
         selectedPerson?.display_label ??
           preview?.source_person.display_label ??
           reversalPreview?.source_person.display_label ??
-          "The prior person",
+          "原人物",
       );
     } catch (caught) {
       reversalRequestRef.current = null;
       setError(
         caught instanceof Error
           ? caught.message
-          : "The person merge could not be reversed.",
+          : "无法撤销人物合并。",
       );
     } finally {
       setBusy("");
@@ -422,9 +422,9 @@ export function PersonMergeReview({
           <UserPlus aria-hidden="true" size={17} />
         </span>
         <p>
-          <strong>Possible duplicate?</strong>
+          <strong>可能重复？</strong>
           <small>
-            Compare identity evidence before combining relationship memory.
+            合并关系记忆前，请先比较身份依据。
           </small>
         </p>
         <button
@@ -432,7 +432,7 @@ export function PersonMergeReview({
           onClick={() => setOpen(true)}
           type="button"
         >
-          Review duplicate
+          审阅重复项
         </button>
       </section>
     );
@@ -448,30 +448,26 @@ export function PersonMergeReview({
         <div>
           <p className="eyebrow">
             {reversalPreview
-              ? "IDENTITY RECOVERY"
-              : "IDENTITY MAINTENANCE"}
+              ? "身份恢复"
+              : "身份维护"}
           </p>
           <h2 id="person-merge-title">
             {reversalPreview
-              ? "Review a prior person merge"
-              : "Review a possible duplicate"}
+              ? "审阅此前的人物合并"
+              : "审阅可能的重复项"}
           </h2>
           {reversalPreview ? (
             <p>
-              Recheck the current relationship state before restoring{" "}
-              {reversalPreview.source_person.display_label} as a separate
-              person. History alone never authorizes the split.
+              将 {reversalPreview.source_person.display_label} 恢复为独立人物前，请重新检查当前关系状态。仅凭历史记录不能授权拆分。
             </p>
           ) : (
             <p>
-              Keep {currentPerson.display_label} as the stable page. The
-              selected page, its relationship contexts, and governed sources
-              move here only after your confirmation.
+              将 {currentPerson.display_label} 保留为稳定页面。只有经你确认后，所选页面、关系背景与受治理来源才会移到这里。
             </p>
           )}
         </div>
         <button
-          aria-label="Close duplicate review"
+          aria-label="关闭重复项审阅"
           className="context-icon-button"
           disabled={Boolean(busy)}
           onClick={closeReview}
@@ -485,30 +481,27 @@ export function PersonMergeReview({
         <div className="context-person-merge__preview context-person-merge__reversal">
           <div className="context-person-merge__direction">
             <article data-target="true">
-              <span>Current retained page</span>
+              <span>当前保留页面</span>
               <strong>
                 {reversalPreview.target_person.display_label}
               </strong>
-              <small>Current person and old-link destination</small>
+              <small>当前人物与旧链接目标</small>
             </article>
             <ArrowRight aria-hidden="true" size={19} />
             <article>
-              <span>Restore separately</span>
+              <span>单独恢复</span>
               <strong>
                 {reversalPreview.source_person.display_label}
               </strong>
               <small>
-                {reversalPreview.contexts_to_restore.length} relationship{" "}
-                {reversalPreview.contexts_to_restore.length === 1
-                  ? "context"
-                  : "contexts"}
+                {reversalPreview.contexts_to_restore.length} 段关系背景
               </small>
             </article>
           </div>
 
           <div className="context-person-merge__inventory">
             <article>
-              <span>Relationship ownership to restore</span>
+              <span>待恢复的关系归属</span>
               <ul>
                 {reversalPreview.contexts_to_restore.map((context) => (
                   <li key={context.id}>
@@ -516,23 +509,22 @@ export function PersonMergeReview({
                     <small>
                       {context.active_capture_count}{" "}
                       {context.active_capture_count === 1
-                        ? "source"
-                        : "sources"}{" "}
-                      · {context.active_fact_count} confirmed facts
+                        ? "个来源"
+                        : "个来源"}{" "}
+                      · {context.active_fact_count} 项已确认事实
                     </small>
                   </li>
                 ))}
               </ul>
             </article>
             <article>
-              <span>Original recruiter decision</span>
+              <span>招聘顾问的原始决定</span>
               <strong>
-                Merged {formatPersonMergeDate(reversalPreview.decided_at)}
+                合并于 {formatPersonMergeDate(reversalPreview.decided_at)}
               </strong>
               <p>{reversalPreview.original_reason}</p>
               <p>
-                Operation {reversalPreview.operation_id.slice(0, 8)} ·{" "}
-                current status {reversalPreview.status}
+                操作 {reversalPreview.operation_id.slice(0, 8)} · 当前状态 {reversalPreview.status}
               </p>
             </article>
           </div>
@@ -544,7 +536,7 @@ export function PersonMergeReview({
             >
               <Warning aria-hidden="true" size={18} />
               <div>
-                <strong>Automatic reversal paused</strong>
+                <strong>自动撤销已暂停</strong>
                 {reversalPreview.blockers.map((blocker) => (
                   <p key={blocker.code}>
                     {blocker.message} ({blocker.count})
@@ -555,7 +547,7 @@ export function PersonMergeReview({
           ) : (
             <div className="context-person-merge__decision">
               <label htmlFor="person-merge-history-reversal-reason">
-                Why should these people be separate now?
+                为什么现在应将他们分开？
               </label>
               <textarea
                 id="person-merge-history-reversal-reason"
@@ -563,7 +555,7 @@ export function PersonMergeReview({
                   setReversalReason(event.target.value);
                   reversalRequestRef.current = null;
                 }}
-                placeholder="Record the recruiter-observed correction basis."
+                placeholder="记录招聘顾问观察到的更正依据。"
                 rows={3}
                 value={reversalReason}
               />
@@ -576,10 +568,7 @@ export function PersonMergeReview({
                   type="checkbox"
                 />
                 <span>
-                  I reviewed the current relationship ownership and the
-                  original merge basis. Restore{" "}
-                  {reversalPreview.source_person.display_label} only as the
-                  separate person recorded by this operation.
+                  我已审阅当前关系归属与原始合并依据。仅将 {reversalPreview.source_person.display_label} 恢复为此次操作所记录的独立人物。
                 </span>
               </label>
               <button
@@ -592,7 +581,7 @@ export function PersonMergeReview({
                 onClick={() => void reverseMerge()}
                 type="button"
               >
-                {busy === "Reversing merge" ? (
+                {busy === "正在撤销合并" ? (
                   <CircleNotch
                     aria-hidden="true"
                     className="context-spin"
@@ -601,11 +590,10 @@ export function PersonMergeReview({
                 ) : (
                   <Prohibit aria-hidden="true" size={17} />
                 )}
-                Restore separate pages
+                恢复独立页面
               </button>
               <small>
-                This rechecks canonical state at execution time and performs no
-                external write.
+                执行时会重新检查规范状态，且不会进行外部写入。
               </small>
             </div>
           )}
@@ -614,7 +602,7 @@ export function PersonMergeReview({
         <>
           <div className="context-person-merge__picker">
             <label htmlFor="person-merge-query">
-              Find the page that may be a duplicate
+              查找可能重复的页面
             </label>
             <input
               autoComplete="off"
@@ -622,7 +610,7 @@ export function PersonMergeReview({
               onChange={(event) =>
                 void searchPeople(event.target.value)
               }
-              placeholder="Name or relationship context"
+              placeholder="姓名或关系背景"
               type="search"
               value={query}
             />
@@ -642,17 +630,14 @@ export function PersonMergeReview({
                   <p>
                     <strong>{person.display_label}</strong>
                     <small>
-                      {person.context_count} relationship{" "}
-                      {person.context_count === 1 ? "context" : "contexts"} ·{" "}
-                      {person.capture_count} governed{" "}
-                      {person.capture_count === 1 ? "source" : "sources"}
+                      {person.context_count} 段关系背景 · {person.capture_count} 个受治理来源
                     </small>
                   </p>
                   <ArrowRight aria-hidden="true" size={15} />
                 </button>
               ))}
               {!busy && matchingPeople.length === 0 ? (
-                <p>No other active person pages match this search.</p>
+                <p>没有其他活跃人物页面匹配此搜索。</p>
               ) : null}
             </div>
           </div>
@@ -661,29 +646,25 @@ export function PersonMergeReview({
             <div className="context-person-merge__preview">
               <div className="context-person-merge__direction">
                 <article>
-                  <span>Fold in</span>
+                  <span>合并入</span>
                   <strong>{preview.source_person.display_label}</strong>
                   <small>
-                    {preview.contexts_to_move.length} relationship{" "}
-                    {preview.contexts_to_move.length === 1
-                      ? "context"
-                      : "contexts"}
+                    {preview.contexts_to_move.length} 段关系背景
                   </small>
                 </article>
                 <ArrowRight aria-hidden="true" size={19} />
                 <article data-target="true">
-                  <span>Retain</span>
+                  <span>保留</span>
                   <strong>{preview.target_person.display_label}</strong>
-                  <small>URL and person identity stay stable</small>
+                  <small>网址与人物身份保持稳定</small>
                 </article>
               </div>
 
               <div className="context-person-merge__inventory">
                 <article>
-                  <span>Relationship memory moving</span>
+                  <span>正在移动的关系记忆</span>
                   <strong>
-                    {preview.active_capture_count} governed sources ·{" "}
-                    {preview.active_identity_handle_count} identity clues
+                    {preview.active_capture_count} 个受治理来源 · {preview.active_identity_handle_count} 条身份线索
                   </strong>
                   <ul>
                     {preview.contexts_to_move.map((context) => (
@@ -692,35 +673,30 @@ export function PersonMergeReview({
                         <small>
                           {context.active_capture_count}{" "}
                           {context.active_capture_count === 1
-                            ? "source"
-                            : "sources"}{" "}
-                          ·{" "}
-                          {context.active_fact_count} confirmed facts
+                            ? "个来源"
+                            : "个来源"}{" "}
+                          · {context.active_fact_count} 项已确认事实
                         </small>
                       </li>
                     ))}
                   </ul>
                 </article>
                 <article>
-                  <span>Differences to review</span>
+                  <span>待审阅差异</span>
                   {preview.review_items.length > 0 ? (
                     <ul>
                       {preview.review_items.map((item, index) => (
                         <li key={`${item.kind}:${index}`}>
                           <span>{item.title}</span>
                           <small>
-                            {item.detail} · {item.evidence_ids.length} evidence{" "}
-                            {item.evidence_ids.length === 1
-                              ? "reference"
-                              : "references"}
+                            {item.detail} · {item.evidence_ids.length} 条依据引用
                           </small>
                         </li>
                       ))}
                     </ul>
                   ) : (
                     <p>
-                      No conflicting labels, contextual facts, or confirmed
-                      identity clues were found.
+                      未发现冲突的标签、背景事实或已确认身份线索。
                     </p>
                   )}
                 </article>
@@ -733,7 +709,7 @@ export function PersonMergeReview({
                 >
                   <Warning aria-hidden="true" size={18} />
                   <div>
-                    <strong>Merge paused</strong>
+                    <strong>合并已暂停</strong>
                     {preview.blockers.map((blocker) => (
                       <p key={blocker.code}>
                         {blocker.message} ({blocker.count})
@@ -744,7 +720,7 @@ export function PersonMergeReview({
               ) : (
                 <div className="context-person-merge__decision">
                   <label htmlFor="person-merge-reason">
-                    Why do these pages represent one person?
+                    为什么这些页面代表同一个人？
                   </label>
                   <textarea
                     id="person-merge-reason"
@@ -752,7 +728,7 @@ export function PersonMergeReview({
                       setReason(event.target.value);
                       mergeRequestRef.current = null;
                     }}
-                    placeholder="Record the recruiter-observed identity basis."
+                    placeholder="记录招聘顾问观察到的身份依据。"
                     rows={3}
                     value={reason}
                   />
@@ -765,9 +741,7 @@ export function PersonMergeReview({
                       type="checkbox"
                     />
                     <span>
-                      I reviewed the labels, relationship contexts, source
-                      counts, and identity differences above. Keep{" "}
-                      {currentPerson.display_label} as the stable page.
+                      我已审阅上述标签、关系背景、来源数量与身份差异。将 {currentPerson.display_label} 保留为稳定页面。
                     </span>
                   </label>
                   <button
@@ -778,7 +752,7 @@ export function PersonMergeReview({
                     onClick={() => void applyMerge()}
                     type="button"
                   >
-                    {busy === "Merging people" ? (
+                    {busy === "正在合并人物" ? (
                       <CircleNotch
                         aria-hidden="true"
                         className="context-spin"
@@ -787,11 +761,10 @@ export function PersonMergeReview({
                     ) : (
                       <UserPlus aria-hidden="true" size={17} />
                     )}
-                    Merge into {currentPerson.display_label}
+                    合并到 {currentPerson.display_label}
                   </button>
                   <small>
-                    This changes internal identity and Wiki memory only. It
-                    sends no message and performs no external write.
+                    这只会更改内部身份与 Wiki 记忆，不会发送消息或执行外部写入。
                   </small>
                 </div>
               )}
@@ -809,34 +782,30 @@ export function PersonMergeReview({
             <p>
               <strong>
                 {result.status === "applied"
-                  ? "One living person page retained"
-                  : "Separate person pages restored"}
+                  ? "已保留一个持续更新的人物页面"
+                  : "已恢复独立人物页面"}
               </strong>
               <small>
-                Operation {result.operation_id.slice(0, 8)} ·{" "}
-                {result.affected_relationship_context_ids.length} contexts ·{" "}
-                {result.captures_rebound} governed sources
+                操作 {result.operation_id.slice(0, 8)} · {result.affected_relationship_context_ids.length} 段背景 · {result.captures_rebound} 个受治理来源
               </small>
             </p>
           </div>
           <p>
             {result.compilations.length - compilationFailures.length} of{" "}
-            {result.compilations.length} relationship Wikis recompiled
-            successfully.
+            {result.compilations.length} 个关系 Wiki 已成功重新编译。
             {compilationFailures.length > 0
-              ? ` ${compilationFailures.length} need a safe retry; source ownership is already preserved.`
+              ? ` ${compilationFailures.length} 个需要安全重试；来源归属已保留。`
               : ""}
           </p>
 
           {result.status === "applied" && result.reversal_available ? (
             <details>
-              <summary>Undo this merge</summary>
+              <summary>撤销此次合并</summary>
               <p>
-                Reversal restores the prior person and relationship ownership.
-                It stops if new evidence now depends on a moved context.
+                撤销会恢复此前人物与关系归属。如果新依据已依赖移动过的背景，操作会停止。
               </p>
               <label htmlFor="person-merge-reversal-reason">
-                Why should these people be separate?
+                为什么应将这些人分开？
               </label>
               <textarea
                 id="person-merge-reversal-reason"
@@ -856,8 +825,7 @@ export function PersonMergeReview({
                   type="checkbox"
                 />
                 <span>
-                  I reviewed the split and understand that the earlier person
-                  page and its relationship contexts will return.
+                  我已审阅拆分，并理解此前的人物页面及其关系背景将被恢复。
                 </span>
               </label>
               <button
@@ -870,7 +838,7 @@ export function PersonMergeReview({
                 onClick={() => void reverseMerge()}
                 type="button"
               >
-                {busy === "Reversing merge" ? (
+                {busy === "正在撤销合并" ? (
                   <CircleNotch
                     aria-hidden="true"
                     className="context-spin"
@@ -879,7 +847,7 @@ export function PersonMergeReview({
                 ) : (
                   <Prohibit aria-hidden="true" size={17} />
                 )}
-                Restore separate pages
+                恢复独立页面
               </button>
             </details>
           ) : (
@@ -888,13 +856,13 @@ export function PersonMergeReview({
               onClick={closeReview}
               type="button"
             >
-              Done
+              完成
             </button>
           )}
         </div>
       )}
 
-      {busy && busy !== "Merging people" && busy !== "Reversing merge" ? (
+      {busy && busy !== "正在合并人物" && busy !== "正在撤销合并" ? (
         <p className="context-person-merge__progress" role="status">
           <CircleNotch
             aria-hidden="true"

@@ -121,7 +121,7 @@ describe("private screenshot analysis provider", () => {
         screenshotOwner: "unknown",
         sourceSha256,
       }),
-    ).rejects.toThrow(/not configured/i);
+    ).rejects.toThrow(/尚未配置截图分析/);
   });
 
   it("uses BigModel only when it is selected explicitly", async () => {

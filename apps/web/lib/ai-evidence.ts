@@ -100,11 +100,11 @@ export function parseModelEvidence(
   try {
     decoded = JSON.parse(content);
   } catch {
-    throw new Error("The model returned invalid JSON.");
+    throw new Error("模型返回了无效的 JSON。")
   }
 
   if (!isRecord(decoded) || !Array.isArray(decoded.evidence)) {
-    throw new Error("The model response did not contain evidence.");
+    throw new Error("模型响应中不包含依据。")
   }
 
   const seenKinds = new Set<EvidenceKind>();

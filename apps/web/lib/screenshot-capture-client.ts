@@ -41,7 +41,7 @@ async function responseJson(response: Response): Promise<unknown> {
     throw new ScreenshotCaptureRequestError(
       response.ok
         ? "The server response could not be confirmed."
-        : "The server did not return a readable error.",
+        : "服务器未返回可读的错误信息。",
       {
         cause,
         outcome: response.ok ? "unknown" : "not_applied",

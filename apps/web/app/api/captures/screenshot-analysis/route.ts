@@ -87,13 +87,13 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json(
-      { error: "Sign in before analyzing candidate evidence." },
+      { error: "请先登录，再分析候选人依据。" },
       { status: 401, headers: noStoreHeaders() },
     );
   }
   if (!isAllowedMutationOrigin(request.headers)) {
     return NextResponse.json(
-      { error: "Cross-origin screenshot analysis is not allowed." },
+      { error: "不允许跨源截图分析。" },
       { status: 403, headers: noStoreHeaders() },
     );
   }
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     contentLength > MAX_REQUEST_BYTES
   ) {
     return NextResponse.json(
-      { error: "The screenshot request is larger than 8 MB." },
+      { error: "截图请求超过 8 MB。" },
       { status: 413, headers: noStoreHeaders() },
     );
   }
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
     formData = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: "The screenshot form could not be read." },
+      { error: "无法读取截图表单。" },
       { status: 400, headers: noStoreHeaders() },
     );
   }
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         {
-          error: "Screenshot analysis was canceled. No source was saved.",
+          error: "截图分析已取消，未保存任何来源。",
           code: "analysis_canceled",
         },
         { status: 499, headers: noStoreHeaders() },

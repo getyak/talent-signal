@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json(
-      { error: { code: "AUTH_REQUIRED", message: "Sign in is required." } },
+      { error: { code: "AUTH_REQUIRED", message: "需要登录。" } },
       { status: 401 },
     );
   }
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "AGENT_RUN_INPUT_INVALID",
-          message: "The Pursuit, evidence, revision, and objective are required.",
+          message: "必须提供寻访项目、依据、版本与目标。",
         },
       },
       { status: 400 },

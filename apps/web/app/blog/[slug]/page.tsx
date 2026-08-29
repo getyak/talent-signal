@@ -52,10 +52,10 @@ export async function generateMetadata({
     },
     keywords: [
       post.category,
-      "candidate momentum",
-      "independent recruiter workflow",
-      "evidence-first recruiting",
-      "relationship-led search",
+      "候选人进展",
+      "独立招聘顾问工作流",
+      "证据优先招聘",
+      "关系驱动型寻访",
     ],
     openGraph: {
       type: "article",
@@ -66,7 +66,7 @@ export async function generateMetadata({
       modifiedTime: post.updatedAt,
       authors: [`${siteConfig.url}${editorialAuthor.url}`],
       section: post.category,
-      tags: ["candidate momentum", "recruiting", post.category],
+      tags: ["候选人进展", "招聘", post.category],
       images: [
         {
           url: post.heroImage,
@@ -119,18 +119,18 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
     isPartOf: {
       "@type": "Blog",
       "@id": `${siteConfig.url}/blog#blog`,
-      name: "Talent Signal research and practical methods",
+      name: "Talent Signal 研究与实践方法",
     },
     articleSection: post.category,
     keywords: [
       post.category,
-      "candidate momentum",
-      "evidence-first recruiting",
-      "relationship-led search",
+      "候选人进展",
+      "证据优先招聘",
+      "关系驱动型寻访",
     ],
     wordCount: getBlogPostWordCount(post),
     timeRequired: `PT${getBlogPostReadingMinutes(post)}M`,
-    inLanguage: "en",
+    inLanguage: "zh-CN",
   };
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -139,13 +139,13 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
       {
         "@type": "ListItem",
         position: 1,
-        name: "Home",
+        name: "首页",
         item: siteConfig.url,
       },
       {
         "@type": "ListItem",
         position: 2,
-        name: "Blog",
+        name: "研究",
         item: `${siteConfig.url}/blog`,
       },
       {
@@ -168,10 +168,10 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
       <main id="main-content" className="article-page">
         <article>
           <header className="article-header shell">
-            <nav aria-label="Breadcrumb">
+            <nav aria-label="面包屑导航">
               <Link href="/blog">
                 <ArrowLeft aria-hidden="true" size={14} />
-                All articles
+                全部文章
               </Link>
             </nav>
             <div className="article-header__title">
@@ -181,14 +181,14 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
             </div>
             <div className="article-header__meta">
               <p>
-                By <Link href={editorialAuthor.url}>{editorialAuthor.name}</Link>
+                作者：<Link href={editorialAuthor.url}>{editorialAuthor.name}</Link>
               </p>
               <p>
                 <time dateTime={post.publishedAt}>
                   {formatBlogDate(post.publishedAt)}
                 </time>
                 <span aria-hidden="true"> · </span>
-                {getBlogPostReadingMinutes(post)} min read
+                阅读约 {getBlogPostReadingMinutes(post)} 分钟
               </p>
             </div>
           </header>
@@ -206,27 +206,27 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
           </figure>
 
           <div className="article-layout shell">
-            <aside className="article-toc" aria-label="On this page">
-              <p>On this page</p>
+            <aside className="article-toc" aria-label="本页目录">
+              <p>本页内容</p>
               <nav>
-                <a href="#in-brief">In brief</a>
+                <a href="#in-brief">简要回答</a>
                 {post.sections.map((section) => (
                   <a key={section.id} href={`#${section.id}`}>
                     {section.title}
                   </a>
                 ))}
-                <a href="#sources">Sources</a>
+                <a href="#sources">来源</a>
               </nav>
             </aside>
 
             <div className="article-body">
               <section id="in-brief" className="article-answer">
-                <h2>In brief</h2>
+                <h2>简要回答</h2>
                 <p>{post.directAnswer}</p>
               </section>
 
               <aside className="article-takeaways" aria-labelledby="takeaways-title">
-                <h2 id="takeaways-title">Key takeaways</h2>
+                <h2 id="takeaways-title">核心要点</h2>
                 <ul>
                   {post.keyTakeaways.map((takeaway) => (
                     <li key={takeaway}>{takeaway}</li>
@@ -252,7 +252,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
                   )}
                   {section.references && (
                     <p className="article-references">
-                      Supporting sources:{" "}
+                      支持来源：{" "}
                       {section.references.map((reference, index) => (
                         <span key={reference}>
                           {index > 0 && ", "}
@@ -265,7 +265,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
               ))}
 
               <section id="sources" className="article-sources">
-                <h2>Sources</h2>
+                <h2>来源</h2>
                 <ol>
                   {post.sources.map((source, index) => (
                     <li key={source.url} id={`source-${index + 1}`}>
@@ -275,15 +275,15 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
                   ))}
                 </ol>
                 <p>
-                  Published{" "}
+                  发布于{" "}
                   <time dateTime={post.publishedAt}>
                     {formatBlogDate(post.publishedAt)}
                   </time>
-                  . Last reviewed{" "}
+                  ，最近审阅于{" "}
                   <time dateTime={post.updatedAt}>
                     {formatBlogDate(post.updatedAt)}
                   </time>
-                  .
+                  。
                 </p>
               </section>
             </div>
@@ -292,9 +292,9 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
 
         <aside className="related-reading shell" aria-labelledby="related-title">
           <header>
-            <h2 id="related-title">Continue reading</h2>
+            <h2 id="related-title">继续阅读</h2>
             <Link className="text-link" href="/blog">
-              All articles
+              全部文章
               <ArrowRight aria-hidden="true" size={15} />
             </Link>
           </header>

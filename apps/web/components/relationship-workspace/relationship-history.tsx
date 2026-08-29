@@ -27,7 +27,7 @@ export function relationshipBriefContinuityReceipt(
 }
 
 function formatRelationshipHistoryDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat("zh-CN", {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
@@ -57,23 +57,19 @@ export function RelationshipExternalEffectReview({
     >
       <header className="context-effect-review__heading">
         <div>
-          <p className="eyebrow">EXTERNAL EFFECT REVIEW</p>
+          <p className="eyebrow">外部效果审阅</p>
           <h2 id="external-effect-review-title">
-            Check what happened outside Talent Signal.
+            检查 Talent Signal 之外真实发生了什么。
           </h2>
           <p>
-            Source authorization ended after these effects were attempted. The
-            records remain visible because authorization loss cannot undo
-            something that may already exist elsewhere.
+            这些效果尝试后，来源授权已结束。记录仍保持可见，因为失去授权无法撤销可能已经存在于其他位置的内容。
           </p>
         </div>
         <span data-has-unresolved={unresolvedCount > 0}>
           <Warning aria-hidden="true" size={16} />
           {unresolvedCount > 0
-            ? `${unresolvedCount} ${
-                unresolvedCount === 1 ? "result" : "results"
-              } unresolved`
-            : "Review complete"}
+            ? `${unresolvedCount} 项结果未解决`
+            : "审阅完成"}
         </span>
       </header>
       <div className="context-effect-review__list">
@@ -83,18 +79,18 @@ export function RelationshipExternalEffectReview({
             followUp.action_status === "executing";
           const resultLabel = unresolved
             ? followUp.action_status === "unknown"
-              ? "Result unknown"
-              : "Still executing"
+              ? "结果未知"
+              : "仍在执行"
             : followUp.outcome?.status === "verified"
-              ? "Completed · verified"
-              : "Completed · result recorded";
+              ? "已完成 · 已核验"
+              : "已完成 · 结果已记录";
           const latestEvidence = followUp.outcome
             ? followUp.outcome.summary
             : followUp.observation
-              ? `Destination observation was ${followUp.observation.match_status}.`
+              ? `目标位置观察状态为 ${followUp.observation.match_status}。`
               : followUp.attempt
-                ? `Latest attempt remains ${followUp.attempt.status}.`
-                : "No external observation is recorded.";
+                ? `最近一次尝试仍为 ${followUp.attempt.status}。`
+                : "没有记录外部观察。";
           return (
             <article
               data-state={unresolved ? "unresolved" : "completed"}
@@ -103,7 +99,7 @@ export function RelationshipExternalEffectReview({
               <header>
                 <span>{resultLabel}</span>
                 <time dateTime={followUp.authorization.changed_at}>
-                  Authorization {followUp.authorization.state}{" "}
+                  授权状态 {followUp.authorization.state} ·{" "}
                   {formatRelationshipHistoryDate(
                     followUp.authorization.changed_at,
                   )}
@@ -122,40 +118,39 @@ export function RelationshipExternalEffectReview({
                 <p>
                   <strong>
                     {unresolved
-                      ? "Reconcile before retrying."
-                      : "Recorded, not represented as undone."}
+                      ? "重试前先核对。"
+                      : "已记录，不会表示为已撤销。"}
                   </strong>
                   <span>
                     {unresolved
-                      ? "Check the real destination first. No observation means the system cannot safely call this failed or completed."
-                      : "The external result remains part of history even though its source can no longer authorize future work."}
+                      ? "请先检查真实目标位置。没有观察结果时，系统不能安全地声称失败或完成。"
+                      : "即使来源已无法授权后续工作，外部结果仍会作为历史的一部分保留。"}
                   </span>
                 </p>
               </div>
               <dl>
                 <div>
-                  <dt>Destination</dt>
-                  <dd>{followUp.destination_key ?? "No destination recorded"}</dd>
+                  <dt>目标位置</dt>
+                  <dd>{followUp.destination_key ?? "没有目标位置记录"}</dd>
                 </div>
                 <div>
-                  <dt>Latest evidence</dt>
+                  <dt>最新证据</dt>
                   <dd>{latestEvidence}</dd>
                 </div>
                 <div>
-                  <dt>Attempt</dt>
+                  <dt>尝试</dt>
                   <dd>
                     {followUp.attempt
                       ? `${followUp.attempt.status} · ${formatRelationshipHistoryDate(
                           followUp.attempt.started_at,
                         )}`
-                      : "No attempt record"}
+                      : "没有尝试记录"}
                   </dd>
                 </div>
               </dl>
               <footer>
                 <ShieldCheck aria-hidden="true" size={14} />
-                Nothing will contact the person or change the destination
-                without a new recruiter decision.
+                没有新的招聘顾问决定，系统不会联系此人或改变目标位置。
               </footer>
             </article>
           );
@@ -189,15 +184,13 @@ export function RelationshipHistoryTimeline({
           <Clock aria-hidden="true" size={15} />
         )}
         <span>
-          <strong>Relationship history</strong>
+          <strong>关系历史</strong>
           <small>
             {followUps.length > 0
-              ? `${followUps.length} preserved external ${
-                  followUps.length === 1 ? "effect needs" : "effects need"
-                } your review`
+              ? `${followUps.length} 项保留的外部效果需要你审阅`
               : latest
                 ? `${latest.title} · ${formatRelationshipHistoryDate(latest.occurred_at)}`
-                : "Governed operations"}
+                : "受治理操作"}
           </small>
         </span>
         <i>{history.operations.length + followUps.length}</i>
@@ -211,8 +204,8 @@ export function RelationshipHistoryTimeline({
             <Warning aria-hidden="true" size={15} />
           </span>
           <p>
-            <strong>Review preserved external effects</strong>
-            <small>Compare destination evidence on the living person page.</small>
+            <strong>审阅保留的外部效果</strong>
+            <small>在持续更新的人物页面上比较目标位置证据。</small>
           </p>
           <ArrowRight aria-hidden="true" size={15} />
         </a>
@@ -233,12 +226,12 @@ export function RelationshipHistoryTimeline({
                 <span>{operation.status.replaceAll("_", " ")}</span>
                 <span>
                   {operation.actor_kind === "recruiter"
-                    ? "Recruiter decision"
-                    : "System projection"}
+                    ? "招聘顾问决定"
+                    : "系统投影"}
                 </span>
                 {operation.references.knowledge_snapshot_id ? (
                   <span>
-                    Snapshot {operation.references.knowledge_snapshot_id.slice(0, 8)}
+                    快照 {operation.references.knowledge_snapshot_id.slice(0, 8)}
                   </span>
                 ) : null}
                 {operation.kind === "identity_merge" &&
@@ -253,7 +246,7 @@ export function RelationshipHistoryTimeline({
                     }
                     type="button"
                   >
-                    Review reversal
+                    审阅撤销
                     <ArrowRight aria-hidden="true" size={13} />
                   </button>
                 ) : null}
@@ -264,8 +257,7 @@ export function RelationshipHistoryTimeline({
       </ol>
       {history.operations.length > 12 ? (
         <p>
-          Showing the latest 12 of {history.operations.length} governed
-          operations.
+          显示 {history.operations.length} 项受治理操作中的最近 12 项。
         </p>
       ) : null}
     </details>

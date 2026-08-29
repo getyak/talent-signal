@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       return response(
         {
           code: "voice_audio_format_unsupported",
-          message: "The temporary voice recording is not a valid WAV file.",
+          message: "临时语音录音不是有效的 WAV 文件。",
         },
         415,
       );

@@ -10,13 +10,16 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
-import { signalJourneySources } from "./signal-journey";
+import {
+  signalJourneySources,
+  signalJourneyStateLabels,
+} from "./signal-journey";
 import styles from "./hero-signal-preview.module.css";
 
 const phases = [
-  "Source in view",
-  "Exact words located",
-  "Review state staged",
+  "来源已呈现",
+  "原话已定位",
+  "审阅状态已暂存",
 ] as const;
 
 const channelMarks = ["微", "W", "L", "B", "红"] as const;
@@ -63,12 +66,12 @@ export function HeroSignalPreview() {
     <figure
       className={styles.preview}
       data-phase={visiblePhase}
-      aria-label="A verified synthetic conversation moving from screenshot to exact evidence and a reviewable contact state"
+      aria-label="一段经过验证的合成对话，从截图流转为准确证据与可审阅的联系人状态"
     >
       <div className={styles.previewHeader}>
         <span>
           <i aria-hidden="true" />
-          Verified synthetic run
+          已验证的合成演示
         </span>
         <strong>{phases[visiblePhase]}</strong>
       </div>
@@ -127,17 +130,17 @@ export function HeroSignalPreview() {
           </div>
           <div className={styles.phoneFoot}>
             <ShieldCheck aria-hidden="true" size={13} />
-            Original image not stored
+            不保存原始图片
           </div>
         </motion.div>
 
-        <section className={styles.evidencePanel} aria-label="Exact evidence">
+        <section className={styles.evidencePanel} aria-label="准确证据">
           <header>
             <span>
               <Crosshair aria-hidden="true" size={14} />
-              Exact evidence
+              准确证据
             </span>
-            <small>{source.evidence.length} found</small>
+            <small>找到 {source.evidence.length} 条</small>
           </header>
           <div>
             {source.evidence.slice(0, 2).map((quote, index) => (
@@ -148,31 +151,31 @@ export function HeroSignalPreview() {
               </div>
             ))}
           </div>
-          <p>Continuous source spans · candidate speaker only</p>
+          <p>连续来源片段 · 仅候选人发言</p>
         </section>
 
         <article className={styles.contactPanel}>
           <header>
             <span className={styles.personMark}>SC</span>
             <div>
-              <small>Living contact · proposed</small>
-              <strong>Synthetic candidate</strong>
-              <span>CPO search · recruiter bound</span>
+              <small>持续更新的联系人 · 拟议</small>
+              <strong>合成候选人</strong>
+              <span>首席产品官寻访 · 招聘顾问已关联</span>
             </div>
-            <i>Review</i>
+            <i>审阅</i>
           </header>
           <dl>
             {source.facts.slice(0, 2).map(([label, value, status]) => (
               <div key={label} data-status={status}>
                 <dt>{label}</dt>
                 <dd>{value}</dd>
-                <small>{status}</small>
+                <small>{signalJourneyStateLabels[status]}</small>
               </div>
             ))}
           </dl>
           <footer>
-            <span>No automatic write</span>
-            <strong>Confirm · edit · dismiss</strong>
+            <span>不会自动写入</span>
+            <strong>确认 · 编辑 · 驳回</strong>
           </footer>
         </article>
       </div>
@@ -181,7 +184,7 @@ export function HeroSignalPreview() {
         <div>
           {signalJourneySources.map((item, index) => (
             <button
-              aria-label={`Show ${item.label} synthetic example`}
+              aria-label={`显示 ${item.label} 合成示例`}
               aria-pressed={activeSource === index}
               data-active={activeSource === index || undefined}
               key={item.id}
@@ -196,7 +199,7 @@ export function HeroSignalPreview() {
         <span>
           {source.label}
           <i aria-hidden="true" />
-          model-verified, human-reviewed
+          模型核验，人工审阅
         </span>
       </figcaption>
     </figure>

@@ -45,7 +45,7 @@ function arkBaseUrl() {
     parsed.protocol !== "https:" ||
     parsed.hostname !== "ark.cn-beijing.volces.com"
   ) {
-    throw new Error("ARK_BASE_URL must use the official Beijing Ark host.");
+    throw new Error("ARK_BASE_URL 必须使用北京火山方舟官方主机。");
   }
   return parsed.origin + parsed.pathname.replace(/\/+$/, "");
 }
@@ -155,7 +155,7 @@ export async function analyzeScreenshotWithArk(input: {
   const availability = getArkAvailability();
   const apiKey = process.env.ARK_API_KEY;
   if (!availability.enabled || !apiKey) {
-    throw new Error("Ark screenshot analysis is not configured.");
+    throw new Error("尚未配置方舟截图分析。");
   }
 
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -202,12 +202,12 @@ export async function analyzeScreenshotWithArk(input: {
   });
 
   if (!response.ok) {
-    throw new Error(`Ark screenshot analysis failed with ${response.status}.`);
+    throw new Error(`方舟截图分析失败，状态码：${response.status}。`);
   }
   const payload = (await response.json()) as ArkChatResponse;
   const content = payload.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
-    throw new Error("Ark returned no structured screenshot analysis.");
+    throw new Error("方舟未返回结构化截图分析。");
   }
 
   return {

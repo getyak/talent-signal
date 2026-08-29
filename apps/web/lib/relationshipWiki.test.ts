@@ -79,10 +79,10 @@ describe("relationship Wiki projection", () => {
     expect(view?.blocks[0].citationDependencyIds).toEqual([
       "20000000-0000-4000-8000-000000000001",
     ]);
-    expect(view?.blocks[1].title).toContain("conflicting evidence");
+    expect(view?.blocks[1].title).toContain("冲突证据");
     expect(view?.blocks[2]).toMatchObject({
       status: "proposed",
-      title: "Proposed next move",
+      title: "拟议下一步",
     });
   });
 

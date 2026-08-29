@@ -51,7 +51,7 @@ export async function GET(request: Request) {
         message:
           error instanceof Error
             ? error.message
-            : "The prior public research status could not be restored.",
+            : "无法恢复此前的公开研究状态。",
       },
       503,
     );
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         message:
           error instanceof Error
             ? error.message
-            : "The bounded public research could not be completed.",
+            : "有边界的公开研究未能完成。",
       },
       503,
     );

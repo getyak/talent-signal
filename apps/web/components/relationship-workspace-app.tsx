@@ -104,10 +104,10 @@ export function RelationshipWorkspaceApp({
     useState<GovernedCaptureDeletionReceipt | null>(null);
   const [announcement, setAnnouncement] = useState(
     initialIdentityResolutionCase
-      ? "Identity review resumed."
+      ? "身份审阅已恢复。"
       : initialWorkspace || initialRelationshipScope
-      ? "Contact context loaded."
-      : "No contact context is open.",
+      ? "联系人背景已加载。"
+      : "当前没有打开联系人背景。",
   );
   const activeScope = workspace
     ? {
@@ -225,7 +225,7 @@ export function RelationshipWorkspaceApp({
     setAnnouncement(`${label}.`);
     try {
       if (!expectedCaptureId) {
-        throw new Error("No active evidence review is available to update.");
+        throw new Error("没有可供更新的活跃证据审阅。");
       }
       const result = await requestRelationshipWorkspaceMutation(
         path,
@@ -240,7 +240,7 @@ export function RelationshipWorkspaceApp({
         if (result.code === "backend_session_expired") {
           beginSessionRecovery();
           setAnnouncement(
-            "Account session expired. Prior verified state remains visible.",
+            "账号会话已过期。先前已核验状态保持可见。",
           );
           return null;
         }
@@ -253,15 +253,15 @@ export function RelationshipWorkspaceApp({
       }
       relationshipAgent.clearGeneratedArtifacts();
       setKnowledgeSnapshot(null);
-      setAnnouncement("Contact context updated.");
+      setAnnouncement("联系人背景已更新。");
       return next;
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "Canonical state could not be updated.",
+          : "无法更新规范状态。",
       );
-      setAnnouncement("The update failed. Prior state remains visible.");
+      setAnnouncement("更新失败，先前状态保持可见。");
       return null;
     } finally {
       setBusy("");
@@ -274,7 +274,7 @@ export function RelationshipWorkspaceApp({
     relationshipAgent.clearGeneratedArtifacts();
     setKnowledgeSnapshot(null);
     clearAgentHistory();
-    setAnnouncement("Source and registered derivatives deleted.");
+    setAnnouncement("来源及已登记的衍生数据已删除。");
     window.history.replaceState(null, "", "/workspace");
   }
 
@@ -286,7 +286,7 @@ export function RelationshipWorkspaceApp({
       setCaptureOpen(false);
       setError(boundaryError);
       setAnnouncement(
-        "The source was saved, but its cross-account readback was not opened.",
+        "来源已保存，但没有打开跨账号读取结果。",
       );
       return;
     }
@@ -297,7 +297,7 @@ export function RelationshipWorkspaceApp({
     setDeletionSummary(null);
     setCaptureOpen(false);
     setError("");
-    setAnnouncement("New evidence is ready for fact review.");
+    setAnnouncement("新证据已可供事实审阅。");
     window.history.replaceState(
       null,
       "",
@@ -351,7 +351,7 @@ export function RelationshipWorkspaceApp({
       (receipt) => receipt.resource.kind === "contact_record",
     );
     const identityClueDetail = identityClueSaved
-      ? " One confirmed identity clue is stored as a source-linked masked handle."
+      ? " 一条已确认身份线索已作为关联来源的掩码联系方式保存。"
       : "";
     setRelationshipScope(scope);
     setWorkspace(null);
@@ -363,26 +363,26 @@ export function RelationshipWorkspaceApp({
       {
         detail:
           outcome === "created_person"
-            ? `The explicit identity, relationship context, and first governed source now share one living page.${identityClueDetail}`
+            ? `明确身份、关系情境与第一份受治理来源现在共享同一张持续更新页面。${identityClueDetail}`
             : outcome === "created_relationship_context"
-              ? `The existing person was preserved and the source opened one separate relationship context.${identityClueDetail}`
-              : `The source was attached to the selected existing person and relationship. No duplicate identity or context was created.${identityClueDetail}`,
+              ? `现有联系人已保留，该来源新建了一项独立关系情境。${identityClueDetail}`
+              : `来源已关联到所选现有联系人与关系，没有创建重复身份或情境。${identityClueDetail}`,
         status: "completed",
         title:
           outcome === "created_person"
-            ? "Living person page created"
+            ? "持续更新的人物页面已创建"
             : outcome === "created_relationship_context"
-              ? "Relationship context added"
-              : "Source attached to existing relationship",
+              ? "关系情境已添加"
+              : "来源已关联到现有关系",
       },
       { accountId, scope },
     );
     setAnnouncement(
       outcome === "created_person"
-        ? "Living person page created from the first governed source."
+        ? "已根据第一份受治理来源创建持续更新的人物页面。"
         : outcome === "created_relationship_context"
-          ? "A new relationship context was added to the existing person."
-          : "The source was attached to the existing relationship.",
+          ? "已向现有联系人添加一项新关系情境。"
+          : "来源已关联到现有关系。",
     );
     window.history.replaceState(
       null,
@@ -425,7 +425,7 @@ export function RelationshipWorkspaceApp({
   }
 
   async function handleIdentityReviewCreated(caseId: string) {
-    setBusy("Opening identity review");
+    setBusy("正在打开身份审阅");
     setError("");
     try {
       const response = await workspaceSessionFetch(
@@ -442,26 +442,26 @@ export function RelationshipWorkspaceApp({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The saved identity review could not be opened.",
+            : "无法打开已保存的身份审阅。",
         );
       }
       setIdentityResolutionCase(payload);
       relationshipAgent.setCreateOpen(false);
       relationshipAgent.setOperation({
-        title: "Identity review saved",
+        title: "身份审阅已保存",
         detail:
-          "The governed source remains outside every person Wiki until you resolve the identity.",
+          "在你解决身份前，受治理来源会保持在所有人物 Wiki 之外。",
         status: "staged",
       });
       setAnnouncement(
-        "Identity review saved. No person or relationship was changed.",
+        "身份审阅已保存，没有改变任何人物或关系。",
       );
       replaceIdentityReviewUrl(caseId);
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "The saved identity review could not be opened.",
+          : "无法打开已保存的身份审阅。",
       );
     } finally {
       setBusy("");
@@ -471,13 +471,13 @@ export function RelationshipWorkspaceApp({
   function handleIdentityCaseUpdated(nextCase: IdentityResolutionCase) {
     setIdentityResolutionCase(nextCase);
     relationshipAgent.setOperation({
-      title: "Identity left unresolved",
+      title: "身份保持未解决",
       detail:
-        "The source and your decision note are saved. Neither candidate page nor Wiki changed.",
+        "来源与决定笔记已保存，候选人页面和 Wiki 均未改变。",
       status: "staged",
     });
     setAnnouncement(
-      "Identity remains unresolved and can be resumed later.",
+      "身份保持未解决，之后可以继续处理。",
     );
     replaceIdentityReviewUrl(nextCase.id);
   }
@@ -499,29 +499,29 @@ export function RelationshipWorkspaceApp({
         : compilation;
     const verifiedCompilationError =
       compilation && !verifiedCompilation
-        ? "The Wiki compilation returned from a different account and was not shown. Reload this relationship before retrying."
+        ? "Wiki 编译结果来自其他账号，因此没有显示。请重新加载此关系后重试。"
         : compilationError;
     setKnowledgeSnapshot(verifiedCompilation);
     if (compilation && !verifiedCompilation) {
-      setError(verifiedCompilationError ?? "Wiki readback was rejected.");
+      setError(verifiedCompilationError ?? "Wiki 读取结果被拒绝。");
     }
     relationshipAgent.setOperation(
       {
         title: verifiedCompilation
-          ? "Identity resolved and Wiki recompiled"
-          : "Identity resolved; Wiki needs retry",
+          ? "身份已解决，Wiki 已重新编译"
+          : "身份已解决，Wiki 需要重试",
         detail: verifiedCompilation
-          ? `The governed source is now bound to ${scope.person.display_label} inside ${scope.relationship_context.display_label}. A new source-linked Wiki snapshot was published.`
+          ? `受治理来源现在已在 ${scope.relationship_context.display_label} 中关联到 ${scope.person.display_label}。一份新的来源关联 Wiki 快照已发布。`
           : verifiedCompilationError ??
-            "The source is bound, but the derived Wiki has not been recompiled.",
+            "来源已关联，但衍生 Wiki 尚未重新编译。",
         status: verifiedCompilation ? "completed" : "staged",
       },
       { accountId, scope },
     );
     setAnnouncement(
       verifiedCompilation
-        ? "Identity resolved and a new Wiki snapshot was published."
-        : "Identity resolved. Wiki compilation needs retry.",
+        ? "身份已解决，并发布了新的 Wiki 快照。"
+        : "身份已解决，Wiki 编译需要重试。",
     );
     replaceIdentityReviewUrl(null, scope);
     void refreshAgentHistory(
@@ -533,11 +533,11 @@ export function RelationshipWorkspaceApp({
   function cancelAgentCreate() {
     relationshipAgent.setCreateOpen(false);
     relationshipAgent.setOperation({
-      detail: "No person, relationship context, or source was created.",
+      detail: "没有创建人物、关系情境或来源。",
       status: "no_change",
-      title: "Contact draft canceled",
+      title: "联系人草稿已取消",
     });
-    setAnnouncement("Contact draft canceled. Nothing was created.");
+    setAnnouncement("联系人草稿已取消，没有创建任何内容。");
   }
 
   function handleResourcesCommitted(
@@ -547,9 +547,7 @@ export function RelationshipWorkspaceApp({
     setKnowledgeSnapshot(null);
     setError("");
     setAnnouncement(
-      `${receipts.length} governed ${
-        receipts.length === 1 ? "resource is" : "resources are"
-      } attached. Compile a new brief to include them.`,
+      `已关联 ${receipts.length} 项受治理资源。请编译新简报以纳入这些内容。`,
     );
     const firstReceipt = receipts[0];
     if (
@@ -577,27 +575,27 @@ export function RelationshipWorkspaceApp({
     const mergeOperation = {
       title:
         response.status === "applied"
-          ? "Duplicate person page merged"
-          : "Separate person pages restored",
+          ? "重复人物页面已合并"
+          : "独立人物页面已恢复",
       detail:
         response.status === "applied"
-          ? `${sourceLabel} now resolves to this stable person page. ${response.affected_relationship_context_ids.length} relationship contexts and ${response.captures_rebound} governed sources moved with provenance intact.${
+          ? `${sourceLabel} 现在解析到这张稳定人物页面。${response.affected_relationship_context_ids.length} 项关系情境与 ${response.captures_rebound} 份受治理来源已在保留来源链路的情况下移动。${
               failedCompilations > 0
-                ? ` ${failedCompilations} Wiki compilations need retry.`
-                : " Every affected relationship Wiki was recompiled."
+                ? `${failedCompilations} 项 Wiki 编译需要重试。`
+                : "所有受影响关系 Wiki 均已重新编译。"
             }`
-          : `${sourceLabel} and its prior relationship contexts were restored as a separate person.${
+          : `${sourceLabel} 及其先前关系情境已恢复为独立人物。${
               failedCompilations > 0
-                ? ` ${failedCompilations} Wiki compilations need retry.`
-                : " Every affected relationship Wiki was recompiled."
+                ? `${failedCompilations} 项 Wiki 编译需要重试。`
+                : "所有受影响关系 Wiki 均已重新编译。"
             }`,
       status: failedCompilations > 0 ? ("staged" as const) : ("completed" as const),
     };
     relationshipAgent.setOperation(mergeOperation);
     setAnnouncement(
       response.status === "applied"
-        ? "Person merge applied with a reversible receipt."
-        : "Person merge reversed and separate relationship memory restored.",
+        ? "人物合并已应用，并生成可逆回执。"
+        : "人物合并已撤销，独立关系记忆已恢复。",
     );
     if (!activeScope) {
       return;
@@ -647,7 +645,7 @@ export function RelationshipWorkspaceApp({
   async function handleReviewPersonMergeReversal(
     operationId: string,
   ) {
-    setBusy("Reviewing merge history");
+    setBusy("正在审阅合并历史");
     setError("");
     try {
       const response = await workspaceSessionFetch(
@@ -666,29 +664,29 @@ export function RelationshipWorkspaceApp({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The prior merge could not be reopened for review.",
+            : "无法重新打开先前合并以供审阅。",
         );
       }
       setPersonMergeReversalPreview(payload);
       setPersonMergeRequested(true);
       relationshipAgent.setOperation({
         title: payload.reversal_available
-          ? "Merge reversal review opened"
-          : "Merge reversal needs attention",
+          ? "合并撤销审阅已打开"
+          : "合并撤销需要处理",
         detail:
           payload.blockers.length > 0
             ? payload.blockers.map((blocker) => blocker.message).join(" ")
             : `The current ownership of ${payload.contexts_to_restore.length} relationship ${
                 payload.contexts_to_restore.length === 1
-                  ? "context"
-                  : "contexts"
-              } is ready for an explicit reversal decision.`,
+                  ? "项关系情境"
+                  : "项关系情境"
+              } 的当前归属已可供明确的撤销决定。`,
         status: "staged",
       });
       setAnnouncement(
         payload.reversal_available
-          ? "A fresh merge reversal review is ready."
-          : "The prior merge is visible, but automatic reversal is paused.",
+          ? "新的合并撤销审阅已就绪。"
+          : "先前合并保持可见，但自动撤销已暂停。",
       );
       window.setTimeout(
         () => scrollWorkspaceTo("person-merge-review"),
@@ -698,7 +696,7 @@ export function RelationshipWorkspaceApp({
       setError(
         caught instanceof Error
           ? caught.message
-          : "The prior merge could not be reopened for review.",
+          : "无法重新打开先前合并以供审阅。",
       );
     } finally {
       setBusy("");
@@ -711,14 +709,14 @@ export function RelationshipWorkspaceApp({
   }
 
   async function handleOpenCaptureReview(captureId: string) {
-    setBusy("Opening the selected capture review");
+    setBusy("正在打开所选采集内容审阅");
     setError("");
     const result = await openWorkspaceReview(captureId);
     setBusy("");
     if (!result.ok) {
       if (!result.sessionExpired) {
         setError(
-          result.message ?? "The requested capture review could not be opened.",
+          result.message ?? "无法打开请求的采集内容审阅。",
         );
       }
       return;
@@ -737,7 +735,7 @@ export function RelationshipWorkspaceApp({
       )}&capture=${encodeURIComponent(captureId)}#proposed-changes`,
     );
     setAnnouncement(
-      "Selected capture review opened without reloading the relationship workspace.",
+      "所选采集内容审阅已打开，无需重新加载关系工作台。",
     );
     window.requestAnimationFrame(() =>
       scrollWorkspaceTo("proposed-changes"),
@@ -750,7 +748,7 @@ export function RelationshipWorkspaceApp({
     personId: string;
     relationshipContextId: string;
   }) {
-    setBusy("Opening the corrected relationship");
+    setBusy("正在打开修正后的关系");
     setError("");
     const result = await openWorkspaceReview(input.captureId, {
       personId: input.personId,
@@ -791,7 +789,7 @@ export function RelationshipWorkspaceApp({
       )}#proposed-changes`,
     );
     setAnnouncement(
-      "Source identity corrected. The verified target relationship is now open without reloading.",
+      "来源身份已修正，已核验的目标关系现在无需重新加载即可打开。",
     );
     void refreshAgentHistory(input.personId, input.relationshipContextId);
     return "opened";
@@ -801,7 +799,7 @@ export function RelationshipWorkspaceApp({
   return (
     <>
       <a className="skip-link" href="#context-main">
-        Skip to contact context
+        跳到联系人背景
       </a>
       <div
         className="context-workspace context-workspace--embedded"
@@ -832,26 +830,26 @@ export function RelationshipWorkspaceApp({
             <div>
               <span className="context-secure-state">
                 <ShieldCheck aria-hidden="true" size={16} weight="duotone" />
-                Private workspace
+                私密工作台
               </span>
               {activeScope ? (
                 <span>
                   {workspace?.data_classification ===
                   "synthetic_fixture_only"
-                    ? "Synthetic review"
-                    : "Sensitive candidate evidence"}
+                    ? "合成审阅"
+                    : "敏感候选人证据"}
                 </span>
               ) : null}
             </div>
             <div>
-              <Link href="/workspace/boundaries">Boundary cases</Link>
+              <Link href="/workspace/boundaries">边界案例</Link>
               <button
                 className="context-primary-button context-primary-button--compact"
                 onClick={() => setCaptureOpen(true)}
                 type="button"
               >
                 <Plus aria-hidden="true" size={17} />
-                Import screenshot
+                导入截图
               </button>
             </div>
           </header>
@@ -903,7 +901,7 @@ export function RelationshipWorkspaceApp({
               <RelationshipContactHeader scope={relationshipScope} />
 
               <RelationshipWikiPanel
-                busy={busy === "Compiling a source-linked brief"}
+                busy={busy === "正在编译关联来源的简报"}
                 onCompile={() => void relationshipAgent.ask()}
                 onReviewSources={openResourceComposer}
                 response={relationshipAgent.response}
@@ -929,7 +927,7 @@ export function RelationshipWorkspaceApp({
                   if (relationshipRemoved) {
                     handleRelationshipRemoved(
                       announcement ??
-                        "Source lineage deleted. No active relationship remains.",
+                        "来源链路已删除，没有活跃关系保留。",
                     );
                     return;
                   }
@@ -937,7 +935,7 @@ export function RelationshipWorkspaceApp({
                   setKnowledgeSnapshot(null);
                   setAnnouncement(
                     announcement ??
-                      "Evidence review saved. Compile a new brief to use the updated source state.",
+                      "证据审阅已保存。请编译新简报，以使用更新后的来源状态。",
                   );
                   void refreshAgentHistory(
                     relationshipScope.person.id,
@@ -996,7 +994,7 @@ export function RelationshipWorkspaceApp({
               />
 
               <RelationshipWikiPanel
-                busy={busy === "Compiling a source-linked brief"}
+                busy={busy === "正在编译关联来源的简报"}
                 onCompile={() => void relationshipAgent.ask()}
                 onReviewSources={openResourceComposer}
                 response={relationshipAgent.response}
@@ -1028,7 +1026,7 @@ export function RelationshipWorkspaceApp({
                   if (relationshipRemoved) {
                     handleRelationshipRemoved(
                       announcement ??
-                        "Source lineage deleted. No active relationship remains.",
+                        "来源链路已删除，没有活跃关系保留。",
                     );
                     return;
                   }
@@ -1040,10 +1038,10 @@ export function RelationshipWorkspaceApp({
                   setAnnouncement(
                     refreshed
                       ? announcement ??
-                          "Evidence review saved. Compile a new brief to use the updated source state."
+                          "证据审阅已保存。请编译新简报，以使用更新后的来源状态。"
                       : `${
-                          announcement ?? "Evidence review saved."
-                        } The current review could not refresh; reload before making another decision.`,
+                          announcement ?? "证据审阅已保存。"
+                        } 当前审阅无法刷新；请重新加载后再作下一项决定。`,
                   );
                   void refreshAgentHistory(
                     workspace.subject.id,
@@ -1073,7 +1071,7 @@ export function RelationshipWorkspaceApp({
                 </div>
 
                 <aside
-                  aria-label="Next move and relationship history"
+                  aria-label="下一步与关系历史"
                   className="context-page-aside"
                 >
                   <RelationshipNextMove

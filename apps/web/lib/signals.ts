@@ -67,26 +67,26 @@ const evidenceRules: Array<{
 }> = [
   {
     id: "competing-offer",
-    label: "Competing offer",
+    label: "其他录用意向",
     pattern: /\b(another|competing|other)\s+offer\b|\boffer in hand\b/i,
     modality: "explicit-fact",
   },
   {
     id: "deadline",
-    label: "Decision window",
+    label: "决策窗口",
     pattern:
       /\b(by|before|decide|decision|deadline)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|this week|next week)\b/i,
     modality: "commitment",
   },
   {
     id: "preference",
-    label: "Remote constraint",
+    label: "远程工作限制",
     pattern: /\b(remote|hybrid|work from home|flexibility)\b/i,
     modality: "preference",
   },
   {
     id: "availability",
-    label: "Tuesday availability",
+    label: "周二可沟通时间",
     pattern:
       /\b(available|works|speak|call)\b[^.!?\n]{0,48}\b(monday|tuesday|wednesday|thursday|friday)\b(?:[^.!?\n]{0,24}\b(morning|afternoon|evening)\b)?|\b(monday|tuesday|wednesday|thursday|friday)\b[^.!?\n]{0,48}\b(morning|afternoon|evening|available|works|speak|call)\b/i,
     modality: "commitment",
@@ -119,18 +119,18 @@ export function deriveInsight(
       return {
         verdict: "Resolve blocker",
         rationale:
-          "The note states a timezone, but the source date is missing, so the relative time window is unresolved.",
+          "笔记写明了时区，但缺少来源日期，因此相对时间窗口仍未解决。",
         nextAction:
-          "Clarify the exact calendar date before confirming a deadline or preparing a meeting.",
+          "确认期限或准备会议前，请先澄清准确的日历日期。",
       };
     }
 
     return {
       verdict: "Resolve blocker",
       rationale:
-        "The note contains a relative time window, but the source date or timezone is missing.",
+        "笔记包含相对时间窗口，但缺少来源日期或时区。",
       nextAction:
-        "Clarify the exact date and timezone before confirming a deadline or preparing a meeting.",
+        "确认期限或准备会议前，请先澄清准确日期与时区。",
     };
   }
 
@@ -138,8 +138,8 @@ export function deriveInsight(
     return {
       verdict: "At risk",
       rationale:
-        "A near decision window and an unresolved work-location constraint could stall the search.",
-      nextAction: "Confirm the remote policy before scheduling a generic interview.",
+        "临近的决策窗口与尚未解决的工作地点限制可能让寻访停滞。",
+      nextAction: "安排常规面试前，请先确认远程办公政策。",
     };
   }
 
@@ -147,8 +147,8 @@ export function deriveInsight(
     return {
       verdict: "Resolve blocker",
       rationale:
-        "The candidate has explicit decision pressure, but the deciding constraint is not yet clear.",
-      nextAction: "Ask what must be true before the decision deadline.",
+        "候选人面临明确的决策压力，但决定性限制尚不清楚。",
+      nextAction: "询问在决策期限前必须满足什么条件。",
     };
   }
 
@@ -160,31 +160,31 @@ export function deriveInsight(
     return {
       verdict: "Advance",
       rationale:
-        "The candidate has offered a concrete window and no explicit blocker is present.",
-      nextAction: "Confirm the proposed conversation window.",
+        "候选人给出了明确时间窗口，当前没有明显阻碍。",
+      nextAction: "确认拟议的沟通时间窗口。",
     };
   }
 
   return {
     verdict: "Wait",
     rationale:
-      "No explicit deadline, constraint, competing offer, or scheduling commitment was found.",
-    nextAction: "Keep the note as context and avoid creating an operational update.",
+      "没有发现明确期限、限制、其他录用意向或日程承诺。",
+    nextAction: "把笔记保留为背景信息，不创建操作性更新。",
   };
 }
 
 const actionTitles: Record<EvidenceKind, string> = {
-  availability: "Review candidate availability",
-  "client-dependency": "Record client dependency",
-  commitment: "Record candidate commitment",
-  "competing-offer": "Record competing offer",
-  constraint: "Record candidate constraint",
-  deadline: "Record decision deadline",
-  "location-or-work-mode": "Record work-mode requirement",
-  "next-meeting": "Review proposed meeting",
-  "open-question": "Record open candidate question",
-  preference: "Record candidate preference",
-  "stage-change": "Record process stage change",
+  availability: "审阅候选人可沟通时间",
+  "client-dependency": "记录客户依赖项",
+  commitment: "记录候选人承诺",
+  "competing-offer": "记录其他录用意向",
+  constraint: "记录候选人限制",
+  deadline: "记录决策期限",
+  "location-or-work-mode": "记录工作方式要求",
+  "next-meeting": "审阅拟议会议",
+  "open-question": "记录候选人的待解问题",
+  preference: "记录候选人偏好",
+  "stage-change": "记录流程阶段变化",
 };
 
 const relativeTimePattern =
@@ -212,11 +212,11 @@ function addDeterministicTemporalAmbiguity(
     ambiguities: [
       item.id === "deadline"
         ? temporalContext.hasExplicitTimeZone
-          ? "Resolve the source date before confirming this relative deadline. Keep the stated timezone attached."
-          : "Resolve the source date and timezone before confirming this deadline."
+          ? "确认相对期限前，请先明确来源日期，并保留已声明的时区。"
+          : "确认期限前，请先明确来源日期与时区。"
         : temporalContext.hasExplicitTimeZone
-          ? "Resolve the exact calendar date and local time before scheduling. Keep the stated timezone attached."
-          : "Resolve the exact date, local time, and timezone before scheduling.",
+          ? "安排日程前，请先明确准确的日历日期与当地时间，并保留已声明的时区。"
+          : "安排日程前，请先明确准确日期、当地时间与时区。",
     ],
   };
 }
@@ -239,7 +239,7 @@ export function buildAnalysis(
         type: "create-meeting",
         title: actionTitles[item.id],
         detail:
-          "Create a meeting proposal from the quoted window. Date and time remain editable.",
+          "根据引文中的时间窗口创建会议提案，日期与时间仍可编辑。",
         evidenceId: item.id,
       };
     }
@@ -248,7 +248,7 @@ export function buildAnalysis(
       id: `update-${item.id}`,
       type: "update-contact",
       title: actionTitles[item.id],
-      detail: "Add as a confirmed candidate fact with its source attached.",
+      detail: "添加为已确认的候选人事实，并继续关联其来源。",
       evidenceId: item.id,
     };
   });

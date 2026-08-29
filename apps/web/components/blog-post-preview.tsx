@@ -25,14 +25,14 @@ export function BlogPostPreview({
       <article className="blog-preview blog-preview--compact">
         <div className="blog-preview__meta">
           <span>{post.category}</span>
-          <span>{getBlogPostReadingMinutes(post)} min read</span>
+          <span>阅读约 {getBlogPostReadingMinutes(post)} 分钟</span>
         </div>
         <h3>
           <Link href={href}>{post.title}</Link>
         </h3>
         <p>{post.excerpt}</p>
         <Link className="text-link" href={href}>
-          Read article
+          阅读文章
           <ArrowRight aria-hidden="true" size={15} />
         </Link>
       </article>
@@ -46,7 +46,7 @@ export function BlogPostPreview({
       <Link
         className="blog-preview__image"
         href={href}
-        aria-label={`Read ${post.title}`}
+        aria-label={`阅读《${post.title}》`}
       >
         <Image
           src={post.heroImage}
@@ -67,7 +67,7 @@ export function BlogPostPreview({
           <span>{post.category}</span>
           <span>
             {formatBlogDate(post.publishedAt)} ·{" "}
-            {getBlogPostReadingMinutes(post)} min read
+            阅读约 {getBlogPostReadingMinutes(post)} 分钟
           </span>
         </div>
         <h2>
@@ -75,7 +75,7 @@ export function BlogPostPreview({
         </h2>
         <p>{post.excerpt}</p>
         <Link className="text-link" href={href}>
-          Read article
+          阅读文章
           <ArrowRight aria-hidden="true" size={15} />
         </Link>
       </div>
