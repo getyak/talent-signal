@@ -184,6 +184,62 @@ enum HeroLoopCatalog {
             )
         )
     }
+
+    static func newContact() -> FixtureCase {
+        FixtureCase(
+            id: "TS-HERO-NEW-CONTACT",
+            title: "Explicit identity and contact channel",
+            context: FixtureContext(
+                capturedAt: "2026-08-29T09:41:00+08:00",
+                sourceTimezone: "Asia/Shanghai",
+                candidate: nil,
+                assignment: "Product leadership search",
+                notes: "Synthetic Agent lifecycle fixture. No matching contact was found.",
+                priorState: nil,
+                candidateOptions: nil,
+                requestedOutput: nil
+            ),
+            messages: [
+                FixtureMessage(
+                    id: "new-contact-m1",
+                    speaker: "candidate",
+                    text: "I am Maya Ortiz. You can reach me at maya@example.test."
+                ),
+            ],
+            expected: FixtureExpected(
+                disposition: .proposeAction,
+                assertions: [
+                    FixtureAssertion(
+                        field: "contact_name",
+                        status: .proposed,
+                        value: "Maya Ortiz",
+                        evidenceMessageID: "new-contact-m1",
+                        evidenceQuote: "I am Maya Ortiz"
+                    ),
+                    FixtureAssertion(
+                        field: "email",
+                        status: .proposed,
+                        value: "maya@example.test",
+                        evidenceMessageID: "new-contact-m1",
+                        evidenceQuote: "maya@example.test"
+                    ),
+                ],
+                action: FixtureAction(
+                    type: "review_action_cards",
+                    owner: "recruiter",
+                    target: "Maya Ortiz contact",
+                    reason: "Review the explicitly shared identity and contact channel.",
+                    due: "when useful",
+                    evidenceMessageIDs: ["new-contact-m1"]
+                ),
+                mustNot: [
+                    "create a contact without fact review",
+                    "send a message",
+                    "bind identity from name alone",
+                ]
+            )
+        )
+    }
 }
 
 enum CandidateMomentumLoopEngine {

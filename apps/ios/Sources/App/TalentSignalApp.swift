@@ -9,6 +9,7 @@ struct TalentSignalApp: App {
         AppLanguage.system.rawValue
     @StateObject private var appSessionStore: AppSessionStore
     @State private var standaloneOpenURL: URL?
+    @State private var agentWorkOpenURL: URL?
 
     init() {
         _appSessionStore = StateObject(
@@ -50,6 +51,19 @@ struct TalentSignalApp: App {
                 initialURL: standaloneOpenURL
             )
         )
+    }
+
+    private var agentWorkShowcaseRoot: AnyView? {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard TalentSignalRootRoute.opensAgentWorkShowcase(arguments: arguments)
+                || agentWorkOpenURL.flatMap(AgentWorkDeepLink.parse) != nil else {
+            return nil
+        }
+        return AnyView(AgentWorkShowcaseView(initialURL: agentWorkOpenURL))
+#else
+        return nil
+#endif
     }
 
     private var calendarHandoffScenarioRoot: AnyView? {
@@ -97,7 +111,9 @@ struct TalentSignalApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if let standaloneOnboardingRoot {
+                if let agentWorkShowcaseRoot {
+                    agentWorkShowcaseRoot
+                } else if let standaloneOnboardingRoot {
                     standaloneOnboardingRoot
                 } else if TalentSignalAuthenticationConfiguration.requiresAuthentication(
                     arguments: ProcessInfo.processInfo.arguments
@@ -148,8 +164,11 @@ struct TalentSignalApp: App {
                     }
                 }
                 .onOpenURL { url in
-                    guard StandaloneOnboardingConfiguration.opens(url: url) else { return }
-                    standaloneOpenURL = url
+                    if AgentWorkDeepLink.parse(url) != nil {
+                        agentWorkOpenURL = url
+                    } else if StandaloneOnboardingConfiguration.opens(url: url) {
+                        standaloneOpenURL = url
+                    }
                 }
         }
     }
@@ -284,6 +303,14 @@ enum TalentSignalRootRoute {
     static func opensCalendarHandoff(arguments: [String]) -> Bool {
 #if DEBUG
         value(after: "--scenario", in: arguments) == "calendar-handoff"
+#else
+        false
+#endif
+    }
+
+    static func opensAgentWorkShowcase(arguments: [String]) -> Bool {
+#if DEBUG
+        arguments.contains("--agent-work-showcase")
 #else
         false
 #endif

@@ -1,8 +1,18 @@
 # Dynamic Island Gate 0 visual validation
 
+> Superseded on 2026-08-29 by
+> [`2026-08-29-research-live-activity-atom-a.md`](2026-08-29-research-live-activity-atom-a.md).
+> The previously missing 17 / 42 / 73 baselines and execution contract were
+> recovered from the linked Notion evidence package. This file remains only as
+> historical recovery context and is not the active implementation plan.
+
 ## Status
 
-Blocked pending one of two inputs:
+Superseded. The source-recovery blocker below no longer describes current
+evidence. The active blocker is the missing eight-recruiter Gate 1 decision and
+human-selected direction recorded in the successor plan.
+
+Historical status was blocked pending one of two inputs:
 
 - the corrected 17 / 42 / 73 Excalidraw board or its latest PNG/PDF export; or
 - explicit authorization to replace the continuation review with a fresh

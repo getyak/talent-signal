@@ -124,6 +124,29 @@ Only the user can map one in system Settings. The Simulator `Simulate Action
 Button` control is Debug-only, visible as `Simulated`, and is not
 physical-device proof.
 
+## Agent lifecycle showcase
+
+Add `--agent-work-showcase` to the Debug scheme to open the synthetic Agent
+handoff directly. The showcase uses real ActivityKit surfaces and manual,
+deterministic stage controls:
+
+```text
+Signal received → Read evidence → Check identity → Prepare actions → Actions ready
+```
+
+It includes two synthetic paths. One proposes separate update-contact and
+create-meeting cards for an existing person; the other requires explicit name
+and channel review before a create-contact card can appear. The Dynamic Island
+and Lock Screen expose only task phase, attention, and an opaque exact-instance
+route. Candidate details and every consequential decision remain in the app.
+No demo card writes to Contacts, Calendar, ATS, CRM, or a messaging service;
+the final state is a local review handoff rather than a claimed external result.
+
+The controls advance only when tapped, so this route proves UI projection and
+state ordering, not background delivery, APNs, elapsed time, or an ETA. Starting
+a new synthetic run closes an older run for the same task and assigns a new
+Activity instance so a completed revision cannot block the new lifecycle.
+
 The `Talent Signal` Share Extension accepts one image, text item, or web URL.
 After the user taps Post, it writes the payload first and atomically appends a
 versioned `CaptureEnvelope` to `group.com.talentsignal.app`. The containing app
