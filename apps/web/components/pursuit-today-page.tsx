@@ -19,6 +19,13 @@ import {
   type PursuitTodayItem,
   type PursuitTodayProjection,
 } from "@/lib/pursuitToday";
+import {
+  appendWebTrace,
+  beginWebTrace,
+  completeWebTrace,
+  traceSpanId,
+  type WebTraceHandle,
+} from "@/lib/telemetry";
 import { useWorkspaceSessionRecovery } from "./use-workspace-session-recovery";
 import {
   workspaceSessionExpired,
@@ -128,7 +135,22 @@ function AgentComposer({
     setSubmitting(true);
     setError(null);
     setResult(null);
+    let trace: WebTraceHandle | null = null;
+    const apiStartedAt = new Date().toISOString();
     try {
+      trace = await beginWebTrace({
+        name: "pursuit.agent.submit",
+        route: "/workspace/today",
+        text: objective.trim(),
+        dataClassification:
+          providerMode === "live_remote" ? "synthetic" : "private_relationship",
+        authorizationScope: `pursuit:${item.pursuitId}`,
+        attributes: {
+          "ts.ui.event": "agent_submission_started",
+          "ts.pursuit.id": item.pursuitId,
+          "ts.evidence.reference_count": item.agentContext.evidenceRefs.length,
+        },
+      });
       const response = await workspaceSessionFetch("/api/pursuit-agent-runs", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -139,6 +161,11 @@ function AgentComposer({
           base_revision: item.revision,
           objective: objective.trim(),
           evidence_refs: item.agentContext.evidenceRefs,
+          telemetry: {
+            trace_id: trace.trace_id,
+            parent_span_id: trace.root_span_id,
+            interaction_id: trace.interaction_id,
+          },
         }),
       });
       const payload = (await response.json()) as {
@@ -166,8 +193,68 @@ function AgentComposer({
         externalEffectCount:
           payload.run.terminal_receipt.external_effects.length,
       });
+      const endedAt = new Date().toISOString();
+      await appendWebTrace(trace, {
+        spans: [
+          {
+            span_id: traceSpanId(trace, "pursuit-agent-api"),
+            parent_span_id: trace.root_span_id,
+            name: "http POST /api/pursuit-agent-runs",
+            kind: "client",
+            status: "ok",
+            started_at: apiStartedAt,
+            ended_at: endedAt,
+            attributes: {
+              "http.response.status_code": response.status,
+              "ts.agent.status": payload.run.status,
+              "ts.agent.reason_code": payload.run.terminal_receipt.reason_code,
+            },
+            artifact_refs: trace.artifact_ids,
+            agent_run_id: null,
+            agent_event_sequence: null,
+          },
+        ],
+        events: [
+          {
+            event_id: crypto.randomUUID(),
+            span_id: trace.root_span_id,
+            name: "agent_result_rendered",
+            occurred_at: endedAt,
+            attributes: { "ts.agent.status": payload.run.status },
+            artifact_refs: trace.artifact_ids,
+          },
+        ],
+      });
+      await completeWebTrace(trace, {
+        status: "ok",
+        attributes: { "ts.agent.status": payload.run.status },
+      });
       router.refresh();
     } catch (caught) {
+      if (trace) {
+        await appendWebTrace(trace, {
+          spans: [
+            {
+              span_id: traceSpanId(trace, "pursuit-agent-api-error"),
+              parent_span_id: trace.root_span_id,
+              name: "http POST /api/pursuit-agent-runs",
+              kind: "client",
+              status: "error",
+              started_at: apiStartedAt,
+              ended_at: new Date().toISOString(),
+              attributes: { "error.type": "pursuit_agent_failed" },
+              artifact_refs: trace.artifact_ids,
+              agent_run_id: null,
+              agent_event_sequence: null,
+            },
+          ],
+          events: [],
+        }).catch(() => undefined);
+        await completeWebTrace(trace, {
+          status: "error",
+          errorCode: "PURSUIT_AGENT_FAILED",
+        }).catch(() => undefined);
+      }
       setError(
         caught instanceof Error
           ? caught.message

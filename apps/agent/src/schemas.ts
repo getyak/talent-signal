@@ -64,7 +64,16 @@ export const StageProposalInputSchema = z.strictObject({
   summary: z.string().trim().min(1).max(1_000),
   items: z.array(ProposalItemSchema).min(1).max(50),
 });
+export const NoActionReasonCodeSchema = z.enum([
+  "NO_MATERIAL_CHANGE",
+  "INSUFFICIENT_EVIDENCE",
+  "UNTRUSTED_INSTRUCTION",
+  "AMBIGUOUS_TIME",
+  "PROHIBITED_PERSON_ASSESSMENT",
+  "UNSUPPORTED_INPUT_CAPABILITY",
+]);
 export const RecordNoActionInputSchema = z.strictObject({
+  reason_code: NoActionReasonCodeSchema,
   reason: z.string().trim().min(1).max(1_000),
   missing_evidence_refs: z.array(Id).max(50).default([]),
 });
@@ -82,3 +91,4 @@ export const AgentFinalOutputSchema = z.discriminatedUnion("outcome", [
 
 export type StageProposalInput = z.infer<typeof StageProposalInputSchema>;
 export type RecordNoActionInput = z.infer<typeof RecordNoActionInputSchema>;
+export type NoActionReasonCode = z.infer<typeof NoActionReasonCodeSchema>;

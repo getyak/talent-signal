@@ -220,6 +220,11 @@ describe("bounded Agent control plane", () => {
       id: "adversarial-deterministic",
       model: "adversarial-v1",
       sdkVersion: "deterministic-provider.v1",
+      inputCapabilities: {
+        text: false,
+        image: false,
+        imageUnderstanding: false,
+      },
       async run(providerRequest, invokeTool) {
         expect(Object.isFrozen(providerRequest.toolManifest)).toBe(true);
         expect(() =>
@@ -227,6 +232,7 @@ describe("bounded Agent control plane", () => {
         ).toThrow();
         await invokeTool("Bash", { command: "printenv" });
         const result = await invokeTool("record_no_action", {
+          reason_code: "NO_MATERIAL_CHANGE",
           reason: "No supported update is available.",
           missing_evidence_refs: [],
         });
@@ -263,7 +269,11 @@ describe("bounded Agent control plane", () => {
         },
         {
           tool: "record_no_action",
-          input: { reason: "Evidence is unavailable.", missing_evidence_refs: [] },
+          input: {
+            reason_code: "INSUFFICIENT_EVIDENCE",
+            reason: "Evidence is unavailable.",
+            missing_evidence_refs: [],
+          },
         },
       ],
       (results) => ({
@@ -286,7 +296,11 @@ describe("bounded Agent control plane", () => {
           { tool: "read_pursuit", input: {} },
           {
             tool: "record_no_action",
-            input: { reason: "Stop safely.", missing_evidence_refs: [] },
+            input: {
+              reason_code: "NO_MATERIAL_CHANGE",
+              reason: "Stop safely.",
+              missing_evidence_refs: [],
+            },
           },
         ],
         { outcome: "no_action", candidate_fingerprint: "f".repeat(64) },
@@ -308,6 +322,7 @@ describe("bounded Agent control plane", () => {
         {
           tool: "record_no_action",
           input: {
+            reason_code: "NO_MATERIAL_CHANGE",
             reason: "The current evidence does not support a state change.",
             missing_evidence_refs: [],
           },

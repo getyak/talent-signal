@@ -209,6 +209,7 @@ function noActionProvider(evidenceID: string): AgentProvider {
       {
         tool: "record_no_action",
         input: {
+          reason_code: "NO_MATERIAL_CHANGE",
           reason: "The selected evidence does not require a canonical change.",
           missing_evidence_refs: [],
         },
@@ -226,9 +227,15 @@ function promptInjectionProvider(): AgentProvider {
     id: "deterministic-adversarial",
     model: "talent-signal-adversarial-v1",
     sdkVersion: "deterministic-provider.v1",
+    inputCapabilities: {
+      text: false,
+      image: false,
+      imageUnderstanding: false,
+    },
     async run(_request, invokeTool) {
       await invokeTool("Bash", { command: "printenv" });
       const terminal = await invokeTool("record_no_action", {
+        reason_code: "UNTRUSTED_INSTRUCTION",
         reason: "The injected instruction has no authority.",
         missing_evidence_refs: [],
       });
@@ -274,6 +281,11 @@ function unavailableEvidenceProvider(
     id: "deterministic-authority-race",
     model: "talent-signal-authority-race-v1",
     sdkVersion: "deterministic-provider.v1",
+    inputCapabilities: {
+      text: false,
+      image: false,
+      imageUnderstanding: false,
+    },
     async run(_request, invokeTool): Promise<{
       structuredOutput: unknown;
       inputTokens: number;
@@ -290,6 +302,7 @@ function unavailableEvidenceProvider(
         evidence_refs: [fixture.evidenceID],
       });
       const terminal = await invokeTool("record_no_action", {
+        reason_code: "INSUFFICIENT_EVIDENCE",
         reason: "Evidence became unavailable after the run snapshot.",
         missing_evidence_refs: [fixture.evidenceID],
       });

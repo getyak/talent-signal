@@ -2,6 +2,7 @@
 
 import {
   ChatCircleDots,
+  ChartLine,
   House,
   Sparkle,
   UserCircle,
@@ -32,6 +33,12 @@ const items = [
     icon: UserCircle,
     label: "People",
     matches: (pathname: string) => pathname.startsWith("/workspace/people"),
+  },
+  {
+    href: "/workspace/evals",
+    icon: ChartLine,
+    label: "评测",
+    matches: (pathname: string) => pathname.startsWith("/workspace/evals"),
   },
 ] as const;
 

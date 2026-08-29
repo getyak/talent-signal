@@ -18,6 +18,10 @@ automatically override, canonical project decisions.
 - [Talent Signal Agent module blueprint](talent-signal-agent-module-blueprint.md):
   implementation-gap analysis for one proposal-centric control plane with a
   deterministic continuity workflow and a bounded open-ended task runner.
+- [Eval and observability platform](eval-observability-platform.md): one
+  provider-neutral trace spine, governed content references, frontend/backend
+  instrumentation, Agent path evaluation, and a versioned dataset-to-release
+  loop.
 
 When research changes a product decision, update the relevant canonical
 document and, when consequential, record an ADR. Do not ask future agents to

@@ -90,6 +90,9 @@ importers:
       '@radix-ui/react-dialog':
         specifier: 1.1.23
         version: 1.1.23(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@sinclair/typebox':
+        specifier: ^0.34.41
+        version: 0.34.52
       '@talent-signal/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

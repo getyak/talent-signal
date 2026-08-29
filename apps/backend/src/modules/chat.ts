@@ -30,6 +30,11 @@ import {
   listManifestChatMedia,
 } from "./chatMedia.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
+import {
+  appendTelemetrySpan,
+  assertTelemetryContext,
+  telemetrySpanId,
+} from "./telemetry.js";
 import { loadSnapshot } from "./wiki.js";
 
 const CHAT_POLICY_VERSION = "chat-context.v2";
@@ -761,6 +766,7 @@ export async function createChatTask(
   remoteChatProvider: RemoteChatAnswerProviding | null = null,
   chatMediaStorage: ChatMediaStorage | null = null,
 ): Promise<ChatTaskMutationResult> {
+  const chatStartedAt = new Date().toISOString();
   return inTransaction(pool, async (client) => {
     const idempotency = await claimIdempotency(
       client,
@@ -787,6 +793,9 @@ export async function createChatTask(
         replayed: true,
         status: idempotency.replay.status,
       };
+    }
+    if (request.telemetry) {
+      await assertTelemetryContext(client, auth, request.telemetry);
     }
 
     const snapshot = await loadSnapshot(
@@ -907,12 +916,16 @@ export async function createChatTask(
       | "fallback"
       | "media_not_sent" = "disabled";
     let remoteChatResult: RemoteChatAnswerResult | null = null;
+    let remoteStartedAt: string | null = null;
+    let remoteEndedAt: string | null = null;
+    let remoteFailed = false;
     if (
       remoteChatProvider &&
       (mediaIds.length === 0 ||
         (remoteChatProvider.supportsImageInput && chatMediaStorage))
     ) {
       try {
+        remoteStartedAt = new Date().toISOString();
         const images = mediaIds.length === 0 || !chatMediaStorage
           ? []
           : await Promise.all(media.map(async (item) => {
@@ -934,6 +947,7 @@ export async function createChatTask(
           allowed_citation_ids: evidenceFragmentIds,
           images,
         });
+        remoteEndedAt = new Date().toISOString();
         const nextBlocks = insertAfterPersonBrief(
           blocks,
           remoteAnswerBlock(remoteChatResult),
@@ -941,6 +955,8 @@ export async function createChatTask(
         remoteChatStatus = nextBlocks === blocks ? "fallback" : "completed";
         blocks = nextBlocks;
       } catch {
+        remoteEndedAt = new Date().toISOString();
+        remoteFailed = true;
         remoteChatStatus = "fallback";
         blocks = insertAfterPersonBrief(
           blocks,
@@ -977,8 +993,51 @@ export async function createChatTask(
           : "answer",
       blocks,
       media,
+      ...(request.telemetry ? { telemetry: request.telemetry } : {}),
       created_at: createdAt.toISOString(),
     };
+    if (request.telemetry) {
+      const taskSpanID = telemetrySpanId(
+        request.telemetry.trace_id,
+        `chat-task:${taskId}`,
+      );
+      await appendTelemetrySpan(client, auth, request.telemetry, {
+        key: `chat-task:${taskId}`,
+        name: "chat.task assemble_relationship_brief",
+        kind: "internal",
+        status: "ok",
+        startedAt: chatStartedAt,
+        endedAt: new Date().toISOString(),
+        attributes: {
+          "ts.chat.task_id": taskId,
+          "ts.chat.manifest_id": manifestId,
+          "ts.chat.disposition": response.disposition,
+          "ts.chat.evidence_count": evidenceFragmentIds.length,
+          "ts.chat.media_count": media.length,
+          "ts.chat.remote_status": remoteChatStatus,
+        },
+      });
+      if (remoteStartedAt && remoteEndedAt && remoteChatProvider) {
+        await appendTelemetrySpan(client, auth, request.telemetry, {
+          key: `chat-model:${taskId}`,
+          parentSpanID: taskSpanID,
+          name: `model.chat ${remoteChatResult?.model ?? "configured-provider"}`,
+          kind: "client",
+          status: remoteFailed ? "error" : "ok",
+          startedAt: remoteStartedAt,
+          endedAt: remoteEndedAt,
+          attributes: {
+            "gen_ai.provider.name":
+              remoteChatResult?.provider_id ?? "configured-provider",
+            "gen_ai.request.model": remoteChatResult?.model ?? "unknown",
+            "gen_ai.usage.input_tokens": remoteChatResult?.input_tokens ?? 0,
+            "gen_ai.usage.output_tokens": remoteChatResult?.output_tokens ?? 0,
+            "ts.reasoning.capture_status": "unavailable",
+            ...(remoteFailed ? { "error.type": "provider_failure" } : {}),
+          },
+        });
+      }
+    }
     await appendAudit(
       client,
       { accountId: auth.accountId, actorUserId: auth.userId },

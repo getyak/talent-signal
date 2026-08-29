@@ -88,6 +88,14 @@ import type {
   AgentRunResponse,
   CreatePursuitAgentRunRequest,
 } from "./agentSchemas.js";
+import type {
+  AppendTelemetryBatchRequest,
+  CompleteTelemetryTraceRequest,
+  CreateTelemetryTraceRequest,
+  TelemetryMutationResponse,
+  TelemetryTraceDetailResponse,
+  TelemetryTraceListResponse,
+} from "./telemetrySchemas.js";
 
 export class TalentSignalHttpError extends Error {
   readonly status: number;
@@ -255,6 +263,57 @@ export class TalentSignalClient {
 
   getAgentRun(runId: string): Promise<AgentRunResponse> {
     return this.request(`/v1/agent-runs/${runId}`, { method: "GET" });
+  }
+
+  createTelemetryTrace(
+    request: CreateTelemetryTraceRequest,
+  ): Promise<TelemetryMutationResponse> {
+    return this.request("/v1/telemetry/traces", {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  appendTelemetryBatch(
+    traceId: string,
+    request: AppendTelemetryBatchRequest,
+  ): Promise<TelemetryMutationResponse> {
+    return this.request(`/v1/telemetry/traces/${traceId}/batch`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  completeTelemetryTrace(
+    traceId: string,
+    request: CompleteTelemetryTraceRequest,
+  ): Promise<TelemetryMutationResponse> {
+    return this.request(`/v1/telemetry/traces/${traceId}/completion`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  listTelemetryTraces(limit = 100): Promise<TelemetryTraceListResponse> {
+    return this.request(`/v1/eval/traces?limit=${limit}`, { method: "GET" });
+  }
+
+  getTelemetryTrace(traceId: string): Promise<TelemetryTraceDetailResponse> {
+    return this.request(`/v1/eval/traces/${traceId}`, { method: "GET" });
+  }
+
+  async getTelemetryArtifactContent(
+    artifactId: string,
+  ): Promise<{ body: ArrayBuffer; contentType: string }> {
+    const response = await this.rawRequest(
+      `/v1/eval/artifacts/${artifactId}/content`,
+      { method: "GET" },
+    );
+    return {
+      body: await response.arrayBuffer(),
+      contentType:
+        response.headers.get("content-type") ?? "application/octet-stream",
+    };
   }
 
   stagePursuitProposal(

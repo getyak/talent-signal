@@ -8,6 +8,7 @@ import type { AuthContext } from "./auth.js";
 import {
   assertRemoteProviderDataBoundary,
   configuredAgentProvider,
+  resolveAgentInputArtifacts,
 } from "./agentRuns.js";
 
 const environmentKeys = [
@@ -16,6 +17,7 @@ const environmentKeys = [
   "TALENT_SIGNAL_AGENT_REFERER",
   "TALENT_SIGNAL_AGENT_REASONING_EFFORT",
   "TALENT_SIGNAL_AGENT_PROVIDER_ORDER",
+  "TALENT_SIGNAL_AGENT_IMAGE_INPUT_ENABLED",
   "OPENROUTER_API_KEY",
   "OPENROUTER_BASE_URL",
   "ZHIPU_API_KEY",
@@ -63,11 +65,17 @@ describe("configuredAgentProvider", () => {
     process.env.TALENT_SIGNAL_AGENT_MODEL = "cohere/north-mini-code:free";
     process.env.OPENROUTER_API_KEY = "synthetic-test-key";
     process.env.OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+    process.env.TALENT_SIGNAL_AGENT_IMAGE_INPUT_ENABLED = "true";
 
     expect(configuredAgentProvider()).toMatchObject({
       id: "openrouter-chat-completions",
       model: "cohere/north-mini-code:free",
       sdkVersion: "openrouter-chat-completions.v1",
+      inputCapabilities: {
+        text: true,
+        image: true,
+        imageUnderstanding: true,
+      },
     });
   });
 
@@ -211,5 +219,83 @@ describe("assertRemoteProviderDataBoundary", () => {
       [],
     );
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveAgentInputArtifacts", () => {
+  const auth = {
+    accountId: "10000000-0000-4000-8000-000000000001",
+  } as AuthContext;
+  const telemetry = {
+    trace_id: "a".repeat(32),
+    parent_span_id: "b".repeat(16),
+    interaction_id: "20000000-0000-4000-8000-000000000001",
+  };
+  const provider = {
+    inputCapabilities: {
+      text: true,
+      image: true,
+      imageUnderstanding: false,
+    },
+  } as AgentProvider;
+
+  it("reconstructs hash-identical synthetic text without persisting content in the manifest", async () => {
+    const text = "synthetic";
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: "30000000-0000-4000-8000-000000000001",
+          kind: "text",
+          mime_type: "text/plain; charset=utf-8",
+          byte_size: 9,
+          content_hash:
+            "b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2",
+          text_content: text,
+          binary_content: null,
+          data_classification: "synthetic",
+          authorization_scope: "evaluation:agent-lab",
+        },
+      ],
+    });
+
+    const result = await resolveAgentInputArtifacts(
+      { query } as unknown as DatabaseClient,
+      auth,
+      provider,
+      telemetry,
+      ["30000000-0000-4000-8000-000000000001"],
+    );
+
+    expect(result.parts[0]).toMatchObject({ kind: "text", text });
+    expect(result.manifest[0]).not.toHaveProperty("text");
+  });
+
+  it("rejects an artifact that is not explicitly synthetic Agent Lab input", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: "30000000-0000-4000-8000-000000000001",
+          kind: "text",
+          mime_type: "text/plain; charset=utf-8",
+          byte_size: 9,
+          content_hash:
+            "b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2",
+          text_content: "synthetic",
+          binary_content: null,
+          data_classification: "private_relationship",
+          authorization_scope: "evaluation:agent-lab",
+        },
+      ],
+    });
+
+    await expect(
+      resolveAgentInputArtifacts(
+        { query } as unknown as DatabaseClient,
+        auth,
+        provider,
+        telemetry,
+        ["30000000-0000-4000-8000-000000000001"],
+      ),
+    ).rejects.toMatchObject({ code: "AGENT_INPUT_SYNTHETIC_ONLY" });
   });
 });

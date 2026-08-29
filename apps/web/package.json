@@ -15,6 +15,7 @@
   "dependencies": {
     "@phosphor-icons/react": "2.1.10",
     "@radix-ui/react-dialog": "1.1.23",
+    "@sinclair/typebox": "^0.34.41",
     "@talent-signal/contracts": "workspace:*",
     "mammoth": "^1.12.1",
     "motion": "13.1.1",

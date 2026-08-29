@@ -11,6 +11,7 @@ import {
   SOURCE_RESOURCE_KINDS,
 } from "./constants.js";
 import { SourceRetentionRequestSchema } from "./schemas.js";
+import { TelemetryContextSchema } from "./telemetrySchemas.js";
 
 const Id = Type.String({ format: "uuid" });
 const Timestamp = Type.String({ format: "date-time" });
@@ -1482,6 +1483,7 @@ export const ChatTaskResponseSchema = Type.Object(
       maxItems: 20,
     }),
     media: Type.Optional(Type.Array(ChatMediaAssetSchema, { maxItems: 10 })),
+    telemetry: Type.Optional(TelemetryContextSchema),
     created_at: Timestamp,
   },
   { $id: "ChatTaskResponse", additionalProperties: false },
@@ -1583,6 +1585,7 @@ export const ChatTaskRequestSchema = Type.Object(
     media_ids: Type.Optional(
       Type.Array(Id, { maxItems: 10, uniqueItems: true }),
     ),
+    telemetry: Type.Optional(TelemetryContextSchema),
   },
   { $id: "ChatTaskRequest", additionalProperties: false },
 );

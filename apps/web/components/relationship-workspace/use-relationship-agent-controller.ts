@@ -309,85 +309,85 @@ export function useRelationshipAgentController({
         createOpen: true,
       });
       stageOperation(
-        "Contact creation staged",
-        "I prepared a reviewable contact draft and will check this account for an existing person before creation is available.",
+        "联系人创建已暂存",
+        "我已准备一份可审阅的联系人草稿，并会先在此账号中检查是否已有对应联系人，再开放创建。",
         "staged",
         submitted,
         contactDraft,
       );
-      onAnnouncement("Agent opened a governed contact draft.");
+      onAnnouncement("智能助理已打开受治理的联系人草稿。");
       return true;
     }
 
     if (command === "add_source") {
       onOpenResourceComposer();
       stageOperation(
-        "Source intake opened",
-        "The source editor is open on this relationship. Its identity, authority, and deletion path remain explicit.",
+        "来源采集已打开",
+        "来源编辑器已在此关系中打开，其身份、权限与删除路径保持明确。",
         "completed",
         submitted,
       );
-      onAnnouncement("Agent opened governed source intake.");
+      onAnnouncement("智能助理已打开受治理的来源采集。");
       return true;
     }
 
     if (command === "review_changes") {
       if (pendingCount === 0) {
         stageOperation(
-          "No page changes waiting",
-          "The current relationship has no staged facts that require review.",
+          "没有待审阅页面变化",
+          "当前关系中没有需要审阅的暂存事实。",
           "no_change",
           submitted,
         );
-        onAnnouncement("No proposed page changes are waiting.");
+        onAnnouncement("没有拟议页面变化正在等待审阅。");
         return true;
       }
       scrollToWorkspaceSection("proposed-changes");
       stageOperation(
-        "Page review opened",
+        "页面审阅已打开",
         `${pendingCount} source-linked ${
           pendingCount === 1 ? "change is" : "changes are"
         } waiting on the living page. Agent did not apply them.`,
         "completed",
         submitted,
       );
-      onAnnouncement("Agent opened the proposed page changes.");
+      onAnnouncement("智能助理已打开拟议页面变化。");
       return true;
     }
 
     if (command === "review_duplicate") {
       onOpenMergeReview();
       stageOperation(
-        "Duplicate review opened",
-        "Choose the other person page to compare. Agent will show relationship ownership, source counts, identity differences, and blockers before any merge is possible.",
+        "重复联系人审阅已打开",
+        "选择另一张人物页面进行比较。合并开放前，智能助理会展示关系归属、来源数量、身份差异与阻碍。",
         "staged",
         submitted,
       );
-      onAnnouncement("Agent opened a reversible duplicate-person review.");
+      onAnnouncement("智能助理已打开可逆的重复人物审阅。");
       return true;
     }
 
     if (command === "open_person") {
       scrollToWorkspaceSection("contact-overview");
       stageOperation(
-        "Person page opened",
-        "The living page remains the structured, reviewable view of this relationship.",
+        "人物页面已打开",
+        "持续更新页面仍是此关系的结构化、可审阅视图。",
         "completed",
         submitted,
       );
-      onAnnouncement("Agent opened the living person page.");
+      onAnnouncement("智能助理已打开持续更新的人物页面。");
       return true;
     }
 
     if (command === "open_next_move") {
       scrollToWorkspaceSection("next-move");
       stageOperation(
-        "Next move opened",
-        "The action surface is visible. Any consequential effect still requires separate approval.",
+        "下一步已打开",
+        "行动界面现已可见。任何重要效果仍需单独批准。",
         "completed",
         submitted,
       );
-      onAnnouncement("Agent opened the next move.");
+      onAnnouncement("智能助理已打开下一步。");
       return true;
     }
 
@@ -404,11 +404,11 @@ export function useRelationshipAgentController({
         createOpen: true,
         operation: {
           detail:
-            "I extracted only the visible identity and relationship clues. Account-scoped matching runs before create or attach becomes available.",
+            "我只提取了可见的身份与关系线索。在开放创建或关联前，会先进行账号范围内匹配。",
           status: "staged",
           title: contactDraft.name
-            ? `Contact draft prepared for ${contactDraft.name}`
-            : "Contact draft needs a name",
+            ? `已为 ${contactDraft.name} 准备联系人草稿`
+            : "联系人草稿需要姓名",
         },
         response: null,
         submittedObjective: submitted,
@@ -416,13 +416,13 @@ export function useRelationshipAgentController({
       requestRef.current = null;
       clearStoredDraft();
       onAnnouncement(
-        "Agent prepared a contact draft. Nothing has been created.",
+        "智能助理已准备联系人草稿，尚未创建任何内容。",
       );
       return;
     }
     if (!scope) {
       onError(
-        "Start with a person update, for example “Add Maya Chen for the CPO search…”, or open an existing relationship before asking a scoped question.",
+        "请先提供一条人物更新，例如“添加 Maya Chen 到首席产品官寻访……”，或先打开现有关系，再提出范围明确的问题。",
       );
       return;
     }
@@ -433,7 +433,7 @@ export function useRelationshipAgentController({
     const requestConversationKey = conversationKey;
     const requestScope = scope;
     setOperation(null);
-    onBusyChange("Compiling a source-linked brief");
+    onBusyChange("正在编译关联来源的简报");
     onError("");
     if (
       requestRef.current?.key !== requestConversationKey ||
@@ -472,7 +472,7 @@ export function useRelationshipAgentController({
         throw new Error(
           "message" in payload && payload.message
             ? payload.message
-            : "The source-linked brief could not be compiled.",
+            : "无法编译关联来源的简报。",
         );
       }
       if (
@@ -490,7 +490,7 @@ export function useRelationshipAgentController({
       });
       clearStoredDraft();
       onAnnouncement(
-        "Chat brief compiled from the visible person and relationship context.",
+        "聊天简报已根据当前可见人物与关系情境编译。",
       );
       onRefreshHistory(
         requestScope.person.id,
@@ -503,7 +503,7 @@ export function useRelationshipAgentController({
       onError(
         caught instanceof Error
           ? caught.message
-          : "The source-linked brief could not be compiled.",
+          : "无法编译关联来源的简报。",
       );
     } finally {
       if (

@@ -46,6 +46,51 @@ function provider(fetcher: typeof fetch) {
 }
 
 describe("BigModelAgentProvider", () => {
+  it("uses the official multimodal content shape for a pinned vision model", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      response({
+        model: "glm-4.6v-flash",
+        choices: [{ message: { content: "{}" } }],
+      }),
+    );
+    const visionProvider = new BigModelAgentProvider({
+      apiKey: "test-key",
+      model: "glm-4.6v-flash",
+      inputCnyPerMillion: 1,
+      outputCnyPerMillion: 1,
+      cnyPerUsd: 7,
+      fetcher,
+    });
+
+    await visionProvider.run(
+      {
+        ...request(),
+        inputParts: [
+          {
+            artifactID: "10000000-0000-4000-8000-000000000011",
+            kind: "image",
+            mimeType: "image/png",
+            byteSize: 3,
+            contentHash: "c".repeat(64),
+            dataBase64: "AQID",
+          },
+        ],
+      },
+      vi.fn(),
+      new AbortController().signal,
+    );
+
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(body.messages[1]?.content).toEqual(
+      expect.arrayContaining([
+        { type: "image_url", image_url: { url: "AQID" } },
+      ]),
+    );
+    expect(visionProvider.inputCapabilities.imageUnderstanding).toBe(true);
+  });
+
   it("preserves reasoning across tools and returns bounded cost", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -65,6 +110,7 @@ describe("BigModelAgentProvider", () => {
                     function: {
                       name: "record_no_action",
                       arguments: JSON.stringify({
+                        reason_code: "NO_MATERIAL_CHANGE",
                         reason: "No safe change.",
                         missing_evidence_refs: [],
                       }),

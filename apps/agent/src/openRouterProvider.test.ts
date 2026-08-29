@@ -35,6 +35,60 @@ function response(body: unknown, status = 200): Response {
 }
 
 describe("OpenRouterAgentProvider", () => {
+  it("sends governed text and base64 images as one multimodal user message", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      response({
+        model: "openai/gpt-4.1-mini",
+        choices: [{ message: { role: "assistant", content: "{}" } }],
+      }),
+    );
+    const provider = new OpenRouterAgentProvider({
+      apiKey: "test-key",
+      model: "openai/gpt-4.1-mini",
+      imageInputEnabled: true,
+      fetcher,
+    });
+
+    await provider.run(
+      {
+        ...request(),
+        inputParts: [
+          {
+            artifactID: "10000000-0000-4000-8000-000000000010",
+            kind: "text",
+            mimeType: "text/plain; charset=utf-8",
+            byteSize: 9,
+            contentHash: "b".repeat(64),
+            text: "synthetic",
+          },
+          {
+            artifactID: "10000000-0000-4000-8000-000000000011",
+            kind: "image",
+            mimeType: "image/png",
+            byteSize: 3,
+            contentHash: "c".repeat(64),
+            dataBase64: "AQID",
+          },
+        ],
+      },
+      vi.fn(),
+      new AbortController().signal,
+    );
+
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(body.messages[1]?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "text" }),
+        {
+          type: "image_url",
+          image_url: { url: "data:image/png;base64,AQID" },
+        },
+      ]),
+    );
+  });
+
   it("runs sequential governed tools and returns the exact terminal output", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -78,6 +132,7 @@ describe("OpenRouterAgentProvider", () => {
                     function: {
                       name: "record_no_action",
                       arguments: JSON.stringify({
+                        reason_code: "NO_MATERIAL_CHANGE",
                         reason: "The evidence supports no safe change.",
                         missing_evidence_refs: [],
                       }),

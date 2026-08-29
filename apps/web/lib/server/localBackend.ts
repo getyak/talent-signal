@@ -114,7 +114,7 @@ function backendBaseUrl(): string {
     parsed.protocol !== "http:" ||
     !LOCAL_HOSTNAMES.has(parsed.hostname)
   ) {
-    throw new Error("The integration backend must be a localhost HTTP URL.");
+    throw new Error("集成后端必须是本地主机 HTTP URL。");
   }
   return parsed.origin;
 }
@@ -124,7 +124,7 @@ function fixtureCase(caseId: string): CandidateMomentumCase {
     (item) => item.id === caseId,
   );
   if (!selected) {
-    throw new Error(`Missing frozen fixture ${caseId}.`);
+    throw new Error(`缺少冻结测试数据 ${caseId}。`);
   }
   return selected;
 }
@@ -172,7 +172,7 @@ function assertSyntheticBrowserHandoff(
   },
 ): asserts value is BrowserHandoffEnvelope {
   if (!value || typeof value !== "object") {
-    throw new Error("The reviewed handoff body is required.");
+    throw new Error("必须提供已审阅的交接正文。");
   }
   const envelope = value as Partial<BrowserHandoffEnvelope>;
   const frozen = fixtureCase(TS_CORE_01);
@@ -334,7 +334,7 @@ export async function submitBrowserHandoff(
   const candidate = frozen.context.candidate;
   const assignment = frozen.context.assignment;
   if (!candidate || !assignment) {
-    throw new Error("TS-CORE-01 must have a bound synthetic identity.");
+    throw new Error("TS-CORE-01 必须绑定一个合成身份。");
   }
 
   const { client } = await authenticatedClient("chrome-extension-handoff");
@@ -647,11 +647,11 @@ export async function commitRelationshipResource(
     (input.discovered_from_resource_id !== undefined &&
       !uuid.test(input.discovered_from_resource_id))
   ) {
-    throw new Error("The governed resource intake is incomplete.");
+    throw new Error("受治理来源的接收信息不完整。");
   }
   const capturedAt = input.captured_at;
   if (new Date(capturedAt).toISOString() !== capturedAt) {
-    throw new Error("The governed resource observation time is invalid.");
+    throw new Error("受治理来源的观察时间无效。");
   }
   const timezone =
     Intl.DateTimeFormat().resolvedOptions().timeZone || null;
@@ -661,7 +661,7 @@ export async function commitRelationshipResource(
       (fragment) => fragment.client_resource_id !== clientResourceId,
     )
   ) {
-    throw new Error("The resource fragments are bound to another intake.");
+    throw new Error("来源片段已绑定到另一项接收记录。");
   }
   const sourceScope =
     input.kind === "resume" || input.kind === "document"
@@ -831,7 +831,7 @@ async function compilePersonMergeContexts(
               error:
                 caught instanceof Error
                   ? caught.message
-                  : "This relationship Wiki could not be recompiled.",
+                  : "无法重新编译这份关系 Wiki。",
             } satisfies PersonMergeCompilationReceipt;
           }
         }),
@@ -964,7 +964,7 @@ export async function runRelationshipResearch(
   try {
     expectedUrl = new URL(input.expected_seed_url);
   } catch {
-    throw new Error("The public research seed URL is invalid.");
+    throw new Error("公开研究的种子 URL 无效。");
   }
   if (
     !UUID.test(input.request_id) ||
@@ -981,7 +981,7 @@ export async function runRelationshipResearch(
     input.maximum_link_depth < 0 ||
     input.maximum_link_depth > 1
   ) {
-    throw new Error("The approved public research scope is incomplete.");
+    throw new Error("已批准的公开研究范围不完整。");
   }
   const { client } = await authenticatedClient(
     "web-public-research",
@@ -1007,7 +1007,7 @@ export async function getLatestRelationshipResearch(
   seedResourceId: string,
 ): Promise<PublicResearchResponse | null> {
   if (!UUID.test(seedResourceId)) {
-    throw new Error("The public research seed resource is invalid.");
+    throw new Error("公开研究的种子来源无效。");
   }
   const { client } = await authenticatedClient(
     "web-public-research-status",
@@ -1034,7 +1034,7 @@ export async function askRelationshipChat(
     input.objective.trim().length === 0 ||
     input.objective.length > 1_000
   ) {
-    throw new Error("The Chat task scope is incomplete.");
+    throw new Error("聊天任务范围不完整。");
   }
   const objective = input.objective.trim();
   const { client } = await authenticatedClient("web-relationship-chat");
@@ -1066,7 +1066,7 @@ export async function transcribeRelationshipVoice(input: {
     input.audio_base64.length > 3_333_336 ||
     !/^[A-Za-z0-9+/]+={0,2}$/.test(input.audio_base64)
   ) {
-    throw new Error("The temporary voice recording is invalid.");
+    throw new Error("临时语音录音无效。");
   }
   const { client } = await authenticatedClient("web-relationship-voice");
   const draft = await client.transcribeVoice(input);
@@ -1077,7 +1077,7 @@ export async function transcribeRelationshipVoice(input: {
     draft.temporary_audio_stored_by_talent_signal !== false ||
     !draft.transcript.trim()
   ) {
-    throw new Error("Voice transcription returned an invalid draft.");
+    throw new Error("语音转写返回了无效草稿。");
   }
   return draft;
 }
@@ -1136,7 +1136,7 @@ export async function correctRelationshipResourceIdentity(
     targetCompilationError =
       caught instanceof Error
         ? caught.message
-        : "The corrected relationship Wiki could not be recompiled.";
+        : "无法重新编译更正后的关系 Wiki。";
   }
 
   const scopeChanged =
@@ -1160,7 +1160,7 @@ export async function correctRelationshipResourceIdentity(
       priorCompilationError =
         caught instanceof Error
           ? caught.message
-          : "The prior relationship Wiki could not be recompiled.";
+          : "无法重新编译此前的关系 Wiki。";
     }
   }
 
@@ -1191,7 +1191,7 @@ export async function approveBackendAction(
   const workspace = await readWorkspace(client, captureId);
   const action = workspace.analysis.action;
   if (!action || action.id !== actionId) {
-    throw new Error("The current synthetic action proposal was not found.");
+    throw new Error("未找到当前合成行动提案。");
   }
   await client.approveAction(action.id, {
     idempotency_key: `web-approve:${action.id}:v${action.version}`,
@@ -1218,7 +1218,7 @@ export async function executeBackendAction(
     !approval ||
     approval.status !== "active"
   ) {
-    throw new Error("A current exact approval is required before execution.");
+    throw new Error("执行前需要一项当前有效的准确批准。");
   }
   const effect = await client.executeAction(action.id, {
     idempotency_key: `web-execute:${action.id}:v${action.version}`,
@@ -1356,7 +1356,7 @@ export async function reviseBackendActionForEvaluation(
   const workspace = await readWorkspace(client, captureId);
   const action = workspace.analysis.action;
   if (!action || action.id !== actionId) {
-    throw new Error("The current synthetic action proposal was not found.");
+    throw new Error("未找到当前合成行动提案。");
   }
   await client.reviseAction(action.id, {
     idempotency_key: `web-revise:${action.id}:v${action.version}:${variant}`,
@@ -1394,7 +1394,7 @@ export async function commitScreenshotCapture(
     input.assignment_label.trim().length === 0 ||
     input.assignment_label.length > 200
   ) {
-    throw new Error("The reviewed screenshot capture is incomplete.");
+    throw new Error("已审阅的截图采集信息不完整。");
   }
   const submittedDraft = validateScreenshotCaptureDraft(input.draft);
   const receiptDraft = input.original_draft
@@ -1428,7 +1428,7 @@ export async function commitScreenshotCapture(
       personId,
     )
   ) {
-    throw new Error("The selected person identity is invalid.");
+    throw new Error("所选人物身份无效。");
   }
   if (
     relationshipContextId !== null &&
@@ -1437,7 +1437,7 @@ export async function commitScreenshotCapture(
         relationshipContextId,
       ))
   ) {
-    throw new Error("The selected relationship context is invalid.");
+    throw new Error("所选关系背景无效。");
   }
   const newPersonRef = `web-person:${stableRef(`new\n${input.request_id}`)}`;
   const personBindingRef = personId ?? newPersonRef;
@@ -1609,7 +1609,7 @@ export async function deleteBackendCapture(
           ? null
           : caught instanceof Error
             ? caught.message
-            : "The source was deleted, but the remaining relationship Wiki could not be recompiled.",
+            : "来源已删除，但无法重新编译剩余的关系 Wiki。",
     };
   }
 }

@@ -6,3 +6,4 @@ export * from "./proposalSchemas.js";
 export * from "./pursuitSchemas.js";
 export * from "./resourceSchemas.js";
 export * from "./schemas.js";
+export * from "./telemetrySchemas.js";

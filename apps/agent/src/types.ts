@@ -39,6 +39,30 @@ export interface AgentEvidenceManifestItem {
   authorizationScope: string;
 }
 
+export interface AgentInputArtifactManifestItem {
+  artifactID: string;
+  kind: "text" | "image";
+  mimeType: string;
+  byteSize: number;
+  contentHash: string;
+}
+
+export type AgentProviderInputPart =
+  | (AgentInputArtifactManifestItem & {
+      kind: "text";
+      text: string;
+    })
+  | (AgentInputArtifactManifestItem & {
+      kind: "image";
+      dataBase64: string;
+    });
+
+export interface AgentProviderInputCapabilities {
+  text: boolean;
+  image: boolean;
+  imageUnderstanding: boolean;
+}
+
 export interface AgentRunScope {
   runID: string;
   workspaceID: string;
@@ -48,6 +72,7 @@ export interface AgentRunScope {
   captureID: string;
   objective: string;
   evidenceManifest: readonly AgentEvidenceManifestItem[];
+  inputArtifactManifest?: readonly AgentInputArtifactManifestItem[];
 }
 
 export interface AgentEvidence {
@@ -118,6 +143,13 @@ export interface AgentProposalCandidate {
 }
 
 export interface AgentNoActionCandidate {
+  reasonCode:
+    | "NO_MATERIAL_CHANGE"
+    | "INSUFFICIENT_EVIDENCE"
+    | "UNTRUSTED_INSTRUCTION"
+    | "AMBIGUOUS_TIME"
+    | "PROHIBITED_PERSON_ASSESSMENT"
+    | "UNSUPPORTED_INPUT_CAPABILITY";
   reason: string;
   missingEvidenceRefs: string[];
 }
@@ -164,6 +196,7 @@ export interface AgentProviderRequest {
   };
   toolManifest: readonly AgentToolName[];
   budget: AgentBudget;
+  inputParts?: readonly AgentProviderInputPart[];
 }
 
 export interface AgentProviderResult {
@@ -181,6 +214,7 @@ export interface AgentProvider {
   readonly id: string;
   readonly model: string;
   readonly sdkVersion: string;
+  readonly inputCapabilities: AgentProviderInputCapabilities;
   run(
     request: AgentProviderRequest,
     invokeTool: (name: string, input: unknown) => Promise<AgentToolResult>,
@@ -265,5 +299,6 @@ export interface AgentRunRequest {
   provider: AgentProvider;
   gateway: AgentCapabilityGateway;
   journal: AgentRunJournal;
+  providerInputParts?: readonly AgentProviderInputPart[];
   signal?: AbortSignal;
 }

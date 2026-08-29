@@ -37,6 +37,8 @@ const MIGRATIONS = [
   "029_password_credential_constraint",
   "030_person_profiles",
   "031_chat_media_assets",
+  "032_eval_observability",
+  "033_agent_no_action_reason_code",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

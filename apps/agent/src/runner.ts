@@ -107,6 +107,12 @@ function assertConfiguration(request: AgentRunRequest): void {
   if (request.scope.evidenceManifest.length > 50) {
     throw new AgentConfigurationError("The evidence manifest exceeds its V1 bound.");
   }
+  const inputArtifactManifest = request.scope.inputArtifactManifest ?? [];
+  if (inputArtifactManifest.length > 5) {
+    throw new AgentConfigurationError(
+      "The Agent input artifact manifest exceeds its V1 bound.",
+    );
+  }
   const evidenceRefs = request.scope.evidenceManifest.map(
     (item) => item.fragmentID,
   );
@@ -120,6 +126,55 @@ function assertConfiguration(request: AgentRunRequest): void {
   ) {
     throw new AgentConfigurationError(
       "Every evidence manifest item requires a SHA-256 content hash.",
+    );
+  }
+  const artifactIDs = inputArtifactManifest.map(
+    (item) => item.artifactID,
+  );
+  if (new Set(artifactIDs).size !== artifactIDs.length) {
+    throw new AgentConfigurationError(
+      "The Agent input artifact manifest contains duplicates.",
+    );
+  }
+  if (
+    inputArtifactManifest.some(
+      (item) =>
+        !/^[0-9a-f]{64}$/.test(item.contentHash) ||
+        item.byteSize < 0 ||
+        !["text", "image"].includes(item.kind),
+    )
+  ) {
+    throw new AgentConfigurationError(
+      "Every Agent input artifact requires a valid type, size, and SHA-256 hash.",
+    );
+  }
+  const providerParts = request.providerInputParts ?? [];
+  if (
+    providerParts.length !== inputArtifactManifest.length ||
+    providerParts.some((part, index) => {
+      const manifest = inputArtifactManifest[index];
+      return (
+        manifest?.artifactID !== part.artifactID ||
+        manifest.kind !== part.kind ||
+        manifest.mimeType !== part.mimeType ||
+        manifest.byteSize !== part.byteSize ||
+        manifest.contentHash !== part.contentHash
+      );
+    })
+  ) {
+    throw new AgentConfigurationError(
+      "Provider input content does not match the immutable artifact manifest.",
+    );
+  }
+  if (
+    providerParts.some(
+      (part) =>
+        (part.kind === "text" && !request.provider.inputCapabilities.text) ||
+        (part.kind === "image" && !request.provider.inputCapabilities.image),
+    )
+  ) {
+    throw new AgentConfigurationError(
+      "The configured provider does not support one or more governed input artifacts.",
     );
   }
 }
@@ -149,6 +204,7 @@ function buildFingerprints(request: AgentRunRequest): AgentFingerprints {
       captureID: request.scope.captureID,
       objective: request.scope.objective,
       evidenceManifest: request.scope.evidenceManifest,
+      inputArtifactManifest: request.scope.inputArtifactManifest ?? [],
     }),
   };
 }
@@ -221,6 +277,7 @@ function proposalCandidate(input: StageProposalInput): AgentProposalCandidate {
 
 function noActionCandidate(input: RecordNoActionInput): AgentNoActionCandidate {
   return {
+    reasonCode: input.reason_code,
     reason: input.reason,
     missingEvidenceRefs: input.missing_evidence_refs,
   };
@@ -298,7 +355,15 @@ export async function runBoundedAgent(
       evidenceManifest: Object.freeze(
         request.scope.evidenceManifest.map((item) => Object.freeze({ ...item })),
       ),
+      inputArtifactManifest: Object.freeze(
+        (request.scope.inputArtifactManifest ?? []).map((item) =>
+          Object.freeze({ ...item }),
+        ),
+      ),
     }),
+    providerInputParts: Object.freeze(
+      (request.providerInputParts ?? []).map((item) => Object.freeze({ ...item })),
+    ),
     budget: Object.freeze({ ...request.budget }),
   });
   assertConfiguration(request);
@@ -579,6 +644,7 @@ export async function runBoundedAgent(
         },
         toolManifest: request.definition.toolManifest,
         budget: request.budget,
+        inputParts: request.providerInputParts ?? [],
       },
       invokeTool,
       abort.signal,

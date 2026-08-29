@@ -120,6 +120,11 @@ function sdkTaskBudgetEnabled(): boolean {
 export class ClaudeAgentSDKProvider implements AgentProvider {
   readonly id = "claude-agent-sdk";
   readonly sdkVersion = SDK_VERSION;
+  readonly inputCapabilities = {
+    text: true,
+    image: false,
+    imageUnderstanding: false,
+  } as const;
 
   constructor(readonly model: string) {
     if (!model.trim()) throw new Error("A pinned Claude model is required.");
@@ -254,6 +259,19 @@ export class ClaudeAgentSDKProvider implements AgentProvider {
     const prompt = JSON.stringify({
       objective: request.objective,
       immutable_scope: request.scopeSummary,
+      governed_eval_inputs: (request.inputParts ?? []).map((part) =>
+        part.kind === "text"
+          ? {
+              artifact_id: part.artifactID,
+              content_hash: part.contentHash,
+              untrusted_text: part.text,
+            }
+          : {
+              artifact_id: part.artifactID,
+              content_hash: part.contentHash,
+              unsupported_image: true,
+            },
+      ),
       required_terminal_protocol: [
         "Call exactly one stage_pursuit_proposal or record_no_action tool.",
         "After that terminal tool succeeds, stop. The host derives the terminal receipt from the governed tool result.",

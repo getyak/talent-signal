@@ -67,7 +67,7 @@ export async function loadPursuitToday(options: { expanded?: boolean } = {}) {
     client.listPursuitProposals(),
   ]);
   if (pursuits.workspace_id !== proposals.workspace_id) {
-    throw new Error("Pursuit and Proposal readback returned different workspaces.");
+    throw new Error("寻访项目与提案的读回结果来自不同工作区。");
   }
   const projection = buildPursuitTodayProjection(
     pursuits.workspace_id,

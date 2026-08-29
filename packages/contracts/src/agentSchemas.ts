@@ -1,6 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 
 import { CONTRACT_VERSION } from "./constants.js";
+import { TelemetryContextSchema } from "./telemetrySchemas.js";
 
 const Id = Type.String({ format: "uuid" });
 const Timestamp = Type.String({ format: "date-time" });
@@ -24,6 +25,13 @@ export const CreatePursuitAgentRunRequestSchema = Type.Object(
       maxItems: 50,
       uniqueItems: true,
     }),
+    input_artifact_refs: Type.Optional(
+      Type.Array(Id, {
+        maxItems: 5,
+        uniqueItems: true,
+      }),
+    ),
+    telemetry: Type.Optional(TelemetryContextSchema),
   },
   { $id: "CreatePursuitAgentRunRequest", additionalProperties: false },
 );
@@ -148,6 +156,21 @@ export const AgentRunSchema = Type.Object(
           ),
           { maxItems: 50 },
         ),
+        input_artifacts: Type.Optional(
+          Type.Array(
+            Type.Object(
+              {
+                artifact_id: Id,
+                kind: Type.Union([Type.Literal("text"), Type.Literal("image")]),
+                mime_type: Type.String({ minLength: 1, maxLength: 200 }),
+                byte_size: Type.Integer({ minimum: 0, maximum: 5_242_880 }),
+                content_hash: Fingerprint,
+              },
+              { additionalProperties: false },
+            ),
+            { maxItems: 5 },
+          ),
+        ),
       },
       { additionalProperties: false },
     ),
@@ -156,6 +179,7 @@ export const AgentRunSchema = Type.Object(
     usage: AgentUsageSchema,
     terminal_receipt: Type.Union([AgentTerminalReceiptSchema, Type.Null()]),
     external_effects: Type.Tuple([]),
+    telemetry: Type.Union([TelemetryContextSchema, Type.Null()]),
     created_at: Timestamp,
     started_at: Type.Union([Timestamp, Type.Null()]),
     completed_at: Type.Union([Timestamp, Type.Null()]),

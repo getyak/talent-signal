@@ -30,7 +30,7 @@ describe("readiness rate limiting", () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
         {
-          version: "027_evidence_review_authority_chain",
+          version: "032_eval_observability",
         },
       ],
     });
@@ -56,7 +56,7 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("031_chat_media_assets"),
+      expect.stringContaining("032_eval_observability"),
     );
   }, 10_000);
 });

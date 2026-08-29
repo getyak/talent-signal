@@ -82,6 +82,12 @@ import {
   SubmitAnalysisProposalRequestSchema,
   SyncResponseSchema,
   TemporalStateResponseSchema,
+  AppendTelemetryBatchRequestSchema,
+  CompleteTelemetryTraceRequestSchema,
+  CreateTelemetryTraceRequestSchema,
+  TelemetryMutationResponseSchema,
+  TelemetryTraceDetailResponseSchema,
+  TelemetryTraceListResponseSchema,
   WorkspaceReviewResponseSchema,
   type ApproveActionRequest,
   type AppleLoginChallengeRequest,
@@ -117,6 +123,9 @@ import {
   type SourceAuthorizationDecisionRequest,
   type StagePursuitProposalRequest,
   type SubmitAnalysisProposalRequest,
+  type AppendTelemetryBatchRequest,
+  type CompleteTelemetryTraceRequest,
+  type CreateTelemetryTraceRequest,
 } from "@talent-signal/contracts";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
@@ -238,6 +247,14 @@ import {
 } from "./modules/sourceRetention.js";
 import { getWorkspaceReview } from "./modules/workspace.js";
 import {
+  appendTelemetryBatch,
+  completeTelemetryTrace,
+  createTelemetryTrace,
+  getTelemetryArtifactContent,
+  getTelemetryTrace,
+  listTelemetryTraces,
+} from "./modules/telemetry.js";
+import {
   EnvironmentDoubaoVoiceTranscriber,
   type VoiceTranscriptionServing,
   voiceTranscriptionLimits,
@@ -245,6 +262,18 @@ import {
 
 const IdParamsSchema = Type.Object(
   { id: Type.String({ format: "uuid" }) },
+  { additionalProperties: false },
+);
+const TraceParamsSchema = Type.Object(
+  { traceId: Type.String({ pattern: "^[0-9a-f]{32}$" }) },
+  { additionalProperties: false },
+);
+const TraceListQuerySchema = Type.Object(
+  {
+    limit: Type.Optional(
+      Type.String({ pattern: "^(?:[1-9]|[1-9][0-9]|100)$" }),
+    ),
+  },
   { additionalProperties: false },
 );
 const SyncQuerySchema = Type.Object(
@@ -358,9 +387,13 @@ export async function buildApp(
           "req.headers.authorization",
           "req.body.password",
           "req.body.audio_base64",
+          "req.body.content_parts[*].content_text",
+          "req.body.content_parts[*].content_base64",
           "headers.authorization",
           "body.password",
           "body.audio_base64",
+          "body.content_parts[*].content_text",
+          "body.content_parts[*].content_base64",
           "access_token",
           "password_scrypt",
         ],
@@ -480,7 +513,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '031_chat_media_assets'`,
+           WHERE version = '032_eval_observability'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -613,6 +646,181 @@ export async function buildApp(
 
   const authenticate = createAuthGuard(pool);
   const security = [{ bearerSession: [] }];
+
+  app.post<{ Body: CreateTelemetryTraceRequest }>(
+    "/v1/telemetry/traces",
+    {
+      bodyLimit: 12 * 1024 * 1024,
+      config: {
+        rateLimit: { max: 30, timeWindow: "1 minute" },
+      },
+      preHandler: authenticate,
+      schema: {
+        tags: ["telemetry", "evaluation"],
+        security,
+        body: CreateTelemetryTraceRequestSchema,
+        response: {
+          201: TelemetryMutationResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createTelemetryTrace(pool, request.auth, request.body);
+      request.log.info(
+        {
+          trace_id: result.trace_id,
+          interaction_id: result.interaction_id,
+          artifact_count: result.artifact_ids.length,
+          telemetry_status: result.status,
+        },
+        "telemetry trace created",
+      );
+      return reply.status(201).send(result);
+    },
+  );
+
+  app.post<{
+    Params: { traceId: string };
+    Body: AppendTelemetryBatchRequest;
+  }>(
+    "/v1/telemetry/traces/:traceId/batch",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["telemetry", "evaluation"],
+        security,
+        params: TraceParamsSchema,
+        body: AppendTelemetryBatchRequestSchema,
+        response: {
+          200: TelemetryMutationResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const result = await appendTelemetryBatch(
+        pool,
+        request.auth,
+        request.params.traceId,
+        request.body,
+      );
+      request.log.info(
+        {
+          trace_id: result.trace_id,
+          interaction_id: result.interaction_id,
+          accepted_spans: result.accepted_spans,
+          accepted_events: result.accepted_events,
+        },
+        "telemetry batch appended",
+      );
+      return result;
+    },
+  );
+
+  app.post<{
+    Params: { traceId: string };
+    Body: CompleteTelemetryTraceRequest;
+  }>(
+    "/v1/telemetry/traces/:traceId/completion",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["telemetry", "evaluation"],
+        security,
+        params: TraceParamsSchema,
+        body: CompleteTelemetryTraceRequestSchema,
+        response: {
+          200: TelemetryMutationResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const result = await completeTelemetryTrace(
+        pool,
+        request.auth,
+        request.params.traceId,
+        request.body,
+      );
+      request.log.info(
+        {
+          trace_id: result.trace_id,
+          interaction_id: result.interaction_id,
+          telemetry_status: result.status,
+          error_code: request.body.error_code,
+        },
+        "telemetry trace completed",
+      );
+      return result;
+    },
+  );
+
+  app.get<{ Querystring: { limit?: string } }>(
+    "/v1/eval/traces",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["telemetry", "evaluation"],
+        security,
+        querystring: TraceListQuerySchema,
+        response: {
+          200: TelemetryTraceListResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      listTelemetryTraces(
+        pool,
+        request.auth,
+        Number.parseInt(request.query.limit ?? "100", 10),
+      ),
+  );
+
+  app.get<{ Params: { traceId: string } }>(
+    "/v1/eval/traces/:traceId",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["telemetry", "evaluation"],
+        security,
+        params: TraceParamsSchema,
+        response: {
+          200: TelemetryTraceDetailResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getTelemetryTrace(pool, request.auth, request.params.traceId),
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/eval/artifacts/:id/content",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["telemetry", "evaluation"],
+        security,
+        params: IdParamsSchema,
+        response: { "4xx": ErrorResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const artifact = await getTelemetryArtifactContent(
+        pool,
+        request.auth,
+        request.params.id,
+      );
+      return reply
+        .header("Cache-Control", "private, no-store")
+        .header("Content-Disposition", "inline")
+        .header("X-Content-Type-Options", "nosniff")
+        .type(artifact.contentType)
+        .send(artifact.body);
+    },
+  );
 
   app.get(
     "/v1/auth/session",
@@ -763,6 +971,17 @@ export async function buildApp(
         request.auth,
         request.params.id,
         request.body,
+      );
+      request.log.info(
+        {
+          trace_id: result.body.run.telemetry?.trace_id ?? null,
+          interaction_id: result.body.run.telemetry?.interaction_id ?? null,
+          agent_run_id: result.body.run.id,
+          agent_status: result.body.run.status,
+          tool_call_count: result.body.run.usage.tool_calls,
+          terminal_reason: result.body.run.terminal_receipt?.reason_code ?? null,
+        },
+        "agent run completed",
       );
       return reply
         .header("idempotent-replayed", result.replayed)
@@ -1721,6 +1940,15 @@ export async function buildApp(
         request.body,
         remoteChatProvider,
         chatMediaStorage,
+      );
+      request.log.info(
+        {
+          trace_id: result.body.telemetry?.trace_id ?? null,
+          interaction_id: result.body.telemetry?.interaction_id ?? null,
+          chat_task_id: result.body.task_id,
+          chat_disposition: result.body.disposition,
+        },
+        "relationship chat task completed",
       );
       return reply
         .header("idempotent-replayed", result.replayed)

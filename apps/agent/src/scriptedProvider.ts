@@ -23,6 +23,11 @@ export class ScriptedAgentProvider implements AgentProvider {
   readonly id = "deterministic";
   readonly model = "talent-signal-scripted-v1";
   readonly sdkVersion = "deterministic-provider.v1";
+  readonly inputCapabilities = {
+    text: true,
+    image: true,
+    imageUnderstanding: false,
+  } as const;
 
   constructor(
     private readonly steps: readonly ScriptedAgentStep[],

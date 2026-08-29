@@ -5,6 +5,7 @@ import type {
   AgentCapabilityGateway,
   AgentEvidence,
   AgentNoActionCandidate,
+  AgentInputArtifactManifestItem,
   AgentProposalCandidate,
   AgentRunScope,
 } from "@talent-signal/agent";
@@ -129,6 +130,7 @@ export async function compileAgentScope(
     captureID: string;
     objective: string;
     evidenceRefs: readonly string[];
+    inputArtifactManifest?: readonly AgentInputArtifactManifestItem[];
   },
 ): Promise<AgentRunScope> {
   const pursuit = await readPursuit(pool, auth.accountId, input.pursuitID);
@@ -162,6 +164,7 @@ export async function compileAgentScope(
         "Explicitly selected, reviewed evidence for this one Pursuit run.",
       authorizationScope: item.retention_scope,
     })),
+    inputArtifactManifest: [...(input.inputArtifactManifest ?? [])],
   };
 }
 
@@ -338,10 +341,10 @@ export class DatabaseAgentGateway implements AgentCapabilityGateway {
     const id = randomUUID();
     const result = await this.pool.query<{ id: string; inserted: boolean }>(
       `INSERT INTO agent_no_actions(
-         id, account_id, run_id, pursuit_id, capture_id, reason,
+         id, account_id, run_id, pursuit_id, capture_id, reason_code, reason,
          missing_evidence_refs, candidate_fingerprint, external_effects
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '[]'::jsonb)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, '[]'::jsonb)
        ON CONFLICT (account_id, run_id) DO UPDATE
        SET run_id = agent_no_actions.run_id
        RETURNING id, (xmax = 0) AS inserted`,
@@ -351,6 +354,7 @@ export class DatabaseAgentGateway implements AgentCapabilityGateway {
         scope.runID,
         scope.pursuitID,
         scope.captureID,
+        candidate.reasonCode,
         candidate.reason,
         JSON.stringify(candidate.missingEvidenceRefs),
         candidateFingerprint,

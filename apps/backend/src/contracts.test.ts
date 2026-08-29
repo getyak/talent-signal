@@ -132,6 +132,7 @@ describe("shared HTTP contract", () => {
         usage,
         terminal_receipt: terminalReceipt,
         external_effects: [],
+        telemetry: null,
         created_at: "2026-08-24T00:00:00.000Z",
         started_at: "2026-08-24T00:00:00.000Z",
         completed_at: "2026-08-24T00:00:01.000Z",

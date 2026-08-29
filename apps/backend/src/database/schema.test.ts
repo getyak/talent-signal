@@ -3,6 +3,28 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("authority schema", () => {
+  it("separates scrubbed telemetry from governed trace artifacts and Eval labels", async () => {
+    const sql = await readFile(
+      new URL("./032_eval_observability.sql", import.meta.url),
+      "utf8",
+    );
+    for (const table of [
+      "telemetry_traces",
+      "telemetry_artifacts",
+      "telemetry_spans",
+      "telemetry_events",
+      "eval_annotations",
+    ]) {
+      expect(sql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(sql).toContain("content_hash text NOT NULL");
+    expect(sql).toContain("retention_expires_at timestamptz NOT NULL");
+    expect(sql).toContain("FOREIGN KEY (account_id, trace_id)");
+    expect(sql).toContain("ADD COLUMN telemetry_trace_id text");
+    expect(sql).not.toContain("candidate_score");
+    expect(sql).not.toContain("personality");
+  });
+
   it("keeps Chat media scoped, lifecycle-aware, and distinct from evidence", async () => {
     const sql = await readFile(
       new URL("./031_chat_media_assets.sql", import.meta.url),

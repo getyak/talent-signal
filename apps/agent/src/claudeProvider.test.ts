@@ -122,6 +122,7 @@ describe("ClaudeAgentSDKProvider", () => {
           (candidate: { name: string }) => candidate.name === "record_no_action",
         );
         await terminalTool.handler({
+          reason_code: "NO_MATERIAL_CHANGE",
           reason: "Synthetic evidence supports no canonical change.",
           missing_evidence_refs: [],
         });
