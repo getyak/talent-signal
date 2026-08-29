@@ -5,6 +5,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      ios_test_scope:
+        description: iOS UI coverage for an explicit diagnostic run
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
 
 permissions:
   contents: read
@@ -34,9 +43,24 @@ jobs:
         id: filter
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          EVENT_NAME: ${{ github.event_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          ios="$(./scripts/ci/has-ios-changes.sh "$BASE_SHA" "$HEAD_SHA" --ci-files)"
+          comparison_base="$BASE_SHA"
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "main" ]; then
+            latest_release_tag="$(
+              git tag --list 'v*' --merged "$HEAD_SHA" --sort=-v:refname \
+                | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                | head -n 1 || true
+            )"
+            if [ -n "$latest_release_tag" ]; then
+              comparison_base="$(git rev-parse "$latest_release_tag^{commit}")"
+              echo "Checking unreleased iOS changes since $latest_release_tag"
+            fi
+          fi
+
+          ios="$(./scripts/ci/has-ios-changes.sh "$comparison_base" "$HEAD_SHA" --ci-files)"
           echo "ios=$ios" >> "$GITHUB_OUTPUT"
           echo "iOS checks required: $ios"
 
@@ -169,17 +193,18 @@ jobs:
         run: pnpm backend:ci
 
   ios:
-    name: iOS build and test
+    name: iOS release smoke
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-26
-    timeout-minutes: 75
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Build and test iOS
         env:
+          IOS_UI_TEST_SCOPE: ${{ inputs.ios_test_scope || 'smoke' }}
           RESULT_BUNDLE_PATH: ${{ github.workspace }}/build/ios/TestResults.xcresult
         run: ./scripts/ios/check.sh
 

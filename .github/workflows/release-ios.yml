@@ -66,19 +66,27 @@ jobs:
                 "The verified CI revision is no longer the current default-branch tip; a newer CI run will decide its release.",
               );
             } else {
-              const commit = await github.rest.repos.getCommit({
+              const releases = await github.paginate(github.rest.repos.listReleases, {
                 owner,
                 repo,
-                ref: releaseSha,
+                per_page: 100,
               });
-              const parentSha = commit.data.parents[0]?.sha;
-              if (!parentSha) {
+              const latestRelease = releases.find(
+                ({ draft, tag_name: tagName }) =>
+                  !draft && /^v\d+\.\d+\.\d+$/.test(tagName),
+              );
+
+              if (!latestRelease) {
+                core.notice("No previous semantic TestFlight release was found.");
                 shouldRelease = true;
               } else {
+                core.info(
+                  `Checking iOS changes since ${latestRelease.tag_name}`,
+                );
                 const comparison = await github.rest.repos.compareCommitsWithBasehead({
                   owner,
                   repo,
-                  basehead: `${parentSha}...${releaseSha}`,
+                  basehead: `${latestRelease.tag_name}...${releaseSha}`,
                   per_page: 100,
                 });
                 const files = comparison.data.files ?? [];
