@@ -90,8 +90,10 @@ loads only `staging:/release`, and checks required names without printing their
 values. It joins the internal TestFlight tailnet as an ephemeral `tag:ci` node,
 writes the validated `TALENT_SIGNAL_API_BASE_URL` into the app build
 configuration, verifies tailnet reachability and a current Apple
-authentication challenge before signing, writes signing material only under
-the runner temporary directory, verifies
+authentication challenge before signing, retries that end-to-end contract probe
+three times across a short bounded window to absorb transient tailnet path
+negotiation, writes signing material only under the runner temporary directory,
+verifies
 read access to the isolated private match repository, and removes those files
 even after failure. Fastlane waits for App Store Connect build processing. The
 tag and GitHub prerelease are created only after that stronger acceptance

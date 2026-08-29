@@ -33,6 +33,12 @@ publishing local uncommitted iOS work.
 - A successful TestFlight run itself (`33179753593`) took about 9 minutes. The
   archive, upload, and Apple processing step took about 7 minutes, so TestFlight
   transport is not the dominant delay.
+- Recovery run `33229455837` reached the Mac by Tailscale ping but its first
+  end-to-end authentication POST never reached the healthy API. Treat that
+  local-host network path as intermittently available and retry only the
+  pre-signing contract probe within a short bounded window.
+- PR run `33229201916` completed the new iOS release smoke in 20 minutes 29
+  seconds, versus roughly 52 minutes for the equivalent old full gate.
 
 ## Approach
 
@@ -43,7 +49,9 @@ publishing local uncommitted iOS work.
    the existing CI workflow's explicit `full` dispatch mode.
 3. Run Swift CodeQL after merge and on schedule/manual dispatch instead of
    duplicating the slow Swift build in every pull request.
-4. Verify policy locally, then use a real branch run to measure the new gate.
+4. Bound retries around the tailnet API contract probe before signing; never
+   retry archive/upload blindly.
+5. Verify policy locally, then use a real branch run to measure the new gate.
    Publish the pre-existing remote `main` only after its already-running full
    iOS verification succeeds.
 

@@ -227,6 +227,9 @@ test("automatic releases classify all changes since the last successful release"
 
   assert.match(releaseWorkflow, /TALENT_SIGNAL_API_BASE_URL/);
   assert.match(releaseWorkflow, /probe-auth-backend\.mjs/);
+  assert.match(releaseWorkflow, /tailscale ping --c 3/);
+  assert.match(releaseWorkflow, /for attempt in 1 2 3/);
+  assert.match(releaseWorkflow, /failed three bounded probes/);
   assert.match(
     releaseWorkflow,
     /tailscale\/github-action@[0-9a-f]{40} # v4\.1\.3/,
