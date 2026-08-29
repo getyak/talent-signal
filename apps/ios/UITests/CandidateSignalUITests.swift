@@ -1013,6 +1013,10 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertTrue(composer.exists)
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForNonExistence(timeout: 3),
+            "AX5 should keep the full starter and capture surface visible until the recruiter chooses to type."
+        )
         let promptMenu = app.buttons["ask-prompt-menu"]
         XCTAssertTrue(promptMenu.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(promptMenu.frame.height, 44)

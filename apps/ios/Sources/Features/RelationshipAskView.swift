@@ -510,7 +510,9 @@ struct RelationshipAskView: View {
             if sessionID == nil,
                initialSeed == nil,
                contactDraft == nil,
-               !voiceOverEnabled {
+               !voiceOverEnabled,
+               !dynamicTypeSize.isAccessibilitySize,
+               !sizeCategory.isAccessibilityCategory {
                 await Task.yield()
                 composerFocused = true
             }
