@@ -46,6 +46,10 @@ export function RelationshipContactHeader({
   scope: Scope;
   workspace?: WorkspaceReviewResponse | null;
 }) {
+  const dependency = workspace
+    ? relationshipCurrentDependency(workspace)
+    : "等待来源编译";
+
   return (
     <section className="context-contact-header" id="contact-overview">
       <div className="context-contact-header__portrait">
@@ -90,13 +94,18 @@ export function RelationshipContactHeader({
           )}
         </div>
       </div>
-      {workspace ? (
-        <div className="context-contact-header__signal">
-          <span>当前依赖项</span>
-          <strong>{relationshipCurrentDependency(workspace)}</strong>
-          <small>从审阅状态得出，绝不用于评价此人。</small>
-        </div>
-      ) : null}
+      <div
+        className="context-contact-header__signal"
+        data-state={workspace ? "governed" : "uncompiled"}
+      >
+        <span>{workspace ? "当前依赖项" : "当前工作状态"}</span>
+        <strong>{dependency}</strong>
+        <small>
+          {workspace
+            ? "从审阅状态得出，绝不用于评价此人。"
+            : "尚未形成已确认事实或行动。"}
+        </small>
+      </div>
     </section>
   );
 }

@@ -77,10 +77,10 @@ export function PeopleDirectoryApp({
         <div className={styles.page}>
           <section className={styles.hero}>
             <div>
-              <p className={styles.eyebrow}>持续更新的关系目录</p>
+              <p className={styles.eyebrow}>关系目录</p>
               <h1>联系人</h1>
               <p className={styles.intro}>
-                每段关系都带着自己的情境。找到联系人并重新打开准确证据——绝不是线索分数或性格标签。
+                按已确认线索检索联系人，并回到其关系情境与准确证据。
               </p>
             </div>
 
@@ -101,11 +101,11 @@ export function PeopleDirectoryApp({
           <section className={styles.directory}>
             <header>
               <div>
-                <p>{query ? "搜索结果" : "近期活跃"}</p>
+                <p>{query ? "搜索结果" : "联系人视图"}</p>
                 <h2>
                   {query
                     ? `与“${query}”匹配的联系人`
-                    : "持续变化中的关系"}
+                    : "近期活跃"}
                 </h2>
               </div>
               <span>显示 {people.length} 人</span>

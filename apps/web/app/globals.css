@@ -45,6 +45,13 @@
   --focus-radius: 15px;
   --input-radius: 11px;
   --button-radius: 999px;
+  --workspace-page-padding: clamp(24px, 3vw, 40px);
+  --workspace-section-gap: clamp(24px, 3vw, 36px);
+  --workspace-title-size: clamp(2rem, 3vw, 2.75rem);
+  --workspace-object-size: clamp(1.75rem, 2.6vw, 2.4rem);
+  --workspace-section-size: clamp(1.2rem, 1.8vw, 1.55rem);
+  --workspace-body-size: 0.875rem;
+  --workspace-meta-size: 0.75rem;
   color-scheme: light;
 }
 
@@ -14298,5 +14305,430 @@ article[data-state="unresolved"]
 
   .context-workspace--embedded .context-topbar {
     top: 56px;
+  }
+}
+
+/* Authenticated workspace density contract. Working surfaces prioritize the
+   current object, dependency, evidence, and action over display typography. */
+.context-workspace--embedded .context-chat {
+  background: var(--surface);
+  width: 280px;
+  transition: width 180ms var(--ease-out);
+}
+
+.context-workspace--embedded .context-main {
+  margin-left: 280px;
+  transition: margin-left 180ms var(--ease-out);
+}
+
+.context-chat__scope {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding: 12px 14px;
+}
+
+.context-chat__scope > span {
+  border-radius: 9px;
+  font-family: var(--font-sans), sans-serif;
+  font-size: var(--workspace-meta-size);
+  height: 32px;
+  width: 32px;
+}
+
+.context-chat__scope strong,
+.context-chat__scope small,
+.context-chat__scope > i {
+  font-size: var(--workspace-meta-size);
+}
+
+.context-chat__toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--muted-strong);
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  padding: 0;
+  width: 34px;
+}
+
+.context-chat__toggle:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.context-chat__toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.context-chat__intro {
+  padding: 13px 16px 7px;
+}
+
+.context-chat__intro h1 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1rem;
+  font-weight: 720;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+
+.context-chat__intro > p:not(.eyebrow) {
+  font-size: var(--workspace-meta-size);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.context-agent-actions {
+  padding: 5px 16px 10px;
+}
+
+.context-agent-actions button {
+  font-size: var(--workspace-meta-size);
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
+.context-chat__empty,
+.context-agent-welcome p,
+.context-chat__response article > p,
+.context-chat__response article > footer span,
+.context-chat__response article > footer a {
+  font-size: var(--workspace-meta-size);
+}
+
+.context-chat__response-meta {
+  font-size: 0.6875rem;
+}
+
+.context-chat__composer textarea {
+  font-size: 0.8125rem;
+}
+
+.context-chat[data-collapsed="true"] {
+  width: 56px;
+}
+
+.context-chat[data-collapsed="true"] > :not(.context-chat__scope),
+.context-chat[data-collapsed="true"] .context-chat__scope > p,
+.context-chat[data-collapsed="true"] .context-chat__scope > i {
+  display: none;
+}
+
+.context-chat[data-collapsed="true"] .context-chat__scope {
+  align-content: start;
+  gap: 10px;
+  grid-template-columns: 1fr;
+  height: 100%;
+  justify-items: center;
+  padding: 12px;
+}
+
+.context-workspace--embedded:has(.context-chat[data-collapsed="true"])
+  .context-main {
+  margin-left: 56px;
+}
+
+.context-workspace--embedded .context-topbar {
+  height: 52px;
+  padding-inline: clamp(18px, 2.2vw, 28px);
+}
+
+.context-workspace--embedded .context-topbar,
+.context-workspace--embedded .context-topbar a,
+.context-workspace--embedded .context-secure-state {
+  font-size: var(--workspace-meta-size);
+}
+
+.context-workspace--embedded .context-page {
+  max-width: 1280px;
+  padding: 24px clamp(20px, 2.5vw, 34px) 56px;
+}
+
+.context-page--resource-only .context-contact-header {
+  margin-bottom: 0;
+}
+
+.context-contact-header {
+  align-items: center;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr) minmax(180px, 240px);
+  padding-bottom: 20px;
+}
+
+.context-contact-header__portrait {
+  gap: 0;
+}
+
+.context-contact-header__avatar {
+  border-radius: 14px;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.95rem;
+  height: 48px;
+  width: 48px;
+}
+
+.context-contact-header__portrait > span {
+  display: none;
+}
+
+.context-contact-header__identity h1,
+.context-contact-header__identity h1[data-long="true"] {
+  font-family: var(--font-sans), sans-serif;
+  font-size: var(--workspace-object-size);
+  font-weight: 680;
+  hyphens: none;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.context-workspace--embedded .context-onboarding {
+  max-width: 1280px;
+  padding: 24px clamp(20px, 2.5vw, 34px) 48px;
+}
+
+.context-workspace--embedded .context-onboarding__header {
+  margin-bottom: 18px;
+  max-width: 720px;
+}
+
+.context-workspace--embedded .context-onboarding__header h1 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: var(--workspace-title-size);
+  font-weight: 680;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  margin-top: 6px;
+  max-width: none;
+}
+
+.context-workspace--embedded
+  .context-onboarding__header
+  > p:not(.eyebrow) {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+.context-workspace--embedded .context-onboarding__workbench {
+  gap: 20px;
+}
+
+.context-workspace--embedded .context-start {
+  gap: 14px;
+  padding: 20px;
+}
+
+.context-workspace--embedded .context-start__intro h2 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.4rem;
+  font-weight: 680;
+}
+
+.context-workspace--embedded .context-start__identity,
+.context-workspace--embedded .context-start__source {
+  gap: 10px;
+  padding-top: 14px;
+}
+
+.context-workspace--embedded
+  .context-start
+  input:not([type="checkbox"]),
+.context-workspace--embedded .context-start textarea,
+.context-workspace--embedded .context-start select {
+  min-height: 38px;
+}
+
+.context-workspace--embedded .context-start__choices > button {
+  min-height: 50px;
+}
+
+.context-workspace--embedded .context-start > footer {
+  padding-top: 12px;
+}
+
+.context-workspace--embedded .context-onboarding__artifact {
+  padding-top: 14px;
+}
+
+.context-contact-header__identity > p:not(.eyebrow) {
+  font-size: 0.8125rem;
+  margin-top: 4px;
+}
+
+.context-contact-header__identity > div {
+  gap: 8px 12px;
+  margin-top: 8px;
+}
+
+.context-contact-header__identity > div span,
+.context-contact-header__signal > span,
+.context-contact-header__signal small {
+  font-size: var(--workspace-meta-size);
+}
+
+.context-contact-header__signal {
+  gap: 3px;
+  padding: 5px 0 5px 14px;
+}
+
+.context-contact-header__signal[data-state="uncompiled"] {
+  border-left-color: var(--line-strong);
+}
+
+.context-contact-header__signal strong {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.context-relationship-wiki {
+  gap: 16px;
+  margin: 20px 0 24px;
+  padding: 20px 0 24px;
+}
+
+.context-relationship-wiki > header h2 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: var(--workspace-section-size);
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
+.context-relationship-wiki__brief {
+  background: var(--surface);
+  gap: 12px;
+  min-height: 180px;
+  padding: 22px;
+}
+
+.context-relationship-wiki__brief h3 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 1.35rem;
+  line-height: 1.12;
+}
+
+.context-relationship-wiki__brief > p,
+.context-relationship-wiki__grid aside article p,
+.context-relationship-wiki__empty p {
+  font-size: var(--workspace-meta-size);
+}
+
+.context-relationship-wiki__empty {
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.context-relationship-wiki__empty strong {
+  font-size: 0.8125rem;
+}
+
+.context-person-merge--closed strong,
+.context-person-merge--closed small {
+  font-size: var(--workspace-meta-size);
+}
+
+@media (min-width: 841px) and (max-width: 1180px) {
+  .context-workspace--embedded .context-chat {
+    left: 84px;
+    width: 264px;
+  }
+
+  .context-workspace--embedded .context-main {
+    margin-left: 264px;
+  }
+
+  .context-workspace--embedded .context-chat[data-collapsed="true"] {
+    width: 56px;
+  }
+
+  .context-contact-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .context-contact-header__signal {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    grid-column: 1 / -1;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 10px 0 0;
+  }
+
+  .context-contact-header__signal small {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 840px) {
+  .context-workspace--embedded .context-main,
+  .context-workspace--embedded:has(.context-chat[data-collapsed="true"])
+    .context-main {
+    margin-left: 0;
+  }
+
+  .context-workspace--embedded .context-chat,
+  .context-workspace--embedded .context-chat[data-collapsed="true"] {
+    width: auto;
+  }
+
+  .context-chat__toggle {
+    display: none;
+  }
+
+  .context-contact-header {
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .context-contact-header__signal {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    grid-column: 1 / -1;
+    padding: 10px 0 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .context-workspace--embedded .context-page {
+    padding: 18px 16px 48px;
+  }
+
+  .context-contact-header__identity h1,
+  .context-contact-header__identity h1[data-long="true"] {
+    font-size: clamp(1.65rem, 8vw, 2.1rem);
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .context-workspace--embedded .context-onboarding {
+    padding: 18px 16px 48px;
+  }
+
+  .context-workspace--embedded .context-onboarding__header {
+    margin-bottom: 16px;
+  }
+
+  .context-workspace--embedded .context-start {
+    padding: 16px;
+  }
+
+  .context-relationship-wiki > header {
+    gap: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-workspace--embedded .context-chat,
+  .context-workspace--embedded .context-main {
+    transition: none;
   }
 }

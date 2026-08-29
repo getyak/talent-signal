@@ -182,11 +182,10 @@ Exact tokens, breakpoints, and component behavior belong in implementation;
 the surrounding product is the reference for density and idiom.
 
 On working surfaces, headings name the current object, date, state, or
-decision. Reserve narrative promises and slogan-like copy for marketing or
-onboarding; do not use them as persistent product chrome.
-
-On public product proof, let evidence and direct interaction carry the depth;
-never use oversized type, empty space, or prolonged scrolling as a substitute.
+decision within a bounded operational scale. Page and object titles never
+behave like marketing heroes, and metadata remains legible rather than tiny.
+Reserve narrative promises and oversized type for public proof or onboarding;
+there too, evidence and interaction must carry the depth instead of empty space.
 
 Avoid:
 

@@ -463,6 +463,8 @@ describe("relationship workspace accessibility contract", () => {
       "不保留回答正文",
     );
     expect(relationshipAgentPanel).not.toContain("window.sessionStorage");
+    expect(relationshipAgentPanel).toContain("aria-expanded={!collapsed}");
+    expect(relationshipAgentPanel).toContain("展开关系智能助理");
   });
 
   it("blocks direct confirmation when a different active value needs supersession", () => {

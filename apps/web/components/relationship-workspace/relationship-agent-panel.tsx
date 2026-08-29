@@ -11,6 +11,8 @@ import type {
 import {
   AddressBook,
   ArrowRight,
+  CaretLeft,
+  CaretRight,
   CheckCircle,
   CircleNotch,
   Clock,
@@ -20,6 +22,7 @@ import {
   Sparkle,
   UserPlus,
 } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
@@ -89,15 +92,31 @@ export function RelationshipAgentPanel({
   submittedObjective,
 }: Props) {
   const reviewMode = mode === "review";
+  const [collapsed, setCollapsed] = useState(false);
   const priorBrief =
     !response && !operation
       ? relationshipBriefContinuityReceipt(history)
       : null;
 
+  useEffect(() => {
+    const mobile = window.matchMedia("(max-width: 840px)");
+    const expandOnMobile = (event: MediaQueryListEvent | MediaQueryList) => {
+      if (event.matches) {
+        setCollapsed(false);
+      }
+    };
+
+    expandOnMobile(mobile);
+    mobile.addEventListener("change", expandOnMobile);
+    return () => mobile.removeEventListener("change", expandOnMobile);
+  }, []);
+
   return (
     <section
-      aria-labelledby="relationship-chat-title"
+      aria-label={collapsed ? "关系智能助理（已收起）" : undefined}
+      aria-labelledby={collapsed ? undefined : "relationship-chat-title"}
       className="context-chat"
+      data-collapsed={collapsed || undefined}
       id="relationship-chat"
     >
       <div className="context-chat__scope">
@@ -110,6 +129,19 @@ export function RelationshipAgentPanel({
           <ShieldCheck aria-hidden="true" size={15} weight="duotone" />
           已限定范围
         </i>
+        <button
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "展开关系智能助理" : "收起关系智能助理"}
+          className="context-chat__toggle"
+          onClick={() => setCollapsed((current) => !current)}
+          type="button"
+        >
+          {collapsed ? (
+            <CaretRight aria-hidden="true" size={16} />
+          ) : (
+            <CaretLeft aria-hidden="true" size={16} />
+          )}
+        </button>
       </div>
       <div className="context-chat__intro">
         <p className="eyebrow">关系智能助理</p>
