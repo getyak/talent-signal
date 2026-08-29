@@ -18,6 +18,13 @@ import {
   type AgentContactDraft,
 } from "@/lib/agent-contact-intake";
 import { relationshipIntegrationFetch } from "@/components/workspace-session-request";
+import {
+  appendWebTrace,
+  beginWebTrace,
+  completeWebTrace,
+  traceSpanId,
+  type WebTraceHandle,
+} from "@/lib/telemetry";
 
 const DEFAULT_OBJECTIVE = "";
 const DRAFT_PREFIX = "talent-signal:relationship-agent-draft:v1";
@@ -448,8 +455,22 @@ export function useRelationshipAgentController({
     const controller = new AbortController();
     requestAbortRef.current?.abort();
     requestAbortRef.current = controller;
+    let trace: WebTraceHandle | null = null;
+    const apiStartedAt = new Date().toISOString();
 
     try {
+      trace = await beginWebTrace({
+        name: "relationship.agent.submit",
+        route: "/workspace",
+        text: submitted,
+        dataClassification: "private_relationship",
+        authorizationScope: `person:${requestScope.person.id}:relationship-context:${requestScope.relationship_context.id}`,
+        attributes: {
+          "ts.ui.event": "agent_submission_started",
+          "ts.objective.length": submitted.length,
+          "ts.relationship.context_id": requestScope.relationship_context.id,
+        },
+      });
       const responseResult = await relationshipIntegrationFetch(
         "/api/local-integration/chat",
         {
@@ -462,6 +483,11 @@ export function useRelationshipAgentController({
             person_id: requestScope.person.id,
             relationship_context_id: requestScope.relationship_context.id,
             objective: submitted,
+            telemetry: {
+              trace_id: trace.trace_id,
+              parent_span_id: trace.root_span_id,
+              interaction_id: trace.interaction_id,
+            },
           }),
         },
       );
@@ -488,6 +514,51 @@ export function useRelationshipAgentController({
         response: payload,
         submittedObjective: submitted,
       });
+      const endedAt = new Date().toISOString();
+      await appendWebTrace(trace, {
+        spans: [
+          {
+            span_id: traceSpanId(trace, "relationship-chat-api"),
+            parent_span_id: trace.root_span_id,
+            name: "http POST /api/local-integration/chat",
+            kind: "client",
+            status: "ok",
+            started_at: apiStartedAt,
+            ended_at: endedAt,
+            attributes: {
+              "http.request.method": "POST",
+              "http.route": "/api/local-integration/chat",
+              "http.response.status_code": responseResult.status,
+              "ts.chat.task_id": payload.task_id,
+              "ts.chat.disposition": payload.disposition,
+            },
+            artifact_refs: trace.artifact_ids,
+            agent_run_id: null,
+            agent_event_sequence: null,
+          },
+        ],
+        events: [
+          {
+            event_id: crypto.randomUUID(),
+            span_id: trace.root_span_id,
+            name: "agent_result_rendered",
+            occurred_at: endedAt,
+            attributes: {
+              "ts.chat.task_id": payload.task_id,
+              "ts.chat.disposition": payload.disposition,
+              "ts.chat.block_count": payload.blocks.length,
+            },
+            artifact_refs: trace.artifact_ids,
+          },
+        ],
+      });
+      await completeWebTrace(trace, {
+        status: "ok",
+        attributes: {
+          "ts.chat.task_id": payload.task_id,
+          "ts.chat.disposition": payload.disposition,
+        },
+      });
       clearStoredDraft();
       onAnnouncement(
         "聊天简报已根据当前可见人物与关系情境编译。",
@@ -498,7 +569,37 @@ export function useRelationshipAgentController({
       );
     } catch (caught) {
       if (controller.signal.aborted) {
+        if (trace) {
+          await completeWebTrace(trace, {
+            status: "cancelled",
+            errorCode: "REQUEST_CANCELLED",
+          }).catch(() => undefined);
+        }
         return;
+      }
+      if (trace) {
+        await appendWebTrace(trace, {
+          spans: [
+            {
+              span_id: traceSpanId(trace, "relationship-chat-api-error"),
+              parent_span_id: trace.root_span_id,
+              name: "http POST /api/local-integration/chat",
+              kind: "client",
+              status: "error",
+              started_at: apiStartedAt,
+              ended_at: new Date().toISOString(),
+              attributes: { "error.type": "relationship_chat_failed" },
+              artifact_refs: trace.artifact_ids,
+              agent_run_id: null,
+              agent_event_sequence: null,
+            },
+          ],
+          events: [],
+        }).catch(() => undefined);
+        await completeWebTrace(trace, {
+          status: "error",
+          errorCode: "RELATIONSHIP_CHAT_FAILED",
+        }).catch(() => undefined);
       }
       onError(
         caught instanceof Error

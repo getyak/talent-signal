@@ -89,6 +89,44 @@ export async function loadPursuitToday(options: { expanded?: boolean } = {}) {
   };
 }
 
+export async function loadEvalAgentLab() {
+  const data = await loadPursuitToday({ expanded: true });
+  const provider = process.env.TALENT_SIGNAL_AGENT_PROVIDER ?? "deterministic";
+  const model =
+    process.env.TALENT_SIGNAL_AGENT_MODEL ?? "talent-signal-no-action-v1";
+  const bigModelVision =
+    provider === "zhipu" && /^glm-(?:\d+(?:\.\d+)?v|4v)/u.test(model);
+  const openRouterVision =
+    provider === "openrouter" &&
+    process.env.TALENT_SIGNAL_AGENT_IMAGE_INPUT_ENABLED === "true";
+  const imageUnderstanding = bigModelVision || openRouterVision;
+  return {
+    targets: data.projection.items.flatMap((item) =>
+      item.agentContext
+        ? [
+            {
+              pursuitId: item.pursuitId,
+              title: item.title,
+              displayRef: item.pursuitId.slice(0, 8),
+              revision: item.revision,
+              captureId: item.agentContext.captureId,
+              evidenceRefs: item.agentContext.evidenceRefs,
+              evidenceCount: item.agentContext.evidenceRefs.length,
+            },
+          ]
+        : [],
+    ),
+    provider: {
+      id: provider,
+      model,
+      mode: provider === "deterministic" ? "routing_only" : "live_model",
+      acceptsImages:
+        provider === "deterministic" || imageUnderstanding,
+      imageUnderstanding,
+    },
+  } as const;
+}
+
 export async function loadPursuitRoom(pursuitId: string) {
   const client = await authenticatedClient("web-pursuit-room");
   const [detail, proposals] = await Promise.all([

@@ -43,6 +43,7 @@ import {
   type SubmitAnalysisProposalRequest,
   type VoiceTranscriptionDraft,
   type WorkspaceReviewResponse,
+  type TelemetryContext,
 } from "@talent-signal/contracts";
 
 import {
@@ -1020,6 +1021,7 @@ export type AskRelationshipChatInput = {
   person_id: string;
   relationship_context_id: string;
   objective: string;
+  telemetry?: TelemetryContext;
 };
 
 export async function askRelationshipChat(
@@ -1051,6 +1053,7 @@ export async function askRelationshipChat(
     objective,
     person_id: input.person_id,
     relationship_context_id: input.relationship_context_id,
+    ...(input.telemetry ? { telemetry: input.telemetry } : {}),
   });
 }
 
