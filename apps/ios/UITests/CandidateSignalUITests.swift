@@ -437,7 +437,7 @@ final class CandidateSignalUITests: XCTestCase {
         )
 
         let message = "Add Maya Chen for the product search"
-        composer.typeText(message)
+        typeTextReliably(message, into: composer)
         XCTAssertEqual(composer.value as? String, message)
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.exists)
@@ -1014,7 +1014,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertTrue(composer.exists)
         let promptMenu = app.buttons["ask-prompt-menu"]
-        XCTAssertTrue(promptMenu.exists)
+        XCTAssertTrue(promptMenu.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(promptMenu.frame.height, 44)
         XCTAssertFalse(app.buttons["What changed?"].exists)
 
