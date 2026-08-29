@@ -19,6 +19,7 @@ tmp/
 *.tsbuildinfo
 dist/
 coverage/
+.data/
 secrets/
 *.mobileprovision
 fastlane/Preview.html
