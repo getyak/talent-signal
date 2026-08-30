@@ -1,6 +1,48 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "ADD TO MESSAGE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到消息" } } }
+    },
+    "Browse JPEG, PNG, WebP, GIF, HEIC, or HEIF" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浏览 JPEG、PNG、WebP、GIF、HEIC 或 HEIF" } } }
+    },
+    "Choose a source first." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先选择内容来源。" } } }
+    },
+    "Choose one or more images" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一张或多张图片" } } }
+    },
+    "Choose the Person and Pursuit context" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择人物与 Pursuit 上下文" } } }
+    },
+    "Choose what to add to an Agent message" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择要添加到 Agent 消息的内容" } } }
+    },
+    "Image files" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片文件" } } }
+    },
+    "Link a relationship" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关联关系" } } }
+    },
+    "NEW MESSAGE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新消息" } } }
+    },
+    "Nothing is imported until you make a choice." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在你选择之前，不会导入任何内容。" } } }
+    },
+    "Plain text and Markdown stay editable until you choose Send." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "普通文本和 Markdown 在发送前都可以继续编辑。" } } }
+    },
+    "Text · Markdown" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文本 · Markdown" } } }
+    },
+    "Write text or Markdown instead" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "改为编写文本或 Markdown" } } }
+    },
+    "Write with room to think." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "留一点空间，把想法写清楚。" } } }
+    },
     "%1$lld of %2$lld decisions complete" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已完成 %1$lld / %2$lld 项决定" } } }
     },

@@ -1645,12 +1645,12 @@ struct RelationshipAskView: View {
     private var compactEditorHeader: some View {
         if usesAccessibilityLayout {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(appLanguage.text("NEW MESSAGE", zhHans: "新消息"))
+                Text(appLanguage.text("NEW MESSAGE"))
                     .font(.caption2.weight(.bold))
                     .tracking(1.05)
                     .foregroundStyle(Color.tsVermilion)
                 Spacer(minLength: 8)
-                Text(appLanguage.text("Text · Markdown", zhHans: "文本 · Markdown"))
+                Text(appLanguage.text("Text · Markdown"))
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
             }
@@ -1662,31 +1662,27 @@ struct RelationshipAskView: View {
         } else {
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(appLanguage.text("NEW MESSAGE", zhHans: "新消息"))
+                    Text(appLanguage.text("NEW MESSAGE"))
                         .font(.caption2.weight(.bold))
                         .tracking(1.15)
                         .foregroundStyle(Color.tsVermilion)
                     Spacer(minLength: 12)
                     Label(
-                        appLanguage.text("Text · Markdown", zhHans: "文本 · Markdown"),
+                        appLanguage.text("Text · Markdown"),
                         systemImage: "text.alignleft"
                     )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                 }
                 Text(
-                    appLanguage.text(
-                        "Write with room to think.",
-                        zhHans: "留一点空间，把想法写清楚。"
-                    )
+                    appLanguage.text("Write with room to think.")
                 )
                 .font(.custom("Georgia", size: 30, relativeTo: .title2))
                 .foregroundStyle(Color.tsInk)
                 .tracking(-0.45)
                 Text(
                     appLanguage.text(
-                        "Plain text and Markdown stay editable until you choose Send.",
-                        zhHans: "普通文本和 Markdown 在发送前都可以继续编辑。"
+                        "Plain text and Markdown stay editable until you choose Send."
                     )
                 )
                 .font(.subheadline)
@@ -1709,15 +1705,12 @@ struct RelationshipAskView: View {
     private var homeAttachmentChooser: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text(appLanguage.text("ADD TO MESSAGE", zhHans: "添加到消息"))
+                Text(appLanguage.text("ADD TO MESSAGE"))
                     .font(.caption2.weight(.bold))
                     .tracking(1.15)
                     .foregroundStyle(Color.tsVermilion)
                 Text(
-                    appLanguage.text(
-                        "Choose a source first.",
-                        zhHans: "先选择内容来源。"
-                    )
+                    appLanguage.text("Choose a source first.")
                 )
                 .font(.custom("Georgia", size: 30, relativeTo: .title2))
                 .foregroundStyle(Color.tsInk)
@@ -1725,8 +1718,7 @@ struct RelationshipAskView: View {
                 .padding(.top, 8)
                 Text(
                     appLanguage.text(
-                        "Nothing is imported until you make a choice.",
-                        zhHans: "在你选择之前，不会导入任何内容。"
+                        "Nothing is imported until you make a choice."
                     )
                 )
                 .font(.subheadline)
@@ -1735,11 +1727,8 @@ struct RelationshipAskView: View {
 
                 VStack(spacing: 10) {
                     homeAttachmentChoice(
-                        title: appLanguage.text("Photos", zhHans: "照片"),
-                        detail: appLanguage.text(
-                            "Choose one or more images",
-                            zhHans: "选择一张或多张图片"
-                        ),
+                        title: appLanguage.text("Photos"),
+                        detail: appLanguage.text("Choose one or more images"),
                         symbol: "photo.on.rectangle",
                         identifier: "home-attachment-photos"
                     ) {
@@ -1747,10 +1736,9 @@ struct RelationshipAskView: View {
                         isPhotoLibraryPresented = true
                     }
                     homeAttachmentChoice(
-                        title: appLanguage.text("Image files", zhHans: "图片文件"),
+                        title: appLanguage.text("Image files"),
                         detail: appLanguage.text(
-                            "Browse JPEG, PNG, WebP, GIF, HEIC, or HEIF",
-                            zhHans: "浏览 JPEG、PNG、WebP、GIF、HEIC 或 HEIF"
+                            "Browse JPEG, PNG, WebP, GIF, HEIC, or HEIF"
                         ),
                         symbol: "folder",
                         identifier: "home-attachment-files"
@@ -1759,13 +1747,9 @@ struct RelationshipAskView: View {
                         isFileImporterPresented = true
                     }
                     homeAttachmentChoice(
-                        title: appLanguage.text(
-                            "Link a relationship",
-                            zhHans: "关联关系"
-                        ),
+                        title: appLanguage.text("Link a relationship"),
                         detail: appLanguage.text(
-                            "Choose the Person and Pursuit context",
-                            zhHans: "选择人物与 Pursuit 上下文"
+                            "Choose the Person and Pursuit context"
                         ),
                         symbol: "person.crop.circle.badge.plus",
                         identifier: "home-attachment-relationship"
@@ -1785,10 +1769,7 @@ struct RelationshipAskView: View {
                     }
                 } label: {
                     Label(
-                        appLanguage.text(
-                            "Write text or Markdown instead",
-                            zhHans: "改为编写文本或 Markdown"
-                        ),
+                        appLanguage.text("Write text or Markdown instead"),
                         systemImage: "square.and.pencil"
                     )
                     .font(.subheadline.weight(.semibold))

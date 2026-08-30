@@ -2788,10 +2788,7 @@ private struct RelationshipGuideRail: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(
-                appLanguage.text(
-                    "Choose what to add to an Agent message",
-                    zhHans: "选择要添加到 Agent 消息的内容"
-                )
+                appLanguage.text("Choose what to add to an Agent message")
             )
             .accessibilityIdentifier("open-agent-attachments")
 
