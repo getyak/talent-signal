@@ -370,7 +370,7 @@ final class CandidateSignalUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH %@", "agent-session-")
         ).firstMatch
         XCTAssertTrue(session.waitForExistence(timeout: 5))
-        session.tap()
+        tapVisibleCenter(session)
 
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-response-turn").exists)
@@ -3738,7 +3738,12 @@ final class CandidateSignalUITests: XCTestCase {
                     return
                 }
 
-                guard let entered = field.value as? String,
+                let enteredValue = field.value as? String
+                if enteredValue == text {
+                    return
+                }
+
+                guard let entered = enteredValue,
                       text.hasPrefix(entered),
                       entered.count < text.count else {
                     XCTFail(
