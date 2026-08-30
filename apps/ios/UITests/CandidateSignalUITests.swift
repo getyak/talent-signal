@@ -3723,15 +3723,36 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         let keyboard = app.keyboards.firstMatch
 
-        for _ in 0..<3 {
+        var remaining = text
+
+        for _ in 0..<4 {
             field.tap()
             if keyboard.waitForExistence(timeout: 1.5) {
-                field.typeText(text)
-                return
+                field.typeText(remaining)
+
+                let complete = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "value == %@", text),
+                    object: field
+                )
+                if XCTWaiter.wait(for: [complete], timeout: 1) == .completed {
+                    return
+                }
+
+                guard let entered = field.value as? String,
+                      text.hasPrefix(entered),
+                      entered.count < text.count else {
+                    XCTFail(
+                        "Expected the text field to contain \(text), got \(field.value ?? "nil")"
+                    )
+                    return
+                }
+                remaining = String(text.dropFirst(entered.count))
             }
         }
 
-        XCTFail("Expected the text field to accept keyboard focus")
+        XCTFail(
+            "Expected the text field to contain \(text), got \(field.value ?? "nil")"
+        )
     }
 
     private func assertCompactContactReceipt() {
