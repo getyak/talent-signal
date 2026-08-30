@@ -60,6 +60,9 @@ updated.
 - [Agent public-web tooling](research/agent-public-web-tooling.md): separates
   search, fetch, citations, provider management, credentials, and draft
   research authority.
+- [Living contact page and relationship memory](research/living-contact-page-and-memory.md):
+  separates stable person data, relationship-scoped memory, episodic history,
+  and typed Agent tools for the Web People experience.
 
 ## Operations and evaluation
 

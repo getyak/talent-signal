@@ -100,15 +100,26 @@ export function RelationshipAgentPanel({
 
   useEffect(() => {
     const mobile = window.matchMedia("(max-width: 840px)");
-    const expandOnMobile = (event: MediaQueryListEvent | MediaQueryList) => {
-      if (event.matches) {
-        setCollapsed(false);
-      }
+    const syncMobileState = (event: MediaQueryListEvent | MediaQueryList) => {
+      setCollapsed(event.matches && !createOpen);
     };
 
-    expandOnMobile(mobile);
-    mobile.addEventListener("change", expandOnMobile);
-    return () => mobile.removeEventListener("change", expandOnMobile);
+    syncMobileState(mobile);
+    mobile.addEventListener("change", syncMobileState);
+    return () => mobile.removeEventListener("change", syncMobileState);
+  }, [createOpen]);
+
+  useEffect(() => {
+    function expandForAgentTask() {
+      setCollapsed(false);
+    }
+
+    window.addEventListener("talent-signal:focus-agent", expandForAgentTask);
+    return () =>
+      window.removeEventListener(
+        "talent-signal:focus-agent",
+        expandForAgentTask,
+      );
   }, []);
 
   return (

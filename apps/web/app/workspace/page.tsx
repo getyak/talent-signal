@@ -169,6 +169,7 @@ export default async function WorkspacePage({
         initialAccountId={initialRead?.accountId ?? null}
         initialAgentHistory={initialRead?.agentHistory ?? null}
         initialCaptureOpen={parameters.intent === "capture"}
+        initialCreateOpen={parameters.intent === "create-contact"}
         initialIdentityResolutionCase={
           initialRead?.identityResolutionCase ?? null
         }

@@ -26,6 +26,77 @@ export type RelationshipWikiView = {
   snapshotId: string;
 };
 
+export type RelationshipMemorySection = {
+  blocks: KnowledgeSnapshot["blocks"];
+  description: string;
+  key: "valuable" | "open" | "history";
+  title: string;
+};
+
+const MEMORY_SECTION_TYPES = {
+  valuable: new Set([
+    "decision_driver",
+    "constraint",
+    "commitment",
+    "deadline",
+    "professional_history",
+  ]),
+  open: new Set(["current_dependency", "open_question", "conflict"]),
+  history: new Set([
+    "meaningful_change",
+    "relationship_history",
+    "observed_outcome",
+    "sourced_research",
+  ]),
+} as const;
+
+export function knowledgeSnapshotMemorySections(
+  snapshot: KnowledgeSnapshot | null,
+): RelationshipMemorySection[] {
+  if (!snapshot || snapshot.status !== "published") return [];
+  const definitions: Array<Omit<RelationshipMemorySection, "blocks">> = [
+    {
+      key: "valuable",
+      title: "珍贵关系记忆",
+      description: "影响沟通与决定的驱动、约束、承诺和期限。",
+    },
+    {
+      key: "open",
+      title: "仍需澄清",
+      description: "不能被摘要抹平的依赖、问题与冲突。",
+    },
+    {
+      key: "history",
+      title: "变化与结果",
+      description: "过去发生了什么，以及行动后观察到什么。",
+    },
+  ];
+  return definitions.flatMap((definition) => {
+    const blocks = snapshot.blocks.filter((block) =>
+      MEMORY_SECTION_TYPES[definition.key].has(block.type as never),
+    );
+    return blocks.length > 0 ? [{ ...definition, blocks }] : [];
+  });
+}
+
+function memoryTypeLabel(type: KnowledgeSnapshot["blocks"][number]["type"]) {
+  const labels: Partial<Record<typeof type, string>> = {
+    commitment: "承诺",
+    conflict: "冲突",
+    constraint: "约束",
+    current_dependency: "当前依赖",
+    deadline: "期限",
+    decision_driver: "决定驱动",
+    meaningful_change: "重要变化",
+    observed_outcome: "观察结果",
+    open_question: "待澄清",
+    professional_history: "职业经历",
+    relationship_history: "关系历程",
+    sourced_research: "公开研究",
+  };
+  return labels[type] ?? type.replaceAll("_", " ");
+}
+
 function uniqueDependencies(blocks: KnowledgeSnapshot["blocks"]): string[] {
   return [
     ...new Set(
@@ -186,6 +257,9 @@ export function RelationshipWikiPanel({
       ).size
     : 0;
   const briefLines = brief ? bodyLines(brief.body) : [];
+  const memorySections = response
+    ? []
+    : knowledgeSnapshotMemorySections(snapshot);
 
   return (
     <section
@@ -194,9 +268,9 @@ export function RelationshipWikiPanel({
     >
       <header>
         <div>
-          <p className="eyebrow">关系 WIKI</p>
+          <p className="eyebrow">关系 MEMORY</p>
           <h2 id="relationship-wiki-title">
-            当前证据支持对这段关系作出哪些理解。
+            记住会改变下一次沟通的内容，而不是堆积一份人物百科。
           </h2>
         </div>
         {view ? (
@@ -208,52 +282,106 @@ export function RelationshipWikiPanel({
       </header>
 
       {view && brief ? (
-        <div className="context-relationship-wiki__grid">
-          <article className="context-relationship-wiki__brief">
-            <div>
-              <span>{brief.kind.replaceAll("_", " ")}</span>
-              <i>{brief.status.replaceAll("_", " ")}</i>
-            </div>
-            <h3>{brief.title}</h3>
-            <ul className="context-relationship-wiki__facts">
-              {briefLines.map((line, index) => {
-                const separator = line.indexOf(":");
-                const label = separator > 0 ? line.slice(0, separator) : "";
-                const value =
-                  separator > 0 ? line.slice(separator + 1).trim() : line;
-                return (
-                  <li key={`${line}:${index}`}>
-                    {label ? <strong>{label}</strong> : null}
-                    <span>{value}</span>
-                  </li>
+        <>
+          <div className="context-relationship-wiki__grid">
+            <article className="context-relationship-wiki__brief">
+              <div>
+                <span>{brief.kind.replaceAll("_", " ")}</span>
+                <i>{brief.status.replaceAll("_", " ")}</i>
+              </div>
+              <h3>{brief.title}</h3>
+              <ul className="context-relationship-wiki__facts">
+                {briefLines.map((line, index) => {
+                  const separator = line.indexOf(":");
+                  const label = separator > 0 ? line.slice(0, separator) : "";
+                  const value =
+                    separator > 0 ? line.slice(separator + 1).trim() : line;
+                  return (
+                    <li key={`${line}:${index}`}>
+                      {label ? <strong>{label}</strong> : null}
+                      <span>{value}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <footer>
+                快照 {view.snapshotId.slice(0, 8)} · 根据当前已授权来源集合编译
+              </footer>
+            </article>
+            <aside>
+              {review ? (
+                <article data-state="review">
+                  <span>需要判断</span>
+                  <h3>{review.title}</h3>
+                  <p>{review.body}</p>
+                  <button onClick={onReviewSources} type="button">
+                    审阅来源
+                    <ArrowRight aria-hidden="true" size={14} />
+                  </button>
+                </article>
+              ) : null}
+              {nextMove ? (
+                <article data-state="quiet">
+                  <span>下一步</span>
+                  <h3>{nextMove.title}</h3>
+                  <p>{nextMove.body}</p>
+                </article>
+              ) : null}
+            </aside>
+          </div>
+          {memorySections.length > 0 ? (
+            <div className="context-relationship-memory">
+              {memorySections.map((section) => {
+                const content = (
+                  <ul>
+                    {section.blocks.map((block) => (
+                      <li data-status={block.status} key={block.id}>
+                        <div>
+                          <span>{memoryTypeLabel(block.type)}</span>
+                          <i>{block.status.replaceAll("_", " ")}</i>
+                        </div>
+                        <strong>{block.content.headline}</strong>
+                        {block.content.summary ? (
+                          <p>{block.content.summary}</p>
+                        ) : null}
+                        <button onClick={onReviewSources} type="button">
+                          {block.dependencies.length} 条来源依赖
+                          <ArrowRight aria-hidden="true" size={13} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                );
+                return section.key === "history" ? (
+                  <details key={section.key}>
+                    <summary>
+                      <span>
+                        <strong>{section.title}</strong>
+                        <small>{section.description}</small>
+                      </span>
+                      <i>{section.blocks.length}</i>
+                    </summary>
+                    {content}
+                  </details>
+                ) : (
+                  <section
+                    aria-labelledby={`memory-${section.key}`}
+                    key={section.key}
+                  >
+                    <header>
+                      <div>
+                        <h3 id={`memory-${section.key}`}>{section.title}</h3>
+                        <p>{section.description}</p>
+                      </div>
+                      <span>{section.blocks.length}</span>
+                    </header>
+                    {content}
+                  </section>
                 );
               })}
-            </ul>
-            <footer>
-              快照 {view.snapshotId.slice(0, 8)} · 根据当前已授权来源集合编译
-            </footer>
-          </article>
-          <aside>
-            {review ? (
-              <article data-state="review">
-                <span>需要判断</span>
-                <h3>{review.title}</h3>
-                <p>{review.body}</p>
-                <button onClick={onReviewSources} type="button">
-                  审阅来源
-                  <ArrowRight aria-hidden="true" size={14} />
-                </button>
-              </article>
-            ) : null}
-            {nextMove ? (
-              <article data-state="quiet">
-                <span>下一步</span>
-                <h3>{nextMove.title}</h3>
-                <p>{nextMove.body}</p>
-              </article>
-            ) : null}
-          </aside>
-        </div>
+            </div>
+          ) : null}
+        </>
       ) : (
         <div className="context-relationship-wiki__empty">
           <Quotes aria-hidden="true" size={26} weight="duotone" />
@@ -274,7 +402,7 @@ export function RelationshipWikiPanel({
             ) : (
               <Sparkle aria-hidden="true" size={17} weight="fill" />
             )}
-            编译 Wiki
+            编译 Memory
           </button>
         </div>
       )}

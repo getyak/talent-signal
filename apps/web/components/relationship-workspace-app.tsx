@@ -10,7 +10,7 @@ import {
   type ResourceCaptureResponse,
   type WorkspaceReviewResponse,
 } from "@talent-signal/contracts";
-import { Plus, ShieldCheck } from "@phosphor-icons/react";
+import { Plus, ShieldCheck, UserPlus } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -60,6 +60,7 @@ type Props = {
   initialError: string | null;
   initialSessionRecoveryHref: string | null;
   initialCaptureOpen?: boolean;
+  initialCreateOpen?: boolean;
 };
 
 function scrollWorkspaceTo(id: string) {
@@ -68,6 +69,17 @@ function scrollWorkspaceTo(id: string) {
     block: "start",
   });
 }
+
+const createContactDraftScope = {
+  person: {
+    id: "new-contact-draft",
+    display_label: "新联系人",
+  },
+  relationship_context: {
+    id: "identity-check",
+    display_label: "先完成身份检查",
+  },
+};
 
 export function RelationshipWorkspaceApp({
   initialAccountId,
@@ -79,6 +91,7 @@ export function RelationshipWorkspaceApp({
   initialError,
   initialSessionRecoveryHref,
   initialCaptureOpen = false,
+  initialCreateOpen = false,
 }: Props) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
   const [relationshipScope, setRelationshipScope] = useState(
@@ -114,6 +127,12 @@ export function RelationshipWorkspaceApp({
         person: {
           id: workspace.subject.id,
           display_label: workspace.subject.display_label,
+          ...(relationshipScope?.person.id === workspace.subject.id
+            ? {
+                profile: relationshipScope.person.profile,
+                contact_points: relationshipScope.person.contact_points,
+              }
+            : {}),
         },
         relationship_context: {
           id: workspace.assignment.id,
@@ -196,6 +215,7 @@ export function RelationshipWorkspaceApp({
 
   const relationshipAgent = useRelationshipAgentController({
     accountId,
+    initialCreateOpen,
     onAnnouncement: setAnnouncement,
     onBusyChange: setBusy,
     onError: setError,
@@ -214,6 +234,8 @@ export function RelationshipWorkspaceApp({
     pendingCount,
     scope: activeScope,
   });
+  const creatingContact =
+    initialCreateOpen && relationshipAgent.createOpen;
 
   async function mutate(
     path: string,
@@ -870,11 +892,14 @@ export function RelationshipWorkspaceApp({
               onScreenshot={() => setCaptureOpen(true)}
             />
           ) : !workspace && relationshipScope ? (
-            <div className="context-page context-page--resource-only">
+            <div
+              className="context-page context-page--resource-only"
+              data-contact-create={creatingContact || undefined}
+            >
               <RelationshipAgentPanel
                 busyLabel={busy}
                 createOpen={relationshipAgent.createOpen}
-                history={agentHistory}
+                history={creatingContact ? null : agentHistory}
                 identityResolutionCase={identityResolutionCase}
                 mode="relationship"
                 objective={relationshipAgent.objective}
@@ -892,14 +917,42 @@ export function RelationshipWorkspaceApp({
                 }
                 onReviewSources={openResourceComposer}
                 onRunCommand={relationshipAgent.runUiCommand}
-                operation={relationshipAgent.operation}
+                operation={
+                  creatingContact ? null : relationshipAgent.operation
+                }
                 pendingCount={0}
-                response={relationshipAgent.response}
-                scope={relationshipScope}
+                response={
+                  creatingContact ? null : relationshipAgent.response
+                }
+                scope={
+                  creatingContact
+                    ? createContactDraftScope
+                    : relationshipScope
+                }
                 submittedObjective={relationshipAgent.submittedObjective}
               />
 
-              <RelationshipContactHeader scope={relationshipScope} />
+              {creatingContact ? (
+                <section className="context-contact-create-stage">
+                  <UserPlus aria-hidden="true" size={28} weight="duotone" />
+                  <p className="eyebrow">Agent Tool · 新建联系人</p>
+                  <h1>先查身份，再建立关系。</h1>
+                  <p>
+                    当前没有选中任何既有联系人。只有在账号范围内完成查重并由你确认后，
+                    才会保存人物、关系背景和首个来源。
+                  </p>
+                </section>
+              ) : null}
+
+              <RelationshipContactHeader
+                onAskAgent={() =>
+                  window.dispatchEvent(
+                    new Event("talent-signal:focus-agent"),
+                  )
+                }
+                onReviewSources={openResourceComposer}
+                scope={relationshipScope}
+              />
 
               <RelationshipWikiPanel
                 busy={busy === "正在编译关联来源的简报"}
@@ -955,13 +1008,16 @@ export function RelationshipWorkspaceApp({
               />
             </div>
           ) : workspace ? (
-            <div className="context-page">
+            <div
+              className="context-page"
+              data-contact-create={creatingContact || undefined}
+            >
               <RelationshipAgentPanel
                 busyLabel={busy}
                 createOpen={relationshipAgent.createOpen}
-                history={agentHistory}
+                history={creatingContact ? null : agentHistory}
                 identityResolutionCase={identityResolutionCase}
-                mode="review"
+                mode={creatingContact ? "relationship" : "review"}
                 objective={relationshipAgent.objective}
                 onAsk={() => void relationshipAgent.ask()}
                 onCancelCreate={cancelAgentCreate}
@@ -977,20 +1033,47 @@ export function RelationshipWorkspaceApp({
                 }
                 onReviewSources={openResourceComposer}
                 onRunCommand={relationshipAgent.runUiCommand}
-                operation={relationshipAgent.operation}
-                pendingCount={pendingCount}
-                response={relationshipAgent.response}
-                scope={{
-                  person: workspace.subject,
-                  relationship_context: workspace.assignment,
-                }}
+                operation={
+                  creatingContact ? null : relationshipAgent.operation
+                }
+                pendingCount={creatingContact ? 0 : pendingCount}
+                response={
+                  creatingContact ? null : relationshipAgent.response
+                }
+                scope={
+                  creatingContact
+                    ? createContactDraftScope
+                    : {
+                        person: workspace.subject,
+                        relationship_context: workspace.assignment,
+                      }
+                }
                 submittedObjective={relationshipAgent.submittedObjective}
               />
+              {creatingContact ? (
+                <section className="context-contact-create-stage">
+                  <UserPlus aria-hidden="true" size={28} weight="duotone" />
+                  <p className="eyebrow">Agent Tool · 新建联系人</p>
+                  <h1>先查身份，再建立关系。</h1>
+                  <p>
+                    当前没有选中任何既有联系人。只有在账号范围内完成查重并由你确认后，
+                    才会保存人物、关系背景和首个来源。
+                  </p>
+                </section>
+              ) : null}
               <RelationshipContactHeader
-                scope={{
-                  person: workspace.subject,
-                  relationship_context: workspace.assignment,
-                }}
+                onAskAgent={() =>
+                  window.dispatchEvent(
+                    new Event("talent-signal:focus-agent"),
+                  )
+                }
+                onReviewSources={openResourceComposer}
+                scope={
+                  activeScope ?? {
+                    person: workspace.subject,
+                    relationship_context: workspace.assignment,
+                  }
+                }
                 workspace={workspace}
               />
 

@@ -14771,3 +14771,474 @@ article[data-state="unresolved"]
     transition: none;
   }
 }
+
+/* Living contact record: stable person data stays visually separate from the
+   relationship-scoped Memory that follows it. */
+.context-page[data-contact-create="true"]
+  > :not(.context-chat):not(.context-contact-create-stage) {
+  display: none;
+}
+
+.context-contact-create-stage {
+  align-content: center;
+  display: grid;
+  justify-items: start;
+  min-height: calc(100vh - 180px);
+  padding: clamp(32px, 7vw, 96px);
+}
+
+.context-contact-create-stage > svg {
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+
+.context-contact-create-stage h1 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: clamp(2rem, 4.2vw, 4rem);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  margin-top: 8px;
+  max-width: 12ch;
+}
+
+.context-contact-create-stage > p:last-child {
+  color: var(--muted-strong);
+  font-size: 0.86rem;
+  line-height: 1.7;
+  margin-top: 18px;
+  max-width: 48ch;
+}
+
+.context-contact-overview {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.context-contact-overview .context-contact-header {
+  grid-template-columns:
+    auto minmax(0, 1fr) auto minmax(180px, 230px);
+}
+
+.context-contact-header__actions {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.context-contact-header__actions button,
+.context-contact-record__points > header button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted-strong);
+  display: inline-flex;
+  font-size: var(--workspace-meta-size);
+  font-weight: 720;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.context-contact-header__actions button:hover,
+.context-contact-header__actions button:focus-visible,
+.context-contact-record__points > header button:hover,
+.context-contact-record__points > header button:focus-visible {
+  background: var(--surface-strong);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.context-contact-record {
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(320px, 1.18fr);
+  margin-left: 62px;
+}
+
+.context-contact-record__profile,
+.context-contact-record__points {
+  min-width: 0;
+  padding: 18px 0 20px;
+}
+
+.context-contact-record__profile {
+  padding-right: clamp(22px, 3vw, 42px);
+}
+
+.context-contact-record__profile > header,
+.context-contact-record__points > header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.context-contact-record__profile > header div,
+.context-contact-record__points > header div {
+  align-items: baseline;
+  display: flex;
+  gap: 9px;
+}
+
+.context-contact-record__profile > header span,
+.context-contact-record__points > header span {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--workspace-meta-size);
+  font-weight: 720;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.context-contact-record__profile > header strong,
+.context-contact-record__profile > header small {
+  font-size: var(--workspace-meta-size);
+  font-weight: 670;
+}
+
+.context-contact-record__profile > header small {
+  color: var(--muted);
+}
+
+.context-contact-record__profile > p {
+  color: var(--muted-strong);
+  font-size: 0.8125rem;
+  line-height: 1.62;
+  margin-top: 10px;
+  max-width: 62ch;
+}
+
+.context-contact-record__profile > footer {
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+  margin-top: 12px;
+}
+
+.context-contact-record__points {
+  border-left: 1px solid var(--line);
+  padding-left: clamp(22px, 3vw, 42px);
+}
+
+.context-contact-record__points h2 {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.86rem;
+  font-weight: 690;
+  letter-spacing: -0.01em;
+}
+
+.context-contact-record__points > header button {
+  border: 0;
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
+.context-contact-record__points dl {
+  margin: 10px 0 0;
+}
+
+.context-contact-record__points dl > div {
+  align-items: center;
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(100px, 0.42fr) minmax(0, 1fr);
+  min-height: 52px;
+  padding: 8px 0;
+}
+
+.context-contact-record__points dt,
+.context-contact-record__points dd {
+  align-items: center;
+  display: flex;
+  margin: 0;
+  min-width: 0;
+}
+
+.context-contact-record__points dt {
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+  gap: 9px;
+}
+
+.context-contact-record__points dd {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.context-contact-record__points dd strong {
+  font-size: 0.82rem;
+  font-weight: 660;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.context-contact-record__points dd span {
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+  line-height: 1.45;
+}
+
+@media (min-width: 841px) and (max-width: 1180px) {
+  .context-contact-overview .context-contact-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .context-contact-overview .context-contact-header__signal {
+    grid-column: 1 / -1;
+  }
+
+  .context-contact-record {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 840px) {
+  .context-workspace--embedded .context-chat[data-collapsed="true"] {
+    display: none;
+  }
+
+  .context-contact-overview .context-contact-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .context-contact-header__actions {
+    grid-column: 1 / -1;
+    padding-left: 62px;
+  }
+
+  .context-contact-overview .context-contact-header__signal {
+    grid-column: 1 / -1;
+  }
+
+  .context-contact-record {
+    grid-template-columns: 1fr;
+    margin-left: 0;
+  }
+
+  .context-contact-record__profile {
+    padding-right: 0;
+  }
+
+  .context-contact-record__points {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding-left: 0;
+  }
+
+  .context-contact-create-stage {
+    min-height: 280px;
+    padding: 36px 0 80px;
+  }
+}
+
+@media (max-width: 520px) {
+  .context-contact-header__actions {
+    padding-left: 0;
+  }
+
+  .context-contact-header__actions button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .context-contact-record__profile > header,
+  .context-contact-record__points > header {
+    align-items: flex-start;
+  }
+
+  .context-contact-record__profile > header div,
+  .context-contact-record__points > header div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .context-contact-record__points dl > div {
+    align-items: start;
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 11px 0;
+  }
+}
+
+.context-relationship-memory {
+  display: grid;
+  gap: 22px clamp(24px, 4vw, 52px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 24px;
+}
+
+.context-relationship-memory > section,
+.context-relationship-memory > details {
+  border-top: 1px solid var(--line);
+  min-width: 0;
+  padding-top: 14px;
+}
+
+.context-relationship-memory > section > header,
+.context-relationship-memory > details > summary {
+  align-items: start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.context-relationship-memory > section > header h3,
+.context-relationship-memory > details > summary strong {
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.9rem;
+  font-weight: 690;
+  letter-spacing: -0.02em;
+}
+
+.context-relationship-memory > section > header p,
+.context-relationship-memory > details > summary small {
+  color: var(--muted);
+  display: block;
+  font-size: var(--workspace-meta-size);
+  line-height: 1.5;
+  margin-top: 3px;
+}
+
+.context-relationship-memory > section > header > span,
+.context-relationship-memory > details > summary > i {
+  align-items: center;
+  background: var(--surface-muted);
+  border-radius: 999px;
+  color: var(--muted);
+  display: flex;
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--workspace-meta-size);
+  font-style: normal;
+  height: 24px;
+  justify-content: center;
+  min-width: 24px;
+  padding-inline: 7px;
+}
+
+.context-relationship-memory > details {
+  grid-column: 1 / -1;
+}
+
+.context-relationship-memory > details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.context-relationship-memory > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.context-relationship-memory ul {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.context-relationship-memory li {
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 5px 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px 0;
+  position: relative;
+}
+
+.context-relationship-memory li[data-status="contested"]::before,
+.context-relationship-memory li[data-status="proposed"]::before {
+  background: var(--accent);
+  content: "";
+  height: calc(100% - 24px);
+  left: -10px;
+  position: absolute;
+  top: 12px;
+  width: 2px;
+}
+
+.context-relationship-memory li > div {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  grid-column: 1;
+}
+
+.context-relationship-memory li > div span,
+.context-relationship-memory li > div i {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--workspace-meta-size);
+  font-style: normal;
+}
+
+.context-relationship-memory li > div i::before {
+  content: "·";
+  margin-right: 7px;
+}
+
+.context-relationship-memory li > strong {
+  font-size: 0.8rem;
+  font-weight: 660;
+  grid-column: 1;
+  line-height: 1.45;
+}
+
+.context-relationship-memory li > p {
+  color: var(--muted);
+  font-size: var(--workspace-meta-size);
+  grid-column: 1;
+  line-height: 1.52;
+}
+
+.context-relationship-memory li > button {
+  align-items: center;
+  align-self: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: var(--workspace-meta-size);
+  gap: 5px;
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  padding: 8px 0 8px 10px;
+}
+
+.context-relationship-memory li > button:hover,
+.context-relationship-memory li > button:focus-visible {
+  color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  .context-relationship-memory {
+    grid-template-columns: 1fr;
+  }
+
+  .context-relationship-memory > details {
+    grid-column: auto;
+  }
+
+  .context-relationship-memory li {
+    grid-template-columns: 1fr;
+  }
+
+  .context-relationship-memory li > button {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+    padding-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-contact-header__actions button,
+  .context-contact-record__points > header button {
+    transition: none;
+  }
+}

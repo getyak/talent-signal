@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { KnowledgeSnapshot } from "@talent-signal/contracts";
-import { knowledgeSnapshotWikiView } from "@/components/relationship-workspace/relationship-wiki-panel";
+import {
+  knowledgeSnapshotMemorySections,
+  knowledgeSnapshotWikiView,
+} from "@/components/relationship-workspace/relationship-wiki-panel";
 
 function snapshot(status: KnowledgeSnapshot["status"]): KnowledgeSnapshot {
   const dependency = (id: string) => ({
@@ -58,6 +61,32 @@ function snapshot(status: KnowledgeSnapshot["status"]): KnowledgeSnapshot {
           dependency("20000000-0000-4000-8000-000000000003"),
         ],
       },
+      {
+        id: "10000000-0000-4000-8000-000000000006",
+        block_key: "commitment.follow-up",
+        type: "commitment",
+        status: "confirmed",
+        content: {
+          headline: "Recruiter promised a written brief",
+          items: [],
+        },
+        dependencies: [
+          dependency("20000000-0000-4000-8000-000000000004"),
+        ],
+      },
+      {
+        id: "10000000-0000-4000-8000-000000000007",
+        block_key: "relationship-history.intro",
+        type: "relationship_history",
+        status: "confirmed",
+        content: {
+          headline: "Introduced by Elena",
+          items: [],
+        },
+        dependencies: [
+          dependency("20000000-0000-4000-8000-000000000005"),
+        ],
+      },
     ],
   } as KnowledgeSnapshot;
 }
@@ -89,5 +118,25 @@ describe("relationship Wiki projection", () => {
   it("does not present an unpublished compilation as current Wiki state", () => {
     expect(knowledgeSnapshotWikiView(snapshot("draft"))).toBeNull();
     expect(knowledgeSnapshotWikiView(null)).toBeNull();
+  });
+
+  it("keeps valuable memory, unresolved state, and history in separate progressive sections", () => {
+    const sections = knowledgeSnapshotMemorySections(snapshot("published"));
+
+    expect(sections.map((section) => section.key)).toEqual([
+      "valuable",
+      "open",
+      "history",
+    ]);
+    expect(sections[0]?.blocks.map((block) => block.type)).toEqual([
+      "commitment",
+    ]);
+    expect(sections[1]?.blocks.map((block) => block.type)).toEqual([
+      "conflict",
+    ]);
+    expect(sections[2]?.blocks.map((block) => block.type)).toEqual([
+      "relationship_history",
+    ]);
+    expect(knowledgeSnapshotMemorySections(snapshot("draft"))).toEqual([]);
   });
 });

@@ -46,10 +46,13 @@ type ConversationState = {
   submittedObjective: string;
 };
 
-function emptyConversation(key: string): ConversationState {
+function emptyConversation(
+  key: string,
+  createOpen = false,
+): ConversationState {
   return {
     contactDraft: null,
-    createOpen: false,
+    createOpen,
     key,
     operation: null,
     response: null,
@@ -59,6 +62,7 @@ function emptyConversation(key: string): ConversationState {
 
 type ControllerOptions = {
   accountId: string | null;
+  initialCreateOpen?: boolean;
   onAnnouncement: (message: string) => void;
   onBusyChange: (label: string) => void;
   onError: (message: string) => void;
@@ -117,6 +121,7 @@ function scrollToWorkspaceSection(id: string) {
 
 export function useRelationshipAgentController({
   accountId,
+  initialCreateOpen = false,
   onAnnouncement,
   onBusyChange,
   onError,
@@ -143,7 +148,7 @@ export function useRelationshipAgentController({
   });
   const conversationKeyRef = useRef(conversationKey);
   const [conversation, setConversation] = useState<ConversationState>(() =>
-    emptyConversation(conversationKey),
+    emptyConversation(conversationKey, initialCreateOpen),
   );
   const currentConversation =
     conversation.key === conversationKey

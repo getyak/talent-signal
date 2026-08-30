@@ -1672,6 +1672,24 @@ export const PersonDirectoryResponseSchema = Type.Object(
   { $id: "PersonDirectoryResponse", additionalProperties: false },
 );
 
+export const RelationshipContactPointSchema = Type.Object(
+  {
+    id: Id,
+    type: Type.Union(
+      IDENTITY_HANDLE_TYPES.map((type) => Type.Literal(type)),
+    ),
+    display_hint: Type.String({ minLength: 1, maxLength: 200 }),
+    source_resource_id: Type.Union([Id, Type.Null()]),
+    source_display_name: Type.Union([
+      Type.String({ minLength: 1, maxLength: 240 }),
+      Type.Null(),
+    ]),
+    valid_from: Timestamp,
+    valid_until: Type.Union([Timestamp, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
 export const RelationshipScopeSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
@@ -1679,6 +1697,12 @@ export const RelationshipScopeSchema = Type.Object(
       {
         id: Id,
         display_label: Type.String({ minLength: 1, maxLength: 200 }),
+        profile: Type.Optional(
+          Type.Union([PersonDirectoryProfileSchema, Type.Null()]),
+        ),
+        contact_points: Type.Optional(
+          Type.Array(RelationshipContactPointSchema, { maxItems: 20 }),
+        ),
       },
       { additionalProperties: false },
     ),

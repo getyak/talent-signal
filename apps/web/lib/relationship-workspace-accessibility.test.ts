@@ -284,7 +284,7 @@ describe("relationship workspace accessibility contract", () => {
     expect(component).not.toContain(
       "onCompile={() => void relationshipAgent.ask()}",
     );
-    expect(relationshipWiki).toContain("编译 Wiki");
+    expect(relationshipWiki).toContain("编译 Memory");
   });
 
   it("keeps unresolved identity evidence outside the relationship until recruiter judgment", () => {

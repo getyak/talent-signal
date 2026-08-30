@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { sha256 } from "../lib/hash.js";
 import type { AuthContext } from "./auth.js";
-import { listPeople, searchPeople } from "./people.js";
+import {
+  getRelationshipScope,
+  listPeople,
+  searchPeople,
+} from "./people.js";
 
 const auth: AuthContext = {
   accountId: "11111111-1111-4111-8111-111111111111",
@@ -240,5 +244,89 @@ describe("people directory", () => {
       "email",
       sha256("unknown@example.com"),
     ]);
+  });
+
+  it("returns only current masked contact points on the governed relationship scope", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          person_id: "44444444-4444-4444-8444-444444444444",
+          person_label: "周屿",
+          profile_headline: "Product leader",
+          profile_summary: "Recruiter-authored orientation, not evidence.",
+          profile_provenance_kind: "user_authored",
+          profile_authored_by_user_id: auth.userId,
+          profile_revision: 2,
+          profile_updated_at: new Date("2026-08-30T09:00:00.000Z"),
+          contact_points: [
+            {
+              id: "66666666-6666-4666-8666-666666666666",
+              type: "email",
+              display_hint: "z•••@example.com",
+              source_resource_id:
+                "77777777-7777-4777-8777-777777777777",
+              source_display_name: "Reviewed contact card",
+              valid_from: "2026-08-01T10:00:00.000Z",
+              valid_until: "2027-08-01T10:00:00.000Z",
+            },
+          ],
+          context_id: "55555555-5555-4555-8555-555555555555",
+          context_label: "VP Product · Northstar search",
+        },
+      ],
+    });
+
+    const response = await getRelationshipScope(
+      { query } as unknown as Pool,
+      auth,
+      "44444444-4444-4444-8444-444444444444",
+      "55555555-5555-4555-8555-555555555555",
+    );
+
+    expect(query.mock.calls[0]?.[1]).toEqual([
+      auth.accountId,
+      "44444444-4444-4444-8444-444444444444",
+      "55555555-5555-4555-8555-555555555555",
+    ]);
+    expect(query.mock.calls[0]?.[0]).toContain(
+      "handles.status = 'confirmed'",
+    );
+    expect(query.mock.calls[0]?.[0]).toContain(
+      "receipts.authorization_state = 'authorized'",
+    );
+    expect(query.mock.calls[0]?.[0]).toContain(
+      "handles.source_resource_id IS NOT NULL",
+    );
+    expect(response).toEqual({
+      contract_version: expect.any(String),
+      person: {
+        id: "44444444-4444-4444-8444-444444444444",
+        display_label: "周屿",
+        profile: {
+          headline: "Product leader",
+          summary: "Recruiter-authored orientation, not evidence.",
+          provenance_kind: "user_authored",
+          authored_by_user_id: auth.userId,
+          revision: 2,
+          updated_at: "2026-08-30T09:00:00.000Z",
+        },
+        contact_points: [
+          {
+            id: "66666666-6666-4666-8666-666666666666",
+            type: "email",
+            display_hint: "z•••@example.com",
+            source_resource_id:
+              "77777777-7777-4777-8777-777777777777",
+            source_display_name: "Reviewed contact card",
+            valid_from: "2026-08-01T10:00:00.000Z",
+            valid_until: "2027-08-01T10:00:00.000Z",
+          },
+        ],
+      },
+      relationship_context: {
+        id: "55555555-5555-4555-8555-555555555555",
+        display_label: "VP Product · Northstar search",
+      },
+    });
   });
 });

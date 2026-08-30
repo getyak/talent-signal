@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ChatCircleDots,
   MagnifyingGlass,
+  UserPlus,
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 
@@ -84,18 +85,27 @@ export function PeopleDirectoryApp({
               </p>
             </div>
 
-            <form action="/workspace/people" className={styles.search}>
-              <MagnifyingGlass aria-hidden="true" size={19} />
-              <input
-                aria-label="按姓名或已确认联系方式搜索联系人"
-                defaultValue={query}
-                maxLength={160}
-                name="query"
-                placeholder="按姓名、邮箱或电话查找…"
-                type="search"
-              />
-              <button type="submit">搜索</button>
-            </form>
+            <div className={styles.heroTools}>
+              <Link
+                className={styles.createPerson}
+                href="/workspace?surface=desk&intent=create-contact"
+              >
+                <UserPlus aria-hidden="true" size={18} />
+                使用 Agent 新建联系人
+              </Link>
+              <form action="/workspace/people" className={styles.search}>
+                <MagnifyingGlass aria-hidden="true" size={19} />
+                <input
+                  aria-label="按姓名或已确认联系方式搜索联系人"
+                  defaultValue={query}
+                  maxLength={160}
+                  name="query"
+                  placeholder="按姓名、邮箱或电话查找…"
+                  type="search"
+                />
+                <button type="submit">搜索</button>
+              </form>
+            </div>
           </section>
 
           <section className={styles.directory}>
@@ -140,7 +150,15 @@ export function PeopleDirectoryApp({
                 )}
               </div>
             ) : (
-              <ol className={styles.peopleList}>
+              <>
+                <div aria-hidden="true" className={styles.tableHeader}>
+                  <span>联系人</span>
+                  <span>人物介绍</span>
+                  <span>关系情境</span>
+                  <span>来源与活动</span>
+                  <span />
+                </div>
+                <ol className={styles.peopleList}>
                 {people.map((person) => {
                   const href = relationshipHref(person);
                   return (
@@ -155,12 +173,6 @@ export function PeopleDirectoryApp({
 
                         <div className={styles.personIdentity}>
                           <h3>{person.display_label}</h3>
-                          <span>
-                            更新于{" "}
-                            <time dateTime={person.last_activity_at}>
-                              {formatActivity(person.last_activity_at)}
-                            </time>
-                          </span>
                           {person.identity_matches.length > 0 ? (
                             <ul className={styles.matchReasons}>
                               {person.identity_matches.map((match) => (
@@ -172,6 +184,15 @@ export function PeopleDirectoryApp({
                                 </li>
                               ))}
                             </ul>
+                          ) : null}
+                        </div>
+
+                        <div className={styles.profile}>
+                          {person.profile ? (
+                            <>
+                              <strong>{person.profile.headline}</strong>
+                              <p>{person.profile.summary}</p>
+                            </>
                           ) : null}
                         </div>
 
@@ -203,6 +224,14 @@ export function PeopleDirectoryApp({
                             <dt>已确认身份线索</dt>
                             <dd>{person.confirmed_identity_count}</dd>
                           </div>
+                          <div>
+                            <dt>最近活动</dt>
+                            <dd>
+                              <time dateTime={person.last_activity_at}>
+                                {formatActivity(person.last_activity_at)}
+                              </time>
+                            </dd>
+                          </div>
                         </dl>
 
                         <Link
@@ -216,7 +245,8 @@ export function PeopleDirectoryApp({
                     </li>
                   );
                 })}
-              </ol>
+                </ol>
+              </>
             )}
           </section>
 

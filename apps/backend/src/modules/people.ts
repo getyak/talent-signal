@@ -332,18 +332,96 @@ export async function getRelationshipScope(
   const result = await pool.query<{
     person_id: string;
     person_label: string;
+    profile_headline: string | null;
+    profile_summary: string | null;
+    profile_provenance_kind: "user_authored" | null;
+    profile_authored_by_user_id: string | null;
+    profile_revision: number | null;
+    profile_updated_at: Date | null;
+    contact_points: Array<{
+      id: string;
+      type: IdentityHandleType;
+      display_hint: string;
+      source_resource_id: string | null;
+      source_display_name: string | null;
+      valid_from: string;
+      valid_until: string | null;
+    }>;
     context_id: string;
     context_label: string;
   }>(
     `SELECT
        subjects.id AS person_id,
        subjects.display_label AS person_label,
+       person_profiles.headline AS profile_headline,
+       person_profiles.summary AS profile_summary,
+       person_profiles.provenance_kind AS profile_provenance_kind,
+       person_profiles.authored_by_user_id AS profile_authored_by_user_id,
+       person_profiles.revision AS profile_revision,
+       person_profiles.updated_at AS profile_updated_at,
        assignments.id AS context_id,
-       assignments.display_label AS context_label
+       assignments.display_label AS context_label,
+       COALESCE(
+         (
+           SELECT jsonb_agg(
+             jsonb_build_object(
+               'id', current_handles.id,
+               'type', current_handles.handle_type,
+               'display_hint', current_handles.display_hint,
+               'source_resource_id', current_handles.source_resource_id,
+               'source_display_name', current_handles.source_display_name,
+               'valid_from', current_handles.valid_from,
+               'valid_until', current_handles.valid_until
+             )
+             ORDER BY current_handles.handle_type, current_handles.created_at,
+               current_handles.id
+           )
+           FROM (
+             SELECT
+               handles.id,
+               handles.handle_type,
+               handles.display_hint,
+               handles.source_resource_id,
+               resources.display_name AS source_display_name,
+               handles.valid_from,
+               handles.valid_until,
+               handles.created_at
+             FROM identity_handles handles
+             LEFT JOIN source_resources resources
+               ON resources.account_id = handles.account_id
+              AND resources.id = handles.source_resource_id
+              AND resources.processing_state <> 'deleted'
+             LEFT JOIN source_retention_receipts receipts
+               ON receipts.account_id = resources.account_id
+              AND receipts.capture_id = resources.capture_id
+             WHERE handles.account_id = subjects.account_id
+               AND handles.subject_id = subjects.id
+               AND handles.status = 'confirmed'
+               AND handles.display_hint IS NOT NULL
+               AND handles.source_resource_id IS NOT NULL
+               AND (
+                 handles.valid_until IS NULL
+                 OR handles.valid_until > now()
+               )
+               AND resources.id IS NOT NULL
+               AND receipts.authorization_state = 'authorized'
+               AND (
+                 receipts.authorization_expires_at IS NULL
+                 OR receipts.authorization_expires_at > now()
+               )
+             ORDER BY handles.handle_type, handles.created_at, handles.id
+             LIMIT 20
+           ) current_handles
+         ),
+         '[]'::jsonb
+       ) AS contact_points
      FROM subjects
      JOIN assignments
        ON assignments.account_id = subjects.account_id
       AND assignments.subject_id = subjects.id
+     LEFT JOIN person_profiles
+       ON person_profiles.account_id = subjects.account_id
+      AND person_profiles.subject_id = subjects.id
      WHERE subjects.account_id = $1
        AND subjects.id = $2
        AND assignments.id = $3
@@ -392,6 +470,33 @@ export async function getRelationshipScope(
     person: {
       id: scope.person_id,
       display_label: scope.person_label,
+      profile:
+        scope.profile_headline &&
+        scope.profile_summary &&
+        scope.profile_provenance_kind &&
+        scope.profile_authored_by_user_id &&
+        scope.profile_revision &&
+        scope.profile_updated_at
+          ? {
+              headline: scope.profile_headline,
+              summary: scope.profile_summary,
+              provenance_kind: scope.profile_provenance_kind,
+              authored_by_user_id: scope.profile_authored_by_user_id,
+              revision: scope.profile_revision,
+              updated_at: scope.profile_updated_at.toISOString(),
+            }
+          : null,
+      contact_points: (scope.contact_points ?? []).map((point) => ({
+        id: point.id,
+        type: point.type,
+        display_hint: point.display_hint,
+        source_resource_id: point.source_resource_id,
+        source_display_name: point.source_display_name,
+        valid_from: new Date(point.valid_from).toISOString(),
+        valid_until: point.valid_until
+          ? new Date(point.valid_until).toISOString()
+          : null,
+      })),
     },
     relationship_context: {
       id: scope.context_id,

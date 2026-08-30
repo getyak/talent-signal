@@ -498,7 +498,13 @@ export async function loadRelationshipWorkspaceInitialRead(input: {
     };
   }
 
-  const [historyRead, knowledgeRead] = await Promise.allSettled([
+  const [scopeRead, historyRead, knowledgeRead] = await Promise.allSettled([
+    relationshipScope
+      ? Promise.resolve(relationshipScope)
+      : client.getRelationshipScope(
+          historyScope.personId,
+          historyScope.relationshipContextId,
+        ),
     client.getRelationshipAgentHistory(
       historyScope.personId,
       historyScope.relationshipContextId,
@@ -509,6 +515,11 @@ export async function loadRelationshipWorkspaceInitialRead(input: {
     ),
   ]);
   const warnings: string[] = [];
+  if (scopeRead.status === "rejected") {
+    warnings.push(
+      "The relationship loaded, but its current person record details are temporarily unavailable.",
+    );
+  }
   if (historyRead.status === "rejected") {
     warnings.push(
       "The contact loaded, but its durable Agent history is temporarily unavailable.",
@@ -527,7 +538,10 @@ export async function loadRelationshipWorkspaceInitialRead(input: {
   return {
     accountId: session.account.id,
     workspace,
-    relationshipScope,
+    relationshipScope:
+      scopeRead.status === "fulfilled"
+        ? scopeRead.value
+        : relationshipScope,
     identityResolutionCase,
     agentHistory:
       historyRead.status === "fulfilled" ? historyRead.value : null,

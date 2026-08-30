@@ -4,14 +4,25 @@ import type {
 } from "@talent-signal/contracts";
 import {
   AddressBook,
+  ArrowRight,
+  ChatCircleDots,
   Clock,
+  EnvelopeSimple,
   FileImage,
+  LinkedinLogo,
+  LinkSimple,
+  Phone,
+  Plus,
   ShieldCheck,
+  WechatLogo,
 } from "@phosphor-icons/react";
 
 import { formatDate, sourceKindLabel } from "./relationship-display";
 
 type Scope = Pick<RelationshipScope, "person" | "relationship_context">;
+type ContactPoint = NonNullable<
+  RelationshipScope["person"]["contact_points"]
+>[number];
 
 export function relationshipCurrentDependency(
   workspace: WorkspaceReviewResponse,
@@ -39,73 +50,195 @@ export function relationshipCurrentDependency(
   return "没有已确认变化";
 }
 
+export function contactPointLabel(type: ContactPoint["type"]) {
+  switch (type) {
+    case "email":
+      return "邮箱";
+    case "phone":
+      return "电话";
+    case "wechat":
+      return "微信";
+    case "linkedin_url":
+      return "LinkedIn";
+    case "public_profile_url":
+      return "公开主页";
+    case "source_native_id":
+      return "来源账号";
+  }
+}
+
+function ContactPointIcon({ type }: { type: ContactPoint["type"] }) {
+  switch (type) {
+    case "email":
+      return <EnvelopeSimple aria-hidden="true" size={18} />;
+    case "phone":
+      return <Phone aria-hidden="true" size={18} />;
+    case "wechat":
+      return <WechatLogo aria-hidden="true" size={18} />;
+    case "linkedin_url":
+      return <LinkedinLogo aria-hidden="true" size={18} />;
+    default:
+      return <LinkSimple aria-hidden="true" size={18} />;
+  }
+}
+
+function reviewDate(value: string | null) {
+  if (!value) return "未设置复核期限";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "复核期限不可用";
+  return `需在 ${new Intl.DateTimeFormat("zh-CN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date)} 前复核`;
+}
+
 export function RelationshipContactHeader({
+  onAskAgent,
+  onReviewSources,
   scope,
   workspace = null,
 }: {
+  onAskAgent?: () => void;
+  onReviewSources?: () => void;
   scope: Scope;
   workspace?: WorkspaceReviewResponse | null;
 }) {
   const dependency = workspace
     ? relationshipCurrentDependency(workspace)
     : "等待来源编译";
+  const profile = scope.person.profile ?? null;
+  const contactPoints = scope.person.contact_points ?? [];
+  const showsRecordDetails = Boolean(profile || contactPoints.length > 0);
 
   return (
-    <section className="context-contact-header" id="contact-overview">
-      <div className="context-contact-header__portrait">
-        <div
-          aria-label={`${scope.person.display_label} 的姓名首字；没有已核验联系人照片`}
-          className="context-contact-header__avatar"
-          role="img"
-        >
-          {scope.person.display_label.trim().slice(0, 1).toUpperCase()}
+    <section className="context-contact-overview" id="contact-overview">
+      <div className="context-contact-header">
+        <div className="context-contact-header__portrait">
+          <div
+            aria-label={`${scope.person.display_label} 的姓名首字；没有已核验联系人照片`}
+            className="context-contact-header__avatar"
+            role="img"
+          >
+            {scope.person.display_label.trim().slice(0, 1).toUpperCase()}
+          </div>
+          <span>没有已核验照片</span>
         </div>
-        <span>没有已核验照片</span>
-      </div>
-      <div className="context-contact-header__identity">
-        <p className="eyebrow">
-          {workspace ? "持续更新的联系人页面" : "持续更新的人物页面"}
-        </p>
-        <h1 data-long={scope.person.display_label.length > 22}>
-          {scope.person.display_label}
-        </h1>
-        <p>{scope.relationship_context.display_label}</p>
-        <div>
-          <span>
-            <AddressBook aria-hidden="true" size={14} />
-            身份由招聘顾问关联
-          </span>
-          {workspace ? (
-            <>
-              <span>
-                <FileImage aria-hidden="true" size={14} />
-                {sourceKindLabel(workspace.capture.source.kind)}
-              </span>
-              <span>
-                <Clock aria-hidden="true" size={14} />
-                更新于 {formatDate(workspace.analysis.created_at)}
-              </span>
-            </>
-          ) : (
+        <div className="context-contact-header__identity">
+          <p className="eyebrow">持续更新的联系人页面</p>
+          <h1 data-long={scope.person.display_label.length > 22}>
+            {scope.person.display_label}
+          </h1>
+          {profile ? <p>{profile.headline}</p> : null}
+          <div>
             <span>
-              <ShieldCheck aria-hidden="true" size={14} />
-              来源结论保持可审阅
+              <AddressBook aria-hidden="true" size={14} />
+              {scope.relationship_context.display_label}
             </span>
-          )}
+            {workspace ? (
+              <>
+                <span>
+                  <FileImage aria-hidden="true" size={14} />
+                  {sourceKindLabel(workspace.capture.source.kind)}
+                </span>
+                <span>
+                  <Clock aria-hidden="true" size={14} />
+                  更新于 {formatDate(workspace.analysis.created_at)}
+                </span>
+              </>
+            ) : (
+              <span>
+                <ShieldCheck aria-hidden="true" size={14} />
+                身份由招聘顾问关联
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="context-contact-header__actions">
+          {onAskAgent ? (
+            <button onClick={onAskAgent} type="button">
+              <ChatCircleDots aria-hidden="true" size={17} />
+              询问 Agent
+            </button>
+          ) : null}
+          {onReviewSources ? (
+            <button onClick={onReviewSources} type="button">
+              <Plus aria-hidden="true" size={17} />
+              补充资料
+            </button>
+          ) : null}
+        </div>
+        <div
+          className="context-contact-header__signal"
+          data-state={workspace ? "governed" : "uncompiled"}
+        >
+          <span>{workspace ? "当前依赖项" : "当前工作状态"}</span>
+          <strong>{dependency}</strong>
+          <small>
+            {workspace
+              ? "从审阅状态得出，绝不用于评价此人。"
+              : "尚未形成已确认事实或行动。"}
+          </small>
         </div>
       </div>
-      <div
-        className="context-contact-header__signal"
-        data-state={workspace ? "governed" : "uncompiled"}
-      >
-        <span>{workspace ? "当前依赖项" : "当前工作状态"}</span>
-        <strong>{dependency}</strong>
-        <small>
-          {workspace
-            ? "从审阅状态得出，绝不用于评价此人。"
-            : "尚未形成已确认事实或行动。"}
-        </small>
-      </div>
+
+      {showsRecordDetails ? (
+        <div className="context-contact-record">
+          {profile ? (
+            <article className="context-contact-record__profile">
+              <header>
+                <div>
+                  <span>人物介绍</span>
+                  <strong>由用户撰写</strong>
+                </div>
+                <small>不作为证据</small>
+              </header>
+              <p>{profile.summary}</p>
+              <footer>
+                版本 {profile.revision} · 更新于 {formatDate(profile.updated_at)}
+              </footer>
+            </article>
+          ) : null}
+
+          {contactPoints.length > 0 ? (
+            <section
+              aria-labelledby="contact-points-title"
+              className="context-contact-record__points"
+            >
+              <header>
+                <div>
+                  <span>结构化联系方式</span>
+                  <h2 id="contact-points-title">当前已确认</h2>
+                </div>
+                {onReviewSources ? (
+                  <button onClick={onReviewSources} type="button">
+                    查看来源
+                    <ArrowRight aria-hidden="true" size={14} />
+                  </button>
+                ) : null}
+              </header>
+              <dl>
+                {contactPoints.map((point) => (
+                  <div key={point.id}>
+                    <dt>
+                      <ContactPointIcon type={point.type} />
+                      <span>{contactPointLabel(point.type)}</span>
+                    </dt>
+                    <dd>
+                      <strong>{point.display_hint}</strong>
+                      <span>
+                        {point.source_display_name ?? "招聘顾问确认"} ·{" "}
+                        {reviewDate(point.valid_until)}
+                      </span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
