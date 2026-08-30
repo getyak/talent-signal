@@ -69,11 +69,17 @@ struct RelationshipArchiveView: View {
         } else if resolvedService == nil {
             resolvedSessionStore = AgentSessionStore.preview(snapshot: .preview)
         } else {
-            resolvedSessionStore = AgentSessionStore(
+            let canonicalStore = AgentSessionStore(
                 persistence: session?.accountID.map {
                     FileAgentSessionPersistence(accountID: $0)
                 }
             )
+            if ProcessInfo.processInfo.arguments.contains(
+                "--reset-agent-sessions"
+            ) {
+                _ = canonicalStore.deleteAll()
+            }
+            resolvedSessionStore = canonicalStore
         }
 #else
         if resolvedService == nil {
@@ -1019,9 +1025,6 @@ private struct PursuitTodayView: View {
     }
 
     private var attentionRecovery: PursuitActionRecoveryItem? {
-        guard let actionRecovery, actionRecovery.status != .recorded else {
-            return nil
-        }
         return actionRecovery
     }
 

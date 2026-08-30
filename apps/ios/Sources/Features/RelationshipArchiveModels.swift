@@ -98,6 +98,7 @@ struct AgentContactReceipt: Identifiable, Equatable {
 }
 
 enum AgentSessionScope: Equatable {
+    case unresolvedIntent
     case relationship(
         personID: String,
         relationshipContextID: String,
@@ -128,6 +129,8 @@ enum AgentSessionScope: Equatable {
 
     var personDisplayLabel: String {
         switch self {
+        case .unresolvedIntent:
+            return "New session"
         case let .relationship(_, _, personDisplayLabel, _),
              let .identityReview(_, personDisplayLabel):
             return personDisplayLabel
@@ -136,6 +139,8 @@ enum AgentSessionScope: Equatable {
 
     var contextDisplayLabel: String {
         switch self {
+        case .unresolvedIntent:
+            return "Finding relationship"
         case let .relationship(_, _, _, contextDisplayLabel):
             return contextDisplayLabel
         case .identityReview:
@@ -179,12 +184,233 @@ struct AgentSessionSeed: Equatable {
     }
 }
 
+struct AgentRelationshipRecallCandidate: Equatable, Identifiable {
+    let person: WorkspacePerson
+    let context: WorkspacePerson.Context
+    let matchScore: Int
+    let matchedPersonName: Bool
+    let matchedContextName: Bool
+    let matchedRecentSession: Bool
+
+    var id: String { "\(person.id):\(context.id)" }
+}
+
+enum AgentRelationshipRecallOutcome: Equatable {
+    case matched(AgentRelationshipRecallCandidate)
+    case ambiguous(
+        candidates: [AgentRelationshipRecallCandidate],
+        possibleDuplicate: Bool
+    )
+    case unresolved(recent: [AgentRelationshipRecallCandidate])
+}
+
+enum AgentRelationshipRecallPolicy {
+    static func recentCandidatesForReview(
+        people: [WorkspacePerson],
+        recentSessions: [AgentSession]
+    ) -> [AgentRelationshipRecallCandidate] {
+        let sessionScopes = Set(
+            recentSessions.prefix(12).compactMap { session -> String? in
+                guard let personID = session.personID,
+                      let contextID = session.relationshipContextID else {
+                    return nil
+                }
+                return "\(personID):\(contextID)"
+            }
+        )
+        return recentCandidates(
+            people: people,
+            sessionScopes: sessionScopes
+        )
+    }
+
+    static func resolve(
+        objective: String,
+        people: [WorkspacePerson],
+        recentSessions: [AgentSession]
+    ) -> AgentRelationshipRecallOutcome {
+        let normalizedObjective = normalize(objective)
+        let relationshipCount = people.reduce(0) { $0 + $1.contexts.count }
+        if relationshipCount == 1,
+           let person = people.first(where: { !$0.contexts.isEmpty }),
+           let context = person.contexts.first {
+            return .matched(
+                candidate(
+                    person: person,
+                    context: context,
+                    score: 1,
+                    personMatch: false,
+                    contextMatch: false,
+                    sessionMatch: false
+                )
+            )
+        }
+
+        let sessionScopes = Set(
+            recentSessions.prefix(12).compactMap { session -> String? in
+                guard let personID = session.personID,
+                      let contextID = session.relationshipContextID else {
+                    return nil
+                }
+                return "\(personID):\(contextID)"
+            }
+        )
+        var candidates: [AgentRelationshipRecallCandidate] = []
+        for person in people {
+            let normalizedPerson = normalize(person.displayLabel)
+            let personTokens = normalizedPerson.split(separator: " ")
+                .map(String.init)
+                .filter { $0.count >= 2 }
+            let exactPersonMatch = !normalizedPerson.isEmpty
+                && normalizedObjective.contains(normalizedPerson)
+            let matchedPersonTokens = personTokens.filter {
+                normalizedObjective.contains($0)
+            }
+            let personMatch = exactPersonMatch || !matchedPersonTokens.isEmpty
+
+            for context in person.contexts {
+                let normalizedContext = normalize(context.displayLabel)
+                let contextMatch = normalizedContext.count >= 4
+                    && normalizedObjective.contains(normalizedContext)
+                let sessionMatch = sessionScopes.contains(
+                    "\(person.id):\(context.id)"
+                )
+                var score = 0
+                if exactPersonMatch { score += 200 }
+                score += matchedPersonTokens.count * 40
+                if contextMatch { score += 100 }
+                if sessionMatch, personMatch || contextMatch { score += 18 }
+                guard score > 0 else { continue }
+                candidates.append(
+                    candidate(
+                        person: person,
+                        context: context,
+                        score: score,
+                        personMatch: personMatch,
+                        contextMatch: contextMatch,
+                        sessionMatch: sessionMatch
+                    )
+                )
+            }
+        }
+
+        let ordered = candidates.sorted(by: recallOrder)
+        guard let best = ordered.first else {
+            return .unresolved(
+                recent: recentCandidates(
+                    people: people,
+                    sessionScopes: sessionScopes
+                )
+            )
+        }
+        let bestCandidates = ordered.filter { $0.matchScore == best.matchScore }
+        let distinctPeople = Set(bestCandidates.map { $0.person.id })
+        let samePerson = distinctPeople.count == 1
+        if bestCandidates.count == 1 {
+            return .matched(best)
+        }
+        if samePerson {
+            let contextMatches = bestCandidates.filter(\.matchedContextName)
+            if contextMatches.count == 1 {
+                return .matched(contextMatches[0])
+            }
+        }
+        let duplicateLabels = Dictionary(grouping: bestCandidates) {
+            normalize($0.person.displayLabel)
+        }
+        let possibleDuplicate = duplicateLabels.values.contains { group in
+            Set(group.map { $0.person.id }).count > 1
+        }
+        return .ambiguous(
+            candidates: Array(bestCandidates.prefix(6)),
+            possibleDuplicate: possibleDuplicate
+        )
+    }
+
+    private static func recentCandidates(
+        people: [WorkspacePerson],
+        sessionScopes: Set<String>
+    ) -> [AgentRelationshipRecallCandidate] {
+        let flattened = people.flatMap { person in
+            person.contexts.map { context in
+                candidate(
+                    person: person,
+                    context: context,
+                    score: sessionScopes.contains("\(person.id):\(context.id)")
+                        ? 1
+                        : 0,
+                    personMatch: false,
+                    contextMatch: false,
+                    sessionMatch: sessionScopes.contains(
+                        "\(person.id):\(context.id)"
+                    )
+                )
+            }
+        }
+        return flattened.sorted { lhs, rhs in
+            if lhs.matchedRecentSession != rhs.matchedRecentSession {
+                return lhs.matchedRecentSession
+            }
+            if lhs.context.lastActivityAt != rhs.context.lastActivityAt {
+                return lhs.context.lastActivityAt > rhs.context.lastActivityAt
+            }
+            return lhs.id < rhs.id
+        }
+    }
+
+    private static func candidate(
+        person: WorkspacePerson,
+        context: WorkspacePerson.Context,
+        score: Int,
+        personMatch: Bool,
+        contextMatch: Bool,
+        sessionMatch: Bool
+    ) -> AgentRelationshipRecallCandidate {
+        AgentRelationshipRecallCandidate(
+            person: person,
+            context: context,
+            matchScore: score,
+            matchedPersonName: personMatch,
+            matchedContextName: contextMatch,
+            matchedRecentSession: sessionMatch
+        )
+    }
+
+    private static func recallOrder(
+        _ lhs: AgentRelationshipRecallCandidate,
+        _ rhs: AgentRelationshipRecallCandidate
+    ) -> Bool {
+        if lhs.matchScore != rhs.matchScore {
+            return lhs.matchScore > rhs.matchScore
+        }
+        if lhs.context.lastActivityAt != rhs.context.lastActivityAt {
+            return lhs.context.lastActivityAt > rhs.context.lastActivityAt
+        }
+        return lhs.id < rhs.id
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        .precomposedStringWithCompatibilityMapping
+        .replacingOccurrences(
+            of: #"[^\p{L}\p{N}@+]+"#,
+            with: " ",
+            options: .regularExpression
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct AgentSession: Identifiable, Equatable {
     let id: UUID
-    let scope: AgentSessionScope
+    var scope: AgentSessionScope
     var title: String
     var turns: [AgentSessionTurn]
     var contactReceipts: [AgentContactReceipt]
+    var pendingObjective: String? = nil
     var updatedAt: Date
     var isUnread: Bool
 
@@ -196,6 +422,11 @@ struct AgentSession: Identifiable, Equatable {
 
     var isIdentityReview: Bool {
         if case .identityReview = scope { return true }
+        return false
+    }
+
+    var isUnresolvedIntent: Bool {
+        if case .unresolvedIntent = scope { return true }
         return false
     }
 
@@ -212,7 +443,15 @@ struct AgentSession: Identifiable, Equatable {
             }
         }
         guard let turn = latestTurn else {
-            return "No Agent response has been recorded in this session."
+            if let pendingObjective,
+               !pendingObjective.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+               ).isEmpty {
+                return "Waiting to continue · \(pendingObjective)"
+            }
+            return isUnresolvedIntent
+                ? "Finding the relevant relationship."
+                : "No Agent response has been recorded in this session."
         }
         let preview = turn.response.blocks.first?.body
             ?? "No Agent response has been recorded in this session."
@@ -240,7 +479,12 @@ struct AgentSession: Identifiable, Equatable {
     }
 
     func displayContextLabel(in language: AppLanguage) -> String {
-        isIdentityReview ? language.text("Identity review") : contextDisplayLabel
+        if isUnresolvedIntent {
+            return language.text("Finding relationship")
+        }
+        return isIdentityReview
+            ? language.text("Identity review")
+            : contextDisplayLabel
     }
 
     func latestPreview(in language: AppLanguage) -> String {
@@ -431,12 +675,15 @@ private struct PersistedAgentSession: Codable {
     let title: String
     let turns: [PersistedAgentSessionTurn]
     let contactReceipts: [PersistedAgentContactReceipt]?
+    let pendingObjective: String?
     let updatedAt: Date
     let isUnread: Bool
 
     init(_ value: AgentSession) {
         id = value.id
-        scopeKind = value.isIdentityReview ? "identity_review" : "relationship"
+        scopeKind = value.isUnresolvedIntent
+            ? "unresolved_intent"
+            : value.isIdentityReview ? "identity_review" : "relationship"
         personID = value.personID
         relationshipContextID = value.relationshipContextID
         identityResolutionCaseID = value.resolutionCaseID
@@ -445,13 +692,16 @@ private struct PersistedAgentSession: Codable {
         title = value.title
         turns = value.turns.map(PersistedAgentSessionTurn.init)
         contactReceipts = value.contactReceipts.map(PersistedAgentContactReceipt.init)
+        pendingObjective = value.pendingObjective
         updatedAt = value.updatedAt
         isUnread = value.isUnread
     }
 
     func value() throws -> AgentSession {
         let scope: AgentSessionScope
-        if scopeKind == "identity_review" {
+        if scopeKind == "unresolved_intent" {
+            scope = .unresolvedIntent
+        } else if scopeKind == "identity_review" {
             guard let identityResolutionCaseID else {
                 throw AgentSessionPersistenceError.invalidSessionScope
             }
@@ -476,6 +726,7 @@ private struct PersistedAgentSession: Codable {
             title: title,
             turns: turns.map(\.value),
             contactReceipts: (contactReceipts ?? []).map(\.value),
+            pendingObjective: pendingObjective,
             updatedAt: updatedAt,
             isUnread: isUnread
         )
@@ -652,7 +903,7 @@ final class AgentSessionStore: ObservableObject {
                 PersistedAgentSessionEnvelope.self,
                 from: data
             )
-            guard [1, 2, 3, 4, 5].contains(envelope.version) else {
+            guard [1, 2, 3, 4, 5, 6].contains(envelope.version) else {
                 throw AgentSessionPersistenceError.unsupportedVersion
             }
             storedSessions = try envelope.sessions
@@ -698,6 +949,61 @@ final class AgentSessionStore: ObservableObject {
     }
 
     @discardableResult
+    func beginUnscopedSession(
+        objective: String,
+        createdAt: Date? = nil
+    ) -> UUID? {
+        _ = pruneExpiredState()
+        let session = AgentSession(
+            id: UUID(),
+            scope: .unresolvedIntent,
+            title: Self.sessionTitle(from: objective),
+            turns: [],
+            contactReceipts: [],
+            pendingObjective: objective,
+            updatedAt: createdAt ?? now(),
+            isUnread: false
+        )
+        let priorSessions = storedSessions
+        storedSessions.append(session)
+        sortSessions()
+        guard persist() else {
+            storedSessions = priorSessions
+            scheduleNextExpiration()
+            return nil
+        }
+        return session.id
+    }
+
+    @discardableResult
+    func bindUnscopedSession(
+        id: UUID,
+        person: WorkspacePerson,
+        context: WorkspacePerson.Context
+    ) -> Bool {
+        _ = pruneExpiredState()
+        guard let index = storedSessions.firstIndex(where: { $0.id == id }),
+              storedSessions[index].turns.isEmpty,
+              storedSessions[index].contactReceipts.isEmpty else {
+            return false
+        }
+        let prior = storedSessions[index]
+        storedSessions[index].scope = .relationship(
+            personID: person.id,
+            relationshipContextID: context.id,
+            personDisplayLabel: person.displayLabel,
+            contextDisplayLabel: context.displayLabel
+        )
+        storedSessions[index].updatedAt = now()
+        guard persist() else {
+            storedSessions[index] = prior
+            scheduleNextExpiration()
+            return false
+        }
+        return true
+    }
+
+    @discardableResult
     func record(
         sessionID: UUID?,
         objective: String,
@@ -717,15 +1023,25 @@ final class AgentSessionStore: ObservableObject {
         let existingIndex = sessionID.flatMap { proposedID in
             storedSessions.firstIndex {
                 $0.id == proposedID
-                    && $0.scope.matches(
-                        personID: person.id,
-                        relationshipContextID: context.id
-                    )
+                    && ($0.isUnresolvedIntent
+                        || $0.scope.matches(
+                            personID: person.id,
+                            relationshipContextID: context.id
+                        ))
             }
         }
         let resolvedID = existingIndex.map { storedSessions[$0].id } ?? UUID()
 
         if let index = existingIndex {
+            if storedSessions[index].isUnresolvedIntent {
+                storedSessions[index].scope = .relationship(
+                    personID: person.id,
+                    relationshipContextID: context.id,
+                    personDisplayLabel: person.displayLabel,
+                    contextDisplayLabel: context.displayLabel
+                )
+            }
+            storedSessions[index].pendingObjective = nil
             storedSessions[index].turns.append(turn)
             storedSessions[index].updatedAt = createdAt
             storedSessions[index].isUnread = false
@@ -1457,7 +1773,7 @@ final class AgentSessionStore: ObservableObject {
         guard let persistence else { return true }
         do {
             let envelope = PersistedAgentSessionEnvelope(
-                version: 5,
+                version: 6,
                 sessions: storedSessions.map(PersistedAgentSession.init),
                 drafts: drafts,
                 globalDraft: storedGlobalDraft,

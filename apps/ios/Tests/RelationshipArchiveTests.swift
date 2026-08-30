@@ -1471,7 +1471,8 @@ final class RelationshipArchiveTests: XCTestCase {
 
     @MainActor
     func testIdentityReviewReceiptHasNoFakeRelationshipScope() throws {
-        let store = AgentSessionStore()
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
         let result = ResourceCaptureResult(
             captureID: "capture-conflict-1",
             identity: .init(
@@ -1515,6 +1516,25 @@ final class RelationshipArchiveTests: XCTestCase {
             identitySession.displayContextLabel(in: .simplifiedChinese),
             "身份核对"
         )
+
+        let restoredStore = AgentSessionStore(persistence: persistence)
+        let restoredSession = try XCTUnwrap(
+            restoredStore.session(id: identitySessionID)
+        )
+        let restoredReceipt = try XCTUnwrap(restoredSession.contactReceipts.first)
+        XCTAssertTrue(restoredSession.isIdentityReview)
+        XCTAssertNil(restoredSession.personID)
+        XCTAssertNil(restoredSession.relationshipContextID)
+        XCTAssertEqual(
+            restoredSession.resolutionCaseID,
+            "identity-case-87654321"
+        )
+        XCTAssertEqual(restoredReceipt.outcome, .identityReview)
+        XCTAssertEqual(
+            restoredReceipt.resolutionCaseID,
+            "identity-case-87654321"
+        )
+        XCTAssertTrue(restoredReceipt.requiresRefresh)
 
         let contradictoryReadback = ResourceCaptureResult(
             captureID: "capture-conflict-contradictory",
@@ -1700,6 +1720,155 @@ final class RelationshipArchiveTests: XCTestCase {
                 relationshipContextID: context.id
             ).isEmpty
         )
+    }
+
+    @MainActor
+    func testFirstSendCreatesRecoverableSessionBeforeRelationshipRecall() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+
+        let sessionID = try XCTUnwrap(
+            store.beginUnscopedSession(objective: "What changed with Leila?")
+        )
+        let pending = try XCTUnwrap(store.session(id: sessionID))
+        XCTAssertTrue(pending.isUnresolvedIntent)
+        XCTAssertEqual(pending.pendingObjective, "What changed with Leila?")
+
+        let restored = AgentSessionStore(persistence: persistence)
+        let restoredPending = try XCTUnwrap(restored.session(id: sessionID))
+        XCTAssertTrue(restoredPending.isUnresolvedIntent)
+        XCTAssertEqual(restoredPending.pendingObjective, pending.pendingObjective)
+
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        XCTAssertTrue(
+            restored.bindUnscopedSession(
+                id: sessionID,
+                person: person,
+                context: context
+            )
+        )
+        let recordedID = restored.record(
+            sessionID: sessionID,
+            objective: "What changed with Leila?",
+            response: relationshipAskResponseFixture(),
+            person: person,
+            context: context
+        )
+        XCTAssertEqual(recordedID, sessionID)
+        let recorded = try XCTUnwrap(restored.session(id: sessionID))
+        XCTAssertFalse(recorded.isUnresolvedIntent)
+        XCTAssertNil(recorded.pendingObjective)
+        XCTAssertEqual(recorded.turns.count, 1)
+    }
+
+    func testRelationshipRecallMatchesOneAuthorizedRelationshipWithoutASelector() throws {
+        let people = PursuitWorkspaceSnapshot.preview.people
+        let outcome = AgentRelationshipRecallPolicy.resolve(
+            objective: "What changed with Leila?",
+            people: people,
+            recentSessions: []
+        )
+
+        guard case let .matched(candidate) = outcome else {
+            return XCTFail("Expected one relationship to be recalled")
+        }
+        XCTAssertEqual(candidate.person.displayLabel, "Leila Hartmann")
+        XCTAssertEqual(candidate.context.displayLabel, "Chief Product Officer search")
+        XCTAssertTrue(candidate.matchedPersonName)
+    }
+
+    func testRelationshipRecallKeepsSameNameRecordsAmbiguousAndFlagsMergeReview() throws {
+        let original = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let duplicate = WorkspacePerson(
+            id: "20000000-0000-4000-8000-000000000099",
+            displayLabel: original.displayLabel,
+            contextCount: 1,
+            captureCount: 1,
+            confirmedIdentityCount: 0,
+            lastActivityAt: "2026-08-22T18:00:00.000Z",
+            profile: nil,
+            contexts: [
+                .init(
+                    id: "21000000-0000-4000-8000-000000000099",
+                    displayLabel: "Product leadership network",
+                    lastActivityAt: "2026-08-22T18:00:00.000Z"
+                ),
+            ]
+        )
+
+        let outcome = AgentRelationshipRecallPolicy.resolve(
+            objective: "What changed with Leila Hartmann?",
+            people: [original, duplicate],
+            recentSessions: []
+        )
+
+        guard case let .ambiguous(candidates, possibleDuplicate) = outcome else {
+            return XCTFail("Same-name records must remain ambiguous")
+        }
+        XCTAssertTrue(possibleDuplicate)
+        XCTAssertEqual(Set(candidates.map { $0.person.id }).count, 2)
+    }
+
+    func testRelationshipRecallOffersRecentRelationshipsWhenNoIdentityIsSupported() throws {
+        let people = PursuitWorkspaceSnapshot.preview.people
+        let recentPerson = try XCTUnwrap(people.last)
+        let recentContext = try XCTUnwrap(recentPerson.contexts.first)
+        let recentSession = AgentSession(
+            id: UUID(),
+            scope: .relationship(
+                personID: recentPerson.id,
+                relationshipContextID: recentContext.id,
+                personDisplayLabel: recentPerson.displayLabel,
+                contextDisplayLabel: recentContext.displayLabel
+            ),
+            title: "Previous question",
+            turns: [],
+            contactReceipts: [],
+            updatedAt: Date(),
+            isUnread: false
+        )
+
+        let outcome = AgentRelationshipRecallPolicy.resolve(
+            objective: "What changed?",
+            people: people,
+            recentSessions: [recentSession]
+        )
+
+        guard case let .unresolved(recent) = outcome else {
+            return XCTFail("Unsupported identity must ask for one clarification")
+        }
+        XCTAssertEqual(recent.first?.person.id, recentPerson.id)
+        XCTAssertTrue(recent.first?.matchedRecentSession == true)
+    }
+
+    func testRelationshipRecallKeepsOlderAuthorizedRelationshipsSearchable() {
+        let people = (0..<8).map { index in
+            WorkspacePerson(
+                id: "person-\(index)",
+                displayLabel: "Person \(index)",
+                contextCount: 1,
+                captureCount: 1,
+                confirmedIdentityCount: 1,
+                lastActivityAt: "2026-08-\(String(format: "%02d", index + 1))T12:00:00.000Z",
+                profile: nil,
+                contexts: [
+                    .init(
+                        id: "context-\(index)",
+                        displayLabel: "Relationship \(index)",
+                        lastActivityAt: "2026-08-\(String(format: "%02d", index + 1))T12:00:00.000Z"
+                    ),
+                ]
+            )
+        }
+
+        let candidates = AgentRelationshipRecallPolicy.recentCandidatesForReview(
+            people: people,
+            recentSessions: []
+        )
+
+        XCTAssertEqual(candidates.count, 8)
+        XCTAssertTrue(candidates.contains { $0.person.id == "person-0" })
     }
 
     @MainActor

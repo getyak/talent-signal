@@ -330,6 +330,8 @@ struct RelationshipAskView: View {
     @State private var contactInterpretationNotice: String?
     @State private var pendingObjective: String?
     @State private var pendingScopedSend: String?
+    @State private var relationshipRecallPhase: RelationshipRecallPhase = .idle
+    @State private var askOperation: Task<Void, Never>?
 #if DEBUG
     @State private var fixtureAskFailureConsumed = false
     @State private var fixtureContactLookupFailureConsumed = false
@@ -364,20 +366,37 @@ struct RelationshipAskView: View {
     private var hasAcceptedVoiceDisclosure = false
     @FocusState private var composerFocused: Bool
 
+    private var compactPresentationDetent: PresentationDetent {
+        .fraction(0.76)
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 if isCompactEntry, isHomeAttachmentChooserPresented {
                     homeAttachmentChooser
                 } else if isCompactEntry {
-                    compactEditorHeader
-                    starterGrid
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 2)
+                    Spacer(minLength: 0)
+                    compactNewChatHeader
                     compactComposerContext
                     composer
-                    Spacer(minLength: 0)
+                    Text(
+                        appLanguage.text(
+                            "I’ll find the relevant relationship after you send."
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 28)
+                    .accessibilityIdentifier("ask-recall-disclosure")
+                    if !isCanonical {
+                        starterGrid
+                            .padding(.horizontal, 28)
+                    }
+                    Spacer(minLength: 14)
                 } else {
+                    chatHeader
                     if shouldShowScopeBar,
                        contactDraft == nil || contactSaveMessage != nil,
                        !usesScrollableScopeBar {
@@ -389,26 +408,19 @@ struct RelationshipAskView: View {
                 }
             }
             .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle(
-                isCompactEntry
-                    ? ""
-                    : appLanguage.text("Session", zhHans: "会话")
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .spring(response: 0.42, dampingFraction: 0.88),
+                value: isCompactEntry
             )
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if !isCompactEntry {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(appLanguage.text("Close", zhHans: "关闭")) {
-                            dismiss()
-                        }
-                    }
-                }
-            }
-            .toolbar(isCompactEntry ? .hidden : .visible, for: .navigationBar)
+            .toolbar(.hidden, for: .navigationBar)
         }
         .tint(.tsInk)
         .presentationDetents(
-            [.height(126), .medium, .large],
+            isCompactEntry
+                ? [.height(126), compactPresentationDetent]
+                : [.large],
             selection: $presentationDetent
         )
         .presentationDragIndicator(.visible)
@@ -541,8 +553,15 @@ struct RelationshipAskView: View {
                         $0.person.id == personID
                             && $0.context.id == relationshipContextID
                     }
+                    if let recoverableObjective = session.pendingObjective {
+                        draft = recoverableObjective
+                    }
                 } else {
                     selectedScope = nil
+                    if session.isUnresolvedIntent,
+                       let recoverableObjective = session.pendingObjective {
+                        draft = recoverableObjective
+                    }
                 }
                 sessionStore.markRead(session.id)
             } else if let initialSeed {
@@ -559,6 +578,24 @@ struct RelationshipAskView: View {
             }
             restoreContactProposal()
             restoreDraft(preferred: initialSeed?.suggestedObjective)
+            if let sessionID,
+               let session = sessionStore.session(id: sessionID),
+               session.isUnresolvedIntent,
+               let recoverableObjective = session.pendingObjective,
+               !recoverableObjective.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+               ).isEmpty {
+                pendingObjective = recoverableObjective
+                pendingScopedSend = recoverableObjective
+                draft = ""
+                isSending = true
+                relationshipRecallPhase = .finding
+                startRelationshipRecall(
+                    sessionID: sessionID,
+                    effectiveObjective: recoverableObjective,
+                    originalDraft: recoverableObjective
+                )
+            }
             if sessionID != nil || initialSeed != nil || contactDraft != nil {
                 presentationDetent = .large
             }
@@ -568,14 +605,14 @@ struct RelationshipAskView: View {
                 await Task.yield()
                 switch initialEntryMode {
                 case .text:
-                    presentationDetent = .large
+                    presentationDetent = compactPresentationDetent
                     if !voiceOverEnabled,
                        !dynamicTypeSize.isAccessibilitySize,
                        !sizeCategory.isAccessibilityCategory {
                         composerFocused = true
                     }
                 case .attachment:
-                    presentationDetent = .medium
+                    presentationDetent = compactPresentationDetent
                     isHomeAttachmentChooserPresented = true
                 case .voice:
                     if !voiceOverEnabled,
@@ -631,14 +668,14 @@ struct RelationshipAskView: View {
             if sending { presentationDetent = .large }
         }
         .onChange(of: isRequestingScope) { requesting in
-            if requesting { presentationDetent = .medium }
+            if requesting { presentationDetent = compactPresentationDetent }
         }
         .onChange(of: voiceInput.phase) { phase in
             switch phase {
             case .idle:
                 break
             case .requestingPermission, .recording, .transcribing, .failed:
-                if isCompactEntry { presentationDetent = .medium }
+                if isCompactEntry { presentationDetent = compactPresentationDetent }
             }
         }
         .onChange(of: selectedScope?.id) { _ in
@@ -660,6 +697,8 @@ struct RelationshipAskView: View {
             }
         }
         .onDisappear {
+            askOperation?.cancel()
+            askOperation = nil
             contactInterpretationTask?.cancel()
             contactInterpretationTask = nil
             voiceOperation?.cancel()
@@ -1009,11 +1048,14 @@ struct RelationshipAskView: View {
                         }
                     }
 
-                    if isSending, let pendingObjective {
+                    if let pendingObjective {
                         AskPendingTurnView(
                             message: pendingObjective,
                             mediaDrafts: mediaDrafts,
-                            language: appLanguage
+                            language: appLanguage,
+                            recallPhase: relationshipRecallPhase,
+                            onChooseCandidate: chooseRecallCandidate,
+                            onChangeMatch: changeRecalledRelationship
                         )
                         .id("ask-loading")
                     }
@@ -1190,77 +1232,10 @@ struct RelationshipAskView: View {
                 .accessibilityIdentifier("ask-media-notice")
             }
 
-            HStack(alignment: .bottom, spacing: 8) {
-                composerAttachmentControl(size: controlSize)
-
-                TextField(
-                    composerPlaceholder,
-                    text: $draft,
-                    axis: .vertical
-                )
-                .focused($composerFocused)
-                .lineLimit(
-                    isCompactEntry
-                        ? (usesAccessibilityLayout ? 2...4 : 8...18)
-                        : 1...5
-                )
-                .disabled(
-                    voiceInput.isBusy
-                        || isSending
-                        || isInterpretingContact
-                        || hasBlockingContactProposal
-                )
-                .padding(.horizontal, 15)
-                .padding(.vertical, 12)
-                .frame(
-                    minHeight: isCompactEntry
-                        ? (usesAccessibilityLayout ? 92 : 190)
-                        : nil,
-                    alignment: .topLeading
-                )
-                .background(
-                    Color.tsCanvas,
-                    in: RoundedRectangle(cornerRadius: isCompactEntry ? 22 : 20)
-                )
-                .overlay {
-                    if isCompactEntry {
-                        RoundedRectangle(cornerRadius: 22)
-                            .stroke(Color.tsLine, lineWidth: 1)
-                    }
-                }
-                .accessibilityIdentifier("ask-composer")
-
-                Button(action: composerPrimaryAction) {
-                    Group {
-                        if voiceInput.phase == .transcribing {
-                            ProgressView()
-                                .tint(Color.tsSurface)
-                        } else {
-                            Image(systemName: composerPrimarySymbol)
-                                .font(.system(size: 17, weight: .semibold))
-                        }
-                    }
-                    .foregroundStyle(composerPrimaryForeground)
-                    .frame(
-                        width: composerPrimaryControlSize,
-                        height: composerPrimaryControlSize
-                    )
-                    .background(composerPrimaryBackground, in: Circle())
-                    .overlay {
-                        VoiceRecordButtonHalo(isActive: voiceInput.isRecording)
-                    }
-                }
-                .frame(
-                    width: composerPrimaryControlSize,
-                    height: composerPrimaryControlSize
-                )
-                .disabled(composerPrimaryDisabled)
-                .opacity(composerPrimaryDisabled ? 0.35 : 1)
-                .accessibilityLabel(composerPrimaryAccessibilityLabel)
-                .accessibilityIdentifier(
-                    hasComposerInput ? "ask-send" : "ask-voice"
-                )
-                .accessibilityHint(composerPrimaryAccessibilityHint)
+            if isCompactEntry {
+                compactMarkdownComposer
+            } else {
+                inlineChatComposer(controlSize: controlSize)
             }
         }
         .padding(.horizontal, 14)
@@ -1271,6 +1246,323 @@ struct RelationshipAskView: View {
             reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
             value: voiceInput.phase
         )
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.86),
+            value: hasComposerInput
+        )
+    }
+
+    private var compactMarkdownComposer: some View {
+        VStack(spacing: 0) {
+            composerTextInput(
+                lineLimit: usesAccessibilityLayout ? 3...7 : 5...9,
+                minimumHeight: usesAccessibilityLayout ? 174 : 148,
+                horizontalPadding: 16,
+                verticalPadding: 14
+            )
+
+            Divider()
+                .overlay(Color.tsLine.opacity(0.72))
+                .padding(.horizontal, 12)
+
+            HStack(spacing: 2) {
+                markdownButton(
+                    symbol: "number",
+                    label: appLanguage.text("Heading"),
+                    identifier: "ask-markdown-heading"
+                ) {
+                    insertMarkdownBlock("# ")
+                }
+
+                compactPhotoControl
+
+                Divider()
+                    .frame(height: 26)
+                    .padding(.horizontal, 2)
+
+                markdownTextButton(
+                    text: "B",
+                    label: appLanguage.text("Bold"),
+                    identifier: "ask-markdown-bold"
+                ) {
+                    insertMarkdownInline(
+                        prefix: "**",
+                        suffix: "**",
+                        placeholder: appLanguage.text("bold text")
+                    )
+                }
+
+                markdownButton(
+                    symbol: "list.bullet",
+                    label: appLanguage.text("Bulleted list"),
+                    identifier: "ask-markdown-list"
+                ) {
+                    insertMarkdownBlock("- ")
+                }
+
+                Divider()
+                    .frame(height: 26)
+                    .padding(.horizontal, 2)
+
+                markdownMoreMenu
+
+                Spacer(minLength: 2)
+
+                composerPrimaryControl
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("ask-markdown-toolbar")
+        }
+        .frame(
+            minHeight: usesAccessibilityLayout ? 246 : 218,
+            alignment: .topLeading
+        )
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-expanded-composer")
+    }
+
+    private func inlineChatComposer(controlSize: CGFloat) -> some View {
+        HStack(alignment: .bottom, spacing: 4) {
+            composerAttachmentControl(size: controlSize)
+            composerTextInput(
+                lineLimit: 1...5,
+                minimumHeight: 44,
+                horizontalPadding: 8,
+                verticalPadding: 10
+            )
+            composerPrimaryControl
+        }
+        .padding(6)
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(cornerRadius: 25, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 25, style: .continuous)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+    }
+
+    private func composerTextInput(
+        lineLimit: ClosedRange<Int>,
+        minimumHeight: CGFloat,
+        horizontalPadding: CGFloat,
+        verticalPadding: CGFloat
+    ) -> some View {
+        TextField(
+            composerPlaceholder,
+            text: $draft,
+            axis: .vertical
+        )
+        .focused($composerFocused)
+        .lineLimit(lineLimit)
+        .disabled(composerInputDisabled)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: minimumHeight,
+            alignment: .topLeading
+        )
+        .accessibilityIdentifier("ask-composer")
+    }
+
+    private var composerInputDisabled: Bool {
+        voiceInput.isBusy
+            || isSending
+            || isInterpretingContact
+            || hasBlockingContactProposal
+            || pendingObjective != nil
+    }
+
+    private var compactPhotoControl: some View {
+        Button {
+            composerFocused = false
+            isPhotoLibraryPresented = true
+        } label: {
+            Image(systemName: "photo")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: markdownControlSize, height: markdownControlSize)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: markdownControlSize, height: markdownControlSize)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerInputDisabled || mediaDrafts.count >= 10)
+        .accessibilityLabel(appLanguage.text("Add photo"))
+        .accessibilityIdentifier("ask-markdown-photo")
+    }
+
+    private func markdownButton(
+        symbol: String,
+        label: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: markdownControlSize, height: markdownControlSize)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: markdownControlSize, height: markdownControlSize)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerInputDisabled)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func markdownTextButton(
+        text: String,
+        label: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(text)
+                .font(.title3.weight(.bold))
+                .frame(width: markdownControlSize, height: markdownControlSize)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: markdownControlSize, height: markdownControlSize)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerInputDisabled)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private var markdownMoreMenu: some View {
+        Menu {
+            Button {
+                insertMarkdownBlock("> ")
+            } label: {
+                Label(appLanguage.text("Quote"), systemImage: "text.quote")
+            }
+            Button {
+                insertMarkdownBlock("- [ ] ")
+            } label: {
+                Label(appLanguage.text("Task list"), systemImage: "checklist")
+            }
+            Button {
+                insertMarkdownInline(
+                    prefix: "`",
+                    suffix: "`",
+                    placeholder: appLanguage.text("code")
+                )
+            } label: {
+                Label(appLanguage.text("Inline code"), systemImage: "chevron.left.forwardslash.chevron.right")
+            }
+            Button {
+                insertMarkdownInline(
+                    prefix: "[",
+                    suffix: "](https://)",
+                    placeholder: appLanguage.text("link label")
+                )
+            } label: {
+                Label(appLanguage.text("Link"), systemImage: "link")
+            }
+            Button {
+                insertMarkdownBlock("---")
+            } label: {
+                Label(appLanguage.text("Divider"), systemImage: "minus")
+            }
+            Divider()
+            Button {
+                composerFocused = false
+                isFileImporterPresented = true
+            } label: {
+                Label(appLanguage.text("Image from Files"), systemImage: "folder")
+            }
+            Button {
+                requestRelationshipScope()
+            } label: {
+                Label(
+                    appLanguage.text("Link a relationship", zhHans: "关联关系"),
+                    systemImage: "person.crop.circle.badge.plus"
+                )
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: markdownControlSize, height: markdownControlSize)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .frame(width: markdownControlSize, height: markdownControlSize)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerInputDisabled)
+        .accessibilityLabel(appLanguage.text("More Markdown and attachment options"))
+        .accessibilityIdentifier("ask-markdown-more")
+    }
+
+    private var composerPrimaryControl: some View {
+        Button(action: composerPrimaryAction) {
+            Group {
+                if voiceInput.phase == .transcribing {
+                    ProgressView()
+                        .tint(Color.tsSurface)
+                } else {
+                    Image(systemName: composerPrimarySymbol)
+                        .font(.system(size: 17, weight: .semibold))
+                }
+            }
+            .foregroundStyle(composerPrimaryForeground)
+            .frame(
+                width: composerPrimaryControlSize,
+                height: composerPrimaryControlSize
+            )
+            .fixedSize()
+            .background(composerPrimaryBackground, in: Circle())
+            .overlay {
+                VoiceRecordButtonHalo(isActive: voiceInput.isRecording)
+            }
+        }
+        .frame(
+            width: composerPrimaryControlSize,
+            height: composerPrimaryControlSize
+        )
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerPrimaryDisabled)
+        .opacity(composerPrimaryDisabled ? 0.35 : 1)
+        .accessibilityLabel(composerPrimaryAccessibilityLabel)
+        .accessibilityIdentifier(hasComposerInput ? "ask-send" : "ask-voice")
+        .accessibilityHint(composerPrimaryAccessibilityHint)
+    }
+
+    private func insertMarkdownBlock(_ marker: String) {
+        let separator = draft.isEmpty || draft.hasSuffix("\n") ? "" : "\n"
+        draft += "\(separator)\(marker)"
+        composerFocused = true
+    }
+
+    private func insertMarkdownInline(
+        prefix: String,
+        suffix: String,
+        placeholder: String
+    ) {
+        let separator = draft.isEmpty || draft.last?.isWhitespace == true ? "" : " "
+        draft += "\(separator)\(prefix)\(placeholder)\(suffix)"
+        composerFocused = true
     }
 
     @ViewBuilder
@@ -1378,6 +1670,10 @@ struct RelationshipAskView: View {
 
     private var composerPrimaryControlSize: CGFloat {
         max(52, composerControlSize)
+    }
+
+    private var markdownControlSize: CGFloat {
+        usesAccessibilityLayout ? 52 : 48
     }
 
     @ViewBuilder
@@ -1514,7 +1810,7 @@ struct RelationshipAskView: View {
     private var composerPrimarySymbol: String {
         if isSending { return "arrow.up" }
         if hasComposerInput { return "arrow.up" }
-        return voiceInput.isRecording ? "stop.fill" : "waveform"
+        return voiceInput.isRecording ? "stop.fill" : "mic.fill"
     }
 
     private var composerPrimaryForeground: Color {
@@ -1525,12 +1821,13 @@ struct RelationshipAskView: View {
     private var composerPrimaryBackground: Color {
         if hasComposerInput { return .tsInk }
         if voiceInput.isRecording { return .tsVermilion }
-        return .tsCanvas
+        return .tsSurfaceMuted
     }
 
     private var composerPrimaryDisabled: Bool {
         if hasBlockingContactProposal { return true }
         if isInterpretingContact { return true }
+        if pendingObjective != nil { return true }
         if hasComposerInput { return !canSendDraft }
         if voiceInput.phase == .transcribing
             || voiceInput.phase == .requestingPermission {
@@ -1647,60 +1944,63 @@ struct RelationshipAskView: View {
     }
 
     @ViewBuilder
-    private var compactEditorHeader: some View {
-        if usesAccessibilityLayout {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(appLanguage.text("NEW MESSAGE"))
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.05)
-                    .foregroundStyle(Color.tsVermilion)
-                Spacer(minLength: 8)
-                Text(appLanguage.text("Text · Markdown"))
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 8)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("ask-markdown-editor-header")
-        } else {
-            VStack(alignment: .leading, spacing: 9) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(appLanguage.text("NEW MESSAGE"))
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.15)
-                        .foregroundStyle(Color.tsVermilion)
-                    Spacer(minLength: 12)
-                    Label(
-                        appLanguage.text("Text · Markdown"),
-                        systemImage: "text.alignleft"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-                }
-                Text(
-                    appLanguage.text("Write with room to think.")
-                )
-                .font(.custom("Georgia", size: 30, relativeTo: .title2))
-                .foregroundStyle(Color.tsInk)
-                .tracking(-0.45)
-                Text(
-                    appLanguage.text(
-                        "Plain text and Markdown stay editable until you choose Send."
-                    )
-                )
-                .font(.subheadline)
-                .foregroundStyle(Color.tsMutedInk)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 10)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("ask-markdown-editor-header")
+    private var compactNewChatHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(appLanguage.text("NEW CHAT"))
+                .font(.caption2.weight(.bold))
+                .tracking(1.1)
+                .foregroundStyle(Color.tsVermilion)
+            Spacer(minLength: 8)
         }
+        .padding(.horizontal, 28)
+        .padding(.top, usesAccessibilityLayout ? 18 : 22)
+        .padding(.bottom, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("ask-new-chat-header")
+    }
+
+    private var chatHeader: some View {
+        HStack(spacing: 10) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.medium))
+                    .frame(width: 48, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(appLanguage.text("Close", zhHans: "关闭"))
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 1) {
+                Text(
+                    selectedScope?.person.displayLabel
+                        ?? appLanguage.text("Session", zhHans: "会话")
+                )
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+                .lineLimit(1)
+
+                if let context = selectedScope?.context.displayLabel {
+                    Text(context)
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .lineLimit(1)
+                }
+            }
+            .accessibilityElement(children: .combine)
+
+            Spacer(minLength: 0)
+
+            Color.clear
+                .frame(width: 48, height: 48)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, usesAccessibilityLayout ? 2 : 6)
+        .padding(.bottom, 4)
     }
 
     private var usesAccessibilityLayout: Bool {
@@ -1916,7 +2216,10 @@ struct RelationshipAskView: View {
         if contactSaveMessage != nil, selectedScope == nil {
             return appLanguage.text("Add another contact…")
         }
-        return appLanguage.text("Message or add anything…")
+        if isCompactEntry {
+            return appLanguage.text("Ask about anyone or anything…")
+        }
+        return appLanguage.text("Reply…")
     }
 
     private var hasBlockingContactProposal: Bool {
@@ -1924,11 +2227,8 @@ struct RelationshipAskView: View {
     }
 
     private var shouldShowScopeBar: Bool {
-        selectedScope != nil
-            || isRequestingScope
-            || sessionID != nil
-            || initialSeed != nil
-            || activeSessionID != nil
+        pendingObjective == nil
+            && (selectedScope != nil || isRequestingScope)
     }
 
     private var canSendDraft: Bool {
@@ -2146,7 +2446,7 @@ struct RelationshipAskView: View {
         if let selectedScope {
             uploadMediaDraft(id, scope: selectedScope)
         }
-        if isCompactEntry { presentationDetent = .medium }
+        if isCompactEntry { presentationDetent = compactPresentationDetent }
     }
 
     nonisolated private static func routingText(in data: Data) -> String {
@@ -2281,8 +2581,11 @@ struct RelationshipAskView: View {
               !isSending,
               !isInterpretingContact else { return }
         if mediaDrafts.isEmpty,
-           let proposedContact = ConversationContactIntake.propose(trimmed) {
-            stageContactProposal(proposedContact)
+           ConversationContactIntake.propose(trimmed) != nil {
+            // Keep even deterministic contact understanding cancellable. The
+            // interpreter re-validates the same message and never writes a
+            // contact before the recruiter reviews the resulting proposal.
+            beginContactInterpretation(trimmed)
             return
         }
         let effectiveObjective = trimmed.isEmpty
@@ -2291,25 +2594,13 @@ struct RelationshipAskView: View {
                 zhHans: "阅读附件，告诉我发生了什么变化、还有哪些不确定，以及最小且安全的下一步。"
             )
             : trimmed
-        let resolvedScope = selectedScope ?? inferredScope(
-            from: ([trimmed] + mediaDrafts.map(\.routingText))
-                .filter { !$0.isEmpty }
-                .joined(separator: "\n")
-        )
-        if selectedScope == nil, let resolvedScope {
-            selectScope(resolvedScope)
-        }
-        guard let resolvedScope else {
-            if mediaDrafts.isEmpty {
-                pendingScopedSend = effectiveObjective
-                beginContactInterpretation(trimmed)
-            } else {
-                pendingScopedSend = effectiveObjective
-                requestRelationshipScope()
-            }
+        if mediaDrafts.isEmpty,
+           ConversationContactIntake.requiresContactClarification(trimmed) {
+            pendingScopedSend = effectiveObjective
+            beginContactInterpretation(trimmed)
             return
         }
-        guard isCanonical else {
+        if selectedScope != nil, !isCanonical {
             errorMessage = appLanguage.text(
                 "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
             )
@@ -2321,9 +2612,210 @@ struct RelationshipAskView: View {
         isSending = true
         draft = ""
         composerFocused = false
+
+        if let selectedScope {
+            relationshipRecallPhase = .reading(nil)
+            performScopedAsk(
+                effectiveObjective: effectiveObjective,
+                originalDraft: trimmed,
+                scope: selectedScope
+            )
+            return
+        }
+
+        let unscopedSessionID: UUID
+        if let activeSessionID,
+           sessionStore.session(id: activeSessionID)?.isUnresolvedIntent == true {
+            unscopedSessionID = activeSessionID
+        } else if let created = sessionStore.beginUnscopedSession(
+            objective: effectiveObjective
+        ) {
+            unscopedSessionID = created
+            activeSessionID = created
+        } else {
+            isSending = false
+            pendingObjective = nil
+            draft = trimmed
+            errorMessage = appLanguage.text(
+                "A protected Session could not be created. Your message was not sent."
+            )
+            return
+        }
+
+        sessionStore.saveGlobalDraft("")
+        pendingScopedSend = effectiveObjective
+        relationshipRecallPhase = .finding
+        presentationDetent = .large
+        startRelationshipRecall(
+            sessionID: unscopedSessionID,
+            effectiveObjective: effectiveObjective,
+            originalDraft: trimmed
+        )
+    }
+
+    private func startRelationshipRecall(
+        sessionID: UUID,
+        effectiveObjective: String,
+        originalDraft: String
+    ) {
         Task {
+            await Task.yield()
+            if !reduceMotion {
+                try? await Task.sleep(for: .milliseconds(180))
+            }
+            guard activeSessionID == sessionID,
+                  pendingScopedSend == effectiveObjective else { return }
+            let routingObjective = ([effectiveObjective] + mediaDrafts.map(\.routingText))
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            var recallPeople = currentSnapshot.people
+            if isCanonical,
+               let identityClue = ConversationContactIntake.identityClue(
+                    in: routingObjective
+               ),
+               let authoritativeMatches = try? await workspaceStore
+                    .findContactMatches(identityClue: identityClue),
+               !authoritativeMatches.isEmpty {
+                recallPeople = authoritativeMatches
+            }
+            guard activeSessionID == sessionID,
+                  pendingScopedSend == effectiveObjective else { return }
+            let outcome = AgentRelationshipRecallPolicy.resolve(
+                objective: routingObjective,
+                people: recallPeople,
+                recentSessions: sessionStore.sessions.filter {
+                    $0.id != sessionID
+                }
+            )
+            handleRecallOutcome(
+                outcome,
+                sessionID: sessionID,
+                effectiveObjective: effectiveObjective,
+                originalDraft: originalDraft
+            )
+        }
+    }
+
+    private func handleRecallOutcome(
+        _ outcome: AgentRelationshipRecallOutcome,
+        sessionID: UUID,
+        effectiveObjective: String,
+        originalDraft: String
+    ) {
+        switch outcome {
+        case let .matched(candidate):
+            guard bindRecalledCandidate(candidate, to: sessionID) else {
+                isSending = false
+                pendingObjective = nil
+                draft = originalDraft
+                errorMessage = appLanguage.text(
+                    "The relationship was found, but the Session could not save that context. Nothing was sent."
+                )
+                return
+            }
+            relationshipRecallPhase = .reading(candidate)
+            isSending = true
+            performScopedAsk(
+                effectiveObjective: effectiveObjective,
+                originalDraft: originalDraft,
+                scope: AskScope(
+                    person: candidate.person,
+                    context: candidate.context
+                )
+            )
+        case let .ambiguous(candidates, possibleDuplicate):
+            relationshipRecallPhase = .ambiguous(
+                candidates: candidates,
+                possibleDuplicate: possibleDuplicate
+            )
+            isSending = false
+        case let .unresolved(recent):
+            relationshipRecallPhase = .unresolved(recent: recent)
+            isSending = false
+        }
+    }
+
+    private func chooseRecallCandidate(
+        _ candidate: AgentRelationshipRecallCandidate
+    ) {
+        guard let activeSessionID,
+              let effectiveObjective = pendingScopedSend,
+              bindRecalledCandidate(candidate, to: activeSessionID) else {
+            return
+        }
+        isSending = true
+        relationshipRecallPhase = .reading(candidate)
+        performScopedAsk(
+            effectiveObjective: effectiveObjective,
+            originalDraft: effectiveObjective,
+            scope: AskScope(
+                person: candidate.person,
+                context: candidate.context
+            )
+        )
+    }
+
+    private func bindRecalledCandidate(
+        _ candidate: AgentRelationshipRecallCandidate,
+        to sessionID: UUID
+    ) -> Bool {
+        guard sessionStore.bindUnscopedSession(
+            id: sessionID,
+            person: candidate.person,
+            context: candidate.context
+        ) else { return false }
+        selectedScope = AskScope(
+            person: candidate.person,
+            context: candidate.context
+        )
+        if !mediaDrafts.isEmpty, let selectedScope {
+            rebindMediaDrafts(to: selectedScope)
+        }
+        return true
+    }
+
+    private func changeRecalledRelationship() {
+        guard pendingObjective != nil else { return }
+        askOperation?.cancel()
+        askOperation = nil
+        isSending = false
+        selectedScope = nil
+        relationshipRecallPhase = .unresolved(
+            recent: AgentRelationshipRecallPolicy.recentCandidatesForReview(
+                people: currentSnapshot.people,
+                recentSessions: sessionStore.sessions
+            )
+        )
+    }
+
+    private func performScopedAsk(
+        effectiveObjective: String,
+        originalDraft: String,
+        scope: AskScope
+    ) {
+        guard isCanonical else {
+#if DEBUG
+            if ProcessInfo.processInfo.arguments.contains(
+                "--fixture-ask-delay-seconds"
+            ) {
+                askOperation?.cancel()
+                askOperation = Task {
+                    try? await waitForFixtureAskDelayIfNeeded()
+                    guard !Task.isCancelled else { return }
+                    surfacePreviewAskFailure(originalDraft: originalDraft)
+                    askOperation = nil
+                }
+                return
+            }
+#endif
+            surfacePreviewAskFailure(originalDraft: originalDraft)
+            return
+        }
+        askOperation?.cancel()
+        askOperation = Task {
             do {
                 try await waitForMediaToBecomeReady()
+                try Task.checkCancellation()
                 let mediaIDs = mediaDrafts.compactMap(\.readyMediaID)
                 guard mediaIDs.count == mediaDrafts.count else {
                     throw PursuitWorkspaceClientError.askUnavailable
@@ -2331,8 +2823,8 @@ struct RelationshipAskView: View {
                 let operationID = UUID()
                 let idempotencyKey = sessionStore.beginAsk(
                     effectiveObjective,
-                    personID: resolvedScope.person.id,
-                    relationshipContextID: resolvedScope.context.id,
+                    personID: scope.person.id,
+                    relationshipContextID: scope.context.id,
                     proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())",
                     requestIdentity: mediaIDs.isEmpty
                         ? nil
@@ -2341,11 +2833,16 @@ struct RelationshipAskView: View {
                 try await waitForFixtureAskDelayIfNeeded()
                 let response = try await ask(
                     effectiveObjective,
-                    resolvedScope.person.id,
-                    resolvedScope.context.id,
+                    scope.person.id,
+                    scope.context.id,
                     idempotencyKey,
                     mediaIDs
                 )
+                try Task.checkCancellation()
+                guard selectedScope?.id == scope.id,
+                      pendingScopedSend == effectiveObjective else {
+                    return
+                }
                 sessionStore.revalidateEvidenceReviewAuthority(
                     citations: response.citations,
                     supersededMessage: appLanguage.text(
@@ -2357,23 +2854,40 @@ struct RelationshipAskView: View {
                     sessionID: activeSessionID,
                     objective: effectiveObjective,
                     response: response,
-                    person: resolvedScope.person,
-                    context: resolvedScope.context
+                    person: scope.person,
+                    context: scope.context
                 )
                 pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                sessionStore.saveGlobalDraft("")
                 sessionStore.clearDraft(
-                    personID: resolvedScope.person.id,
-                    relationshipContextID: resolvedScope.context.id
+                    personID: scope.person.id,
+                    relationshipContextID: scope.context.id
                 )
                 mediaDrafts = []
                 mediaNotice = nil
             } catch {
-                draft = trimmed
+                if Task.isCancelled { return }
+                draft = originalDraft
                 pendingObjective = nil
+                relationshipRecallPhase = .idle
                 errorMessage = askFailureMessage(error)
             }
             isSending = false
+            askOperation = nil
         }
+    }
+
+    private func surfacePreviewAskFailure(originalDraft: String) {
+        draft = originalDraft
+        pendingObjective = nil
+        pendingScopedSend = nil
+        relationshipRecallPhase = .idle
+        isSending = false
+        errorMessage = appLanguage.text(
+            "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
+        )
     }
 
     private func askFailureMessage(_ error: Error) -> String {
@@ -4013,6 +4527,18 @@ private struct AskScope: Identifiable, Equatable {
     var id: String { "\(person.id):\(context.id)" }
 }
 
+private enum RelationshipRecallPhase: Equatable {
+    case idle
+    case finding
+    case matched(AgentRelationshipRecallCandidate)
+    case reading(AgentRelationshipRecallCandidate?)
+    case ambiguous(
+        candidates: [AgentRelationshipRecallCandidate],
+        possibleDuplicate: Bool
+    )
+    case unresolved(recent: [AgentRelationshipRecallCandidate])
+}
+
 private struct SelectedAskCitation: Identifiable {
     let taskID: String
     let citation: RelationshipAskResponse.Citation
@@ -4029,6 +4555,10 @@ private struct AskPendingTurnView: View {
     let message: String
     let mediaDrafts: [AskMediaDraft]
     let language: AppLanguage
+    let recallPhase: RelationshipRecallPhase
+    let onChooseCandidate: (AgentRelationshipRecallCandidate) -> Void
+    let onChangeMatch: () -> Void
+    @State private var recallQuery = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -4043,24 +4573,211 @@ private struct AskPendingTurnView: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
 
-            HStack(spacing: 9) {
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityHidden(true)
-                Text(
-                    language.text("Reading the record…")
-                )
-                .font(.subheadline)
-                .foregroundStyle(Color.tsMutedInk)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                language.text("Reading the record…")
-            )
-            .accessibilityIdentifier("ask-loading")
+            recallContent
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ask-pending-turn")
+    }
+
+    @ViewBuilder
+    private var recallContent: some View {
+        switch recallPhase {
+        case .idle:
+            EmptyView()
+        case .finding:
+            activityRow(
+                language.text("Finding the right relationship…")
+            )
+            .accessibilityIdentifier("ask-recall-finding")
+        case let .matched(candidate):
+            matchedReceipt(candidate, allowsChange: true)
+        case let .reading(candidate):
+            if let candidate { matchedReceipt(candidate, allowsChange: true) }
+            activityRow(
+                language.text("Reading the current record…")
+            )
+            .accessibilityIdentifier("ask-loading")
+        case let .ambiguous(candidates, possibleDuplicate):
+            candidateDecision(
+                candidates: candidates,
+                possibleDuplicate: possibleDuplicate,
+                isFallback: false
+            )
+        case let .unresolved(recent):
+            candidateDecision(
+                candidates: recent,
+                possibleDuplicate: false,
+                isFallback: true
+            )
+        }
+    }
+
+    private func activityRow(_ label: String) -> some View {
+        HStack(spacing: 9) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(Color.tsVermilion)
+                .accessibilityHidden(true)
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+    }
+
+    private func matchedReceipt(
+        _ candidate: AgentRelationshipRecallCandidate,
+        allowsChange: Bool
+    ) -> some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: "checkmark")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.tsInk)
+                .frame(width: 34, height: 34)
+                .background(Color.tsCanvas, in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(
+                    verbatim: "\(candidate.person.displayLabel) · \(candidate.context.displayLabel)"
+                )
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                Text(
+                    language.text("Matched from your relationship history")
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                if allowsChange {
+                    Button(language.text("Change")) {
+                        onChangeMatch()
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .accessibilityIdentifier("ask-recall-change")
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-recall-match")
+    }
+
+    private func candidateDecision(
+        candidates: [AgentRelationshipRecallCandidate],
+        possibleDuplicate: Bool,
+        isFallback: Bool
+    ) -> some View {
+        let visibleCandidates = recallCandidates(
+            from: candidates,
+            isFallback: isFallback
+        )
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(
+                language.text(
+                    possibleDuplicate
+                        ? "I found records that may represent the same person."
+                        : isFallback
+                            ? "I need one detail to find the right relationship."
+                            : "I found more than one possible relationship."
+                )
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.tsInk)
+
+            if possibleDuplicate {
+                Text(
+                    language.text(
+                        "Choosing below only sets this Session’s working context. Merging requires a separate evidence review."
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+            }
+
+            if isFallback, candidates.count > 6 {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(Color.tsMutedInk)
+                        .accessibilityHidden(true)
+                    TextField(
+                        language.text("Search people or relationships"),
+                        text: $recallQuery
+                    )
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("ask-recall-search")
+                }
+                .frame(minHeight: 44)
+            }
+
+            if visibleCandidates.isEmpty {
+                Text(language.text("No matching relationships"))
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityIdentifier("ask-recall-no-results")
+            }
+
+            ForEach(visibleCandidates) { candidate in
+                Button {
+                    onChooseCandidate(candidate)
+                } label: {
+                    HStack(alignment: .center, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(candidate.person.displayLabel)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.tsInk)
+                            Text(candidate.context.displayLabel)
+                                .font(.caption)
+                                .foregroundStyle(Color.tsMutedInk)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .overlay(alignment: .bottom) {
+                    Divider().foregroundStyle(Color.tsLine)
+                }
+                .accessibilityIdentifier("ask-recall-candidate-\(candidate.id)")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(
+            possibleDuplicate
+                ? "ask-recall-possible-duplicate"
+                : isFallback
+                    ? "ask-recall-unresolved"
+                    : "ask-recall-ambiguous"
+        )
+    }
+
+    private func recallCandidates(
+        from candidates: [AgentRelationshipRecallCandidate],
+        isFallback: Bool
+    ) -> [AgentRelationshipRecallCandidate] {
+        guard isFallback else { return candidates }
+        let normalizedQuery = recallQuery.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: language.locale
+        )
+        guard !normalizedQuery.isEmpty else {
+            return Array(candidates.prefix(6))
+        }
+        return candidates.filter { candidate in
+            "\(candidate.person.displayLabel) \(candidate.context.displayLabel)"
+                .folding(
+                    options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                    locale: language.locale
+                )
+                .contains(normalizedQuery)
+        }
     }
 }
 

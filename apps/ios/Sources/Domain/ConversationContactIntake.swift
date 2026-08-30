@@ -141,6 +141,13 @@ enum ConversationContactMatchPolicy {
 }
 
 enum ConversationContactIntake {
+    static func identityClue(in input: String) -> ConversationContactDraft.IdentityClue? {
+        extractIdentityClue(
+            input.precomposedStringWithCompatibilityMapping
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
     static func propose(_ input: String) -> ConversationContactDraft? {
         let source = input.precomposedStringWithCompatibilityMapping
             .trimmingCharacters(in: .whitespacesAndNewlines)

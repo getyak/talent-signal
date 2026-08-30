@@ -4,8 +4,59 @@
     "ADD TO MESSAGE" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到消息" } } }
     },
+    "A protected Session could not be created. Your message was not sent." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法创建受保护的会话。你的消息尚未发送。" } } }
+    },
+    "Ask about anyone or anything…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "问任何人或任何事…" } } }
+    },
+    "Add photo" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加照片" } } }
+    },
+    "Bold" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "粗体" } } }
+    },
+    "Bulleted list" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "项目符号列表" } } }
+    },
+    "Divider" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分隔线" } } }
+    },
+    "Heading" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标题" } } }
+    },
+    "Inline code" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "行内代码" } } }
+    },
+    "Link" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "链接" } } }
+    },
+    "More Markdown and attachment options" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更多 Markdown 与附件选项" } } }
+    },
+    "Quote" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "引用" } } }
+    },
+    "Task list" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "任务列表" } } }
+    },
+    "code" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "代码" } } }
+    },
+    "bold text" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "加粗文字" } } }
+    },
+    "link label" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "链接文本" } } }
+    },
     "Browse JPEG, PNG, WebP, GIF, HEIC, or HEIF" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浏览 JPEG、PNG、WebP、GIF、HEIC 或 HEIF" } } }
+    },
+    "Change" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更改" } } }
+    },
+    "Choosing below only sets this Session’s working context. Merging requires a separate evidence review." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下方选择只会设置本会话的工作上下文；合并仍需单独审阅依据。" } } }
     },
     "Choose a source first." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先选择内容来源。" } } }
@@ -22,8 +73,32 @@
     "Image files" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片文件" } } }
     },
+    "Finding relationship" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在查找相关关系" } } }
+    },
+    "Finding the right relationship…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在查找相关关系…" } } }
+    },
+    "I found more than one possible relationship." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我找到了多个可能相关的关系。" } } }
+    },
+    "I found records that may represent the same person." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我找到了可能属于同一个人的多条记录。" } } }
+    },
+    "I need one detail to find the right relationship." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我还需要一个线索来找到正确的关系。" } } }
+    },
+    "I’ll find the relevant relationship after you send." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发送后，我会查找相关的联系人与关系。" } } }
+    },
     "Link a relationship" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关联关系" } } }
+    },
+    "Matched from your relationship history" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已从你的关系历史中匹配" } } }
+    },
+    "NEW CHAT" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新会话" } } }
     },
     "NEW MESSAGE" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新消息" } } }
@@ -33,6 +108,18 @@
     },
     "Plain text and Markdown stay editable until you choose Send." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "普通文本和 Markdown 在发送前都可以继续编辑。" } } }
+    },
+    "Reading the current record…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在读取当前记录…" } } }
+    },
+    "Reply…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回复…" } } }
+    },
+    "Search people or relationships" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索人物或关系" } } }
+    },
+    "The relationship was found, but the Session could not save that context. Nothing was sent." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已找到相关关系，但会话无法保存该上下文。消息尚未发送。" } } }
     },
     "Text · Markdown" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文本 · Markdown" } } }

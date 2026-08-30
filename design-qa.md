@@ -173,6 +173,170 @@ final result: passed
 
 ---
 
+# 2026-08-30 — Focused New Chat Markdown composer
+
+## Evidence
+
+- Visual reference supplied by the user:
+  `/Users/cubxxw/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_aslpezxtl8oa22_7d14/temp/RWTemp/2026-08/95c328cbec59b3402d7d2e6c06b16c0a/891dc477c75cdd7024a87e184d02bce6.jpg`.
+- Final empty, focused state on iPhone 17 Pro Simulator:
+  `/Users/cubxxw/.codex/visualizations/2026/08/30/01a05225-8b22-7d53-9a12-a452cc7eed24/new-chat-markdown-final/bottom-final/0FB144E7-CE0A-44C8-ADFB-4489E80AFE54.png`.
+- Same-viewport reference comparison:
+  `/Users/cubxxw/.codex/visualizations/2026/08/30/01a05225-8b22-7d53-9a12-a452cc7eed24/new-chat-markdown-final/reference-vs-final.png`.
+- Final standard focused-input journey:
+  `/tmp/talent-signal-new-chat-bottom-20260830-2125.xcresult`.
+- Markdown insertion and adaptive primary-control journey:
+  `/tmp/talent-signal-new-chat-locked-detent-20260830-2119.xcresult`.
+- Direct photo-entry journey:
+  `/tmp/talent-signal-new-chat-attachment-final-20260830-2107.xcresult`.
+- Simplified Chinese dark AX5 input, send, and inline relationship-recall
+  journey: `/tmp/talent-signal-new-chat-ax5-final-20260830-2129.xcresult`.
+
+## Finding and selected direction
+
+The earlier compact row looked like an upload affordance, not the beginning of
+a conversation. The selected direction treats New Chat as a focused writing
+surface: opening it places a large multiline editor immediately above the
+keyboard, preserves quiet space above the task, and keeps the composer inside
+the same sheet that later becomes the Chat session.
+
+The right control is a microphone while the draft is empty. The same position
+animates to Send after text or an attachment is present. The editor exposes
+native heading, photo, bold, list, and overflow controls; every action inserts
+editable Markdown syntax rather than rendering or committing hidden state.
+Photo selection enters directly from the visible toolbar.
+
+The input phase does not offer the large Chat detent. Sending creates the
+Session, changes the state boundary, and then expands the same sheet to the
+large conversation surface. This prevents keyboard presentation from silently
+turning an empty New Chat into a near-full-screen Chat before the first send.
+The relationship remains unselected at entry; after send, the Agent may recall
+relevant existing relationships and keeps ambiguity correctable rather than
+requiring a contact up front or merging automatically.
+
+## Behavioral and accessibility proof
+
+- The standard journey verifies initial keyboard focus, the empty microphone
+  state, voice-to-send conversion, multiline Markdown content, and the larger
+  editor geometry.
+- The Markdown journey verifies heading, bold, and list insertion while focus
+  and the keyboard remain active.
+- The direct photo control opens the system picker without routing through the
+  screenshot-capture hub.
+- The first AX5 pass exposed a transformed 42.25-point photo target. Compact
+  Markdown controls now increase to 52 points in accessibility layouts; the
+  final Chinese dark AX5 journey passes the 44-point minimum, sends successfully,
+  and reaches the inline relationship-recall state without clipping.
+- The visual comparison uses the supplied reference and final implementation at
+  the same 1206 × 2622 viewport. The implementation intentionally adds the
+  product's New Chat label and truthful relationship-recall boundary while
+  retaining the reference's large writing area, bottom toolbar, microphone,
+  and keyboard-first composition.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — opening New Chat means writing immediately.
+- Hierarchy: 3 — writing, formatting, recall disclosure, and Chat are distinct.
+- Platform interaction: 3 — native keyboard focus, Photos picker, Menu, and
+  sheet expansion.
+- Accessibility: 3 — Chinese dark AX5 and 44-point controls verified.
+- Visual craft: 3 — one formal editor, one adaptive primary action, quiet
+  spacing, and no upload-first chrome.
+- Safety/provenance: 3 — recall remains proposed and correctable; no automatic
+  merge or external write.
+- Vetoes: none.
+
+final result: passed
+
+---
+
+# 2026-08-30 — Input-first Agent Chat and relationship recall
+
+## Evidence
+
+- Source visual truth:
+  `/Users/cubxxw/.codex/generated_images/01a05225-8b22-7d53-9a12-a452cc7eed24/exec-1c602847-8779-4e63-8002-367b3a7741c1.png`
+- Final implementation screenshot:
+  `/Users/cubxxw/.codex/visualizations/2026/08/30/01a05225-8b22-7d53-9a12-a452cc7eed24/chat-session-final/custom-header/3A9E317A-57EB-4ED8-9DE8-5F11F21822D2.png`
+- Same-input comparison:
+  `/Users/cubxxw/.codex/visualizations/2026/08/30/01a05225-8b22-7d53-9a12-a452cc7eed24/chat-session-final/comparison-custom-header-final.png`
+- Viewport: iPhone 17 Pro, 402 × 874 points at 3×; implementation capture
+  1206 × 2622 pixels.
+- Source normalization: the original board is 1295 × 1215 pixels. Its
+  648 × 1215 Chat panel was cropped, resized to 1206 × 2262, and top-aligned
+  on a 1206 × 2622 white canvas before comparison. The implementation was
+  captured at matching 3× density, so no density-only differences were filed.
+- State: the recruiter's first message has created a Session, the Agent has
+  recalled one relationship, the match remains correctable, and the Agent is
+  reading that relationship's current record.
+- Full-view evidence: the final composite compares the entire normalized Chat
+  panel and implementation in one image. The title, context subtitle, question
+  bubble, match receipt, correction action, reading state, and pinned composer
+  remain legible at that scale. A separate focused crop was not needed.
+
+## Findings and comparison history
+
+- [P2, resolved] A relationship selector remained visible after automatic
+  recall, making the result look like a manual form instead of a continuous
+  Chat. The selector is now hidden during recall and reading; `Change` is the
+  only correction action in the conversation. The three focused UI journeys
+  passed after this change.
+- [P2, resolved] The first revised capture used the native iOS toolbar's large
+  glass `Close` pill, which outweighed the conversation title. Replacing its
+  text with an `xmark` preserved the glass circle, so the second pass moved the
+  action into a custom 48-point header target. The final screenshot shows the
+  quiet source-like × plus a two-line person/context title, and the exact
+  matched-and-reading UI test still passes.
+- The source retains `Finding the right relationship…` as a historical row;
+  the implementation replaces it with the confirmed match receipt. This is an
+  intentional state transition, avoiding a completed loading row that could
+  be misread as still active.
+- `Preview data · connect a workspace to send` appears only in the fixture
+  workspace used for screenshot proof. It is truthful environment disclosure,
+  not production Chat copy.
+
+## Required fidelity surfaces
+
+- Fonts and typography: native Dynamic Type provides body and control text;
+  the header uses headline/caption optical hierarchy and both title lines avoid
+  truncation in the tested state. No display font substitution was introduced.
+- Spacing and layout rhythm: the custom header balances equal 48-point side
+  regions, the message and recall receipt retain quiet vertical grouping, and
+  the composer remains pinned without overlap at 402 × 874 points.
+- Colors and visual tokens: the implementation uses existing `tsSurface`,
+  `tsInk`, `tsMutedInk`, and vermilion progress tokens. Contrast and state
+  semantics remain consistent with the existing iOS product.
+- Image quality and assets: this state contains no raster product art. All
+  visible icons are SF Symbols at native resolution; no placeholder, custom
+  SVG, CSS art, or text-glyph substitute is present.
+- Copy and content: `Matched from your relationship history`, `Change`, and
+  `Reading the current record…` explain inference, correction, and progress
+  without claiming that a merge or external write occurred.
+
+## Behavioral and safety proof
+
+- Three focused UI journeys passed: compact new-Chat entry, unscoped first
+  question with inline relationship choices, and unique recall remaining
+  correctable while the Agent reads.
+- The final custom-header matched-state rerun passed separately after the
+  visual fix.
+- Focused unit coverage passed for immediate Session persistence/restoration,
+  unique recall, same-name ambiguity and merge-review staging, recent-context
+  fallback, and exact identity-clue extraction.
+- A suspected duplicate never merges automatically. Choosing a result binds
+  only the current Session context; merge remains a separate evidence review.
+
+## Follow-up polish
+
+- P3: the final implementation intentionally uses a single live reading row
+  instead of the source's decorative three-dot timeline. This keeps status
+  semantic and accessible, but the motion language can be revisited with a
+  reduced-motion equivalent if the broader Chat system later adopts timelines.
+
+final result: passed
+
+---
+
 # Design QA — iOS one-tap global Agent input
 
 ## Finding and selected direction

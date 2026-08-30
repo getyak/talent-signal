@@ -103,6 +103,16 @@ final class ConversationContactIntakeTests: XCTestCase {
         )
     }
 
+    func testIdentityQuestionCanStillProvideAnAuthorizedRecallClue() {
+        let source = "Can you check Maya Chen, MAYA@brightway.com?"
+
+        XCTAssertNil(ConversationContactIntake.propose(source))
+        XCTAssertEqual(
+            ConversationContactIntake.identityClue(in: source),
+            .init(type: "email", value: "maya@brightway.com")
+        )
+    }
+
     func testDoesNotTreatNarrativePrefixAsAHighPrecisionName() {
         XCTAssertNil(
             ConversationContactIntake.propose(
