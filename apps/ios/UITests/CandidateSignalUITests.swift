@@ -9,6 +9,11 @@ final class CandidateSignalUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        app.launchArguments = [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+            "-talent-signal.interface-language", "en",
+        ]
         app.launchEnvironment[previewWorkspaceEnvironmentKey] = "true"
     }
 
@@ -873,6 +878,51 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Canonical Ask backend response")
     }
 
+    func testCanonicalAskUsesReviewedContactEvidenceWithoutFalseBindingError() async throws {
+        guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
+              let personID = fixture.contactConflictCurrentPersonID,
+              let contextID = fixture.contactConflictCurrentContextID else {
+            throw XCTSkip("The reviewed contact evidence fixture was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", fixture.backendURL,
+            "--workspace-account-id", fixture.accountID,
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
+        tapWhenVisible(app.buttons["relationship-guide"])
+        let composer = app.textFields["ask-composer"]
+        typeTextReliably("What do we know?", into: composer)
+        tapVisibleCenter(app.buttons["ask-send"])
+
+        let contactScope = app.buttons.matching(
+            NSPredicate(
+                format: "identifier == %@",
+                "ask-scope-option-\(personID)-\(contextID)"
+            )
+        ).firstMatch
+        guard contactScope.waitForExistence(timeout: 10) else {
+            XCTFail("The exact reviewed Robin Current relationship was not offered.")
+            return
+        }
+        contactScope.tap()
+
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 30))
+        XCTAssertFalse(element("ask-error").exists)
+        let evidence = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Evidence from ")
+        ).firstMatch
+        XCTAssertTrue(evidence.waitForExistence(timeout: 5))
+        evidence.tap()
+        XCTAssertTrue(element("ask-citation-detail").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-citation-excerpt").exists)
+        XCTAssertTrue(element("ask-review-citation").exists)
+        preserveScreenshot("Reviewed contact evidence supports canonical Ask")
+    }
+
     func testCanonicalAskResponseChineseDarkAX5KeepsEvidenceAndComposerReachable() async throws {
         guard let fixture = try await preparePursuitProposalFixtureIfAvailable() else {
             throw XCTSkip("The canonical Pursuit workspace fixture was not configured.")
@@ -1101,6 +1151,10 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     func testSettingsSwitchesTheCoreWorkspaceBetweenChineseAndEnglish() {
+        app.launchArguments = [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -1124,15 +1178,20 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["会话"].exists)
         preserveScreenshot("Simplified Chinese core workspace")
 
-        app.buttons["capture-relationship-moment"].tap()
-        XCTAssertTrue(element("signal-capture-hub").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["为 Agent 记录"].exists)
-        XCTAssertTrue(app.buttons["capture-hub-text"].exists)
-        XCTAssertTrue(app.buttons["capture-hub-screenshot"].exists)
-        XCTAssertTrue(app.buttons["capture-hub-audio"].exists)
-        preserveScreenshot("Simplified Chinese Agent capture")
-        app.buttons["close-capture-hub"].tap()
-        XCTAssertFalse(element("signal-capture-hub").waitForExistence(timeout: 2))
+        app.buttons["open-agent-attachments"].tap()
+        XCTAssertTrue(element("home-attachment-chooser").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["先选择内容来源。"].exists)
+        XCTAssertTrue(app.staticTexts["在你选择之前，不会导入任何内容。"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-photos"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-files"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-relationship"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-write"].exists)
+        preserveScreenshot("Simplified Chinese Agent attachment chooser")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        XCTAssertEqual(app.buttons["archive-tab-today"].label, "今天")
 
         openSettings()
         let english = element("language-option-en")
@@ -1729,6 +1788,7 @@ final class CandidateSignalUITests: XCTestCase {
             "--workspace-backend-url", proxyURL,
             "--workspace-account-slug", "fixture-alpha",
             "--workspace-user-email", "recruiter@alpha.local",
+            "--workspace-account-id", fixture.accountID,
         ]
         app.launchArguments = launchArguments + [
             "--reset-pursuit-action-completions",
@@ -1783,7 +1843,10 @@ final class CandidateSignalUITests: XCTestCase {
         ]
         XCTAssertFalse(oldAttentionRow.exists)
         preserveScreenshot("Relaunch restored owned action recovery entry")
-        tapWhenVisible(recovery)
+        tapWorkspaceElementWhenVisible(
+            recovery,
+            in: "canonical-pursuit-today"
+        )
         XCTAssertTrue(
             element("pursuit-detail").waitForExistence(timeout: 10)
         )
@@ -2228,14 +2291,12 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(app.otherElements.matching(NSPredicate(format: "identifier BEGINSWITH 'fact-card-'")).count, 0)
     }
 
-    func testPhotoPickerStagesSelectedImageForReview() {
+    func testHomePhotoPickerStagesSelectedImageAsAgentDraft() {
         app.launch()
 
-        tapWhenVisible(app.buttons["capture-relationship-moment"])
-        XCTAssertTrue(element("signal-capture-hub").waitForExistence(timeout: 5))
-        tapWhenVisible(app.buttons["capture-hub-screenshot"])
-        XCTAssertTrue(app.buttons["choose-image"].waitForExistence(timeout: 5))
-        tapWhenVisible(app.buttons["choose-image"])
+        tapWhenVisible(app.buttons["open-agent-attachments"])
+        XCTAssertTrue(element("home-attachment-chooser").waitForExistence(timeout: 5))
+        tapWhenVisible(app.buttons["home-attachment-photos"])
 
         XCTAssertTrue(app.staticTexts["Loading..."].waitForNonExistence(timeout: 10))
         let onboardingClose = app.buttons["Close"].firstMatch
@@ -2249,16 +2310,25 @@ final class CandidateSignalUITests: XCTestCase {
         firstPhoto.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ).tap()
+        let addSelection = app.buttons["Add"].firstMatch
+        if addSelection.waitForExistence(timeout: 3) {
+            addSelection.tap()
+        }
 
-        XCTAssertTrue(element("inspect-capture-source").waitForExistence(timeout: 15))
+        XCTAssertTrue(element("ask-media-draft-tray").waitForExistence(timeout: 15))
+        XCTAssertTrue(element("relationship-ask-sheet").exists)
         XCTAssertFalse(app.navigationBars["Photos"].exists)
         XCTAssertFalse(app.staticTexts["Unrelated image selected"].exists)
-        preserveScreenshot("Selected photo reaches governed source review")
+        XCTAssertFalse(element("inspect-capture-source").exists)
+        preserveScreenshot("Selected photo remains an Agent message draft")
 
-        tapWhenVisible(app.buttons["close-capture-review"])
-        tapWhenVisible(app.buttons["Discard capture"])
+        let removeImage = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Remove image")
+        ).firstMatch
+        XCTAssertTrue(removeImage.waitForExistence(timeout: 5))
+        removeImage.tap()
         XCTAssertTrue(
-            element("inspect-capture-source").waitForNonExistence(timeout: 5)
+            element("ask-media-draft-tray").waitForNonExistence(timeout: 5)
         )
     }
 
@@ -2546,7 +2616,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         tapWhenVisible(app.buttons["continue-capture-in-agent"])
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 30))
-        let scopeSelector = app.buttons["ask-scope-selector"]
+        let scopeSelector = element("ask-scope-selector")
         XCTAssertTrue(scopeSelector.waitForExistence(timeout: 5))
         let expectedScopeValue =
             "UI owner \(captureSeed.uuidString.prefix(8)), Current client relationship"
@@ -2677,34 +2747,28 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Audio Signal local deletion receipt")
     }
 
-    func testCaptureRailOpensPurposeBoundChooserBeforeAnyCapture() {
+    func testHomeAttachmentRailOpensPurposeBoundChooserBeforeImport() {
         app.launch()
 
-        let capture = app.buttons["capture-relationship-moment"]
-        XCTAssertTrue(capture.waitForExistence(timeout: 8))
-        capture.tap()
+        let add = app.buttons["open-agent-attachments"]
+        XCTAssertTrue(add.waitForExistence(timeout: 8))
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44)
+        add.tap()
 
-        XCTAssertTrue(element("signal-capture-hub").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Capture for the Agent"].exists)
-        XCTAssertTrue(app.buttons["capture-hub-text"].exists)
-        XCTAssertTrue(app.buttons["capture-hub-screenshot"].exists)
-        XCTAssertTrue(app.buttons["capture-hub-audio"].exists)
-        XCTAssertTrue(
-            app.staticTexts.matching(
-                NSPredicate(format: "label CONTAINS %@", "Nothing here confirms")
-            ).firstMatch.exists
-        )
+        XCTAssertTrue(element("home-attachment-chooser").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Choose a source first."].exists)
+        XCTAssertTrue(app.staticTexts["Nothing is imported until you make a choice."].exists)
+        XCTAssertTrue(app.buttons["home-attachment-photos"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-files"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-relationship"].exists)
+        XCTAssertTrue(app.buttons["home-attachment-write"].exists)
         XCTAssertLessThan(
-            element("signal-capture-hub").frame.height,
+            element("home-attachment-chooser").frame.height,
             app.windows.firstMatch.frame.height * 0.8
         )
-        XCTAssertFalse(element("audio-signal-recording").exists)
-        preserveScreenshot("Capture Signal purpose-bound chooser")
-
-        tapWhenVisible(app.buttons["capture-hub-audio"])
-        XCTAssertTrue(element("audio-signal-idle").waitForExistence(timeout: 5))
-        XCTAssertFalse(element("audio-signal-recording").exists)
-        preserveScreenshot("Capture chooser opens audio idle")
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        XCTAssertFalse(element("inspect-capture-source").exists)
+        preserveScreenshot("Home attachment purpose-bound chooser")
     }
 
     func testNaturalContactProposalIsEditableAndRestoresAfterRelaunch() {
@@ -3041,7 +3105,8 @@ final class CandidateSignalUITests: XCTestCase {
         }
         app.launchArguments = [
             "--workspace-backend-url", fixture.backendURL,
-            "--fixture-contact-lookup-delay-seconds", "3",
+            "--workspace-account-id", fixture.accountID,
+            "--fixture-contact-lookup-delay-seconds", "6",
             "--fixture-contact-lookup-fail-once",
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
@@ -3714,6 +3779,20 @@ final class CandidateSignalUITests: XCTestCase {
         element.tap()
     }
 
+    private func tapVisibleCenter(_ element: XCUIElement) {
+        XCTAssertTrue(element.waitForExistence(timeout: 5))
+        let window = app.windows.firstMatch
+        let frame = element.frame
+        XCTAssertGreaterThan(frame.width, 0)
+        XCTAssertGreaterThan(frame.height, 0)
+        XCTAssertTrue(window.frame.contains(CGPoint(x: frame.midX, y: frame.midY)))
+        let target = CGVector(
+            dx: (frame.midX - window.frame.minX) / window.frame.width,
+            dy: (frame.midY - window.frame.minY) / window.frame.height
+        )
+        window.coordinate(withNormalizedOffset: target).tap()
+    }
+
     private func waitForPhotoPicker() -> XCUIElement {
         XCTAssertTrue(app.staticTexts["Loading..."].waitForNonExistence(timeout: 10))
         let onboardingClose = app.buttons["Close"].firstMatch
@@ -3906,6 +3985,7 @@ private struct IOSPursuitProposalFixture: Decodable {
     let contactSinglePersonID: String?
     let contactConflictEmail: String?
     let contactConflictCurrentPersonID: String?
+    let contactConflictCurrentContextID: String?
     let contactConflictHistoricalPersonID: String?
 
     enum CodingKeys: String, CodingKey {
@@ -3925,6 +4005,7 @@ private struct IOSPursuitProposalFixture: Decodable {
         case contactSinglePersonID = "contact_single_person_id"
         case contactConflictEmail = "contact_conflict_email"
         case contactConflictCurrentPersonID = "contact_conflict_current_person_id"
+        case contactConflictCurrentContextID = "contact_conflict_current_context_id"
         case contactConflictHistoricalPersonID = "contact_conflict_historical_person_id"
     }
 }

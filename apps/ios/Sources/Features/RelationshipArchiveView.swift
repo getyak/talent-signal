@@ -722,10 +722,16 @@ private struct RelationshipArchiveHeader: View {
     var body: some View {
         HStack(spacing: 12) {
             Button(action: onOpenMenu) {
-                RelationshipSignalOrb()
-                    .frame(width: 36, height: 36)
+                ZStack {
+                    Color.clear
+                    RelationshipSignalOrb()
+                        .frame(width: 36, height: 36)
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .frame(width: 44, height: 44)
             .accessibilityLabel(
                 appLanguage.text(
                     "Open Talent Signal menu",
@@ -777,12 +783,17 @@ private struct RelationshipArchiveHeader: View {
             }
 
             Button(action: onOpenCalendar) {
-                Image(systemName: "calendar")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.tsInk)
-                    .frame(width: 44, height: 44)
+                ZStack {
+                    Color.clear
+                    Image(systemName: "calendar")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .frame(width: 44, height: 44)
             .accessibilityLabel(
                 appLanguage.text(
                     "Open relationship calendar",
@@ -2781,12 +2792,17 @@ private struct RelationshipGuideRail: View {
     var body: some View {
         HStack(spacing: 0) {
             Button(action: onAttach) {
-                Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.tsInk)
-                    .frame(width: 48, height: 48)
+                ZStack {
+                    Color.clear
+                    Image(systemName: "plus")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                }
+                .frame(width: 48, height: 48)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .frame(width: 48, height: 48)
             .accessibilityLabel(
                 appLanguage.text("Choose what to add to an Agent message")
             )
@@ -2810,12 +2826,17 @@ private struct RelationshipGuideRail: View {
             .accessibilityIdentifier("relationship-guide")
 
             Button(action: onVoice) {
-                Image(systemName: "waveform")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.tsInk)
-                    .frame(width: 48, height: 48)
+                ZStack {
+                    Color.clear
+                    Image(systemName: "waveform")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                }
+                .frame(width: 48, height: 48)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .frame(width: 48, height: 48)
             .accessibilityLabel(
                 appLanguage.text(
                     "Dictate an Agent message",

@@ -1164,6 +1164,7 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
     case askResponseContractMismatch
     case askReadbackEnvelopeMismatch
     case askCitationBindingMismatch
+    case askCitationReviewAuthorityMissing
     case citedEvidenceUnavailable
     case actionCompletionUnavailable
     case askUnavailable
@@ -1192,6 +1193,8 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
             return "Ask stopped because the task readback did not match the selected person, context, and workspace."
         case .askCitationBindingMismatch:
             return "Ask stopped because a cited source was not bound to the selected person and context."
+        case .askCitationReviewAuthorityMissing:
+            return "Ask stopped because a cited source needs a current recruiter review before it can be used."
         case .citedEvidenceUnavailable:
             return "Ask stopped because one cited source is unavailable or outside its current authorization."
         case .actionCompletionUnavailable:
@@ -1451,14 +1454,19 @@ struct RelationshipAskReadback: Decodable, Equatable {
                 && citation.personID == expectedPersonID
                 && citation.relationshipContextID == expectedRelationshipContextID
                 && citation.authorizationScope == expectedCitationScope
-                && citation.reviewStatus == "reviewed"
+        }) else {
+            throw PursuitWorkspaceClientError.askCitationBindingMismatch
+        }
+        guard citedIDs.allSatisfy({ id in
+            guard let citation = detailsByID[id] else { return false }
+            return citation.reviewStatus == "reviewed"
                 && citation.lastReviewID != nil
                 && citation.attribution.status == "confirmed"
                 && citation.exactExcerpt?.trimmingCharacters(
                     in: .whitespacesAndNewlines
                 ).isEmpty == false
         }) else {
-            throw PursuitWorkspaceClientError.askCitationBindingMismatch
+            throw PursuitWorkspaceClientError.askCitationReviewAuthorityMissing
         }
         return response.attaching(
             citations: citedIDs.compactMap { detailsByID[$0] }

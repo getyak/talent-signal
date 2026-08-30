@@ -94,9 +94,9 @@ enum AgentWorkActivityAction: String, Codable, Hashable {
 
     var title: String {
         switch self {
-        case .openStatus: return "Open status"
-        case .openActions: return "Review actions"
-        case .resolve: return "Review issue"
+        case .openStatus: return agentWorkLocalized("Open status")
+        case .openActions: return agentWorkLocalized("Review actions")
+        case .resolve: return agentWorkLocalized("Review issue")
         }
     }
 }
@@ -136,10 +136,10 @@ enum AgentWorkActivityProjector {
         switch (state.execution, state.attention, state.stage) {
         case (.preparing, .observe, .received):
             return viewState(
-                eyebrow: "SIGNAL RECEIVED",
-                title: "Preparing a safe workspace",
-                supportingText: "You can leave",
-                boundaryText: "Nothing applied yet",
+                eyebrow: agentWorkLocalized("SIGNAL RECEIVED"),
+                title: agentWorkLocalized("Preparing a safe workspace"),
+                supportingText: agentWorkLocalized("You can leave"),
+                boundaryText: agentWorkLocalized("Nothing applied yet"),
                 glyph: .received,
                 action: .openStatus,
                 isTerminal: false,
@@ -147,10 +147,10 @@ enum AgentWorkActivityProjector {
             )
         case (.running, .observe, .readingEvidence):
             return viewState(
-                eyebrow: "READING EVIDENCE",
-                title: "Reading selected evidence",
-                supportingText: "You can leave",
-                boundaryText: "Only the source you chose",
+                eyebrow: agentWorkLocalized("READING EVIDENCE"),
+                title: agentWorkLocalized("Reading selected evidence"),
+                supportingText: agentWorkLocalized("You can leave"),
+                boundaryText: agentWorkLocalized("Only the source you chose"),
                 glyph: .evidence,
                 action: .openStatus,
                 isTerminal: false,
@@ -158,10 +158,10 @@ enum AgentWorkActivityProjector {
             )
         case (.running, .observe, .resolvingIdentity):
             return viewState(
-                eyebrow: "CHECKING IDENTITY",
-                title: "Checking the right person",
-                supportingText: "You can leave",
-                boundaryText: "No contact changed",
+                eyebrow: agentWorkLocalized("CHECKING IDENTITY"),
+                title: agentWorkLocalized("Checking the right person"),
+                supportingText: agentWorkLocalized("You can leave"),
+                boundaryText: agentWorkLocalized("No contact changed"),
                 glyph: .identity,
                 action: .openStatus,
                 isTerminal: false,
@@ -169,10 +169,10 @@ enum AgentWorkActivityProjector {
             )
         case (.running, .observe, .preparingActions):
             return viewState(
-                eyebrow: "PREPARING ACTIONS",
-                title: "Preparing review actions",
-                supportingText: "You can leave",
-                boundaryText: "Nothing runs automatically",
+                eyebrow: agentWorkLocalized("PREPARING ACTIONS"),
+                title: agentWorkLocalized("Preparing review actions"),
+                supportingText: agentWorkLocalized("You can leave"),
+                boundaryText: agentWorkLocalized("Nothing runs automatically"),
                 glyph: .actions,
                 action: .openStatus,
                 isTerminal: false,
@@ -183,10 +183,10 @@ enum AgentWorkActivityProjector {
                 throw AgentWorkActivityProjectionError.invalidActionCount(0)
             }
             return viewState(
-                eyebrow: "ACTIONS READY",
-                title: "Actions ready to review",
+                eyebrow: agentWorkLocalized("ACTIONS READY"),
+                title: agentWorkLocalized("Actions ready to review"),
                 supportingText: actionCountText(state.reviewActionCount),
-                boundaryText: "Nothing applied yet",
+                boundaryText: agentWorkLocalized("Nothing applied yet"),
                 glyph: .review,
                 action: .openActions,
                 isTerminal: true,
@@ -199,10 +199,10 @@ enum AgentWorkActivityProjector {
                 )
             }
             return viewState(
-                eyebrow: "NO ACTION",
-                title: "No action needed",
-                supportingText: "The signal remains in history",
-                boundaryText: "Nothing was changed",
+                eyebrow: agentWorkLocalized("NO ACTION"),
+                title: agentWorkLocalized("No action needed"),
+                supportingText: agentWorkLocalized("The signal remains in history"),
+                boundaryText: agentWorkLocalized("Nothing was changed"),
                 glyph: .ended,
                 action: nil,
                 isTerminal: true,
@@ -213,10 +213,10 @@ enum AgentWorkActivityProjector {
                 throw AgentWorkActivityProjectionError.invalidActionCount(0)
             }
             return viewState(
-                eyebrow: "PARTIAL RESULT",
-                title: "Some actions need review",
+                eyebrow: agentWorkLocalized("PARTIAL RESULT"),
+                title: agentWorkLocalized("Some actions need review"),
                 supportingText: actionCountText(state.reviewActionCount),
-                boundaryText: "Incomplete evidence is marked",
+                boundaryText: agentWorkLocalized("Incomplete evidence is marked"),
                 glyph: .partial,
                 action: .openActions,
                 isTerminal: true,
@@ -224,10 +224,10 @@ enum AgentWorkActivityProjector {
             )
         case (.failed, .resolve, .reconcilingOutcome):
             return viewState(
-                eyebrow: "NEEDS YOU",
-                title: "Processing needs attention",
-                supportingText: "Open Talent Signal to resolve",
-                boundaryText: "No outcome assumed",
+                eyebrow: agentWorkLocalized("NEEDS YOU"),
+                title: agentWorkLocalized("Processing needs attention"),
+                supportingText: agentWorkLocalized("Open Talent Signal to resolve"),
+                boundaryText: agentWorkLocalized("No outcome assumed"),
                 glyph: .failed,
                 action: .resolve,
                 isTerminal: true,
@@ -235,10 +235,10 @@ enum AgentWorkActivityProjector {
             )
         case (.unknown, .resolve, .reconcilingOutcome):
             return viewState(
-                eyebrow: "CHECK STATUS",
-                title: "Result needs confirmation",
-                supportingText: "Open Talent Signal to reconcile",
-                boundaryText: "No outcome assumed",
+                eyebrow: agentWorkLocalized("CHECK STATUS"),
+                title: agentWorkLocalized("Result needs confirmation"),
+                supportingText: agentWorkLocalized("Open Talent Signal to reconcile"),
+                boundaryText: agentWorkLocalized("No outcome assumed"),
                 glyph: .unknown,
                 action: .resolve,
                 isTerminal: false,
@@ -246,10 +246,10 @@ enum AgentWorkActivityProjector {
             )
         case (.cancelled, .none, .ended):
             return viewState(
-                eyebrow: "ENDED",
-                title: "Processing ended",
-                supportingText: "No review is pending",
-                boundaryText: "Nothing was changed",
+                eyebrow: agentWorkLocalized("ENDED"),
+                title: agentWorkLocalized("Processing ended"),
+                supportingText: agentWorkLocalized("No review is pending"),
+                boundaryText: agentWorkLocalized("Nothing was changed"),
                 glyph: .ended,
                 action: nil,
                 isTerminal: true,
@@ -265,7 +265,13 @@ enum AgentWorkActivityProjector {
     }
 
     private static func actionCountText(_ count: Int) -> String {
-        count == 1 ? "1 suggested action" : "\(count) suggested actions"
+        if count == 1 {
+            return agentWorkLocalized("1 suggested action")
+        }
+        return String.localizedStringWithFormat(
+            agentWorkLocalized("%lld suggested actions"),
+            count
+        )
     }
 
     private static func viewState(
@@ -278,9 +284,11 @@ enum AgentWorkActivityProjector {
         isTerminal: Bool,
         isStale: Bool
     ) -> AgentWorkActivityViewState {
-        let staleText = isStale ? " Last update delayed." : ""
+        let staleText = isStale
+            ? " \(agentWorkLocalized("Last update delayed."))"
+            : ""
         let accessibilityLabel = [
-            "Talent Signal Agent",
+            agentWorkLocalized("Talent Signal Agent"),
             title,
             supportingText,
             boundaryText,
@@ -297,6 +305,12 @@ enum AgentWorkActivityProjector {
             isStale: isStale
         )
     }
+}
+
+func agentWorkLocalized(
+    _ resource: LocalizedStringResource
+) -> String {
+    String(localized: resource)
 }
 
 enum AgentWorkActivityPayloadViolation: Error, Equatable {

@@ -93,6 +93,29 @@ final class AgentWorkShowcaseUITests: XCTestCase {
         )
     }
 
+    func testBoundaryAtlasUsesRealSystemSurfaces() {
+        for fixture in ["partial", "failed", "unknown", "stale"] {
+            configureLaunchArguments(atlasFixture: fixture)
+            app.launch()
+            XCTAssertTrue(
+                element("agent-work-atlas-\(fixture)")
+                    .waitForExistence(timeout: 10)
+            )
+
+            XCUIDevice.shared.press(.home)
+            waitForSystemSurface()
+            preserveSystemScreenshot("Agent boundary atlas \(fixture)")
+
+            app.activate()
+            XCTAssertTrue(
+                element("agent-work-atlas-\(fixture)")
+                    .waitForExistence(timeout: 8)
+            )
+            tapWhenVisible(app.buttons["agent-work-atlas-end"])
+            app.terminate()
+        }
+    }
+
     private func launchShowcase() {
         configureLaunchArguments()
         app.launch()
@@ -104,13 +127,16 @@ final class AgentWorkShowcaseUITests: XCTestCase {
         XCTAssertTrue(element("agent-work-showcase-header").waitForExistence(timeout: 10))
     }
 
-    private func configureLaunchArguments() {
+    private func configureLaunchArguments(atlasFixture: String? = nil) {
         app.launchArguments = [
             "--agent-work-showcase",
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
+        if let atlasFixture {
+            app.launchArguments += ["--agent-work-atlas", atlasFixture]
+        }
     }
 
     private func waitForSystemSurface() {

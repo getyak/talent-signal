@@ -34,6 +34,7 @@
 		401A888C1F4714CCFB39EEB2 /* RelationshipCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FAEBC372E2477E425197A45 /* RelationshipCaptureView.swift */; };
 		4245E77370CEA8CF0162063B /* AgentWorkDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A553780CF4A3FD1D02A3B97 /* AgentWorkDeepLink.swift */; };
 		4A2648576BDB4F58D214B9B1 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53009CC49DC5605049F9E6A /* ShareViewController.swift */; };
+		4AB343F046A8F4EFA5BB6D9C /* AgentWorkShowcaseStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC1A0D411E14B92F259BD21 /* AgentWorkShowcaseStoreTests.swift */; };
 		4C34F2CBF98A408B15499182 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B1750D9C713D5C7F54F4423 /* Assets.xcassets */; };
 		4DB54D42842B76DA86C9B144 /* AgentWorkActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A23BD2192A87045AA609DC9 /* AgentWorkActivityController.swift */; };
 		4EBB98C5EBDCBD205612B067 /* StandaloneOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FA231C87096FBA3A535B8C /* StandaloneOnboarding.swift */; };
@@ -61,6 +62,7 @@
 		83A4A3CE04DF7FFBCC223E1F /* RelationshipArchiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBD9D5361A32C8957D22B4E /* RelationshipArchiveTests.swift */; };
 		855BD6D5CC0D965D2DB61D81 /* FixtureSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */; };
 		859EC52FB93AF008278378C3 /* AgentWorkActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF4110EBF1C86CED7EFCED7 /* AgentWorkActivity.swift */; };
+		8A90E88F2A10EA08C79FD6B9 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 571E43C7E25C147610C6614C /* Localizable.xcstrings */; };
 		8CBFB9AE9F1F7B22F53A20B7 /* RelationshipCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1B56C282E5480FFC9368B0 /* RelationshipCaptureTests.swift */; };
 		8EF20E674F788485564775EF /* AgentWorkDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A553780CF4A3FD1D02A3B97 /* AgentWorkDeepLink.swift */; };
 		9085961F86A4AC442B154DA6 /* AgentWorkActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6CFD746E2C15C43760ED29 /* AgentWorkActivityTests.swift */; };
@@ -238,6 +240,7 @@
 		F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureSyncClient.swift; sourceTree = "<group>"; };
 		F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalView.swift; sourceTree = "<group>"; };
 		F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalComponents.swift; sourceTree = "<group>"; };
+		FBC1A0D411E14B92F259BD21 /* AgentWorkShowcaseStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkShowcaseStoreTests.swift; sourceTree = "<group>"; };
 		FD09035FB0CA0D56BB937CAA /* ConversationContactIntake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationContactIntake.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -255,6 +258,7 @@
 			children = (
 				A9161D0F10C35A2F93579D36 /* AgentTaskProjectionStoreTests.swift */,
 				9A6CFD746E2C15C43760ED29 /* AgentWorkActivityTests.swift */,
+				FBC1A0D411E14B92F259BD21 /* AgentWorkShowcaseStoreTests.swift */,
 				A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */,
 				00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */,
 				E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */,
@@ -525,6 +529,7 @@
 			buildConfigurationList = 15C5F34B5AD58024B272DCFB /* Build configuration list for PBXNativeTarget "TalentSignalLiveActivity" */;
 			buildPhases = (
 				53AB1EFB9BA46D31C29B1993 /* Sources */,
+				11639EC294100781450E9A11 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -591,6 +596,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		11639EC294100781450E9A11 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A90E88F2A10EA08C79FD6B9 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BFE1103C47A5CF786FD3202D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -624,6 +637,7 @@
 			files = (
 				65A6C324A3F1E15232BCD315 /* AgentTaskProjectionStoreTests.swift in Sources */,
 				9085961F86A4AC442B154DA6 /* AgentWorkActivityTests.swift in Sources */,
+				4AB343F046A8F4EFA5BB6D9C /* AgentWorkShowcaseStoreTests.swift in Sources */,
 				23D654970274564EA7623632 /* AppSessionTests.swift in Sources */,
 				9BFF4FE9255A2B018D330A10 /* AudioSignalCaptureTests.swift in Sources */,
 				3030219A987894DFC181C6EE /* CandidateSignalTests.swift in Sources */,

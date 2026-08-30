@@ -82,6 +82,8 @@ targets:
       - path: Shared/SignalRecordingActivity.swift
       - path: Shared/AgentWorkActivity.swift
       - path: Sources/App/AgentWorkDeepLink.swift
+      - path: Resources/Localizable.xcstrings
+        buildPhase: resources
     settings:
       base:
         APPLICATION_EXTENSION_API_ONLY: YES

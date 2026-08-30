@@ -25,8 +25,40 @@ enum AgentWorkActivityControllerStatus: Equatable {
     case failed(message: String)
 }
 
+struct AgentWorkActivitySnapshot: Equatable {
+    let identity: AgentWorkActivityIdentity
+    let state: AgentWorkActivityAttributes.ContentState
+}
+
 @MainActor
-final class AgentWorkActivityController: ObservableObject {
+protocol AgentWorkActivityControlling: AnyObject {
+    func startSyntheticTask(
+        scopeID: String,
+        taskID: String,
+        now: Date,
+        fixtureLifetime: TimeInterval
+    ) async -> AgentWorkActivityIdentity?
+
+    func update(
+        identity: AgentWorkActivityIdentity,
+        state: AgentWorkActivityAttributes.ContentState,
+        now: Date
+    ) async -> AgentWorkActivityControllerResult
+
+    func end(
+        identity: AgentWorkActivityIdentity,
+        dismissImmediately: Bool,
+        now: Date
+    ) async -> AgentWorkActivityControllerResult
+
+    func restoreOrCleanExpired(now: Date) async -> AgentWorkActivitySnapshot?
+    func activeSnapshot(
+        identity: AgentWorkActivityIdentity
+    ) -> AgentWorkActivitySnapshot?
+}
+
+@MainActor
+final class AgentWorkActivityController: ObservableObject, AgentWorkActivityControlling {
     static let shared = AgentWorkActivityController()
 
     @Published private(set) var status: AgentWorkActivityControllerStatus = .idle
@@ -62,9 +94,48 @@ final class AgentWorkActivityController: ObservableObject {
         let matching = Activity<AgentWorkActivityAttributes>.activities.filter {
             $0.attributes.scopeID == scopeID && $0.attributes.taskID == taskID
         }
-        // Starting the explicit Debug showcase is a new user intent, not a
-        // transport retry. Close every older instance before assigning a new
-        // instance ID so a completed revision can never block the next run.
+
+        // A repeated start with the still-valid persisted identity is a
+        // transport/UI retry, not a new business task. Reuse that exact
+        // instance and reconcile any accidental duplicates around it.
+        if let record = loadRecord(),
+           record.expiresAt > now,
+           record.identity.scopeID == scopeID,
+           record.identity.taskID == taskID,
+           let reusable = matching.first(where: {
+               Self.identity(for: $0.attributes) == record.identity
+                   && !$0.content.state.execution.isTerminal
+           }) {
+            for duplicate in matching where duplicate.id != reusable.id {
+                await duplicate.end(
+                    duplicate.content,
+                    dismissalPolicy: .immediate
+                )
+                latestStates.removeValue(
+                    forKey: Self.identity(for: duplicate.attributes)
+                )
+            }
+            let state = latestStates[record.identity] ?? reusable.content.state
+            do {
+                try AgentWorkActivityPayloadContract.validate(
+                    attributes: reusable.attributes,
+                    contentState: state
+                )
+                latestStates[record.identity] = state
+                publish(activity: reusable, stateOverride: state)
+                return record.identity
+            } catch {
+                await reusable.end(
+                    reusable.content,
+                    dismissalPolicy: .immediate
+                )
+                latestStates.removeValue(forKey: record.identity)
+                removePersistedRecord(matching: record.identity)
+            }
+        }
+
+        // A terminal, expired, untracked, or mismatched card belongs to an
+        // older run. Close it before creating the new explicit fixture run.
         for prior in matching {
             await prior.end(prior.content, dismissalPolicy: .immediate)
             latestStates.removeValue(forKey: Self.identity(for: prior.attributes))
@@ -184,21 +255,24 @@ final class AgentWorkActivityController: ObservableObject {
         return .applied
     }
 
-    func restoreOrCleanExpired(now: Date = Date()) async {
+    @discardableResult
+    func restoreOrCleanExpired(
+        now: Date = Date()
+    ) async -> AgentWorkActivitySnapshot? {
         guard let record = loadRecord() else {
             status = .idle
-            return
+            return nil
         }
         guard record.expiresAt > now else {
             _ = await end(identity: record.identity, now: now)
-            return
+            return nil
         }
         guard #available(iOS 16.2, *),
               let activity = exactActivity(identity: record.identity) else {
             latestStates.removeValue(forKey: record.identity)
             removePersistedRecord(matching: record.identity)
-              status = .idle
-            return
+            status = .idle
+            return nil
         }
         let systemState = activity.content.state
         let authoritativeState: AgentWorkActivityAttributes.ContentState
@@ -213,6 +287,10 @@ final class AgentWorkActivityController: ObservableObject {
         }
         latestStates[record.identity] = authoritativeState
         publish(activity: activity, stateOverride: authoritativeState)
+        return AgentWorkActivitySnapshot(
+            identity: record.identity,
+            state: authoritativeState
+        )
     }
 
     func endActivities(scopeID: String, now: Date = Date()) async {
@@ -233,9 +311,34 @@ final class AgentWorkActivityController: ObservableObject {
         status = .idle
     }
 
+    func endAllActivities(now: Date = Date()) async {
+        guard #available(iOS 16.2, *) else { return }
+        for activity in Activity<AgentWorkActivityAttributes>.activities {
+            await activity.end(
+                ActivityContent(state: activity.content.state, staleDate: now),
+                dismissalPolicy: .immediate
+            )
+        }
+        latestStates.removeAll()
+        defaults.removeObject(forKey: Self.recordKey)
+        status = .idle
+    }
+
     func validatesActiveIdentity(_ identity: AgentWorkActivityIdentity) -> Bool {
-        guard #available(iOS 16.2, *) else { return false }
-        return exactActivity(identity: identity) != nil
+        activeSnapshot(identity: identity) != nil
+    }
+
+    func activeSnapshot(
+        identity: AgentWorkActivityIdentity
+    ) -> AgentWorkActivitySnapshot? {
+        guard #available(iOS 16.2, *),
+              let activity = exactActivity(identity: identity) else {
+            return nil
+        }
+        return AgentWorkActivitySnapshot(
+            identity: identity,
+            state: latestStates[identity] ?? activity.content.state
+        )
     }
 
     @available(iOS 16.2, *)

@@ -1377,7 +1377,7 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryControlSize: CGFloat {
-        max(48, composerControlSize)
+        max(52, composerControlSize)
     }
 
     @ViewBuilder
@@ -1637,6 +1637,7 @@ struct RelationshipAskView: View {
     private var isCompactEntry: Bool {
         sessionID == nil
             && activeSessionID == nil
+            && initialSeed == nil
             && contactDraft == nil
             && !isSending
             && !isInterpretingContact
@@ -1737,6 +1738,8 @@ struct RelationshipAskView: View {
                         identifier: "home-attachment-photos"
                     ) {
                         composerFocused = false
+                        isHomeAttachmentChooserPresented = false
+                        presentationDetent = .large
                         isPhotoLibraryPresented = true
                     }
                     homeAttachmentChoice(
@@ -1748,6 +1751,8 @@ struct RelationshipAskView: View {
                         identifier: "home-attachment-files"
                     ) {
                         composerFocused = false
+                        isHomeAttachmentChooserPresented = false
+                        presentationDetent = .large
                         isFileImporterPresented = true
                     }
                     homeAttachmentChoice(
@@ -1868,11 +1873,19 @@ struct RelationshipAskView: View {
             .padding(.horizontal, 18)
             .accessibilityLabel(
                 appLanguage.text(
-                    "Linked relationship: \(selectedScope.person.displayLabel), \(selectedScope.context.displayLabel)",
-                    zhHans: "已关联关系：\(selectedScope.person.displayLabel)，\(selectedScope.context.displayLabel)"
+                    "Selected relationship",
+                    zhHans: "已选择的关系"
                 )
             )
-            .accessibilityIdentifier("ask-compact-scope")
+            .accessibilityValue(
+                "\(selectedScope.person.displayLabel), \(selectedScope.context.displayLabel)"
+            )
+            .accessibilityHint(
+                appLanguage.text(
+                    "Choose a different person or relationship."
+                )
+            )
+            .accessibilityIdentifier("ask-scope-selector")
         }
     }
 

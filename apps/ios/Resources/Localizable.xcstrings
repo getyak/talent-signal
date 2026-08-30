@@ -1978,6 +1978,150 @@
     "case" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对单" } } }
     },
+    "%lld suggested actions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 个建议操作" } } }
+    },
+    "1 suggested action" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1 个建议操作" } } }
+    },
+    "ACTIONS READY" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作待审阅" } } }
+    },
+    "Actions ready to review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作已准备好，等待审阅" } } }
+    },
+    "AWAY" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可离开" } } }
+    },
+    "CHECK STATUS" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对状态" } } }
+    },
+    "CHECKING IDENTITY" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在核对身份" } } }
+    },
+    "Delayed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新延迟" } } }
+    },
+    "Done" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已结束" } } }
+    },
+    "ENDED" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已结束" } } }
+    },
+    "Incomplete evidence is marked" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不完整证据已标明" } } }
+    },
+    "Last update delayed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最近一次更新有所延迟。" } } }
+    },
+    "NEEDS YOU" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要你处理" } } }
+    },
+    "Needs you" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要你" } } }
+    },
+    "NO ACTION" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无需操作" } } }
+    },
+    "No action needed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目前无需操作" } } }
+    },
+    "No contact changed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有联系人被更改" } } }
+    },
+    "No outcome assumed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未假定任何结果" } } }
+    },
+    "No review is pending" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有待处理的审阅" } } }
+    },
+    "Nothing applied yet" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未应用任何更改" } } }
+    },
+    "Nothing runs automatically" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不会自动执行任何操作" } } }
+    },
+    "Nothing was changed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有任何内容被更改" } } }
+    },
+    "Only the source you chose" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅处理你选择的来源" } } }
+    },
+    "Open status" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开状态" } } }
+    },
+    "Open Talent Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Talent Signal" } } }
+    },
+    "Open Talent Signal to reconcile" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Talent Signal 核对结果" } } }
+    },
+    "Open Talent Signal to resolve" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Talent Signal 处理问题" } } }
+    },
+    "PARTIAL RESULT" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分结果" } } }
+    },
+    "PREPARING ACTIONS" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备操作" } } }
+    },
+    "Preparing a safe workspace" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备安全工作区" } } }
+    },
+    "Preparing review actions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备待审阅操作" } } }
+    },
+    "Processing ended" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "处理已结束" } } }
+    },
+    "Processing needs attention" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "处理需要你查看" } } }
+    },
+    "READING EVIDENCE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在读取证据" } } }
+    },
+    "Reading selected evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在读取所选证据" } } }
+    },
+    "REVIEW" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅" } } }
+    },
+    "Result needs confirmation" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "结果需要确认" } } }
+    },
+    "Review actions" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅操作" } } }
+    },
+    "Review issue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看问题" } } }
+    },
+    "SIGNAL RECEIVED" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已收到信号" } } }
+    },
+    "Some actions need review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分操作需要审阅" } } }
+    },
+    "TALENT SIGNAL AGENT" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "TALENT SIGNAL AGENT" } } }
+    },
+    "Talent Signal Agent" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal Agent" } } }
+    },
+    "Talent Signal Agent. This update needs review. No outcome assumed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal Agent。此更新需要审阅，尚未假定任何结果。" } } }
+    },
+    "The signal remains in history" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "该信号仍保留在历史中" } } }
+    },
+    "This update needs review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此更新需要审阅" } } }
+    },
+    "Update delayed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新有所延迟" } } }
+    },
+    "You can leave" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你可以暂时离开" } } }
+    },
     "source receipt" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源回执" } } }
     }

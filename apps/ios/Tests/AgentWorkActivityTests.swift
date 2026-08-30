@@ -119,6 +119,33 @@ final class AgentWorkActivityTests: XCTestCase {
         XCTAssertTrue(staleView.accessibilityLabel.contains("Last update delayed"))
     }
 
+    func testBoundaryAtlasFixturesProjectWithoutInventingSuccess() throws {
+        let expected: [
+            (AgentWorkBoundaryAtlasFixture, AgentWorkGlyph, AgentWorkActivityAction)
+        ] = [
+            (.partial, .partial, .openActions),
+            (.failed, .failed, .resolve),
+            (.unknown, .unknown, .resolve),
+            (.stale, .actions, .openStatus),
+        ]
+
+        for (fixture, glyph, action) in expected {
+            let view = try AgentWorkActivityProjector.project(fixture.state)
+            XCTAssertEqual(view.glyph, glyph, fixture.rawValue)
+            XCTAssertEqual(view.action, action, fixture.rawValue)
+            XCTAssertFalse(
+                view.boundaryText.localizedCaseInsensitiveContains("succeeded"),
+                fixture.rawValue
+            )
+        }
+
+        XCTAssertTrue(
+            try AgentWorkActivityProjector.project(
+                AgentWorkBoundaryAtlasFixture.stale.state
+            ).isStale
+        )
+    }
+
     func testOrderingIgnoresOlderAndRejectsConflictsAndRegression() {
         let running = makeState(
             execution: .running,

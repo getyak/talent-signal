@@ -3,8 +3,8 @@ import XCTest
 final class StandaloneOnboardingUITests: XCTestCase {
     @MainActor
     func testStandaloneDemoMeetingJourneyCreatesVerifiedToday() throws {
-        let app = XCUIApplication()
-        app.launchArguments = [
+        let app = englishApp()
+        app.launchArguments += [
             "--standalone-onboarding-reset",
             "--standalone-demo",
             "--demo-proposal-engine",
@@ -63,8 +63,8 @@ final class StandaloneOnboardingUITests: XCTestCase {
 
     @MainActor
     func testStandaloneCalendarExplainsPurposeBeforeSystemPrompt() {
-        let app = XCUIApplication()
-        app.launchArguments = ["--standalone-onboarding-reset", "--standalone-demo"]
+        let app = englishApp()
+        app.launchArguments += ["--standalone-onboarding-reset", "--standalone-demo"]
         app.launch()
 
         tap("standalone-demo-user", in: app)
@@ -79,8 +79,8 @@ final class StandaloneOnboardingUITests: XCTestCase {
 
     @MainActor
     func testStandaloneArbitraryTextCompletesThroughManualNoModelReview() {
-        let app = XCUIApplication()
-        app.launchArguments = [
+        let app = englishApp()
+        app.launchArguments += [
             "--standalone-onboarding-reset",
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
@@ -113,8 +113,8 @@ final class StandaloneOnboardingUITests: XCTestCase {
 
     @MainActor
     func testStandaloneAX5LongMixedSignalHasKeyboardExitAndReachableManualReview() {
-        let app = XCUIApplication()
-        app.launchArguments = [
+        let app = englishApp()
+        app.launchArguments += [
             "--standalone-onboarding-reset",
             "--force-dark",
             "--simulate-action-button",
@@ -197,8 +197,8 @@ final class StandaloneOnboardingUITests: XCTestCase {
     @MainActor
     func testFreshWelcomeCanDeleteRetainedSourceAfterReset() {
         let fixtureID = UUID()
-        let app = XCUIApplication()
-        app.launchArguments = [
+        let app = englishApp()
+        app.launchArguments += [
             "--standalone-onboarding-reset",
             "--standalone-retained-source-fixture", fixtureID.uuidString,
         ]
@@ -228,8 +228,8 @@ final class StandaloneOnboardingUITests: XCTestCase {
     @MainActor
     func testQueuedShortcutRetriesAfterPursuitCreationAndLeavesNoHiddenQueue() {
         let fixtureID = UUID()
-        let app = XCUIApplication()
-        app.launchArguments = [
+        let app = englishApp()
+        app.launchArguments += [
             "--standalone-onboarding-reset",
             "--standalone-clear-pending-shortcut-fixtures",
             "--standalone-pending-shortcut-fixture", fixtureID.uuidString,
@@ -253,8 +253,8 @@ final class StandaloneOnboardingUITests: XCTestCase {
     @MainActor
     func testFreshWelcomeCanDeleteQueuedShortcutCaptureAfterReset() {
         let fixtureID = UUID()
-        let app = XCUIApplication()
-        app.launchArguments = [
+        let app = englishApp()
+        app.launchArguments += [
             "--standalone-onboarding-reset",
             "--standalone-clear-pending-shortcut-fixtures",
             "--standalone-pending-shortcut-fixture", fixtureID.uuidString,
@@ -275,6 +275,17 @@ final class StandaloneOnboardingUITests: XCTestCase {
         confirm.tap()
 
         XCTAssertFalse(queuedSource.waitForExistence(timeout: 2))
+    }
+
+    @MainActor
+    private func englishApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+            "-talent-signal.interface-language", "en",
+        ]
+        return app
     }
 
     @MainActor

@@ -58,7 +58,93 @@ enum AgentWorkShowcasePhase: Equatable {
     case factReview
     case actionReview
     case outcome(ReviewOutcome)
+    case boundaryAtlas(AgentWorkBoundaryAtlasFixture)
     case routeRejected
+}
+
+enum AgentWorkBoundaryAtlasFixture: String, CaseIterable, Identifiable {
+    case partial
+    case failed
+    case unknown
+    case stale
+
+    var id: String { rawValue }
+
+    static func configured(arguments: [String]) -> Self? {
+        guard let index = arguments.firstIndex(of: "--agent-work-atlas"),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return Self(rawValue: arguments[index + 1])
+    }
+
+    var title: String {
+        switch self {
+        case .partial: return "Partial result"
+        case .failed: return "Failed safely"
+        case .unknown: return "Unknown outcome"
+        case .stale: return "Delayed update"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .partial:
+            return "Some reviewable actions are available, while incomplete evidence stays marked."
+        case .failed:
+            return "Processing stopped and asks the recruiter to resolve it in the App."
+        case .unknown:
+            return "The outcome cannot be confirmed, so the surface makes no success claim."
+        case .stale:
+            return "The task remains in its last known stage while freshness is visibly delayed."
+        }
+    }
+
+    var state: AgentWorkActivityAttributes.ContentState {
+        let now = Date()
+        switch self {
+        case .partial:
+            return .init(
+                execution: .partial,
+                attention: .review,
+                freshness: .fresh,
+                stage: .readyForReview,
+                reviewActionCount: 2,
+                eventRevision: 2,
+                updatedAt: now
+            )
+        case .failed:
+            return .init(
+                execution: .failed,
+                attention: .resolve,
+                freshness: .fresh,
+                stage: .reconcilingOutcome,
+                reviewActionCount: 0,
+                eventRevision: 2,
+                updatedAt: now
+            )
+        case .unknown:
+            return .init(
+                execution: .unknown,
+                attention: .resolve,
+                freshness: .fresh,
+                stage: .reconcilingOutcome,
+                reviewActionCount: 0,
+                eventRevision: 2,
+                updatedAt: now
+            )
+        case .stale:
+            return .init(
+                execution: .running,
+                attention: .observe,
+                freshness: .stale,
+                stage: .preparingActions,
+                reviewActionCount: 0,
+                eventRevision: 2,
+                updatedAt: now
+            )
+        }
+    }
 }
 
 @MainActor
@@ -69,17 +155,22 @@ final class AgentWorkShowcaseStore: ObservableObject {
     @Published private(set) var identity: AgentWorkActivityIdentity?
     @Published private(set) var statusMessage = "Ready for a synthetic Agent run."
 
-    private let controller: AgentWorkActivityController
+    private let controller: any AgentWorkActivityControlling
     private var revision: Int64 = 0
 
-    init(controller: AgentWorkActivityController? = nil) {
-        self.controller = controller ?? .shared
+    init(controller: (any AgentWorkActivityControlling)? = nil) {
+        self.controller = controller ?? AgentWorkActivityController.shared
     }
 
     func start() async {
         session = nil
         revision = 1
-        identity = await controller.startSyntheticTask(taskID: scenario.taskID)
+        identity = await controller.startSyntheticTask(
+            scopeID: "debug.local",
+            taskID: scenario.taskID,
+            now: Date(),
+            fixtureLifetime: 30 * 60
+        )
         phase = .processing(.received)
         statusMessage = identity == nil
             ? "Live Activities are unavailable here. The in-App lifecycle remains usable."
@@ -98,63 +189,146 @@ final class AgentWorkShowcaseStore: ObservableObject {
             return
         }
 
-        revision += 1
-        let state = state(for: next, revision: revision)
+        let nextRevision = revision + 1
+        let state = state(for: next, revision: nextRevision)
+        var continuedWithoutSystemSurface = false
         if let identity {
-            let result = await controller.update(identity: identity, state: state)
-            guard [.applied, .noOp, .ignoredOlder].contains(result) else {
+            let result = await controller.update(
+                identity: identity,
+                state: state,
+                now: Date()
+            )
+            switch result {
+            case .applied, .noOp:
+                break
+            case .missing, .unavailable, .systemFailure:
+                self.identity = nil
+                continuedWithoutSystemSurface = true
+            case .ignoredOlder, .identityMismatch, .sameRevisionConflict,
+                    .terminalRegression, .invalidPayload:
                 statusMessage = "The unsafe or conflicting update was stopped. The App still owns the review."
                 return
             }
         }
+        revision = nextRevision
 
         if next == .readyForReview {
             session = ReviewSession(fixture: scenario.fixture)
             phase = .factReview
-            statusMessage = "Suggested actions are ready. Review evidence before choosing any change."
+            statusMessage = continuedWithoutSystemSurface
+                ? "The system surface is unavailable. Suggested actions are still ready for review in the App."
+                : "Suggested actions are ready. Review evidence before choosing any change."
         } else {
             phase = .processing(next)
-            statusMessage = stageMessage(next)
+            statusMessage = continuedWithoutSystemSurface
+                ? "The system surface is unavailable. The in-App lifecycle continues safely."
+                : stageMessage(next)
+        }
+    }
+
+    func startBoundaryAtlas(_ fixture: AgentWorkBoundaryAtlasFixture) async {
+        session = nil
+        revision = 1
+        let atlasTaskID = "task.agent-atlas.\(fixture.rawValue)"
+        identity = await controller.startSyntheticTask(
+            scopeID: "debug.local",
+            taskID: atlasTaskID,
+            now: Date(),
+            fixtureLifetime: 15 * 60
+        )
+        guard let identity else {
+            phase = .boundaryAtlas(fixture)
+            statusMessage = "Live Activities are unavailable. This atlas state was not recorded."
+            return
+        }
+        let result = await controller.update(
+            identity: identity,
+            state: fixture.state,
+            now: Date()
+        )
+        switch result {
+        case .applied, .noOp:
+            revision = fixture.state.eventRevision
+            phase = .boundaryAtlas(fixture)
+            statusMessage = "Boundary atlas fixture is active on the real system surface."
+        default:
+            self.identity = nil
+            phase = .routeRejected
+            statusMessage = "The boundary atlas fixture could not be displayed safely."
         }
     }
 
     func open(_ link: AgentWorkDeepLink) async {
-        guard controller.validatesActiveIdentity(link.identity) else {
-            phase = .routeRejected
-            statusMessage = "This Live Activity is no longer the current task. Nothing was ended or changed."
-            return
-        }
-        identity = link.identity
-        if link.identity.taskID == AgentWorkShowcaseScenario.newContact.taskID {
-            scenario = .newContact
-        } else if link.identity.taskID == AgentWorkShowcaseScenario.existingContact.taskID {
-            scenario = .existingContact
-        } else {
+        guard let linkedScenario = scenario(for: link.identity.taskID) else {
             phase = .routeRejected
             statusMessage = "The task is not an authorized showcase fixture."
             return
         }
 
+        let restored = await controller.restoreOrCleanExpired(now: Date())
+        guard let snapshot = restored?.identity == link.identity
+                ? restored
+                : controller.activeSnapshot(identity: link.identity) else {
+            phase = .routeRejected
+            statusMessage = "This Live Activity is no longer the current task. Nothing was ended or changed."
+            return
+        }
+        scenario = linkedScenario
+
         switch link.destination {
         case .status:
-            await controller.restoreOrCleanExpired()
-            statusMessage = "The exact Agent task is still active."
+            guard isProcessing(snapshot.state) else {
+                rejectStateMismatch()
+                return
+            }
+            restore(snapshot)
         case .actions:
+            guard isReadyForReview(snapshot.state) else {
+                rejectStateMismatch()
+                return
+            }
+            identity = link.identity
+            revision = snapshot.state.eventRevision
             session = ReviewSession(fixture: scenario.fixture)
             phase = .factReview
-            _ = await controller.end(identity: link.identity)
+            _ = await controller.end(
+                identity: link.identity,
+                dismissImmediately: true,
+                now: Date()
+            )
             identity = nil
             statusMessage = "The exact Live Activity was closed. Action review continues in the App."
         case .resolve:
+            guard isResolutionState(snapshot.state) else {
+                rejectStateMismatch()
+                return
+            }
             phase = .routeRejected
             statusMessage = "This synthetic issue needs a fresh run. No retry or write happened automatically."
         }
     }
 
+    func restore() async {
+        guard phase == .idle,
+              let snapshot = await controller.restoreOrCleanExpired(now: Date()),
+              scenario(for: snapshot.identity.taskID) != nil else {
+            return
+        }
+        restore(snapshot)
+    }
+
+    func refreshSystemSurface() async {
+        _ = await controller.restoreOrCleanExpired(now: Date())
+    }
+
     func openReviewInApp() async {
         guard session != nil else { return }
         if let identity {
-            _ = await controller.end(identity: identity)
+            _ = await controller.end(
+                identity: identity,
+                dismissImmediately: true,
+                now: Date()
+            )
             self.identity = nil
         }
         statusMessage = "Live handoff complete. Review remains local until you decide."
@@ -221,7 +395,11 @@ final class AgentWorkShowcaseStore: ObservableObject {
 
     func reset() async {
         if let identity {
-            _ = await controller.end(identity: identity)
+            _ = await controller.end(
+                identity: identity,
+                dismissImmediately: true,
+                now: Date()
+            )
         }
         self.identity = nil
         session = nil
@@ -233,6 +411,73 @@ final class AgentWorkShowcaseStore: ObservableObject {
     private func mutateSession(_ change: (inout ReviewSession) -> Bool) {
         guard var session, change(&session) else { return }
         self.session = session
+    }
+
+    private func scenario(for taskID: String) -> AgentWorkShowcaseScenario? {
+        AgentWorkShowcaseScenario.allCases.first { $0.taskID == taskID }
+    }
+
+    private func restore(_ snapshot: AgentWorkActivitySnapshot) {
+        guard let restoredScenario = scenario(for: snapshot.identity.taskID) else {
+            return
+        }
+        scenario = restoredScenario
+        identity = snapshot.identity
+        revision = snapshot.state.eventRevision
+        session = nil
+
+        if isProcessing(snapshot.state) {
+            phase = .processing(snapshot.state.stage)
+            statusMessage = "The exact Agent task resumed from its current system state."
+        } else if isReadyForReview(snapshot.state) {
+            session = ReviewSession(fixture: restoredScenario.fixture)
+            phase = .factReview
+            statusMessage = "Suggested actions are ready. Review evidence before choosing any change."
+        } else if isResolutionState(snapshot.state) {
+            phase = .routeRejected
+            statusMessage = "This synthetic issue needs a fresh run. No retry or write happened automatically."
+        } else {
+            rejectStateMismatch()
+        }
+    }
+
+    private func isProcessing(
+        _ state: AgentWorkActivityAttributes.ContentState
+    ) -> Bool {
+        switch (state.execution, state.attention, state.stage) {
+        case (.preparing, .observe, .received),
+                (.running, .observe, .readingEvidence),
+                (.running, .observe, .resolvingIdentity),
+                (.running, .observe, .preparingActions):
+            return state.reviewActionCount == 0
+        default:
+            return false
+        }
+    }
+
+    private func isReadyForReview(
+        _ state: AgentWorkActivityAttributes.ContentState
+    ) -> Bool {
+        state.execution == .completed
+            && state.attention == .review
+            && state.stage == .readyForReview
+            && state.reviewActionCount == scenario.proposedActionCount
+    }
+
+    private func isResolutionState(
+        _ state: AgentWorkActivityAttributes.ContentState
+    ) -> Bool {
+        (state.execution == .failed || state.execution == .unknown)
+            && state.attention == .resolve
+            && state.stage == .reconcilingOutcome
+            && state.reviewActionCount == 0
+    }
+
+    private func rejectStateMismatch() {
+        identity = nil
+        session = nil
+        phase = .routeRejected
+        statusMessage = "The link did not match the Activity's current stage. Nothing was ended or changed."
     }
 
     private func state(
@@ -291,6 +536,7 @@ final class AgentWorkShowcaseStore: ObservableObject {
 struct AgentWorkShowcaseView: View {
     let initialURL: URL?
     let onClose: (() -> Void)?
+    let atlasFixture: AgentWorkBoundaryAtlasFixture?
 
     @StateObject private var store = AgentWorkShowcaseStore()
     @ObservedObject private var controller = AgentWorkActivityController.shared
@@ -298,9 +544,16 @@ struct AgentWorkShowcaseView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
-    init(initialURL: URL? = nil, onClose: (() -> Void)? = nil) {
+    init(
+        initialURL: URL? = nil,
+        onClose: (() -> Void)? = nil,
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) {
         self.initialURL = initialURL
         self.onClose = onClose
+        atlasFixture = AgentWorkBoundaryAtlasFixture.configured(
+            arguments: arguments
+        )
     }
 
     var body: some View {
@@ -340,14 +593,17 @@ struct AgentWorkShowcaseView: View {
         }
         .tint(.tsVermilion)
         .task(id: initialURL) {
-            await controller.restoreOrCleanExpired()
-            if let initialURL, let link = AgentWorkDeepLink.parse(initialURL) {
+            if let atlasFixture {
+                await store.startBoundaryAtlas(atlasFixture)
+            } else if let initialURL, let link = AgentWorkDeepLink.parse(initialURL) {
                 await store.open(link)
+            } else {
+                await store.restore()
             }
         }
         .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
-            Task { await controller.restoreOrCleanExpired() }
+            Task { await store.refreshSystemSurface() }
         }
     }
 
@@ -430,9 +686,39 @@ struct AgentWorkShowcaseView: View {
             actionReview
         case let .outcome(outcome):
             outcomeView(outcome)
+        case let .boundaryAtlas(fixture):
+            boundaryAtlas(fixture)
         case .routeRejected:
             routeRejected
         }
+    }
+
+    private func boundaryAtlas(
+        _ fixture: AgentWorkBoundaryAtlasFixture
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionLabel(text: "Boundary atlas · \(fixture.rawValue)")
+                .accessibilityIdentifier("agent-work-atlas-\(fixture.rawValue)")
+            Text(fixture.title)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+            Text(fixture.detail)
+                .font(.body)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Synthetic Debug evidence only · no candidate data · no external write")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                Task { await store.reset() }
+            } label: {
+                Text("End atlas fixture")
+            }
+            .buttonStyle(TSSecondaryButtonStyle())
+            .accessibilityIdentifier("agent-work-atlas-end")
+        }
+        .tsCard()
     }
 
     private var setup: some View {
@@ -724,6 +1010,7 @@ struct AgentWorkShowcaseView: View {
         case .processing: return "sparkles"
         case .factReview, .actionReview: return "hand.raised"
         case .outcome: return "checkmark.seal"
+        case .boundaryAtlas: return "rectangle.3.group"
         case .routeRejected: return "exclamationmark.triangle"
         }
     }

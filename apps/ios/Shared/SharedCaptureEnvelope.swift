@@ -119,8 +119,20 @@ struct SharedCaptureInbox {
 
 #if DEBUG
     private static var retainedSourceFixtureID: UUID? {
+        fixtureID(after: "--standalone-retained-source-fixture")
+    }
+
+    private static var pendingShortcutFixtureID: UUID? {
+        fixtureID(after: "--standalone-pending-shortcut-fixture")
+    }
+
+    private static var debugFixtureRootID: UUID? {
+        retainedSourceFixtureID ?? pendingShortcutFixtureID
+    }
+
+    private static func fixtureID(after flag: String) -> UUID? {
         let arguments = ProcessInfo.processInfo.arguments
-        guard let index = arguments.firstIndex(of: "--standalone-retained-source-fixture"),
+        guard let index = arguments.firstIndex(of: flag),
               arguments.indices.contains(index + 1) else { return nil }
         return UUID(uuidString: arguments[index + 1])
     }
@@ -132,7 +144,7 @@ struct SharedCaptureInbox {
     ) throws {
         self.fileManager = fileManager
 #if DEBUG
-        let debugFixtureRootURL = Self.retainedSourceFixtureID.map { fixtureID in
+        let debugFixtureRootURL = Self.debugFixtureRootID.map { fixtureID in
             fileManager.temporaryDirectory
                 .appending(
                     path: "StandaloneSharedCaptureUITest",

@@ -24,14 +24,21 @@ protocol PursuitActionCompletionPersisting: AnyObject {
 final class UserDefaultsPursuitActionCompletionStore: PursuitActionCompletionPersisting {
     private let defaults: UserDefaults
     private let key = "talent-signal.pursuit-action-completions.v1"
+    private let resetProcessKey = "talent-signal.pursuit-action-completions.reset-process.v1"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+#if DEBUG
         if ProcessInfo.processInfo.arguments.contains(
             "--reset-pursuit-action-completions"
         ) {
-            defaults.removeObject(forKey: key)
+            let processID = Int(ProcessInfo.processInfo.processIdentifier)
+            if defaults.integer(forKey: resetProcessKey) != processID {
+                defaults.removeObject(forKey: key)
+                defaults.set(processID, forKey: resetProcessKey)
+            }
         }
+#endif
     }
 
     func entry(for actionID: String) -> PersistedPursuitActionCompletion? {
@@ -99,6 +106,20 @@ final class FilePursuitActionCompletionStore: PursuitActionCompletionPersisting 
             .appending(path: "\(digest).json")
         deletionTombstoneURL = fileURL.appendingPathExtension("deletion-pending")
         self.now = now
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(
+            "--reset-pursuit-action-completions"
+        ) {
+            let resetKey = "talent-signal.pursuit-action-completions.file-reset-process.\(digest)"
+            let processID = Int(ProcessInfo.processInfo.processIdentifier)
+            let defaults = UserDefaults.standard
+            if defaults.integer(forKey: resetKey) != processID {
+                if (try? deleteAll()) != nil {
+                    defaults.set(processID, forKey: resetKey)
+                }
+            }
+        }
+#endif
     }
 
     func entry(for actionID: String) throws -> PersistedPursuitActionCompletion? {

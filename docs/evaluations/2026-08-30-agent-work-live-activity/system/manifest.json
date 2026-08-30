@@ -1,0 +1,26 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "02B4F0C1-A92F-469D-9DCC-5ED13F119507",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "BE9A930E-124E-4333-A8DB-AFE8D82132D1.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Dynamic Island when actions need review_0_B3D0B6FC-427D-48A5-858B-864C0FB02237.png",
+        "timestamp" : 1788080215.868
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "02B4F0C1-A92F-469D-9DCC-5ED13F119507",
+        "deviceName" : "iPhone 17 Pro",
+        "exportedFileName" : "F668EF27-9A44-4A3A-BA0E-C40D71D88737.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Dynamic Island while Agent can work away_0_3C309D4E-CAD1-40A8-AF3D-FE7005C3D309.png",
+        "timestamp" : 1788080206.746
+      }
+    ],
+    "testIdentifier" : "AgentWorkShowcaseUITests/testRealDynamicIslandMovesFromAwayToReview()",
+    "testIdentifierURL" : "test://com.apple.xcode/TalentSignal/TalentSignalUITests/AgentWorkShowcaseUITests/testRealDynamicIslandMovesFromAwayToReview"
+  }
+]

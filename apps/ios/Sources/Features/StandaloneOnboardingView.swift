@@ -425,6 +425,7 @@ struct StandaloneOnboardingView: View {
                     outcome: outcome,
                     targetDate: hasTargetDate ? targetDate : nil
                 )
+                Task { await importPendingIntentCapture() }
             }
             .buttonStyle(TSPrimaryButtonStyle())
             .accessibilityIdentifier("standalone-create-pursuit")

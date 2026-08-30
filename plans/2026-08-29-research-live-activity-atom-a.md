@@ -2,12 +2,13 @@
 
 ## Status
 
-Completed implementation slice on 2026-08-29. The user explicitly asked the
-Agent to resolve the direction and complete the elegant end-to-end lifecycle
-instead of waiting for the recruiter study. Direction `73` (Quiet Handoff) is
-therefore the implementation baseline because it makes the running-to-review
-attention handoff primary. This is a user-authorized implementation decision,
-not a Gate 1 research result.
+Reopened on 2026-08-30 and most recently verified from working-tree base
+`5e97700e4ce1b32e248881ea3c30469c8b16a965`. The 2026-08-29 implementation is
+a strong Debug-only executable slice, but it does not yet satisfy the linked
+Notion completion contract. Direction `73` (Quiet Handoff) remains the
+user-authorized implementation baseline because it makes the
+running-to-review attention handoff primary. This is not a Gate 1 research
+result.
 
 The visual evidence contract still requires all of the following before the
 repository may claim Gate 1 validation:
@@ -19,10 +20,36 @@ repository may claim Gate 1 validation:
   and privacy gate.
 
 The connected Notion pages still report `0/8`, `UNSET`, `0/10` real ActivityKit
-screenshots, and `0/4` boundary-atlas states. The current browser session has no
-recoverable Gate 1 page or participant results. An Agent must not invent the
-participants or present direction 73 as recruiter-validated. The existing
-recording Live Activity also cannot become proof of the research Activity.
+screenshots, `0/4` boundary-atlas states, and `0/2` uncut system videos. Local
+repository evidence now proves `2/10` compact system states and `4/4` boundary
+atlas states, but has not yet been promoted to that external evidence board.
+The current session has no recoverable Gate 1 participant results. An Agent
+must not invent the participants or present direction 73 as
+recruiter-validated. The existing recording Live Activity also cannot become
+proof of the Agent-work Activity.
+
+### Reopened completion audit
+
+The following findings make the earlier "Completed" milestone labels too broad:
+
+- a cold launch through a running `status` Live Activity URL restores the
+  controller but does not reconstruct the showcase phase or revision;
+- an `actions` URL proves exact Activity identity but does not yet prove that
+  the active Activity is in `completed + review + readyForReview`;
+- an Activity that disappears mid-run currently blocks the in-App deterministic
+  lifecycle instead of degrading honestly to the App-owned fallback;
+- account/sign-out cleanup is declared but has no production caller, and the
+  controller lifecycle itself is not covered by a deterministic adapter test;
+- Live Activity strings are English literals and the extension has no localized
+  string catalog;
+- the committed UI test proves two compact system states, not the complete
+  expanded, Lock Screen, minimal, no-island, accessibility, atlas, or video
+  evidence contract.
+
+The active outcome is therefore to close the executable gaps and create the
+complete reproducible evidence harness. Recruiter Gate 1 and signed-device
+Always-On remain external evidence gates; they must stay `WAITING`, never be
+simulated or self-authored.
 
 ## Outcome
 
@@ -71,10 +98,8 @@ Out of scope:
 
 ## Current evidence
 
-- Current repository revision is
-  `7981df785c6275f471f82d9505972a8567d5bed9`; `origin/main` is
-  `75ff39b7964dfaaced691a69ca80ad144e64922f` as observed on 2026-08-29. The
-  local-only commit adds `.data/` to `.gitignore` and does not change iOS code.
+- The current evidence artifact records its exact working-tree base revision;
+  unrelated concurrent changes remain outside this plan's ownership.
 - The repository already embeds `TalentSignalLiveActivity`, but it projects the
   foreground audio-recording contract (`Recording Signal` → `Saved ·
   Organizing` → `Ready to Review`). It has a Stop App Intent and may remain a
@@ -139,7 +164,7 @@ Rejected approaches:
 
 ## Milestones
 
-1. **Completed — implementation direction**
+1. **Implementation baseline set; Gate 1 waiting**
    - direction 73 selected under explicit user authorization;
    - Gate 1 remains labeled `UNVERIFIED`, with no invented participant result.
 2. **Completed — executable state contract**
@@ -157,15 +182,18 @@ Rejected approaches:
    - implemented separate create-contact, update-contact, and create-meeting
      cards derived only from confirmed facts;
    - preserved truthful App Shortcut / Action Button setup and simulated state.
-5. **Completed — implementation verification and evidence**
-   - `pnpm ios:check` passed: clean Release build, 214 unit tests, and 83
-     isolated UI scenarios with 79 passed, 4 environment-gated skips, and 0
-     failures;
-   - localization, documentation, Release isolation, stale-state, exact
-     deep-link, action-card, and settings regressions passed;
-   - real Simulator Dynamic Island receipts prove the running `AWAY` and
-     completed `REVIEW` states and the exact deep-link return. Simulator proof
-     does not establish physical-device Always-On behavior.
+5. **In progress — implementation verification and evidence**
+   - 16 focused state, ordering, deep-link, restoration, and fallback tests pass;
+   - the real Simulator boundary-atlas test passes with four retained system
+     screenshots, and the compact running-to-review test passes with two;
+   - the iOS Release build and 228 unit tests pass;
+   - a full UI run attempted 87 journeys but is inconclusive because unrelated
+     capture, Ask/contact, onboarding, and language-state work changed in the
+     shared working tree during the run; it is not recorded as a repository-wide
+     PASS;
+   - the full TS-LA-01…10 manifest, two uncut videos, signed-device Always-On,
+     a stable full repository check, and external evidence-board promotion
+     remain.
 
 ## Implementation completion proof
 
@@ -177,17 +205,19 @@ Rejected approaches:
 - Actions management shows one current next step, separates setup from
   execution, discloses simulation, and never claims a physical mapping or
   external write that cannot be read back.
-- `pnpm ios:check`, localization checks, documentation checks, and Release
-  boundary checks pass.
+- Focused Agent-work checks, localization checks, documentation checks, the
+  Release build, and the 228-test unit suite pass. A stable full `pnpm
+  ios:check` receipt remains open because the concurrent full UI run was
+  inconclusive.
 
 ## Research validation still unverified
 
 - The exact Gate 1 export and recruiter-selected direction have not been
   supplied. No Agent-authored participant result is used.
-- TS-LA-01…10, the four-state research atlas, physical-device Always-On proof,
-  and independent recruiter comprehension results remain research work. They
-  are not prerequisites for the completed Debug implementation showcase and
-  are not claimed by it.
+- The remaining TS-LA-01…10 system surfaces beyond the two compact receipts,
+  physical-device Always-On proof, and independent recruiter comprehension
+  results remain research work. The four-state Simulator atlas is complete,
+  but it is not a substitute for those external gates.
 
 ## Replanning signals
 

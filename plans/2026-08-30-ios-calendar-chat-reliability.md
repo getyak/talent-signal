@@ -84,3 +84,24 @@ Cross-device schedule continuity still requires the separately governed
 backend activity model called out by the original relationship-calendar plan.
 This correction does not silently turn a device receipt into canonical shared
 truth.
+
+## Verification record
+
+- Debug and Release simulator builds succeeded.
+- The focused contact-intake and relationship archive suites passed 84 tests
+  with zero failures.
+- The complete unit suite passed 220 tests with zero failures during the iOS
+  release gate.
+- Focused UI journeys passed for calendar cancellation, calendar navigation at
+  accessibility text sizes, unscoped Ask continuation, canonical Ask pending
+  and response states, and editable voice input.
+- The localization boundary passed with all new failure and verification copy
+  present in English and Simplified Chinese.
+- The existing TestFlight backend image was reused to avoid incorporating
+  unrelated dirty backend work; migrations, Apple authentication, remote Ask,
+  remote voice, loopback binding, and tailnet HTTPS probes all passed.
+- The Mac tailnet node is online. The iOS peer remains offline, so enabling
+  Tailscale on the phone is still a required user-owned recovery step.
+- The full 85-journey UI gate was stopped after it exposed unrelated failures
+  in concurrent workspace work; those failures were not treated as evidence
+  against this isolated correction.

@@ -172,20 +172,48 @@ signal_ios_process_tree() {
   kill "-$signal_name" "$process_id" >/dev/null 2>&1 || true
 }
 
+list_ios_process_tree() {
+  local process_id="$1"
+  local child_id
+  while IFS= read -r child_id; do
+    if [ -n "$child_id" ]; then
+      list_ios_process_tree "$child_id"
+    fi
+  done < <(pgrep -P "$process_id" 2>/dev/null || true)
+  printf '%s\n' "$process_id"
+}
+
 stop_ios_helper() {
   local process_id="$1"
   local attempt
+  local tree_id
+  local all_stopped
+  local -a process_tree=()
   [ -n "$process_id" ] || return 0
 
+  while IFS= read -r tree_id; do
+    if [ -n "$tree_id" ]; then
+      process_tree+=("$tree_id")
+    fi
+  done < <(list_ios_process_tree "$process_id")
   signal_ios_process_tree TERM "$process_id"
-  for ((attempt = 0; attempt < 20; attempt += 1)); do
-    if ! kill -0 "$process_id" >/dev/null 2>&1; then
+  for ((attempt = 0; attempt < 100; attempt += 1)); do
+    all_stopped="true"
+    for tree_id in "${process_tree[@]}"; do
+      if kill -0 "$tree_id" >/dev/null 2>&1; then
+        all_stopped="false"
+        break
+      fi
+    done
+    if [ "$all_stopped" = "true" ]; then
       wait "$process_id" >/dev/null 2>&1 || true
       return 0
     fi
     sleep 0.1
   done
-  signal_ios_process_tree KILL "$process_id"
+  for tree_id in "${process_tree[@]}"; do
+    kill -KILL "$tree_id" >/dev/null 2>&1 || true
+  done
   wait "$process_id" >/dev/null 2>&1 || true
 }
 

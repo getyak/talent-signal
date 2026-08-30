@@ -16,9 +16,27 @@ const fixturePursuitTitles = new Set([
   "VP Engineering · Northstar",
   "Synthetic same-name search",
 ]);
+const fixtureCaptureLocatorPrefixes = [
+  "synthetic:ios-proposal:",
+  "synthetic:ios-same-name:",
+  "synthetic:ios-contact:",
+] as const;
 
 export function isIOSPursuitProposalFixtureTitle(title: string): boolean {
   return fixturePursuitTitles.has(title);
+}
+
+export function isIOSPursuitProposalFixtureLocator(locator: string): boolean {
+  return fixtureCaptureLocatorPrefixes.some((prefix) =>
+    locator.startsWith(prefix),
+  );
+}
+
+function fixtureDatabaseUrl(): string {
+  return (
+    process.env.DATABASE_URL ??
+    `postgresql://${process.env.POSTGRES_USER ?? "talent_signal_local"}:${process.env.POSTGRES_PASSWORD ?? "talent_signal_local_only"}@127.0.0.1:${process.env.POSTGRES_PORT ?? "55432"}/${process.env.POSTGRES_DB ?? "talent_signal_local"}`
+  );
 }
 
 async function createFixture(
@@ -30,7 +48,12 @@ async function createFixture(
     title: string;
     ownerUserId: string;
   },
-): Promise<{ proposalId: string; pursuitId: string; personId: string }> {
+): Promise<{
+  proposalId: string;
+  pursuitId: string;
+  personId: string;
+  captureId: string;
+}> {
   const runId = randomUUID();
   const clientResourceId = `ios-proposal-ui:${options.fixtureKey}:${runId}`;
   const observedAt = new Date().toISOString();
@@ -185,7 +208,36 @@ async function createFixture(
     proposalId: proposal.proposal.id,
     pursuitId: pursuit.pursuit.id,
     personId: captured.identity.person_id,
+    captureId: captured.capture_id,
   };
+}
+
+async function reviewFixtureFragment(
+  client: TalentSignalClient,
+  resourceId: string,
+  idempotencyKey: string,
+  reason: string,
+): Promise<void> {
+  const resource = await client.getRelationshipResource(resourceId);
+  const fragment = resource.fragments[0];
+  if (!fragment) {
+    throw new Error("The synthetic evidence fragment is missing.");
+  }
+  if (fragment.review_status !== "proposed") {
+    throw new Error(
+      `Synthetic evidence must begin as proposed, got ${fragment.review_status}.`,
+    );
+  }
+  const review = await client.reviewEvidenceFragment(fragment.id, {
+    idempotency_key: idempotencyKey,
+    expected_review_status: "proposed",
+    expected_last_review_id: null,
+    decision: "reviewed",
+    reason,
+  });
+  if (review.review_status !== "reviewed" || !review.review_id) {
+    throw new Error("The synthetic evidence review authority was not recorded.");
+  }
 }
 
 async function createSameNameFixture(
@@ -198,6 +250,7 @@ async function createSameNameFixture(
   secondPersonId: string;
   secondContextId: string;
   secondRoleId: string;
+  captureIds: string[];
 }> {
   const runId = randomUUID();
   const createPerson = async (suffix: "A" | "B") => {
@@ -247,7 +300,7 @@ async function createSameNameFixture(
             speaker_side: "left",
           },
           attribution: { actor_kind: "candidate", status: "confirmed" },
-          review_status: "reviewed",
+          review_status: "proposed",
           parser: { name: "synthetic-ui-fixture", version: "1.0.0" },
         },
       ],
@@ -255,9 +308,16 @@ async function createSameNameFixture(
     if (!captured.identity.person_id || !captured.identity.relationship_context_id) {
       throw new Error(`Same-name identity ${suffix} did not bind.`);
     }
+    await reviewFixtureFragment(
+      client,
+      captured.resource.id,
+      `ios-same-name:${runId}:${suffix}:review-evidence`,
+      `The evaluator verified synthetic same-name identity ${suffix}.`,
+    );
     return {
       personId: captured.identity.person_id,
       contextId: captured.identity.relationship_context_id,
+      captureId: captured.capture_id,
     };
   };
 
@@ -295,6 +355,7 @@ async function createSameNameFixture(
     secondPersonId: second.personId,
     secondContextId: second.contextId,
     secondRoleId: secondRole.id,
+    captureIds: [first.captureId, second.captureId],
   };
 }
 
@@ -309,6 +370,7 @@ async function createContactIdentityFixture(
   conflictCurrentPersonId: string;
   conflictCurrentContextId: string;
   conflictHistoricalPersonId: string;
+  captureIds: string[];
 }> {
   const runId = randomUUID();
   const noMatchEmail = `ios-no-match-${runId}@example.test`;
@@ -373,7 +435,7 @@ async function createContactIdentityFixture(
             source_record_version: "1",
           },
           attribution: { actor_kind: "recruiter", status: "confirmed" },
-          review_status: "reviewed",
+          review_status: "proposed",
           parser: { name: "synthetic-ios-contact-fixture", version: "1.0.0" },
         },
       ],
@@ -381,10 +443,17 @@ async function createContactIdentityFixture(
     if (!captured.identity.person_id || !captured.identity.relationship_context_id) {
       throw new Error(`Contact identity ${fixtureKey} did not bind.`);
     }
+    await reviewFixtureFragment(
+      client,
+      captured.resource.id,
+      `ios-contact-identity:${fixtureKey}:${runId}:review-evidence`,
+      "The evaluator verified the synthetic contact field and identity binding.",
+    );
     return {
       personId: captured.identity.person_id,
       contextId: captured.identity.relationship_context_id,
       resourceId: captured.resource.id,
+      captureId: captured.capture_id,
     };
   };
 
@@ -395,11 +464,8 @@ async function createContactIdentityFixture(
     conflictEmail,
   );
 
-  const databaseUrl =
-    process.env.DATABASE_URL ??
-    `postgresql://${process.env.POSTGRES_USER ?? "talent_signal_local"}:${process.env.POSTGRES_PASSWORD ?? "talent_signal_local_only"}@127.0.0.1:${process.env.POSTGRES_PORT ?? "55432"}/${process.env.POSTGRES_DB ?? "talent_signal_local"}`;
   const pool = new Pool({
-    connectionString: databaseUrl,
+    connectionString: fixtureDatabaseUrl(),
     application_name: "talent-signal-ios-contact-fixture",
     max: 2,
   });
@@ -440,6 +506,7 @@ async function createContactIdentityFixture(
     conflictCurrentPersonId: current.personId,
     conflictCurrentContextId: current.contextId,
     conflictHistoricalPersonId: historical.personId,
+    captureIds: [single.captureId, historical.captureId, current.captureId],
   };
 }
 
@@ -459,6 +526,7 @@ export interface IOSPursuitProposalFixture {
   same_name_second_person_id: string;
   same_name_second_context_id: string;
   same_name_second_role_id: string;
+  capture_ids: string[];
   contact_no_match_email?: string;
   contact_single_email?: string;
   contact_single_person_id?: string;
@@ -495,17 +563,69 @@ async function cancelActiveFixturePursuits(
   return cancelled;
 }
 
+async function activeFixtureCaptureIds(accountId: string): Promise<string[]> {
+  const pool = new Pool({
+    connectionString: fixtureDatabaseUrl(),
+    application_name: "talent-signal-ios-stale-fixture-retirement",
+    max: 2,
+  });
+  try {
+    const result = await pool.query<{ id: string; source_locator: string }>(
+      `SELECT DISTINCT captures.id, resources.source_locator
+       FROM captures
+       JOIN source_resources resources
+         ON resources.account_id = captures.account_id
+        AND resources.capture_id = captures.id
+       WHERE captures.account_id = $1
+         AND captures.status = 'active'
+         AND resources.source_locator LIKE ANY($2::text[])
+       ORDER BY captures.id`,
+      [
+        accountId,
+        fixtureCaptureLocatorPrefixes.map((prefix) => `${prefix}%`),
+      ],
+    );
+    return result.rows
+      .filter((row) => isIOSPursuitProposalFixtureLocator(row.source_locator))
+      .map((row) => row.id);
+  } finally {
+    await pool.end();
+  }
+}
+
+async function deleteFixtureCaptures(
+  client: TalentSignalClient,
+  captureIds: readonly string[],
+): Promise<number> {
+  let deleted = 0;
+  const batchSize = 8;
+  for (let start = 0; start < captureIds.length; start += batchSize) {
+    const batch = captureIds.slice(start, start + batchSize);
+    await Promise.all(
+      batch.map(async (captureId) => {
+        await client.deleteCapture(captureId, {
+          idempotency_key: `ios-fixture-retire-capture:${captureId}`,
+          reason:
+            "Delete evaluator-owned synthetic iOS fixture evidence after the isolated journey.",
+        });
+        deleted += 1;
+      }),
+    );
+  }
+  return deleted;
+}
+
 export async function retireStaleIOSPursuitProposalFixtures(
   fixtureBaseUrl = baseUrl,
 ): Promise<number> {
   const client = new TalentSignalClient(fixtureBaseUrl);
-  await client.login({
+  const login = await client.login({
     account_slug: "fixture-alpha",
     user_email: "recruiter@alpha.local",
     client_label: "ios-pursuit-proposal-stale-fixture-retirement",
   });
   const pursuits = await client.listPursuits();
-  return cancelActiveFixturePursuits(
+  const cancelled = await cancelActiveFixturePursuits(
     client,
     pursuits.pursuits
       .filter((pursuit) =>
@@ -513,6 +633,16 @@ export async function retireStaleIOSPursuitProposalFixtures(
       )
       .map((pursuit) => pursuit.id),
   );
+  let captureIds: string[];
+  try {
+    captureIds = await activeFixtureCaptureIds(login.account.id);
+  } catch (error) {
+    process.stderr.write(
+      `Stale iOS fixture capture retirement unavailable: ${error instanceof Error ? error.message : "unknown error"}\n`,
+    );
+    return cancelled;
+  }
+  return cancelled + (await deleteFixtureCaptures(client, captureIds));
 }
 
 export async function retireIOSPursuitProposalFixture(
@@ -531,6 +661,7 @@ export async function retireIOSPursuitProposalFixture(
     fixture.recovery_pursuit_id,
     fixture.same_name_pursuit_id,
   ]);
+  await deleteFixtureCaptures(client, fixture.capture_ids);
 }
 
 export async function prepareIOSPursuitProposalFixture(
@@ -585,6 +716,12 @@ export async function prepareIOSPursuitProposalFixture(
     same_name_second_person_id: sameName.secondPersonId,
     same_name_second_context_id: sameName.secondContextId,
     same_name_second_role_id: sameName.secondRoleId,
+    capture_ids: [
+      canonical.captureId,
+      recovery.captureId,
+      ...sameName.captureIds,
+      ...(contactIdentity?.captureIds ?? []),
+    ],
     ...(contactIdentity
       ? {
           contact_no_match_email: contactIdentity.noMatchEmail,

@@ -26,7 +26,8 @@ struct AgentWorkLiveActivity: Widget {
                         Text(view.title)
                             .font(.headline)
                             .foregroundStyle(.white)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -59,9 +60,10 @@ struct AgentWorkLiveActivity: Widget {
                 AgentWorkHandoffMark(glyph: view.glyph, size: 32)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("TALENT SIGNAL AGENT")
+                    Text(agentWorkLocalized("Talent Signal Agent"))
                         .font(.caption2.weight(.bold))
                         .tracking(1.05)
+                        .textCase(.uppercase)
                         .foregroundStyle(.white.opacity(0.68))
                     Text(view.eyebrow)
                         .font(.caption.weight(.bold))
@@ -81,10 +83,14 @@ struct AgentWorkLiveActivity: Widget {
                     .foregroundStyle(.white.opacity(0.86))
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(view.accessibilityLabel)
 
             HStack(alignment: .center, spacing: 10) {
                 Label(
-                    view.isStale ? "Update delayed" : view.boundaryText,
+                    view.isStale
+                        ? agentWorkLocalized("Update delayed")
+                        : view.boundaryText,
                     systemImage: view.isStale
                         ? "clock.badge.exclamationmark"
                         : "lock.shield"
@@ -109,8 +115,7 @@ struct AgentWorkLiveActivity: Widget {
             }
         }
         .padding(17)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(view.accessibilityLabel)
+        .accessibilityElement(children: .contain)
     }
 
     private func expandedBottom(
@@ -119,7 +124,9 @@ struct AgentWorkLiveActivity: Widget {
     ) -> some View {
         HStack(alignment: .center, spacing: 12) {
             Label(
-                view.isStale ? "Update delayed" : view.boundaryText,
+                view.isStale
+                    ? agentWorkLocalized("Update delayed")
+                    : view.boundaryText,
                 systemImage: view.isStale
                     ? "clock.badge.exclamationmark"
                     : "lock.shield"
@@ -144,8 +151,7 @@ struct AgentWorkLiveActivity: Widget {
         }
         .padding(.horizontal, 4)
         .padding(.top, 5)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(view.accessibilityLabel)
+        .accessibilityElement(children: .contain)
     }
 
     private func attentionBadge(
@@ -154,16 +160,16 @@ struct AgentWorkLiveActivity: Widget {
         let label: String
         let symbol: String
         if view.isStale {
-            label = "Delayed"
+            label = agentWorkLocalized("Delayed")
             symbol = "clock"
         } else if view.action == .openActions || view.action == .resolve {
-            label = "Needs you"
+            label = agentWorkLocalized("Needs you")
             symbol = "person.fill"
         } else if view.action == nil {
-            label = "Done"
+            label = agentWorkLocalized("Done")
             symbol = "checkmark"
         } else {
-            label = "You can leave"
+            label = agentWorkLocalized("You can leave")
             symbol = "arrow.down.right.and.arrow.up.left"
         }
         return Label(label, systemImage: symbol)
@@ -178,11 +184,11 @@ struct AgentWorkLiveActivity: Widget {
         _ view: AgentWorkActivityViewState
     ) -> some View {
         if view.isStale {
-            Image(systemName: "clock.badge.exclamationmark")
-                .foregroundStyle(.white.opacity(0.8))
-                .accessibilityLabel("Update delayed")
+                Image(systemName: "clock.badge.exclamationmark")
+                    .foregroundStyle(.white.opacity(0.8))
+                    .accessibilityLabel(agentWorkLocalized("Update delayed"))
         } else if view.action == .openActions || view.action == .resolve {
-            Text("REVIEW")
+            Text(agentWorkLocalized("REVIEW"))
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.white)
                 .accessibilityLabel(view.supportingText)
@@ -191,10 +197,10 @@ struct AgentWorkLiveActivity: Widget {
                 .foregroundStyle(.white)
                 .accessibilityLabel(view.title)
         } else {
-            Text("AWAY")
+            Text(agentWorkLocalized("AWAY"))
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.white.opacity(0.86))
-                .accessibilityLabel("You can leave")
+                .accessibilityLabel(agentWorkLocalized("You can leave"))
         }
     }
 
@@ -205,13 +211,15 @@ struct AgentWorkLiveActivity: Widget {
             return projected
         }
         return AgentWorkActivityViewState(
-            eyebrow: "CHECK STATUS",
-            title: "Open Talent Signal",
-            supportingText: "This update needs review",
-            boundaryText: "No outcome assumed",
+            eyebrow: agentWorkLocalized("CHECK STATUS"),
+            title: agentWorkLocalized("Open Talent Signal"),
+            supportingText: agentWorkLocalized("This update needs review"),
+            boundaryText: agentWorkLocalized("No outcome assumed"),
             glyph: .unknown,
             action: .resolve,
-            accessibilityLabel: "Talent Signal Agent. This update needs review. No outcome assumed.",
+            accessibilityLabel: agentWorkLocalized(
+                "Talent Signal Agent. This update needs review. No outcome assumed."
+            ),
             isTerminal: false,
             isStale: true
         )

@@ -2414,7 +2414,7 @@ final class RelationshipArchiveTests: XCTestCase {
         }
     }
 
-    func testAskReadbackRejectsCitationScopeReviewAttributionAndExcerptMismatches() {
+    func testAskReadbackRejectsCitationScopeMismatchAsBindingFailure() {
         let response = relationshipAskResponseFixture()
         let invalidReadbacks = [
             relationshipAskReadbackFixture(citationPersonID: "person-2"),
@@ -2424,7 +2424,30 @@ final class RelationshipArchiveTests: XCTestCase {
             relationshipAskReadbackFixture(
                 citationAuthorizationScope: "person:person-2:relationship-context:context-2"
             ),
+        ]
+
+        for readback in invalidReadbacks {
+            XCTAssertThrowsError(
+                try readback.validated(
+                    response,
+                    expectedAccountID: "account-1",
+                    expectedPersonID: "person-1",
+                    expectedRelationshipContextID: "context-1"
+                )
+            ) { error in
+                XCTAssertEqual(
+                    error as? PursuitWorkspaceClientError,
+                    .askCitationBindingMismatch
+                )
+            }
+        }
+    }
+
+    func testAskReadbackRejectsMissingReviewAuthorityAsReviewFailure() {
+        let response = relationshipAskResponseFixture()
+        let invalidReadbacks = [
             relationshipAskReadbackFixture(citationReviewStatus: "rejected"),
+            relationshipAskReadbackFixture(citationLastReviewID: nil),
             relationshipAskReadbackFixture(
                 citationAttributionStatus: "proposed"
             ),
@@ -2440,7 +2463,12 @@ final class RelationshipArchiveTests: XCTestCase {
                     expectedPersonID: "person-1",
                     expectedRelationshipContextID: "context-1"
                 )
-            )
+            ) { error in
+                XCTAssertEqual(
+                    error as? PursuitWorkspaceClientError,
+                    .askCitationReviewAuthorityMissing
+                )
+            }
         }
     }
 }

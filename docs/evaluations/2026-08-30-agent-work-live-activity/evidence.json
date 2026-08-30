@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-30T18:04:19+08:00",
+  "baseRevision": "5e97700e4ce1b32e248881ea3c30469c8b16a965",
+  "artifactState": "working_tree",
+  "implementationDirection": {
+    "id": 73,
+    "name": "Quiet Handoff",
+    "authority": "user_authorized_implementation_baseline",
+    "isGate1Selection": false
+  },
+  "gate1": {
+    "status": "WAITING",
+    "participantsObserved": 0,
+    "participantsRequired": 8,
+    "selectedDirection": null,
+    "reason": "No raw authorized recruiter study export was available."
+  },
+  "systemScreenshotContract": {
+    "status": "PARTIAL",
+    "observed": 2,
+    "required": 10,
+    "receipts": [
+      {
+        "state": "running_compact_away",
+        "file": "system/F668EF27-9A44-4A3A-BA0E-C40D71D88737.png",
+        "sha256": "36699734572c6d38589e1feb85d0c7285dc85ce96116c4e35621353aae8c40de"
+      },
+      {
+        "state": "completed_compact_review",
+        "file": "system/BE9A930E-124E-4333-A8DB-AFE8D82132D1.png",
+        "sha256": "964d05c4f03db4b2577dfb3ccbbee7bd0a406382a2847db3a24fccb094979e0c"
+      }
+    ]
+  },
+  "boundaryAtlas": {
+    "status": "PASS",
+    "observed": 4,
+    "required": 4,
+    "receipts": [
+      {
+        "state": "partial",
+        "file": "atlas/ADC57D62-A604-4114-8406-4237229A0E55.png",
+        "sha256": "d0beae5e8d833ecfae072ed3e89454a343fb8c0524d4402a3a648ce33e80efb8"
+      },
+      {
+        "state": "failed",
+        "file": "atlas/FBFAB7B9-FDAC-4FD4-9E71-DEA91D6EFD0C.png",
+        "sha256": "c818ecae094d4d14a2f7246eab4f6f06cca0a221e8470905a2f29feb7d126eef"
+      },
+      {
+        "state": "unknown",
+        "file": "atlas/0D668CB9-8F26-4D90-A719-E5A487E4A132.png",
+        "sha256": "7701306c8640ccc7b04e8aa6b578b05f602756c0d9f4d8b85ad28ec9294cc0cb"
+      },
+      {
+        "state": "stale",
+        "file": "atlas/A1C41473-2E00-4407-868B-4A7CDA464299.png",
+        "sha256": "6a688845d23707f7a7cbce107adbd5618171a3923e603827bfa7481129ed7d40"
+      }
+    ]
+  },
+  "uncutVideos": {
+    "status": "WAITING",
+    "observed": 0,
+    "required": 2
+  },
+  "alwaysOnSignedDevice": {
+    "status": "WAITING",
+    "reason": "Simulator evidence cannot establish signed-device Always-On behavior."
+  },
+  "automatedChecks": [
+    {
+      "name": "iOS Release build",
+      "result": "PASS",
+      "failures": 0
+    },
+    {
+      "name": "Full iOS unit suite",
+      "result": "PASS",
+      "tests": 228,
+      "failures": 0
+    },
+    {
+      "name": "Agent work contract and lifecycle unit tests",
+      "result": "PASS",
+      "tests": 16,
+      "failures": 0
+    },
+    {
+      "name": "Real ActivityKit boundary atlas UI test",
+      "result": "PASS",
+      "tests": 1,
+      "attachments": 4,
+      "failures": 0
+    },
+    {
+      "name": "Real compact running-to-review UI test",
+      "result": "PASS",
+      "tests": 1,
+      "attachments": 2,
+      "failures": 0
+    },
+    {
+      "name": "Full iOS UI suite",
+      "result": "INCONCLUSIVE",
+      "testsAttempted": 87,
+      "reason": "The shared working tree changed during the run. Unrelated capture, Ask/contact, onboarding, and language-dependent journeys failed, and scripts/ios/check.sh was transiently invalid while the shell was still reading it. Focused Agent-work tests remained green; this run is not a repository-wide PASS receipt."
+    }
+  ],
+  "overall": "WAITING_EXTERNAL_GATES"
+}

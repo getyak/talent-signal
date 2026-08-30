@@ -187,7 +187,10 @@ struct TalentSignalApp: App {
         case let .signedIn(session):
             RelationshipArchiveView(
                 session: .authenticated(session),
-                onSignOut: { await appSessionStore.signOut() }
+                onSignOut: {
+                    await AgentWorkActivityController.shared.endAllActivities()
+                    await appSessionStore.signOut()
+                }
             )
             .id(session.account.id)
         }

@@ -11,6 +11,7 @@ const upstreamBaseUrl =
 const port = Number(process.env.IOS_PURSUIT_FIXTURE_PORT ?? "4323");
 let preparation = Promise.resolve();
 let activeFixture: IOSPursuitProposalFixture | undefined;
+let closing = false;
 
 const server = createServer((request, response) => {
   if (request.method === "GET" && request.url === "/health/live") {
@@ -56,9 +57,31 @@ server.listen(port, "127.0.0.1", () => {
   );
 });
 
-function close(): void {
-  server.close(() => process.exit(0));
+async function close(): Promise<void> {
+  if (closing) return;
+  closing = true;
+
+  const stopped = new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+
+  try {
+    await stopped;
+    await preparation;
+    if (activeFixture) {
+      await retireIOSPursuitProposalFixture(activeFixture, upstreamBaseUrl);
+      activeFixture = undefined;
+    }
+  } catch (error) {
+    process.stderr.write(
+      `iOS Proposal fixture shutdown failed: ${error instanceof Error ? error.stack ?? error.message : "unknown error"}\n`,
+    );
+    process.exitCode = 1;
+  }
 }
 
-process.on("SIGINT", close);
-process.on("SIGTERM", close);
+process.on("SIGINT", () => void close());
+process.on("SIGTERM", () => void close());
