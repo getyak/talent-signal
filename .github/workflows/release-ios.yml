@@ -48,7 +48,7 @@ jobs:
 
       - name: Evaluate release policy
         id: decision
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EVENT_NAME: ${{ github.event_name }}
           PUBLISH_TESTFLIGHT: ${{ inputs.publish_testflight || false }}
@@ -149,7 +149,7 @@ jobs:
 
       - name: Load release secrets from Infisical
         if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
-        uses: Infisical/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1.0.7
+        uses: Infisical/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1.0.17
         with:
           method: oidc
           identity-id: ${{ vars.INFISICAL_TESTFLIGHT_IDENTITY_ID }}
