@@ -11,7 +11,7 @@ import {
   type ReviewPursuitProposalRequest,
   type StagePursuitProposalRequest,
 } from "@talent-signal/contracts";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import {
   inTransaction,
@@ -975,6 +975,13 @@ export async function reviewPursuitProposal(
   auth: AuthContext,
   proposalId: string,
   request: ReviewPursuitProposalRequest,
+  options: {
+    onBeforeReview?: (client: PoolClient) => Promise<void>;
+    onResolved?: (
+      client: PoolClient,
+      body: PursuitProposalReviewResponse,
+    ) => Promise<void>;
+  } = {},
 ): Promise<
   MutationResult<PursuitProposalReviewResponse | ProposalReviewConflict>
 > {
@@ -1014,6 +1021,7 @@ export async function reviewPursuitProposal(
         { status: proposal.status },
       );
     }
+    await options.onBeforeReview?.(client);
 
     const pursuitResult = await client.query<PursuitStateRow>(
       `SELECT id, status, milestone, revision
@@ -1471,6 +1479,7 @@ export async function reviewPursuitProposal(
       pursuit: await readPursuit(client, auth.accountId, proposal.pursuit_id),
       receipt: appliedReceipt,
     };
+    await options.onResolved?.(client, body);
     await completeIdempotency(client, idempotency, 200, body);
     return { body, replayed: false, status: 200 };
   });

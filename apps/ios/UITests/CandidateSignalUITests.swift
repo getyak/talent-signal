@@ -589,13 +589,6 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(scope.waitForExistence(timeout: 5))
         scope.tap()
 
-        XCTAssertEqual(composer.value as? String, message)
-        XCTAssertTrue(element("ask-compact-scope").waitForExistence(timeout: 5))
-        XCTAssertFalse(element("ask-scope-search").exists)
-
-        XCTAssertEqual(send.label, "Send")
-        XCTAssertTrue(send.isEnabled)
-        send.tap()
         let previewError = element("ask-error")
         XCTAssertTrue(previewError.waitForExistence(timeout: 5))
         XCTAssertTrue(
@@ -739,9 +732,6 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
         canonicalPerson.tap()
-        XCTAssertTrue(send.waitForExistence(timeout: 5))
-        XCTAssertTrue(send.isEnabled)
-        send.tap()
         let pendingTurn = element("ask-pending-turn")
         XCTAssertTrue(pendingTurn.waitForExistence(timeout: 2))
         XCTAssertTrue(element("ask-loading").exists)
@@ -842,12 +832,6 @@ final class CandidateSignalUITests: XCTestCase {
             return
         }
         canonicalPerson.tap()
-
-        guard element("ask-compact-scope").waitForExistence(timeout: 5) else {
-            XCTFail("The selected relationship did not return to the composer.")
-            return
-        }
-        app.buttons["ask-send"].tap()
 
         guard element("ask-response-turn").waitForExistence(timeout: 25) else {
             XCTFail("The canonical Ask response did not render.")

@@ -1,0 +1,23 @@
+{
+  "name": "@talent-signal/agent-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "talent-signal-agent": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc6 -p tsconfig.build.json",
+    "typecheck": "tsc6 -p tsconfig.json --noEmit",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "@talent-signal/agent": "workspace:*",
+    "htmlparser2": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^4.1.11"
+  }
+}

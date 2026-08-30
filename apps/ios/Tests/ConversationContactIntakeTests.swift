@@ -61,6 +61,30 @@ final class ConversationContactIntakeTests: XCTestCase {
         )
     }
 
+    func testDoesNotTurnCalendarMeetingOrReminderCommandsIntoContacts() async {
+        let commands = [
+            "创建对应的日历",
+            "創建對應的日曆",
+            "Add a calendar event for tomorrow",
+            "Create an interview meeting",
+            "新增提醒，明天下午三点",
+        ]
+
+        for command in commands {
+            XCTAssertNil(
+                ConversationContactIntake.propose(command),
+                "Unexpected contact proposal for \(command)"
+            )
+            XCTAssertFalse(
+                ConversationContactIntake.requiresContactClarification(command),
+                "Unexpected contact clarification for \(command)"
+            )
+            let interpretation = await AdaptiveConversationContactIntentInterpreter()
+                .interpret(command)
+            XCTAssertEqual(interpretation, .notContact)
+        }
+    }
+
     func testDoesNotTurnIdentityQuestionIntoImplicitContactMutation() {
         XCTAssertNil(
             ConversationContactIntake.propose(

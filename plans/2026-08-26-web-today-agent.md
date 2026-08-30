@@ -11,7 +11,8 @@ effect or client-side provider credential.
 
 Completion is directly observable when a clean local stack can load synthetic
 canonical Pursuit data, the Web Today page renders from backend readback, a
-pinned free OpenRouter model can complete the four-tool Agent protocol, and a
+pinned free OpenRouter model can complete the three-tool plus structured
+terminal-output Agent protocol, and a
 real browser journey verifies the resulting Proposal/no-action state.
 
 ## Boundary

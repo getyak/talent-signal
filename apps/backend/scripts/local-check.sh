@@ -96,4 +96,9 @@ EVALUATION_DATABASE_URL="postgresql://talent_signal_local:talent_signal_local_on
 EVALUATION_ARTIFACT_DIR="$agent_artifact_dir" \
 node "$repo_root/apps/backend/dist/evaluation/runAgentControlPlaneEvaluation.js"
 
+API_BASE_URL="http://127.0.0.1:$BACKEND_PORT" \
+EVALUATION_DATABASE_URL="postgresql://talent_signal_local:talent_signal_local_only@127.0.0.1:$POSTGRES_PORT/talent_signal_local" \
+EVALUATION_ARTIFACT_DIR="$agent_artifact_dir" \
+node "$repo_root/apps/backend/dist/evaluation/runGovernedAgentTaskEvaluation.js"
+
 capture_service_evidence

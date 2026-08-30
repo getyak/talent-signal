@@ -1,6 +1,9 @@
 "use client";
 
-import type { PursuitProposal } from "@talent-signal/contracts";
+import type {
+  AgentTaskProjection,
+  PursuitProposal,
+} from "@talent-signal/contracts";
 import {
   CheckCircle,
   PencilSimple,
@@ -27,6 +30,7 @@ export type PursuitReviewReceipt = {
 };
 
 type Props = {
+  decisionBundle?: NonNullable<AgentTaskProjection["decision_bundle"]>;
   onReviewed?: (receipt: PursuitReviewReceipt) => void;
   proposal: PursuitProposal;
 };
@@ -55,7 +59,11 @@ function initialEditValue(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value, null, 2);
 }
 
-export function PursuitProposalReview({ onReviewed, proposal }: Props) {
+export function PursuitProposalReview({
+  decisionBundle,
+  onReviewed,
+  proposal,
+}: Props) {
   const proposalRef = useRef<HTMLElement>(null);
   const { sessionRecoveryHref } = useWorkspaceSessionRecovery(null);
   const [decisions, setDecisions] = useState<
@@ -96,8 +104,19 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
       const reviewDecisions = proposal.items.map((item) => {
         const selected = decisions[item.id];
         if (!selected) throw new Error("每项变更都需要一个决定。");
+        const correlatedItem = decisionBundle?.items.find(
+          (candidate) => candidate.domain_subject_id === item.id,
+        );
+        if (decisionBundle && !correlatedItem) {
+          throw new Error("决定项与规范提案不一致，请刷新后重试。");
+        }
+        const itemId = correlatedItem?.id ?? item.id;
+        const decision =
+          decisionBundle && selected.decision === "confirm"
+            ? "accept"
+            : selected.decision;
         if (selected.decision !== "edit") {
-          return { item_id: item.id, decision: selected.decision };
+          return { item_id: itemId, decision };
         }
         let editedValue: unknown = selected.editedValue.trim();
         if (typeof item.proposed_value !== "string") {
@@ -110,20 +129,28 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
           }
         }
         return {
-          item_id: item.id,
-          decision: selected.decision,
+          item_id: itemId,
+          decision,
           edited_value: editedValue,
         };
       });
       const operationId = crypto.randomUUID();
       const response = await workspaceSessionFetch(
-        `/api/pursuit-proposals/${proposal.id}/reviews`,
+        decisionBundle
+          ? `/api/agent-decision-bundles/${decisionBundle.id}/resolve`
+          : `/api/pursuit-proposals/${proposal.id}/reviews`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             operation_id: operationId,
             idempotency_key: operationId,
+            ...(decisionBundle
+              ? {
+                  expected_task_revision: decisionBundle.task_revision,
+                  expected_bundle_revision: decisionBundle.bundle_revision,
+                }
+              : {}),
             base_revision: proposal.base_revision,
             reason: reason.trim(),
             decisions: reviewDecisions,
@@ -131,6 +158,11 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
         },
       );
       const payload = (await response.json()) as {
+        domain_receipt?: {
+          summary: string;
+          changed_fields: string[];
+          external_effects: unknown[];
+        };
         receipt?: {
           summary: string;
           changed_fields: string[];
@@ -139,7 +171,8 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
         error?: { message?: string };
       };
       if (workspaceSessionExpired(response.status, payload)) return;
-      if (!response.ok || !payload.receipt) {
+      const canonicalDomainReceipt = payload.domain_receipt ?? payload.receipt;
+      if (!response.ok || !canonicalDomainReceipt) {
         throw new Error(
           payload.error?.message ??
             "规范状态读取未能确认本次审阅，因此不会把任何内容显示为已应用。",
@@ -147,9 +180,9 @@ export function PursuitProposalReview({ onReviewed, proposal }: Props) {
       }
       const canonicalReceipt = {
         proposalId: proposal.id,
-        summary: payload.receipt.summary,
-        changedFields: payload.receipt.changed_fields,
-        externalEffects: payload.receipt.external_effects.length,
+        summary: canonicalDomainReceipt.summary,
+        changedFields: canonicalDomainReceipt.changed_fields,
+        externalEffects: canonicalDomainReceipt.external_effects.length,
       };
       setReceipt(canonicalReceipt);
       onReviewed?.(canonicalReceipt);

@@ -26,8 +26,7 @@ The system has five conceptual layers:
 ### Surfaces
 
 iOS, Web, browser capture, channels, and external agents provide different
-interaction modes. They share identity, evidence, review, and action state
-through one backend rather than synchronizing directly with each other.
+interaction modes while sharing identity, evidence, review, and action state through one backend.
 
 ### Control plane
 
@@ -48,8 +47,9 @@ semantic interface, but it cannot confirm its own claims or grant permission.
 
 ### Model and agent runtimes
 
-Models perform bounded extraction, comparison, synthesis, or open-ended
-research. They are replaceable compute and never own lifecycle or permission.
+Models perform bounded extraction, comparison, synthesis, or open-ended research. They are replaceable compute and never own lifecycle or permission.
+Open-world capabilities run in a user-controlled local host that owns credentials, network policy, and working state. The backend may host product-scoped compute but remains the authority for canonical state and effects.
+Neither placement lets a runtime promote its own output.
 
 ### Effect boundary
 

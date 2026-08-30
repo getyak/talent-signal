@@ -54,6 +54,7 @@ private enum DeviceCalendarHandoffResult: Equatable {
     case notStarted
     case dismissed
     case cancelled
+    case verificationNeeded
     case saved(DeviceCalendarWriteReceipt)
 }
 
@@ -88,6 +89,8 @@ struct DeviceCalendarHandoffView: View {
                 dismissedContent
             case let .saved(receipt):
                 savedContent(receipt)
+            case .verificationNeeded:
+                verificationNeededContent
             case .notStarted, .cancelled:
                 proposalContent
             }
@@ -96,20 +99,22 @@ struct DeviceCalendarHandoffView: View {
         .sheet(item: $editorProposal) { proposal in
             DeviceCalendarEditorSheet(proposal: proposal) { completion in
                 switch completion {
-                case let .saved(eventIdentifier):
+                case let .saved(event):
                     receiptStore.recordSaved(
                         sourceID: proposal.sourceID,
-                        eventIdentifier: eventIdentifier
+                        eventIdentifier: event.identifier
                     )
                     result = .saved(
                         DeviceCalendarWriteReceipt(
                             sourceID: proposal.sourceID,
-                            eventIdentifier: eventIdentifier,
+                            eventIdentifier: event.identifier,
                             savedAt: Date()
                         )
                     )
                 case .cancelled:
                     result = .cancelled
+                case .verificationNeeded:
+                    result = .verificationNeeded
                 }
             }
         }
@@ -244,6 +249,26 @@ struct DeviceCalendarHandoffView: View {
         }
     }
 
+    private var verificationNeededContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(
+                appLanguage.text("Calendar save needs verification"),
+                systemImage: "exclamationmark.shield"
+            )
+                .font(.headline)
+                .foregroundStyle(Color.tsWarning)
+            Text(
+                appLanguage.text(
+                    "Apple Calendar returned from Save, but Talent Signal could not read the exact event back. Check Apple Calendar before trying again."
+                )
+            )
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityIdentifier("calendar-save-needs-verification")
+    }
+
     private func savedContent(
         _ receipt: DeviceCalendarWriteReceipt
     ) -> some View {
@@ -325,9 +350,18 @@ struct DeviceCalendarHandoffScenarioView: View {
 }
 #endif
 
+struct DeviceCalendarSavedEvent: Equatable {
+    let identifier: String
+    let title: String
+    let startDate: Date
+    let endDate: Date
+    let timeZoneIdentifier: String
+}
+
 enum DeviceCalendarEditorCompletion {
-    case saved(eventIdentifier: String?)
+    case saved(DeviceCalendarSavedEvent)
     case cancelled
+    case verificationNeeded
 }
 
 struct DeviceCalendarEditorSheet: View {
@@ -392,7 +426,24 @@ private struct DeviceCalendarEditorController: UIViewControllerRepresentable {
             completed = true
             switch action {
             case .saved:
-                onComplete(.saved(eventIdentifier: controller.event?.eventIdentifier))
+                guard let identifier = controller.event?.eventIdentifier,
+                      !identifier.isEmpty,
+                      let event = eventStore?.event(withIdentifier: identifier) else {
+                    onComplete(.verificationNeeded)
+                    return
+                }
+                onComplete(
+                    .saved(
+                        DeviceCalendarSavedEvent(
+                            identifier: identifier,
+                            title: event.title,
+                            startDate: event.startDate,
+                            endDate: event.endDate,
+                            timeZoneIdentifier: event.timeZone?.identifier
+                                ?? TimeZone.current.identifier
+                        )
+                    )
+                )
             case .canceled, .deleted:
                 onComplete(.cancelled)
             @unknown default:

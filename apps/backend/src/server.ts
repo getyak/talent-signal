@@ -3,6 +3,7 @@ import { loadConfig } from "./config.js";
 import { createPool } from "./database/pool.js";
 import { runSourceLifecycleSweep } from "./modules/sourceLifecycle.js";
 import { recoverInterruptedAgentRuns } from "./modules/agentRuns.js";
+import { recoverGovernedAgentTasks } from "./modules/agentTasks.js";
 
 const config = loadConfig();
 const pool = createPool(config);
@@ -24,6 +25,12 @@ process.once("SIGTERM", () => {
 try {
   await recoverInterruptedAgentRuns(pool);
   await app.listen({ host: config.host, port: config.port });
+  void recoverGovernedAgentTasks(pool).catch((error: unknown) => {
+    app.log.error(
+      { err: error },
+      "Startup governed Agent Task recovery failed",
+    );
+  });
   void runSourceLifecycleSweep(pool).catch((error: unknown) => {
     app.log.error(
       { err: error },

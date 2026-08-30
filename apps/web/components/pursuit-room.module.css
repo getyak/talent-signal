@@ -83,6 +83,10 @@
   grid-column: 1 / -1;
 }
 
+.reviewGate > .section {
+  grid-column: 2;
+}
+
 .section + .section {
   margin-top: 48px;
 }
@@ -539,6 +543,10 @@
   .hero dl,
   .contentGrid {
     grid-template-columns: 1fr;
+  }
+
+  .reviewGate > .section {
+    grid-column: 1;
   }
 
   .hero dl {

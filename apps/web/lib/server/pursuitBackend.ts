@@ -2,8 +2,11 @@ import "server-only";
 
 import {
   TalentSignalClient,
+  type CancelAgentTaskRequest,
+  type CreatePursuitAgentTaskRequest,
   type CreatePursuitAgentRunRequest,
   type ReviewPursuitProposalRequest,
+  type ResolveAgentDecisionBundleRequest,
 } from "@talent-signal/contracts";
 
 import {
@@ -129,16 +132,52 @@ export async function loadEvalAgentLab() {
 
 export async function loadPursuitRoom(pursuitId: string) {
   const client = await authenticatedClient("web-pursuit-room");
-  const [detail, proposals] = await Promise.all([
+  const [detail, proposals, agentTasks] = await Promise.all([
     client.getPursuit(pursuitId),
     client.listPursuitProposals(),
+    client.listPursuitAgentTasks(pursuitId, "all"),
   ]);
+  const pursuitProposals = proposals.proposals.filter(
+    (proposal) => proposal.pursuit_id === pursuitId,
+  );
+  const contextProposal = pursuitProposals.find(
+    (proposal) =>
+      proposal.evidence_state.availability === "available" &&
+      proposal.items.some((item) => item.evidence_refs.length > 0),
+  );
+  const evidenceRefs = contextProposal
+    ? [...new Set(contextProposal.items.flatMap((item) => item.evidence_refs))]
+    : [];
   return {
     pursuit: detail.pursuit,
-    proposals: proposals.proposals.filter(
-      (proposal) => proposal.pursuit_id === pursuitId,
-    ),
+    proposals: pursuitProposals,
+    agentTasks: agentTasks.tasks,
+    agentContext:
+      contextProposal && evidenceRefs.length > 0
+        ? { captureId: contextProposal.capture_id, evidenceRefs }
+        : null,
   };
+}
+
+export async function createPursuitAgentTask(
+  pursuitId: string,
+  request: CreatePursuitAgentTaskRequest,
+) {
+  const client = await authenticatedClient("web-pursuit-agent-task");
+  return client.createPursuitAgentTask(pursuitId, request);
+}
+
+export async function getPursuitAgentTask(taskId: string) {
+  const client = await authenticatedClient("web-pursuit-agent-task-readback");
+  return client.getAgentTask(taskId);
+}
+
+export async function cancelPursuitAgentTask(
+  taskId: string,
+  request: CancelAgentTaskRequest,
+) {
+  const client = await authenticatedClient("web-pursuit-agent-task-cancel");
+  return client.cancelAgentTask(taskId, request);
 }
 
 export async function createPursuitAgentRun(
@@ -155,4 +194,12 @@ export async function reviewPursuitProposal(
 ) {
   const client = await authenticatedClient("web-pursuit-proposal-review");
   return client.reviewPursuitProposal(proposalId, request);
+}
+
+export async function resolveAgentDecisionBundle(
+  bundleId: string,
+  request: ResolveAgentDecisionBundleRequest,
+) {
+  const client = await authenticatedClient("web-agent-decision-resolution");
+  return client.resolveAgentDecisionBundle(bundleId, request);
 }

@@ -1,6 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 
 import { CONTRACT_VERSION } from "./constants.js";
+import { PursuitReceiptSchema } from "./pursuitSchemas.js";
 import { TelemetryContextSchema } from "./telemetrySchemas.js";
 
 const Id = Type.String({ format: "uuid" });
@@ -12,7 +13,6 @@ export const AgentToolNameSchema = Type.Union([
   Type.Literal("read_pursuit"),
   Type.Literal("read_evidence"),
   Type.Literal("stage_pursuit_proposal"),
-  Type.Literal("record_no_action"),
 ]);
 
 export const CreatePursuitAgentRunRequestSchema = Type.Object(
@@ -116,8 +116,8 @@ export const AgentRunSchema = Type.Object(
         policy_version: Type.String(),
         contract_version: Type.Literal(CONTRACT_VERSION),
         tool_manifest: Type.Array(AgentToolNameSchema, {
-          minItems: 4,
-          maxItems: 4,
+          minItems: 3,
+          maxItems: 3,
           uniqueItems: true,
         }),
       },
@@ -195,8 +195,396 @@ export const AgentRunResponseSchema = Type.Object(
   { $id: "AgentRunResponse", additionalProperties: false },
 );
 
+export const AgentTaskKindSchema = Type.Literal("pre_call_briefing");
+
+export const AgentTaskStatusSchema = Type.Union([
+  Type.Literal("active"),
+  Type.Literal("waiting_for_clarification"),
+  Type.Literal("waiting_for_domain_decision"),
+  Type.Literal("waiting_for_external"),
+  Type.Literal("needs_rebase"),
+  Type.Literal("completed"),
+  Type.Literal("no_action"),
+  Type.Literal("abstained"),
+  Type.Literal("failed"),
+  Type.Literal("cancelled"),
+  Type.Literal("expired"),
+]);
+
+export const AgentTaskCapabilitySchema = Type.Union([
+  Type.Literal("read_pursuit"),
+  Type.Literal("read_evidence"),
+  Type.Literal("create_briefing_artifact"),
+  Type.Literal("stage_pursuit_proposal"),
+  Type.Literal("record_no_action"),
+]);
+
+export const CreatePursuitAgentTaskRequestSchema = Type.Object(
+  {
+    idempotency_key: Type.String({ minLength: 1, maxLength: 128 }),
+    client_event_id: Type.Optional(Id),
+    expected_revision: Type.Integer({ minimum: 1 }),
+    task_kind: Type.Optional(AgentTaskKindSchema),
+    capture_id: Id,
+    objective: Type.String({ minLength: 1, maxLength: 1_000 }),
+    evidence_refs: Type.Array(Id, {
+      maxItems: 50,
+      uniqueItems: true,
+    }),
+    input_artifact_refs: Type.Optional(
+      Type.Array(Id, { maxItems: 5, uniqueItems: true }),
+    ),
+    telemetry: Type.Optional(TelemetryContextSchema),
+  },
+  { $id: "CreatePursuitAgentTaskRequest", additionalProperties: false },
+);
+
+export const AgentBriefingClaimSchema = Type.Object(
+  {
+    id: Id,
+    statement: Type.String({ minLength: 1, maxLength: 2_000 }),
+    epistemic_status: Type.Union([
+      Type.Literal("observed_evidence"),
+      Type.Literal("confirmed_state"),
+      Type.Literal("inference"),
+      Type.Literal("disputed"),
+      Type.Literal("unknown"),
+      Type.Literal("stale"),
+    ]),
+    authority: Type.Union([
+      Type.Literal("reviewed_evidence"),
+      Type.Literal("canonical_pursuit"),
+      Type.Literal("agent_interpretation"),
+    ]),
+    evidence_refs: Type.Array(Id, { maxItems: 50, uniqueItems: true }),
+    observed_at: Type.Union([Timestamp, Type.Null()]),
+    freshness: Type.Union([
+      Type.Literal("current"),
+      Type.Literal("stale"),
+      Type.Literal("unavailable"),
+    ]),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentBriefingArtifactSchema = Type.Object(
+  {
+    id: Id,
+    task_id: Id,
+    run_id: Type.Union([Id, Type.Null()]),
+    type: Type.Literal("pursuit_briefing"),
+    authority: Type.Literal("non_canonical"),
+    status: Type.Union([
+      Type.Literal("current"),
+      Type.Literal("stale"),
+      Type.Literal("superseded"),
+      Type.Literal("redacted"),
+    ]),
+    title: Type.String({ minLength: 1, maxLength: 240 }),
+    summary: Type.String({ minLength: 1, maxLength: 4_000 }),
+    what_changed: Type.Array(AgentBriefingClaimSchema, { maxItems: 12 }),
+    what_matters_now: Type.Object(
+      {
+        dependency: Type.String({ minLength: 1, maxLength: 1_000 }),
+        reason: Type.String({ minLength: 1, maxLength: 2_000 }),
+        authority: Type.Union([
+          Type.Literal("canonical_pursuit"),
+          Type.Literal("agent_interpretation"),
+        ]),
+        evidence_refs: Type.Array(Id, { maxItems: 50, uniqueItems: true }),
+      },
+      { additionalProperties: false },
+    ),
+    next_move: Type.Object(
+      {
+        kind: Type.Union([
+          Type.Literal("review_proposal"),
+          Type.Literal("continue_owned_action"),
+          Type.Literal("clarify"),
+          Type.Literal("no_action"),
+        ]),
+        label: Type.String({ minLength: 1, maxLength: 500 }),
+        reason: Type.String({ minLength: 1, maxLength: 2_000 }),
+      },
+      { additionalProperties: false },
+    ),
+    limitations: Type.Array(Type.String({ minLength: 1, maxLength: 1_000 }), {
+      maxItems: 12,
+    }),
+    evidence_manifest_digest: Fingerprint,
+    observed_at: Timestamp,
+    expires_at: Timestamp,
+  },
+  { additionalProperties: false },
+);
+
+export const AgentClarificationRequestSchema = Type.Object(
+  {
+    id: Id,
+    task_id: Id,
+    task_revision: Type.Integer({ minimum: 1 }),
+    request_revision: Type.Integer({ minimum: 1 }),
+    question: Type.String({ minLength: 1, maxLength: 1_000 }),
+    reason: Type.String({ minLength: 1, maxLength: 1_000 }),
+    response_schema: Type.Record(Type.String(), Type.Unknown()),
+    status: Type.Union([
+      Type.Literal("open"),
+      Type.Literal("answered"),
+      Type.Literal("expired"),
+      Type.Literal("cancelled"),
+    ]),
+    expires_at: Timestamp,
+  },
+  { additionalProperties: false },
+);
+
+export const AgentDecisionItemSchema = Type.Object(
+  {
+    id: Id,
+    domain_subject_kind: Type.Union([
+      Type.Literal("pursuit_proposal_item"),
+      Type.Literal("fact_decision"),
+      Type.Literal("action_approval"),
+    ]),
+    domain_subject_id: Id,
+    item_revision: Type.Integer({ minimum: 1 }),
+    status: Type.Union([
+      Type.Literal("open"),
+      Type.Literal("accepted"),
+      Type.Literal("edited"),
+      Type.Literal("rejected"),
+      Type.Literal("kept_unresolved"),
+      Type.Literal("expired"),
+    ]),
+    domain_receipt_ref: Type.Union([Id, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentDecisionBundleSchema = Type.Object(
+  {
+    id: Id,
+    task_id: Id,
+    task_revision: Type.Integer({ minimum: 1 }),
+    bundle_revision: Type.Integer({ minimum: 1 }),
+    dependency: Type.String({ minLength: 1, maxLength: 1_000 }),
+    status: Type.Union([
+      Type.Literal("open"),
+      Type.Literal("partially_resolved"),
+      Type.Literal("resolved"),
+      Type.Literal("expired"),
+      Type.Literal("cancelled"),
+    ]),
+    proposal_id: Type.Union([Id, Type.Null()]),
+    items: Type.Array(AgentDecisionItemSchema, { minItems: 1, maxItems: 50 }),
+    expires_at: Timestamp,
+  },
+  { additionalProperties: false },
+);
+
+export const AgentTaskEventNameSchema = Type.Union([
+  Type.Literal("task.accepted"),
+  Type.Literal("run.started"),
+  Type.Literal("context.compiled"),
+  Type.Literal("checkpoint.saved"),
+  Type.Literal("artifact.ready"),
+  Type.Literal("clarification.requested"),
+  Type.Literal("decision.requested"),
+  Type.Literal("decision.resolved"),
+  Type.Literal("task.needs_rebase"),
+  Type.Literal("task.cancelled"),
+  Type.Literal("run.completed"),
+  Type.Literal("run.no_action"),
+  Type.Literal("run.abstained"),
+  Type.Literal("run.failed"),
+]);
+
+export const AgentTaskEventSchema = Type.Object(
+  {
+    event_id: Id,
+    workspace_id: Id,
+    task_id: Id,
+    run_id: Type.Union([Id, Type.Null()]),
+    task_sequence: Type.Integer({ minimum: 1 }),
+    stream_cursor: Type.String({ pattern: "^[0-9]+$" }),
+    name: AgentTaskEventNameSchema,
+    occurred_at: Timestamp,
+    schema_version: Type.Literal(1),
+    public_payload: Type.Record(Type.String(), Type.Unknown()),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentTaskProjectionSchema = Type.Object(
+  {
+    id: Id,
+    workspace_id: Id,
+    pursuit_id: Id,
+    requested_by_user_id: Id,
+    kind: AgentTaskKindSchema,
+    objective: Type.String({ minLength: 1, maxLength: 1_000 }),
+    task_revision: Type.Integer({ minimum: 1 }),
+    status: AgentTaskStatusSchema,
+    permission_ceiling: Type.Array(AgentTaskCapabilitySchema, {
+      minItems: 1,
+      maxItems: 5,
+      uniqueItems: true,
+    }),
+    semantic_snapshot: Type.Object(
+      {
+        pursuit_revision: Type.Integer({ minimum: 1 }),
+        evidence_manifest_digest: Fingerprint,
+        agent_definition_digest: Fingerprint,
+        tool_schema_digest: Fingerprint,
+        policy_digest: Fingerprint,
+        model_digest: Fingerprint,
+        created_at: Timestamp,
+      },
+      { additionalProperties: false },
+    ),
+    latest_run: Type.Union([
+      Type.Object(
+        {
+          id: Type.Union([Id, Type.Null()]),
+          attempt: Type.Integer({ minimum: 1 }),
+          status: Type.Union([
+            Type.Literal("scheduled"),
+            Type.Literal("running"),
+            Type.Literal("suspended"),
+            Type.Literal("completed"),
+            Type.Literal("failed"),
+            Type.Literal("superseded"),
+            Type.Literal("cancelled"),
+          ]),
+          agent_run_status: Type.Union([AgentRunStatusSchema, Type.Null()]),
+          reason_code: Type.Union([Type.String(), Type.Null()]),
+          proposal_id: Type.Union([Id, Type.Null()]),
+          no_action_id: Type.Union([Id, Type.Null()]),
+        },
+        { additionalProperties: false },
+      ),
+      Type.Null(),
+    ]),
+    artifact: Type.Union([AgentBriefingArtifactSchema, Type.Null()]),
+    clarification: Type.Union([AgentClarificationRequestSchema, Type.Null()]),
+    decision_bundle: Type.Union([AgentDecisionBundleSchema, Type.Null()]),
+    latest_sequence: Type.Integer({ minimum: 0 }),
+    latest_cursor: Type.String({ pattern: "^[0-9]+$" }),
+    continue_allowed: Type.Boolean(),
+    external_effects: Type.Tuple([]),
+    created_at: Timestamp,
+    updated_at: Timestamp,
+    completed_at: Type.Union([Timestamp, Type.Null()]),
+  },
+  { $id: "AgentTaskProjection", additionalProperties: false },
+);
+
+export const AgentTaskResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    task: AgentTaskProjectionSchema,
+  },
+  { $id: "AgentTaskResponse", additionalProperties: false },
+);
+
+export const AgentDecisionResolutionResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    task: AgentTaskProjectionSchema,
+    domain_receipt: PursuitReceiptSchema,
+  },
+  { $id: "AgentDecisionResolutionResponse", additionalProperties: false },
+);
+
+export const AgentTaskListResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    workspace_id: Id,
+    tasks: Type.Array(AgentTaskProjectionSchema, { maxItems: 100 }),
+  },
+  { $id: "AgentTaskListResponse", additionalProperties: false },
+);
+
+export const AgentTaskEventsResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    task_id: Id,
+    events: Type.Array(AgentTaskEventSchema, { maxItems: 500 }),
+    latest_sequence: Type.Integer({ minimum: 0 }),
+    latest_cursor: Type.String({ pattern: "^[0-9]+$" }),
+  },
+  { $id: "AgentTaskEventsResponse", additionalProperties: false },
+);
+
+export const CancelAgentTaskRequestSchema = Type.Object(
+  {
+    idempotency_key: Type.String({ minLength: 1, maxLength: 128 }),
+    expected_revision: Type.Integer({ minimum: 1 }),
+    reason: Type.String({ minLength: 1, maxLength: 500 }),
+  },
+  { $id: "CancelAgentTaskRequest", additionalProperties: false },
+);
+
+export const AnswerAgentClarificationRequestSchema = Type.Object(
+  {
+    idempotency_key: Type.String({ minLength: 1, maxLength: 128 }),
+    expected_request_revision: Type.Integer({ minimum: 1 }),
+    expected_task_revision: Type.Integer({ minimum: 1 }),
+    answer: Type.Record(Type.String(), Type.Unknown()),
+  },
+  { $id: "AnswerAgentClarificationRequest", additionalProperties: false },
+);
+
+export const ResolveAgentDecisionBundleRequestSchema = Type.Object(
+  {
+    operation_id: Id,
+    idempotency_key: Type.String({ minLength: 1, maxLength: 128 }),
+    expected_task_revision: Type.Integer({ minimum: 1 }),
+    expected_bundle_revision: Type.Integer({ minimum: 1 }),
+    base_revision: Type.Integer({ minimum: 1 }),
+    reason: Type.String({ minLength: 1, maxLength: 1_000 }),
+    decisions: Type.Array(
+      Type.Object(
+        {
+          item_id: Id,
+          decision: Type.Union([
+            Type.Literal("accept"),
+            Type.Literal("edit"),
+            Type.Literal("reject"),
+            Type.Literal("keep_unresolved"),
+          ]),
+          edited_value: Type.Optional(Type.Unknown()),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1, maxItems: 50 },
+    ),
+  },
+  { $id: "ResolveAgentDecisionBundleRequest", additionalProperties: false },
+);
+
 export type CreatePursuitAgentRunRequest = Static<
   typeof CreatePursuitAgentRunRequestSchema
 >;
 export type AgentRun = Static<typeof AgentRunSchema>;
 export type AgentRunResponse = Static<typeof AgentRunResponseSchema>;
+export type AgentTaskStatus = Static<typeof AgentTaskStatusSchema>;
+export type CreatePursuitAgentTaskRequest = Static<
+  typeof CreatePursuitAgentTaskRequestSchema
+>;
+export type AgentBriefingArtifact = Static<typeof AgentBriefingArtifactSchema>;
+export type AgentTaskEvent = Static<typeof AgentTaskEventSchema>;
+export type AgentTaskProjection = Static<typeof AgentTaskProjectionSchema>;
+export type AgentTaskResponse = Static<typeof AgentTaskResponseSchema>;
+export type AgentDecisionResolutionResponse = Static<
+  typeof AgentDecisionResolutionResponseSchema
+>;
+export type AgentTaskListResponse = Static<typeof AgentTaskListResponseSchema>;
+export type AgentTaskEventsResponse = Static<typeof AgentTaskEventsResponseSchema>;
+export type CancelAgentTaskRequest = Static<typeof CancelAgentTaskRequestSchema>;
+export type AnswerAgentClarificationRequest = Static<
+  typeof AnswerAgentClarificationRequestSchema
+>;
+export type ResolveAgentDecisionBundleRequest = Static<
+  typeof ResolveAgentDecisionBundleRequestSchema
+>;

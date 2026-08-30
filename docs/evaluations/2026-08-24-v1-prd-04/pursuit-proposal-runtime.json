@@ -3,7 +3,7 @@
   "artifact_id": "TS-V1-PRD-04-RUNTIME-01",
   "generated_at": "2026-08-24T12:30:00.000Z",
   "data_classification": "synthetic_only",
-  "contract_version": "2026-08-24.7",
+  "contract_version": "2026-08-24.10",
   "verdict": "pass",
   "checks": {
     "staged_proposal_has_no_business_write": true,

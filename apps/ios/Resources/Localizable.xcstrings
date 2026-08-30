@@ -466,8 +466,14 @@
     "Apple Calendar shows the final title and time before saving. Talent Signal does not read the rest of your calendar." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple 日历会在保存前显示最终标题与时间。Talent Signal 不会读取你的其他日历内容。" } } }
     },
+    "Apple Calendar returned from Save, but Talent Signal could not read the exact event back. Check Apple Calendar before trying again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple 日历已从“保存”返回，但 Talent Signal 无法回读该事件。请先在 Apple 日历中确认，再尝试其他操作。" } } }
+    },
     "Calendar" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历" } } }
+    },
+    "Calendar save needs verification" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历保存需要验证" } } }
     },
     "Calendar. Next: %@, %@, %@." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历。下一项：%@，%@，%@。" } } }
@@ -547,6 +553,12 @@
     "Saved through Apple Calendar in this visit" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本次访问中已通过 Apple 日历保存" } } }
     },
+    "Saved events are shown from this device, but Apple Calendar could not be rechecked." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已显示此设备保存的事件，但暂时无法重新检查 Apple 日历。" } } }
+    },
+    "Saved on this device · Apple Calendar not rechecked" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存在此设备 · 尚未重新检查 Apple 日历" } } }
+    },
     "Scope" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "范围" } } }
     },
@@ -559,11 +571,20 @@
     "Synthetic preview · not in Apple Calendar" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "合成预览 · 不在 Apple 日历中" } } }
     },
+    "The event is verified in Apple Calendar, but its Talent Signal link could not be saved on this device." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "该事件已在 Apple 日历中验证，但无法在此设备上保存其 Talent Signal 关联。" } } }
+    },
+    "A previously linked event is no longer in Apple Calendar and was removed from this view." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一个先前关联的事件已不在 Apple 日历中，因此已从此视图移除。" } } }
+    },
     "Title" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标题" } } }
     },
     "User-authored relationship calendar activity" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户创建的关系日历活动" } } }
+    },
+    "Verified in Apple Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已在 Apple 日历中验证" } } }
     },
     "When" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时间" } } }
@@ -1941,6 +1962,9 @@
     },
     "The proposal is open, but this device could not protect it for relaunch." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提议仍保持打开，但此设备暂时无法保护它以便重新启动后恢复。" } } }
+    },
+    "The workspace could not be reached. Check your connection and Tailscale, then retry. Your message is still here." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法连接工作区。请检查网络和 Tailscale 后重试；你的消息仍保留在这里。" } } }
     },
     "This edit is visible, but it could not be protected for relaunch." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此编辑当前可见，但暂时无法保护以便重新启动后恢复。" } } }

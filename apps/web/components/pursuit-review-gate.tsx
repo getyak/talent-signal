@@ -1,6 +1,6 @@
 "use client";
 
-import type { PursuitProposal } from "@talent-signal/contracts";
+import type { AgentTaskProjection, PursuitProposal } from "@talent-signal/contracts";
 import { CheckCircle, ShieldCheck } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -12,8 +12,10 @@ import {
 import styles from "./pursuit-room.module.css";
 
 export function PursuitReviewGate({
+  decisionBundle,
   proposals,
 }: {
+  decisionBundle?: NonNullable<AgentTaskProjection["decision_bundle"]>;
   proposals: PursuitProposal[];
 }) {
   const router = useRouter();
@@ -77,6 +79,11 @@ export function PursuitReviewGate({
         </div>
       ) : pending ? (
         <PursuitProposalReview
+          decisionBundle={
+            decisionBundle?.proposal_id === pending.id
+              ? decisionBundle
+              : undefined
+          }
           key={pending.id}
           onReviewed={recordReceipt}
           proposal={pending}

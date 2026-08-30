@@ -1,5 +1,7 @@
 import {
   AgentRunResponseSchema,
+  AgentTaskResponseSchema,
+  CreatePursuitAgentTaskRequestSchema,
   CreatePursuitAgentRunRequestSchema,
   CreatePursuitRequestSchema,
   CreateCaptureRequestSchema,
@@ -30,6 +32,107 @@ beforeAll(() => {
 });
 
 describe("shared HTTP contract", () => {
+  it("keeps governed Task authority bounded and projects only non-canonical briefing output", () => {
+    const request = {
+      idempotency_key: "task-1",
+      client_event_id: "11111111-1111-4111-8111-111111111111",
+      expected_revision: 4,
+      task_kind: "pre_call_briefing",
+      capture_id: "22222222-2222-4222-8222-222222222222",
+      objective: "Prepare one grounded pre-call briefing.",
+      evidence_refs: ["33333333-3333-4333-8333-333333333333"],
+    };
+    expect(Value.Check(CreatePursuitAgentTaskRequestSchema, request)).toBe(true);
+    expect(
+      Value.Check(CreatePursuitAgentTaskRequestSchema, {
+        ...request,
+        permission_ceiling: ["send_message"],
+      }),
+    ).toBe(false);
+
+    const hash = "a".repeat(64);
+    const response = {
+      contract_version: "2026-08-24.10",
+      task: {
+        id: "44444444-4444-4444-8444-444444444444",
+        workspace_id: "55555555-5555-4555-8555-555555555555",
+        pursuit_id: "66666666-6666-4666-8666-666666666666",
+        requested_by_user_id: "77777777-7777-4777-8777-777777777777",
+        kind: "pre_call_briefing",
+        objective: request.objective,
+        task_revision: 2,
+        status: "no_action",
+        permission_ceiling: [
+          "read_pursuit",
+          "read_evidence",
+          "create_briefing_artifact",
+          "stage_pursuit_proposal",
+          "record_no_action",
+        ],
+        semantic_snapshot: {
+          pursuit_revision: 4,
+          evidence_manifest_digest: hash,
+          agent_definition_digest: hash,
+          tool_schema_digest: hash,
+          policy_digest: hash,
+          model_digest: hash,
+          created_at: "2026-08-30T00:00:00.000Z",
+        },
+        latest_run: {
+          id: "88888888-8888-4888-8888-888888888888",
+          attempt: 1,
+          status: "completed",
+          agent_run_status: "no_action",
+          reason_code: "NO_ACTION_RECORDED",
+          proposal_id: null,
+          no_action_id: "99999999-9999-4999-8999-999999999999",
+        },
+        artifact: {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          task_id: "44444444-4444-4444-8444-444444444444",
+          run_id: "88888888-8888-4888-8888-888888888888",
+          type: "pursuit_briefing",
+          authority: "non_canonical",
+          status: "current",
+          title: "Briefing · VP Engineering",
+          summary: "No new canonical change is supported.",
+          what_changed: [],
+          what_matters_now: {
+            dependency: "No unresolved dependency is supported.",
+            reason: "Wait for newly reviewed evidence.",
+            authority: "agent_interpretation",
+            evidence_refs: [],
+          },
+          next_move: {
+            kind: "no_action",
+            label: "No action now",
+            reason: "Wait for a material change.",
+          },
+          limitations: ["This artifact is non-canonical."],
+          evidence_manifest_digest: hash,
+          observed_at: "2026-08-30T00:00:01.000Z",
+          expires_at: "2026-08-31T00:00:01.000Z",
+        },
+        clarification: null,
+        decision_bundle: null,
+        latest_sequence: 6,
+        latest_cursor: "41",
+        continue_allowed: false,
+        external_effects: [],
+        created_at: "2026-08-30T00:00:00.000Z",
+        updated_at: "2026-08-30T00:00:01.000Z",
+        completed_at: "2026-08-30T00:00:01.000Z",
+      },
+    };
+    expect(Value.Check(AgentTaskResponseSchema, response)).toBe(true);
+    expect(
+      Value.Check(AgentTaskResponseSchema, {
+        ...response,
+        task: { ...response.task, external_effects: ["send_message"] },
+      }),
+    ).toBe(false);
+  });
+
   it("keeps Agent provider, tools, budgets, and effects outside caller authority", () => {
     const request = {
       idempotency_key: "agent-run-1",
@@ -101,7 +204,6 @@ describe("shared HTTP contract", () => {
             "read_pursuit",
             "read_evidence",
             "stage_pursuit_proposal",
-            "record_no_action",
           ],
         },
         provider: {

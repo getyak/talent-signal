@@ -56,7 +56,7 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("032_eval_observability"),
+      expect.stringContaining("036_governed_agent_tasks"),
     );
   }, 10_000);
 });

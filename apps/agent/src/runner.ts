@@ -1,17 +1,21 @@
 import { randomUUID } from "node:crypto";
 
 import {
-  AgentFinalOutputSchema,
+  PursuitAgentFinalOutputSchema,
+  type PursuitNoActionOutput,
   ReadEvidenceInputSchema,
   ReadPursuitInputSchema,
-  RecordNoActionInputSchema,
   StageProposalInputSchema,
-  type RecordNoActionInput,
   type StageProposalInput,
 } from "./schemas.js";
 import { fingerprint } from "./fingerprint.js";
+import { agentCapabilityManifest } from "./toolCatalog.js";
 import {
-  AGENT_TOOL_NAMES,
+  AGENT_BUDGET_CEILING,
+  AgentCapabilityError,
+} from "./runtimePolicy.js";
+import {
+  PURSUIT_AGENT_TOOL_NAMES,
   type AgentBudget,
   type AgentEvidence,
   type AgentFingerprints,
@@ -25,13 +29,7 @@ import {
   type AgentUsage,
 } from "./types.js";
 
-export const AGENT_BUDGET_CEILING: Readonly<AgentBudget> = Object.freeze({
-  maxTurns: 6,
-  maxToolCalls: 12,
-  maxDurationMs: 60_000,
-  maxTaskTokens: 32_000,
-  maxEstimatedUsd: 1,
-});
+export { AGENT_BUDGET_CEILING, AgentCapabilityError } from "./runtimePolicy.js";
 
 export const DEFAULT_AGENT_BUDGET: Readonly<AgentBudget> = Object.freeze({
   ...AGENT_BUDGET_CEILING,
@@ -55,16 +53,6 @@ class AgentBoundaryError extends Error {
     message: string,
   ) {
     super(message);
-  }
-}
-
-export class AgentCapabilityError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "AgentCapabilityError";
   }
 }
 
@@ -93,12 +81,37 @@ function assertBudget(budget: AgentBudget): void {
 
 function assertConfiguration(request: AgentRunRequest): void {
   assertBudget(request.budget);
-  if (!sameValues(request.definition.toolManifest, AGENT_TOOL_NAMES)) {
+  if (!sameValues(request.definition.toolManifest, PURSUIT_AGENT_TOOL_NAMES)) {
     throw new AgentConfigurationError(
-      "The V1 Agent tool manifest must contain exactly the four governed tools.",
+      "The Pursuit Agent tool manifest must match its governed definition.",
     );
   }
-  if (new Set(request.definition.toolManifest).size !== AGENT_TOOL_NAMES.length) {
+  const capabilities = agentCapabilityManifest(request.definition.toolManifest);
+  const candidateCapabilities = capabilities.filter(
+    (capability) => capability.consequence === "durable_candidate",
+  );
+  if (
+    candidateCapabilities.length !== 1 ||
+    candidateCapabilities.some(
+      (capability) =>
+        capability.openWorld ||
+        capability.reversibility !== "discardable" ||
+        capability.idempotency !== "content_fingerprint",
+    )
+  ) {
+    throw new AgentConfigurationError(
+      "Each Agent definition requires one closed-world, discardable, fingerprinted candidate capability.",
+    );
+  }
+  if (capabilities.some((capability) => capability.openWorld)) {
+    throw new AgentConfigurationError(
+      "The Pursuit Agent definition cannot expose an open-world capability.",
+    );
+  }
+  if (
+    new Set(request.definition.toolManifest).size !==
+    request.definition.toolManifest.length
+  ) {
     throw new AgentConfigurationError("The Agent tool manifest contains duplicates.");
   }
   if (request.scope.pursuitRevision < 1) {
@@ -275,7 +288,7 @@ function proposalCandidate(input: StageProposalInput): AgentProposalCandidate {
   };
 }
 
-function noActionCandidate(input: RecordNoActionInput): AgentNoActionCandidate {
+function noActionCandidate(input: PursuitNoActionOutput): AgentNoActionCandidate {
   return {
     reasonCode: input.reason_code,
     reason: input.reason,
@@ -568,44 +581,16 @@ export async function runBoundedAgent(
             candidateFingerprint,
           });
         }
-        case "record_no_action": {
-          const parsed = RecordNoActionInputSchema.parse(rawInput);
-          const allowed = new Set(
-            request.scope.evidenceManifest.map((item) => item.fragmentID),
-          );
-          if (parsed.missing_evidence_refs.some((ref) => !allowed.has(ref))) {
-            return deny(
-              "NO_ACTION_REFERENCE_OUT_OF_SCOPE",
-              "A no-action record cannot name an unmanifested fragment.",
-            );
-          }
-          const value = noActionCandidate(parsed);
-          const candidateFingerprint = fingerprint(value);
-          if (
-            runState.terminalCandidate &&
-            (runState.terminalCandidate.kind !== "no_action" ||
-              runState.terminalCandidate.fingerprint !== candidateFingerprint)
-          ) {
-            return deny(
-              "TERMINAL_CANDIDATE_CONFLICT",
-              "A run may form only one terminal candidate.",
-            );
-          }
-          runState.terminalCandidate = {
-            kind: "no_action",
-            value,
-            fingerprint: candidateFingerprint,
-          };
-          return append({
-            ok: true,
-            callID,
-            name: requestedName,
-            candidateFingerprint,
-          });
-        }
       }
+      return deny(
+        "TOOL_NOT_ALLOWED",
+        "The requested capability is absent from the immutable tool manifest.",
+      );
     } catch (error) {
       if (error instanceof AgentCapabilityError) {
+        return deny(error.code, error.message);
+      }
+      if (error instanceof AgentBoundaryError) {
         return deny(error.code, error.message);
       }
       return deny(
@@ -635,6 +620,7 @@ export async function runBoundedAgent(
         objective: request.scope.objective,
         systemPrompt: request.definition.systemPrompt,
         scopeSummary: {
+          kind: "pursuit",
           workspaceID: request.scope.workspaceID,
           pursuitID: request.scope.pursuitID,
           pursuitRevision: request.scope.pursuitRevision,
@@ -698,8 +684,10 @@ export async function runBoundedAgent(
       return complete("quarantined", runState.boundaryFailure.code);
     }
 
-    const output = AgentFinalOutputSchema.safeParse(providerResult.structuredOutput);
-    if (!output.success || !runState.terminalCandidate) {
+    const output = PursuitAgentFinalOutputSchema.safeParse(
+      providerResult.structuredOutput,
+    );
+    if (!output.success) {
       await request.journal.recordOutput({
         runID: request.scope.runID,
         status: "quarantined",
@@ -707,12 +695,43 @@ export async function runBoundedAgent(
         structuredOutput: providerResult.structuredOutput,
         recordedAt: new Date().toISOString(),
       });
-      return complete(
-        "quarantined",
-        output.success ? "TERMINAL_TOOL_REQUIRED" : "STRUCTURED_OUTPUT_INVALID",
-      );
+      return complete("quarantined", "STRUCTURED_OUTPUT_INVALID");
     }
-    if (
+
+    if (output.data.outcome === "no_action") {
+      const allowed = new Set(
+        request.scope.evidenceManifest.map((item) => item.fragmentID),
+      );
+      if (
+        output.data.missing_evidence_refs.some((ref) => !allowed.has(ref))
+      ) {
+        await request.journal.recordOutput({
+          runID: request.scope.runID,
+          status: "quarantined",
+          outputFingerprint: fingerprint(output.data),
+          structuredOutput: output.data,
+          recordedAt: new Date().toISOString(),
+        });
+        return complete("quarantined", "NO_ACTION_REFERENCE_OUT_OF_SCOPE");
+      }
+      if (runState.terminalCandidate) {
+        await request.journal.recordOutput({
+          runID: request.scope.runID,
+          status: "quarantined",
+          outputFingerprint: fingerprint(output.data),
+          structuredOutput: output.data,
+          recordedAt: new Date().toISOString(),
+        });
+        return complete("quarantined", "TERMINAL_OUTPUT_MISMATCH");
+      }
+      const value = noActionCandidate(output.data);
+      runState.terminalCandidate = {
+        kind: "no_action",
+        value,
+        fingerprint: fingerprint(value),
+      };
+    } else if (
+      !runState.terminalCandidate ||
       output.data.outcome !== runState.terminalCandidate.kind ||
       output.data.candidate_fingerprint !== runState.terminalCandidate.fingerprint
     ) {
@@ -723,7 +742,12 @@ export async function runBoundedAgent(
         structuredOutput: providerResult.structuredOutput,
         recordedAt: new Date().toISOString(),
       });
-      return complete("quarantined", "TERMINAL_OUTPUT_MISMATCH");
+      return complete(
+        "quarantined",
+        runState.terminalCandidate
+          ? "TERMINAL_OUTPUT_MISMATCH"
+          : "TERMINAL_CANDIDATE_REQUIRED",
+      );
     }
 
     await request.journal.recordOutput({

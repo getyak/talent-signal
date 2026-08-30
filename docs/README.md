@@ -57,6 +57,9 @@ updated.
 - [Talent Signal Agent module blueprint](research/talent-signal-agent-module-blueprint.md):
   maps the current executable control plane to the smallest durable Agent
   runtime proposal without granting models domain or effect authority.
+- [Agent public-web tooling](research/agent-public-web-tooling.md): separates
+  search, fetch, citations, provider management, credentials, and draft
+  research authority.
 
 ## Operations and evaluation
 

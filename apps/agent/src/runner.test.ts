@@ -27,6 +27,7 @@ const ids = {
   evidence: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
   proposal: "11111111-1111-4111-8111-111111111111",
   noAction: "22222222-2222-4222-8222-222222222222",
+  artifact: "44444444-4444-4444-8444-444444444444",
 };
 const evidenceHash = "f".repeat(64);
 
@@ -214,6 +215,20 @@ describe("bounded Agent control plane", () => {
     expect(gateway.proposalCommitCount).toBe(0);
   });
 
+  it("rejects a public-research no_action reason in a Pursuit run", async () => {
+    const gateway = new Gateway();
+    const provider = new ScriptedAgentProvider([], {
+      outcome: "no_action",
+      reason_code: "PUBLIC_RESEARCH_UNAVAILABLE",
+      reason: "Search was unavailable.",
+      missing_evidence_refs: [],
+    });
+    const receipt = await runBoundedAgent(request(provider, gateway));
+
+    expect(receipt.status).toBe("quarantined");
+    expect(receipt.reasonCode).toBe("STRUCTURED_OUTPUT_INVALID");
+  });
+
   it("keeps the tool manifest frozen and quarantines a Bash request", async () => {
     const gateway = new Gateway();
     const provider: AgentProvider = {
@@ -231,15 +246,12 @@ describe("bounded Agent control plane", () => {
           (providerRequest.toolManifest as unknown as string[]).push("Bash"),
         ).toThrow();
         await invokeTool("Bash", { command: "printenv" });
-        const result = await invokeTool("record_no_action", {
-          reason_code: "NO_MATERIAL_CHANGE",
-          reason: "No supported update is available.",
-          missing_evidence_refs: [],
-        });
         return {
           structuredOutput: {
             outcome: "no_action",
-            candidate_fingerprint: result.candidateFingerprint,
+            reason_code: "NO_MATERIAL_CHANGE",
+            reason: "No supported update is available.",
+            missing_evidence_refs: [],
           },
           inputTokens: 1,
           outputTokens: 1,
@@ -267,18 +279,12 @@ describe("bounded Agent control plane", () => {
             evidence_refs: ["99999999-9999-4999-8999-999999999999"],
           },
         },
-        {
-          tool: "record_no_action",
-          input: {
-            reason_code: "INSUFFICIENT_EVIDENCE",
-            reason: "Evidence is unavailable.",
-            missing_evidence_refs: [],
-          },
-        },
       ],
-      (results) => ({
+      () => ({
         outcome: "no_action",
-        candidate_fingerprint: results.at(-1)?.candidateFingerprint,
+        reason_code: "INSUFFICIENT_EVIDENCE",
+        reason: "Evidence is unavailable.",
+        missing_evidence_refs: [],
       }),
     );
     const receipt = await runBoundedAgent(request(provider, gateway));
@@ -294,16 +300,14 @@ describe("bounded Agent control plane", () => {
       new ScriptedAgentProvider(
         [
           { tool: "read_pursuit", input: {} },
-          {
-            tool: "record_no_action",
-            input: {
-              reason_code: "NO_MATERIAL_CHANGE",
-              reason: "Stop safely.",
-              missing_evidence_refs: [],
-            },
-          },
+          { tool: "read_pursuit", input: {} },
         ],
-        { outcome: "no_action", candidate_fingerprint: "f".repeat(64) },
+        {
+          outcome: "no_action",
+          reason_code: "NO_MATERIAL_CHANGE",
+          reason: "Stop safely.",
+          missing_evidence_refs: [],
+        },
       ),
       gateway,
     );
@@ -318,20 +322,13 @@ describe("bounded Agent control plane", () => {
   it("records no_action as a durable terminal outcome with no effects", async () => {
     const gateway = new Gateway();
     const provider = new ScriptedAgentProvider(
-      [
-        {
-          tool: "record_no_action",
-          input: {
-            reason_code: "NO_MATERIAL_CHANGE",
-            reason: "The current evidence does not support a state change.",
-            missing_evidence_refs: [],
-          },
-        },
-      ],
-      (results) => ({
+      [],
+      {
         outcome: "no_action",
-        candidate_fingerprint: results[0]?.candidateFingerprint,
-      }),
+        reason_code: "NO_MATERIAL_CHANGE",
+        reason: "The current evidence does not support a state change.",
+        missing_evidence_refs: [],
+      },
     );
     const receipt = await runBoundedAgent(request(provider, gateway));
 
@@ -339,6 +336,42 @@ describe("bounded Agent control plane", () => {
     expect(receipt.noActionID).toBe(ids.noAction);
     expect(receipt.externalEffects).toEqual([]);
     expect(gateway.noActionCommitCount).toBe(1);
+  });
+
+  it("quarantines no_action when it names evidence outside the immutable scope", async () => {
+    const gateway = new Gateway();
+    const provider = new ScriptedAgentProvider([], {
+      outcome: "no_action",
+      reason_code: "INSUFFICIENT_EVIDENCE",
+      reason: "A fragment outside this run would be required.",
+      missing_evidence_refs: ["99999999-9999-4999-8999-999999999999"],
+    });
+
+    const receipt = await runBoundedAgent(request(provider, gateway));
+
+    expect(receipt.status).toBe("quarantined");
+    expect(receipt.reasonCode).toBe("NO_ACTION_REFERENCE_OUT_OF_SCOPE");
+    expect(gateway.noActionCommitCount).toBe(0);
+  });
+
+  it("does not let no_action silently discard an already formed candidate", async () => {
+    const gateway = new Gateway();
+    const provider = new ScriptedAgentProvider(
+      [{ tool: "stage_pursuit_proposal", input: proposalInput }],
+      {
+        outcome: "no_action",
+        reason_code: "NO_MATERIAL_CHANGE",
+        reason: "Do not discard the staged candidate silently.",
+        missing_evidence_refs: [],
+      },
+    );
+
+    const receipt = await runBoundedAgent(request(provider, gateway));
+
+    expect(receipt.status).toBe("quarantined");
+    expect(receipt.reasonCode).toBe("TERMINAL_OUTPUT_MISMATCH");
+    expect(gateway.proposalCommitCount).toBe(0);
+    expect(gateway.noActionCommitCount).toBe(0);
   });
 
   it("does not retry a failed terminal journal commit", async () => {
@@ -427,4 +460,5 @@ describe("bounded Agent control plane", () => {
     expect(receipt.reasonCode).toBe("MAX_TASK_TOKENS_EXCEEDED");
     expect(gateway.proposalCommitCount).toBe(0);
   });
+
 });

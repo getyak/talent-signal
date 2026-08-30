@@ -14,8 +14,9 @@ what the Agent could read and spend.
 - Agent-run contributions to `V1-SEC-001` and `V1-SEC-002`;
 - one TypeScript Claude Agent SDK adapter behind a provider-neutral runner;
 - immutable workspace, user, Pursuit, objective, context, and budget scope;
-- typed `read_pursuit`, `read_evidence`, `stage_pursuit_proposal`, and
-  `record_no_action` tools;
+- typed `read_pursuit`, `read_evidence`, and `stage_pursuit_proposal` tools;
+- a separately validated `no_action` terminal output with reason and bounded
+  missing-evidence references;
 - durable run, event, tool-call, output, fingerprint, usage, and terminal receipt;
 - reconstruction from a fresh backend snapshot rather than SDK session memory.
 
@@ -37,7 +38,7 @@ turns, tool calls, duration, tokens, and estimated USD.
 
 The Claude adapter starts with `tools: []`, `permissionMode: dontAsk`, no
 settings sources, no plugins, no subagents, no session persistence, and one
-in-process MCP server containing only the four Talent Signal tools. A second
+in-process MCP server containing only the three Talent Signal tools. A second
 `canUseTool` check denies every name outside the pinned manifest. Tool handlers
 recheck workspace, Pursuit revision, identity, evidence authority, and budget
 outside the model.

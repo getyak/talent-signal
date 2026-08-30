@@ -7,7 +7,7 @@
       "step": 1,
       "actor": "evaluation-client-a",
       "transition": "intentional capture",
-      "capture_id": "619c437c-e229-41f6-8b87-5694b755bb7d",
+      "capture_id": "802cf29e-22e4-4862-bd7e-688c91563b23",
       "identity_status": "bound",
       "evidence_count": 1
     },
@@ -29,10 +29,10 @@
       "actor": "evaluation-client-a",
       "transition": "independent fact decisions",
       "confirmed_state_ids": [
-        "b9d2487e-608b-423e-b291-81c3ec27b84f",
-        "5812892f-d8d1-4042-b435-fde8c4aea9dc",
-        "4565d925-cf3d-48f6-9cf6-6ec0fb7e1d4f",
-        "5411103e-cc30-4db8-8987-7ce0cd1e0cfe"
+        "6deb7d62-f69d-4753-9f0e-3b53d67b5ebc",
+        "985493f6-da85-4470-917b-3b86cb59a398",
+        "5a5df74b-0c98-43a4-b0f9-9850082738a3",
+        "6f76f8fe-8690-4c0f-9ae0-77cccd13f0aa"
       ],
       "confirmation_count": 4
     },
@@ -53,13 +53,13 @@
         "assertion.confirm",
         "state.confirmed"
       ],
-      "next_cursor": 11
+      "next_cursor": 17
     },
     {
       "step": 5,
       "actor": "evaluation-client-b",
       "transition": "exact version-bound action approval",
-      "approval_id": "c491b603-7f18-46ce-8959-0041263be734",
+      "approval_id": "4666c412-ca0a-47c7-9189-e71a4b2d946d",
       "action_version": 1,
       "preview_digest": "df28476e7c4a55b2b4fd517ba2935f8e76e1aaaa10152a087dccceb94aa9dd04"
     },
@@ -67,7 +67,7 @@
       "step": 6,
       "actor": "local deterministic adapter",
       "transition": "simulated effect and destination readback",
-      "attempt_id": "ed3507e1-136e-4fdc-b3fa-6349a1105722",
+      "attempt_id": "0af99930-23a1-4d80-9fd3-04e081e0719d",
       "attempt_status": "verified",
       "simulated": true,
       "destination_match": "matched",

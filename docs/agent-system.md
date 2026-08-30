@@ -2,21 +2,15 @@
 
 ## Purpose
 
-Talent Signal uses agents to extend human judgment, not replace ownership of
-relationship truth or consequential action.
+Talent Signal uses agents to extend human judgment, not replace ownership of relationship truth or consequential action.
 
 The system is:
 
-> an evidence compiler, temporal relationship memory, and governed action
-> control plane, with open-ended agents attached only where flexibility creates
-> measurable value.
+> an evidence compiler, temporal relationship memory, and governed action control plane, with open-ended agents attached only where flexibility creates measurable value.
 
 ## Architecture
 
 ![Talent Signal agent control plane](talent-signal-agent-control-plane.png)
-
-The editable source is
-[`talent-signal-agent-control-plane.excalidraw`](talent-signal-agent-control-plane.excalidraw).
 
 The control plane separates four concerns:
 
@@ -55,12 +49,20 @@ Good uses include:
 An open-ended agent may produce an artifact or proposal. It cannot confirm a
 fact, merge identity, or execute a consequential action.
 
+Public-web research has a separate definition, explicit company/market purpose, domain and usage budgets, and no conversation evidence or attachments.
+Search discovers untrusted leads; every draft claim cites only same-Run fetched sources and gains no truth or action authority.
+
+### Runtime placement
+
+Runtime location follows capability ownership, not UI location. A local Agent host owns open-world reads, credentials, network policy, checkpoints, and draft artifacts.
+It runs without iOS, Web, TestFlight, backend, or product database; frontends may control it but are not execution dependencies.
+
+The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision.
+The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
+
 ## Governed loop
 
 ![Talent Signal agent runtime flow](talent-signal-agent-runtime-flow.png)
-
-The editable source is
-[`talent-signal-agent-runtime-flow.excalidraw`](talent-signal-agent-runtime-flow.excalidraw).
 
 Every run follows the same conceptual discipline:
 
@@ -234,8 +236,7 @@ cannot preselect, collapse records, bind to history, or retry after failure.
 
 ## External agents and channels
 
-Codex, Claude, Cursor, Manus, OpenClaw, and future runtimes should connect
-through one provider-neutral Talent Signal boundary.
+Codex, Claude, Cursor, Manus, OpenClaw, and future runtimes should connect through one provider-neutral Talent Signal boundary.
 
 Initial external abilities should remain narrow:
 
@@ -255,19 +256,27 @@ boundaries or systems of record.
 
 ## V1 bounded runtime
 
-`@talent-signal/agent` is the provider-neutral runner. Its Claude adapter pins
-Claude Agent SDK `0.3.241`, one explicit model, no built-in tools, settings,
-plugins, Skills, subagents, or session persistence, and exactly four in-process
-capabilities: `read_pursuit`, `read_evidence`, `stage_pursuit_proposal`, and
-`record_no_action`. A second permission check rejects every other tool.
+`@talent-signal/agent` is the provider-neutral runner. Provider adapters expose only `read_pursuit`, `read_evidence`, and `stage_pursuit_proposal`; a second gate rejects all others.
+`no_action` is a validated structured terminal output, not a Tool call.
 
-The backend freezes one workspace, user, Pursuit revision, Capture, evidence
-manifest, objective, and budget. Migration `023_agent_control_plane` stores run,
-event, tool-call fingerprints, validated output, usage, and one terminal
-receipt without raw tool payload columns. A successful run creates only a
-`needs_review` Proposal or durable `no_action`; external effects are
-database-constrained to empty. Startup and request-level recovery close
-interrupted runs from durable state rather than provider session memory.
+The backend freezes scope, context, objective, and budget; persists fingerprints,
+validated output, usage, and one terminal receipt without raw tool payloads;
+and allows only a `needs_review` Proposal or durable `no_action`. External
+effects remain empty and recovery uses durable state, not provider memory.
+
+The public-research definition assembles `search_web`, `fetch_web`, and
+`create_research_artifact`. The local host selects one provider, isolates
+credentials, guards fetches, checkpoints observations, and writes drafts with no
+publication authority. The backend neither executes nor persists this capability.
+
+Every catalog entry declares its capability class, consequence, approval,
+reversibility, idempotency, read-only behavior, and open-world behavior. These
+host-enforced descriptors keep provider adapters thin and make authority
+boundaries inspectable without asking the model to infer them from prose.
+
+The governed Pursuit Task adds durable attempts, snapshots, checkpoints,
+artifacts, and events with authoritative readback. It permits only normalized
+operational work; decisions retain domain owners. Resume and effects remain targets.
 
 ## Evaluation
 
@@ -295,19 +304,10 @@ Release boundaries include:
 - source deletion reaches every governed derivative.
 
 ## V1 proof boundary
-
-The deterministic suite runs six critical cases five times through the real
-database control plane. Live Claude trials use the same protocol only when an
-explicit credential and pinned model are present; otherwise the artifact says
-`not_run_missing_credentials` and `missing_proof`. Neither result authorizes
-production rollout, real candidate data, or broader tools.
-
-The rationale for treating the Wiki as an Agent-facing compiled knowledge layer
-is recorded in
-[ADR 0004](decisions/0004-agent-wiki-knowledge-layer.md).
+Deterministic and credentialed trials share the real database protocol; neither authorizes production data or broader tools.
+The Wiki rationale is in [ADR 0004](decisions/0004-agent-wiki-knowledge-layer.md).
 
 ## Research
-
 The cross-system research and source links live in
 [Agent systems research](research/agent-systems.md).
 

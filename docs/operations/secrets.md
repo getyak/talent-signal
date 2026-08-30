@@ -73,6 +73,7 @@ The authoritative names and runtime contracts live in
 `config/infisical-secrets.json`. The folders are:
 
 - `/shared`: provider and cross-surface runtime configuration;
+- `/agent-host`: local open-world Tool provider configuration and credentials;
 - `/web`: Next.js server credentials and web-only policy;
 - `/backend`: database, authentication, API, and storage configuration;
 - `/release`: App Store Connect, signing, Tailscale, and release configuration;
@@ -84,6 +85,8 @@ multiple explicit folders without recursive root access:
 
 ```sh
 ./scripts/infisical/run.sh dev /shared /web -- pnpm --filter @talent-signal/web dev
+pnpm secrets:check:agent-host
+./scripts/infisical/run.sh dev /shared /agent-host -- pnpm agent:research -- --objective "..." --subject company --anchor "Example Company" --allow-domain example.com
 ./scripts/infisical/run.sh staging /shared /backend -- node scripts/infisical/verify-contract.mjs testflightBackend
 ```
 
@@ -122,6 +125,19 @@ distinct. A model key grants compute access; it does not grant private-evidence
 admission. Keep `TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING=false` until the
 provider contract and observed data path satisfy the integration admission
 checklist.
+
+Public-web research selects one environment provider with
+`TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER=brave` or `tavily`. Keep
+`BRAVE_SEARCH_API_KEY` and `TAVILY_API_KEY` as separate `/agent-host` secrets; do
+not place either key in an Agent definition, MCP configuration visible to the
+model, backend container, or client bundle. Load `/shared` for the selected
+model provider and `/agent-host` for the search provider into the local Agent
+process only. The selector is application configuration, while the API key
+remains the secret. Provider subscription and invoice ownership stay in the
+vendor account; Infisical owns delivery and rotation, and the local host owns
+Run budgets and provider readback. Do not configure silent cross-provider
+fallback because it changes ranking, data processing, cost, and attribution
+without changing the Run authorization.
 
 Recruiter dictation uses the narrower
 `TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION` gate. Set it only for a

@@ -39,6 +39,9 @@ const MIGRATIONS = [
   "031_chat_media_assets",
   "032_eval_observability",
   "033_agent_no_action_reason_code",
+  "034_agent_public_web_research",
+  "035_decommission_backend_agent_web_research",
+  "036_governed_agent_tasks",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

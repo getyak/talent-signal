@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { PursuitReviewGate } from "@/components/pursuit-review-gate";
+import { PursuitAgentRail } from "@/components/pursuit-agent-rail";
 import styles from "@/components/pursuit-room.module.css";
 import {
   backendSessionRecoveryHref,
@@ -78,7 +79,7 @@ export default async function PursuitRoomPage({
     }
     notFound();
   }
-  const { pursuit, proposals } = room;
+  const { pursuit, proposals, agentContext, agentTasks } = room;
   const openGaps = pursuit.gaps.filter((gap) => gap.status === "open");
   const openActions = pursuit.actions.filter(
     (action) => !["completed", "cancelled", "failed"].includes(action.status),
@@ -166,7 +167,23 @@ export default async function PursuitRoomPage({
             </section>
           </div>
 
-          <PursuitReviewGate key={pursuit.id} proposals={proposals} />
+          <PursuitAgentRail
+            agentContext={agentContext}
+            evidenceHref={proposals.length > 0 ? "#proposal" : null}
+            initialTask={agentTasks[0] ?? null}
+            pursuit={{
+              id: pursuit.id,
+              milestone: pursuit.milestone,
+              revision: pursuit.revision,
+              title: pursuit.title,
+            }}
+          />
+
+          <PursuitReviewGate
+            decisionBundle={agentTasks[0]?.decision_bundle ?? undefined}
+            key={pursuit.id}
+            proposals={proposals}
+          />
         </div>
       </main>
     </div>

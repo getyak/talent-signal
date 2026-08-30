@@ -1,3 +1,5 @@
+import CryptoKit
+import EventKit
 import SwiftUI
 
 struct RelationshipCalendarActivity: Identifiable, Equatable {
@@ -37,6 +39,12 @@ struct RelationshipCalendarActivity: Identifiable, Equatable {
         case appleCalendar
     }
 
+    enum DestinationVerification: Equatable {
+        case notRequired
+        case verified
+        case unavailable
+    }
+
     let id: String
     let kind: Kind
     let title: String
@@ -49,9 +57,192 @@ struct RelationshipCalendarActivity: Identifiable, Equatable {
     let timeZoneIdentifier: String
     let source: Source
     let eventIdentifier: String?
+    var destinationVerification: DestinationVerification = .notRequired
 
     func displayTitle(in language: AppLanguage) -> String {
         source == .preview ? kind.title(in: language) : title
+    }
+}
+
+private struct StoredRelationshipCalendarActivity: Codable, Equatable {
+    let id: String
+    let kind: String
+    let title: String
+    let personID: String
+    let relationshipContextID: String
+    let startDate: Date
+    let endDate: Date
+    let timeZoneIdentifier: String
+    let eventIdentifier: String
+    let savedAt: Date
+}
+
+protocol RelationshipCalendarActivityPersisting: AnyObject {
+    func activities(in snapshot: PursuitWorkspaceSnapshot) throws
+        -> [RelationshipCalendarActivity]
+    func save(_ activity: RelationshipCalendarActivity) throws
+    func remove(activityID: String) throws
+}
+
+final class FileRelationshipCalendarActivityStore:
+    RelationshipCalendarActivityPersisting {
+    private let fileURL: URL
+
+    init(
+        accountID: String,
+        rootURL: URL? = nil
+    ) {
+        let digest = SHA256.hash(data: Data(accountID.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let root = rootURL ?? FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+        fileURL = root
+            .appending(
+                path: "TalentSignal/CalendarActivities",
+                directoryHint: .isDirectory
+            )
+            .appending(path: "\(digest).json")
+    }
+
+    func activities(
+        in snapshot: PursuitWorkspaceSnapshot
+    ) throws -> [RelationshipCalendarActivity] {
+        try entries().values.compactMap { stored in
+            guard let kind = RelationshipCalendarActivity.Kind(
+                rawValue: stored.kind
+            ), let person = snapshot.people.first(where: {
+                $0.id == stored.personID
+            }), let context = person.contexts.first(where: {
+                $0.id == stored.relationshipContextID
+            }) else {
+                return nil
+            }
+            return RelationshipCalendarActivity(
+                id: stored.id,
+                kind: kind,
+                title: stored.title,
+                personID: stored.personID,
+                relationshipContextID: stored.relationshipContextID,
+                personDisplayLabel: person.displayLabel,
+                contextDisplayLabel: context.displayLabel,
+                startDate: stored.startDate,
+                endDate: stored.endDate,
+                timeZoneIdentifier: stored.timeZoneIdentifier,
+                source: .appleCalendar,
+                eventIdentifier: stored.eventIdentifier,
+                destinationVerification: .verified
+            )
+        }
+        .sorted { $0.startDate < $1.startDate }
+    }
+
+    func save(_ activity: RelationshipCalendarActivity) throws {
+        guard activity.source == .appleCalendar,
+              let eventIdentifier = activity.eventIdentifier,
+              !eventIdentifier.isEmpty else {
+            return
+        }
+        var next = try entries()
+        next[activity.id] = StoredRelationshipCalendarActivity(
+            id: activity.id,
+            kind: activity.kind.rawValue,
+            title: activity.title,
+            personID: activity.personID,
+            relationshipContextID: activity.relationshipContextID,
+            startDate: activity.startDate,
+            endDate: activity.endDate,
+            timeZoneIdentifier: activity.timeZoneIdentifier,
+            eventIdentifier: eventIdentifier,
+            savedAt: Date()
+        )
+        try write(next)
+    }
+
+    func remove(activityID: String) throws {
+        var next = try entries()
+        next.removeValue(forKey: activityID)
+        if next.isEmpty {
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                try FileManager.default.removeItem(at: fileURL)
+            }
+        } else {
+            try write(next)
+        }
+    }
+
+    private func entries() throws -> [String: StoredRelationshipCalendarActivity] {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return [:]
+        }
+        return try JSONDecoder().decode(
+            [String: StoredRelationshipCalendarActivity].self,
+            from: Data(contentsOf: fileURL)
+        )
+    }
+
+    private func write(
+        _ entries: [String: StoredRelationshipCalendarActivity]
+    ) throws {
+        let directory = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        var directoryValues = URLResourceValues()
+        directoryValues.isExcludedFromBackup = true
+        var protectedDirectory = directory
+        try protectedDirectory.setResourceValues(directoryValues)
+        try JSONEncoder().encode(entries).write(
+            to: fileURL,
+            options: [.atomic, .completeFileProtectionUnlessOpen]
+        )
+    }
+}
+
+enum DeviceCalendarEventObservation: Equatable {
+    case verified(DeviceCalendarSavedEvent)
+    case missing
+    case unavailable
+}
+
+@MainActor
+protocol DeviceCalendarEventObserving: AnyObject {
+    func observe(eventIdentifier: String) -> DeviceCalendarEventObservation
+}
+
+@MainActor
+final class EventKitDeviceCalendarEventObserver: DeviceCalendarEventObserving {
+    private let eventStore: EKEventStore
+
+    init(eventStore: EKEventStore = EKEventStore()) {
+        self.eventStore = eventStore
+    }
+
+    func observe(eventIdentifier: String) -> DeviceCalendarEventObservation {
+        if let event = eventStore.event(withIdentifier: eventIdentifier) {
+            return .verified(
+                DeviceCalendarSavedEvent(
+                    identifier: eventIdentifier,
+                    title: event.title,
+                    startDate: event.startDate,
+                    endDate: event.endDate,
+                    timeZoneIdentifier: event.timeZone?.identifier
+                        ?? TimeZone.current.identifier
+                )
+            )
+        }
+        return Self.canObserveAbsence ? .missing : .unavailable
+    }
+
+    private static var canObserveAbsence: Bool {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        if #available(iOS 17.0, *) {
+            return status == .fullAccess || status == .authorized
+        }
+        return status == .authorized
     }
 }
 
@@ -187,6 +378,7 @@ struct TodayRelationshipCalendarPeek: View {
             .contentShape(RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(
             appLanguage.text("Opens the relationship calendar.")
@@ -320,19 +512,41 @@ struct RelationshipCalendarView: View {
     @State private var selectedDate: Date
     @State private var isMonthExpanded = false
     @State private var destination: CalendarSheetDestination?
+    @State private var calendarNotice: String?
+
+    private let activityStore: (any RelationshipCalendarActivityPersisting)?
+    private let eventObserver: any DeviceCalendarEventObserving
 
     init(
         snapshot: PursuitWorkspaceSnapshot,
         isPreview: Bool,
         initialActivities: [RelationshipCalendarActivity],
+        activityStore: (any RelationshipCalendarActivityPersisting)? = nil,
+        eventObserver: (any DeviceCalendarEventObserving)? = nil,
         onPrepare: @escaping (RelationshipCalendarActivity) -> Void
     ) {
         self.snapshot = snapshot
         self.isPreview = isPreview
-        self.initialActivities = initialActivities
         self.onPrepare = onPrepare
-        _activities = State(initialValue: initialActivities)
-        let next = RelationshipCalendarProjection.next(in: initialActivities)
+        let resolvedStore = activityStore ?? (isPreview
+            ? nil
+            : FileRelationshipCalendarActivityStore(
+                accountID: snapshot.workspaceID
+            ))
+        self.activityStore = resolvedStore
+        self.eventObserver = eventObserver
+            ?? EventKitDeviceCalendarEventObserver()
+        let restored = (try? resolvedStore?.activities(in: snapshot)) ?? []
+        var combined = initialActivities
+        for activity in restored where !combined.contains(where: {
+            $0.id == activity.id
+        }) {
+            combined.append(activity)
+        }
+        combined.sort { $0.startDate < $1.startDate }
+        self.initialActivities = combined
+        _activities = State(initialValue: combined)
+        let next = RelationshipCalendarProjection.next(in: combined)
         _selectedDate = State(
             initialValue: Calendar.current.startOfDay(
                 for: next?.startDate ?? Date()
@@ -393,6 +607,13 @@ struct RelationshipCalendarView: View {
                 )
             case .composer:
                 RelationshipCalendarComposer(snapshot: snapshot) { activity in
+                    do {
+                        try activityStore?.save(activity)
+                    } catch {
+                        calendarNotice = appLanguage.text(
+                            "The event is verified in Apple Calendar, but its Talent Signal link could not be saved on this device."
+                        )
+                    }
                     activities.append(activity)
                     activities.sort { $0.startDate < $1.startDate }
                     selectedDate = Calendar.current.startOfDay(
@@ -406,7 +627,60 @@ struct RelationshipCalendarView: View {
                 }
             }
         }
+        .task { reconcileSavedActivities() }
         .accessibilityIdentifier("relationship-calendar")
+    }
+
+    private func reconcileSavedActivities() {
+        var next = activities
+        var removedActivityIDs: [String] = []
+        var couldNotVerify = false
+        for index in next.indices where next[index].source == .appleCalendar {
+            guard let eventIdentifier = next[index].eventIdentifier else {
+                next[index].destinationVerification = .unavailable
+                couldNotVerify = true
+                continue
+            }
+            switch eventObserver.observe(eventIdentifier: eventIdentifier) {
+            case let .verified(event):
+                next[index] = RelationshipCalendarActivity(
+                    id: next[index].id,
+                    kind: next[index].kind,
+                    title: event.title,
+                    personID: next[index].personID,
+                    relationshipContextID: next[index].relationshipContextID,
+                    personDisplayLabel: next[index].personDisplayLabel,
+                    contextDisplayLabel: next[index].contextDisplayLabel,
+                    startDate: event.startDate,
+                    endDate: event.endDate,
+                    timeZoneIdentifier: event.timeZoneIdentifier,
+                    source: .appleCalendar,
+                    eventIdentifier: event.identifier,
+                    destinationVerification: .verified
+                )
+                try? activityStore?.save(next[index])
+            case .missing:
+                removedActivityIDs.append(next[index].id)
+            case .unavailable:
+                next[index].destinationVerification = .unavailable
+                couldNotVerify = true
+            }
+        }
+        if !removedActivityIDs.isEmpty {
+            next.removeAll { removedActivityIDs.contains($0.id) }
+            for activityID in removedActivityIDs {
+                try? activityStore?.remove(activityID: activityID)
+            }
+            calendarNotice = appLanguage.text(
+                "A previously linked event is no longer in Apple Calendar and was removed from this view."
+            )
+        } else if couldNotVerify {
+            calendarNotice = appLanguage.text(
+                "Saved events are shown from this device, but Apple Calendar could not be rechecked."
+            )
+        }
+        next.sort { $0.startDate < $1.startDate }
+        activities = next
     }
 
     private var calendarPicker: some View {
@@ -566,6 +840,13 @@ struct RelationshipCalendarView: View {
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .accessibilityIdentifier("calendar-preview-boundary")
+            }
+            if let calendarNotice {
+                Label(calendarNotice, systemImage: "exclamationmark.shield")
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("calendar-reconciliation-notice")
             }
         }
     }
@@ -1066,7 +1347,9 @@ private struct RelationshipCalendarActivityDetail: View {
         case .preview:
             return appLanguage.text("Synthetic preview · not in Apple Calendar")
         case .appleCalendar:
-            return appLanguage.text("Saved through Apple Calendar in this visit")
+            return activity.destinationVerification == .verified
+                ? appLanguage.text("Verified in Apple Calendar")
+                : appLanguage.text("Saved on this device · Apple Calendar not rechecked")
         }
     }
 
@@ -1154,6 +1437,7 @@ private struct RelationshipCalendarComposer: View {
     @State private var durationMinutes = 30
     @State private var editorProposal: DeviceCalendarProposal?
     @State private var calendarWasUnchanged = false
+    @State private var calendarSaveNeedsVerification = false
 
     init(
         snapshot: PursuitWorkspaceSnapshot,
@@ -1255,6 +1539,20 @@ private struct RelationshipCalendarComposer: View {
                             .foregroundStyle(Color.tsMutedInk)
                             .accessibilityIdentifier("calendar-composer-unchanged")
                     }
+                    if calendarSaveNeedsVerification {
+                        Label(
+                            appLanguage.text(
+                                "Apple Calendar returned from Save, but Talent Signal could not read the exact event back. Check Apple Calendar before trying again."
+                            ),
+                            systemImage: "exclamationmark.shield"
+                        )
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.tsWarning)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier(
+                                "calendar-composer-needs-verification"
+                            )
+                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -1273,9 +1571,10 @@ private struct RelationshipCalendarComposer: View {
                     ) {
                         editorProposal = proposal
                         calendarWasUnchanged = false
+                        calendarSaveNeedsVerification = false
                     }
                     .font(.subheadline.weight(.semibold))
-                    .disabled(proposal == nil)
+                    .disabled(proposal == nil || calendarSaveNeedsVerification)
                     .accessibilityHint(
                         appLanguage.text(
                             "Opens Apple's final event editor. Nothing is saved yet."
@@ -1296,26 +1595,29 @@ private struct RelationshipCalendarComposer: View {
         .sheet(item: $editorProposal) { proposal in
             DeviceCalendarEditorSheet(proposal: proposal) { completion in
                 switch completion {
-                case let .saved(eventIdentifier):
+                case let .saved(event):
                     guard let scope = selectedScope else { return }
                     onSaved(
                         RelationshipCalendarActivity(
                             id: "calendar-\(proposal.sourceID)",
                             kind: selectedKind,
-                            title: proposal.title,
+                            title: event.title,
                             personID: scope.personID,
                             relationshipContextID: scope.relationshipContextID,
                             personDisplayLabel: scope.personDisplayLabel,
                             contextDisplayLabel: scope.contextDisplayLabel,
-                            startDate: proposal.startDate,
-                            endDate: proposal.endDate,
-                            timeZoneIdentifier: proposal.timeZoneIdentifier,
+                            startDate: event.startDate,
+                            endDate: event.endDate,
+                            timeZoneIdentifier: event.timeZoneIdentifier,
                             source: .appleCalendar,
-                            eventIdentifier: eventIdentifier
+                            eventIdentifier: event.identifier,
+                            destinationVerification: .verified
                         )
                     )
                 case .cancelled:
                     calendarWasUnchanged = true
+                case .verificationNeeded:
+                    calendarSaveNeedsVerification = true
                 }
             }
         }

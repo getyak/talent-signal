@@ -3,7 +3,7 @@
   "artifact_id": "TS-V1-PRD-07-RUNTIME-01",
   "generated_at": "2026-08-24T13:30:00.000Z",
   "data_classification": "synthetic_only",
-  "contract_version": "2026-08-24.7",
+  "contract_version": "2026-08-24.10",
   "verdict": "pass",
   "checks": {
     "confirmed_role_has_reviewed_evidence_or_user_attribution": true,
@@ -17,20 +17,27 @@
     "open_proposal_superseded": true,
     "superseded_proposal_not_reviewable": true,
     "today_projection_does_not_claim_evidence_backed": true,
+    "applied_milestone_authority_available_before_source_delete": true,
+    "applied_milestone_value_preserved_after_source_delete": true,
+    "applied_milestone_authority_unavailable_after_source_delete": true,
+    "applied_milestone_keeps_confirmer_time_proposal_and_receipt": true,
+    "source_derived_proposal_content_redacted_after_deletion": true,
+    "deletion_canary_absent_from_api_and_operational_stores": true,
+    "milestone_authority_follows_latest_mutation_not_value_equality": true,
     "deletion_retry_is_idempotent": true,
     "lineage_includes_pursuit_proposal_and_item": true,
     "cross_workspace_pursuit_and_lineage_hidden": true
   },
   "identity_review": {
-    "resolution_case_id": "19cf7864-14fd-4f8f-97b1-f7a70550dcc2",
+    "resolution_case_id": "732925c6-8b8a-4fea-aea7-32c82eda2791",
     "candidate_person_ids": [
-      "4ba63de3-b63c-4b4b-b02c-05bf95bd87df",
-      "396eeffa-d74e-4831-ae61-f25f574de99b"
+      "eb6bb10b-d9b0-474c-b855-3be291f9b8ba",
+      "88d48adf-0fa3-4b58-b091-3ddca7b788fd"
     ]
   },
   "pre_delete": {
     "pursuit": {
-      "id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+      "id": "d911d576-1548-458e-ad00-4126cf95ca76",
       "workspace_id": "10000000-0000-4000-8000-000000000001",
       "type": "recruiting",
       "title": "Synthetic evidence-integrity search",
@@ -38,14 +45,28 @@
       "target_date": "2026-10-30",
       "status": "active",
       "milestone": "evidence_review",
+      "milestone_authority": {
+        "kind": "user_authored",
+        "evidence_refs": [],
+        "evidence_state": {
+          "availability": "not_required",
+          "reference_count": 0,
+          "available_reference_count": 0,
+          "unavailable_reference_count": 0
+        },
+        "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+        "confirmed_at": "2026-08-30T04:40:22.371Z",
+        "proposal_id": null,
+        "receipt_id": "4d4de878-1c56-4e2a-bb6a-4f0911435d0b"
+      },
       "revision": 1,
       "roles": [
         {
-          "id": "b5c9cfce-d69f-4cab-8df2-ca63bfa45956",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "163c9eab-b33c-42c0-9e76-5a7fb0c648be",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "subject_ref": {
             "type": "person",
-            "id": "f555aa97-c114-4299-b17b-417fba81bace"
+            "id": "92fe8ec4-2d27-4c3b-a478-db4fb71a6cc7"
           },
           "role_type": "candidate",
           "status": "active",
@@ -55,8 +76,8 @@
             "attributed_by_user_id": null
           },
           "evidence_refs": [
-            "17120165-0077-4aef-a91c-424160dd6db4",
-            "2585c82b-6108-49b2-b24a-a96c9f2c7c8f"
+            "65aa18fb-9ab1-442b-a7b8-5e2236332e52",
+            "6be9722b-b042-4b9b-bec0-fd6120f34303"
           ],
           "evidence_state": {
             "availability": "available",
@@ -67,11 +88,11 @@
           "revision": 1
         },
         {
-          "id": "38e067e8-7729-4f6e-b39e-afeb8652cf2e",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "ed79b9d3-aef1-4f0f-8e45-4ef027a38767",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "subject_ref": {
             "type": "person",
-            "id": "4ba63de3-b63c-4b4b-b02c-05bf95bd87df"
+            "id": "eb6bb10b-d9b0-474c-b855-3be291f9b8ba"
           },
           "role_type": "candidate",
           "status": "active",
@@ -90,11 +111,11 @@
           "revision": 1
         },
         {
-          "id": "51b33624-fcff-4084-a350-8e49c7fa99c7",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "adc5dea0-2753-4315-a1e2-b64797172054",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "subject_ref": {
             "type": "person",
-            "id": "396eeffa-d74e-4831-ae61-f25f574de99b"
+            "id": "88d48adf-0fa3-4b58-b091-3ddca7b788fd"
           },
           "role_type": "candidate",
           "status": "active",
@@ -116,16 +137,16 @@
       "criteria": [],
       "gaps": [
         {
-          "id": "e69119a0-0439-45cf-a3bc-f5756e21387d",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "db846c01-0cb0-4c1c-a127-b611a3641744",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "title": "Two-source dependency",
           "status": "open",
           "basis": {
             "kind": "evidence_supported",
             "summary": "Two reviewed sources currently support this open question.",
             "evidence_refs": [
-              "17120165-0077-4aef-a91c-424160dd6db4",
-              "2585c82b-6108-49b2-b24a-a96c9f2c7c8f"
+              "65aa18fb-9ab1-442b-a7b8-5e2236332e52",
+              "6be9722b-b042-4b9b-bec0-fd6120f34303"
             ],
             "attributed_by_user_id": null,
             "evidence_state": {
@@ -139,15 +160,15 @@
           "revision": 1
         },
         {
-          "id": "c3e06116-75bc-48b8-8049-fd35aef9a00c",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "37e32307-694f-4aa3-9632-56ab07a6c44a",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "title": "Single-source scheduling dependency",
           "status": "open",
           "basis": {
             "kind": "evidence_supported",
             "summary": "Only the first source supports this open question.",
             "evidence_refs": [
-              "2585c82b-6108-49b2-b24a-a96c9f2c7c8f"
+              "6be9722b-b042-4b9b-bec0-fd6120f34303"
             ],
             "attributed_by_user_id": null,
             "evidence_state": {
@@ -161,8 +182,8 @@
           "revision": 1
         },
         {
-          "id": "5d19843a-e82b-4cce-9018-9d6a68019f0f",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "92140e33-cce1-4587-88af-dc3347de112d",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "title": "Recruiter-authored calibration note",
           "status": "open",
           "basis": {
@@ -182,21 +203,21 @@
         }
       ],
       "actions": [],
-      "created_at": "2026-08-23T23:40:25.460Z",
-      "updated_at": "2026-08-23T23:40:25.460Z"
+      "created_at": "2026-08-30T04:40:22.371Z",
+      "updated_at": "2026-08-30T04:40:22.371Z"
     },
     "proposal": {
-      "id": "c708e4d7-4d83-4c69-93bb-8dcb6d52d11e",
+      "id": "d9a7685c-3fc5-4a56-b8a7-1037997e1a84",
       "workspace_id": "10000000-0000-4000-8000-000000000001",
-      "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
-      "capture_id": "67833ef6-5434-4569-8d64-034e164183bd",
+      "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
+      "capture_id": "7f9ec499-abe9-439a-ab84-22a211c52e2b",
       "base_revision": 1,
-      "summary": "The first source may support a milestone change.",
+      "summary": "The first source may support a milestone change. DELETE-CANARY-0a7793c3-0253-4fd4-aea3-2c9b3a74ce15",
       "producer": {
         "kind": "agent",
         "name": "synthetic-prd07-proposal-worker",
         "version": "1.0.0",
-        "run_id": "9b32e263-b5a0-4b60-9d67-1b2b27d1363f"
+        "run_id": "0a7793c3-0253-4fd4-aea3-2c9b3a74ce15"
       },
       "status": "needs_review",
       "revision": 1,
@@ -208,15 +229,15 @@
       },
       "review_context": {
         "pursuit": {
-          "id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "title": "Synthetic evidence-integrity search"
         },
         "capture": {
-          "id": "67833ef6-5434-4569-8d64-034e164183bd",
+          "id": "7f9ec499-abe9-439a-ab84-22a211c52e2b",
           "purpose": "Synthetic evidence availability and identity integrity proof"
         },
         "subject": {
-          "person_id": "f555aa97-c114-4299-b17b-417fba81bace",
+          "person_id": "92fe8ec4-2d27-4c3b-a478-db4fb71a6cc7",
           "display_label": "Synthetic evidence person",
           "contextual_roles": [
             {
@@ -228,8 +249,8 @@
         },
         "evidence": [
           {
-            "fragment_id": "2585c82b-6108-49b2-b24a-a96c9f2c7c8f",
-            "text": "Tuesday works, but the exact time remains unresolved.",
+            "fragment_id": "6be9722b-b042-4b9b-bec0-fd6120f34303",
+            "text": "Tuesday works, but the exact time remains unresolved. DELETE-CANARY-0a7793c3-0253-4fd4-aea3-2c9b3a74ce15",
             "fragment_kind": "message",
             "fragment_status": "active",
             "observed_at": "2026-08-24T13:00:00.000Z",
@@ -249,21 +270,21 @@
       },
       "items": [
         {
-          "id": "ab22f0df-c226-4b50-b38c-5f61e3de9451",
+          "id": "8f345b44-2f52-459a-8bfd-a386e35ab35f",
           "item_key": "milestone",
           "change_kind": "set_milestone",
           "target": {
             "entity_type": "pursuit",
-            "entity_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+            "entity_id": "d911d576-1548-458e-ad00-4126cf95ca76",
             "field": "milestone"
           },
           "before_value": "evidence_review",
-          "proposed_value": "scheduling_review",
+          "proposed_value": "scheduling_review_DELETE-CANARY-0a7793c3-0253-4fd4-aea3-2c9b3a74ce15",
           "basis_kind": "evidence_supported",
           "attributed_by_user_id": null,
           "epistemic_status": "inference",
           "evidence_refs": [
-            "2585c82b-6108-49b2-b24a-a96c9f2c7c8f"
+            "6be9722b-b042-4b9b-bec0-fd6120f34303"
           ],
           "evidence_state": {
             "availability": "available",
@@ -271,8 +292,8 @@
             "available_reference_count": 1,
             "unavailable_reference_count": 0
           },
-          "reason": "The candidate described a scheduling step.",
-          "effect_summary": "Would change only the Pursuit milestone after review.",
+          "reason": "The candidate described a scheduling step. DELETE-CANARY-0a7793c3-0253-4fd4-aea3-2c9b3a74ce15",
+          "effect_summary": "Would change only the Pursuit milestone after review. DELETE-CANARY-0a7793c3-0253-4fd4-aea3-2c9b3a74ce15",
           "decision": {
             "status": "pending",
             "decided_value": null,
@@ -282,13 +303,13 @@
           }
         }
       ],
-      "created_at": "2026-08-23T23:40:25.468Z",
-      "updated_at": "2026-08-23T23:40:25.468Z"
+      "created_at": "2026-08-30T04:40:22.379Z",
+      "updated_at": "2026-08-30T04:40:22.379Z"
     }
   },
   "post_delete": {
     "pursuit": {
-      "id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+      "id": "d911d576-1548-458e-ad00-4126cf95ca76",
       "workspace_id": "10000000-0000-4000-8000-000000000001",
       "type": "recruiting",
       "title": "Synthetic evidence-integrity search",
@@ -296,14 +317,28 @@
       "target_date": "2026-10-30",
       "status": "active",
       "milestone": "evidence_review",
+      "milestone_authority": {
+        "kind": "user_authored",
+        "evidence_refs": [],
+        "evidence_state": {
+          "availability": "not_required",
+          "reference_count": 0,
+          "available_reference_count": 0,
+          "unavailable_reference_count": 0
+        },
+        "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+        "confirmed_at": "2026-08-30T04:40:22.371Z",
+        "proposal_id": null,
+        "receipt_id": "4d4de878-1c56-4e2a-bb6a-4f0911435d0b"
+      },
       "revision": 1,
       "roles": [
         {
-          "id": "b5c9cfce-d69f-4cab-8df2-ca63bfa45956",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "163c9eab-b33c-42c0-9e76-5a7fb0c648be",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "subject_ref": {
             "type": "person",
-            "id": "f555aa97-c114-4299-b17b-417fba81bace"
+            "id": "92fe8ec4-2d27-4c3b-a478-db4fb71a6cc7"
           },
           "role_type": "candidate",
           "status": "active",
@@ -313,8 +348,8 @@
             "attributed_by_user_id": null
           },
           "evidence_refs": [
-            "17120165-0077-4aef-a91c-424160dd6db4",
-            "2585c82b-6108-49b2-b24a-a96c9f2c7c8f"
+            "65aa18fb-9ab1-442b-a7b8-5e2236332e52",
+            "6be9722b-b042-4b9b-bec0-fd6120f34303"
           ],
           "evidence_state": {
             "availability": "partial",
@@ -325,11 +360,11 @@
           "revision": 1
         },
         {
-          "id": "38e067e8-7729-4f6e-b39e-afeb8652cf2e",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "ed79b9d3-aef1-4f0f-8e45-4ef027a38767",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "subject_ref": {
             "type": "person",
-            "id": "4ba63de3-b63c-4b4b-b02c-05bf95bd87df"
+            "id": "eb6bb10b-d9b0-474c-b855-3be291f9b8ba"
           },
           "role_type": "candidate",
           "status": "active",
@@ -348,11 +383,11 @@
           "revision": 1
         },
         {
-          "id": "51b33624-fcff-4084-a350-8e49c7fa99c7",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "adc5dea0-2753-4315-a1e2-b64797172054",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "subject_ref": {
             "type": "person",
-            "id": "396eeffa-d74e-4831-ae61-f25f574de99b"
+            "id": "88d48adf-0fa3-4b58-b091-3ddca7b788fd"
           },
           "role_type": "candidate",
           "status": "active",
@@ -374,16 +409,16 @@
       "criteria": [],
       "gaps": [
         {
-          "id": "e69119a0-0439-45cf-a3bc-f5756e21387d",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "db846c01-0cb0-4c1c-a127-b611a3641744",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "title": "Two-source dependency",
           "status": "open",
           "basis": {
             "kind": "evidence_supported",
             "summary": "Two reviewed sources currently support this open question.",
             "evidence_refs": [
-              "17120165-0077-4aef-a91c-424160dd6db4",
-              "2585c82b-6108-49b2-b24a-a96c9f2c7c8f"
+              "65aa18fb-9ab1-442b-a7b8-5e2236332e52",
+              "6be9722b-b042-4b9b-bec0-fd6120f34303"
             ],
             "attributed_by_user_id": null,
             "evidence_state": {
@@ -397,15 +432,15 @@
           "revision": 1
         },
         {
-          "id": "c3e06116-75bc-48b8-8049-fd35aef9a00c",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "37e32307-694f-4aa3-9632-56ab07a6c44a",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "title": "Single-source scheduling dependency",
           "status": "open",
           "basis": {
             "kind": "evidence_supported",
             "summary": "Only the first source supports this open question.",
             "evidence_refs": [
-              "2585c82b-6108-49b2-b24a-a96c9f2c7c8f"
+              "6be9722b-b042-4b9b-bec0-fd6120f34303"
             ],
             "attributed_by_user_id": null,
             "evidence_state": {
@@ -419,8 +454,8 @@
           "revision": 1
         },
         {
-          "id": "5d19843a-e82b-4cce-9018-9d6a68019f0f",
-          "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "92140e33-cce1-4587-88af-dc3347de112d",
+          "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "title": "Recruiter-authored calibration note",
           "status": "open",
           "basis": {
@@ -440,21 +475,21 @@
         }
       ],
       "actions": [],
-      "created_at": "2026-08-23T23:40:25.460Z",
-      "updated_at": "2026-08-23T23:40:25.460Z"
+      "created_at": "2026-08-30T04:40:22.371Z",
+      "updated_at": "2026-08-30T04:40:22.371Z"
     },
     "proposal": {
-      "id": "c708e4d7-4d83-4c69-93bb-8dcb6d52d11e",
+      "id": "d9a7685c-3fc5-4a56-b8a7-1037997e1a84",
       "workspace_id": "10000000-0000-4000-8000-000000000001",
-      "pursuit_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
-      "capture_id": "67833ef6-5434-4569-8d64-034e164183bd",
+      "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
+      "capture_id": "7f9ec499-abe9-439a-ab84-22a211c52e2b",
       "base_revision": 1,
-      "summary": "The first source may support a milestone change.",
+      "summary": "[source-derived Proposal content removed]",
       "producer": {
         "kind": "agent",
         "name": "synthetic-prd07-proposal-worker",
         "version": "1.0.0",
-        "run_id": "9b32e263-b5a0-4b60-9d67-1b2b27d1363f"
+        "run_id": "0a7793c3-0253-4fd4-aea3-2c9b3a74ce15"
       },
       "status": "superseded",
       "revision": 2,
@@ -466,15 +501,15 @@
       },
       "review_context": {
         "pursuit": {
-          "id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+          "id": "d911d576-1548-458e-ad00-4126cf95ca76",
           "title": "Synthetic evidence-integrity search"
         },
         "capture": {
-          "id": "67833ef6-5434-4569-8d64-034e164183bd",
+          "id": "7f9ec499-abe9-439a-ab84-22a211c52e2b",
           "purpose": "[deleted]"
         },
         "subject": {
-          "person_id": "f555aa97-c114-4299-b17b-417fba81bace",
+          "person_id": "92fe8ec4-2d27-4c3b-a478-db4fb71a6cc7",
           "display_label": "Synthetic evidence person",
           "contextual_roles": [
             {
@@ -486,7 +521,7 @@
         },
         "evidence": [
           {
-            "fragment_id": "2585c82b-6108-49b2-b24a-a96c9f2c7c8f",
+            "fragment_id": "6be9722b-b042-4b9b-bec0-fd6120f34303",
             "text": null,
             "fragment_kind": "message",
             "fragment_status": "deleted",
@@ -507,21 +542,23 @@
       },
       "items": [
         {
-          "id": "ab22f0df-c226-4b50-b38c-5f61e3de9451",
+          "id": "8f345b44-2f52-459a-8bfd-a386e35ab35f",
           "item_key": "milestone",
           "change_kind": "set_milestone",
           "target": {
             "entity_type": "pursuit",
-            "entity_id": "d99e4e72-d810-4df7-b742-de4c022a9d53",
+            "entity_id": "d911d576-1548-458e-ad00-4126cf95ca76",
             "field": "milestone"
           },
-          "before_value": "evidence_review",
-          "proposed_value": "scheduling_review",
+          "before_value": null,
+          "proposed_value": {
+            "content_removed": true
+          },
           "basis_kind": "evidence_supported",
           "attributed_by_user_id": null,
-          "epistemic_status": "inference",
+          "epistemic_status": "superseded",
           "evidence_refs": [
-            "2585c82b-6108-49b2-b24a-a96c9f2c7c8f"
+            "6be9722b-b042-4b9b-bec0-fd6120f34303"
           ],
           "evidence_state": {
             "availability": "unavailable",
@@ -529,8 +566,8 @@
             "available_reference_count": 0,
             "unavailable_reference_count": 1
           },
-          "reason": "The candidate described a scheduling step.",
-          "effect_summary": "Would change only the Pursuit milestone after review.",
+          "reason": "[source-derived Proposal reason removed]",
+          "effect_summary": "[source-derived Proposal effect removed]",
           "decision": {
             "status": "pending",
             "decided_value": null,
@@ -540,8 +577,8 @@
           }
         }
       ],
-      "created_at": "2026-08-23T23:40:25.468Z",
-      "updated_at": "2026-08-23T23:40:25.473Z"
+      "created_at": "2026-08-30T04:40:22.379Z",
+      "updated_at": "2026-08-30T04:40:22.386Z"
     },
     "today_projection": {
       "eyebrow": "Evidence partly unavailable",
@@ -550,11 +587,11 @@
       "reference_count": 2
     },
     "deletion": {
-      "deletion_id": "0a5e187c-286f-45ea-a2f1-22f8629e7330",
-      "capture_id": "67833ef6-5434-4569-8d64-034e164183bd",
+      "deletion_id": "38c9c25d-d33d-4f51-a842-7fc65229e391",
+      "capture_id": "7f9ec499-abe9-439a-ab84-22a211c52e2b",
       "status": "deleted",
       "derivatives_deleted": 6,
-      "access_revoked_at": "2026-08-23T23:40:25.479Z"
+      "access_revoked_at": "2026-08-30T04:40:22.392Z"
     },
     "lineage_types": [
       "capture",
@@ -564,6 +601,340 @@
       "pursuit_proposal_item",
       "source_resource"
     ]
+  },
+  "applied_milestone_source_deletion": {
+    "proposal": {
+      "id": "3db6da6c-88f6-4aa6-bb15-285efba6cc9d",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
+      "capture_id": "a05369ea-d2fd-4c53-a51a-988ecd0a5a15",
+      "base_revision": 1,
+      "summary": "The surviving reviewed source supports a recruiter-confirmed milestone update.",
+      "producer": {
+        "kind": "agent",
+        "name": "synthetic-prd07-proposal-worker",
+        "version": "1.0.0",
+        "run_id": "0a7793c3-0253-4fd4-aea3-2c9b3a74ce15"
+      },
+      "status": "applied",
+      "revision": 2,
+      "evidence_state": {
+        "availability": "available",
+        "reference_count": 1,
+        "available_reference_count": 1,
+        "unavailable_reference_count": 0
+      },
+      "review_context": {
+        "pursuit": {
+          "id": "d911d576-1548-458e-ad00-4126cf95ca76",
+          "title": "Synthetic evidence-integrity search"
+        },
+        "capture": {
+          "id": "a05369ea-d2fd-4c53-a51a-988ecd0a5a15",
+          "purpose": "Synthetic evidence availability and identity integrity proof"
+        },
+        "subject": {
+          "person_id": "92fe8ec4-2d27-4c3b-a478-db4fb71a6cc7",
+          "display_label": "Synthetic evidence person",
+          "contextual_roles": [
+            {
+              "role_type": "candidate",
+              "status": "active",
+              "confidence": "confirmed"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "fragment_id": "65aa18fb-9ab1-442b-a7b8-5e2236332e52",
+            "text": "The candidate confirmed the role outcome remains relevant.",
+            "fragment_kind": "message",
+            "fragment_status": "active",
+            "observed_at": "2026-08-24T13:00:00.000Z",
+            "source_timezone": "Asia/Shanghai",
+            "source_display_name": "Synthetic governed Signal second",
+            "input_channel": "ios_share",
+            "source_processing_state": "ready",
+            "attributed_actor": "candidate",
+            "attribution_status": "confirmed",
+            "review_status": "reviewed",
+            "parser": {
+              "name": "synthetic-prd07",
+              "version": "1.0.0"
+            }
+          }
+        ]
+      },
+      "items": [
+        {
+          "id": "9f3805f3-8073-4788-9879-c7a32a5a2f1c",
+          "item_key": "applied-milestone",
+          "change_kind": "set_milestone",
+          "target": {
+            "entity_type": "pursuit",
+            "entity_id": "d911d576-1548-458e-ad00-4126cf95ca76",
+            "field": "milestone"
+          },
+          "before_value": "evidence_review",
+          "proposed_value": "candidate_outcome_review",
+          "basis_kind": "evidence_supported",
+          "attributed_by_user_id": null,
+          "epistemic_status": "inference",
+          "evidence_refs": [
+            "65aa18fb-9ab1-442b-a7b8-5e2236332e52"
+          ],
+          "evidence_state": {
+            "availability": "available",
+            "reference_count": 1,
+            "available_reference_count": 1,
+            "unavailable_reference_count": 0
+          },
+          "reason": "The surviving reviewed source supports this milestone.",
+          "effect_summary": "Would change only the Pursuit milestone after recruiter review.",
+          "decision": {
+            "status": "confirmed",
+            "decided_value": "candidate_outcome_review",
+            "decided_by_user_id": "10000000-0000-4000-8000-000000000011",
+            "reason": "The recruiter confirms the milestone while the supporting source is still available.",
+            "decided_at": "2026-08-30T04:40:22.449Z"
+          }
+        }
+      ],
+      "created_at": "2026-08-30T04:40:22.444Z",
+      "updated_at": "2026-08-30T04:40:22.449Z"
+    },
+    "applied_receipt": {
+      "id": "ecd47b6b-5049-47ec-bf3a-85dbc6e7a467",
+      "operation_id": "77f9c495-d896-410b-954e-a3b7eb9e4ae3",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "actor_user_id": "10000000-0000-4000-8000-000000000011",
+      "operation_kind": "review_pursuit_proposal",
+      "status": "applied",
+      "proposal_id": "3db6da6c-88f6-4aa6-bb15-285efba6cc9d",
+      "outcome": "canonical_applied",
+      "entity_ref": {
+        "type": "pursuit",
+        "id": "d911d576-1548-458e-ad00-4126cf95ca76",
+        "before_revision": 1,
+        "after_revision": 2
+      },
+      "changed_fields": [
+        "milestone"
+      ],
+      "item_decisions": [
+        {
+          "item_id": "9f3805f3-8073-4788-9879-c7a32a5a2f1c",
+          "decision": "confirmed",
+          "changed": true
+        }
+      ],
+      "external_effects": [],
+      "summary": "Proposal review recorded: 1 applied, 0 rejected, 0 unresolved.",
+      "occurred_at": "2026-08-30T04:40:22.449Z"
+    },
+    "authority_before_delete": {
+      "kind": "evidence_supported",
+      "evidence_refs": [
+        "65aa18fb-9ab1-442b-a7b8-5e2236332e52"
+      ],
+      "evidence_state": {
+        "availability": "available",
+        "reference_count": 1,
+        "available_reference_count": 1,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-30T04:40:22.449Z",
+      "proposal_id": "3db6da6c-88f6-4aa6-bb15-285efba6cc9d",
+      "receipt_id": "ecd47b6b-5049-47ec-bf3a-85dbc6e7a467"
+    },
+    "authority_after_delete": {
+      "kind": "evidence_supported",
+      "evidence_refs": [
+        "65aa18fb-9ab1-442b-a7b8-5e2236332e52"
+      ],
+      "evidence_state": {
+        "availability": "unavailable",
+        "reference_count": 1,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 1
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-30T04:40:22.449Z",
+      "proposal_id": "3db6da6c-88f6-4aa6-bb15-285efba6cc9d",
+      "receipt_id": "ecd47b6b-5049-47ec-bf3a-85dbc6e7a467"
+    },
+    "redacted_proposal_after_delete": {
+      "id": "3db6da6c-88f6-4aa6-bb15-285efba6cc9d",
+      "workspace_id": "10000000-0000-4000-8000-000000000001",
+      "pursuit_id": "d911d576-1548-458e-ad00-4126cf95ca76",
+      "capture_id": "a05369ea-d2fd-4c53-a51a-988ecd0a5a15",
+      "base_revision": 1,
+      "summary": "[source-derived Proposal content removed]",
+      "producer": {
+        "kind": "agent",
+        "name": "synthetic-prd07-proposal-worker",
+        "version": "1.0.0",
+        "run_id": "0a7793c3-0253-4fd4-aea3-2c9b3a74ce15"
+      },
+      "status": "applied",
+      "revision": 3,
+      "evidence_state": {
+        "availability": "unavailable",
+        "reference_count": 1,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 1
+      },
+      "review_context": {
+        "pursuit": {
+          "id": "d911d576-1548-458e-ad00-4126cf95ca76",
+          "title": "Synthetic evidence-integrity search"
+        },
+        "capture": {
+          "id": "a05369ea-d2fd-4c53-a51a-988ecd0a5a15",
+          "purpose": "[deleted]"
+        },
+        "subject": {
+          "person_id": "92fe8ec4-2d27-4c3b-a478-db4fb71a6cc7",
+          "display_label": "[deleted]",
+          "contextual_roles": [
+            {
+              "role_type": "candidate",
+              "status": "active",
+              "confidence": "confirmed"
+            }
+          ]
+        },
+        "evidence": [
+          {
+            "fragment_id": "65aa18fb-9ab1-442b-a7b8-5e2236332e52",
+            "text": null,
+            "fragment_kind": "message",
+            "fragment_status": "deleted",
+            "observed_at": "2026-08-24T13:00:00.000Z",
+            "source_timezone": "Asia/Shanghai",
+            "source_display_name": "[deleted]",
+            "input_channel": "ios_share",
+            "source_processing_state": "deleted",
+            "attributed_actor": "candidate",
+            "attribution_status": "confirmed",
+            "review_status": "reviewed",
+            "parser": {
+              "name": "synthetic-prd07",
+              "version": "1.0.0"
+            }
+          }
+        ]
+      },
+      "items": [
+        {
+          "id": "9f3805f3-8073-4788-9879-c7a32a5a2f1c",
+          "item_key": "applied-milestone",
+          "change_kind": "set_milestone",
+          "target": {
+            "entity_type": "pursuit",
+            "entity_id": "d911d576-1548-458e-ad00-4126cf95ca76",
+            "field": "milestone"
+          },
+          "before_value": null,
+          "proposed_value": {
+            "content_removed": true
+          },
+          "basis_kind": "evidence_supported",
+          "attributed_by_user_id": null,
+          "epistemic_status": "superseded",
+          "evidence_refs": [
+            "65aa18fb-9ab1-442b-a7b8-5e2236332e52"
+          ],
+          "evidence_state": {
+            "availability": "unavailable",
+            "reference_count": 1,
+            "available_reference_count": 0,
+            "unavailable_reference_count": 1
+          },
+          "reason": "[source-derived Proposal reason removed]",
+          "effect_summary": "[source-derived Proposal effect removed]",
+          "decision": {
+            "status": "confirmed",
+            "decided_value": {
+              "content_removed": true
+            },
+            "decided_by_user_id": "10000000-0000-4000-8000-000000000011",
+            "reason": "[source-derived review reason removed]",
+            "decided_at": "2026-08-30T04:40:22.449Z"
+          }
+        }
+      ],
+      "created_at": "2026-08-30T04:40:22.444Z",
+      "updated_at": "2026-08-30T04:40:22.491Z"
+    },
+    "deletion": {
+      "deletion_id": "30be7521-49d9-4c65-8f38-1c4fbf139d4a",
+      "capture_id": "a05369ea-d2fd-4c53-a51a-988ecd0a5a15",
+      "status": "deleted",
+      "derivatives_deleted": 13,
+      "access_revoked_at": "2026-08-30T04:40:22.497Z"
+    }
+  },
+  "temporal_milestone_authority": {
+    "evidence_backed_b": {
+      "kind": "evidence_supported",
+      "evidence_refs": [
+        "65aa18fb-9ab1-442b-a7b8-5e2236332e52"
+      ],
+      "evidence_state": {
+        "availability": "available",
+        "reference_count": 1,
+        "available_reference_count": 1,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-30T04:40:22.471Z",
+      "proposal_id": "34ea06fc-a308-4c5d-9844-ec90852c0614",
+      "receipt_id": "778ed4a5-66b8-47a7-a187-e8f18bb696e4"
+    },
+    "direct_c": {
+      "kind": "user_authored",
+      "evidence_refs": [],
+      "evidence_state": {
+        "availability": "not_required",
+        "reference_count": 0,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-30T04:40:22.479Z",
+      "proposal_id": null,
+      "receipt_id": "d7f5b4f6-7725-4b6c-9b25-f391de4960f0"
+    },
+    "direct_b": {
+      "kind": "user_authored",
+      "evidence_refs": [],
+      "evidence_state": {
+        "availability": "not_required",
+        "reference_count": 0,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-30T04:40:22.485Z",
+      "proposal_id": null,
+      "receipt_id": "2f92cb5a-3709-4fe8-9b3b-e2a9636bff5a"
+    },
+    "after_old_source_deletion": {
+      "kind": "user_authored",
+      "evidence_refs": [],
+      "evidence_state": {
+        "availability": "not_required",
+        "reference_count": 0,
+        "available_reference_count": 0,
+        "unavailable_reference_count": 0
+      },
+      "confirmed_by_user_id": "10000000-0000-4000-8000-000000000011",
+      "confirmed_at": "2026-08-30T04:40:22.485Z",
+      "proposal_id": null,
+      "receipt_id": "2f92cb5a-3709-4fe8-9b3b-e2a9636bff5a"
+    }
   },
   "missing_proof": [
     "physical-device relaunch across an authenticated workspace switch",

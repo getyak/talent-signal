@@ -60,11 +60,36 @@ export const ReadPursuitInputSchema = z.strictObject({});
 export const ReadEvidenceInputSchema = z.strictObject({
   evidence_refs: EvidenceRefs,
 });
+export const SearchWebInputSchema = z.strictObject({
+  query: z.string().trim().min(2).max(240),
+  maximum_results: z.number().int().min(1).max(10).default(5),
+  recency_days: z.number().int().min(1).max(3_650).nullable().default(null),
+});
+export const FetchWebInputSchema = z.strictObject({
+  result_id: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export const CreateResearchArtifactInputSchema = z.strictObject({
+  title: z.string().trim().min(1).max(240),
+  summary: z.string().trim().min(1).max(8_000),
+  limitations: z.string().trim().max(2_000).default(""),
+  claims: z
+    .array(
+      z.strictObject({
+        statement: z.string().trim().min(1).max(1_000),
+        source_refs: z
+          .array(z.string().regex(/^[0-9a-f]{64}$/))
+          .min(1)
+          .max(5),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
 export const StageProposalInputSchema = z.strictObject({
   summary: z.string().trim().min(1).max(1_000),
   items: z.array(ProposalItemSchema).min(1).max(50),
 });
-export const NoActionReasonCodeSchema = z.enum([
+export const PursuitNoActionReasonCodeSchema = z.enum([
   "NO_MATERIAL_CHANGE",
   "INSUFFICIENT_EVIDENCE",
   "UNTRUSTED_INSTRUCTION",
@@ -72,23 +97,65 @@ export const NoActionReasonCodeSchema = z.enum([
   "PROHIBITED_PERSON_ASSESSMENT",
   "UNSUPPORTED_INPUT_CAPABILITY",
 ]);
-export const RecordNoActionInputSchema = z.strictObject({
-  reason_code: NoActionReasonCodeSchema,
+export const PublicResearchNoActionReasonCodeSchema = z.enum([
+  "NO_MATERIAL_CHANGE",
+  "INSUFFICIENT_EVIDENCE",
+  "UNTRUSTED_INSTRUCTION",
+  "PUBLIC_RESEARCH_UNAVAILABLE",
+]);
+const NoActionFields = {
+  outcome: z.literal("no_action"),
   reason: z.string().trim().min(1).max(1_000),
   missing_evidence_refs: z.array(Id).max(50).default([]),
+};
+export const PursuitNoActionOutputSchema = z.strictObject({
+  ...NoActionFields,
+  reason_code: PursuitNoActionReasonCodeSchema,
+});
+export const PublicResearchNoActionOutputSchema = z.strictObject({
+  ...NoActionFields,
+  reason_code: PublicResearchNoActionReasonCodeSchema,
+});
+export const NoActionOutputSchema = z.strictObject({
+  ...NoActionFields,
+  reason_code: z.union([
+    PursuitNoActionReasonCodeSchema,
+    PublicResearchNoActionReasonCodeSchema,
+  ]),
+});
+const ProposalOutputSchema = z.strictObject({
+  outcome: z.literal("proposal"),
+  candidate_fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+});
+const ArtifactOutputSchema = z.strictObject({
+  outcome: z.literal("artifact"),
+  candidate_fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
 });
 
+export const PursuitAgentFinalOutputSchema = z.discriminatedUnion("outcome", [
+  ProposalOutputSchema,
+  PursuitNoActionOutputSchema,
+]);
+export const PublicResearchAgentFinalOutputSchema = z.discriminatedUnion(
+  "outcome",
+  [ArtifactOutputSchema, PublicResearchNoActionOutputSchema],
+);
+
 export const AgentFinalOutputSchema = z.discriminatedUnion("outcome", [
-  z.strictObject({
-    outcome: z.literal("proposal"),
-    candidate_fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
-  }),
-  z.strictObject({
-    outcome: z.literal("no_action"),
-    candidate_fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
-  }),
+  ProposalOutputSchema,
+  NoActionOutputSchema,
+  ArtifactOutputSchema,
 ]);
 
 export type StageProposalInput = z.infer<typeof StageProposalInputSchema>;
-export type RecordNoActionInput = z.infer<typeof RecordNoActionInputSchema>;
-export type NoActionReasonCode = z.infer<typeof NoActionReasonCodeSchema>;
+export type NoActionOutput = z.infer<typeof NoActionOutputSchema>;
+export type PursuitNoActionOutput = z.infer<
+  typeof PursuitNoActionOutputSchema
+>;
+export type PublicResearchNoActionOutput = z.infer<
+  typeof PublicResearchNoActionOutputSchema
+>;
+export type NoActionReasonCode = NoActionOutput["reason_code"];
+export type CreateResearchArtifactInput = z.infer<
+  typeof CreateResearchArtifactInputSchema
+>;

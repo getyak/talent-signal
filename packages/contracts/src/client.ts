@@ -85,8 +85,15 @@ import type {
   RevisePursuitRequest,
 } from "./pursuitSchemas.js";
 import type {
+  AgentTaskEventsResponse,
+  AgentDecisionResolutionResponse,
+  AgentTaskListResponse,
+  AgentTaskResponse,
   AgentRunResponse,
+  CancelAgentTaskRequest,
+  CreatePursuitAgentTaskRequest,
   CreatePursuitAgentRunRequest,
+  ResolveAgentDecisionBundleRequest,
 } from "./agentSchemas.js";
 import type {
   AppendTelemetryBatchRequest,
@@ -263,6 +270,60 @@ export class TalentSignalClient {
 
   getAgentRun(runId: string): Promise<AgentRunResponse> {
     return this.request(`/v1/agent-runs/${runId}`, { method: "GET" });
+  }
+
+  createPursuitAgentTask(
+    pursuitId: string,
+    request: CreatePursuitAgentTaskRequest,
+  ): Promise<AgentDecisionResolutionResponse> {
+    return this.request(`/v1/pursuits/${pursuitId}/agent-tasks`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  listPursuitAgentTasks(
+    pursuitId: string,
+    state: "active" | "all" = "active",
+  ): Promise<AgentTaskListResponse> {
+    return this.request(
+      `/v1/pursuits/${pursuitId}/agent-tasks?state=${state}`,
+      { method: "GET" },
+    );
+  }
+
+  getAgentTask(taskId: string): Promise<AgentTaskResponse> {
+    return this.request(`/v1/agent-tasks/${taskId}`, { method: "GET" });
+  }
+
+  getAgentTaskEvents(
+    taskId: string,
+    afterSequence = 0,
+  ): Promise<AgentTaskEventsResponse> {
+    return this.request(
+      `/v1/agent-tasks/${taskId}/events?after=${afterSequence}`,
+      { method: "GET" },
+    );
+  }
+
+  cancelAgentTask(
+    taskId: string,
+    request: CancelAgentTaskRequest,
+  ): Promise<AgentTaskResponse> {
+    return this.request(`/v1/agent-tasks/${taskId}/cancel`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  resolveAgentDecisionBundle(
+    bundleId: string,
+    request: ResolveAgentDecisionBundleRequest,
+  ): Promise<AgentDecisionResolutionResponse> {
+    return this.request(`/v1/decision-bundles/${bundleId}/resolve`, {
+      method: "POST",
+      body: request,
+    });
   }
 
   createTelemetryTrace(

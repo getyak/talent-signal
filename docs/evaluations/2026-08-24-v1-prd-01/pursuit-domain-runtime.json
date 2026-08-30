@@ -1,6 +1,6 @@
 {
   "evidence_id": "TS-V1-PRD-01-RUNTIME-01",
-  "contract_version": "2026-08-24.7",
+  "contract_version": "2026-08-24.10",
   "environment": "fresh synthetic PostgreSQL account-scoped backend",
   "requirements": [
     "V1-CRM-001",
@@ -26,12 +26,18 @@
     "cross_workspace_operation_read": "not_found",
     "cross_workspace_action_owner": "rejected",
     "unsupported_gap_evidence_claim": "rejected",
+    "stale_action_completion": "rejected",
+    "owned_action_observed_outcome": "persisted_with_revisioned_readback",
+    "duplicate_action_completion_same_receipt": "pass",
+    "reused_action_operation_id": "rejected",
+    "action_revision_supersedes_open_proposal": "pass",
     "external_effect_arrays": "empty"
   },
   "recruiting": {
     "created_revision": 1,
-    "final_revision": 3,
-    "operation_receipt_readback": "same_structured_receipt"
+    "final_revision": 4,
+    "operation_receipt_readback": "same_structured_receipt",
+    "action_outcome_receipt_readback": "same_structured_receipt"
   },
   "sales": {
     "revision": 1,

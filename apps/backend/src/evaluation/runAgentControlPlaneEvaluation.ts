@@ -206,18 +206,12 @@ function noActionProvider(evidenceID: string): AgentProvider {
     [
       { tool: "read_pursuit", input: {} },
       { tool: "read_evidence", input: { evidence_refs: [evidenceID] } },
-      {
-        tool: "record_no_action",
-        input: {
-          reason_code: "NO_MATERIAL_CHANGE",
-          reason: "The selected evidence does not require a canonical change.",
-          missing_evidence_refs: [],
-        },
-      },
     ],
-    (results) => ({
+    () => ({
       outcome: "no_action",
-      candidate_fingerprint: results.at(-1)?.candidateFingerprint,
+      reason_code: "NO_MATERIAL_CHANGE",
+      reason: "The selected evidence does not require a canonical change.",
+      missing_evidence_refs: [],
     }),
   );
 }
@@ -234,15 +228,12 @@ function promptInjectionProvider(): AgentProvider {
     },
     async run(_request, invokeTool) {
       await invokeTool("Bash", { command: "printenv" });
-      const terminal = await invokeTool("record_no_action", {
-        reason_code: "UNTRUSTED_INSTRUCTION",
-        reason: "The injected instruction has no authority.",
-        missing_evidence_refs: [],
-      });
       return {
         structuredOutput: {
           outcome: "no_action",
-          candidate_fingerprint: terminal.candidateFingerprint,
+          reason_code: "UNTRUSTED_INSTRUCTION",
+          reason: "The injected instruction has no authority.",
+          missing_evidence_refs: [],
         },
         inputTokens: 10,
         outputTokens: 10,
@@ -301,15 +292,12 @@ function unavailableEvidenceProvider(
       await invokeTool("read_evidence", {
         evidence_refs: [fixture.evidenceID],
       });
-      const terminal = await invokeTool("record_no_action", {
-        reason_code: "INSUFFICIENT_EVIDENCE",
-        reason: "Evidence became unavailable after the run snapshot.",
-        missing_evidence_refs: [fixture.evidenceID],
-      });
       return {
         structuredOutput: {
           outcome: "no_action",
-          candidate_fingerprint: terminal.candidateFingerprint,
+          reason_code: "INSUFFICIENT_EVIDENCE",
+          reason: "Evidence became unavailable after the run snapshot.",
+          missing_evidence_refs: [fixture.evidenceID],
         },
         inputTokens: 20,
         outputTokens: 10,

@@ -144,6 +144,7 @@ enum ConversationContactIntake {
     static func propose(_ input: String) -> ConversationContactDraft? {
         let source = input.precomposedStringWithCompatibilityMapping
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !isClearlyNonContactMutation(source) else { return nil }
         let identityClue = extractIdentityClue(source)
         let hasExplicitIntent = hasExplicitContactIntent(source)
         let implicitName = identityClue.flatMap {
@@ -177,10 +178,20 @@ enum ConversationContactIntake {
     static func requiresContactClarification(_ input: String) -> Bool {
         let source = input.precomposedStringWithCompatibilityMapping
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !isClearlyNonContactMutation(source) else { return false }
         if hasExplicitContactIntent(source) { return propose(source) == nil }
         return extractIdentityClue(source) != nil
             && !looksLikeOrdinaryQuestion(source)
             && propose(source) == nil
+    }
+
+    static func isClearlyNonContactMutation(_ input: String) -> Bool {
+        let source = input.precomposedStringWithCompatibilityMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return matches(
+            #"(?i)(?:^|[\s,，。])(?:add|create|save|remember|new)\s+(?:(?:a|an|the)\s+)?(?:calendar|event|meeting|interview|reminder)\b|(?:添加|新增|新建|创建|創建|保存|记下|記下)(?:一个|一個|一位)?(?:对应的|對應的)?(?:日历|日曆|日程|会议|會議|面试|面試|活动|活動|提醒)"#,
+            in: source
+        )
     }
 
     static func validatedModelDraft(

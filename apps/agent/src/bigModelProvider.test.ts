@@ -11,6 +11,7 @@ function request(): AgentProviderRequest {
     objective: "Determine the smallest safe next step from synthetic evidence.",
     systemPrompt: "Never confirm state or create an external effect.",
     scopeSummary: {
+      kind: "pursuit",
       workspaceID: "10000000-0000-4000-8000-000000000001",
       pursuitID: "10000000-0000-4000-8000-000000000002",
       pursuitRevision: 1,
@@ -108,12 +109,8 @@ describe("BigModelAgentProvider", () => {
                     id: "call-1",
                     type: "function",
                     function: {
-                      name: "record_no_action",
-                      arguments: JSON.stringify({
-                        reason_code: "NO_MATERIAL_CHANGE",
-                        reason: "No safe change.",
-                        missing_evidence_refs: [],
-                      }),
+                      name: "read_pursuit",
+                      arguments: "{}",
                     },
                   },
                 ],
@@ -132,7 +129,9 @@ describe("BigModelAgentProvider", () => {
               message: {
                 content: JSON.stringify({
                   outcome: "no_action",
-                  candidate_fingerprint: fingerprint,
+                  reason_code: "NO_MATERIAL_CHANGE",
+                  reason: "No safe change.",
+                  missing_evidence_refs: [],
                 }),
               },
             },
@@ -144,7 +143,7 @@ describe("BigModelAgentProvider", () => {
       ok: true,
       callID: "result-1",
       name,
-      candidateFingerprint: fingerprint,
+      data: { pursuitID: "synthetic" },
     }));
 
     const result = await provider(fetcher).run(
@@ -155,20 +154,21 @@ describe("BigModelAgentProvider", () => {
 
     expect(result.structuredOutput).toEqual({
       outcome: "no_action",
-      candidate_fingerprint: fingerprint,
+      reason_code: "NO_MATERIAL_CHANGE",
+      reason: "No safe change.",
+      missing_evidence_refs: [],
     });
     expect(result.estimatedUsd).toBeCloseTo(0.031142857, 8);
     const secondBody = JSON.parse(
       String(fetcher.mock.calls[1]?.[1]?.body),
     ) as Record<string, unknown>;
     expect(JSON.stringify(secondBody)).toContain("Synthetic reasoning");
-    expect(secondBody).not.toHaveProperty("tools");
-    expect(secondBody).not.toHaveProperty("tool_choice");
+    expect(secondBody).toHaveProperty("tools");
+    expect(secondBody.tool_choice).toBe("auto");
     expect(secondBody).toMatchObject({
       model: "glm-5.3",
       thinking: { type: "enabled" },
       reasoning_effort: "low",
-      response_format: { type: "json_object" },
     });
   });
 

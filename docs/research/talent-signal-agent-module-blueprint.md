@@ -4,6 +4,9 @@
 > Role: architecture proposal and implementation-gap analysis
 > Authority: research; this document does not override canonical product or
 > architecture decisions
+> Placement correction: ADR 0009 supersedes the backend-first physical layout
+> for open-world Agent Tools. Product-scoped Pursuit authority remains in the
+> backend; public-web execution belongs to the local Agent host.
 
 ## Purpose
 
@@ -190,8 +193,10 @@ The system owns:
 - proposal and effect boundaries;
 - audit, retention, deletion, and evaluation.
 
-PostgreSQL remains the transactional source of truth. The Agent runtime is a
-module in the modular backend, not a separate microservice at first.
+PostgreSQL remains the transactional source of truth for product state. The
+Pursuit runtime remains a backend module. Open-world public-web work is a
+separate local Agent-host process because it owns local credentials, network
+policy, checkpoints, and non-canonical drafts rather than product truth.
 
 ### Agent architecture
 
@@ -561,26 +566,32 @@ orchestration, always behind the same capability and proposal boundaries.
 
 ## Suggested physical layout
 
-Keep the first implementation inside the modular backend:
+Keep product-scoped authority inside the modular backend and open-world
+execution in a local host:
 
 ```text
 packages/contracts/src/
   agentSchemas.ts
 
-apps/backend/src/agent/
-  definitions.ts
-  intentRouter.ts
-  taskRuns.ts
-  runReducer.ts
-  eventStore.ts
-  contextCompiler.ts
-  capabilityRegistry.ts
-  policy.ts
-  artifacts.ts
-  proposalGateway.ts
-  evaluator.ts
-  providers/
-  definitions/
+apps/agent/src/
+  schemas.ts
+  publicResearchPolicy.ts
+  publicResearchRunner.ts
+  toolCatalog.ts
+
+apps/agent-host/src/
+  providerConfig.ts
+  webSearchProviders.ts
+  safeWebFetch.ts
+  localResearchGateway.ts
+  localResearchStore.ts
+  cli.ts
+
+apps/backend/src/modules/
+  agentRuns.ts
+  agentGateway.ts
+  proposals.ts
+  actions.ts
 ```
 
 Existing domain modules remain owners:
@@ -597,8 +608,9 @@ apps/backend/src/modules/
   sourceAuthorization.ts
 ```
 
-Do not extract a reusable `packages/agent-runtime` until a second application
-or runtime genuinely needs the same reducer. Pi's small-kernel lesson applies:
+The core is a library rather than a network service. Do not add a remote Agent
+service, MCP gateway, or distributed orchestrator until shared Runs or multiple
+Tool families demonstrate that need. Pi's small-kernel lesson still applies:
 stabilize the seam before publishing a framework.
 
 ## Boundary and failure decisions

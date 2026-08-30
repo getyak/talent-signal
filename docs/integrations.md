@@ -47,6 +47,21 @@ Provider capabilities are admitted independently. Selecting a model for image
 generation does not make that model, credential, or data path suitable for
 understanding private conversation evidence.
 
+### Public-web providers
+
+Public search is admitted separately from model processing and private
+evidence. A search provider receives only a query formed inside an explicitly
+authorized company/market research Run. Talent Signal normalizes provider
+results, fetches only same-Run result handles through its own guarded HTTPS
+boundary, and preserves cited output only as a draft artifact.
+
+A local Agent-host registry owns stable capability contracts, provider
+selection, budgets, and failure semantics for open-world reads. Infisical owns
+scoped credential delivery and rotation; each vendor still owns its commercial
+subscription and invoice. The shared backend receives neither these search
+credentials nor implicit publication authority. A provider registry or MCP
+catalog never grants runtime authority by discovery alone.
+
 ### Connectors
 
 ATS, CRM, calendar, contact, messaging, and automation platforms operate

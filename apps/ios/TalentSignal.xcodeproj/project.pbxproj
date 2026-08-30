@@ -13,6 +13,7 @@
 		0AC9981F2E565E9986EE1040 /* CaptureAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A9FCA23A5C5E97951C4D39 /* CaptureAppIntents.swift */; };
 		0ACF1A298280F98A2E195CEE /* SignalRecordingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D3DFA665A94517E53A0FA4 /* SignalRecordingActivity.swift */; };
 		0D98ADDD6C6472265ADDD384 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F949D7FD6FC90553A6E5BBC /* AppLanguage.swift */; };
+		0E1DA36E1765A8057EBDD7EA /* AgentTaskProjectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6A0E420BB340D85910E6C0 /* AgentTaskProjectionStore.swift */; };
 		0F66097E97A12D5433BD6CBE /* PursuitWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */; };
 		100DE00DA44FED823CD5ED20 /* ConversationContactIntakeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAF7A150F49BBD2D49301417 /* ConversationContactIntakeTests.swift */; };
 		11C0F6747910DC2616DB4931 /* DeviceContactHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F92CDD8245AFCCF10A4CFD3 /* DeviceContactHandoffView.swift */; };
@@ -45,6 +46,7 @@
 		61A9FCA9306146EBB8B4D618 /* StandaloneOnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18DB19A9B630FFFC327395CB /* StandaloneOnboardingTests.swift */; };
 		61C6EB2AE6DFAA4CC58A1DEE /* TextSignalOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */; };
 		6301D1E69B8E5C7A596D63B0 /* StandaloneCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C66F4083C1349A570FEBEC26 /* StandaloneCalendarService.swift */; };
+		65A6C324A3F1E15232BCD315 /* AgentTaskProjectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9161D0F10C35A2F93579D36 /* AgentTaskProjectionStoreTests.swift */; };
 		7014831C5B18487CAD449AEE /* AppSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E964E1942AD295B505F9A3 /* AppSettingsView.swift */; };
 		706A5D1C083A3CDD32642F00 /* PursuitProposalReviewStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78788A89F71A15312E2EC139 /* PursuitProposalReviewStoreTests.swift */; };
 		71C2191A8B9F500124E59F7D /* TalentSignalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C6AFD36C53DCE168525B5F /* TalentSignalApp.swift */; };
@@ -54,6 +56,7 @@
 		77C7E7613C67FBDF162269EA /* AgentWorkLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1B45C64EB571D6FF9CE73A /* AgentWorkLiveActivity.swift */; };
 		78E69431CCB66C1BFA7EFDDF /* RelationshipCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */; };
 		795D834D75384A22249627F7 /* SignalRecordingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D3DFA665A94517E53A0FA4 /* SignalRecordingActivity.swift */; };
+		8067EADA1DE46FA1BE8A0EC6 /* AgentTaskProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ABF657D949F48786949901B /* AgentTaskProjection.swift */; };
 		82F626089258164A29855376 /* RelationshipCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */; };
 		83A4A3CE04DF7FFBCC223E1F /* RelationshipArchiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBD9D5361A32C8957D22B4E /* RelationshipArchiveTests.swift */; };
 		855BD6D5CC0D965D2DB61D81 /* FixtureSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */; };
@@ -66,6 +69,7 @@
 		9AB40CE436A39B3AE399478A /* TalentSignalBrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8A42CBB4A5B1229D5BCC0D /* TalentSignalBrandMark.swift */; };
 		9BFF4FE9255A2B018D330A10 /* AudioSignalCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */; };
 		9E9FCCE762A1387B509C2685 /* PursuitProposalReviewStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */; };
+		9F4ECEB9B5EB3201E4987926 /* AgentTaskClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96782C69AE43C6EF3F999F7A /* AgentTaskClient.swift */; };
 		A46CF9C1DC36A0DCA941B5B6 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2796745F45891838868FEA7B /* InfoPlist.xcstrings */; };
 		A4B50D55CF2FD1DB578106DC /* RelationshipArchiveModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D60444BD109DBAA3780F88D /* RelationshipArchiveModels.swift */; };
 		A61DC528D2295A5B715FE3F9 /* ConversationContactIntake.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD09035FB0CA0D56BB937CAA /* ConversationContactIntake.swift */; };
@@ -185,6 +189,7 @@
 		7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAskView.swift; sourceTree = "<group>"; };
 		77C6AFD36C53DCE168525B5F /* TalentSignalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalApp.swift; sourceTree = "<group>"; };
 		78788A89F71A15312E2EC139 /* PursuitProposalReviewStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewStoreTests.swift; sourceTree = "<group>"; };
+		7ABF657D949F48786949901B /* AgentTaskProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTaskProjection.swift; sourceTree = "<group>"; };
 		7D60444BD109DBAA3780F88D /* RelationshipArchiveModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipArchiveModels.swift; sourceTree = "<group>"; };
 		7FAEBC372E2477E425197A45 /* RelationshipCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureView.swift; sourceTree = "<group>"; };
 		8284F66591A57487F14F964F /* AgentWorkShowcaseUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkShowcaseUITests.swift; sourceTree = "<group>"; };
@@ -194,6 +199,7 @@
 		8E1B56C282E5480FFC9368B0 /* RelationshipCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureTests.swift; sourceTree = "<group>"; };
 		91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureStore.swift; sourceTree = "<group>"; };
 		92D3DFA665A94517E53A0FA4 /* SignalRecordingActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalRecordingActivity.swift; sourceTree = "<group>"; };
+		96782C69AE43C6EF3F999F7A /* AgentTaskClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTaskClient.swift; sourceTree = "<group>"; };
 		9974BB03ADAB6E9F626E0388 /* TalentSignalTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TalentSignalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A6CFD746E2C15C43760ED29 /* AgentWorkActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkActivityTests.swift; sourceTree = "<group>"; };
 		9E61BE45D1DCE5E4FCBD98AB /* AgentWorkShowcaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkShowcaseView.swift; sourceTree = "<group>"; };
@@ -202,6 +208,7 @@
 		A11262DED3E38696377856A6 /* TextSignalSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalSyncClient.swift; sourceTree = "<group>"; };
 		A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipArchiveSheets.swift; sourceTree = "<group>"; };
 		A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionTests.swift; sourceTree = "<group>"; };
+		A9161D0F10C35A2F93579D36 /* AgentTaskProjectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTaskProjectionStoreTests.swift; sourceTree = "<group>"; };
 		AA2B7831196A17D268065375 /* RelationshipCaptureClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureClient.swift; sourceTree = "<group>"; };
 		AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingView.swift; sourceTree = "<group>"; };
 		B0595635496A42C62406F044 /* ConversationContactIntentInterpreter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationContactIntentInterpreter.swift; sourceTree = "<group>"; };
@@ -227,6 +234,7 @@
 		E68ADCA955185ACDD422B618 /* SignalCaptureHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalCaptureHubView.swift; sourceTree = "<group>"; };
 		E9C7FFDCFE8722F56DF1F6EA /* AudioSignalRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalRecorder.swift; sourceTree = "<group>"; };
 		EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TalentSignal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EE6A0E420BB340D85910E6C0 /* AgentTaskProjectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTaskProjectionStore.swift; sourceTree = "<group>"; };
 		F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureSyncClient.swift; sourceTree = "<group>"; };
 		F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalView.swift; sourceTree = "<group>"; };
 		F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalComponents.swift; sourceTree = "<group>"; };
@@ -245,6 +253,7 @@
 		5F3AB4552568EA1521E713B1 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				A9161D0F10C35A2F93579D36 /* AgentTaskProjectionStoreTests.swift */,
 				9A6CFD746E2C15C43760ED29 /* AgentWorkActivityTests.swift */,
 				A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */,
 				00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */,
@@ -335,6 +344,7 @@
 		D8A8D595EBD5932C805DAE83 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				96782C69AE43C6EF3F999F7A /* AgentTaskClient.swift */,
 				1A23BD2192A87045AA609DC9 /* AgentWorkActivityController.swift */,
 				DC6D8F6894923DD54E359F8E /* AppSession.swift */,
 				E9C7FFDCFE8722F56DF1F6EA /* AudioSignalRecorder.swift */,
@@ -371,6 +381,7 @@
 		F6F74B7EE616BD628B110A20 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				EE6A0E420BB340D85910E6C0 /* AgentTaskProjectionStore.swift */,
 				9E61BE45D1DCE5E4FCBD98AB /* AgentWorkShowcaseView.swift */,
 				C6709D57D3A6344F855B478F /* AppAuthenticationView.swift */,
 				56E964E1942AD295B505F9A3 /* AppSettingsView.swift */,
@@ -403,6 +414,7 @@
 		FA3BD25D5D842857C19D40DD /* Domain */ = {
 			isa = PBXGroup;
 			children = (
+				7ABF657D949F48786949901B /* AgentTaskProjection.swift */,
 				D6A9699249B87A87A878D261 /* AudioSignalCapture.swift */,
 				8806D300F51296BE8C1CECE3 /* CandidateMomentumLoop.swift */,
 				2E1DC0CB9D729B8B77463673 /* CandidateSignal.swift */,
@@ -610,6 +622,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				65A6C324A3F1E15232BCD315 /* AgentTaskProjectionStoreTests.swift in Sources */,
 				9085961F86A4AC442B154DA6 /* AgentWorkActivityTests.swift in Sources */,
 				23D654970274564EA7623632 /* AppSessionTests.swift in Sources */,
 				9BFF4FE9255A2B018D330A10 /* AudioSignalCaptureTests.swift in Sources */,
@@ -648,6 +661,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9F4ECEB9B5EB3201E4987926 /* AgentTaskClient.swift in Sources */,
+				8067EADA1DE46FA1BE8A0EC6 /* AgentTaskProjection.swift in Sources */,
+				0E1DA36E1765A8057EBDD7EA /* AgentTaskProjectionStore.swift in Sources */,
 				CE35A34564136E92390F588E /* AgentWorkActivity.swift in Sources */,
 				4DB54D42842B76DA86C9B144 /* AgentWorkActivityController.swift in Sources */,
 				4245E77370CEA8CF0162063B /* AgentWorkDeepLink.swift in Sources */,

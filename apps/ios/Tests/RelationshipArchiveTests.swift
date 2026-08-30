@@ -65,6 +65,71 @@ final class RelationshipArchiveTests: XCTestCase {
         )
     }
 
+    func testVerifiedRelationshipCalendarActivityRestoresFromProtectedDeviceStore() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "calendar-activity-store-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshot = PursuitWorkspaceSnapshot.preview
+        let person = try XCTUnwrap(snapshot.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let activity = RelationshipCalendarActivity(
+            id: "calendar-source-1",
+            kind: .interview,
+            title: "Interview",
+            personID: person.id,
+            relationshipContextID: context.id,
+            personDisplayLabel: person.displayLabel,
+            contextDisplayLabel: context.displayLabel,
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .appleCalendar,
+            eventIdentifier: "event-verified-1",
+            destinationVerification: .verified
+        )
+
+        try FileRelationshipCalendarActivityStore(
+            accountID: snapshot.workspaceID,
+            rootURL: root
+        ).save(activity)
+        let restored = try FileRelationshipCalendarActivityStore(
+            accountID: snapshot.workspaceID,
+            rootURL: root
+        ).activities(in: snapshot)
+
+        XCTAssertEqual(restored, [activity])
+    }
+
+    func testRelationshipCalendarStoreDoesNotRestoreIntoUnknownIdentityScope() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "calendar-activity-scope-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshot = PursuitWorkspaceSnapshot.preview
+        let activity = RelationshipCalendarActivity(
+            id: "calendar-source-2",
+            kind: .meeting,
+            title: "Meeting",
+            personID: "person-outside-snapshot",
+            relationshipContextID: "context-outside-snapshot",
+            personDisplayLabel: "Untrusted cached label",
+            contextDisplayLabel: "Untrusted cached context",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .appleCalendar,
+            eventIdentifier: "event-verified-2",
+            destinationVerification: .verified
+        )
+        let store = FileRelationshipCalendarActivityStore(
+            accountID: snapshot.workspaceID,
+            rootURL: root
+        )
+
+        try store.save(activity)
+
+        XCTAssertTrue(try store.activities(in: snapshot).isEmpty)
+    }
+
     func testStoredLanguageFallsBackToSystemForUnknownValues() {
         XCTAssertEqual(AppLanguage.stored(nil), .system)
         XCTAssertEqual(AppLanguage.stored("fr"), .system)

@@ -1250,6 +1250,10 @@ struct RelationshipAskView: View {
                         VoiceRecordButtonHalo(isActive: voiceInput.isRecording)
                     }
                 }
+                .frame(
+                    width: composerPrimaryControlSize,
+                    height: composerPrimaryControlSize
+                )
                 .disabled(composerPrimaryDisabled)
                 .opacity(composerPrimaryDisabled ? 0.35 : 1)
                 .accessibilityLabel(composerPrimaryAccessibilityLabel)
@@ -2284,6 +2288,7 @@ struct RelationshipAskView: View {
         }
         guard let resolvedScope else {
             if mediaDrafts.isEmpty {
+                pendingScopedSend = effectiveObjective
                 beginContactInterpretation(trimmed)
             } else {
                 pendingScopedSend = effectiveObjective
@@ -2352,14 +2357,31 @@ struct RelationshipAskView: View {
             } catch {
                 draft = trimmed
                 pendingObjective = nil
-                errorMessage = (error as? LocalizedError)?.errorDescription
-                    ?? appLanguage.text(
-                        "Ask could not read this material. Your message and attachments are still here.",
-                        zhHans: "暂时无法读取这些内容，你的消息和附件仍已保留。"
-                    )
+                errorMessage = askFailureMessage(error)
             }
             isSending = false
         }
+    }
+
+    private func askFailureMessage(_ error: Error) -> String {
+        if let urlError = error as? URLError,
+           [
+            .notConnectedToInternet,
+            .cannotConnectToHost,
+            .cannotFindHost,
+            .networkConnectionLost,
+            .timedOut,
+            .dataNotAllowed,
+           ].contains(urlError.code) {
+            return appLanguage.text(
+                "The workspace could not be reached. Check your connection and Tailscale, then retry. Your message is still here."
+            )
+        }
+        return (error as? LocalizedError)?.errorDescription
+            ?? appLanguage.text(
+                "Ask could not read this material. Your message and attachments are still here.",
+                zhHans: "暂时无法读取这些内容，你的消息和附件仍已保留。"
+            )
     }
 
     private func waitForMediaToBecomeReady() async throws {
@@ -2448,6 +2470,7 @@ struct RelationshipAskView: View {
                 contactInterpretationSource = nil
                 requestRelationshipScope()
             case .needsClarification:
+                pendingScopedSend = nil
                 contactInterpretationNotice = appLanguage.text(
                     "I couldn't support a contact name from this message. Add the person's name, or choose a relationship to ask about it."
                 )
@@ -2487,6 +2510,7 @@ struct RelationshipAskView: View {
     }
 
     private func stageContactProposal(_ proposedContact: ConversationContactDraft) {
+        pendingScopedSend = nil
         errorMessage = nil
         contactInterpretationNotice = nil
         contactInterpretationSource = nil

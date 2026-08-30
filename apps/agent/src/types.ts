@@ -1,11 +1,26 @@
-export const AGENT_TOOL_NAMES = [
+export const PURSUIT_AGENT_TOOL_NAMES = [
   "read_pursuit",
   "read_evidence",
   "stage_pursuit_proposal",
-  "record_no_action",
 ] as const;
 
-export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
+export const RESEARCH_AGENT_TOOL_NAMES = [
+  "search_web",
+  "fetch_web",
+  "create_research_artifact",
+] as const;
+
+export const ALL_AGENT_TOOL_NAMES = [
+  ...PURSUIT_AGENT_TOOL_NAMES,
+  "search_web",
+  "fetch_web",
+  "create_research_artifact",
+] as const;
+
+// Backwards-compatible name for the original bounded Pursuit definition.
+export const AGENT_TOOL_NAMES = PURSUIT_AGENT_TOOL_NAMES;
+
+export type AgentToolName = (typeof ALL_AGENT_TOOL_NAMES)[number];
 
 export type AgentRunStatus =
   | "proposal_staged"
@@ -73,6 +88,59 @@ export interface AgentRunScope {
   objective: string;
   evidenceManifest: readonly AgentEvidenceManifestItem[];
   inputArtifactManifest?: readonly AgentInputArtifactManifestItem[];
+}
+
+export interface AgentWebResearchAuthorization {
+  purpose: "company_market_research";
+  subjectKind: "company" | "market";
+  accessMode: "domain_allowlist" | "open_web";
+  allowedDomains: readonly string[];
+  queryAnchors: readonly string[];
+  maximumSearchCount: number;
+  maximumFetchCount: number;
+}
+
+export interface AgentPublicResearchScope {
+  runID: string;
+  objective: string;
+  providerID: string;
+  authorization: AgentWebResearchAuthorization;
+}
+
+export interface AgentWebSearchResult {
+  resultID: string;
+  url: string;
+  title: string;
+  snippet: string;
+  publishedAt: string | null;
+  providerID: string;
+}
+
+export interface AgentFetchedWebPage {
+  resultID: string;
+  canonicalUrl: string;
+  title: string;
+  text: string;
+  contentHash: string;
+  retrievedAt: string;
+  providerID: string;
+}
+
+export interface AgentResearchArtifactCandidate {
+  title: string;
+  summary: string;
+  limitations: string;
+  claims: Array<{
+    statement: string;
+    sourceRefs: string[];
+  }>;
+  sources: Array<{
+    resultID: string;
+    url: string;
+    title: string;
+    contentHash: string;
+    retrievedAt: string;
+  }>;
 }
 
 export interface AgentEvidence {
@@ -154,6 +222,16 @@ export interface AgentNoActionCandidate {
   missingEvidenceRefs: string[];
 }
 
+export interface AgentPublicResearchNoActionCandidate {
+  reasonCode:
+    | "NO_MATERIAL_CHANGE"
+    | "INSUFFICIENT_EVIDENCE"
+    | "UNTRUSTED_INSTRUCTION"
+    | "PUBLIC_RESEARCH_UNAVAILABLE";
+  reason: string;
+  missingEvidenceRefs: string[];
+}
+
 export interface AgentFingerprints {
   definition: string;
   systemPrompt: string;
@@ -188,12 +266,19 @@ export interface AgentProviderRequest {
   runID: string;
   objective: string;
   systemPrompt: string;
-  scopeSummary: {
-    workspaceID: string;
-    pursuitID: string;
-    pursuitRevision: number;
-    evidenceRefs: string[];
-  };
+  scopeSummary:
+    | {
+        kind: "pursuit";
+        workspaceID: string;
+        pursuitID: string;
+        pursuitRevision: number;
+        evidenceRefs: string[];
+      }
+    | {
+        kind: "public_research";
+        authorization: AgentWebResearchAuthorization;
+        providerID: string;
+      };
   toolManifest: readonly AgentToolName[];
   budget: AgentBudget;
   inputParts?: readonly AgentProviderInputPart[];
@@ -283,6 +368,88 @@ export interface AgentTerminalReceipt {
   permissionDenials: string[];
   providerSessionID: string | null;
   completedAt: string;
+}
+
+export interface AgentPublicResearchCheckpoint {
+  searchResults: AgentWebSearchResult[];
+  fetchedPages: AgentFetchedWebPage[];
+  searchCalls: number;
+  fetchCalls: number;
+  toolCalls: number;
+  sequence: number;
+}
+
+export interface AgentPublicResearchGateway {
+  searchWeb(
+    scope: AgentPublicResearchScope,
+    input: { query: string; maximumResults: number; recencyDays: number | null },
+    signal: AbortSignal,
+  ): Promise<readonly Omit<AgentWebSearchResult, "resultID">[]>;
+  fetchWeb(
+    scope: AgentPublicResearchScope,
+    result: AgentWebSearchResult,
+    signal: AbortSignal,
+  ): Promise<Omit<AgentFetchedWebPage, "resultID">>;
+  commitResearchArtifact(
+    scope: AgentPublicResearchScope,
+    candidate: AgentResearchArtifactCandidate,
+    candidateFingerprint: string,
+  ): Promise<{ artifactID: string; status: "draft"; replayed: boolean }>;
+  commitNoAction(
+    scope: AgentPublicResearchScope,
+    candidate: AgentPublicResearchNoActionCandidate,
+    candidateFingerprint: string,
+  ): Promise<{ noActionID: string; replayed: boolean }>;
+}
+
+export interface AgentPublicResearchJournal {
+  start(input: {
+    scope: AgentPublicResearchScope;
+    budget: AgentBudget;
+    modelProviderID: string;
+    model: string;
+    sdkVersion: string;
+    startedAt: string;
+  }): Promise<void>;
+  loadCheckpoint(runID: string): Promise<AgentPublicResearchCheckpoint | null>;
+  saveCheckpoint(
+    runID: string,
+    checkpoint: AgentPublicResearchCheckpoint,
+  ): Promise<void>;
+  append(event: AgentJournalEvent): Promise<void>;
+  recordOutput(output: AgentJournalOutput): Promise<void>;
+  complete(
+    receipt: AgentPublicResearchTerminalReceipt,
+  ): Promise<AgentPublicResearchTerminalReceipt>;
+}
+
+export interface AgentPublicResearchTerminalReceipt {
+  runID: string;
+  status:
+    | "artifact_created"
+    | "no_action"
+    | "quarantined"
+    | "budget_exhausted"
+    | "cancelled"
+    | "failed";
+  reasonCode: string;
+  artifactID: string | null;
+  noActionID: string | null;
+  candidateFingerprint: string | null;
+  externalEffects: [];
+  usage: AgentUsage;
+  permissionDenials: string[];
+  providerSessionID: string | null;
+  completedAt: string;
+}
+
+export interface AgentPublicResearchRunRequest {
+  scope: AgentPublicResearchScope;
+  budget: AgentBudget;
+  provider: AgentProvider;
+  gateway: AgentPublicResearchGateway;
+  journal: AgentPublicResearchJournal;
+  signal?: AbortSignal;
 }
 
 export interface AgentRunJournal {

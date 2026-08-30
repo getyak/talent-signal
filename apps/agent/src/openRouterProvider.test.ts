@@ -11,6 +11,7 @@ function request(): AgentProviderRequest {
     objective: "Determine the smallest safe next step from synthetic evidence.",
     systemPrompt: "Never confirm state or create an external effect.",
     scopeSummary: {
+      kind: "pursuit",
       workspaceID: "10000000-0000-4000-8000-000000000001",
       pursuitID: "10000000-0000-4000-8000-000000000002",
       pursuitRevision: 1,
@@ -121,42 +122,14 @@ describe("OpenRouterAgentProvider", () => {
           model: "cohere/north-mini-code:free",
           choices: [
             {
-              finish_reason: "tool_calls",
-              message: {
-                role: "assistant",
-                content: null,
-                tool_calls: [
-                  {
-                    id: "call-2",
-                    type: "function",
-                    function: {
-                      name: "record_no_action",
-                      arguments: JSON.stringify({
-                        reason_code: "NO_MATERIAL_CHANGE",
-                        reason: "The evidence supports no safe change.",
-                        missing_evidence_refs: [],
-                      }),
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-          usage: { prompt_tokens: 17, completion_tokens: 8, cost: "0" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        response({
-          id: "generation-3",
-          model: "cohere/north-mini-code:free",
-          choices: [
-            {
               finish_reason: "stop",
               message: {
                 role: "assistant",
                 content: JSON.stringify({
                   outcome: "no_action",
-                  candidate_fingerprint: fingerprint,
+                  reason_code: "NO_MATERIAL_CHANGE",
+                  reason: "The evidence supports no safe change.",
+                  missing_evidence_refs: [],
                 }),
               },
             },
@@ -173,9 +146,7 @@ describe("OpenRouterAgentProvider", () => {
       ok: true,
       callID: `result-${name}`,
       name,
-      ...(name === "record_no_action"
-        ? { candidateFingerprint: fingerprint }
-        : { data: { pursuitID: "synthetic" } }),
+      data: { pursuitID: "synthetic" },
     }));
 
     const result = await provider.run(
@@ -184,26 +155,25 @@ describe("OpenRouterAgentProvider", () => {
       new AbortController().signal,
     );
 
-    expect(invokeTool.mock.calls.map(([name]) => name)).toEqual([
-      "read_pursuit",
-      "record_no_action",
-    ]);
+    expect(invokeTool.mock.calls.map(([name]) => name)).toEqual(["read_pursuit"]);
     expect(result.structuredOutput).toEqual({
       outcome: "no_action",
-      candidate_fingerprint: fingerprint,
+      reason_code: "NO_MATERIAL_CHANGE",
+      reason: "The evidence supports no safe change.",
+      missing_evidence_refs: [],
     });
     expect(result).toMatchObject({
-      inputTokens: 47,
-      outputTokens: 20,
+      inputTokens: 30,
+      outputTokens: 12,
       estimatedUsd: 0,
-      turns: 3,
-      sessionID: "generation-3",
-      terminalReason: "completed",
+      turns: 2,
+      sessionID: "generation-2",
+      terminalReason: "provider_stopped",
     });
     const finalBody = JSON.parse(
-      String(fetcher.mock.calls[2]?.[1]?.body),
+      String(fetcher.mock.calls[1]?.[1]?.body),
     ) as { tool_choice: string; parallel_tool_calls: boolean };
-    expect(finalBody.tool_choice).toBe("none");
+    expect(finalBody.tool_choice).toBe("auto");
     expect(finalBody.parallel_tool_calls).toBe(false);
   });
 

@@ -20,6 +20,9 @@ struct AdaptiveConversationContactIntentInterpreter: ConversationContactIntentIn
     }
 
     func interpret(_ source: String) async -> ConversationContactInterpretation {
+        if ConversationContactIntake.isClearlyNonContactMutation(source) {
+            return .notContact
+        }
         if let draft = ConversationContactIntake.propose(source) {
             return .contact(draft)
         }

@@ -59,7 +59,7 @@ function formatDate(value: string): string {
   const date = new Date(`${value}T12:00:00Z`);
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat("en", {
+    : new Intl.DateTimeFormat("zh-CN", {
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -72,7 +72,7 @@ function formatDue(value: string | null): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat("en", {
+    : new Intl.DateTimeFormat("zh-CN", {
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
@@ -99,8 +99,21 @@ function pursuitHref(item: PursuitTodayItem): string {
     : room;
 }
 
+const valueLabels: Record<string, string> = {
+  accepted_offer: "接受录用意向",
+  active: "进行中",
+  evidence_review: "证据审阅",
+  final_conversation: "最终沟通",
+  interviewing: "面试中",
+  mutual_final_decision: "双方最终决定",
+  no_action: "无需行动",
+  offer_review: "录用意向审阅",
+  proposal_staged: "提案已暂存",
+  shortlist_review: "候选名单审阅",
+};
+
 function humanize(value: string): string {
-  return value.replaceAll("_", " ");
+  return valueLabels[value] ?? value.replaceAll("_", " ");
 }
 
 function AgentComposer({

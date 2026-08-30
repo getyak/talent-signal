@@ -170,6 +170,8 @@ export async function compileAgentScope(
 
 function mapProposalItems(
   items: AgentProposalCandidate["items"],
+  policy: "legacy_review" | "operational_only",
+  ownerUserID: string,
 ): StagePursuitProposalRequest["items"] {
   return items.map((item) => {
     const common = {
@@ -180,6 +182,103 @@ function mapProposalItems(
       reason: item.reason,
       effect_summary: item.effectSummary,
     };
+    if (policy === "operational_only") {
+      const gapLabels = {
+        identity_unresolved: [
+          "Identity needs review",
+          "The candidate identity remains unresolved in reviewed evidence.",
+          "Close when a recruiter confirms or rejects the identity binding.",
+        ],
+        contact_channel_unavailable: [
+          "Contact channel unavailable",
+          "No governed contact channel is currently available.",
+          "Close when a recruiter verifies an authorized contact channel.",
+        ],
+        availability_unknown: [
+          "Availability remains unknown",
+          "Reviewed evidence does not establish current availability.",
+          "Close when current availability is confirmed from reviewed evidence.",
+        ],
+        scheduling_constraint: [
+          "Scheduling constraint unresolved",
+          "Reviewed evidence names a scheduling constraint that is not resolved.",
+          "Close when the scheduling constraint is resolved or expires.",
+        ],
+        stakeholder_response_pending: [
+          "Stakeholder response pending",
+          "A required stakeholder response has not been observed.",
+          "Close when the response or observation-window outcome is recorded.",
+        ],
+        evidence_conflict: [
+          "Evidence conflict needs review",
+          "Reviewed evidence contains a material contradiction.",
+          "Close when a recruiter resolves or explicitly preserves the dispute.",
+        ],
+        source_freshness_expired: [
+          "Source freshness expired",
+          "The source is no longer fresh enough for this operational dependency.",
+          "Close when a fresh governed source is reviewed.",
+        ],
+      } as const;
+      const taskLabels = {
+        review_identity: "Review identity evidence",
+        review_evidence: "Review the cited evidence",
+        ask_clarifying_question: "Ask one clarifying question",
+        prepare_message_draft: "Prepare a non-sending message draft",
+        wait_until: "Wait for the observation window",
+        verify_outcome: "Verify the observed outcome",
+      } as const;
+      const [prefix, category] = item.itemKey.split(":", 2);
+      if (prefix === "operational_gap" && category && category in gapLabels) {
+        if (item.change.kind !== "add_gap") {
+          throw new AgentCapabilityError(
+            "OPERATIONAL_PROPOSAL_SHAPE_INVALID",
+            "An operational_gap item can only stage an add_gap review candidate.",
+          );
+        }
+        const [title, basisSummary, closeCondition] =
+          gapLabels[category as keyof typeof gapLabels];
+        return {
+          ...common,
+          reason: basisSummary,
+          effect_summary: `Would add the operational gap “${title}” for human review only.`,
+          change: {
+            kind: "add_gap" as const,
+            proposed_value: {
+              title,
+              basis_summary: basisSummary,
+              close_condition: closeCondition,
+            },
+          },
+        };
+      }
+      if (prefix === "recruiter_task" && category && category in taskLabels) {
+        if (item.change.kind !== "add_action") {
+          throw new AgentCapabilityError(
+            "OPERATIONAL_PROPOSAL_SHAPE_INVALID",
+            "A recruiter_task item can only stage an add_action review candidate.",
+          );
+        }
+        const title = taskLabels[category as keyof typeof taskLabels];
+        return {
+          ...common,
+          reason: "This is a recruiter-owned operational step, not a candidate assessment.",
+          effect_summary: `Would add the recruiter-owned task “${title}” for human review only.`,
+          change: {
+            kind: "add_action" as const,
+            proposed_value: {
+              title,
+              owner_user_id: ownerUserID,
+              due_at: item.change.proposedValue.dueAt,
+            },
+          },
+        };
+      }
+      throw new AgentCapabilityError(
+        "PROHIBITED_PERSON_ASSESSMENT",
+        "Governed Tasks only allow enumerated operational_gap or recruiter_task review candidates.",
+      );
+    }
     switch (item.change.kind) {
       case "set_milestone":
         return {
@@ -238,6 +337,8 @@ export class DatabaseAgentGateway implements AgentCapabilityGateway {
   constructor(
     private readonly pool: Pool,
     private readonly auth: AuthContext,
+    private readonly proposalPolicy: "legacy_review" | "operational_only" =
+      "legacy_review",
   ) {}
 
   async readPursuit(scope: AgentRunScope) {
@@ -316,7 +417,11 @@ export class DatabaseAgentGateway implements AgentCapabilityGateway {
           version: "1.0.0",
           run_id: scope.runID,
         },
-        items: mapProposalItems(candidate.items),
+        items: mapProposalItems(
+          candidate.items,
+          this.proposalPolicy,
+          this.auth.userId,
+        ),
       },
     );
     if (result.body.proposal.status !== "needs_review") {

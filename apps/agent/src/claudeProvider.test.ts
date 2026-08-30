@@ -23,6 +23,7 @@ const request = {
   objective: "Record a synthetic review-only result.",
   systemPrompt: "Use only the immutable tool manifest.",
   scopeSummary: {
+    kind: "pursuit" as const,
     workspaceID: "synthetic-workspace",
     pursuitID: "synthetic-pursuit",
     pursuitRevision: 1,
@@ -32,7 +33,6 @@ const request = {
     "read_pursuit",
     "read_evidence",
     "stage_pursuit_proposal",
-    "record_no_action",
   ] as const,
   budget: {
     maxTurns: 6,
@@ -49,7 +49,9 @@ function sdkResult() {
     subtype: "success",
     structured_output: {
       outcome: "no_action",
-      candidate_fingerprint: "a".repeat(64),
+      reason_code: "NO_MATERIAL_CHANGE",
+      reason: "Synthetic evidence supports no canonical change.",
+      missing_evidence_refs: [],
     },
     modelUsage: {
       synthetic: {
@@ -118,14 +120,6 @@ describe("ClaudeAgentSDKProvider", () => {
         );
         expect(denied.hookSpecificOutput.permissionDecision).toBe("deny");
 
-        const terminalTool = input.options.mcpServers.talent_signal.tools.find(
-          (candidate: { name: string }) => candidate.name === "record_no_action",
-        );
-        await terminalTool.handler({
-          reason_code: "NO_MATERIAL_CHANGE",
-          reason: "Synthetic evidence supports no canonical change.",
-          missing_evidence_refs: [],
-        });
       }, queryInput),
     );
 
@@ -134,9 +128,7 @@ describe("ClaudeAgentSDKProvider", () => {
       ok: true,
       callID: "synthetic-call",
       name,
-      ...(name === "record_no_action"
-        ? { candidateFingerprint: "a".repeat(64) }
-        : { data: { synthetic: true } }),
+      data: { synthetic: true },
     }));
     const result = await provider.run(
       request,
@@ -146,17 +138,18 @@ describe("ClaudeAgentSDKProvider", () => {
     const options = sdk.query.mock.calls[0]![0].options;
 
     expect(options.canUseTool).toBeUndefined();
-    expect(options.outputFormat).toBeUndefined();
+    expect(options.outputFormat).toMatchObject({ type: "json_schema" });
     expect(options.taskBudget).toBeUndefined();
     expect(options.allowedTools).toEqual([
       "mcp__talent_signal__read_pursuit",
       "mcp__talent_signal__read_evidence",
       "mcp__talent_signal__stage_pursuit_proposal",
-      "mcp__talent_signal__record_no_action",
     ]);
     expect(result.structuredOutput).toEqual({
       outcome: "no_action",
-      candidate_fingerprint: "a".repeat(64),
+      reason_code: "NO_MATERIAL_CHANGE",
+      reason: "Synthetic evidence supports no canonical change.",
+      missing_evidence_refs: [],
     });
     expect(result.permissionDenials).toContain("Bash:TOOL_NOT_ALLOWED");
   });

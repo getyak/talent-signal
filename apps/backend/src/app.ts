@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import {
   AgentRunResponseSchema,
+  AgentDecisionResolutionResponseSchema,
+  AgentTaskEventsResponseSchema,
+  AgentTaskListResponseSchema,
+  AgentTaskResponseSchema,
   AnalysisProposalResponseSchema,
   AppleLoginChallengeRequestSchema,
   AppleLoginChallengeResponseSchema,
@@ -23,7 +27,9 @@ import {
   CompileKnowledgeRequestSchema,
   CONTRACT_VERSION,
   CompletePursuitActionRequestSchema,
+  CancelAgentTaskRequestSchema,
   CreatePursuitAgentRunRequestSchema,
+  CreatePursuitAgentTaskRequestSchema,
   CreateCaptureRequestSchema,
   CreatePursuitRequestSchema,
   DeleteCaptureRequestSchema,
@@ -73,6 +79,7 @@ import {
   ReviseActionRequestSchema,
   RevisePursuitRequestSchema,
   ReviewPursuitProposalRequestSchema,
+  ResolveAgentDecisionBundleRequestSchema,
   SessionResponseSchema,
   SimulatedLoginRequestSchema,
   SourceRetentionReceiptSchema,
@@ -97,11 +104,13 @@ import {
   type CreateCaptureRequest,
   type CreatePursuitRequest,
   type CompletePursuitActionRequest,
+  type CancelAgentTaskRequest,
   type CaptureIdentityCorrectionRequest,
   type ChatTaskRequest,
   type CreateChatMediaRequest,
   type CompileKnowledgeRequest,
   type CreatePursuitAgentRunRequest,
+  type CreatePursuitAgentTaskRequest,
   type DeleteCaptureRequest,
   type ExecuteActionRequest,
   type ExecuteEffectReversalRequest,
@@ -119,6 +128,7 @@ import {
   type ReviseActionRequest,
   type RevisePursuitRequest,
   type ReviewPursuitProposalRequest,
+  type ResolveAgentDecisionBundleRequest,
   type SimulatedLoginRequest,
   type SourceAuthorizationDecisionRequest,
   type StagePursuitProposalRequest,
@@ -142,6 +152,15 @@ import {
   getAgentRun,
 } from "./modules/agentRuns.js";
 import { getRelationshipAgentHistory } from "./modules/agentHistory.js";
+import {
+  assertProposalReviewNotAgentCorrelated,
+  cancelAgentTask,
+  createPursuitAgentTask,
+  getAgentTask,
+  getAgentTaskEvents,
+  listPursuitAgentTasks,
+  resolveAgentDecisionBundle,
+} from "./modules/agentTasks.js";
 import {
   approveAction,
   approveEffectReversal,
@@ -281,6 +300,22 @@ const SyncQuerySchema = Type.Object(
     after: Type.Optional(
       Type.String({ pattern: "^[0-9]+$", default: "0" }),
     ),
+  },
+  { additionalProperties: false },
+);
+const AgentTaskListQuerySchema = Type.Object(
+  {
+    state: Type.Optional(
+      Type.Union([Type.Literal("active"), Type.Literal("all")], {
+        default: "active",
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+const AgentTaskEventsQuerySchema = Type.Object(
+  {
+    after: Type.Optional(Type.String({ pattern: "^[0-9]+$", default: "0" })),
   },
   { additionalProperties: false },
 );
@@ -513,7 +548,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '032_eval_observability'`,
+           WHERE version = '036_governed_agent_tasks'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -822,6 +857,38 @@ export async function buildApp(
     },
   );
 
+  app.post<{
+    Params: { id: string };
+    Body: ResolveAgentDecisionBundleRequest;
+  }>(
+    "/v1/decision-bundles/:id/resolve",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["agent-tasks", "review"],
+        security,
+        params: IdParamsSchema,
+        body: ResolveAgentDecisionBundleRequestSchema,
+        response: {
+          200: AgentDecisionResolutionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await resolveAgentDecisionBundle(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
   app.get(
     "/v1/auth/session",
     {
@@ -1007,6 +1074,142 @@ export async function buildApp(
     async (request) => getAgentRun(pool, request.auth, request.params.id),
   );
 
+  app.post<{
+    Params: { id: string };
+    Body: CreatePursuitAgentTaskRequest;
+  }>(
+    "/v1/pursuits/:id/agent-tasks",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits", "agent-tasks"],
+        security,
+        params: IdParamsSchema,
+        body: CreatePursuitAgentTaskRequestSchema,
+        response: {
+          202: AgentTaskResponseSchema,
+          "4xx": ErrorResponseSchema,
+          "5xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createPursuitAgentTask(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.get<{
+    Params: { id: string };
+    Querystring: { state?: "active" | "all" };
+  }>(
+    "/v1/pursuits/:id/agent-tasks",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["pursuits", "agent-tasks"],
+        security,
+        params: IdParamsSchema,
+        querystring: AgentTaskListQuerySchema,
+        response: {
+          200: AgentTaskListResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      listPursuitAgentTasks(
+        pool,
+        request.auth,
+        request.params.id,
+        request.query.state ?? "active",
+      ),
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/v1/agent-tasks/:id",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["agent-tasks"],
+        security,
+        params: IdParamsSchema,
+        response: {
+          200: AgentTaskResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => getAgentTask(pool, request.auth, request.params.id),
+  );
+
+  app.get<{
+    Params: { id: string };
+    Querystring: { after?: string };
+  }>(
+    "/v1/agent-tasks/:id/events",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["agent-tasks"],
+        security,
+        params: IdParamsSchema,
+        querystring: AgentTaskEventsQuerySchema,
+        response: {
+          200: AgentTaskEventsResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) =>
+      getAgentTaskEvents(
+        pool,
+        request.auth,
+        request.params.id,
+        Number.parseInt(request.query.after ?? "0", 10),
+      ),
+  );
+
+  app.post<{
+    Params: { id: string };
+    Body: CancelAgentTaskRequest;
+  }>(
+    "/v1/agent-tasks/:id/cancel",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["agent-tasks"],
+        security,
+        params: IdParamsSchema,
+        body: CancelAgentTaskRequestSchema,
+        response: {
+          200: AgentTaskResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await cancelAgentTask(
+        pool,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
   app.get(
     "/v1/pursuit-proposals",
     {
@@ -1168,6 +1371,14 @@ export async function buildApp(
         request.auth,
         request.params.id,
         request.body,
+        {
+          onBeforeReview: (client) =>
+            assertProposalReviewNotAgentCorrelated(
+              client,
+              request.auth,
+              request.params.id,
+            ),
+        },
       );
       reply.header("idempotent-replayed", result.replayed);
       if (result.status === 409) {

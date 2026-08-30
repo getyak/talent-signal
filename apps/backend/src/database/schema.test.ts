@@ -3,6 +3,36 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("authority schema", () => {
+  it("adds a governed Task lifecycle without duplicating domain or effect authority", async () => {
+    const sql = await readFile(
+      new URL("./036_governed_agent_tasks.sql", import.meta.url),
+      "utf8",
+    );
+    for (const table of [
+      "agent_tasks",
+      "agent_task_runs",
+      "agent_task_checkpoints",
+      "agent_artifacts",
+      "agent_artifact_evidence",
+      "agent_clarification_requests",
+      "agent_decision_bundles",
+      "agent_decision_items",
+      "agent_task_events",
+      "agent_delivery_outbox",
+    ]) {
+      expect(sql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(sql).toContain("UNIQUE (account_id, task_id, task_sequence)");
+    expect(sql).toContain("FOREIGN KEY (account_id, agent_run_id)");
+    expect(sql).toContain("REFERENCES agent_runs(account_id, id)");
+    expect(sql).toContain("REFERENCES pursuit_proposals(account_id, id)");
+    expect(sql).toContain("authority text NOT NULL CHECK (authority = 'non_canonical')");
+    expect(sql).not.toContain("CREATE TABLE action_attempts");
+    expect(sql).not.toContain("candidate_score");
+    expect(sql).not.toContain("acceptance_probability");
+    expect(sql).not.toContain("external_effect");
+  });
+
   it("separates scrubbed telemetry from governed trace artifacts and Eval labels", async () => {
     const sql = await readFile(
       new URL("./032_eval_observability.sql", import.meta.url),
@@ -588,5 +618,18 @@ describe("authority schema", () => {
     expect(sql).toContain(
       "CREATE INDEX research_retrieval_jobs_expired_lease_idx",
     );
+  });
+
+  it("removes the misplaced backend Agent public-web state", async () => {
+    const sql = await readFile(
+      new URL(
+        "./035_decommission_backend_agent_web_research.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(sql).toContain("DROP TABLE IF EXISTS agent_research_artifacts");
+    expect(sql).not.toContain("'artifact_created'");
+    expect(sql).not.toContain("'PUBLIC_RESEARCH_UNAVAILABLE'");
   });
 });

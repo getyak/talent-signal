@@ -141,7 +141,7 @@ searchable and exposes scenario, Provider, modality, verdict, and score.
   deterministic checks.
 - Agent: `/workspace/evals/45a775f93b0ab49fdaeebbebc05949c6`
   displayed seven spans including `read_pursuit`, `read_evidence`,
-  `record_no_action`, provider result, and terminal receipt.
+  direct validated `no_action` output, provider result, and terminal receipt.
 - Multimodal Agent Lab:
   `/workspace/evals/1dc1a66c8aca8aeb33812c68a790bdaf` displayed one
   governed text artifact, one governed PNG, eight causal spans, three ordered
