@@ -2923,7 +2923,7 @@ final class CandidateSignalUITests: XCTestCase {
             element("contact-proposal-card").waitForNonExistence(timeout: 5)
         )
         XCTAssertTrue(app.textFields["ask-composer"].isEnabled)
-        XCTAssertTrue(app.buttons["ask-attachment-menu"].isEnabled)
+        XCTAssertTrue(app.buttons["ask-markdown-more"].isEnabled)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
     }
 
