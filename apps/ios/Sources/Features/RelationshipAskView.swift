@@ -2581,11 +2581,14 @@ struct RelationshipAskView: View {
               !isSending,
               !isInterpretingContact else { return }
         if mediaDrafts.isEmpty,
-           ConversationContactIntake.propose(trimmed) != nil {
+           let deterministicProposal = ConversationContactIntake.propose(trimmed) {
             // Keep even deterministic contact understanding cancellable. The
-            // interpreter re-validates the same message and never writes a
-            // contact before the recruiter reviews the resulting proposal.
-            beginContactInterpretation(trimmed)
+            // async boundary preserves the review/cancel affordance without
+            // asking the adaptive model to re-classify an already exact draft.
+            beginContactInterpretation(
+                trimmed,
+                deterministicProposal: deterministicProposal
+            )
             return
         }
         let effectiveObjective = trimmed.isEmpty
@@ -2970,7 +2973,10 @@ struct RelationshipAskView: View {
         .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func beginContactInterpretation(_ source: String) {
+    private func beginContactInterpretation(
+        _ source: String,
+        deterministicProposal: ConversationContactDraft? = nil
+    ) {
         contactInterpretationTask?.cancel()
         contactInterpretationSource = source
         contactInterpretationNotice = nil
@@ -2983,8 +2989,14 @@ struct RelationshipAskView: View {
             } catch {
                 return
             }
-            let result = await AdaptiveConversationContactIntentInterpreter()
-                .interpret(source)
+            let result: ConversationContactInterpretation
+            if let deterministicProposal {
+                await Task.yield()
+                result = .contact(deterministicProposal)
+            } else {
+                result = await AdaptiveConversationContactIntentInterpreter()
+                    .interpret(source)
+            }
             guard !Task.isCancelled,
                   contactInterpretationSource == source else { return }
             isInterpretingContact = false
