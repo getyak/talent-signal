@@ -228,6 +228,79 @@ struct StandaloneOnboardingState: Codable, Equatable {
         )
     }
 
+    mutating func startFirstProgressExample(now: Date = Date()) {
+        let account = StandaloneAccount(
+            id: UUID(),
+            displayName: "Demo Recruiter",
+            isDemo: true
+        )
+        let pursuit = StandalonePursuit(
+            id: UUID(),
+            template: "Hire someone",
+            outcome: "Hire a VP of Engineering",
+            targetDate: nil,
+            createdAt: now
+        )
+        var draft = StandaloneCaptureDraft(
+            id: UUID(),
+            idempotencyKey: UUID(),
+            pursuitID: pursuit.id,
+            sourceKind: .text,
+            meeting: nil,
+            text: StandaloneDemoProposalCatalog.firstProgressSignal,
+            audioFileName: nil,
+            state: .proposalReady,
+            processingGeneration: 1,
+            createdAt: now
+        )
+        let proposal = StandaloneDemoProposalCatalog.proposal(
+            for: draft,
+            pursuit: pursuit,
+            engineLabel: "Synthetic example · fixture v1"
+        )
+        draft.state = .proposalReady
+
+        self.account = account
+        self.pursuit = pursuit
+        selectedSource = .text
+        selectedMeeting = nil
+        captureDraft = draft
+        self.proposal = proposal
+        selectedFactIDs = []
+        acceptedActionIDs = []
+        progress = nil
+        activationStatus = .notStarted
+        actionPracticeState = .notOffered
+        introCompleted = false
+        unassignedSystemCaptureID = nil
+        route = .proposalReview
+        lastRecoverableError = nil
+    }
+
+    mutating func startOwnSignalSetup() {
+        if account?.isDemo == true {
+            account = nil
+            pursuit = nil
+            selectedSource = nil
+            selectedMeeting = nil
+            captureDraft = nil
+            proposal = nil
+            selectedFactIDs = []
+            acceptedActionIDs = []
+            progress = nil
+            activationStatus = .notStarted
+            actionPracticeState = .notOffered
+            introCompleted = false
+            unassignedSystemCaptureID = nil
+            lastRecoverableError = nil
+            route = .identity
+            return
+        }
+
+        route = pursuit == nil ? .identity : .sourceChoice
+        lastRecoverableError = nil
+    }
+
     var isActivated: Bool {
         activationStatus == .verifiedProgress && progress != nil
     }
@@ -304,7 +377,7 @@ struct StandaloneOnboardingState: Codable, Equatable {
             pursuit?.outcome = trimmed
             pursuit?.targetDate = targetDate
         }
-        route = .productDemo
+        route = .sourceChoice
         lastRecoverableError = nil
         return true
     }
@@ -665,6 +738,7 @@ struct StandaloneOnboardingState: Codable, Equatable {
 }
 
 enum StandaloneDemoProposalCatalog {
+    static let firstProgressSignal = "Mina prefers remote. Visa status is still unclear."
     static let showcaseSignal = "Mina prefers remote, could start in three weeks, and wants to understand the team size. Visa status is still unclear."
 
     static func isShowcaseFixture(_ text: String) -> Bool {

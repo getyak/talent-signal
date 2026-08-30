@@ -2,6 +2,40 @@ import XCTest
 @testable import TalentSignal
 
 final class StandaloneOnboardingTests: XCTestCase {
+    func testFirstProgressExampleOpensOneFocusedSupportedFactWithoutPermissions() throws {
+        var state = StandaloneOnboardingState.fresh()
+        let now = Date(timeIntervalSince1970: 42)
+
+        state.startFirstProgressExample(now: now)
+
+        XCTAssertEqual(state.route, .proposalReview)
+        XCTAssertEqual(state.account?.isDemo, true)
+        XCTAssertEqual(state.pursuit?.outcome, "Hire a VP of Engineering")
+        XCTAssertEqual(state.captureDraft?.text, StandaloneDemoProposalCatalog.firstProgressSignal)
+        XCTAssertEqual(state.proposal?.facts.count, 1)
+        XCTAssertEqual(state.proposal?.unknowns.count, 1)
+        XCTAssertTrue(state.selectedFactIDs.isEmpty)
+        XCTAssertNil(state.progress)
+        XCTAssertEqual(state.lastObservedCalendarPermission, .notDetermined)
+    }
+
+    func testUsingOwnSignalClearsSyntheticExampleButPreservesRetainedSourceLedger() {
+        var state = StandaloneOnboardingState.fresh()
+        let retainedEnvelopeID = UUID()
+        state.importedSharedEnvelopeIDs.insert(retainedEnvelopeID)
+        state.startFirstProgressExample()
+
+        state.startOwnSignalSetup()
+
+        XCTAssertEqual(state.route, .identity)
+        XCTAssertNil(state.account)
+        XCTAssertNil(state.pursuit)
+        XCTAssertNil(state.captureDraft)
+        XCTAssertNil(state.proposal)
+        XCTAssertNil(state.progress)
+        XCTAssertEqual(state.importedSharedEnvelopeIDs, Set([retainedEnvelopeID]))
+    }
+
     func testDefaultCalendarDisclosureIsExactlyFourteenUpcomingDays() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -1067,7 +1101,6 @@ final class StandaloneOnboardingTests: XCTestCase {
                 targetDate: nil
             )
         )
-        state.finishProductDemo()
         return state
     }
 

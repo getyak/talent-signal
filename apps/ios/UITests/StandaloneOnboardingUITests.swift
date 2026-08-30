@@ -2,7 +2,7 @@ import XCTest
 
 final class StandaloneOnboardingUITests: XCTestCase {
     @MainActor
-    func testStandaloneDemoMeetingJourneyCreatesVerifiedToday() throws {
+    func testStandaloneThirtySecondExampleCreatesVerifiedToday() throws {
         let app = englishApp()
         app.launchArguments += [
             "--standalone-onboarding-reset",
@@ -13,33 +13,27 @@ final class StandaloneOnboardingUITests: XCTestCase {
         ]
         app.launch()
 
-        tap("standalone-demo-user", in: app)
-        tap("standalone-create-pursuit", in: app)
-        tap("standalone-finish-demo", in: app)
-        tap("standalone-source-calendar", in: app)
-        tap("standalone-calendar-demo-meeting", in: app)
+        let welcomeAttachment = XCTAttachment(screenshot: app.screenshot())
+        welcomeAttachment.name = "Standalone first-progress welcome"
+        welcomeAttachment.lifetime = .keepAlways
+        add(welcomeAttachment)
 
-        app.buttons["Text"].tap()
-        tap("standalone-use-example-signal", in: app)
-        tap("standalone-process-signal", in: app)
-
-        let confirm = app.buttons["standalone-confirm-proposal"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 8))
-        let factToggle = app.switches["Confirm this sourced change"].firstMatch
-        XCTAssertTrue(factToggle.waitForExistence(timeout: 5))
-        factToggle.tap()
-        confirm.tap()
-        tap("standalone-offer-action-button", in: app)
-        tap("standalone-practice-capture", in: app)
-        tap("standalone-simulate-action-button", in: app)
-        tap("standalone-enter-today", in: app)
+        tap("standalone-start-example", in: app)
+        let focusedConfirm = app.buttons["standalone-focused-confirm"]
+        XCTAssertTrue(focusedConfirm.waitForExistence(timeout: 5))
+        let reviewAttachment = XCTAttachment(screenshot: app.screenshot())
+        reviewAttachment.name = "Standalone focused fact review"
+        reviewAttachment.lifetime = .keepAlways
+        add(reviewAttachment)
+        focusedConfirm.tap()
+        tap("standalone-see-today", in: app)
 
         XCTAssertTrue(
             app.descendants(matching: .any)["standalone-today-primary-card"]
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["Hire a VP of Engineering"].exists)
-        XCTAssertTrue(app.staticTexts["DEMO SOURCE EVIDENCE"].exists)
+        XCTAssertTrue(app.staticTexts["SOURCE EVIDENCE"].exists)
         let evidenceLink = app.buttons["standalone-today-evidence-link"]
         XCTAssertTrue(evidenceLink.waitForExistence(timeout: 5))
         XCTAssertTrue(evidenceLink.isHittable, "Source evidence should be reachable in the initial Today viewport")
@@ -67,9 +61,7 @@ final class StandaloneOnboardingUITests: XCTestCase {
         app.launchArguments += ["--standalone-onboarding-reset", "--standalone-demo"]
         app.launch()
 
-        tap("standalone-demo-user", in: app)
-        tap("standalone-create-pursuit", in: app)
-        tap("standalone-finish-demo", in: app)
+        startOwnSetup(in: app)
         tap("standalone-source-calendar", in: app)
 
         XCTAssertTrue(app.staticTexts["Connect the conversation to the right moment."].exists)
@@ -86,9 +78,7 @@ final class StandaloneOnboardingUITests: XCTestCase {
         ]
         app.launch()
 
-        tap("standalone-demo-user", in: app)
-        tap("standalone-create-pursuit", in: app)
-        tap("standalone-finish-demo", in: app)
+        startOwnSetup(in: app)
         tap("standalone-source-type-a-signal", in: app)
         let signal = app.textViews["standalone-signal-text"]
         XCTAssertTrue(signal.waitForExistence(timeout: 5))
@@ -99,14 +89,13 @@ final class StandaloneOnboardingUITests: XCTestCase {
         tap("standalone-review-without-ai", in: app)
 
         XCTAssertTrue(app.staticTexts["MANUAL STRUCTURE · NO MODEL"].waitForExistence(timeout: 8))
-        let factToggle = app.switches["Confirm this sourced change"].firstMatch
-        if !factToggle.waitForExistence(timeout: 2) { app.swipeUp() }
-        XCTAssertTrue(factToggle.waitForExistence(timeout: 5))
-        factToggle.tap()
-        tap("standalone-confirm-proposal", in: app)
+        let confirm = app.buttons["standalone-focused-confirm"]
+        if !confirm.waitForExistence(timeout: 2) { app.swipeUp() }
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["standalone-offer-action-button"]
+            app.descendants(matching: .any)["standalone-see-today"]
                 .waitForExistence(timeout: 5)
         )
     }
@@ -133,9 +122,7 @@ final class StandaloneOnboardingUITests: XCTestCase {
         XCTAssertTrue(contentSize.waitForExistence(timeout: 5))
         XCTAssertEqual(contentSize.value as? String, "accessibility")
 
-        tap("standalone-demo-user", in: app)
-        tap("standalone-create-pursuit", in: app)
-        tap("standalone-finish-demo", in: app)
+        startOwnSetup(in: app)
         tap("standalone-source-type-a-signal", in: app)
 
         let signal = app.textViews["standalone-signal-text"]
@@ -170,20 +157,12 @@ final class StandaloneOnboardingUITests: XCTestCase {
         proposalAttachment.lifetime = .keepAlways
         add(proposalAttachment)
 
-        let factToggle = app.switches["Confirm this sourced change"].firstMatch
-        for _ in 0..<6 where !factToggle.isHittable { app.swipeUp() }
-        XCTAssertTrue(factToggle.waitForExistence(timeout: 5))
-        XCTAssertTrue(factToggle.isHittable)
-        factToggle.tap()
-        let confirm = app.buttons["standalone-confirm-proposal"]
+        let confirm = app.buttons["standalone-focused-confirm"]
         for _ in 0..<6 where !confirm.isHittable { app.swipeUp() }
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.tap()
 
-        tap("standalone-offer-action-button", in: app)
-        tap("standalone-practice-capture", in: app)
-        tap("standalone-simulate-action-button", in: app)
-        tap("standalone-enter-today", in: app)
+        tap("standalone-see-today", in: app)
         XCTAssertTrue(
             app.descendants(matching: .any)["standalone-today-primary-card"]
                 .waitForExistence(timeout: 5)
@@ -240,8 +219,7 @@ final class StandaloneOnboardingUITests: XCTestCase {
             app.descendants(matching: .any)["standalone-queued-shortcut-source"]
                 .waitForExistence(timeout: 5)
         )
-        tap("standalone-demo-user", in: app)
-        tap("standalone-create-pursuit", in: app)
+        startOwnSetup(in: app)
 
         XCTAssertTrue(app.textViews["standalone-signal-text"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["SHARE SHEET SOURCE"].exists)
@@ -294,5 +272,12 @@ final class StandaloneOnboardingUITests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 5), "Missing \(identifier)")
         if !element.isHittable { app.swipeUp() }
         element.tap()
+    }
+
+    @MainActor
+    private func startOwnSetup(in app: XCUIApplication) {
+        tap("standalone-use-own-signal", in: app)
+        tap("standalone-use-identity", in: app)
+        tap("standalone-create-pursuit", in: app)
     }
 }

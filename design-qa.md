@@ -1,3 +1,76 @@
+# 2026-08-30 — First verified progress onboarding
+
+## Selected direction and implementation
+
+The selected Causal Ledger direction replaces the visible nine-step setup tour
+with a three-stage first-progress path: Start, Review, Done. A fresh user can
+open one synthetic, clearly labelled Signal without granting Calendar,
+Microphone, Contacts, or account permissions; review one sourced fact; and
+create verified local progress only after an explicit Confirm decision.
+
+The implemented review keeps source, proposed fact, unresolved question, and
+confirmed state visually and behaviorally distinct. The exact source quote is
+shown above a narrow causal seam. One focused fact offers full-width Confirm,
+Edit, and Keep unresolved controls. Pursuit correction remains available, while
+inference, optional next action, and discard are placed in a disclosure below
+the first decision. The own-Signal path now recommends typed capture first and
+requests permissions only when the recruiter chooses a permissioned source.
+
+The reference line `Nothing is saved until you confirm` was intentionally not
+copied because the product durably saves Source and Draft before the decision.
+The truthful implementation says `Nothing becomes current until you confirm.
+Nothing is sent.`
+
+## Evidence
+
+- Visual reference:
+  `/Users/cubxxw/data/talent-signal/output/onboarding-direction-2026-08-30/selected/option-1-causal-ledger.png`
+  at 853 × 1844.
+- Final welcome:
+  `/Users/cubxxw/data/talent-signal/output/onboarding-direction-2026-08-30/implementation/welcome.png`
+  at 1206 × 2622.
+- Final focused fact review:
+  `/Users/cubxxw/data/talent-signal/output/onboarding-direction-2026-08-30/implementation/focused-review.png`
+  at 1206 × 2622.
+- Final Today readback:
+  `/Users/cubxxw/data/talent-signal/output/onboarding-direction-2026-08-30/implementation/today.png`
+  at 1206 × 2622.
+- Executable iPhone 17 Pro Simulator, iOS 26.5, evidence level 1.
+- Focused domain suite: 53/53 tests passing.
+- Standalone onboarding UI suite: 7/7 journeys passing, including standard
+  first progress, arbitrary manual Signal, Calendar disclosure, retained and
+  queued source deletion/recovery, and Simplified-Chinese mixed-script dark AX5.
+- Localization boundary: passed with 740 catalog keys.
+
+## Side-by-side adjudication
+
+The final implementation preserves the reference's warm canvas, serif decision
+title, exact-source hierarchy, red causal seam, quiet rounded fact card,
+full-width decision stack, compact unresolved row, and low-noise trust receipt.
+It adds two product-required details: a compact synthetic-fixture provenance
+label and a correctable matched-Pursuit row. The proposed value remains ink,
+not confirmed green, until the recruiter acts. No P0, P1, or P2 visual or
+interaction mismatch remains at the tested viewport.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — one CTA reaches one evidence-backed decision.
+- Hierarchy: 3 — source, proposal, uncertainty, decision, and receipt are
+  distinct.
+- Platform interaction: 3 — native scrolling, disclosure, text editing, and
+  minimum-size full-width actions.
+- Accessibility: 3 — dark AX5 mixed-script flow, keyboard exit, wrapping, and
+  Today readback passed.
+- Visual craft: 3 — selected causal-ledger composition retained with brand
+  tokens and no setup-progress chrome.
+- Safety/provenance: 3 — exact source, synthetic fixture label, explicit human
+  authorization, reversible unresolved path, and no external writes.
+- Vetoes: none.
+
+final result: passed
+
+---
+
 # Design QA — iOS natural contact understanding
 
 ## Evidence

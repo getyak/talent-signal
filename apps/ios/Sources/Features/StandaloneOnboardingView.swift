@@ -44,6 +44,10 @@ struct StandaloneOnboardingView: View {
     @State private var sharedCaptureNotice: String?
     @State private var showsWelcomeQueuedShortcutDeletion = false
     @State private var showsSettingsQueuedShortcutDeletion = false
+    @State private var editingFactID: UUID?
+    @State private var factDraftValue = ""
+    @State private var showsAdvancedReview = false
+    @State private var expandedUnknownID: UUID?
 
     private let forceDemoEngine: Bool
     private let simulatesActionButton: Bool
@@ -242,48 +246,17 @@ struct StandaloneOnboardingView: View {
     }
 
     private var progressHeader: some View {
-        VStack(spacing: 10) {
-            HStack {
-                TalentSignalBrandMark().frame(width: 28, height: 28)
-                Text(localized("TALENT SIGNAL"))
-                    .font(.caption.weight(.bold))
-                    .tracking(1.4)
-                Spacer()
-                Text(localized("\(stepNumber) / 9"))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.tsMutedInk)
-                    .accessibilityLabel(localized("Onboarding step \(stepNumber) of 9"))
-            }
-            GeometryReader { proxy in
-                let availableWidth = proxy.size.width.isFinite
-                    ? max(0, proxy.size.width)
-                    : 0
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.tsLine).frame(height: 2)
-                    Capsule().fill(Color.tsVermilion)
-                        .frame(width: availableWidth * CGFloat(stepNumber) / 9, height: 2)
-                }
-            }
-            .frame(height: 2)
+        HStack {
+            TalentSignalBrandMark().frame(width: 28, height: 28)
+            Text(localized("TALENT SIGNAL"))
+                .font(.caption.weight(.bold))
+                .tracking(1.4)
+            Spacer()
         }
         .padding(.horizontal, 22)
         .padding(.top, 14)
         .padding(.bottom, 8)
         .background(Color.tsCanvas)
-    }
-
-    private var stepNumber: Int {
-        switch store.state.route {
-        case .welcome, .identity: return 1
-        case .pursuit: return 2
-        case .productDemo: return 3
-        case .sourceChoice, .calendarExplanation, .meetingSelection: return 4
-        case .capture, .processing: return 5
-        case .proposalReview: return 6
-        case .verifiedProgress: return 7
-        case .actionButtonOffer, .actionButtonPractice: return 8
-        case .today: return 9
-        }
     }
 
     @ViewBuilder
@@ -308,34 +281,43 @@ struct StandaloneOnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Spacer(minLength: 26)
-            TalentSignalBrandMark().frame(width: 66, height: 66)
-            Text(localized("Remember what moves\nthe work forward."))
+            Spacer(minLength: 38)
+            Text(localized("START · 1 OF 3"))
+                .font(.caption.weight(.bold))
+                .tracking(1.4)
+                .foregroundStyle(Color.tsVermilion)
+            Text(localized("Turn one conversation into a next move you can trust."))
                 .font(.system(.largeTitle, design: .serif, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
-            Text(localized("Turn meetings and conversations into evidence-backed next steps."))
+            Text(localized("Review a real example. Nothing becomes current or gets sent until you confirm."))
                 .font(.title3)
                 .foregroundStyle(Color.tsMutedInk)
-            Label(localized("Nothing changes until you confirm it."), systemImage: "hand.raised.fill")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.tsConfirmed)
-                .padding(.vertical, 14)
-                .accessibilityIdentifier("standalone-trust-line")
-            Button(localized("Get Started")) { store.showIdentity() }
+            Button(localized("Try a 30-second example")) {
+                store.startFirstProgressExample()
+            }
                 .buttonStyle(TSPrimaryButtonStyle())
-                .accessibilityIdentifier("standalone-get-started")
-            Button { openSettings() } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(localized("Manage retained sources"))
-                        .font(.body.weight(.semibold))
-                    Text(localized("Review or delete imported Share and Shortcut evidence."))
-                        .font(.footnote)
-                        .foregroundStyle(Color.tsMutedInk)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("standalone-start-example")
+            Button(localized("Use my own Signal")) {
+                store.startOwnSignalSetup()
             }
             .buttonStyle(TSSecondaryButtonStyle())
-            .accessibilityIdentifier("standalone-manage-retained-sources")
+            .accessibilityIdentifier("standalone-use-own-signal")
+            trustNote("Nothing becomes current until you confirm. Nothing is sent.")
+                .accessibilityIdentifier("standalone-trust-line")
+            if captureHandoff.savedSeed != nil || !retainedSharedCaptures.isEmpty {
+                Button { openSettings() } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(localized("Manage retained sources"))
+                            .font(.body.weight(.semibold))
+                        Text(localized("Review or delete imported Share and Shortcut evidence."))
+                            .font(.footnote)
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(TSTextButtonStyle())
+                .accessibilityIdentifier("standalone-manage-retained-sources")
+            }
             if captureHandoff.savedSeed != nil {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(localized("Shortcut screenshot queued"), systemImage: "lock.doc")
@@ -353,13 +335,6 @@ struct StandaloneOnboardingView: View {
                 .overlay { RoundedRectangle(cornerRadius: 14).stroke(Color.tsLine) }
                 .accessibilityIdentifier("standalone-queued-shortcut-source")
             }
-#if DEBUG
-            Button(localized("Continue as Demo User")) {
-                store.begin(displayName: "Demo Recruiter", demoAccount: true)
-            }
-            .buttonStyle(TSSecondaryButtonStyle())
-            .accessibilityIdentifier("standalone-demo-user")
-#endif
         }
     }
 
@@ -469,10 +444,19 @@ struct StandaloneOnboardingView: View {
         VStack(alignment: .leading, spacing: 22) {
             pageTitle("Give Talent Signal one place to listen", eyebrow: "FIRST SOURCE")
             sourceChoiceButton(
+                icon: "text.cursor",
+                title: "Type a Signal",
+                detail: "Start without any permission",
+                badge: "Recommended"
+            ) {
+                captureMode = .text
+                store.chooseSource(.text)
+            }
+            sourceChoiceButton(
                 icon: "calendar",
                 title: "Calendar",
                 detail: "Connect a meeting to the right Pursuit",
-                badge: "Recommended"
+                badge: nil
             ) { store.chooseSource(.calendar) }
             sourceChoiceButton(
                 icon: "waveform",
@@ -482,15 +466,6 @@ struct StandaloneOnboardingView: View {
             ) {
                 captureMode = .voice
                 store.chooseSource(.voice)
-            }
-            sourceChoiceButton(
-                icon: "text.cursor",
-                title: "Type a Signal",
-                detail: "Start without any permission",
-                badge: nil
-            ) {
-                captureMode = .text
-                store.chooseSource(.text)
             }
             Text(localized("Available now: Share Extension · Later: Contacts · Gmail"))
                 .font(.footnote)
@@ -629,7 +604,7 @@ struct StandaloneOnboardingView: View {
             .disabled(voiceService.isRecording)
             if captureMode == .voice { voiceCapture } else { textCapture }
             notice
-            Button(localized("Process On Device")) {
+            Button(localized("Review the Signal")) {
                 Task {
                     await store.process(
                         using: AdaptiveStandaloneProposalEngine(forceDemo: forceDemoEngine)
@@ -776,18 +751,33 @@ struct StandaloneOnboardingView: View {
 
     private var proposalReview: some View {
         VStack(alignment: .leading, spacing: 22) {
-            pageTitle("Review what Talent Signal understood", eyebrow: "HUMAN DECISION")
+            Text(localized("Review · 2 of 3"))
+                .font(.caption.weight(.bold))
+                .tracking(1.4)
+                .foregroundStyle(Color.tsVermilion)
+            Text(localized("What changed?"))
+                .font(.system(.largeTitle, design: .serif, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
             if let proposal = store.state.proposal {
-                demoBadge(proposal.engineLabel.uppercased())
-                reviewSection("SOURCE", icon: "quote.opening") {
-                    Text(proposal.sourceSummary).font(.headline)
-                    if store.state.captureDraft?.sharedPayloadKind == nil {
-                        Text(store.state.captureDraft?.text ?? "")
-                            .font(.body)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(localized("SOURCE"))
+                            .font(.caption.weight(.bold))
+                            .tracking(1)
                             .foregroundStyle(Color.tsMutedInk)
+                        Spacer()
+                        Text(proposal.engineLabel.uppercased())
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
+                    if store.state.captureDraft?.sharedPayloadKind == nil {
+                        Text("“\(store.state.captureDraft?.text ?? proposal.sourceSummary)”")
+                            .font(.system(.title3, design: .serif, weight: .medium))
+                            .fixedSize(horizontal: false, vertical: true)
                             .textSelection(.enabled)
                     } else {
                         sharedProvenanceDetails
+                        sharedImagePreview
                         if let workingSignal = store.state.captureDraft?.text,
                            !workingSignal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             provenanceText(
@@ -797,50 +787,104 @@ struct StandaloneOnboardingView: View {
                             )
                         }
                     }
-                }
-                reviewSection("MATCHED PURSUIT", icon: "scope") {
-                    Text(store.state.pursuit?.outcome ?? "Unknown Pursuit").font(.headline)
-                    Button(localized("Wrong Pursuit")) { store.markWrongPursuit() }
-                        .buttonStyle(TSTextButtonStyle())
-                }
-                Rectangle().fill(Color.tsVermilion).frame(height: 2)
-                    .accessibilityLabel(localized("Review boundary between source and proposed changes"))
-                ForEach(proposal.facts) { fact in factReview(fact) }
-                ForEach(proposal.inferences) { inference in
-                    reviewSection("INFERENCE · NOT A FACT", icon: "lightbulb") {
-                        Text(inference.statement).font(.headline)
-                        Text(inference.basis).foregroundStyle(Color.tsMutedInk)
+                    HStack(spacing: 6) {
+                        Image(systemName: "scope")
+                        Text(localized("Matched to") + " " + (store.state.pursuit?.outcome ?? localized("Unknown Pursuit")))
+                        Spacer()
+                        Button(localized("Change")) { store.markWrongPursuit() }
+                            .font(.subheadline.weight(.semibold))
                     }
-                }
-                ForEach(proposal.unknowns) { unknown in
-                    reviewSection("STILL UNKNOWN", icon: "questionmark.circle") {
-                        Text(unknown.question).font(.headline)
-                        Text(unknown.whyUnresolved).foregroundStyle(Color.tsMutedInk)
-                    }
-                }
-                ForEach(proposal.nextActions) { action in actionReview(action) }
-                notice
-                Button(localized("Confirm and Update Pursuit")) { store.confirm() }
-                    .buttonStyle(TSPrimaryButtonStyle())
-                    .accessibilityIdentifier("standalone-confirm-proposal")
-                Button(localized("Keep Unresolved")) { store.keepUnresolvedOnly() }
-                    .buttonStyle(TSSecondaryButtonStyle())
-                Button(localized("Discard Proposal")) { store.discardProposal() }
-                    .buttonStyle(TSTextButtonStyle())
-                Text(proposal.modelDisclaimer)
-                    .font(.footnote)
+                    .font(.subheadline)
                     .foregroundStyle(Color.tsMutedInk)
+                }
+
+                VStack(spacing: 0) {
+                    Circle().fill(Color.tsVermilion).frame(width: 8, height: 8)
+                    Rectangle().fill(Color.tsVermilion).frame(width: 2, height: 34)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+
+                if let fact = proposal.facts.first {
+                    focusedFactReview(fact)
+                } else {
+                    emptyState(
+                        title: "No supported fact was proposed",
+                        body: "The Signal remains saved. Keep the uncertainty visible or return to edit the source."
+                    )
+                }
+
+                if let unknown = proposal.unknowns.first {
+                    Button {
+                        expandedUnknownID = expandedUnknownID == unknown.id ? nil : unknown.id
+                    } label: {
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack {
+                                Label(localized("Next:") + " " + unknown.question, systemImage: "questionmark.circle")
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Image(systemName: expandedUnknownID == unknown.id ? "chevron.up" : "chevron.down")
+                            }
+                            if expandedUnknownID == unknown.id {
+                                Text(unknown.whyUnresolved)
+                                    .font(.footnote)
+                                    .foregroundStyle(Color.tsMutedInk)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(16)
+                    .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 16))
+                    .overlay { RoundedRectangle(cornerRadius: 16).stroke(Color.tsLine) }
+                }
+
+                notice
+                trustNote("Nothing becomes current until you confirm. Nothing is sent.")
+
+                DisclosureGroup(
+                    localized("Review inference and next action"),
+                    isExpanded: $showsAdvancedReview
+                ) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(proposal.inferences) { inference in
+                            reviewSection("INFERENCE · NOT A FACT", icon: "lightbulb") {
+                                Text(inference.statement).font(.headline)
+                                Text(inference.basis).foregroundStyle(Color.tsMutedInk)
+                            }
+                        }
+                        ForEach(proposal.nextActions) { action in actionReview(action) }
+                        Button(localized("Discard Proposal")) { store.discardProposal() }
+                            .buttonStyle(TSTextButtonStyle())
+                        Text(proposal.modelDisclaimer)
+                            .font(.footnote)
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
+                    .padding(.top, 14)
+                }
+                .font(.subheadline.weight(.semibold))
             }
+        }
+        .onChange(of: store.state.proposal?.id) { _ in
+            editingFactID = nil
+            factDraftValue = ""
+            showsAdvancedReview = false
+            expandedUnknownID = nil
         }
     }
 
     private var verifiedProgress: some View {
         VStack(alignment: .leading, spacing: 22) {
-            demoBadge("VERIFIED BY YOU")
+            Text(localized("DONE · 3 OF 3"))
+                .font(.caption.weight(.bold))
+                .tracking(1.4)
+                .foregroundStyle(Color.tsVermilion)
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 54))
                 .foregroundStyle(Color.tsConfirmed)
-            pageTitle("You moved this Pursuit forward.", eyebrow: "VERIFIED PROGRESS")
+            Text(localized("One fact is now current."))
+                .font(.system(.largeTitle, design: .serif, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
             if let progress = store.state.progress {
                 ForEach(progress.confirmedFacts) { fact in
                     summaryRow(label: fact.field, value: fact.proposedValue, icon: "checkmark")
@@ -851,14 +895,14 @@ struct StandaloneOnboardingView: View {
                 ForEach(progress.unresolved) { unknown in
                     summaryRow(label: "Still unresolved", value: unknown.question, icon: "questionmark")
                 }
-                trustNote("Source: \(progress.sourceSummary). Confirmation changed only local Pursuit state; no message or Calendar write occurred.")
+                trustNote("Source: \(progress.sourceSummary). Your confirmation changed only local Pursuit state. Nothing was sent.")
             }
             Button(localized("See It in Today")) { store.enterToday() }
                 .buttonStyle(TSPrimaryButtonStyle())
                 .accessibilityIdentifier("standalone-see-today")
-            Button(localized("Make the Next Capture Instant")) { store.showActionButtonOffer() }
+            Button(localized("Use my own Signal")) { store.startOwnSignalSetup() }
                 .buttonStyle(TSSecondaryButtonStyle())
-                .accessibilityIdentifier("standalone-offer-action-button")
+                .accessibilityIdentifier("standalone-use-own-signal-after-example")
         }
     }
 
@@ -1582,6 +1626,81 @@ struct StandaloneOnboardingView: View {
             content()
         }
         .tsCard()
+    }
+
+    private func focusedFactReview(_ fact: StandaloneProposalFact) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(localized("PROPOSED FACT"))
+                    .font(.caption.weight(.bold))
+                    .tracking(1)
+                    .foregroundStyle(Color.tsVermilion)
+                Spacer()
+                Text(fact.confidenceBand)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsMutedInk)
+            }
+            Text(fact.field)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
+
+            if editingFactID == fact.id {
+                TextField("Proposed value", text: $factDraftValue, axis: .vertical)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(2 ... 5)
+                    .padding(13)
+                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay { RoundedRectangle(cornerRadius: 12).stroke(Color.tsInk) }
+                    .accessibilityIdentifier("standalone-focused-fact-editor")
+                HStack {
+                    Button(localized("Save edit")) {
+                        store.editFact(fact.id, value: factDraftValue)
+                        editingFactID = nil
+                    }
+                    .buttonStyle(TSPrimaryButtonStyle())
+                    .accessibilityIdentifier("standalone-save-fact-edit")
+                    Button(localized("Cancel")) {
+                        editingFactID = nil
+                        factDraftValue = ""
+                    }
+                    .buttonStyle(TSSecondaryButtonStyle())
+                }
+            } else {
+                Text(currentFactValue(fact))
+                    .font(.title3.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 10) {
+                    Button(localized("Confirm")) {
+                        store.selectFact(fact.id, selected: true)
+                        store.confirm()
+                    }
+                    .buttonStyle(TSPrimaryButtonStyle())
+                    .accessibilityIdentifier("standalone-focused-confirm")
+                    Button(localized("Edit")) {
+                        factDraftValue = currentFactValue(fact)
+                        editingFactID = fact.id
+                    }
+                    .buttonStyle(TSSecondaryButtonStyle())
+                    .accessibilityIdentifier("standalone-focused-edit")
+                    Button(localized("Keep unresolved")) {
+                        store.keepUnresolvedOnly()
+                    }
+                    .buttonStyle(TSSecondaryButtonStyle())
+                    .accessibilityIdentifier("standalone-focused-unresolved")
+                }
+            }
+        }
+        .padding(18)
+        .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 20))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.tsLine, lineWidth: 1.5)
+        }
+    }
+
+    private func currentFactValue(_ fact: StandaloneProposalFact) -> String {
+        store.state.proposal?.facts.first(where: { $0.id == fact.id })?.proposedValue
+            ?? fact.proposedValue
     }
 
     private func factReview(_ fact: StandaloneProposalFact) -> some View {

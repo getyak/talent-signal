@@ -2209,6 +2209,63 @@
     "You can leave" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你可以暂时离开" } } }
     },
+    "START · 1 OF 3" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始 · 第 1 步，共 3 步" } } }
+    },
+    "Turn one conversation into a next move you can trust." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把一次对话变成可信的下一步。" } } }
+    },
+    "Review a real example. Nothing becomes current or gets sent until you confirm." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅一个真实示例。未经你的确认，任何内容都不会成为当前状态，也不会被发送。" } } }
+    },
+    "Try a 30-second example" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "体验 30 秒示例" } } }
+    },
+    "Use my own Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用我的 Signal" } } }
+    },
+    "Nothing becomes current until you confirm. Nothing is sent." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未经你的确认，任何内容都不会成为当前状态。不会发送任何内容。" } } }
+    },
+    "Review · 2 of 3" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅 · 第 2 步，共 3 步" } } }
+    },
+    "What changed?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发生了什么变化？" } } }
+    },
+    "SOURCE" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源" } } }
+    },
+    "Matched to" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已匹配至" } } }
+    },
+    "PROPOSED FACT" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "建议事实" } } }
+    },
+    "Confirm" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认" } } }
+    },
+    "Keep unresolved" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保持未解决" } } }
+    },
+    "Save edit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存修改" } } }
+    },
+    "Next:" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一项：" } } }
+    },
+    "Review inference and next action" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅推断和下一步" } } }
+    },
+    "DONE · 3 OF 3" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成 · 第 3 步，共 3 步" } } }
+    },
+    "One fact is now current." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一条事实已成为当前状态。" } } }
+    },
+    "Review the Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅 Signal" } } }
+    },
     "source receipt" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源回执" } } }
     }

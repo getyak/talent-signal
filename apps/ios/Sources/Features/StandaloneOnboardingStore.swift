@@ -133,6 +133,14 @@ final class StandaloneOnboardingStore: ObservableObject {
         mutate { $0.showIdentity() }
     }
 
+    func startFirstProgressExample() {
+        mutate { $0.startFirstProgressExample() }
+    }
+
+    func startOwnSignalSetup() {
+        mutate { $0.startOwnSignalSetup() }
+    }
+
     func createPursuit(template: String, outcome: String, targetDate: Date?) {
         mutate { _ = $0.createPursuit(template: template, outcome: outcome, targetDate: targetDate) }
     }
