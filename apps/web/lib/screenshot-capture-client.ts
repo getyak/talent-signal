@@ -149,6 +149,7 @@ export async function commitScreenshotCapture(input: {
   assignmentLabel: string;
   contactName: string;
   draft: ScreenshotCaptureDraft;
+  identityQuery: string | null;
   personId: string | null;
   relationshipContextId: string | null;
   requestId: string;
@@ -168,6 +169,7 @@ export async function commitScreenshotCapture(input: {
         contact_name: input.contactName.trim(),
         assignment_label: input.assignmentLabel.trim(),
         draft: input.draft,
+        identity_query: input.identityQuery,
         ...(transcriptEdited
           ? { original_draft: input.analysis.draft }
           : {}),

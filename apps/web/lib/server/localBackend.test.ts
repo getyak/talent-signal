@@ -1,13 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CONTRACT_VERSION, type PersonDirectoryItem } from "@talent-signal/contracts";
 
 vi.mock("server-only", () => ({}));
 
+import { parseScreenshotCaptureDraft } from "../screenshot-capture";
+import { issueScreenshotAnalysisReceipt } from "./screenshot-analysis-receipt";
 import {
+  commitScreenshotCapture,
+  compileRelationshipKnowledge,
   deleteBackendCapture,
   getLatestRelationshipResearch,
   loadPersonMergeReversalPreview,
   mergeRelationshipPeople,
   reverseRelationshipPersonMerge,
+  RELATIONSHIP_WIKI_COMPILE_OBJECTIVE,
 } from "./localBackend";
 
 const captureId = "11111111-1111-4111-8111-111111111111";
@@ -29,6 +35,10 @@ const movedContextId =
   "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const retainedContextId =
   "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const ambiguousPersonId =
+  "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const ambiguousContextId =
+  "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
 function jsonResponse(value: unknown) {
   return new Response(JSON.stringify(value), {
@@ -36,6 +46,89 @@ function jsonResponse(value: unknown) {
     status: 200,
   });
 }
+
+function directoryPerson(
+  id: string,
+  relationshipContextId: string,
+): PersonDirectoryItem {
+  return {
+    capture_count: 1,
+    confirmed_identity_count: 0,
+    context_count: 1,
+    contexts: [
+      {
+        display_label: "Chief Product Officer search",
+        id: relationshipContextId,
+        last_activity_at: "2026-08-30T08:00:00.000Z",
+      },
+    ],
+    display_label: "Leila Hartmann",
+    id,
+    identity_matches: [{ kind: "name" }],
+    last_activity_at: "2026-08-30T08:00:00.000Z",
+    profile: null,
+  };
+}
+
+describe("screenshot identity binding gate", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects a forged same-name selection before creating a capture", async () => {
+    const draft = parseScreenshotCaptureDraft(
+      JSON.stringify({
+        platform: "line",
+        captured_at: null,
+        transcription_notes: [],
+        messages: [
+          { source_message_id: "m1", speaker: "unknown", text: "确认一下" },
+        ],
+        assertions: [],
+        action: null,
+      }),
+    );
+    const analysisMeta = {
+      provider: "OpenRouter" as const,
+      model: "anthropic/claude-opus-5",
+      request_id: "generation-identity-gate",
+      prompt_version: "screenshot-evidence.v2",
+      source_sha256: "b".repeat(64),
+      raw_image_stored_by_talent_signal: false as const,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ access_token: "a".repeat(32) }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          contract_version: CONTRACT_VERSION,
+          people: [
+            directoryPerson(personId, contextId),
+            directoryPerson(ambiguousPersonId, ambiguousContextId),
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      commitScreenshotCapture({
+        request_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        person_id: personId,
+        relationship_context_id: contextId,
+        contact_name: "Leila Hartmann",
+        identity_query: "Leila Hartmann",
+        assignment_label: "Chief Product Officer search",
+        draft,
+        analysis_meta: analysisMeta,
+        analysis_receipt: issueScreenshotAnalysisReceipt({
+          draft,
+          meta: analysisMeta,
+        }),
+      }),
+    ).rejects.toThrow("多个无法区分的人物");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("local governed source deletion", () => {
   afterEach(() => {
@@ -102,6 +195,63 @@ describe("local governed source deletion", () => {
         }),
       }),
     );
+  });
+});
+
+describe("direct relationship Wiki compilation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("compiles without borrowing a non-empty chat objective", async () => {
+    const requestId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: "a".repeat(32),
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          blocks: [],
+          id: snapshotId,
+          status: "published",
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await compileRelationshipKnowledge({
+      person_id: personId,
+      relationship_context_id: contextId,
+      request_id: requestId,
+    });
+
+    expect(result).toMatchObject({ id: snapshotId, status: "published" });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `http://127.0.0.1:4317/v1/people/${personId}/contexts/${contextId}/wiki-compilations`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          idempotency_key: `web-wiki:${requestId}`,
+          objective: RELATIONSHIP_WIKI_COMPILE_OBJECTIVE,
+        }),
+        method: "POST",
+      }),
+    );
+  });
+
+  it("rejects malformed compile scope as a client error", async () => {
+    await expect(
+      compileRelationshipKnowledge({
+        person_id: "not-a-person",
+        relationship_context_id: contextId,
+        request_id: "not-a-request",
+      }),
+    ).rejects.toMatchObject({
+      code: "wiki_compile_request_invalid",
+      status: 400,
+    });
   });
 });
 

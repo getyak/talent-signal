@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import {
   analyzeScreenshot,
+  classifyScreenshotAnalysisFailure,
   getScreenshotAnalysisAvailability,
 } from "@/lib/server/screenshot-analysis";
 import { issueScreenshotAnalysisReceipt } from "@/lib/server/screenshot-analysis-receipt";
@@ -124,13 +125,27 @@ export async function POST(request: NextRequest) {
       },
     );
   }
-  if (!getScreenshotAnalysisAvailability().enabled) {
-    return NextResponse.json(
-      {
+  const availability = getScreenshotAnalysisAvailability();
+  if (!availability.enabled) {
+    const unavailable = {
+      ai_disabled: {
+        code: "ai_disabled",
         error:
-          "Screenshot analysis is not configured. Configure a supported private provider and enable sensitive AI processing.",
-        code: "provider_unavailable",
+          "截图分析尚未启用。未发送或保存来源；请让工作区管理员启用 AI 后重试。",
       },
+      provider_credentials_missing: {
+        code: "provider_credentials_missing",
+        error:
+          "所选截图分析 Provider 尚未配置凭据。未发送或保存来源；请完成 Provider 配置后重试。",
+      },
+      sensitive_processing_disabled: {
+        code: "sensitive_processing_disabled",
+        error:
+          "私密截图处理尚未获准。未发送或保存来源；请先启用敏感数据处理许可。",
+      },
+    }[availability.unavailable_reason ?? "provider_credentials_missing"];
+    return NextResponse.json(
+      unavailable,
       { status: 503, headers: noStoreHeaders() },
     );
   }
@@ -240,6 +255,7 @@ export async function POST(request: NextRequest) {
       );
     }
     const requestId = randomUUID();
+    const failureCode = classifyScreenshotAnalysisFailure(error);
     const reason =
       error instanceof Error
         ? error.message.replace(/\s+/g, " ").trim().slice(0, 500)
@@ -252,11 +268,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "The private screenshot analysis could not complete. The source was not saved by Talent Signal.",
-        code: "analysis_failed",
+          failureCode === "provider_timeout"
+            ? "云端截图分析在 45 秒内未完成。未保存来源；请检查所选 Provider 的网络或专用代理配置后重试。"
+            : failureCode === "provider_network_failed"
+              ? "无法连接所选截图分析 Provider。未保存来源；请检查网络或专用代理配置后重试。"
+              : "私密截图分析未能完成。Talent Signal 没有保存该来源。",
+        code: failureCode,
         request_id: requestId,
       },
-      { status: 502, headers: noStoreHeaders() },
+      {
+        status: failureCode === "provider_timeout" ? 504 : 502,
+        headers: noStoreHeaders(),
+      },
     );
   }
 }

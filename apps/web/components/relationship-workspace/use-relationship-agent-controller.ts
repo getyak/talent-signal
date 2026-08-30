@@ -2,6 +2,7 @@
 
 import type {
   ChatTaskResponse,
+  KnowledgeSnapshot,
   RelationshipScope,
 } from "@talent-signal/contracts";
 import {
@@ -61,6 +62,7 @@ type ControllerOptions = {
   onAnnouncement: (message: string) => void;
   onBusyChange: (label: string) => void;
   onError: (message: string) => void;
+  onKnowledgeCompiled: (snapshot: KnowledgeSnapshot) => void;
   onOpenMergeReview: () => void;
   onOpenResourceComposer: () => void;
   onRefreshHistory: (personId: string, relationshipContextId: string) => void;
@@ -118,6 +120,7 @@ export function useRelationshipAgentController({
   onAnnouncement,
   onBusyChange,
   onError,
+  onKnowledgeCompiled,
   onOpenMergeReview,
   onOpenResourceComposer,
   onRefreshHistory,
@@ -130,6 +133,9 @@ export function useRelationshipAgentController({
     requestId: string;
   } | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
+  const wikiRequestRef = useRef<{ key: string; requestId: string } | null>(
+    null,
+  );
   const scopeKey = relationshipAgentScopeKey({ accountId, scope });
   const conversationKey = relationshipAgentConversationKey({
     accountId,
@@ -617,8 +623,98 @@ export function useRelationshipAgentController({
     }
   }
 
+  async function compileWiki() {
+    if (!scope) {
+      onError("请先打开一段人物关系，再编译关系 Wiki。");
+      return;
+    }
+    const requestConversationKey = conversationKey;
+    const requestScope = scope;
+    if (wikiRequestRef.current?.key !== requestConversationKey) {
+      wikiRequestRef.current = {
+        key: requestConversationKey,
+        requestId: crypto.randomUUID(),
+      };
+    }
+    const controller = new AbortController();
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = controller;
+    onBusyChange("正在编译关联来源的简报");
+    onError("");
+    try {
+      const result = await relationshipIntegrationFetch(
+        "/api/local-integration/wiki-compilations",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            request_id: wikiRequestRef.current.requestId,
+            person_id: requestScope.person.id,
+            relationship_context_id: requestScope.relationship_context.id,
+          }),
+        },
+      );
+      const payload = (await result.json()) as
+        | KnowledgeSnapshot
+        | { message?: string };
+      if (!result.ok || !("blocks" in payload)) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "无法编译关系 Wiki。",
+        );
+      }
+      if (
+        !relationshipAgentResponseIsCurrent({
+          aborted: controller.signal.aborted,
+          activeKey: conversationKeyRef.current,
+          requestKey: requestConversationKey,
+        })
+      ) {
+        return;
+      }
+      onKnowledgeCompiled(payload);
+      updateConversation({
+        operation: {
+          detail:
+            "已从当前仍获授权的来源编译快照；事实审阅与外部行动权限没有改变。",
+          status: "completed",
+          title: "关系 Wiki 已编译",
+        },
+        response: null,
+        submittedObjective: "编译当前关系 Wiki",
+      });
+      wikiRequestRef.current = null;
+      onAnnouncement("关系 Wiki 已根据当前授权来源编译。");
+      onRefreshHistory(
+        requestScope.person.id,
+        requestScope.relationship_context.id,
+      );
+    } catch (caught) {
+      if (controller.signal.aborted) {
+        return;
+      }
+      onError(
+        caught instanceof Error
+          ? caught.message
+          : "无法编译关系 Wiki。之前已验证的状态保持不变。",
+      );
+    } finally {
+      if (
+        requestAbortRef.current === controller &&
+        conversationKeyRef.current === requestConversationKey
+      ) {
+        requestAbortRef.current = null;
+        onBusyChange("");
+      }
+    }
+  }
+
   return {
     ask,
+    compileWiki,
     clearGeneratedArtifacts,
     contactDraft: currentConversation.contactDraft,
     createOpen: currentConversation.createOpen,

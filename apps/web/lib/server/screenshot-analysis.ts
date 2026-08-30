@@ -57,6 +57,51 @@ export type ScreenshotAnalysis = {
   meta: ScreenshotAnalysisMeta;
 };
 
+export type ScreenshotAnalysisUnavailableReason =
+  | "ai_disabled"
+  | "provider_credentials_missing"
+  | "sensitive_processing_disabled";
+
+function screenshotAnalysisUnavailableReason(
+  credentialConfigured: boolean,
+): ScreenshotAnalysisUnavailableReason | null {
+  if (process.env.TALENT_SIGNAL_AI_ENABLED !== "true") {
+    return "ai_disabled";
+  }
+  if (!sensitiveProcessingAllowed()) {
+    return "sensitive_processing_disabled";
+  }
+  return credentialConfigured ? null : "provider_credentials_missing";
+}
+
+export function classifyScreenshotAnalysisFailure(error: unknown) {
+  let current = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (current instanceof Error) {
+      const message = current.message.toLocaleLowerCase();
+      if (
+        current.name === "TimeoutError" ||
+        message.includes("timed out") ||
+        message.includes("timeout")
+      ) {
+        return "provider_timeout" as const;
+      }
+      if (
+        message.includes("fetch failed") ||
+        message.includes("econnrefused") ||
+        message.includes("enotfound") ||
+        message.includes("network")
+      ) {
+        return "provider_network_failed" as const;
+      }
+      current = current.cause;
+      continue;
+    }
+    break;
+  }
+  return "analysis_failed" as const;
+}
+
 function sensitiveProcessingAllowed() {
   return process.env.TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING === "true";
 }
@@ -141,17 +186,30 @@ export function getScreenshotAnalysisAvailability() {
   const selectedProvider =
     process.env.TALENT_SIGNAL_SCREENSHOT_PROVIDER?.trim() || "auto";
   if (selectedProvider === "zhipu") {
-    return bigModel;
+    return {
+      ...bigModel,
+      unavailable_reason: screenshotAnalysisUnavailableReason(
+        Boolean(process.env.ZHIPU_API_KEY),
+      ),
+    };
   }
   if (selectedProvider === "ark") {
-    return ark;
+    return {
+      ...ark,
+      unavailable_reason: screenshotAnalysisUnavailableReason(
+        Boolean(process.env.ARK_API_KEY),
+      ),
+    };
   }
   if (selectedProvider === "openrouter") {
+    const credentialConfigured = Boolean(process.env.OPENROUTER_API_KEY);
     return {
       enabled:
-        aiEnabled && sensitiveAllowed && Boolean(process.env.OPENROUTER_API_KEY),
+        aiEnabled && sensitiveAllowed && credentialConfigured,
       provider: "OpenRouter" as const,
       screenshot_model: openRouterScreenshotModel(),
+      unavailable_reason:
+        screenshotAnalysisUnavailableReason(credentialConfigured),
     };
   }
   if (selectedProvider !== "auto") {
@@ -164,6 +222,7 @@ export function getScreenshotAnalysisAvailability() {
       enabled: true,
       provider: "Volcano Ark" as const,
       screenshot_model: ark.screenshot_model,
+      unavailable_reason: null,
     };
   }
   if (aiEnabled && sensitiveAllowed && process.env.OPENROUTER_API_KEY) {
@@ -171,6 +230,7 @@ export function getScreenshotAnalysisAvailability() {
       enabled: true,
       provider: "OpenRouter" as const,
       screenshot_model: openRouterScreenshotModel(),
+      unavailable_reason: null,
     };
   }
   return {
@@ -181,6 +241,9 @@ export function getScreenshotAnalysisAvailability() {
     screenshot_model: process.env.ARK_API_KEY
       ? ark.screenshot_model
       : openRouterScreenshotModel(),
+    unavailable_reason: screenshotAnalysisUnavailableReason(
+      Boolean(process.env.ARK_API_KEY || process.env.OPENROUTER_API_KEY),
+    ),
   };
 }
 

@@ -50,6 +50,7 @@ import {
   candidateMomentumFixtures,
   type CandidateMomentumCase,
 } from "../candidateMomentum";
+import { screenshotIdentityChoiceIssue } from "../person-identity-choice";
 import {
   validateScreenshotAnalysisMeta,
   validateScreenshotCaptureDraft,
@@ -1024,6 +1025,43 @@ export type AskRelationshipChatInput = {
   telemetry?: TelemetryContext;
 };
 
+export type CompileRelationshipKnowledgeInput = {
+  request_id: string;
+  person_id: string;
+  relationship_context_id: string;
+};
+
+export const RELATIONSHIP_WIKI_COMPILE_OBJECTIVE =
+  "Compile the current relationship Wiki from the exact governed sources that remain authorized. Keep confirmed facts, unresolved evidence, and any supported next action or no-action result separate.";
+
+export async function compileRelationshipKnowledge(
+  input: CompileRelationshipKnowledgeInput,
+): Promise<KnowledgeSnapshot> {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      input.request_id,
+    ) ||
+    !UUID.test(input.person_id) ||
+    !UUID.test(input.relationship_context_id)
+  ) {
+    throw new TalentSignalHttpError(
+      400,
+      "wiki_compile_request_invalid",
+      "关系 Wiki 编译范围不完整。",
+      null,
+    );
+  }
+  const { client } = await authenticatedClient("web-relationship-wiki");
+  return client.compileKnowledge(
+    input.person_id,
+    input.relationship_context_id,
+    {
+      idempotency_key: `web-wiki:${input.request_id}`,
+      objective: RELATIONSHIP_WIKI_COMPILE_OBJECTIVE,
+    },
+  );
+}
+
 export async function askRelationshipChat(
   input: AskRelationshipChatInput,
 ): Promise<ChatTaskResponse> {
@@ -1378,6 +1416,7 @@ export type CommitScreenshotCaptureInput = {
   person_id?: string | null;
   relationship_context_id?: string | null;
   contact_name: string;
+  identity_query?: string | null;
   assignment_label: string;
   draft: ScreenshotCaptureDraft;
   original_draft?: ScreenshotCaptureDraft;
@@ -1421,6 +1460,7 @@ export async function commitScreenshotCapture(
     ? validateReviewedScreenshotEdit(receiptDraft, submittedDraft)
     : submittedDraft;
   const contactName = input.contact_name.trim();
+  const identityQuery = input.identity_query?.trim() || contactName;
   const assignmentLabel = input.assignment_label.trim();
   const personId = input.person_id?.trim() || null;
   const relationshipContextId =
@@ -1448,6 +1488,18 @@ export async function commitScreenshotCapture(
     `${personBindingRef}\n${assignmentLabel.normalize("NFKC").toLowerCase()}`,
   );
   const { client } = await authenticatedClient("web-screenshot-capture");
+  const identityCandidates = await client.searchPeople(identityQuery);
+  const identityChoiceIssue = screenshotIdentityChoiceIssue(
+    identityCandidates.people,
+    personId,
+  );
+  if (identityChoiceIssue) {
+    throw new Error(
+      identityChoiceIssue === "selected_person_not_in_candidates"
+        ? "所选人物不在当前身份线索的候选范围内。未保存来源；请重新搜索并确认身份。"
+        : "当前身份线索对应多个无法区分的人物。未保存来源；请先补充可核对线索或完成重复身份审阅。",
+    );
+  }
   const capture = await client.createCapture({
     idempotency_key: `web-screenshot:${input.request_id}`,
     source: {

@@ -7432,6 +7432,15 @@ p {
   border-color: var(--accent);
 }
 
+.context-identity-options > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.context-identity-options > button[data-ambiguous="true"] {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--line));
+}
+
 .context-identity-options > button > span,
 .context-identity-decision > span {
   align-items: center;
@@ -7466,6 +7475,36 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.context-identity-options p small + small {
+  color: var(--muted-strong);
+}
+
+.context-identity-ambiguity {
+  align-items: start;
+  background: color-mix(in srgb, var(--warning) 8%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--line));
+  border-radius: 9px;
+  color: var(--foreground);
+  display: grid;
+  gap: 9px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 10px 11px;
+}
+
+.context-identity-ambiguity > svg {
+  color: var(--warning);
+  margin-top: 1px;
+}
+
+.context-identity-ambiguity p {
+  display: grid;
+  gap: 3px;
+}
+
+.context-identity-ambiguity strong {
+  font-size: 0.72rem;
 }
 
 .context-identity-decision[data-state="selected"] {

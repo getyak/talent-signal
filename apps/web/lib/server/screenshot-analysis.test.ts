@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { analyzeScreenshot } from "./screenshot-analysis";
+import {
+  analyzeScreenshot,
+  classifyScreenshotAnalysisFailure,
+  getScreenshotAnalysisAvailability,
+} from "./screenshot-analysis";
 
 const sourceSha256 = "a".repeat(64);
 
@@ -36,6 +40,45 @@ afterEach(() => {
 });
 
 describe("private screenshot analysis provider", () => {
+  it("reports the exact non-secret admission gate that is missing", () => {
+    vi.stubEnv("TALENT_SIGNAL_SCREENSHOT_PROVIDER", "openrouter");
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubEnv("TALENT_SIGNAL_AI_ENABLED", "false");
+    vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "false");
+
+    expect(getScreenshotAnalysisAvailability()).toMatchObject({
+      enabled: false,
+      unavailable_reason: "ai_disabled",
+    });
+
+    vi.stubEnv("TALENT_SIGNAL_AI_ENABLED", "true");
+    expect(getScreenshotAnalysisAvailability()).toMatchObject({
+      enabled: false,
+      unavailable_reason: "sensitive_processing_disabled",
+    });
+
+    vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "true");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    expect(getScreenshotAnalysisAvailability()).toMatchObject({
+      enabled: false,
+      unavailable_reason: "provider_credentials_missing",
+    });
+  });
+
+  it("classifies timeout and network failures without exposing provider detail", () => {
+    expect(
+      classifyScreenshotAnalysisFailure(
+        new DOMException("The operation timed out", "TimeoutError"),
+      ),
+    ).toBe("provider_timeout");
+    expect(
+      classifyScreenshotAnalysisFailure(new TypeError("fetch failed")),
+    ).toBe("provider_network_failed");
+    expect(classifyScreenshotAnalysisFailure(new Error("invalid output"))).toBe(
+      "analysis_failed",
+    );
+  });
+
   it("sends the supplied image bytes to OpenRouter and validates the structured draft", async () => {
     vi.stubEnv("TALENT_SIGNAL_AI_ENABLED", "true");
     vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "true");

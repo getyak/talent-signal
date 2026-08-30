@@ -199,6 +199,7 @@ export function RelationshipWorkspaceApp({
     onAnnouncement: setAnnouncement,
     onBusyChange: setBusy,
     onError: setError,
+    onKnowledgeCompiled: setKnowledgeSnapshot,
     onOpenMergeReview: () => {
       setPersonMergeRequested(true);
       window.setTimeout(
@@ -902,7 +903,7 @@ export function RelationshipWorkspaceApp({
 
               <RelationshipWikiPanel
                 busy={busy === "正在编译关联来源的简报"}
-                onCompile={() => void relationshipAgent.ask()}
+                onCompile={() => void relationshipAgent.compileWiki()}
                 onReviewSources={openResourceComposer}
                 response={relationshipAgent.response}
                 snapshot={knowledgeSnapshot}
@@ -995,7 +996,7 @@ export function RelationshipWorkspaceApp({
 
               <RelationshipWikiPanel
                 busy={busy === "正在编译关联来源的简报"}
-                onCompile={() => void relationshipAgent.ask()}
+                onCompile={() => void relationshipAgent.compileWiki()}
                 onReviewSources={openResourceComposer}
                 response={relationshipAgent.response}
                 snapshot={knowledgeSnapshot}

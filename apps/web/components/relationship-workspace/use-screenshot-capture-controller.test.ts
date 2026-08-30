@@ -108,4 +108,48 @@ describe("screenshot capture controller", () => {
     expect(next.redactions).toHaveLength(1);
     expect(next.analysisStatus).toMatch(/未保存任何来源/);
   });
+
+  it("clears a previously selected person when ambiguity blocks the choice", () => {
+    const next = screenshotCaptureControllerReducer(
+      {
+        ...initialScreenshotCaptureState,
+        error: "",
+        selectedContextId: "context-1",
+        selectedPersonId: "person-1",
+      },
+      {
+        type: "identity_blocked",
+        error: "当前身份线索对应多个无法区分的人物。",
+      },
+    );
+
+    expect(next.selectedPersonId).toBeNull();
+    expect(next.selectedContextId).toBeNull();
+    expect(next.error).toMatch(/无法区分/);
+  });
+
+  it("preserves the recruiter query that justified an existing-person selection", () => {
+    const next = screenshotCaptureControllerReducer(
+      initialScreenshotCaptureState,
+      {
+        type: "person_selected",
+        person: {
+          capture_count: 1,
+          confirmed_identity_count: 1,
+          context_count: 1,
+          contexts: [],
+          display_label: "Maya Chen",
+          id: "person-1",
+          identity_matches: [{ kind: "name" }],
+          last_activity_at: "2026-08-30T08:00:00.000Z",
+          profile: null,
+        },
+        query: "maya c",
+      },
+    );
+
+    expect(next.contactName).toBe("Maya Chen");
+    expect(next.identityQuery).toBe("maya c");
+    expect(next.selectedPersonId).toBe("person-1");
+  });
 });

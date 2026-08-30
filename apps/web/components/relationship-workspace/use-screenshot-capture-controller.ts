@@ -22,6 +22,7 @@ import type {
   ScreenshotCaptureDraft,
   ScreenshotOwnerRole,
 } from "@/lib/screenshot-capture";
+import { indistinguishablePersonIds } from "@/lib/person-identity-choice";
 
 export type ScreenshotCapturePhase =
   | "select"
@@ -43,6 +44,7 @@ export type ScreenshotCaptureControllerState = {
   dragging: boolean;
   error: string;
   file: File | null;
+  identityQuery: string | null;
   people: PersonDirectoryItem[];
   peopleLoading: boolean;
   peopleLookupFailed: boolean;
@@ -69,6 +71,7 @@ export const initialScreenshotCaptureState: ScreenshotCaptureControllerState = {
   dragging: false,
   error: "",
   file: null,
+  identityQuery: null,
   people: [],
   peopleLoading: true,
   peopleLookupFailed: false,
@@ -101,6 +104,7 @@ export type ScreenshotCaptureControllerAction =
   | { type: "crop_top_changed"; value: number }
   | { type: "dragging_changed"; value: boolean }
   | { type: "file_rejected"; error: string }
+  | { type: "identity_blocked"; error: string }
   | { type: "file_selected"; file: File | null }
   | { type: "new_context_selected" }
   | { type: "new_person_selected" }
@@ -108,7 +112,7 @@ export type ScreenshotCaptureControllerAction =
   | { type: "people_loaded"; people: PersonDirectoryItem[] }
   | { type: "people_loading" }
   | { type: "person_cleared" }
-  | { type: "person_selected"; person: PersonDirectoryItem }
+  | { type: "person_selected"; person: PersonDirectoryItem; query: string }
   | { type: "phase_changed"; phase: ScreenshotCapturePhase }
   | { type: "redaction_added"; redaction: NormalizedImageRedaction }
   | { type: "redaction_adjusted"; redaction: NormalizedImageRedaction }
@@ -190,6 +194,7 @@ export function screenshotCaptureControllerReducer(
         contactName: action.value,
         createNewContext: false,
         createNewPerson: false,
+        identityQuery: null,
         peopleLoading: true,
         peopleLookupFailed: false,
         selectedContextId: null,
@@ -226,6 +231,13 @@ export function screenshotCaptureControllerReducer(
         reviewedDraft: null,
         transcriptEditing: false,
       };
+    case "identity_blocked":
+      return {
+        ...state,
+        error: action.error,
+        selectedContextId: null,
+        selectedPersonId: null,
+      };
     case "new_context_selected":
       return {
         ...state,
@@ -239,6 +251,7 @@ export function screenshotCaptureControllerReducer(
         assignmentLabel: "",
         createNewContext: false,
         createNewPerson: true,
+        identityQuery: state.contactName.trim(),
         selectedContextId: null,
         selectedPersonId: null,
       };
@@ -269,6 +282,7 @@ export function screenshotCaptureControllerReducer(
         assignmentLabel: "",
         createNewContext: false,
         createNewPerson: false,
+        identityQuery: null,
         selectedContextId: null,
         selectedPersonId: null,
       };
@@ -279,6 +293,7 @@ export function screenshotCaptureControllerReducer(
         contactName: action.person.display_label,
         createNewContext: false,
         createNewPerson: false,
+        identityQuery: action.query,
         selectedContextId: null,
         selectedPersonId: action.person.id,
       };
@@ -456,17 +471,23 @@ export function useScreenshotCaptureController({
   }, [state.contactName]);
 
   const matchingPeople = state.people.slice(0, 4);
+  const ambiguousPersonIds = indistinguishablePersonIds(state.people);
+  const hasAmbiguousPeople = ambiguousPersonIds.size > 0;
   const contactQueryIsHandle =
     parseIdentityHandleQuery(state.contactName) !== null;
   const selectedPerson =
     state.people.find((person) => person.id === state.selectedPersonId) ?? null;
+  const selectedPersonIsAmbiguous = Boolean(
+    selectedPerson && ambiguousPersonIds.has(selectedPerson.id),
+  );
   const selectedContext =
     selectedPerson?.contexts.find(
       (context) => context.id === state.selectedContextId,
     ) ?? null;
   const identityDecided =
-    selectedPerson !== null ||
+    (selectedPerson !== null && !selectedPersonIsAmbiguous) ||
     (state.createNewPerson &&
+      !hasAmbiguousPeople &&
       !state.peopleLoading &&
       !state.peopleLookupFailed &&
       !contactQueryIsHandle);
@@ -639,6 +660,7 @@ export function useScreenshotCaptureController({
         assignmentLabel: state.assignmentLabel,
         contactName: state.contactName,
         draft: draftToCommit,
+        identityQuery: state.identityQuery,
         personId: state.selectedPersonId,
         relationshipContextId: state.selectedContextId,
         requestId: commitRequestIdRef.current,
@@ -728,14 +750,37 @@ export function useScreenshotCaptureController({
       commit,
       continueToReview,
       createNewContext: () => dispatch({ type: "new_context_selected" }),
-      createNewPerson: () => dispatch({ type: "new_person_selected" }),
+      createNewPerson: () => {
+        if (hasAmbiguousPeople) {
+          dispatch({
+            type: "identity_blocked",
+            error:
+              "现有同名人物仍无法区分，因此不能再创建一个同名人物。请先补充身份线索或完成重复身份审阅。",
+          });
+          return;
+        }
+        dispatch({ type: "new_person_selected" });
+      },
       goToBinding: () => dispatch({ type: "phase_changed", phase: "binding" }),
       goToSelect: () => dispatch({ type: "phase_changed", phase: "select" }),
       resetReview: () => dispatch({ type: "review_reset" }),
       selectContext: (id: string, label: string) =>
         dispatch({ type: "context_selected", id, label }),
-      selectPerson: (person: PersonDirectoryItem) =>
-        dispatch({ type: "person_selected", person }),
+      selectPerson: (person: PersonDirectoryItem) => {
+        if (ambiguousPersonIds.has(person.id)) {
+          dispatch({
+            type: "identity_blocked",
+            error:
+              "存在无法区分的同名人物。请先补充可核对的关系或已确认身份线索，或在人物页面完成重复身份审阅。",
+          });
+          return;
+        }
+        dispatch({
+          type: "person_selected",
+          person,
+          query: state.contactName.trim(),
+        });
+      },
       setAssignmentLabel: (value: string) =>
         dispatch({ type: "assignment_changed", value }),
       setContactName: (value: string) =>
@@ -757,12 +802,15 @@ export function useScreenshotCaptureController({
     derived: {
       contactQueryIsHandle,
       draft,
+      ambiguousPersonIds,
+      hasAmbiguousPeople,
       identityDecided,
       matchingPeople,
       relationshipDecided,
       reviewImage,
       selectedContext,
       selectedPerson,
+      selectedPersonIsAmbiguous,
       transcriptEdited,
     },
     inputRef,

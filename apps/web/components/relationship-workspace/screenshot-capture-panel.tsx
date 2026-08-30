@@ -34,9 +34,11 @@ import {
 } from "@/lib/image-minimization";
 import {
   fieldLabel,
+  formatDate,
   initials,
   personContextSummary,
 } from "./relationship-display";
+import { personIdentityChoiceClues } from "@/lib/person-identity-choice";
 import { useScreenshotCaptureController } from "./use-screenshot-capture-controller";
 
 function BrowserLocalImage({
@@ -313,8 +315,10 @@ export function CapturePanel({
       updateReviewedMessage,
     },
     derived: {
+      ambiguousPersonIds,
       contactQueryIsHandle,
       draft,
+      hasAmbiguousPeople,
       identityDecided,
       matchingPeople,
       relationshipDecided,
@@ -574,6 +578,13 @@ export function CapturePanel({
                       <div className="context-identity-options">
                         {matchingPeople.map((person) => (
                           <button
+                            aria-describedby={
+                              ambiguousPersonIds.has(person.id)
+                                ? "capture-identity-ambiguity"
+                                : undefined
+                            }
+                            data-ambiguous={ambiguousPersonIds.has(person.id)}
+                            disabled={ambiguousPersonIds.has(person.id)}
                             key={person.id}
                             onClick={() => selectPerson(person)}
                             type="button"
@@ -582,18 +593,43 @@ export function CapturePanel({
                             <p>
                               <strong>{person.display_label}</strong>
                               <small>
-                                {personContextSummary(person)}{" "}
-                                · {person.capture_count} 次采集
+                                {personIdentityChoiceClues(person)
+                                  .slice(0, 2)
+                                  .join(" · ") || "没有可核对的稳定身份线索"}
+                              </small>
+                              <small>
+                                {personContextSummary(person)} · 最近活动{" "}
+                                {formatDate(person.last_activity_at)} · {person.capture_count} 次采集
                               </small>
                             </p>
-                            <ArrowRight aria-hidden="true" size={16} />
+                            {ambiguousPersonIds.has(person.id) ? (
+                              <Warning aria-hidden="true" size={16} />
+                            ) : (
+                              <ArrowRight aria-hidden="true" size={16} />
+                            )}
                           </button>
                         ))}
                       </div>
                     ) : null}
+                    {!peopleLoading && hasAmbiguousPeople ? (
+                      <div
+                        className="context-identity-ambiguity"
+                        id="capture-identity-ambiguity"
+                        role="alert"
+                      >
+                        <Warning aria-hidden="true" size={18} />
+                        <p>
+                          <strong>这些同名人物还无法安全区分。</strong>
+                          <small>
+                            已暂停绑定和新建。请先在人物页面补充已确认身份线索或完成重复身份审阅；截图尚未保存。
+                          </small>
+                        </p>
+                      </div>
+                    ) : null}
                     {!peopleLoading &&
                     !peopleLookupFailed &&
-                    !contactQueryIsHandle ? (
+                    !contactQueryIsHandle &&
+                    !hasAmbiguousPeople ? (
                       <button
                         className="context-create-person"
                         onClick={beginNewPerson}

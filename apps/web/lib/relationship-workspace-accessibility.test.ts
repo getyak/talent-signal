@@ -34,6 +34,10 @@ const relationshipWiki = readFileSync(
   ),
   "utf8",
 );
+const personIdentityChoice = readFileSync(
+  resolve(import.meta.dirname, "./person-identity-choice.ts"),
+  "utf8",
+);
 const identityReviewCard = readFileSync(
   resolve(
     import.meta.dirname,
@@ -267,6 +271,20 @@ describe("relationship workspace accessibility contract", () => {
     expect(relationshipDisplay).toContain("function personContextSummary(");
     expect(capturePanel).toContain("personContextSummary(person)");
     expect(startRelationshipPanel).toContain("personContextSummary(person)");
+    expect(personIdentityChoice).toContain("indistinguishablePersonIds");
+    expect(capturePanel).toContain("capture-identity-ambiguity");
+    expect(capturePanel).toContain("disabled={ambiguousPersonIds.has(person.id)}");
+    expect(captureController).toContain("hasAmbiguousPeople");
+  });
+
+  it("gives direct Wiki compilation its own governed Agent path", () => {
+    expect(component).toContain(
+      "onCompile={() => void relationshipAgent.compileWiki()}",
+    );
+    expect(component).not.toContain(
+      "onCompile={() => void relationshipAgent.ask()}",
+    );
+    expect(relationshipWiki).toContain("编译 Wiki");
   });
 
   it("keeps unresolved identity evidence outside the relationship until recruiter judgment", () => {
