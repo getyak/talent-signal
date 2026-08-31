@@ -100,6 +100,14 @@ export function relationshipAgentDraftStorageKey(scopeKey: string) {
   return `${DRAFT_PREFIX}:${scopeKey}`;
 }
 
+export function relationshipAgentRestoredDraft(restored: string | null) {
+  return restored ?? DEFAULT_OBJECTIVE;
+}
+
+export function relationshipAgentDraftShouldPersist(next: string) {
+  return next !== DEFAULT_OBJECTIVE;
+}
+
 export function relationshipAgentResponseIsCurrent({
   aborted,
   activeKey,
@@ -154,9 +162,12 @@ export function useRelationshipAgentController({
     conversation.key === conversationKey
       ? conversation
       : emptyConversation(conversationKey);
-  const [volatileDraft, setVolatileDraft] = useState({
+  const [liveDraft, setLiveDraft] = useState<{
+    key: string;
+    value: string | null;
+  }>({
     key: conversationKey,
-    value: DEFAULT_OBJECTIVE,
+    value: null,
   });
 
   const subscribeDraft = useCallback(
@@ -195,7 +206,7 @@ export function useRelationshipAgentController({
       const restored = window.sessionStorage.getItem(
         relationshipAgentDraftStorageKey(scopeKey),
       );
-      return restored?.trim() ? restored : DEFAULT_OBJECTIVE;
+      return relationshipAgentRestoredDraft(restored);
     } catch {
       return DEFAULT_OBJECTIVE;
     }
@@ -205,11 +216,12 @@ export function useRelationshipAgentController({
     readStoredDraft,
     () => DEFAULT_OBJECTIVE,
   );
-  const objective = scopeKey
-    ? storedDraft
-    : volatileDraft.key === conversationKey
-      ? volatileDraft.value
-      : DEFAULT_OBJECTIVE;
+  const objective =
+    liveDraft.key === conversationKey && liveDraft.value !== null
+      ? liveDraft.value
+      : scopeKey
+        ? storedDraft
+        : DEFAULT_OBJECTIVE;
 
   useEffect(() => {
     conversationKeyRef.current = conversationKey;
@@ -233,9 +245,10 @@ export function useRelationshipAgentController({
 
   function clearStoredDraft() {
     if (!scopeKey) {
-      setVolatileDraft({ key: conversationKey, value: DEFAULT_OBJECTIVE });
+      setLiveDraft({ key: conversationKey, value: DEFAULT_OBJECTIVE });
       return;
     }
+    setLiveDraft({ key: conversationKey, value: DEFAULT_OBJECTIVE });
     try {
       window.sessionStorage.removeItem(
         relationshipAgentDraftStorageKey(scopeKey),
@@ -252,13 +265,13 @@ export function useRelationshipAgentController({
 
   function setObjective(next: string) {
     requestRef.current = null;
+    setLiveDraft({ key: conversationKey, value: next });
     if (!scopeKey) {
-      setVolatileDraft({ key: conversationKey, value: next });
       return;
     }
     try {
       const storageKey = relationshipAgentDraftStorageKey(scopeKey);
-      if (!next.trim() || next === DEFAULT_OBJECTIVE) {
+      if (!relationshipAgentDraftShouldPersist(next)) {
         window.sessionStorage.removeItem(storageKey);
       } else {
         window.sessionStorage.setItem(storageKey, next);

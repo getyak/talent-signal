@@ -448,6 +448,11 @@ describe("relationship workspace accessibility contract", () => {
     expect(relationshipAgentStartPanel).toContain(
       'placeholder="输入消息、粘贴内容或添加任何资料…"',
     );
+    expect(relationshipAgentStartPanel).toContain("onCompositionStart");
+    expect(relationshipAgentStartPanel).toContain("onCompositionEnd");
+    expect(relationshipAgentStartPanel).toContain("compositionDraft ?? objective");
+    expect(relationshipAgentPanel).toContain("compositionDraft ?? objective");
+    expect(relationshipAgentPanel).toContain("if (isComposing) return");
   });
 
   it("binds Agent draft recovery and late responses to one canonical scope", () => {

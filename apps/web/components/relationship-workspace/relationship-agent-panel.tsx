@@ -93,6 +93,8 @@ export function RelationshipAgentPanel({
 }: Props) {
   const reviewMode = mode === "review";
   const [collapsed, setCollapsed] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
+  const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
   const priorBrief =
     !response && !operation
       ? relationshipBriefContinuityReceipt(history)
@@ -296,6 +298,7 @@ export function RelationshipAgentPanel({
         className="context-chat__composer"
         onSubmit={(event) => {
           event.preventDefault();
+          if (isComposing) return;
           onAsk();
         }}
       >
@@ -303,14 +306,30 @@ export function RelationshipAgentPanel({
           <span className="sr-only">询问这段关系</span>
           <textarea
             maxLength={1_000}
-            onChange={(event) => onObjectiveChange(event.target.value)}
+            onChange={(event) => {
+              if (isComposing) {
+                setCompositionDraft(event.target.value);
+              } else {
+                onObjectiveChange(event.target.value);
+              }
+            }}
+            onCompositionEnd={(event) => {
+              const committed = event.currentTarget.value;
+              setIsComposing(false);
+              setCompositionDraft(null);
+              onObjectiveChange(committed);
+            }}
+            onCompositionStart={(event) => {
+              setIsComposing(true);
+              setCompositionDraft(event.currentTarget.value);
+            }}
             rows={2}
-            value={objective}
+            value={compositionDraft ?? objective}
           />
         </label>
         <button
           className="context-primary-button"
-          disabled={!objective.trim() || Boolean(busyLabel)}
+          disabled={isComposing || !objective.trim() || Boolean(busyLabel)}
           type="submit"
         >
           {busyLabel === "正在编译关联来源的简报" ? (

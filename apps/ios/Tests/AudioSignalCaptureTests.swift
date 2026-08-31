@@ -174,6 +174,27 @@ final class AudioSignalCaptureTests: XCTestCase {
         XCTAssertEqual(transcriptionCalls, 1)
     }
 
+    func testVoicePermissionOverlayWaitsForActiveSceneBeforeRecording() async {
+        let recorder = VoiceDictationRecordingSpy(permission: .undetermined)
+        let transcriber = VoiceTranscriptionSpy(
+            result: .failure(CancellationError())
+        )
+        let store = VoiceInputStore(recorder: recorder)
+        recorder.onPermissionRequest = {
+            store.updateSceneIsActive(false)
+            Task { @MainActor in
+                await Task.yield()
+                store.updateSceneIsActive(true)
+            }
+        }
+
+        await store.start(sceneIsActive: true, transcriber: transcriber)
+
+        XCTAssertEqual(recorder.permissionRequestCalls, 1)
+        XCTAssertEqual(recorder.startCalls, 1)
+        XCTAssertTrue(store.isRecording)
+    }
+
     func testVoiceInputFailureDeletesAudioAndKeepsFailureRecoverable() async {
         let recorder = VoiceDictationRecordingSpy(permission: .granted)
         let transcriber = VoiceTranscriptionSpy(
@@ -233,6 +254,27 @@ final class AudioSignalCaptureTests: XCTestCase {
         XCTAssertEqual(transcriptionCalls, 0)
     }
 
+    func testVoiceAudioInterruptionCancelsWithoutSendingAudio() async {
+        let recorder = VoiceDictationRecordingSpy(permission: .granted)
+        let transcriber = VoiceTranscriptionSpy(
+            result: .failure(CancellationError())
+        )
+        let store = VoiceInputStore(recorder: recorder)
+
+        await store.start(sceneIsActive: true, transcriber: transcriber)
+        store.stopForAudioInterruption()
+
+        XCTAssertEqual(recorder.cancelCalls, 1)
+        XCTAssertEqual(
+            store.phase,
+            .failed(
+                "Voice input was interrupted by another audio session. No audio was sent."
+            )
+        )
+        let transcriptionCalls = await transcriber.callCount
+        XCTAssertEqual(transcriptionCalls, 0)
+    }
+
     func testForegroundLossInterruptsInFlightVoiceTranscription() async {
         let recorder = VoiceDictationRecordingSpy(permission: .granted)
         let transcriber = BlockingVoiceTranscriptionSpy()
@@ -276,11 +318,13 @@ final class AudioSignalCaptureTests: XCTestCase {
 private final class VoiceDictationRecordingSpy: VoiceDictationRecordingServing {
     var permission: AudioSignalPermission
     var requestedPermission: AudioSignalPermission
+    var permissionRequestCalls = 0
     var startCalls = 0
     var stopCalls = 0
     var cancelCalls = 0
     var deletedPayload: VoiceDictationPayload?
     var isRecording = false
+    var onPermissionRequest: (() -> Void)?
     let payload = VoiceDictationPayload(
         id: UUID(),
         fileURL: URL(fileURLWithPath: "/tmp/synthetic-voice-input.wav"),
@@ -300,6 +344,8 @@ private final class VoiceDictationRecordingSpy: VoiceDictationRecordingServing {
     func permissionStatus() -> AudioSignalPermission { permission }
 
     func requestPermission() async -> AudioSignalPermission {
+        permissionRequestCalls += 1
+        onPermissionRequest?()
         permission = requestedPermission
         return requestedPermission
     }

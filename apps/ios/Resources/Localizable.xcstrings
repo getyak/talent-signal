@@ -22,11 +22,23 @@
     "Divider" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分隔线" } } }
     },
+    "Finding the relationship on this device · not sent yet" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在本机查找关系 · 尚未发送" } } }
+    },
+    "Finding the relationship on this device. Nothing has been sent." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在本机查找关系，内容尚未发送。" } } }
+    },
     "Heading" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标题" } } }
     },
     "Inline code" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "行内代码" } } }
+    },
+    "Requesting and verifying the workspace answer…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在请求并验证工作区回答…" } } }
+    },
+    "The question was sent to the governed workspace. Waiting for verified readback." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "问题已发送到受治理工作区，正在等待验证回读。" } } }
     },
     "Link" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "链接" } } }
@@ -1326,6 +1338,9 @@
     },
     "Voice input could not start the microphone." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音输入无法启动麦克风。" } } }
+    },
+    "Voice input was interrupted by another audio session. No audio was sent." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音输入被其他音频打断；没有发送任何音频。" } } }
     },
     "Voice input stopped when Talent Signal left the foreground. No audio was sent." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 离开前台时，语音输入已停止；没有发送任何音频。" } } }

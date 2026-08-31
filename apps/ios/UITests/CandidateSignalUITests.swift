@@ -993,6 +993,9 @@ final class CandidateSignalUITests: XCTestCase {
 
         let pendingTurn = element("ask-pending-turn")
         XCTAssertTrue(pendingTurn.waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            element("ask-submission-requesting").waitForExistence(timeout: 2)
+        )
         XCTAssertTrue(element("ask-loading").exists)
         XCTAssertEqual(element("ask-user-message").label, "发生了什么变化？")
         XCTAssertFalse(element("ask-composer").isEnabled)

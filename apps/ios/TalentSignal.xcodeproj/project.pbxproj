@@ -24,6 +24,7 @@
 		1F026D22636BADFB28C6ED7F /* AudioSignalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08F6E4EC1E24E8888C85C5A /* AudioSignalCaptureView.swift */; };
 		21A1875ED3B627C962BFBE51 /* DeviceCalendarProposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F22F52432BB9263F4F8D29 /* DeviceCalendarProposal.swift */; };
 		23D654970274564EA7623632 /* AppSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */; };
+		2F7D0B3DCB5C9A1BE8E27B7B /* AskInputReliability.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A87D8AD9EB892B7AA6D836 /* AskInputReliability.swift */; };
 		3030219A987894DFC181C6EE /* CandidateSignalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */; };
 		344B5467E2BD111985A44EA1 /* HeroLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744427491C9864B09CAF13DD /* HeroLoopTests.swift */; };
 		3657B5F1EAB4954E86EA6F04 /* StandaloneVoiceCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E9E39D69232B7E4E068B600 /* StandaloneVoiceCaptureService.swift */; };
@@ -43,6 +44,7 @@
 		5AB53512D99F0073F3911B6E /* CandidateSignalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */; };
 		5AB6B6339FC04C894DCD1E6D /* StandaloneRecordingActivityCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D83870AC6BF272A562706B /* StandaloneRecordingActivityCoordinator.swift */; };
 		5DA957CEE37AF61DFF8F2076 /* AudioSignalCaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86268F86835A658E3431C11B /* AudioSignalCaptureStore.swift */; };
+		5F47B188E37BAC79F0E33289 /* AskInputReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F71E10CA54E34D87748AB2D /* AskInputReliabilityTests.swift */; };
 		5F4C0601B701323F55D5FC2A /* AgentWorkShowcaseUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8284F66591A57487F14F964F /* AgentWorkShowcaseUITests.swift */; };
 		61A9FCA9306146EBB8B4D618 /* StandaloneOnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18DB19A9B630FFFC327395CB /* StandaloneOnboardingTests.swift */; };
 		61C6EB2AE6DFAA4CC58A1DEE /* TextSignalOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */; };
@@ -173,6 +175,7 @@
 		477706244A63791F58675F88 /* StandaloneOnboardingPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingPersistence.swift; sourceTree = "<group>"; };
 		4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedCaptureEnvelope.swift; sourceTree = "<group>"; };
 		4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalOutbox.swift; sourceTree = "<group>"; };
+		4F71E10CA54E34D87748AB2D /* AskInputReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskInputReliabilityTests.swift; sourceTree = "<group>"; };
 		52A9FCA23A5C5E97951C4D39 /* CaptureAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureAppIntents.swift; sourceTree = "<group>"; };
 		5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCalendarView.swift; sourceTree = "<group>"; };
 		53BCE51454FF92655D32B728 /* StandaloneOnboardingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingUITests.swift; sourceTree = "<group>"; };
@@ -233,6 +236,7 @@
 		DC6D8F6894923DD54E359F8E /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
 		E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalTests.swift; sourceTree = "<group>"; };
 		E43E2D32DD9913AC4F6E097A /* PendingCaptureInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingCaptureInbox.swift; sourceTree = "<group>"; };
+		E4A87D8AD9EB892B7AA6D836 /* AskInputReliability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskInputReliability.swift; sourceTree = "<group>"; };
 		E68ADCA955185ACDD422B618 /* SignalCaptureHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalCaptureHubView.swift; sourceTree = "<group>"; };
 		E9C7FFDCFE8722F56DF1F6EA /* AudioSignalRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalRecorder.swift; sourceTree = "<group>"; };
 		EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TalentSignal.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -260,6 +264,7 @@
 				9A6CFD746E2C15C43760ED29 /* AgentWorkActivityTests.swift */,
 				FBC1A0D411E14B92F259BD21 /* AgentWorkShowcaseStoreTests.swift */,
 				A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */,
+				4F71E10CA54E34D87748AB2D /* AskInputReliabilityTests.swift */,
 				00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */,
 				E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */,
 				BAF7A150F49BBD2D49301417 /* ConversationContactIntakeTests.swift */,
@@ -389,6 +394,7 @@
 				9E61BE45D1DCE5E4FCBD98AB /* AgentWorkShowcaseView.swift */,
 				C6709D57D3A6344F855B478F /* AppAuthenticationView.swift */,
 				56E964E1942AD295B505F9A3 /* AppSettingsView.swift */,
+				E4A87D8AD9EB892B7AA6D836 /* AskInputReliability.swift */,
 				86268F86835A658E3431C11B /* AudioSignalCaptureStore.swift */,
 				D08F6E4EC1E24E8888C85C5A /* AudioSignalCaptureView.swift */,
 				F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */,
@@ -639,6 +645,7 @@
 				9085961F86A4AC442B154DA6 /* AgentWorkActivityTests.swift in Sources */,
 				4AB343F046A8F4EFA5BB6D9C /* AgentWorkShowcaseStoreTests.swift in Sources */,
 				23D654970274564EA7623632 /* AppSessionTests.swift in Sources */,
+				5F47B188E37BAC79F0E33289 /* AskInputReliabilityTests.swift in Sources */,
 				9BFF4FE9255A2B018D330A10 /* AudioSignalCaptureTests.swift in Sources */,
 				3030219A987894DFC181C6EE /* CandidateSignalTests.swift in Sources */,
 				100DE00DA44FED823CD5ED20 /* ConversationContactIntakeTests.swift in Sources */,
@@ -686,6 +693,7 @@
 				0D98ADDD6C6472265ADDD384 /* AppLanguage.swift in Sources */,
 				7230D7E787C6A595BE24845E /* AppSession.swift in Sources */,
 				7014831C5B18487CAD449AEE /* AppSettingsView.swift in Sources */,
+				2F7D0B3DCB5C9A1BE8E27B7B /* AskInputReliability.swift in Sources */,
 				FB785570BB8B32E21F21850E /* AudioSignalCapture.swift in Sources */,
 				5DA957CEE37AF61DFF8F2076 /* AudioSignalCaptureStore.swift in Sources */,
 				1F026D22636BADFB28C6ED7F /* AudioSignalCaptureView.swift in Sources */,
