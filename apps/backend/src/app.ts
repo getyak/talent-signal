@@ -21,6 +21,8 @@ import {
   ChatTaskRequestSchema,
   ChatTaskReadbackSchema,
   ChatTaskResponseSchema,
+  PersonResearchTaskRequestSchema,
+  PersonResearchTaskResponseSchema,
   ChatMediaAssetSchema,
   ChatMediaDeleteResponseSchema,
   CreateChatMediaRequestSchema,
@@ -108,6 +110,7 @@ import {
   type CaptureIdentityCorrectionRequest,
   type ChatTaskRequest,
   type CreateChatMediaRequest,
+  type PersonResearchTaskRequest,
   type CompileKnowledgeRequest,
   type CreatePursuitAgentRunRequest,
   type CreatePursuitAgentTaskRequest,
@@ -193,6 +196,11 @@ import {
 } from "./modules/captures.js";
 import { decideAssertion } from "./modules/decisions.js";
 import { createChatTask, getChatTaskReadback } from "./modules/chat.js";
+import {
+  createEnvironmentPersonResearchAgentClient,
+  type PersonResearchAgentProviding,
+} from "./modules/personResearchAgentClient.js";
+import { createPersonResearchTask } from "./modules/personResearchTasks.js";
 import {
   createEnvironmentChatAnswerProvider,
   type RemoteChatAnswerProviding,
@@ -401,6 +409,7 @@ export interface AppDependencies {
   voiceTranscriber?: VoiceTranscriptionServing;
   chatMediaStorage?: ChatMediaStorage;
   remoteChatProvider?: RemoteChatAnswerProviding | null;
+  personResearchProvider?: PersonResearchAgentProviding | null;
 }
 
 export async function buildApp(
@@ -410,6 +419,10 @@ export async function buildApp(
   const remoteChatProvider = dependencies.remoteChatProvider === undefined
     ? createEnvironmentChatAnswerProvider()
     : dependencies.remoteChatProvider;
+  const personResearchProvider =
+    dependencies.personResearchProvider === undefined
+      ? createEnvironmentPersonResearchAgentClient()
+      : dependencies.personResearchProvider;
   const voiceTranscriber =
     dependencies.voiceTranscriber ?? new EnvironmentDoubaoVoiceTranscriber();
   const chatMediaStorage =
@@ -424,11 +437,13 @@ export async function buildApp(
           "req.body.audio_base64",
           "req.body.content_parts[*].content_text",
           "req.body.content_parts[*].content_base64",
+          "req.body.image.data_base64",
           "headers.authorization",
           "body.password",
           "body.audio_base64",
           "body.content_parts[*].content_text",
           "body.content_parts[*].content_base64",
+          "body.image.data_base64",
           "access_token",
           "password_scrypt",
         ],
@@ -2151,6 +2166,7 @@ export async function buildApp(
         request.body,
         remoteChatProvider,
         chatMediaStorage,
+        personResearchProvider,
       );
       request.log.info(
         {
@@ -2160,6 +2176,46 @@ export async function buildApp(
           chat_disposition: result.body.disposition,
         },
         "relationship chat task completed",
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
+  );
+
+  app.post<{ Body: PersonResearchTaskRequest }>(
+    "/v1/person-research/tasks",
+    {
+      preHandler: authenticate,
+      bodyLimit: 12 * 1024 * 1024,
+      schema: {
+        tags: ["person-research"],
+        security,
+        body: PersonResearchTaskRequestSchema,
+        response: {
+          201: PersonResearchTaskResponseSchema,
+          "4xx": ErrorResponseSchema,
+          "5xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createPersonResearchTask(
+        pool,
+        request.auth,
+        request.body,
+        personResearchProvider,
+      );
+      request.log.info(
+        {
+          person_research_task_id: result.body.task_id,
+          disposition: result.body.disposition,
+          image_content_hash: result.body.source_image.content_hash,
+          raw_image_persisted: false,
+          external_effect_count: 0,
+        },
+        "unbound screenshot person-research task completed",
       );
       return reply
         .header("idempotent-replayed", result.replayed)

@@ -68,6 +68,11 @@ export const SearchWebInputSchema = z.strictObject({
 export const FetchWebInputSchema = z.strictObject({
   result_id: z.string().regex(/^[0-9a-f]{64}$/),
 });
+export const SearchPublicProfilesInputSchema = z.strictObject({
+  visible_identity_clue: z.string().trim().min(2).max(100),
+  source_artifact_id: z.string().trim().min(1).max(200),
+  maximum_results: z.number().int().min(1).max(10).default(5),
+});
 export const CreateResearchArtifactInputSchema = z.strictObject({
   title: z.string().trim().min(1).max(240),
   summary: z.string().trim().min(1).max(8_000),
@@ -78,6 +83,45 @@ export const CreateResearchArtifactInputSchema = z.strictObject({
         statement: z.string().trim().min(1).max(1_000),
         source_refs: z
           .array(z.string().regex(/^[0-9a-f]{64}$/))
+          .min(1)
+          .max(5),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+export const CreatePersonResearchArtifactInputSchema = z.strictObject({
+  title: z.string().trim().min(1).max(240),
+  summary: z.string().trim().min(1).max(8_000),
+  limitations: z.string().trim().min(1).max(2_000),
+  identity_status: z.enum(["possible_match", "ambiguous"]),
+  observed_clues: z
+    .array(
+      z.strictObject({
+        kind: z.enum(["display_name", "handle", "profile_url", "platform"]),
+        value: z.string().trim().min(1).max(300),
+        source_artifact_id: z.string().trim().min(1).max(200),
+        observation_status: z.literal("unreviewed_screenshot_observation"),
+      }),
+    )
+    .min(1)
+    .max(10),
+  candidates: z
+    .array(
+      z.strictObject({
+        result_id: z.string().regex(/^[0-9a-f]{64}$/u),
+        match_basis: z.string().trim().min(1).max(1_000),
+      }),
+    )
+    .min(1)
+    .max(10),
+  claims: z
+    .array(
+      z.strictObject({
+        statement: z.string().trim().min(1).max(1_000),
+        epistemic_status: z.enum(["provider_observation", "agent_inference"]),
+        source_refs: z
+          .array(z.string().regex(/^[0-9a-f]{64}$/u))
           .min(1)
           .max(5),
       }),
@@ -103,6 +147,14 @@ export const PublicResearchNoActionReasonCodeSchema = z.enum([
   "UNTRUSTED_INSTRUCTION",
   "PUBLIC_RESEARCH_UNAVAILABLE",
 ]);
+export const PersonResearchNoActionReasonCodeSchema = z.enum([
+  "NO_VISIBLE_IDENTITY_CLUE",
+  "AMBIGUOUS_IDENTITY_CLUE",
+  "NO_PUBLIC_PROFILE_MATCH",
+  "UNTRUSTED_INSTRUCTION",
+  "PROHIBITED_PERSON_ASSESSMENT",
+  "PERSON_RESEARCH_UNAVAILABLE",
+]);
 const NoActionFields = {
   outcome: z.literal("no_action"),
   reason: z.string().trim().min(1).max(1_000),
@@ -115,6 +167,12 @@ export const PursuitNoActionOutputSchema = z.strictObject({
 export const PublicResearchNoActionOutputSchema = z.strictObject({
   ...NoActionFields,
   reason_code: PublicResearchNoActionReasonCodeSchema,
+});
+export const PersonResearchNoActionOutputSchema = z.strictObject({
+  outcome: z.literal("no_action"),
+  reason_code: PersonResearchNoActionReasonCodeSchema,
+  reason: z.string().trim().min(1).max(1_000),
+  missing_evidence_refs: z.array(z.never()).max(0).default([]),
 });
 export const NoActionOutputSchema = z.strictObject({
   ...NoActionFields,
@@ -131,6 +189,10 @@ const ArtifactOutputSchema = z.strictObject({
   outcome: z.literal("artifact"),
   candidate_fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
 });
+const PersonResearchArtifactOutputSchema = z.strictObject({
+  outcome: z.literal("person_research_artifact"),
+  candidate_fingerprint: z.string().regex(/^[0-9a-f]{64}$/u),
+});
 
 export const PursuitAgentFinalOutputSchema = z.discriminatedUnion("outcome", [
   ProposalOutputSchema,
@@ -139,6 +201,10 @@ export const PursuitAgentFinalOutputSchema = z.discriminatedUnion("outcome", [
 export const PublicResearchAgentFinalOutputSchema = z.discriminatedUnion(
   "outcome",
   [ArtifactOutputSchema, PublicResearchNoActionOutputSchema],
+);
+export const PersonResearchAgentFinalOutputSchema = z.discriminatedUnion(
+  "outcome",
+  [PersonResearchArtifactOutputSchema, PersonResearchNoActionOutputSchema],
 );
 
 export const AgentFinalOutputSchema = z.discriminatedUnion("outcome", [
@@ -158,4 +224,10 @@ export type PublicResearchNoActionOutput = z.infer<
 export type NoActionReasonCode = NoActionOutput["reason_code"];
 export type CreateResearchArtifactInput = z.infer<
   typeof CreateResearchArtifactInputSchema
+>;
+export type CreatePersonResearchArtifactInput = z.infer<
+  typeof CreatePersonResearchArtifactInputSchema
+>;
+export type PersonResearchNoActionOutput = z.infer<
+  typeof PersonResearchNoActionOutputSchema
 >;

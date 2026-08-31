@@ -1403,6 +1403,42 @@ export const ChatResponseBlockSchema = Type.Object(
       uniqueItems: true,
     }),
     requires_user_decision: Type.Boolean(),
+    public_source_refs: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            result_id: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+            provider_id: Type.Literal("tikhub"),
+            platform: Type.Union([
+              Type.Literal("douyin"),
+              Type.Literal("tiktok"),
+              Type.Literal("weibo"),
+              Type.Literal("threads"),
+            ]),
+            profile_url: Type.String({ minLength: 1, maxLength: 2_000 }),
+            display_name: Type.String({ minLength: 1, maxLength: 500 }),
+            handle: Type.Union([
+              Type.String({ minLength: 1, maxLength: 500 }),
+              Type.Null(),
+            ]),
+            biography: Type.Union([
+              Type.String({ minLength: 1, maxLength: 2_000 }),
+              Type.Null(),
+            ]),
+            avatar_url: Type.Union([
+              Type.String({ minLength: 1, maxLength: 2_000 }),
+              Type.Null(),
+            ]),
+            verified: Type.Union([Type.Boolean(), Type.Null()]),
+            match_basis: Type.String({ minLength: 1, maxLength: 1_000 }),
+            content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+            retrieved_at: Timestamp,
+          },
+          { additionalProperties: false },
+        ),
+        { maxItems: 10, uniqueItems: true },
+      ),
+    ),
     target_ref: Type.Optional(
       Type.Object(
         {
@@ -1588,6 +1624,62 @@ export const ChatTaskRequestSchema = Type.Object(
     telemetry: Type.Optional(TelemetryContextSchema),
   },
   { $id: "ChatTaskRequest", additionalProperties: false },
+);
+
+const PersonResearchImageMediaTypeSchema = Type.Union([
+  Type.Literal("image/jpeg"),
+  Type.Literal("image/png"),
+  Type.Literal("image/webp"),
+]);
+
+export const PersonResearchTaskRequestSchema = Type.Object(
+  {
+    idempotency_key: IdempotencyKey,
+    objective: Type.String({ minLength: 1, maxLength: 1_000 }),
+    image: Type.Object(
+      {
+        media_type: PersonResearchImageMediaTypeSchema,
+        byte_size: Type.Integer({ minimum: 1, maximum: 8_388_608 }),
+        content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+        data_base64: Type.String({
+          minLength: 4,
+          maxLength: 11_184_812,
+          pattern:
+            "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+        }),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { $id: "PersonResearchTaskRequest", additionalProperties: false },
+);
+
+export const PersonResearchTaskResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    task_id: Id,
+    disposition: Type.Union([
+      Type.Literal("answer"),
+      Type.Literal("no_action"),
+      Type.Literal("unavailable"),
+    ]),
+    blocks: Type.Array(ChatResponseBlockSchema, {
+      minItems: 1,
+      maxItems: 1,
+    }),
+    source_image: Type.Object(
+      {
+        media_type: PersonResearchImageMediaTypeSchema,
+        byte_size: Type.Integer({ minimum: 1, maximum: 8_388_608 }),
+        content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+        persisted: Type.Literal(false),
+      },
+      { additionalProperties: false },
+    ),
+    external_effects: Type.Tuple([]),
+    created_at: Timestamp,
+  },
+  { $id: "PersonResearchTaskResponse", additionalProperties: false },
 );
 
 export const PersonDirectoryContextSchema = Type.Object(
@@ -1973,6 +2065,12 @@ export type ChatTaskResponse = Static<typeof ChatTaskResponseSchema>;
 export type ChatCitation = Static<typeof ChatCitationSchema>;
 export type ChatTaskReadback = Static<typeof ChatTaskReadbackSchema>;
 export type ChatTaskRequest = Static<typeof ChatTaskRequestSchema>;
+export type PersonResearchTaskRequest = Static<
+  typeof PersonResearchTaskRequestSchema
+>;
+export type PersonResearchTaskResponse = Static<
+  typeof PersonResearchTaskResponseSchema
+>;
 export type ChatMediaAsset = Static<typeof ChatMediaAssetSchema>;
 export type CreateChatMediaRequest = Static<typeof CreateChatMediaRequestSchema>;
 export type ChatMediaDeleteResponse = Static<typeof ChatMediaDeleteResponseSchema>;

@@ -70,6 +70,42 @@ subscription and invoice. The shared backend receives neither these search
 credentials nor implicit publication authority. A provider registry or MCP
 catalog never grants runtime authority by discovery alone.
 
+### Public-person profile providers
+
+Public-person research is admitted separately from company/market search and
+from private conversation processing. One intentional screenshot submission
+may start one local read-only Run. A vision model can use only text visibly
+present in that image—display name, handle, profile URL, or platform chrome—to
+choose a bounded provider Tool. The query, platform, provider, budget, image
+manifest, normalized observations, and draft citations remain inside that Run.
+
+TikHub is the first adapter. Its credential and base URL live only in
+`/agent-host`; neither reaches the shared API process, Web or mobile client, or
+model prompt. A local Agent Host process or sidecar receives them and exposes
+only a strict zero-effect service contract over an owner-only Unix socket.
+TikHub platform calls are independently budgeted and never fall back to another
+provider. A liveness response and authenticated account envelope prove
+configuration without issuing a billable profile search.
+
+Relationship Ask invokes this service automatically for exactly one
+PNG/JPEG/WebP when the feature and sensitive-processing gates are both
+admitted. If no relationship is selected, the image crosses the authenticated
+API as a process-only, account-scoped task input rather than first forcing a
+Person or relationship choice. Its declared size and SHA-256 hash must match;
+the idempotency and audit records retain metadata and the zero-retention
+receipt, not the base64 image. The user does not choose a relationship,
+platform, tool, or candidate before the Run. The API returns the Agent's
+unconfirmed public-source draft and clickable source references; it does not
+promote them into canonical relationship evidence or a Person identity.
+
+Provider output is public-source observation, not confirmed identity or
+relationship evidence. The artifact must say `possible_match` or `ambiguous`,
+carry same-Run source identities, and retain no publication or external-effect
+authority. The capability excludes face matching, reverse-face search, private
+accounts or cookies, contact details, background checks, protected/sensitive
+traits, candidate scoring or ranking, and acceptance prediction. Binding a
+result to a Talent Signal Person remains a separate human identity decision.
+
 ### Connectors
 
 ATS, CRM, calendar, contact, messaging, and automation platforms operate

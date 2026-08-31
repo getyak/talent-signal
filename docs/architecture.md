@@ -92,18 +92,16 @@ permission to act.
 
 ### Mobile capture boundary
 
-The iOS image remains device-owned while local recognition produces an editable
-draft. Only recruiter-reviewed text, source metadata, and explicitly entered
-identity and relationship clues cross into the shared backend. The reviewed
-text is a governed source fragment with unknown speaker attribution, not a
-lossless replacement for an image that the backend never retained.
+The iOS image remains device-owned while local recognition produces an editable draft. Only recruiter-reviewed text, source metadata, and explicitly entered identity and relationship clues cross into the shared backend.
+The reviewed text is a governed source fragment with unknown speaker attribution, not a lossless replacement for an image that the backend never retained.
 
-Photos selection and App Shortcuts converge on one durable pending-capture
-inbox and the same review state machine. Interruption preserves the on-device
-draft; retry reuses stable intent keys; neither path can bypass evidence review,
-identity review, or relationship selection. Binding compiles a derived Wiki
-projection only after the backend returns a person and purpose-scoped
-relationship. Leaving identity unresolved is a valid terminal state.
+Photos selection and App Shortcuts converge on one durable pending-capture inbox and the same review state machine. Interruption preserves the on-device draft; retry reuses stable intent keys.
+Neither path can bypass evidence review, identity review, or relationship selection. Binding compiles a derived Wiki projection only after the backend returns a person and purpose-scoped relationship. Leaving identity unresolved is a valid terminal state.
+
+Relationship Ask screenshots are a separate task-input boundary. A screenshot inside an existing relationship uses the ordinary bound media lifecycle.
+A single PNG/JPEG/WebP sent without a selected relationship instead uses an account-scoped `person-research` task: the authenticated API verifies its byte count and content hash, keeps the bytes process-only, and forwards one read-only Run to the credential-isolated Agent Host without creating or selecting a Person, relationship, Wiki snapshot, or evidence record.
+Only visible text or platform clues may drive bounded searches; appearance alone must abstain. The returned block is an unconfirmed, cited research draft and never bypasses source review, identity review, or effect approval.
+Raw bytes are not stored in Agent state, and open-world provider credentials never enter the API or client.
 
 ## Truth model
 
@@ -172,7 +170,7 @@ Every consequential claim preserves source, purpose, authorization, and retentio
 Chat citation readback binds account, task, manifest, snapshot, person, context, and authorization scope. Every fragment must be active, reviewed,
 attribution-confirmed, inspectable, and authorized in that exact scope. The client rechecks before recording, when Ask opens, on foreground return,
 and each minute while visible; failure makes the local turn stale. Readback grants no write authority. Chat media is a separate account-, person-, relationship-, uploader-, and lifecycle-bound task input, never evidence by upload alone: only fully stored assets bind once and in order to one manifest; authorized local or S3 storage owns content; unsubmitted removal deletes the object; submitted media remains with its receipt and cannot be silently detached or promoted into a source.
-Agent Sessions use an account-hashed, protected, backup-excluded device container holding scoped questions and response identity, never answer blocks or excerpts. Drafts expire at seven days and Sessions at thirty through exact-timer, read, and foreground pruning.
+Agent Sessions use an account-hashed, protected, backup-excluded device container holding scoped questions and response identity. They do not retain ordinary Ask answer blocks or private excerpts. The narrow exception is an unbound public-profile result: its normalized public-source block may remain for the same thirty-day Session retention so the result survives relaunch after the raw screenshot is discarded; restored output is visibly stale and still unconfirmed. Drafts expire at seven days and Sessions at thirty through exact-timer, read, and foreground pruning.
 In-flight Ask retains its draft and idempotency key; restored answers hide citations until a fresh scoped Ask.
 Before source review, the same container stores fragment, expected state, exact prior review ID, decision, reason, task, and an authority-bound idempotency key, never the excerpt; failed persistence blocks the request. The server locks current authority before accepting or replaying the operation and persists every decision as a same-fragment predecessor link with a monotonic revision; replay succeeds only when its resulting review is still current, and the client validates both review IDs before marking it applied.
 Pending, failed, outcome-unknown, and applied states survive relaunch and reuse that key. A live request cannot also reconcile; a new authority cycle gets a new key, and reinstatement appends a reviewed decision against rejected state.

@@ -51,14 +51,14 @@ fact, merge identity, or execute a consequential action.
 
 Public-web research has a separate definition, explicit company/market purpose, domain and usage budgets, and no conversation evidence or attachments.
 Search discovers untrusted leads; every draft claim cites only same-Run fetched sources and gains no truth or action authority.
+Screenshot-driven public-person research is another definition: one intentional image authorizes one read-only local Run where a pinned vision model may use only visible text clues to choose bounded profile tools and emit an unconfirmed cited draft or `no_action`; raw-image persistence, face identification, private/contact lookup, person assessment, identity binding, confirmation, and publication are absent.
 
 ### Runtime placement
 
-Runtime location follows capability ownership, not UI location. A local Agent host owns open-world reads, credentials, network policy, checkpoints, and draft artifacts.
-It runs without iOS, Web, TestFlight, backend, or product database; frontends may control it but are not execution dependencies.
+Runtime location follows capability ownership, not UI location. A local Agent host owns open-world reads, credentials, network policy, checkpoints, and draft artifacts. Standalone Runs need no product runtime.
+For intentional Relationship Ask image ingress, the authenticated backend sends one verified task image through a typed local boundary to a credential-isolated Agent Host and receives only a zero-effect result. An existing relationship may use its bound task asset; an unscoped single image uses a process-only account task and does not manufacture a Person, relationship, Wiki, or evidence scope. The Agent Host never receives database access, and the backend never receives open-world provider credentials.
 
-The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision.
-The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
+The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision. The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
 
 ## Governed loop
 
@@ -256,18 +256,18 @@ boundaries or systems of record.
 
 ## V1 bounded runtime
 
-`@talent-signal/agent` is the provider-neutral runner. Provider adapters expose only `read_pursuit`, `read_evidence`, and `stage_pursuit_proposal`; a second gate rejects all others.
-`no_action` is a validated structured terminal output, not a Tool call.
+`@talent-signal/agent` is the provider-neutral runner. Each Pursuit, company/market, or public-person definition receives only its small Tool manifest; a second gate rejects every other Tool, and `no_action` remains a validated terminal output rather than a Tool call.
 
 The backend freezes scope, context, objective, and budget; persists fingerprints,
 validated output, usage, and one terminal receipt without raw tool payloads;
 and allows only a `needs_review` Proposal or durable `no_action`. External
 effects remain empty and recovery uses durable state, not provider memory.
 
-The public-research definition assembles `search_web`, `fetch_web`, and
-`create_research_artifact`. The local host selects one provider, isolates
-credentials, guards fetches, checkpoints observations, and writes drafts with no
-publication authority. The backend neither executes nor persists this capability.
+The company/market public-research definition assembles `search_web`, `fetch_web`, and `create_research_artifact`.
+The local host selects one provider, isolates credentials, guards fetches, checkpoints observations, and writes drafts with no publication authority.
+
+The screenshot public-person definition exposes only platform-specific public-profile searches and draft creation. Relationship Ask may start it automatically for exactly one supported image after both deployment gates pass, including when no Person or relationship has been selected.
+The result remains an unconfirmed response block with public-source references; it is not canonical evidence, identity state, or permission to act.
 
 Every catalog entry declares its capability class, consequence, approval,
 reversibility, idempotency, read-only behavior, and open-world behavior. These

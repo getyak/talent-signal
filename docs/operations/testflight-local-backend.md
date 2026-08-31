@@ -16,7 +16,8 @@ Use the public production topology before external TestFlight or App Store use.
 
 Create the backend names from `deploy/testflight/environment.example` under
 `staging:/backend` in Infisical and the Relationship Ask and recruiter-
-dictation names from the same example under `staging:/shared`. Give staging a
+dictation names from the same example under `staging:/shared`. Put the TikHub
+credential and base URL only under `staging:/agent-host`. Give staging a
 dedicated Zhipu key; never reuse the development credential. Keep
 `TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING=false` until that key exists and
 the operator intends to admit the documented minimized context. Replace the
@@ -36,6 +37,12 @@ The TestFlight Compose boundary differs from synthetic development:
 - the API has explicit runtime DNS for Apple public-key verification;
 - Relationship Ask has its own remote-processing gate, fixed provider/model,
   official-endpoint allowlist, server-only key, and synthetic provider probe;
+- screenshot public-profile research has a separate disabled-by-default gate,
+  a credential-isolated Agent Host sidecar, an owner-only Unix socket, bounded
+  TikHub tools, and no identity or effect authority; the authenticated API's
+  `/v1/person-research/tasks` route accepts one bounded base64 image, redacts it
+  from logs, verifies its hash/size, and retains only the zero-retention
+  receipt and normalized result;
 - recruiter dictation has its own admission gate and server-only provider
   credential boundary;
 - Docker logs rotate locally.
@@ -49,8 +56,9 @@ With Tailscale connected and Docker running:
 ```
 
 The script validates that the configured URL exactly matches the Mac's current
-MagicDNS hostname, builds one API image, starts PostgreSQL, applies migrations,
-starts the API, configures Tailscale Serve, and verifies the Apple authentication
+MagicDNS hostname, builds the shared API/Agent Host image, starts PostgreSQL,
+applies migrations, starts the API and Agent Host sidecar, configures Tailscale
+Serve, and verifies the Apple authentication
 challenge through HTTPS. Before reporting success, it also requires the API
 container to retrieve a non-empty Apple public-key set; this catches a Docker
 or Colima DNS failure that local database health checks cannot detect. It stops
@@ -112,7 +120,7 @@ To pause access without deleting PostgreSQL data:
 
 ```bash
 tailscale serve reset
-./scripts/infisical/run.sh staging /shared /backend -- \
+./scripts/infisical/run.sh staging /shared /backend /agent-host -- \
   docker compose --project-name talent-signal-testflight-local \
     --file compose.testflight.yaml down
 ```

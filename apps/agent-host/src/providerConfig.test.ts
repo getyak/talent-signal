@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  LOCAL_PERSON_PROFILE_PROVIDER_REGISTRY,
   LOCAL_WEB_SEARCH_PROVIDER_REGISTRY,
+  configuredLocalPersonProfileProvider,
+  configuredLocalVisionAgentProvider,
   configuredLocalWebSearchProvider,
 } from "./providerConfig.js";
 
@@ -35,5 +38,42 @@ describe("local third-party Tool provider registry", () => {
         TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER: "brave",
       }),
     ).toThrow("BRAVE_SEARCH_API_KEY is required");
+  });
+
+  it("keeps TikHub and the vision model in the local person-research boundary", () => {
+    expect(LOCAL_PERSON_PROFILE_PROVIDER_REGISTRY.tikhub).toMatchObject({
+      capability: "public_person_profile_research",
+      secretPath: "/agent-host",
+      subscriptionOwner: "vendor_account",
+      automaticFallback: false,
+      credentialNames: ["TIKHUB_API_KEY", "TIKHUB_BASE_URL"],
+    });
+    expect(() => configuredLocalPersonProfileProvider({})).toThrow(
+      "TIKHUB_API_KEY is required",
+    );
+    expect(() =>
+      configuredLocalVisionAgentProvider({
+        TALENT_SIGNAL_AGENT_PROVIDER: "zhipu",
+        TALENT_SIGNAL_AGENT_VISION_MODEL: "glm-4.6v-flash",
+        TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: "false",
+        ZHIPU_API_KEY: "synthetic",
+      }),
+    ).toThrow("explicit remote-sensitive-processing admission");
+    expect(() =>
+      configuredLocalVisionAgentProvider({
+        TALENT_SIGNAL_AGENT_PROVIDER: "zhipu",
+        TALENT_SIGNAL_AGENT_VISION_MODEL: "glm-5.2",
+        TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: "true",
+        ZHIPU_API_KEY: "synthetic",
+      }),
+    ).toThrow("must support image understanding");
+    expect(
+      configuredLocalVisionAgentProvider({
+        TALENT_SIGNAL_AGENT_PROVIDER: "zhipu",
+        TALENT_SIGNAL_AGENT_VISION_MODEL: "glm-4.6v-flash",
+        TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: "true",
+        ZHIPU_API_KEY: "synthetic",
+      }).inputCapabilities.imageUnderstanding,
+    ).toBe(true);
   });
 });

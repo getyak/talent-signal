@@ -10,11 +10,20 @@ export const RESEARCH_AGENT_TOOL_NAMES = [
   "create_research_artifact",
 ] as const;
 
+export const PERSON_RESEARCH_AGENT_TOOL_NAMES = [
+  "search_douyin_profiles",
+  "search_tiktok_profiles",
+  "search_weibo_profiles",
+  "search_threads_profiles",
+  "create_person_research_artifact",
+] as const;
+
 export const ALL_AGENT_TOOL_NAMES = [
   ...PURSUIT_AGENT_TOOL_NAMES,
   "search_web",
   "fetch_web",
   "create_research_artifact",
+  ...PERSON_RESEARCH_AGENT_TOOL_NAMES,
 ] as const;
 
 // Backwards-compatible name for the original bounded Pursuit definition.
@@ -105,6 +114,91 @@ export interface AgentPublicResearchScope {
   objective: string;
   providerID: string;
   authorization: AgentWebResearchAuthorization;
+}
+
+export type AgentPersonResearchPlatform =
+  | "douyin"
+  | "tiktok"
+  | "weibo"
+  | "threads";
+
+export interface AgentPersonResearchAuthorization {
+  purpose: "person_public_profile_research";
+  accessMode: "visible_screenshot_identity_clues";
+  allowedPlatforms: readonly AgentPersonResearchPlatform[];
+  maximumProviderCalls: number;
+  maximumResultsPerCall: number;
+}
+
+export interface AgentPersonResearchScope {
+  runID: string;
+  objective: string;
+  providerID: string;
+  authorization: AgentPersonResearchAuthorization;
+  inputArtifactManifest: readonly AgentInputArtifactManifestItem[];
+}
+
+export interface AgentPublicProfileResult {
+  resultID: string;
+  platform: AgentPersonResearchPlatform;
+  providerID: string;
+  providerRequestID: string | null;
+  profileID: string;
+  displayName: string;
+  handle: string | null;
+  biography: string | null;
+  profileUrl: string;
+  avatarUrl: string | null;
+  verified: boolean | null;
+  contentHash: string;
+  retrievedAt: string;
+}
+
+export interface AgentPersonResearchArtifactCandidate {
+  title: string;
+  summary: string;
+  limitations: string;
+  identityStatus: "possible_match" | "ambiguous";
+  observedClues: Array<{
+    kind: "display_name" | "handle" | "profile_url" | "platform";
+    value: string;
+    sourceArtifactID: string;
+    observationStatus: "unreviewed_screenshot_observation";
+  }>;
+  candidates: Array<{
+    resultID: string;
+    matchBasis: string;
+  }>;
+  claims: Array<{
+    statement: string;
+    epistemicStatus: "provider_observation" | "agent_inference";
+    sourceRefs: string[];
+  }>;
+  sources: Array<{
+    resultID: string;
+    platform: AgentPersonResearchPlatform;
+    profileUrl: string;
+    displayName: string;
+    handle: string | null;
+    biography: string | null;
+    avatarUrl: string | null;
+    verified: boolean | null;
+    contentHash: string;
+    retrievedAt: string;
+    providerID: string;
+    providerRequestID: string | null;
+  }>;
+}
+
+export interface AgentPersonResearchNoActionCandidate {
+  reasonCode:
+    | "NO_VISIBLE_IDENTITY_CLUE"
+    | "AMBIGUOUS_IDENTITY_CLUE"
+    | "NO_PUBLIC_PROFILE_MATCH"
+    | "UNTRUSTED_INSTRUCTION"
+    | "PROHIBITED_PERSON_ASSESSMENT"
+    | "PERSON_RESEARCH_UNAVAILABLE";
+  reason: string;
 }
 
 export interface AgentWebSearchResult {
@@ -278,6 +372,12 @@ export interface AgentProviderRequest {
         kind: "public_research";
         authorization: AgentWebResearchAuthorization;
         providerID: string;
+      }
+    | {
+        kind: "person_public_profile_research";
+        authorization: AgentPersonResearchAuthorization;
+        providerID: string;
+        inputArtifactIDs: string[];
       };
   toolManifest: readonly AgentToolName[];
   budget: AgentBudget;
@@ -449,6 +549,92 @@ export interface AgentPublicResearchRunRequest {
   provider: AgentProvider;
   gateway: AgentPublicResearchGateway;
   journal: AgentPublicResearchJournal;
+  signal?: AbortSignal;
+}
+
+export interface AgentPersonResearchCheckpoint {
+  profileResults: AgentPublicProfileResult[];
+  queryObservations: Array<{
+    platform: AgentPersonResearchPlatform;
+    query: string;
+    sourceArtifactID: string;
+    observationStatus: "unreviewed_screenshot_observation";
+  }>;
+  providerCalls: number;
+  toolCalls: number;
+  sequence: number;
+}
+
+export interface AgentPersonResearchGateway {
+  searchProfiles(
+    scope: AgentPersonResearchScope,
+    input: {
+      platform: AgentPersonResearchPlatform;
+      query: string;
+      maximumResults: number;
+    },
+    signal: AbortSignal,
+  ): Promise<readonly Omit<AgentPublicProfileResult, "resultID">[]>;
+  commitPersonResearchArtifact(
+    scope: AgentPersonResearchScope,
+    candidate: AgentPersonResearchArtifactCandidate,
+    candidateFingerprint: string,
+  ): Promise<{ artifactID: string; status: "draft"; replayed: boolean }>;
+  commitNoAction(
+    scope: AgentPersonResearchScope,
+    candidate: AgentPersonResearchNoActionCandidate,
+    candidateFingerprint: string,
+  ): Promise<{ noActionID: string; replayed: boolean }>;
+}
+
+export interface AgentPersonResearchJournal {
+  start(input: {
+    scope: AgentPersonResearchScope;
+    budget: AgentBudget;
+    modelProviderID: string;
+    model: string;
+    sdkVersion: string;
+    startedAt: string;
+  }): Promise<void>;
+  loadCheckpoint(runID: string): Promise<AgentPersonResearchCheckpoint | null>;
+  saveCheckpoint(
+    runID: string,
+    checkpoint: AgentPersonResearchCheckpoint,
+  ): Promise<void>;
+  append(event: AgentJournalEvent): Promise<void>;
+  recordOutput(output: AgentJournalOutput): Promise<void>;
+  complete(
+    receipt: AgentPersonResearchTerminalReceipt,
+  ): Promise<AgentPersonResearchTerminalReceipt>;
+}
+
+export interface AgentPersonResearchTerminalReceipt {
+  runID: string;
+  status:
+    | "artifact_created"
+    | "no_action"
+    | "quarantined"
+    | "budget_exhausted"
+    | "cancelled"
+    | "failed";
+  reasonCode: string;
+  artifactID: string | null;
+  noActionID: string | null;
+  candidateFingerprint: string | null;
+  externalEffects: [];
+  usage: AgentUsage;
+  permissionDenials: string[];
+  providerSessionID: string | null;
+  completedAt: string;
+}
+
+export interface AgentPersonResearchRunRequest {
+  scope: AgentPersonResearchScope;
+  budget: AgentBudget;
+  provider: AgentProvider;
+  gateway: AgentPersonResearchGateway;
+  journal: AgentPersonResearchJournal;
+  providerInputParts: readonly AgentProviderInputPart[];
   signal?: AbortSignal;
 }
 

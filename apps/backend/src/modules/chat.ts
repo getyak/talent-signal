@@ -30,6 +30,11 @@ import {
   listManifestChatMedia,
 } from "./chatMedia.js";
 import type { ChatMediaStorage } from "./chatMediaStorage.js";
+import type { PersonResearchAgentProviding } from "./personResearchAgentClient.js";
+import {
+  personResearchRunID,
+  runPersonResearchChatIngress,
+} from "./personResearchChatIngress.js";
 import {
   appendTelemetrySpan,
   assertTelemetryContext,
@@ -765,6 +770,7 @@ export async function createChatTask(
   request: ChatTaskRequest,
   remoteChatProvider: RemoteChatAnswerProviding | null = null,
   chatMediaStorage: ChatMediaStorage | null = null,
+  personResearchProvider: PersonResearchAgentProviding | null = null,
 ): Promise<ChatTaskMutationResult> {
   const chatStartedAt = new Date().toISOString();
   return inTransaction(pool, async (client) => {
@@ -976,6 +982,27 @@ export async function createChatTask(
         ),
       );
     }
+    const personResearch = await runPersonResearchChatIngress({
+      provider: personResearchProvider,
+      media,
+      loadMedia: async (mediaID) => {
+        if (!chatMediaStorage) {
+          throw new Error("Chat media storage is unavailable.");
+        }
+        return (await getChatMediaContent(
+          client,
+          auth,
+          chatMediaStorage,
+          mediaID,
+        )).body;
+      },
+      runID: personResearchRunID(auth.accountId, request.idempotency_key),
+      objective: request.objective,
+    });
+    const personResearchStatus = personResearch.status;
+    if (personResearch.block) {
+      blocks = insertAfterPersonBrief(blocks, personResearch.block);
+    }
     const action = blocks.find((item) => item.kind === "action_proposal");
     const noAction = blocks.find((item) => item.kind === "no_action");
     const clarification = blocks.find((item) => item.kind === "clarification");
@@ -1015,6 +1042,7 @@ export async function createChatTask(
           "ts.chat.evidence_count": evidenceFragmentIds.length,
           "ts.chat.media_count": media.length,
           "ts.chat.remote_status": remoteChatStatus,
+          "ts.chat.person_research_status": personResearchStatus,
         },
       });
       if (remoteStartedAt && remoteEndedAt && remoteChatProvider) {

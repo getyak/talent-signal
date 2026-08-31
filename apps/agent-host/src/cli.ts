@@ -21,6 +21,8 @@ import {
   configuredLocalWebSearchProvider,
 } from "./providerConfig.js";
 import type { AgentWebSearchProvider } from "./webSearchProviders.js";
+import { runLocalPersonResearchCommand } from "./personResearchCommand.js";
+import { startPersonResearchServer } from "./personResearchServer.js";
 
 interface ResearchArguments {
   objective: string;
@@ -86,7 +88,9 @@ function parseResearchArguments(
 
   for (let index = 1; index < args.length; index += 1) {
     const flag = args[index];
-    if (flag === "--open-web") {
+    if (flag === "--") {
+      continue;
+    } else if (flag === "--open-web") {
       openWeb = true;
     } else if (flag === "--objective") {
       objective = value(args, index, flag);
@@ -239,7 +243,43 @@ export async function runLocalResearchCommand(
 }
 
 async function main() {
-  const result = await runLocalResearchCommand(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  if (args[0] === "person-research-server") {
+    let stateRoot = process.env.TALENT_SIGNAL_AGENT_STATE_DIR?.trim()
+      ? resolve(process.env.TALENT_SIGNAL_AGENT_STATE_DIR.trim())
+      : resolve(homedir(), ".talent-signal", "agent");
+    let socketPath = process.env.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET?.trim()
+      ? resolve(process.env.TALENT_SIGNAL_PERSON_RESEARCH_SOCKET.trim())
+      : null;
+    for (let index = 1; index < args.length; index += 1) {
+      const flag = args[index];
+      if (flag === "--") continue;
+      if (flag === "--state-dir") {
+        stateRoot = resolve(value(args, index, flag));
+        index += 1;
+      } else if (flag === "--socket") {
+        socketPath = resolve(value(args, index, flag));
+        index += 1;
+      } else {
+        throw new Error(`Unknown argument: ${flag ?? "<empty>"}.`);
+      }
+    }
+    socketPath ??= resolve(stateRoot, "person-research.sock");
+    const server = await startPersonResearchServer({ socketPath, stateRoot });
+    process.stdout.write(
+      `${JSON.stringify({ status: "ready", socketPath, stateRoot })}\n`,
+    );
+    await new Promise<void>((accept) => {
+      const close = () => server.close(() => accept());
+      process.once("SIGINT", close);
+      process.once("SIGTERM", close);
+    });
+    return;
+  }
+  const result =
+    args[0] === "person-research"
+      ? await runLocalPersonResearchCommand(args)
+      : await runLocalResearchCommand(args);
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   if (!["artifact_created", "no_action"].includes(result.receipt.status)) {
     process.exitCode = 1;

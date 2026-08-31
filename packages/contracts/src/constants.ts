@@ -135,6 +135,7 @@ export const CHAT_RESPONSE_BLOCK_KINDS = [
   "fact_review",
   "conflict_review",
   "research_status",
+  "person_research",
   "action_proposal",
   "active_action",
   "no_action",
