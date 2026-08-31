@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 import PhotosUI
 import UniformTypeIdentifiers
 import Vision
@@ -23,6 +24,7 @@ final class VoiceInputStore: ObservableObject {
     private var transcriber: (any VoiceTranscriptionServing)?
     private var limitTask: Task<Void, Never>?
     private var transcriptionOperation: Task<VoiceTranscriptionDraft, Error>?
+    private var sceneIsActive = true
 
     init(recorder: VoiceDictationRecordingServing? = nil) {
         let resolvedRecorder: VoiceDictationRecordingServing
@@ -66,11 +68,16 @@ final class VoiceInputStore: ObservableObject {
         microphonePermission = recorder.permissionStatus()
     }
 
+    func updateSceneIsActive(_ isActive: Bool) {
+        sceneIsActive = isActive
+    }
+
     func start(
         sceneIsActive: Bool,
         transcriber: any VoiceTranscriptionServing
     ) async {
         guard !isBusy else { return }
+        self.sceneIsActive = sceneIsActive
         guard sceneIsActive else {
             phase = .failed(
                 "Keep Talent Signal in the foreground to use voice input."
@@ -88,6 +95,16 @@ final class VoiceInputStore: ObservableObject {
             phase = .failed(
                 "Microphone permission was not granted. No audio was recorded."
             )
+            return
+        }
+        do {
+            while !self.sceneIsActive {
+                try Task.checkCancellation()
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            try Task.checkCancellation()
+        } catch {
+            phase = .idle
             return
         }
         do {
@@ -184,6 +201,14 @@ final class VoiceInputStore: ObservableObject {
             wasTranscribing
                 ? "Voice transcription was interrupted. The temporary recording was deleted; the provider result is unavailable."
                 : "Voice input stopped when Talent Signal left the foreground. No audio was sent."
+        )
+    }
+
+    func stopForAudioInterruption() {
+        guard isRecording else { return }
+        cancel()
+        phase = .failed(
+            "Voice input was interrupted by another audio session. No audio was sent."
         )
     }
 
@@ -331,6 +356,7 @@ struct RelationshipAskView: View {
     @State private var pendingObjective: String?
     @State private var pendingScopedSend: String?
     @State private var relationshipRecallPhase: RelationshipRecallPhase = .idle
+    @State private var askSubmissionPhase: AskSubmissionPhase = .idle
     @State private var askOperation: Task<Void, Never>?
 #if DEBUG
     @State private var fixtureAskFailureConsumed = false
@@ -361,6 +387,8 @@ struct RelationshipAskView: View {
     @State private var isVoiceDisclosurePresented = false
     @State private var presentationDetent: PresentationDetent = .large
     @State private var voiceOperation: Task<Void, Never>?
+    @State private var draftPersistenceTask: Task<Void, Never>?
+    @State private var isComposerComposing = false
     @StateObject private var voiceInput = VoiceInputStore()
     @AppStorage("voice-input-cloud-disclosure-v1")
     private var hasAcceptedVoiceDisclosure = false
@@ -544,6 +572,7 @@ struct RelationshipAskView: View {
             )
         }
         .task {
+            voiceInput.updateSceneIsActive(scenePhase == .active)
             await revalidateAndDismissUnavailableCitation()
             activeSessionID = sessionID
             if let session = sessionStore.session(id: sessionID) {
@@ -590,6 +619,7 @@ struct RelationshipAskView: View {
                 draft = ""
                 isSending = true
                 relationshipRecallPhase = .finding
+                updateAskSubmissionPhase(.routingLocally)
                 startRelationshipRecall(
                     sessionID: sessionID,
                     effectiveObjective: recoverableObjective,
@@ -648,17 +678,7 @@ struct RelationshipAskView: View {
                 isChoosingScope = false
                 scopeQuery = ""
             }
-            if let selectedScope {
-                sessionStore.saveDraft(
-                    value,
-                    personID: selectedScope.person.id,
-                    relationshipContextID: selectedScope.context.id
-                )
-            } else if activeSessionID == nil,
-                      initialSeed == nil,
-                      contactDraft == nil {
-                sessionStore.saveGlobalDraft(value)
-            }
+            scheduleDraftPersistence(value)
         }
         .onChange(of: selectedPhotoItems) { items in
             guard !items.isEmpty else { return }
@@ -673,8 +693,19 @@ struct RelationshipAskView: View {
         .onChange(of: voiceInput.phase) { phase in
             switch phase {
             case .idle:
+                AskInputDiagnostics.voiceTransition(.idle)
                 break
-            case .requestingPermission, .recording, .transcribing, .failed:
+            case .requestingPermission:
+                AskInputDiagnostics.voiceTransition(.requestingPermission)
+                if isCompactEntry { presentationDetent = compactPresentationDetent }
+            case .recording:
+                AskInputDiagnostics.voiceTransition(.recording)
+                if isCompactEntry { presentationDetent = compactPresentationDetent }
+            case .transcribing:
+                AskInputDiagnostics.voiceTransition(.transcribing)
+                if isCompactEntry { presentationDetent = compactPresentationDetent }
+            case .failed:
+                AskInputDiagnostics.voiceTransition(.failed)
                 if isCompactEntry { presentationDetent = compactPresentationDetent }
             }
         }
@@ -688,15 +719,28 @@ struct RelationshipAskView: View {
             voiceInput.consumeTranscript()
         }
         .onChange(of: scenePhase) { phase in
+            voiceInput.updateSceneIsActive(phase == .active)
             if phase == .active {
                 voiceInput.refreshPermissionStatus()
-            } else {
+            } else if phase == .background {
+                flushDraftPersistence()
                 voiceOperation?.cancel()
                 voiceOperation = nil
                 voiceInput.stopForForegroundLoss()
             }
         }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: AVAudioSession.interruptionNotification
+            )
+        ) { _ in
+            guard voiceInput.isRecording else { return }
+            voiceOperation?.cancel()
+            voiceOperation = nil
+            voiceInput.stopForAudioInterruption()
+        }
         .onDisappear {
+            flushDraftPersistence()
             askOperation?.cancel()
             askOperation = nil
             contactInterpretationTask?.cancel()
@@ -704,6 +748,8 @@ struct RelationshipAskView: View {
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
+            draftPersistenceTask?.cancel()
+            draftPersistenceTask = nil
             mediaImportTask?.cancel()
             mediaImportTask = nil
             discardMediaDrafts()
@@ -1209,6 +1255,7 @@ struct RelationshipAskView: View {
 
         return VStack(spacing: 8) {
             contactInterpretationStatus
+            askSubmissionStatus
             voiceInputStatus
 
             if !mediaDrafts.isEmpty, !isSending {
@@ -1374,6 +1421,21 @@ struct RelationshipAskView: View {
             minHeight: minimumHeight,
             alignment: .topLeading
         )
+        .background {
+            AskIMECompositionMonitor(
+                isEnabled: composerFocused && !composerInputDisabled
+            ) { composing in
+                guard isComposerComposing != composing else { return }
+                isComposerComposing = composing
+                AskInputDiagnostics.compositionChanged(
+                    isComposing: composing
+                )
+                if !composing {
+                    scheduleDraftPersistence(draft)
+                }
+            }
+            .frame(width: 0, height: 0)
+        }
         .accessibilityIdentifier("ask-composer")
     }
 
@@ -1629,6 +1691,58 @@ struct RelationshipAskView: View {
     }
 
     @ViewBuilder
+    private var askSubmissionStatus: some View {
+        switch askSubmissionPhase {
+        case .idle:
+            EmptyView()
+        case .routingLocally:
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(Color.tsInk)
+                Text(
+                    appLanguage.text(
+                        "Finding the relationship on this device · not sent yet"
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                appLanguage.text(
+                    "Finding the relationship on this device. Nothing has been sent."
+                )
+            )
+            .accessibilityIdentifier("ask-submission-routing")
+        case .requestingWorkspaceAnswer:
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(Color.tsInk)
+                Text(
+                    appLanguage.text(
+                        "Requesting and verifying the workspace answer…"
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                appLanguage.text(
+                    "The question was sent to the governed workspace. Waiting for verified readback."
+                )
+            )
+            .accessibilityIdentifier("ask-submission-requesting")
+        }
+    }
+
+    @ViewBuilder
     private var contactInterpretationStatus: some View {
         if isInterpretingContact {
             HStack(spacing: 10) {
@@ -1825,6 +1939,7 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryDisabled: Bool {
+        if isComposerComposing { return true }
         if hasBlockingContactProposal { return true }
         if isInterpretingContact { return true }
         if pendingObjective != nil { return true }
@@ -1873,6 +1988,7 @@ struct RelationshipAskView: View {
     }
 
     private func composerPrimaryAction() {
+        guard !isComposerComposing else { return }
         if hasComposerInput {
             send(draft)
             return
@@ -1929,6 +2045,44 @@ struct RelationshipAskView: View {
         let current = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         draft = current.isEmpty ? transcript : "\(current) \(transcript)"
         composerFocused = true
+    }
+
+    private func scheduleDraftPersistence(_ value: String) {
+        draftPersistenceTask?.cancel()
+        draftPersistenceTask = Task {
+            do {
+                try await Task.sleep(for: .milliseconds(350))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled,
+                  !isSending,
+                  !isComposerComposing,
+                  draft == value else { return }
+            persistDraft(value)
+            draftPersistenceTask = nil
+        }
+    }
+
+    private func flushDraftPersistence() {
+        draftPersistenceTask?.cancel()
+        draftPersistenceTask = nil
+        guard !isSending, !isComposerComposing else { return }
+        persistDraft(draft)
+    }
+
+    private func persistDraft(_ value: String) {
+        if let selectedScope {
+            sessionStore.saveDraft(
+                value,
+                personID: selectedScope.person.id,
+                relationshipContextID: selectedScope.context.id
+            )
+        } else if activeSessionID == nil,
+                  initialSeed == nil,
+                  contactDraft == nil {
+            sessionStore.saveGlobalDraft(value)
+        }
     }
 
     private var isCompactEntry: Bool {
@@ -2577,9 +2731,13 @@ struct RelationshipAskView: View {
 
     private func send(_ objective: String) {
         let trimmed = objective.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (!trimmed.isEmpty || !mediaDrafts.isEmpty),
+        guard AskInputCommitPolicy.canSubmit(
+                hasCommittedInput: !trimmed.isEmpty || !mediaDrafts.isEmpty,
+                isComposing: isComposerComposing
+              ),
               !isSending,
               !isInterpretingContact else { return }
+        flushDraftPersistence()
         if mediaDrafts.isEmpty,
            let deterministicProposal = ConversationContactIntake.propose(trimmed) {
             // Keep even deterministic contact understanding cancellable. The
@@ -2639,6 +2797,7 @@ struct RelationshipAskView: View {
             isSending = false
             pendingObjective = nil
             draft = trimmed
+            updateAskSubmissionPhase(.idle)
             errorMessage = appLanguage.text(
                 "A protected Session could not be created. Your message was not sent."
             )
@@ -2648,6 +2807,7 @@ struct RelationshipAskView: View {
         sessionStore.saveGlobalDraft("")
         pendingScopedSend = effectiveObjective
         relationshipRecallPhase = .finding
+        updateAskSubmissionPhase(.routingLocally)
         presentationDetent = .large
         startRelationshipRecall(
             sessionID: unscopedSessionID,
@@ -2711,6 +2871,7 @@ struct RelationshipAskView: View {
                 isSending = false
                 pendingObjective = nil
                 draft = originalDraft
+                updateAskSubmissionPhase(.idle)
                 errorMessage = appLanguage.text(
                     "The relationship was found, but the Session could not save that context. Nothing was sent."
                 )
@@ -2727,12 +2888,14 @@ struct RelationshipAskView: View {
                 )
             )
         case let .ambiguous(candidates, possibleDuplicate):
+            updateAskSubmissionPhase(.idle)
             relationshipRecallPhase = .ambiguous(
                 candidates: candidates,
                 possibleDuplicate: possibleDuplicate
             )
             isSending = false
         case let .unresolved(recent):
+            updateAskSubmissionPhase(.idle)
             relationshipRecallPhase = .unresolved(recent: recent)
             isSending = false
         }
@@ -2782,6 +2945,7 @@ struct RelationshipAskView: View {
         askOperation?.cancel()
         askOperation = nil
         isSending = false
+        updateAskSubmissionPhase(.idle)
         selectedScope = nil
         relationshipRecallPhase = .unresolved(
             recent: AgentRelationshipRecallPolicy.recentCandidatesForReview(
@@ -2797,6 +2961,7 @@ struct RelationshipAskView: View {
         scope: AskScope
     ) {
         guard isCanonical else {
+            updateAskSubmissionPhase(.idle)
 #if DEBUG
             if ProcessInfo.processInfo.arguments.contains(
                 "--fixture-ask-delay-seconds"
@@ -2814,6 +2979,7 @@ struct RelationshipAskView: View {
             surfacePreviewAskFailure(originalDraft: originalDraft)
             return
         }
+        updateAskSubmissionPhase(.requestingWorkspaceAnswer)
         askOperation?.cancel()
         askOperation = Task {
             do {
@@ -2863,6 +3029,7 @@ struct RelationshipAskView: View {
                 pendingObjective = nil
                 pendingScopedSend = nil
                 relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
                 sessionStore.saveGlobalDraft("")
                 sessionStore.clearDraft(
                     personID: scope.person.id,
@@ -2875,6 +3042,7 @@ struct RelationshipAskView: View {
                 draft = originalDraft
                 pendingObjective = nil
                 relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
                 errorMessage = askFailureMessage(error)
             }
             isSending = false
@@ -2887,6 +3055,7 @@ struct RelationshipAskView: View {
         pendingObjective = nil
         pendingScopedSend = nil
         relationshipRecallPhase = .idle
+        updateAskSubmissionPhase(.idle)
         isSending = false
         errorMessage = appLanguage.text(
             "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
@@ -2912,6 +3081,21 @@ struct RelationshipAskView: View {
                 "Ask could not read this material. Your message and attachments are still here.",
                 zhHans: "暂时无法读取这些内容，你的消息和附件仍已保留。"
             )
+    }
+
+    private func updateAskSubmissionPhase(_ phase: AskSubmissionPhase) {
+        guard askSubmissionPhase != phase else { return }
+        askSubmissionPhase = phase
+        let diagnostic: AskInputDiagnostics.SubmissionState
+        switch phase {
+        case .idle:
+            diagnostic = .idle
+        case .routingLocally:
+            diagnostic = .routingLocal
+        case .requestingWorkspaceAnswer:
+            diagnostic = .requestingWorkspace
+        }
+        AskInputDiagnostics.submissionTransition(diagnostic)
     }
 
     private func waitForMediaToBecomeReady() async throws {
@@ -4549,6 +4733,12 @@ private enum RelationshipRecallPhase: Equatable {
         possibleDuplicate: Bool
     )
     case unresolved(recent: [AgentRelationshipRecallCandidate])
+}
+
+private enum AskSubmissionPhase: Equatable {
+    case idle
+    case routingLocally
+    case requestingWorkspaceAnswer
 }
 
 private struct SelectedAskCitation: Identifiable {

@@ -9,6 +9,7 @@ import {
   ChatCircleDots,
   FileImage,
 } from "@phosphor-icons/react";
+import { useState } from "react";
 
 import { AgentCreatePersonCard } from "./agent-create-person-card";
 import { AgentIdentityReviewCard } from "./agent-identity-review-card";
@@ -53,6 +54,9 @@ export function RelationshipAgentStartPanel({
   onScreenshot: () => void;
   onObjectiveChange: (value: string) => void;
 }) {
+  const [isComposing, setIsComposing] = useState(false);
+  const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
+
   return (
     <aside
       aria-labelledby="relationship-chat-title"
@@ -101,6 +105,7 @@ export function RelationshipAgentStartPanel({
         className="context-chat__composer context-chat__composer--start"
         onSubmit={(event) => {
           event.preventDefault();
+          if (isComposing) return;
           onAsk();
         }}
       >
@@ -119,16 +124,33 @@ export function RelationshipAgentStartPanel({
               autoFocus
               id="relationship-agent-composer"
               maxLength={1_000}
-              onChange={(event) => onObjectiveChange(event.target.value)}
+              onChange={(event) => {
+                if (isComposing) {
+                  setCompositionDraft(event.target.value);
+                } else {
+                  onObjectiveChange(event.target.value);
+                }
+              }}
+              onCompositionEnd={(event) => {
+                const committed = event.currentTarget.value;
+                setIsComposing(false);
+                setCompositionDraft(null);
+                onObjectiveChange(committed);
+              }}
+              onCompositionStart={(event) => {
+                setIsComposing(true);
+                setCompositionDraft(event.currentTarget.value);
+              }}
               placeholder="输入消息、粘贴内容或添加任何资料…"
               rows={2}
-              value={objective}
+              value={compositionDraft ?? objective}
             />
           </label>
-          {objective.trim() ? (
+          {objective.trim() || isComposing ? (
             <button
               aria-label="发送给智能助理"
               className="context-primary-button"
+              disabled={isComposing || !objective.trim()}
               type="submit"
             >
               <ArrowUp aria-hidden="true" size={18} weight="bold" />

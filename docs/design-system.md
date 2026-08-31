@@ -103,7 +103,7 @@ The Agent is a contextual threshold; Sessions retrieves conversations without
 owning truth or execution authority. On mobile, familiar top navigation owns
 retrieval and one bottom global composer owns intent; never combine them.
 Scope, capture, and record navigation follow intent. Text, one image, or voice
-becomes proposed structure before consequential review stays explicit.
+becomes proposed structure before consequential review stays explicit. Mobile and Web composers treat multi-stage marked text as provisional: input methods own candidate selection, and Send remains unavailable until the text is committed. Draft recovery preserves committed whitespace and line breaks, coalesces persistence for responsive input, and flushes at true lifecycle boundaries. A system permission overlay is not itself a background cancellation; protected capture begins only after authorization and an active foreground, while real backgrounding or audio interruption stops capture with truthful recovery feedback. Diagnostics record only closed lifecycle states, never message, transcript, person, or relationship content.
 
 ## Agent-operated relationship workspace
 

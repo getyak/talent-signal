@@ -25,7 +25,9 @@ import {
 } from "@/components/workspace-session-request";
 import {
   relationshipAgentConversationKey,
+  relationshipAgentDraftShouldPersist,
   relationshipAgentDraftStorageKey,
+  relationshipAgentRestoredDraft,
   relationshipAgentResponseIsCurrent,
   relationshipAgentScopeKey,
 } from "@/components/relationship-workspace/use-relationship-agent-controller";
@@ -109,6 +111,12 @@ describe("relationship governed projection", () => {
     expect(
       relationshipAgentConversationKey({ accountId: null, scope: null }),
     ).toBe("unscoped");
+  });
+
+  it("preserves whitespace while the input method is still editing", () => {
+    expect(relationshipAgentRestoredDraft(" ")).toBe(" ");
+    expect(relationshipAgentDraftShouldPersist(" ")).toBe(true);
+    expect(relationshipAgentDraftShouldPersist("")).toBe(false);
   });
 
   it("rejects an Agent response after cancellation or a relationship switch", () => {
