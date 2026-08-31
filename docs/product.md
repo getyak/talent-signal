@@ -146,6 +146,18 @@ default selection, and explicitly attaches the governed source. Completion
 returns the actual compiled-Wiki quality and identifiers; it does not create a
 second contact merely because another source arrived.
 
+Relationship Ask also accepts a screenshot as a purpose-bound task attachment.
+After Send, an admitted Agent may autonomously choose bounded public-profile
+search tools from visible name, handle, URL, or platform clues—without asking
+the recruiter to select a relationship, platform, tool, or candidate first.
+For a single unscoped PNG/JPEG/WebP, the image is processed for that Run without
+being uploaded into relationship media or retained by the backend. Its possible
+matches, biographies, and public links appear as an explicitly unconfirmed
+draft and the normalized public result can survive in the protected Session
+after the raw screenshot is discarded. This path cannot recognize a face,
+confirm identity, update relationship state, or perform an external action; a
+photo-only image ends in `no_action`.
+
 Local typed-signal recovery follows the authenticated workspace. The app does
 not display a restored payload until workspace readback agrees, so switching
 accounts on a shared device cannot expose another workspace's draft. Retry and

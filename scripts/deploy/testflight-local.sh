@@ -5,7 +5,7 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 if [[ "${TS_INFISICAL_INJECTED:-false}" != "true" ]]; then
   exec "$repository_root/scripts/infisical/run.sh" \
-    staging /shared /backend -- \
+    staging /shared /backend /agent-host -- \
     env TS_INFISICAL_INJECTED=true "$0" "$@"
 fi
 
@@ -68,13 +68,13 @@ compose=(
 
 "${compose[@]}" config --quiet
 if [[ "${TS_TESTFLIGHT_REBUILD:-true}" == "true" ]]; then
-  BUILDKIT_PROGRESS=plain "${compose[@]}" build api
+  BUILDKIT_PROGRESS=plain "${compose[@]}" build api person-research-agent
 else
   echo "Reusing the configured local backend image."
 fi
 "${compose[@]}" up --detach --wait postgres
 "${compose[@]}" run --rm migrate
-"${compose[@]}" up --detach --wait --remove-orphans api
+"${compose[@]}" up --detach --wait --remove-orphans api person-research-agent
 
 "${compose[@]}" exec -T api node -e \
   "fetch('https://appleid.apple.com/auth/keys').then(async response => { const body = await response.json(); if (!response.ok || !Array.isArray(body.keys) || body.keys.length === 0) process.exit(1); }).catch(() => process.exit(1))"

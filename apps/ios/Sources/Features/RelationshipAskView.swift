@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import AVFoundation
+import CryptoKit
 import PhotosUI
 import UniformTypeIdentifiers
 import Vision
@@ -590,6 +591,11 @@ struct RelationshipAskView: View {
                     if session.isUnresolvedIntent,
                        let recoverableObjective = session.pendingObjective {
                         draft = recoverableObjective
+                        if session.hasPendingPersonResearch {
+                            mediaNotice = appLanguage.text(
+                                "The prior screenshot was not retained. Reattach the same image to reconcile or retry its protected Run."
+                            )
+                        }
                     }
                 }
                 sessionStore.markRead(session.id)
@@ -610,6 +616,7 @@ struct RelationshipAskView: View {
             if let sessionID,
                let session = sessionStore.session(id: sessionID),
                session.isUnresolvedIntent,
+               !session.hasPendingPersonResearch,
                let recoverableObjective = session.pendingObjective,
                !recoverableObjective.trimmingCharacters(
                     in: .whitespacesAndNewlines
@@ -2594,8 +2601,7 @@ struct RelationshipAskView: View {
             mediaDrafts[index].routingText = recognizedText
         }
         mediaNotice = appLanguage.text(
-            "Attached for this Agent task · not reviewed evidence",
-            zhHans: "已附加到本次 Agent 任务 · 尚非已审阅证据"
+            "Attached for this Agent task · visible identity clues may be used for automatic public-profile research · not reviewed evidence"
         )
         if let selectedScope {
             uploadMediaDraft(id, scope: selectedScope)
@@ -2749,11 +2755,26 @@ struct RelationshipAskView: View {
             )
             return
         }
-        let effectiveObjective = trimmed.isEmpty
-            ? appLanguage.text(
-                "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step.",
-                zhHans: "阅读附件，告诉我发生了什么变化、还有哪些不确定，以及最小且安全的下一步。"
+        let screenshotRoute = AskScreenshotResearchRoutingPolicy.route(
+            hasSelectedRelationship: selectedScope != nil,
+            mediaTypes: mediaDrafts.map(\.mediaType)
+        )
+        let isUnscopedPersonResearch = screenshotRoute == .directResearch
+        if screenshotRoute == .unsupported {
+            errorMessage = appLanguage.text(
+                "Public profile research needs exactly one PNG, JPEG, or WebP screenshot. Remove extra or unsupported images, then Send again."
             )
+            composerFocused = false
+            return
+        }
+        let effectiveObjective = trimmed.isEmpty
+            ? isUnscopedPersonResearch
+                ? appLanguage.text(
+                    "Find possible public profiles from visible identity clues in this screenshot and summarize public information. Do not identify from appearance alone."
+                )
+                : appLanguage.text(
+                    "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step."
+                )
             : trimmed
         if mediaDrafts.isEmpty,
            ConversationContactIntake.requiresContactClarification(trimmed) {
@@ -2761,7 +2782,7 @@ struct RelationshipAskView: View {
             beginContactInterpretation(trimmed)
             return
         }
-        if selectedScope != nil, !isCanonical {
+        if (selectedScope != nil || isUnscopedPersonResearch), !isCanonical {
             errorMessage = appLanguage.text(
                 "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
             )
@@ -2806,6 +2827,18 @@ struct RelationshipAskView: View {
 
         sessionStore.saveGlobalDraft("")
         pendingScopedSend = effectiveObjective
+        if isUnscopedPersonResearch, let mediaDraft = mediaDrafts.first {
+            relationshipRecallPhase = .reading(nil)
+            updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+            presentationDetent = .large
+            performUnscopedPersonResearch(
+                sessionID: unscopedSessionID,
+                effectiveObjective: effectiveObjective,
+                originalDraft: trimmed,
+                mediaDraft: mediaDraft
+            )
+            return
+        }
         relationshipRecallPhase = .finding
         updateAskSubmissionPhase(.routingLocally)
         presentationDetent = .large
@@ -2814,6 +2847,84 @@ struct RelationshipAskView: View {
             effectiveObjective: effectiveObjective,
             originalDraft: trimmed
         )
+    }
+
+    private func performUnscopedPersonResearch(
+        sessionID: UUID,
+        effectiveObjective: String,
+        originalDraft: String,
+        mediaDraft: AskMediaDraft
+    ) {
+        let contentHash = SHA256.hash(data: mediaDraft.data)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let requestIdentity = "\(mediaDraft.mediaType):\(contentHash)"
+        guard let idempotencyKey = sessionStore.beginUnscopedPersonResearch(
+            sessionID: sessionID,
+            objective: effectiveObjective,
+            requestIdentity: requestIdentity,
+            proposedIdempotencyKey: "ios:person-research:\(UUID().uuidString.lowercased())"
+        ) else {
+            isSending = false
+            pendingObjective = nil
+            pendingScopedSend = nil
+            relationshipRecallPhase = .idle
+            updateAskSubmissionPhase(.idle)
+            draft = originalDraft
+            errorMessage = appLanguage.text(
+                "The screenshot Run could not be protected for retry. Nothing was sent."
+            )
+            return
+        }
+        askOperation?.cancel()
+        askOperation = Task {
+            do {
+                try await waitForFixtureAskDelayIfNeeded()
+                let response = try await workspaceStore.researchPerson(
+                    objective: effectiveObjective,
+                    imageData: mediaDraft.data,
+                    mediaType: mediaDraft.mediaType,
+                    idempotencyKey: idempotencyKey
+                )
+                try Task.checkCancellation()
+                guard activeSessionID == sessionID,
+                      pendingScopedSend == effectiveObjective else { return }
+                guard sessionStore.recordUnscopedPersonResearch(
+                    sessionID: sessionID,
+                    objective: effectiveObjective,
+                    response: response.relationshipAskProjection
+                ) else {
+                    throw PursuitWorkspaceClientError.invalidResponse
+                }
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                if response.disposition == "unavailable" {
+                    draft = originalDraft
+                    sessionStore.saveGlobalDraft(originalDraft)
+                    mediaNotice = appLanguage.text(
+                        "The Agent did not complete this Run. The screenshot remains only on this screen for a fresh retry; the backend receipt says it was not retained."
+                    )
+                } else {
+                    sessionStore.saveGlobalDraft("")
+                    mediaDrafts = []
+                    mediaNotice = appLanguage.text(
+                        "Screenshot processed for this Run · raw image not retained · public matches remain unconfirmed"
+                    )
+                }
+            } catch {
+                if Task.isCancelled { return }
+                draft = originalDraft
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                errorMessage = askFailureMessage(error)
+            }
+            isSending = false
+            askOperation = nil
+        }
     }
 
     private func startRelationshipRecall(
@@ -5292,6 +5403,63 @@ private struct AskTurnView: View {
                             .font(.subheadline)
                             .foregroundStyle(Color.tsInk)
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let publicSources = block.publicSources,
+                       !publicSources.isEmpty {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Label(
+                                language.text("Unconfirmed public sources"),
+                                systemImage: "person.crop.circle.badge.questionmark"
+                            )
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.tsMutedInk)
+
+                            ForEach(publicSources) { source in
+                                if let url = URL(string: source.profileURL) {
+                                    Link(destination: url) {
+                                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(source.displayName)
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundStyle(Color.tsInk)
+                                                Text(
+                                                    [source.platform.capitalized, source.handle]
+                                                        .compactMap { $0 }
+                                                        .joined(separator: " · ")
+                                                )
+                                                .font(.caption2)
+                                                .foregroundStyle(Color.tsMutedInk)
+                                                Text(source.matchBasis)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(Color.tsMutedInk)
+                                                    .lineLimit(3)
+                                            }
+                                            Spacer(minLength: 6)
+                                            Image(systemName: "arrow.up.right.square")
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(Color.tsMutedInk)
+                                        }
+                                        .frame(minHeight: 44)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(
+                                        String(
+                                            format: language.text(
+                                                "Unconfirmed public profile for %@ on %@"
+                                            ),
+                                            locale: language.locale,
+                                            source.displayName,
+                                            source.platform
+                                        )
+                                    )
+                                    .accessibilityHint(
+                                        language.text("Open the public provider source")
+                                    )
+                                    .accessibilityIdentifier("ask-public-source-\(source.resultID)")
+                                }
+                            }
+                        }
                     }
                     if !block.citationDependencyIDs.isEmpty && !turn.requiresRefresh {
                         let citations = block.citationDependencyIDs.compactMap { id in

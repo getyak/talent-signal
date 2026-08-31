@@ -2,6 +2,153 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    func testSingleUnscopedScreenshotRoutesDirectlyWithoutRelationshipOrToolSelection() {
+        XCTAssertEqual(
+            AskScreenshotResearchRoutingPolicy.route(
+                hasSelectedRelationship: false,
+                mediaTypes: ["image/png"]
+            ),
+            .directResearch
+        )
+        XCTAssertEqual(
+            AskScreenshotResearchRoutingPolicy.route(
+                hasSelectedRelationship: false,
+                mediaTypes: ["image/png", "image/jpeg"]
+            ),
+            .unsupported
+        )
+        XCTAssertEqual(
+            AskScreenshotResearchRoutingPolicy.route(
+                hasSelectedRelationship: true,
+                mediaTypes: ["image/png"]
+            ),
+            .notApplicable
+        )
+    }
+
+    func testAskResponseDecodesUnconfirmedPublicProfileSources() throws {
+        let payload = """
+        {
+          "contract_version": "2026-08-24.10",
+          "task_id": "11111111-1111-4111-8111-111111111111",
+          "context_manifest_id": "22222222-2222-4222-8222-222222222222",
+          "knowledge_snapshot_id": "33333333-3333-4333-8333-333333333333",
+          "disposition": "answer",
+          "blocks": [{
+            "id": "44444444-4444-4444-8444-444444444444",
+            "kind": "person_research",
+            "title": "Public profile research · possible match",
+            "body": "Identity remains unconfirmed.",
+            "status": "needs_review",
+            "citation_dependency_ids": [],
+            "requires_user_decision": true,
+            "public_source_refs": [{
+              "result_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "provider_id": "tikhub",
+              "platform": "douyin",
+              "profile_url": "https://www.douyin.com/user/synthetic",
+              "display_name": "Synthetic Profile",
+              "handle": "synthetic",
+              "biography": "Evaluation-only biography.",
+              "avatar_url": null,
+              "verified": false,
+              "match_basis": "The visible handle matches.",
+              "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "retrieved_at": "2026-08-31T00:00:00.000Z"
+            }]
+          }],
+          "media": [],
+          "created_at": "2026-08-31T00:00:00.000Z"
+        }
+        """
+
+        let response = try JSONDecoder().decode(
+            RelationshipAskResponse.self,
+            from: Data(payload.utf8)
+        )
+        let source = try XCTUnwrap(response.blocks.first?.publicSources?.first)
+
+        XCTAssertEqual(source.providerID, "tikhub")
+        XCTAssertEqual(source.platform, "douyin")
+        XCTAssertEqual(source.handle, "synthetic")
+        XCTAssertEqual(source.verified, false)
+        XCTAssertTrue(response.blocks.first?.requiresUserDecision == true)
+    }
+
+    func testUnboundPersonResearchReceiptValidatesZeroRetentionAndProjectsForSessionDisplay() throws {
+        let payload = """
+        {
+          "contract_version": "2026-08-24.10",
+          "task_id": "11111111-1111-4111-8111-111111111111",
+          "disposition": "answer",
+          "blocks": [{
+            "id": "44444444-4444-4444-8444-444444444444",
+            "kind": "person_research",
+            "title": "Public profile research · possible match",
+            "body": "Identity remains unconfirmed.",
+            "status": "needs_review",
+            "citation_dependency_ids": [],
+            "requires_user_decision": true,
+            "public_source_refs": [{
+              "result_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "provider_id": "tikhub",
+              "platform": "douyin",
+              "profile_url": "https://www.douyin.com/user/synthetic",
+              "display_name": "Synthetic Profile",
+              "handle": "synthetic",
+              "biography": "Evaluation-only biography.",
+              "avatar_url": null,
+              "verified": false,
+              "match_basis": "The visible handle matches.",
+              "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "retrieved_at": "2026-08-31T00:00:00.000Z"
+            }]
+          }],
+          "source_image": {
+            "media_type": "image/png",
+            "byte_size": 4,
+            "content_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "persisted": false
+          },
+          "external_effects": [],
+          "created_at": "2026-08-31T00:00:00.000Z"
+        }
+        """
+
+        let response = try JSONDecoder().decode(
+            PersonResearchTaskResponse.self,
+            from: Data(payload.utf8)
+        )
+        XCTAssertNoThrow(
+            try response.validate(
+                expectedMediaType: "image/png",
+                expectedByteSize: 4,
+                expectedContentHash: String(repeating: "c", count: 64)
+            )
+        )
+        let projected = response.relationshipAskProjection
+        XCTAssertEqual(projected.taskID, response.taskID)
+        XCTAssertTrue(projected.citations.isEmpty)
+        XCTAssertTrue(projected.media.isEmpty)
+        XCTAssertEqual(projected.blocks.first?.kind, "person_research")
+
+        let retainedPayload = payload.replacingOccurrences(
+            of: "\"persisted\": false",
+            with: "\"persisted\": true"
+        )
+        let retained = try JSONDecoder().decode(
+            PersonResearchTaskResponse.self,
+            from: Data(retainedPayload.utf8)
+        )
+        XCTAssertThrowsError(
+            try retained.validate(
+                expectedMediaType: "image/png",
+                expectedByteSize: 4,
+                expectedContentHash: String(repeating: "c", count: 64)
+            )
+        )
+    }
+
     func testReviewedCaptureSeedsOneEditableScopedAgentQuestion() {
         let seed = AgentSessionSeed.reviewedCapture(
             personID: "person-1",
@@ -1864,6 +2011,84 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertFalse(recorded.isUnresolvedIntent)
         XCTAssertNil(recorded.pendingObjective)
         XCTAssertEqual(recorded.turns.count, 1)
+    }
+
+    @MainActor
+    func testUnboundScreenshotResearchReusesUnknownOutcomeKeyWithoutBindingAPerson() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let first = AgentSessionStore(persistence: persistence)
+        let objective = "Find the possible public profile."
+        let sessionID = try XCTUnwrap(
+            first.beginUnscopedSession(objective: objective)
+        )
+        let firstKey = try XCTUnwrap(
+            first.beginUnscopedPersonResearch(
+                sessionID: sessionID,
+                objective: objective,
+                requestIdentity: "image/png:hash-one",
+                proposedIdempotencyKey: "ios:person-research:first"
+            )
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertTrue(try XCTUnwrap(restored.session(id: sessionID)).hasPendingPersonResearch)
+        let retryKey = try XCTUnwrap(
+            restored.beginUnscopedPersonResearch(
+                sessionID: sessionID,
+                objective: objective,
+                requestIdentity: "image/png:hash-one",
+                proposedIdempotencyKey: "ios:person-research:duplicate"
+            )
+        )
+        XCTAssertEqual(retryKey, firstKey)
+
+        let response = RelationshipAskResponse(
+            contractVersion: TalentSignalAPIContract.version,
+            taskID: "11111111-1111-4111-8111-111111111111",
+            contextManifestID: "none-unbound-person-research",
+            knowledgeSnapshotID: "none-unbound-person-research",
+            disposition: "no_action",
+            blocks: [
+                .init(
+                    id: "22222222-2222-4222-8222-222222222222",
+                    kind: "person_research",
+                    title: "No safe match",
+                    body: "No identity was confirmed.",
+                    status: "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: false
+                ),
+            ],
+            createdAt: "2026-08-31T00:00:00.000Z"
+        )
+        XCTAssertTrue(
+            restored.recordUnscopedPersonResearch(
+                sessionID: sessionID,
+                objective: objective,
+                response: response
+            )
+        )
+        let recorded = try XCTUnwrap(restored.session(id: sessionID))
+        XCTAssertTrue(recorded.isUnresolvedIntent)
+        XCTAssertFalse(recorded.hasPendingPersonResearch)
+        XCTAssertNil(recorded.personID)
+        XCTAssertNil(recorded.relationshipContextID)
+        XCTAssertEqual(recorded.turns.count, 1)
+        XCTAssertTrue(restored.validationTargets().isEmpty)
+
+        let relaunched = AgentSessionStore(persistence: persistence)
+        let relaunchedTurn = try XCTUnwrap(
+            relaunched.session(id: sessionID)?.turns.first
+        )
+        XCTAssertTrue(relaunchedTurn.requiresRefresh)
+        XCTAssertEqual(
+            relaunchedTurn.response.blocks.first?.kind,
+            "person_research"
+        )
+        XCTAssertEqual(
+            relaunchedTurn.response.blocks.first?.body,
+            "No identity was confirmed."
+        )
     }
 
     func testRelationshipRecallMatchesOneAuthorizedRelationshipWithoutASelector() throws {

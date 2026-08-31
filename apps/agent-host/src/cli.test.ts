@@ -93,6 +93,7 @@ describe("local Agent host CLI", () => {
     const result = await runLocalResearchCommand(
       [
         "research",
+        "--",
         "--objective",
         "Research Example Company's public update.",
         "--subject",

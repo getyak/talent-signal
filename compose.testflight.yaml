@@ -69,7 +69,13 @@ services:
       HOST: "0.0.0.0"
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      CHAT_MEDIA_STORAGE_PROVIDER: ${CHAT_MEDIA_STORAGE_PROVIDER:-local}
+      CHAT_MEDIA_LOCAL_DIRECTORY: /var/lib/talent-signal/chat-media
       TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING: ${TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING:?TALENT_SIGNAL_ALLOW_REMOTE_CHAT_PROCESSING is required}
+      TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: ${TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING:-false}
+      TALENT_SIGNAL_PERSON_RESEARCH_ENABLED: ${TALENT_SIGNAL_PERSON_RESEARCH_ENABLED:-false}
+      TALENT_SIGNAL_PERSON_RESEARCH_SOCKET: /var/run/talent-signal-agent/person-research.sock
+      TALENT_SIGNAL_PERSON_RESEARCH_TIMEOUT_MS: ${TALENT_SIGNAL_PERSON_RESEARCH_TIMEOUT_MS:-65000}
       TALENT_SIGNAL_CHAT_PROVIDER: ${TALENT_SIGNAL_CHAT_PROVIDER:-disabled}
       TALENT_SIGNAL_CHAT_MODEL: ${TALENT_SIGNAL_CHAT_MODEL:-}
       TALENT_SIGNAL_CHAT_TIMEOUT_MS: ${TALENT_SIGNAL_CHAT_TIMEOUT_MS:-15000}
@@ -82,6 +88,9 @@ services:
       DOUBAO_ASR_APP_ID: ${DOUBAO_ASR_APP_ID:?DOUBAO_ASR_APP_ID is required}
       DOUBAO_ASR_ACCESS_TOKEN: ${DOUBAO_ASR_ACCESS_TOKEN:?DOUBAO_ASR_ACCESS_TOKEN is required}
     init: true
+    volumes:
+      - talent_signal_testflight_chat_media:/var/lib/talent-signal/chat-media
+      - talent_signal_testflight_agent_ipc:/var/run/talent-signal-agent
     dns:
       - ${TS_TESTFLIGHT_DNS_PRIMARY:-100.100.100.100}
       - ${TS_TESTFLIGHT_DNS_FALLBACK:-114.114.114.114}
@@ -107,5 +116,47 @@ services:
       - no-new-privileges:true
     logging: *default-logging
 
+  person-research-agent:
+    image: ${BACKEND_IMAGE:-talent-signal-backend-local:testflight}
+    build: *backend-build
+    environment:
+      NODE_ENV: production
+      TALENT_SIGNAL_AGENT_PROVIDER: ${TALENT_SIGNAL_AGENT_PROVIDER:-zhipu}
+      TALENT_SIGNAL_AGENT_VISION_MODEL: ${TALENT_SIGNAL_AGENT_VISION_MODEL:-glm-4.6v-flash}
+      TALENT_SIGNAL_AGENT_REFERER: ${TALENT_SIGNAL_AGENT_REFERER:-https://talent-signal.internal}
+      TALENT_SIGNAL_AGENT_STATE_DIR: /var/lib/talent-signal/agent
+      TALENT_SIGNAL_PERSON_RESEARCH_SOCKET: /var/run/talent-signal-agent/person-research.sock
+      TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: ${TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING:-false}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY:-}
+      ZHIPU_BASE_URL: ${ZHIPU_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      TALENT_SIGNAL_CNY_PER_USD: ${TALENT_SIGNAL_CNY_PER_USD:-7.2}
+      TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION: ${TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION:-2}
+      TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION: ${TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION:-8}
+      TIKHUB_API_KEY: ${TIKHUB_API_KEY:-}
+      TIKHUB_BASE_URL: ${TIKHUB_BASE_URL:-https://api.tikhub.dev}
+    command:
+      [
+        "node",
+        "apps/agent-host/dist/cli.js",
+        "person-research-server",
+        "--socket",
+        "/var/run/talent-signal-agent/person-research.sock",
+        "--state-dir",
+        "/var/lib/talent-signal/agent",
+      ]
+    init: true
+    volumes:
+      - talent_signal_testflight_agent_ipc:/var/run/talent-signal-agent
+      - talent_signal_testflight_agent_state:/var/lib/talent-signal/agent
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
 volumes:
   talent_signal_testflight_postgres:
+  talent_signal_testflight_chat_media:
+  talent_signal_testflight_agent_ipc:
+  talent_signal_testflight_agent_state:

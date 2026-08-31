@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct PursuitWorkspaceSession: Equatable {
@@ -284,6 +285,12 @@ protocol PursuitWorkspaceServing {
         idempotencyKey: String,
         mediaIDs: [String]
     ) async throws -> RelationshipAskResponse
+    func researchPerson(
+        objective: String,
+        imageData: Data,
+        mediaType: String,
+        idempotencyKey: String
+    ) async throws -> PersonResearchTaskResponse
     func createChatMedia(
         personID: String,
         relationshipContextID: String,
@@ -368,6 +375,15 @@ extension PursuitWorkspaceServing {
             relationshipContextID: relationshipContextID,
             idempotencyKey: idempotencyKey
         )
+    }
+
+    func researchPerson(
+        objective: String,
+        imageData: Data,
+        mediaType: String,
+        idempotencyKey: String
+    ) async throws -> PersonResearchTaskResponse {
+        throw PursuitWorkspaceClientError.askUnavailable
     }
 
     func createChatMedia(
@@ -787,6 +803,45 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         )
     }
 
+    func researchPerson(
+        objective: String,
+        imageData: Data,
+        mediaType: String,
+        idempotencyKey: String
+    ) async throws -> PersonResearchTaskResponse {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        guard ["image/jpeg", "image/png", "image/webp"].contains(mediaType),
+              (1...8_388_608).contains(imageData.count) else {
+            throw PursuitWorkspaceClientError.personResearchReceiptMismatch
+        }
+        let login = try await loginIfNeeded()
+        let contentHash = SHA256.hash(data: imageData)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let response: PersonResearchTaskResponse = try await post(
+            path: "v1/person-research/tasks",
+            token: login.accessToken,
+            body: PersonResearchTaskBody(
+                idempotencyKey: idempotencyKey,
+                objective: objective,
+                image: .init(
+                    mediaType: mediaType,
+                    byteSize: imageData.count,
+                    contentHash: contentHash,
+                    dataBase64: imageData.base64EncodedString()
+                )
+            )
+        )
+        try response.validate(
+            expectedMediaType: mediaType,
+            expectedByteSize: imageData.count,
+            expectedContentHash: contentHash
+        )
+        return response
+    }
+
     func createChatMedia(
         personID: String,
         relationshipContextID: String,
@@ -1166,6 +1221,7 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
     case askCitationBindingMismatch
     case askCitationReviewAuthorityMissing
     case citedEvidenceUnavailable
+    case personResearchReceiptMismatch
     case actionCompletionUnavailable
     case askUnavailable
     case backend(code: String, message: String)
@@ -1197,6 +1253,8 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
             return "Ask stopped because a cited source needs a current recruiter review before it can be used."
         case .citedEvidenceUnavailable:
             return "Ask stopped because one cited source is unavailable or outside its current authorization."
+        case .personResearchReceiptMismatch:
+            return "Screenshot research stopped because its zero-retention receipt or public-source result could not be verified."
         case .actionCompletionUnavailable:
             return "Canonical action completion is unavailable in this workspace."
         case .askUnavailable:
@@ -1229,6 +1287,38 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         let citationDependencyIDs: [String]
         let requiresUserDecision: Bool
         let targetRef: TargetRef?
+        let publicSources: [PublicSource]?
+
+        struct PublicSource: Codable, Equatable, Identifiable {
+            let resultID: String
+            let providerID: String
+            let platform: String
+            let profileURL: String
+            let displayName: String
+            let handle: String?
+            let biography: String?
+            let avatarURL: String?
+            let verified: Bool?
+            let matchBasis: String
+            let contentHash: String
+            let retrievedAt: String
+
+            var id: String { resultID }
+
+            enum CodingKeys: String, CodingKey {
+                case resultID = "result_id"
+                case providerID = "provider_id"
+                case platform
+                case profileURL = "profile_url"
+                case displayName = "display_name"
+                case handle, biography
+                case avatarURL = "avatar_url"
+                case verified
+                case matchBasis = "match_basis"
+                case contentHash = "content_hash"
+                case retrievedAt = "retrieved_at"
+            }
+        }
 
         struct TargetRef: Codable, Equatable {
             let type: String
@@ -1247,6 +1337,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             case citationDependencyIDs = "citation_dependency_ids"
             case requiresUserDecision = "requires_user_decision"
             case targetRef = "target_ref"
+            case publicSources = "public_source_refs"
         }
 
         init(
@@ -1257,7 +1348,8 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             status: String,
             citationDependencyIDs: [String],
             requiresUserDecision: Bool,
-            targetRef: TargetRef? = nil
+            targetRef: TargetRef? = nil,
+            publicSources: [PublicSource]? = nil
         ) {
             self.id = id
             self.kind = kind
@@ -1267,6 +1359,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             self.citationDependencyIDs = citationDependencyIDs
             self.requiresUserDecision = requiresUserDecision
             self.targetRef = targetRef
+            self.publicSources = publicSources
         }
     }
 
@@ -1394,6 +1487,117 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
     }
 }
 
+struct PersonResearchTaskResponse: Decodable, Equatable, Identifiable {
+    struct SourceImage: Decodable, Equatable {
+        let mediaType: String
+        let byteSize: Int
+        let contentHash: String
+        let persisted: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case mediaType = "media_type"
+            case byteSize = "byte_size"
+            case contentHash = "content_hash"
+            case persisted
+        }
+    }
+
+    let contractVersion: String
+    let taskID: String
+    let disposition: String
+    let blocks: [RelationshipAskResponse.Block]
+    let sourceImage: SourceImage
+    let externalEffects: [String]
+    let createdAt: String
+
+    var id: String { taskID }
+
+    enum CodingKeys: String, CodingKey {
+        case contractVersion = "contract_version"
+        case taskID = "task_id"
+        case disposition, blocks
+        case sourceImage = "source_image"
+        case externalEffects = "external_effects"
+        case createdAt = "created_at"
+    }
+
+    func validate(
+        expectedMediaType: String,
+        expectedByteSize: Int,
+        expectedContentHash: String
+    ) throws {
+        guard contractVersion == TalentSignalAPIContract.version,
+              UUID(uuidString: taskID) != nil,
+              ["answer", "no_action", "unavailable"].contains(disposition),
+              blocks.count == 1,
+              sourceImage.mediaType == expectedMediaType,
+              sourceImage.byteSize == expectedByteSize,
+              sourceImage.contentHash == expectedContentHash,
+              !sourceImage.persisted,
+              externalEffects.isEmpty else {
+            throw PursuitWorkspaceClientError.personResearchReceiptMismatch
+        }
+        guard let block = blocks.first,
+              block.citationDependencyIDs.isEmpty,
+              block.targetRef == nil,
+              ["person_research", "failure_recovery"].contains(block.kind) else {
+            throw PursuitWorkspaceClientError.personResearchReceiptMismatch
+        }
+        switch disposition {
+        case "answer":
+            guard block.kind == "person_research",
+                  block.status == "needs_review",
+                  !(block.publicSources ?? []).isEmpty else {
+                throw PursuitWorkspaceClientError.personResearchReceiptMismatch
+            }
+        case "no_action":
+            guard block.kind == "person_research",
+                  block.requiresUserDecision == false,
+                  (block.publicSources ?? []).isEmpty else {
+                throw PursuitWorkspaceClientError.personResearchReceiptMismatch
+            }
+        case "unavailable":
+            guard block.kind == "failure_recovery",
+                  block.requiresUserDecision == false,
+                  (block.publicSources ?? []).isEmpty else {
+                throw PursuitWorkspaceClientError.personResearchReceiptMismatch
+            }
+        default:
+            throw PursuitWorkspaceClientError.personResearchReceiptMismatch
+        }
+        for source in block.publicSources ?? [] {
+            guard source.providerID == "tikhub",
+                  source.resultID.range(
+                    of: "^[a-f0-9]{64}$",
+                    options: .regularExpression
+                  ) != nil,
+                  source.contentHash.range(
+                    of: "^[a-f0-9]{64}$",
+                    options: .regularExpression
+                  ) != nil,
+                  let profileURL = URL(string: source.profileURL),
+                  profileURL.scheme == "https",
+                  profileURL.host != nil else {
+                throw PursuitWorkspaceClientError.personResearchReceiptMismatch
+            }
+        }
+    }
+
+    var relationshipAskProjection: RelationshipAskResponse {
+        RelationshipAskResponse(
+            contractVersion: contractVersion,
+            taskID: taskID,
+            contextManifestID: "none-unbound-person-research",
+            knowledgeSnapshotID: "none-unbound-person-research",
+            disposition: disposition,
+            blocks: blocks,
+            media: [],
+            createdAt: createdAt,
+            citations: []
+        )
+    }
+}
+
 struct RelationshipAskReadback: Decodable, Equatable {
     let contractVersion: String
     let accountID: String
@@ -1502,6 +1706,31 @@ private struct RelationshipAskBody: Encodable {
         case personID = "person_id"
         case relationshipContextID = "relationship_context_id"
         case mediaIDs = "media_ids"
+    }
+}
+
+private struct PersonResearchTaskBody: Encodable {
+    struct Image: Encodable {
+        let mediaType: String
+        let byteSize: Int
+        let contentHash: String
+        let dataBase64: String
+
+        enum CodingKeys: String, CodingKey {
+            case mediaType = "media_type"
+            case byteSize = "byte_size"
+            case contentHash = "content_hash"
+            case dataBase64 = "data_base64"
+        }
+    }
+
+    let idempotencyKey: String
+    let objective: String
+    let image: Image
+
+    enum CodingKeys: String, CodingKey {
+        case idempotencyKey = "idempotency_key"
+        case objective, image
     }
 }
 

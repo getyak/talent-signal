@@ -139,6 +139,37 @@ Run budgets and provider readback. Do not configure silent cross-provider
 fallback because it changes ranking, data processing, cost, and attribution
 without changing the Run authorization.
 
+Screenshot-driven public-person research uses a separate Agent-host contract.
+Keep `TIKHUB_API_KEY` and `TIKHUB_BASE_URL` in `<environment>:/agent-host`, pin
+`TALENT_SIGNAL_AGENT_VISION_MODEL` in `<environment>:/shared`, and verify only the names
+with `pnpm secrets:check:person-research`. The command loads `/shared` and
+`/agent-host` into the Agent Host process or sidecar only; no API process, Web,
+iOS, release job, or model prompt receives the TikHub credential. Do not add TikHub as a fallback
+for Brave/Tavily or vice versa: the purposes, data paths, cost, and source
+semantics differ.
+
+The runtime also requires `TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING=true`
+before it will send the intentional screenshot to the pinned vision provider.
+Keep that gate false until the provider contract and observed configuration
+satisfy the model-provider admission checklist. The gate admits only the image
+under the immutable local person-research Task; it does not admit whole
+conversation history, background enrichment, canonical evidence, identity
+binding, or any external write.
+
+Verify TikHub with `/api/v1/health/check` and the authenticated
+`/api/v1/tikhub/user/get_user_info` envelope while printing only `ok` or
+`authorized`. Do not print the account, balance, response headers, or secret.
+Do not issue a billable person search as a credential check. An expired or
+revoked token fails closed; replace it in the same Infisical path and rerun the
+name and account-envelope checks before attempting a real Run.
+
+Product ingress is separately controlled by
+`TALENT_SIGNAL_PERSON_RESEARCH_ENABLED` under `/backend`. Keep it `false` until
+the TikHub account envelope, vision-provider admission, and a synthetic
+end-to-end Run all pass. Compose fixes the socket path inside its private shared
+volume; do not place the TikHub credential in API environment variables merely
+to make the socket client work.
+
 Recruiter dictation uses the narrower
 `TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION` gate. Set it only for a
 runtime whose authenticated flow records in the foreground, stops before

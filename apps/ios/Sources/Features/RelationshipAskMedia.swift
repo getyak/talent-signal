@@ -26,6 +26,33 @@ struct AskMediaDraft: Identifiable {
     }
 }
 
+enum AskScreenshotResearchRoute: Equatable {
+    case notApplicable
+    case directResearch
+    case unsupported
+}
+
+enum AskScreenshotResearchRoutingPolicy {
+    private static let supportedMediaTypes: Set<String> = [
+        "image/jpeg", "image/png", "image/webp",
+    ]
+
+    static func route(
+        hasSelectedRelationship: Bool,
+        mediaTypes: [String]
+    ) -> AskScreenshotResearchRoute {
+        guard !hasSelectedRelationship, !mediaTypes.isEmpty else {
+            return .notApplicable
+        }
+        guard mediaTypes.count == 1,
+              let mediaType = mediaTypes.first,
+              supportedMediaTypes.contains(mediaType) else {
+            return .unsupported
+        }
+        return .directResearch
+    }
+}
+
 struct AskMediaDraftTray: View {
     let drafts: [AskMediaDraft]
     let onRetry: (UUID) -> Void

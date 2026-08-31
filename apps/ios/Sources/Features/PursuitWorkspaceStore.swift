@@ -353,6 +353,23 @@ final class PursuitWorkspaceStore: ObservableObject {
         )
     }
 
+    func researchPerson(
+        objective: String,
+        imageData: Data,
+        mediaType: String,
+        idempotencyKey: String
+    ) async throws -> PersonResearchTaskResponse {
+        guard let service else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        return try await service.researchPerson(
+            objective: objective,
+            imageData: imageData,
+            mediaType: mediaType,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
     func saveContactDraft(
         _ draft: ConversationContactDraft,
         target: ConversationContactTarget,

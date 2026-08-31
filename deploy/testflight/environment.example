@@ -14,6 +14,19 @@ TALENT_SIGNAL_CHAT_TIMEOUT_MS=15000
 ZHIPU_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 ZHIPU_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
 
+# Screenshot public-profile research uses the same admitted vision provider,
+# but a separate Agent definition and a separate Agent Host credential domain.
+# Keep the product gate false until both provider readbacks and the synthetic
+# end-to-end probe pass.
+TALENT_SIGNAL_AGENT_PROVIDER=zhipu
+TALENT_SIGNAL_AGENT_VISION_MODEL=glm-4.6v-flash
+TALENT_SIGNAL_PERSON_RESEARCH_ENABLED=false
+TALENT_SIGNAL_PERSON_RESEARCH_TIMEOUT_MS=65000
+
+# These two names belong only in Infisical staging:/agent-host.
+TIKHUB_API_KEY=replace-with-a-dedicated-staging-key-in-infisical
+TIKHUB_BASE_URL=https://api.tikhub.dev
+
 # Recruiter dictation belongs in Infisical staging:/shared. The App ID and
 # Access Token remain server-only. This voice-specific gate does not admit
 # screenshots or candidate evidence to other remote model paths.

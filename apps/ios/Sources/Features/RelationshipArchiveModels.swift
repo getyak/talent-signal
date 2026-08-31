@@ -411,6 +411,8 @@ struct AgentSession: Identifiable, Equatable {
     var turns: [AgentSessionTurn]
     var contactReceipts: [AgentContactReceipt]
     var pendingObjective: String? = nil
+    var pendingPersonResearchIdempotencyKey: String? = nil
+    var pendingPersonResearchRequestIdentity: String? = nil
     var updatedAt: Date
     var isUnread: Bool
 
@@ -428,6 +430,11 @@ struct AgentSession: Identifiable, Equatable {
     var isUnresolvedIntent: Bool {
         if case .unresolvedIntent = scope { return true }
         return false
+    }
+
+    var hasPendingPersonResearch: Bool {
+        pendingPersonResearchIdempotencyKey != nil
+            && pendingPersonResearchRequestIdentity != nil
     }
 
     var latestPreview: String {
@@ -480,7 +487,11 @@ struct AgentSession: Identifiable, Equatable {
 
     func displayContextLabel(in language: AppLanguage) -> String {
         if isUnresolvedIntent {
-            return language.text("Finding relationship")
+            return turns.contains { turn in
+                turn.response.blocks.contains { $0.kind == "person_research" }
+            }
+                ? language.text("Public profile research")
+                : language.text("Finding relationship")
         }
         return isIdentityReview
             ? language.text("Identity review")
@@ -676,6 +687,8 @@ private struct PersistedAgentSession: Codable {
     let turns: [PersistedAgentSessionTurn]
     let contactReceipts: [PersistedAgentContactReceipt]?
     let pendingObjective: String?
+    let pendingPersonResearchIdempotencyKey: String?
+    let pendingPersonResearchRequestIdentity: String?
     let updatedAt: Date
     let isUnread: Bool
 
@@ -693,6 +706,8 @@ private struct PersistedAgentSession: Codable {
         turns = value.turns.map(PersistedAgentSessionTurn.init)
         contactReceipts = value.contactReceipts.map(PersistedAgentContactReceipt.init)
         pendingObjective = value.pendingObjective
+        pendingPersonResearchIdempotencyKey = value.pendingPersonResearchIdempotencyKey
+        pendingPersonResearchRequestIdentity = value.pendingPersonResearchRequestIdentity
         updatedAt = value.updatedAt
         isUnread = value.isUnread
     }
@@ -727,6 +742,8 @@ private struct PersistedAgentSession: Codable {
             turns: turns.map(\.value),
             contactReceipts: (contactReceipts ?? []).map(\.value),
             pendingObjective: pendingObjective,
+            pendingPersonResearchIdempotencyKey: pendingPersonResearchIdempotencyKey,
+            pendingPersonResearchRequestIdentity: pendingPersonResearchRequestIdentity,
             updatedAt: updatedAt,
             isUnread: isUnread
         )
@@ -811,6 +828,7 @@ private struct PersistedRelationshipAskResponse: Codable {
     let contextManifestID: String
     let knowledgeSnapshotID: String
     let disposition: String
+    let unboundPersonResearchBlocks: [RelationshipAskResponse.Block]?
     let media: [ChatMediaAsset]?
     let createdAt: String
 
@@ -820,6 +838,10 @@ private struct PersistedRelationshipAskResponse: Codable {
         contextManifestID = value.contextManifestID
         knowledgeSnapshotID = value.knowledgeSnapshotID
         disposition = value.disposition
+        unboundPersonResearchBlocks = value.contextManifestID
+            == "none-unbound-person-research"
+            ? value.blocks
+            : nil
         media = value.media
         createdAt = value.createdAt
     }
@@ -831,7 +853,7 @@ private struct PersistedRelationshipAskResponse: Codable {
             contextManifestID: contextManifestID,
             knowledgeSnapshotID: knowledgeSnapshotID,
             disposition: disposition,
-            blocks: [
+            blocks: unboundPersonResearchBlocks ?? [
                 .init(
                     id: "restored-\(taskID)",
                     kind: "continuity",
@@ -903,7 +925,7 @@ final class AgentSessionStore: ObservableObject {
                 PersistedAgentSessionEnvelope.self,
                 from: data
             )
-            guard [1, 2, 3, 4, 5, 6].contains(envelope.version) else {
+            guard [1, 2, 3, 4, 5, 6, 7].contains(envelope.version) else {
                 throw AgentSessionPersistenceError.unsupportedVersion
             }
             storedSessions = try envelope.sessions
@@ -975,6 +997,75 @@ final class AgentSessionStore: ObservableObject {
         return session.id
     }
 
+    func beginUnscopedPersonResearch(
+        sessionID: UUID,
+        objective: String,
+        requestIdentity: String,
+        proposedIdempotencyKey: String
+    ) -> String? {
+        _ = pruneExpiredState()
+        guard let index = storedSessions.firstIndex(where: {
+            $0.id == sessionID && $0.isUnresolvedIntent
+        }) else { return nil }
+        if storedSessions[index].pendingObjective == objective,
+           storedSessions[index].pendingPersonResearchRequestIdentity == requestIdentity,
+           let pending = storedSessions[index]
+                .pendingPersonResearchIdempotencyKey {
+            return pending
+        }
+        let prior = storedSessions[index]
+        storedSessions[index].pendingObjective = objective
+        storedSessions[index].pendingPersonResearchIdempotencyKey = proposedIdempotencyKey
+        storedSessions[index].pendingPersonResearchRequestIdentity = requestIdentity
+        storedSessions[index].updatedAt = now()
+        guard persist() else {
+            storedSessions[index] = prior
+            scheduleNextExpiration()
+            return nil
+        }
+        return proposedIdempotencyKey
+    }
+
+    @discardableResult
+    func recordUnscopedPersonResearch(
+        sessionID: UUID,
+        objective: String,
+        response: RelationshipAskResponse,
+        createdAt: Date = Date()
+    ) -> Bool {
+        _ = pruneExpiredState()
+        guard let index = storedSessions.firstIndex(where: {
+            $0.id == sessionID && $0.isUnresolvedIntent
+        }) else { return false }
+        let prior = storedSessions[index]
+        storedSessions[index].turns.append(
+            AgentSessionTurn(
+                id: UUID(),
+                objective: objective,
+                response: response,
+                createdAt: createdAt,
+                requiresRefresh: false
+            )
+        )
+        storedSessions[index].pendingObjective = nil
+        storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+        storedSessions[index].pendingPersonResearchRequestIdentity = nil
+        storedSessions[index].updatedAt = createdAt
+        storedSessions[index].isUnread = false
+        sortSessions()
+        guard persist() else {
+            if let rollbackIndex = storedSessions.firstIndex(where: {
+                $0.id == sessionID
+            }) {
+                storedSessions[rollbackIndex] = prior
+                sortSessions()
+            }
+            scheduleNextExpiration()
+            return false
+        }
+        return true
+    }
+
     @discardableResult
     func bindUnscopedSession(
         id: UUID,
@@ -994,6 +1085,8 @@ final class AgentSessionStore: ObservableObject {
             personDisplayLabel: person.displayLabel,
             contextDisplayLabel: context.displayLabel
         )
+        storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+        storedSessions[index].pendingPersonResearchRequestIdentity = nil
         storedSessions[index].updatedAt = now()
         guard persist() else {
             storedSessions[index] = prior
@@ -1042,6 +1135,8 @@ final class AgentSessionStore: ObservableObject {
                 )
             }
             storedSessions[index].pendingObjective = nil
+            storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+            storedSessions[index].pendingPersonResearchRequestIdentity = nil
             storedSessions[index].turns.append(turn)
             storedSessions[index].updatedAt = createdAt
             storedSessions[index].isUnread = false
@@ -1773,7 +1868,7 @@ final class AgentSessionStore: ObservableObject {
         guard let persistence else { return true }
         do {
             let envelope = PersistedAgentSessionEnvelope(
-                version: 6,
+                version: 7,
                 sessions: storedSessions.map(PersistedAgentSession.init),
                 drafts: drafts,
                 globalDraft: storedGlobalDraft,

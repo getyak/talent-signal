@@ -2,10 +2,12 @@ import { z } from "zod";
 
 import {
   CreateResearchArtifactInputSchema,
+  CreatePersonResearchArtifactInputSchema,
   FetchWebInputSchema,
   ReadEvidenceInputSchema,
   ReadPursuitInputSchema,
   SearchWebInputSchema,
+  SearchPublicProfilesInputSchema,
   StageProposalInputSchema,
 } from "./schemas.js";
 import type { AgentToolName } from "./types.js";
@@ -14,6 +16,7 @@ export type AgentCapabilityClass =
   | "scoped_read"
   | "public_discovery"
   | "public_fetch"
+  | "public_profile_discovery"
   | "review_candidate"
   | "draft_artifact";
 
@@ -103,6 +106,66 @@ export const AGENT_TOOL_CATALOG: Readonly<
     reversibility: "discardable",
     idempotency: "content_fingerprint",
   },
+  search_douyin_profiles: {
+    description:
+      "Search public Douyin profiles using only identity text visibly present in the one authorized screenshot. Results are possible matches, never confirmed identity.",
+    schema: SearchPublicProfilesInputSchema,
+    readOnly: true,
+    openWorld: true,
+    capabilityClass: "public_profile_discovery",
+    consequence: "none",
+    approval: "none",
+    reversibility: "not_applicable",
+    idempotency: "safe_read",
+  },
+  search_tiktok_profiles: {
+    description:
+      "Search public TikTok profiles using only identity text visibly present in the one authorized screenshot. Results are possible matches, never confirmed identity.",
+    schema: SearchPublicProfilesInputSchema,
+    readOnly: true,
+    openWorld: true,
+    capabilityClass: "public_profile_discovery",
+    consequence: "none",
+    approval: "none",
+    reversibility: "not_applicable",
+    idempotency: "safe_read",
+  },
+  search_weibo_profiles: {
+    description:
+      "Search public Weibo profiles using only identity text visibly present in the one authorized screenshot. Results are possible matches, never confirmed identity.",
+    schema: SearchPublicProfilesInputSchema,
+    readOnly: true,
+    openWorld: true,
+    capabilityClass: "public_profile_discovery",
+    consequence: "none",
+    approval: "none",
+    reversibility: "not_applicable",
+    idempotency: "safe_read",
+  },
+  search_threads_profiles: {
+    description:
+      "Search public Threads profiles using only identity text visibly present in the one authorized screenshot. Results are possible matches, never confirmed identity.",
+    schema: SearchPublicProfilesInputSchema,
+    readOnly: true,
+    openWorld: true,
+    capabilityClass: "public_profile_discovery",
+    consequence: "none",
+    approval: "none",
+    reversibility: "not_applicable",
+    idempotency: "safe_read",
+  },
+  create_person_research_artifact: {
+    description:
+      "Create one discardable person-research draft with unreviewed screenshot clues, possible or ambiguous matches, and same-run TikHub citations. It cannot bind identity or publish facts.",
+    schema: CreatePersonResearchArtifactInputSchema,
+    readOnly: false,
+    openWorld: false,
+    capabilityClass: "draft_artifact",
+    consequence: "durable_candidate",
+    approval: "none",
+    reversibility: "discardable",
+    idempotency: "content_fingerprint",
+  },
 });
 
 export function agentToolJsonSchema(name: AgentToolName): Record<string, unknown> {
@@ -117,9 +180,23 @@ export function agentToolJsonSchema(name: AgentToolName): Record<string, unknown
 export function candidateToolNames(
   manifest: readonly AgentToolName[],
 ): readonly AgentToolName[] {
+  if (manifest.includes("create_person_research_artifact")) {
+    return ["create_person_research_artifact"];
+  }
   return manifest.includes("create_research_artifact")
     ? ["create_research_artifact"]
     : ["stage_pursuit_proposal"];
+}
+
+export function candidateOutcome(
+  manifest: readonly AgentToolName[],
+): "proposal" | "artifact" | "person_research_artifact" {
+  if (manifest.includes("create_person_research_artifact")) {
+    return "person_research_artifact";
+  }
+  return manifest.includes("create_research_artifact")
+    ? "artifact"
+    : "proposal";
 }
 
 export function agentCapabilityManifest(manifest: readonly AgentToolName[]) {

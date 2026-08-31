@@ -86,7 +86,10 @@ describe("BigModelAgentProvider", () => {
     };
     expect(body.messages[1]?.content).toEqual(
       expect.arrayContaining([
-        { type: "image_url", image_url: { url: "AQID" } },
+        {
+          type: "image_url",
+          image_url: { url: "data:image/png;base64,AQID" },
+        },
       ]),
     );
     expect(visionProvider.inputCapabilities.imageUnderstanding).toBe(true);

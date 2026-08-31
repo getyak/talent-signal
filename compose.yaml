@@ -120,6 +120,9 @@ services:
       TALENT_SIGNAL_CHAT_TIMEOUT_MS: ${TALENT_SIGNAL_CHAT_TIMEOUT_MS:-15000}
       TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION: ${TALENT_SIGNAL_ALLOW_REMOTE_VOICE_TRANSCRIPTION:-false}
       TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: ${TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING:-false}
+      TALENT_SIGNAL_PERSON_RESEARCH_ENABLED: ${TALENT_SIGNAL_PERSON_RESEARCH_ENABLED:-false}
+      TALENT_SIGNAL_PERSON_RESEARCH_SOCKET: /var/run/talent-signal-agent/person-research.sock
+      TALENT_SIGNAL_PERSON_RESEARCH_TIMEOUT_MS: ${TALENT_SIGNAL_PERSON_RESEARCH_TIMEOUT_MS:-65000}
       VOICE_ASR_PROVIDER: ${VOICE_ASR_PROVIDER:-disabled}
       DOUBAO_ASR_BASE_URL: ${DOUBAO_ASR_BASE_URL:-https://openspeech.bytedance.com}
       DOUBAO_ASR_RESOURCE_ID: ${DOUBAO_ASR_RESOURCE_ID:-volc.bigasr.auc_turbo}
@@ -129,6 +132,7 @@ services:
     init: true
     volumes:
       - talent_signal_chat_media:/var/lib/talent-signal/chat-media
+      - talent_signal_agent_ipc:/var/run/talent-signal-agent
     ports:
       - "127.0.0.1:${BACKEND_PORT:-4317}:4317"
     depends_on:
@@ -157,6 +161,52 @@ services:
     pids_limit: 256
     logging: *default-logging
 
+  person-research-agent:
+    image: ${BACKEND_IMAGE:-talent-signal-backend-local:dev}
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        PNPM_REGISTRY: ${TS_PNPM_REGISTRY:-https://registry.npmjs.org}
+    environment:
+      NODE_ENV: development
+      TALENT_SIGNAL_AGENT_PROVIDER: ${TALENT_SIGNAL_AGENT_PROVIDER:-zhipu}
+      TALENT_SIGNAL_AGENT_VISION_MODEL: ${TALENT_SIGNAL_AGENT_VISION_MODEL:-glm-4.6v-flash}
+      TALENT_SIGNAL_AGENT_REFERER: ${TALENT_SIGNAL_AGENT_REFERER:-http://localhost:3000}
+      TALENT_SIGNAL_AGENT_STATE_DIR: /var/lib/talent-signal/agent
+      TALENT_SIGNAL_PERSON_RESEARCH_SOCKET: /var/run/talent-signal-agent/person-research.sock
+      TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING: ${TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING:-false}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY:-}
+      ZHIPU_BASE_URL: ${ZHIPU_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      TALENT_SIGNAL_CNY_PER_USD: ${TALENT_SIGNAL_CNY_PER_USD:-7.2}
+      TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION: ${TALENT_SIGNAL_ZHIPU_INPUT_CNY_PER_MILLION:-2}
+      TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION: ${TALENT_SIGNAL_ZHIPU_OUTPUT_CNY_PER_MILLION:-8}
+      TIKHUB_API_KEY: ${TIKHUB_API_KEY:-}
+      TIKHUB_BASE_URL: ${TIKHUB_BASE_URL:-https://api.tikhub.dev}
+    command:
+      [
+        "node",
+        "apps/agent-host/dist/cli.js",
+        "person-research-server",
+        "--socket",
+        "/var/run/talent-signal-agent/person-research.sock",
+        "--state-dir",
+        "/var/lib/talent-signal/agent",
+      ]
+    init: true
+    volumes:
+      - talent_signal_agent_ipc:/var/run/talent-signal-agent
+      - talent_signal_agent_state:/var/lib/talent-signal/agent
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 128
+    logging: *default-logging
+
 volumes:
   talent_signal_postgres:
   talent_signal_chat_media:
+  talent_signal_agent_ipc:
+  talent_signal_agent_state:

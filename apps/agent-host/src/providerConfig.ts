@@ -10,6 +10,7 @@ import {
   TavilyWebSearchProvider,
   type AgentWebSearchProvider,
 } from "./webSearchProviders.js";
+import { TikHubProvider } from "./tikHubProvider.js";
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
   const value = environment[name]?.trim();
@@ -32,6 +33,15 @@ export function configuredLocalAgentProvider(
 ): AgentProvider {
   const provider = required(environment, "TALENT_SIGNAL_AGENT_PROVIDER").toLowerCase();
   const model = required(environment, "TALENT_SIGNAL_AGENT_MODEL");
+  return configuredAgentProvider(environment, provider, model, false);
+}
+
+function configuredAgentProvider(
+  environment: NodeJS.ProcessEnv,
+  provider: string,
+  model: string,
+  imageInputEnabled: boolean,
+): AgentProvider {
   if (provider === "claude") {
     if (
       !environment.ANTHROPIC_API_KEY?.trim() &&
@@ -52,6 +62,7 @@ export function configuredLocalAgentProvider(
       ...(environment.TALENT_SIGNAL_AGENT_REFERER?.trim()
         ? { referer: environment.TALENT_SIGNAL_AGENT_REFERER.trim() }
         : {}),
+      imageInputEnabled,
     });
   }
   if (provider === "zhipu") {
@@ -77,6 +88,28 @@ export function configuredLocalAgentProvider(
   throw new Error(
     "TALENT_SIGNAL_AGENT_PROVIDER must be claude, openrouter, or zhipu.",
   );
+}
+
+export function configuredLocalVisionAgentProvider(
+  environment: NodeJS.ProcessEnv = process.env,
+): AgentProvider {
+  if (environment.TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING !== "true") {
+    throw new Error(
+      "Local screenshot person research requires explicit remote-sensitive-processing admission.",
+    );
+  }
+  const provider = required(
+    environment,
+    "TALENT_SIGNAL_AGENT_PROVIDER",
+  ).toLowerCase();
+  const model = required(environment, "TALENT_SIGNAL_AGENT_VISION_MODEL");
+  const configured = configuredAgentProvider(environment, provider, model, true);
+  if (!configured.inputCapabilities.imageUnderstanding) {
+    throw new Error(
+      "The configured local Agent vision model must support image understanding.",
+    );
+  }
+  return configured;
 }
 
 export interface LocalToolProviderRegistration {
@@ -139,4 +172,38 @@ export function configuredLocalWebSearchProvider(
   throw new Error(
     "TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER must be brave or tavily.",
   );
+}
+
+export interface LocalPersonProfileProviderRegistration {
+  id: "tikhub";
+  capability: "public_person_profile_research";
+  secretPath: "/agent-host";
+  credentialNames: readonly ["TIKHUB_API_KEY", "TIKHUB_BASE_URL"];
+  subscriptionOwner: "vendor_account";
+  automaticFallback: false;
+  create(environment: NodeJS.ProcessEnv): TikHubProvider;
+}
+
+export const LOCAL_PERSON_PROFILE_PROVIDER_REGISTRY: Readonly<
+  Record<"tikhub", LocalPersonProfileProviderRegistration>
+> = Object.freeze({
+  tikhub: {
+    id: "tikhub",
+    capability: "public_person_profile_research",
+    secretPath: "/agent-host",
+    credentialNames: ["TIKHUB_API_KEY", "TIKHUB_BASE_URL"],
+    subscriptionOwner: "vendor_account",
+    automaticFallback: false,
+    create: (environment) =>
+      new TikHubProvider({
+        apiKey: required(environment, "TIKHUB_API_KEY"),
+        baseUrl: required(environment, "TIKHUB_BASE_URL"),
+      }),
+  },
+});
+
+export function configuredLocalPersonProfileProvider(
+  environment: NodeJS.ProcessEnv = process.env,
+): TikHubProvider {
+  return LOCAL_PERSON_PROFILE_PROVIDER_REGISTRY.tikhub.create(environment);
 }

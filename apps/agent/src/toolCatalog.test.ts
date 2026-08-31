@@ -4,10 +4,12 @@ import { AgentFinalOutputSchema } from "./schemas.js";
 import {
   AGENT_TOOL_CATALOG,
   agentCapabilityManifest,
+  candidateOutcome,
   candidateToolNames,
 } from "./toolCatalog.js";
 import {
   ALL_AGENT_TOOL_NAMES,
+  PERSON_RESEARCH_AGENT_TOOL_NAMES,
   PURSUIT_AGENT_TOOL_NAMES,
   RESEARCH_AGENT_TOOL_NAMES,
 } from "./types.js";
@@ -35,12 +37,21 @@ describe("provider-neutral Agent capability catalog", () => {
   it("assembles small definition-specific surfaces from one catalog", () => {
     expect(PURSUIT_AGENT_TOOL_NAMES).toHaveLength(3);
     expect(RESEARCH_AGENT_TOOL_NAMES).toHaveLength(3);
+    expect(PERSON_RESEARCH_AGENT_TOOL_NAMES).toHaveLength(5);
     expect(candidateToolNames(PURSUIT_AGENT_TOOL_NAMES)).toEqual([
       "stage_pursuit_proposal",
     ]);
     expect(candidateToolNames(RESEARCH_AGENT_TOOL_NAMES)).toEqual([
       "create_research_artifact",
     ]);
+    expect(candidateToolNames(PERSON_RESEARCH_AGENT_TOOL_NAMES)).toEqual([
+      "create_person_research_artifact",
+    ]);
+    expect(candidateOutcome(PURSUIT_AGENT_TOOL_NAMES)).toBe("proposal");
+    expect(candidateOutcome(RESEARCH_AGENT_TOOL_NAMES)).toBe("artifact");
+    expect(candidateOutcome(PERSON_RESEARCH_AGENT_TOOL_NAMES)).toBe(
+      "person_research_artifact",
+    );
   });
 
   it("makes consequence, approval, reversibility, and idempotency inspectable", () => {
@@ -49,10 +60,11 @@ describe("provider-neutral Agent capability catalog", () => {
       (capability) => capability.consequence === "durable_candidate",
     );
 
-    expect(capabilities).toHaveLength(6);
+    expect(capabilities).toHaveLength(11);
     expect(durable.map((capability) => capability.name)).toEqual([
       "stage_pursuit_proposal",
       "create_research_artifact",
+      "create_person_research_artifact",
     ]);
     expect(
       durable.every(
