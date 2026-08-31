@@ -593,8 +593,7 @@ struct RelationshipAskView: View {
                         draft = recoverableObjective
                         if session.hasPendingPersonResearch {
                             mediaNotice = appLanguage.text(
-                                "The prior screenshot was not retained. Reattach the same image to reconcile or retry its protected Run.",
-                                zhHans: "之前的截图未被保留。请重新附加同一张图片，以核对或重试受保护的任务。"
+                                "The prior screenshot was not retained. Reattach the same image to reconcile or retry its protected Run."
                             )
                         }
                     }
@@ -2602,8 +2601,7 @@ struct RelationshipAskView: View {
             mediaDrafts[index].routingText = recognizedText
         }
         mediaNotice = appLanguage.text(
-            "Attached for this Agent task · visible identity clues may be used for automatic public-profile research · not reviewed evidence",
-            zhHans: "已附加到本次 Agent 任务 · 可见身份线索可能用于自动公开资料研究 · 尚非已审阅证据"
+            "Attached for this Agent task · visible identity clues may be used for automatic public-profile research · not reviewed evidence"
         )
         if let selectedScope {
             uploadMediaDraft(id, scope: selectedScope)
@@ -2764,8 +2762,7 @@ struct RelationshipAskView: View {
         let isUnscopedPersonResearch = screenshotRoute == .directResearch
         if screenshotRoute == .unsupported {
             errorMessage = appLanguage.text(
-                "Public profile research needs exactly one PNG, JPEG, or WebP screenshot. Remove extra or unsupported images, then Send again.",
-                zhHans: "公开资料研究只接受一张 PNG、JPEG 或 WebP 截图。请移除多余或不支持的图片后再次发送。"
+                "Public profile research needs exactly one PNG, JPEG, or WebP screenshot. Remove extra or unsupported images, then Send again."
             )
             composerFocused = false
             return
@@ -2773,12 +2770,10 @@ struct RelationshipAskView: View {
         let effectiveObjective = trimmed.isEmpty
             ? isUnscopedPersonResearch
                 ? appLanguage.text(
-                    "Find possible public profiles from visible identity clues in this screenshot and summarize public information. Do not identify from appearance alone.",
-                    zhHans: "根据截图中可见的身份线索查找可能的公开资料并总结公开信息。不要仅凭外貌识别身份。"
+                    "Find possible public profiles from visible identity clues in this screenshot and summarize public information. Do not identify from appearance alone."
                 )
                 : appLanguage.text(
-                    "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step.",
-                    zhHans: "阅读附件，告诉我发生了什么变化、还有哪些不确定，以及最小且安全的下一步。"
+                    "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step."
                 )
             : trimmed
         if mediaDrafts.isEmpty,
@@ -2877,8 +2872,7 @@ struct RelationshipAskView: View {
             updateAskSubmissionPhase(.idle)
             draft = originalDraft
             errorMessage = appLanguage.text(
-                "The screenshot Run could not be protected for retry. Nothing was sent.",
-                zhHans: "无法为截图任务建立可安全重试的记录，因此没有发送。"
+                "The screenshot Run could not be protected for retry. Nothing was sent."
             )
             return
         }
@@ -2910,15 +2904,13 @@ struct RelationshipAskView: View {
                     draft = originalDraft
                     sessionStore.saveGlobalDraft(originalDraft)
                     mediaNotice = appLanguage.text(
-                        "The Agent did not complete this Run. The screenshot remains only on this screen for a fresh retry; the backend receipt says it was not retained.",
-                        zhHans: "Agent 未完成本次任务。截图仅保留在当前页面以便重新尝试；后端回执确认未保留原图。"
+                        "The Agent did not complete this Run. The screenshot remains only on this screen for a fresh retry; the backend receipt says it was not retained."
                     )
                 } else {
                     sessionStore.saveGlobalDraft("")
                     mediaDrafts = []
                     mediaNotice = appLanguage.text(
-                        "Screenshot processed for this Run · raw image not retained · public matches remain unconfirmed",
-                        zhHans: "截图已用于本次任务 · 原图未保留 · 公开资料匹配仍未确认"
+                        "Screenshot processed for this Run · raw image not retained · public matches remain unconfirmed"
                     )
                 }
             } catch {
@@ -5416,10 +5408,7 @@ private struct AskTurnView: View {
                        !publicSources.isEmpty {
                         VStack(alignment: .leading, spacing: 7) {
                             Label(
-                                language.text(
-                                    "Unconfirmed public sources",
-                                    zhHans: "未确认的公开来源"
-                                ),
+                                language.text("Unconfirmed public sources"),
                                 systemImage: "person.crop.circle.badge.questionmark"
                             )
                             .font(.caption.weight(.semibold))
@@ -5455,16 +5444,17 @@ private struct AskTurnView: View {
                                     }
                                     .buttonStyle(.plain)
                                     .accessibilityLabel(
-                                        language.text(
-                                            "Unconfirmed public profile for \(source.displayName) on \(source.platform)",
-                                            zhHans: "\(source.displayName) 在 \(source.platform) 的未确认公开资料"
+                                        String(
+                                            format: language.text(
+                                                "Unconfirmed public profile for %@ on %@"
+                                            ),
+                                            locale: language.locale,
+                                            source.displayName,
+                                            source.platform
                                         )
                                     )
                                     .accessibilityHint(
-                                        language.text(
-                                            "Open the public provider source",
-                                            zhHans: "打开公开资料来源"
-                                        )
+                                        language.text("Open the public provider source")
                                     )
                                     .accessibilityIdentifier("ask-public-source-\(source.resultID)")
                                 }

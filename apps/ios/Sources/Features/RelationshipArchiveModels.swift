@@ -490,10 +490,7 @@ struct AgentSession: Identifiable, Equatable {
             return turns.contains { turn in
                 turn.response.blocks.contains { $0.kind == "person_research" }
             }
-                ? language.text(
-                    "Public profile research",
-                    zhHans: "公开资料研究"
-                )
+                ? language.text("Public profile research")
                 : language.text("Finding relationship")
         }
         return isIdentityReview

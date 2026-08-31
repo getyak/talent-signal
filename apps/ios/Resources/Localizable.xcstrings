@@ -2406,6 +2406,42 @@
     },
     "One-way Calendar sync requires iOS 17 or later." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单向日历同步需要 iOS 17 或更高版本。" } } }
+    },
+    "Attached for this Agent task · visible identity clues may be used for automatic public-profile research · not reviewed evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已附加到本次 Agent 任务 · 可见身份线索可能用于自动公开资料研究 · 尚非已审阅证据" } } }
+    },
+    "Find possible public profiles from visible identity clues in this screenshot and summarize public information. Do not identify from appearance alone." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "根据截图中可见的身份线索查找可能的公开资料并总结公开信息。不要仅凭外貌识别身份。" } } }
+    },
+    "Open the public provider source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开公开资料来源" } } }
+    },
+    "Public profile research" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "公开资料研究" } } }
+    },
+    "Public profile research needs exactly one PNG, JPEG, or WebP screenshot. Remove extra or unsupported images, then Send again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "公开资料研究只接受一张 PNG、JPEG 或 WebP 截图。请移除多余或不支持的图片后再次发送。" } } }
+    },
+    "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读附件，告诉我发生了什么变化、还有哪些不确定，以及最小且安全的下一步。" } } }
+    },
+    "Screenshot processed for this Run · raw image not retained · public matches remain unconfirmed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "截图已用于本次任务 · 原图未保留 · 公开资料匹配仍未确认" } } }
+    },
+    "The Agent did not complete this Run. The screenshot remains only on this screen for a fresh retry; the backend receipt says it was not retained." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 未完成本次任务。截图仅保留在当前页面以便重新尝试；后端回执确认未保留原图。" } } }
+    },
+    "The prior screenshot was not retained. Reattach the same image to reconcile or retry its protected Run." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "之前的截图未被保留。请重新附加同一张图片，以核对或重试受保护的任务。" } } }
+    },
+    "The screenshot Run could not be protected for retry. Nothing was sent." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法为截图任务建立可安全重试的记录，因此没有发送。" } } }
+    },
+    "Unconfirmed public profile for %@ on %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ 在 %2$@ 的未确认公开资料" } } }
+    },
+    "Unconfirmed public sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未确认的公开来源" } } }
     }
   },
   "version" : "1.0"
