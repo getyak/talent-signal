@@ -65,7 +65,7 @@ final class RelationshipArchiveTests: XCTestCase {
         )
     }
 
-    func testVerifiedRelationshipCalendarActivityRestoresFromProtectedDeviceStore() throws {
+    func testTalentSignalCalendarActivityRestoresFromProtectedDeviceStore() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "calendar-activity-store-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -83,9 +83,10 @@ final class RelationshipArchiveTests: XCTestCase {
             startDate: Date(timeIntervalSince1970: 1_800_000_000),
             endDate: Date(timeIntervalSince1970: 1_800_001_800),
             timeZoneIdentifier: "Asia/Shanghai",
-            source: .appleCalendar,
+            source: .talentSignal,
             eventIdentifier: "event-verified-1",
-            destinationVerification: .verified
+            calendarSyncState: .synced,
+            lastCalendarSyncAttempt: Date(timeIntervalSince1970: 1_800_000_100)
         )
 
         try FileRelationshipCalendarActivityStore(
@@ -116,9 +117,10 @@ final class RelationshipArchiveTests: XCTestCase {
             startDate: Date(timeIntervalSince1970: 1_800_000_000),
             endDate: Date(timeIntervalSince1970: 1_800_001_800),
             timeZoneIdentifier: "Asia/Shanghai",
-            source: .appleCalendar,
+            source: .talentSignal,
             eventIdentifier: "event-verified-2",
-            destinationVerification: .verified
+            calendarSyncState: .synced,
+            lastCalendarSyncAttempt: Date(timeIntervalSince1970: 1_800_000_100)
         )
         let store = FileRelationshipCalendarActivityStore(
             accountID: snapshot.workspaceID,
@@ -128,6 +130,108 @@ final class RelationshipArchiveTests: XCTestCase {
         try store.save(activity)
 
         XCTAssertTrue(try store.activities(in: snapshot).isEmpty)
+    }
+
+    func testPendingCalendarActivityPersistsBeforeAnyDeviceWrite() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "calendar-activity-pending-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshot = PursuitWorkspaceSnapshot.preview
+        let person = try XCTUnwrap(snapshot.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let activity = RelationshipCalendarActivity(
+            id: "calendar-operation-1",
+            kind: .meeting,
+            title: "Meeting",
+            personID: person.id,
+            relationshipContextID: context.id,
+            personDisplayLabel: person.displayLabel,
+            contextDisplayLabel: context.displayLabel,
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: nil,
+            calendarSyncState: .pending
+        )
+        let store = FileRelationshipCalendarActivityStore(
+            accountID: snapshot.workspaceID,
+            rootURL: root
+        )
+
+        try store.save(activity)
+
+        XCTAssertEqual(try store.activities(in: snapshot), [activity])
+    }
+
+    func testCalendarSyncReceiptUpdatesTheSameCanonicalActivity() throws {
+        let pending = RelationshipCalendarActivity(
+            id: "calendar-operation-1",
+            kind: .interview,
+            title: "Interview",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            personDisplayLabel: "Leila",
+            contextDisplayLabel: "VP Engineering",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: nil,
+            calendarSyncState: .pending
+        )
+
+        let synced = pending.updatingCalendarSync(
+            .synced,
+            eventIdentifier: "event-1",
+            attemptedAt: Date(timeIntervalSince1970: 1_800_000_100)
+        )
+
+        XCTAssertEqual(synced.id, pending.id)
+        XCTAssertEqual(synced.calendarSyncState, .synced)
+        XCTAssertEqual(synced.eventIdentifier, "event-1")
+        XCTAssertEqual(
+            synced.lastCalendarSyncAttempt,
+            Date(timeIntervalSince1970: 1_800_000_100)
+        )
+    }
+
+    func testInterruptedCalendarWriteRestoresAsUnknownWithoutAutomaticRetry() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "calendar-activity-unknown-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshot = PursuitWorkspaceSnapshot.preview
+        let person = try XCTUnwrap(snapshot.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let attempt = Date(timeIntervalSince1970: 1_800_000_100)
+        let activity = RelationshipCalendarActivity(
+            id: "calendar-operation-interrupted",
+            kind: .meeting,
+            title: "Meeting",
+            personID: person.id,
+            relationshipContextID: context.id,
+            personDisplayLabel: person.displayLabel,
+            contextDisplayLabel: context.displayLabel,
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: nil,
+            calendarSyncState: .syncing,
+            lastCalendarSyncAttempt: attempt
+        )
+        let store = FileRelationshipCalendarActivityStore(
+            accountID: snapshot.workspaceID,
+            rootURL: root
+        )
+
+        try store.save(activity)
+        let restored = try XCTUnwrap(store.activities(in: snapshot).first)
+
+        XCTAssertEqual(restored.id, activity.id)
+        XCTAssertEqual(restored.calendarSyncState, .unknown)
+        XCTAssertNil(restored.eventIdentifier)
+        XCTAssertEqual(restored.lastCalendarSyncAttempt, attempt)
     }
 
     func testStoredLanguageFallsBackToSystemForUnknownValues() {

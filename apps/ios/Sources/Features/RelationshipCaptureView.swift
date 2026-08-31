@@ -146,12 +146,14 @@ struct RelationshipCaptureView: View {
     @State private var relationshipDetailsExpanded = false
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private let workspaceID: String?
     let onDismiss: (CaptureDismissDisposition) -> Void
 
     init(
         seed: PendingCaptureSeed,
         backendURL: URL,
         accessToken: String? = nil,
+        workspaceID: String? = nil,
         initialDraft: RecognizedCaptureDraft? = nil,
         onDismiss: @escaping (CaptureDismissDisposition) -> Void
     ) {
@@ -165,6 +167,7 @@ struct RelationshipCaptureView: View {
                 initialDraft: initialDraft
             )
         )
+        self.workspaceID = workspaceID
         self.onDismiss = onDismiss
     }
 
@@ -173,6 +176,7 @@ struct RelationshipCaptureView: View {
         onDismiss: @escaping (CaptureDismissDisposition) -> Void = { _ in }
     ) {
         _store = StateObject(wrappedValue: store)
+        workspaceID = nil
         self.onDismiss = onDismiss
     }
 
@@ -935,7 +939,36 @@ struct RelationshipCaptureView: View {
                         sourceID: completion.captureID,
                         capturedAt: store.seed.createdAt
                     ) {
-                        DeviceCalendarHandoffView(proposal: calendarProposal)
+                        if let workspaceID,
+                           let personID = completion.personID,
+                           let relationshipContextID = completion.relationshipContextID {
+                            DeviceCalendarHandoffView(
+                                proposal: calendarProposal,
+                                activityStore: FileRelationshipCalendarActivityStore(
+                                    accountID: workspaceID
+                                ),
+                                canonicalActivity: RelationshipCalendarActivity(
+                                    id: calendarProposal.id,
+                                    kind: calendarProposal.title.localizedCaseInsensitiveContains(
+                                        "interview"
+                                    ) || calendarProposal.title.contains("面试")
+                                        ? .interview
+                                        : .conversation,
+                                    title: calendarProposal.title,
+                                    personID: personID,
+                                    relationshipContextID: relationshipContextID,
+                                    personDisplayLabel: personDisplayLabel,
+                                    contextDisplayLabel: completion.relationshipDisplayLabel
+                                        ?? store.draft.relationshipLabel,
+                                    startDate: calendarProposal.startDate,
+                                    endDate: calendarProposal.endDate,
+                                    timeZoneIdentifier: calendarProposal.timeZoneIdentifier,
+                                    source: .talentSignal,
+                                    eventIdentifier: nil,
+                                    calendarSyncState: .pending
+                                )
+                            )
+                        }
                     }
 
                     DeviceContactHandoffView(

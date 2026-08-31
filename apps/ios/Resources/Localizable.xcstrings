@@ -2268,6 +2268,129 @@
     },
     "source receipt" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源回执" } } }
+    },
+    "Allow Calendar write access in Settings, then try again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在设置中允许日历写入权限，然后重试。" } } }
+    },
+    "Apple Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple 日历" } } }
+    },
+    "Apple Calendar could not save the event." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple 日历无法保存该日程。" } } }
+    },
+    "Apple Calendar · default calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple 日历 · 默认日历" } } }
+    },
+    "Calendar sync" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步" } } }
+    },
+    "Calendar sync finished, but its receipt could not be saved in Talent Signal." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步已完成，但同步回执无法保存到 Talent Signal。" } } }
+    },
+    "Calendar sync is off. You can change this in Settings." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步已关闭。你可以在设置中更改。" } } }
+    },
+    "Choose a default calendar in Apple Calendar, then try again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先在 Apple 日历中选择默认日历，然后重试。" } } }
+    },
+    "Confirm calendar event" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认日历事件" } } }
+    },
+    "Confirmed in Talent Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已在 Talent Signal 中确认" } } }
+    },
+    "Destination" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标" } } }
+    },
+    "Off · event stays in Talent Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已关闭 · 日程保留在 Talent Signal" } } }
+    },
+    "Outbound only" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅单向写出" } } }
+    },
+    "Project confirmed events one way to Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将已确认日程单向同步到 Apple 日历。" } } }
+    },
+    "Saved in Talent Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存到 Talent Signal" } } }
+    },
+    "Saved in Talent Signal · Calendar sync failed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存到 Talent Signal · 日历同步失败" } } }
+    },
+    "Saves this event and syncs it to Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存此日程并同步到 Apple 日历。" } } }
+    },
+    "Sync confirmed events" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步已确认日程" } } }
+    },
+    "Sync failed · event kept in Talent Signal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步失败 · 日程仍保留在 Talent Signal" } } }
+    },
+    "Synced one way" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已单向同步" } } }
+    },
+    "Syncing one way" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在单向同步" } } }
+    },
+    "Syncing to Calendar…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在同步到日历…" } } }
+    },
+    "Talent Signal saves the event first, then syncs it one way. It never imports or rechecks Apple Calendar events." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 会先保存日程，再单向同步；不会导入或回读 Apple 日历中的日程。" } } }
+    },
+    "The event could not be saved in Talent Signal. Nothing was added to Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日程无法保存到 Talent Signal，Apple 日历也未发生更改。" } } }
+    },
+    "The event is saved in Talent Signal." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日程已保存到 Talent Signal。" } } }
+    },
+    "The event is saved in Talent Signal. Apple Calendar sync failed; open the event to try again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日程已保存到 Talent Signal，但 Apple 日历同步失败；请打开日程后重试。" } } }
+    },
+    "Try Calendar sync again" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试日历同步" } } }
+    },
+    "Turning sync off keeps new confirmed events in Talent Signal without changing Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭同步后，新确认的日程会保留在 Talent Signal，不会更改 Apple 日历。" } } }
+    },
+    "User-confirmed Talent Signal calendar event" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户已确认的 Talent Signal 日程" } } }
+    },
+    "Confirm to save here and sync to Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认后保存到这里，并同步到 Apple 日历。" } } }
+    },
+    "Confirm to save in Talent Signal. Calendar sync is off." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认后保存到 Talent Signal；日历同步已关闭。" } } }
+    },
+    "Saves in Talent Signal, then syncs one way to Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先保存到 Talent Signal，再单向同步到 Apple 日历。" } } }
+    },
+    "Saves in Talent Signal without changing Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存到 Talent Signal，不更改 Apple 日历。" } } }
+    },
+    "Waiting to sync" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待同步" } } }
+    },
+    "Sync result unknown · check Apple Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步结果未知 · 请检查 Apple 日历" } } }
+    },
+    "The sync attempt could not be recorded in Talent Signal. Nothing was added to Apple Calendar." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步尝试无法记录到 Talent Signal，Apple 日历未发生更改。" } } }
+    },
+    "Outbound only · no calendar import" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅单向写出 · 不导入日历" } } }
+    },
+    "Calendar sync result unknown" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日历同步结果未知" } } }
+    },
+    "Apple Calendar returned an uncertain result. Check Apple Calendar before taking any further action." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple 日历返回了不确定的结果。继续操作前，请先检查 Apple 日历。" } } }
+    },
+    "The event is saved in Talent Signal. Apple Calendar returned an uncertain result; check Apple Calendar before taking any further action." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日程已保存到 Talent Signal，但 Apple 日历返回了不确定的结果；继续操作前，请先检查 Apple 日历。" } } }
+    },
+    "One-way Calendar sync requires iOS 17 or later." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单向日历同步需要 iOS 17 或更高版本。" } } }
     }
   },
   "version" : "1.0"

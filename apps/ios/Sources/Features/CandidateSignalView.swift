@@ -207,6 +207,7 @@ struct CandidateSignalView: View {
                 seed: seed,
                 backendURL: effectiveBackendURL,
                 accessToken: authenticatedAccessToken,
+                workspaceID: authenticatedWorkspaceID,
                 initialDraft: captureHandoff.initialDraft
             ) { disposition in
                 selectedPhoto = nil

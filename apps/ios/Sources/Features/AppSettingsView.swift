@@ -417,6 +417,53 @@ struct ApprovalSettingsView: View {
     }
 }
 
+struct CalendarSyncSettingsView: View {
+    @AppStorage(CalendarSyncPreference.isEnabledKey)
+    private var isCalendarSyncEnabled = true
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        List {
+            Section {
+                Toggle(
+                    appLanguage.text("Sync confirmed events"),
+                    isOn: $isCalendarSyncEnabled
+                )
+                .accessibilityIdentifier("calendar-sync-toggle")
+
+                AccountValueRow(
+                    label: appLanguage.text("Destination"),
+                    value: appLanguage.text("Apple Calendar · default calendar")
+                )
+            } header: {
+                Text(appLanguage.text("Calendar sync"))
+            } footer: {
+                Text(
+                    appLanguage.text(
+                        "Talent Signal saves the event first, then syncs it one way. It never imports or rechecks Apple Calendar events."
+                    )
+                )
+            }
+
+            Section {
+                SettingsExplanationRow(
+                    systemImage: "arrow.up.forward.app",
+                    title: appLanguage.text("Outbound only"),
+                    detail: appLanguage.text(
+                        "Turning sync off keeps new confirmed events in Talent Signal without changing Apple Calendar."
+                    )
+                )
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.tsSurface)
+        .navigationTitle(appLanguage.text("Calendar sync"))
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("calendar-sync-settings")
+    }
+}
+
 struct AccountInitialsAvatar: View {
     let label: String
     let size: CGFloat
@@ -564,6 +611,13 @@ private struct AccountValueRow: View {
 #Preview("Action Button") {
     NavigationStack {
         ActionButtonSetupView()
+    }
+    .environment(\.appLanguage, .english)
+}
+
+#Preview("Calendar sync") {
+    NavigationStack {
+        CalendarSyncSettingsView()
     }
     .environment(\.appLanguage, .english)
 }

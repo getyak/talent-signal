@@ -1,22 +1,10 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "NSCalendarsFullAccessUsageDescription" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal reads a bounded recent and upcoming window so you can choose a meeting. It does not change events during onboarding." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 只读取有限的近期与即将发生的日程，供你选择会议；引导期间不会更改任何日程。" } }
-      }
-    },
-    "NSCalendarsUsageDescription" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal reads event titles and times only after you choose Calendar, so you can select the right meeting." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有在你选择日历后，Talent Signal 才会读取日程标题与时间，供你选择正确的会议。" } }
-      }
-    },
     "NSCalendarsWriteOnlyAccessUsageDescription" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal uses Apple's Calendar editor only after you review the exact event title and time." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 只会在你审阅确切的日程标题和时间后，使用 Apple 日历编辑器。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal adds an event to your default calendar only after you confirm its title and time in the app." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只有在你于应用内确认日程标题和时间后，Talent Signal 才会将它添加到默认日历。" } }
       }
     },
     "NSContactsUsageDescription" : {

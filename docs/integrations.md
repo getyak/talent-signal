@@ -26,6 +26,14 @@ about any candidate relationship. Sign-out revokes the server session when
 reachable, always clears the protected device credential, and returns to the
 account boundary so a prior workspace cannot remain visible.
 
+Calendar is an outbound device projection, not an intake source or a second
+record. Talent Signal persists the user-confirmed event and its projection
+state before requesting write-only access and adding one event to the system
+default calendar. It does not import, mirror, listen to, or reconcile Apple
+Calendar events. A denied or failed write leaves the Talent Signal event intact
+and retryable; an edit or deletion made later in Apple Calendar does not mutate
+Talent Signal truth.
+
 ### Shared services
 
 Use the shared backend for cross-surface identity, evidence, review, action,

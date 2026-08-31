@@ -3,7 +3,6 @@ import XCTest
 @MainActor
 final class CandidateSignalUITests: XCTestCase {
     private var app: XCUIApplication!
-    private let systemCalendarEditorTimeout: TimeInterval = 20
     private let previewWorkspaceEnvironmentKey = "TS_IOS_UI_TEST_PREVIEW_WORKSPACE"
 
     override func setUpWithError() throws {
@@ -27,7 +26,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Bare Debug launch requires a workspace")
     }
 
-    func testCalendarProposalOpensSystemEditorAndDismissesWithoutWriting() {
+    func testCalendarProposalConfirmsWithoutOpeningSystemEditor() {
         app.launchArguments = [
             "--scenario", "calendar-handoff",
             "-AppleLanguages", "(en)",
@@ -43,37 +42,16 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(dismiss.exists)
         XCTAssertGreaterThanOrEqual(add.frame.height, 44)
         XCTAssertGreaterThanOrEqual(dismiss.frame.height, 44)
-        preserveScreenshot("Calendar proposal before device write")
+        preserveScreenshot("Calendar proposal before confirmation")
 
         add.tap()
-        let systemCancel = app.buttons["cancel-button"]
-        XCTAssertTrue(
-            systemCancel.waitForExistence(timeout: systemCalendarEditorTimeout),
-            "Apple Calendar editor did not become ready"
-        )
-        preserveScreenshot("Apple Calendar final approval")
-        systemCancel.tap()
-        let discardChanges = app.buttons["Discard Changes"]
-        if discardChanges.waitForExistence(timeout: 3) {
-            discardChanges.tap()
-        }
-        XCTAssertTrue(element("calendar-editor-cancelled").waitForExistence(timeout: 5))
-
-        dismiss.tap()
-        let restore = app.buttons["restore-calendar-proposal"]
-        XCTAssertTrue(restore.waitForExistence(timeout: 5))
-        XCTAssertFalse(add.exists)
-        preserveScreenshot("Calendar proposal dismissed without write")
-        restore.tap()
-        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertTrue(element("calendar-saved").waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["cancel-button"].exists)
+        XCTAssertFalse(dismiss.exists)
+        preserveScreenshot("Calendar proposal confirmed in app")
     }
 
-    func testCalendarProposalSavesOnlyThroughSystemEditor() throws {
-        try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"]
-                == "Talent Signal Calendar Save Proof",
-            "Runs only on a disposable Simulator that is deleted after proof."
-        )
+    func testCalendarProposalRecordsOneDirectSyncReceipt() throws {
         app.launchArguments = [
             "--scenario", "calendar-handoff",
             "-AppleLanguages", "(en)",
@@ -85,16 +63,9 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(addProposal.waitForExistence(timeout: 8))
         addProposal.tap()
 
-        let systemAdd = app.buttons["add-button"]
-        XCTAssertTrue(
-            systemAdd.waitForExistence(timeout: systemCalendarEditorTimeout),
-            "Apple Calendar editor did not become ready"
-        )
-        systemAdd.tap()
-
         XCTAssertTrue(element("calendar-saved").waitForExistence(timeout: 8))
         XCTAssertFalse(addProposal.exists)
-        preserveScreenshot("Calendar saved through Apple approval")
+        preserveScreenshot("Calendar direct sync receipt")
     }
 
     func testDefaultLaunchShowsEditorialToday() {
@@ -190,7 +161,10 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(dateButtons.count, 7)
     }
 
-    func testRelationshipCalendarAddActivityUsesAppleFinalEditorAndCancelIsTruthful() {
+    func testRelationshipCalendarConfirmsInAppWithSyncDisabled() {
+        app.launchArguments += [
+            "-talent-signal.calendar-sync.enabled", "NO",
+        ]
         app.launch()
 
         let peek = app.buttons["today-calendar-peek"]
@@ -207,25 +181,15 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Interview"].exists)
         XCTAssertTrue(app.buttons["Meeting"].exists)
         XCTAssertTrue(app.buttons["Conversation"].exists)
-        let review = app.buttons["calendar-review-in-apple"]
-        XCTAssertTrue(review.waitForExistence(timeout: 5))
-        XCTAssertTrue(review.isEnabled)
-        review.tap()
+        let confirm = app.buttons["calendar-confirm-activity"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirm.isEnabled)
+        confirm.tap()
 
-        let systemCancel = app.buttons["cancel-button"]
-        XCTAssertTrue(
-            systemCancel.waitForExistence(timeout: systemCalendarEditorTimeout),
-            "Apple Calendar editor did not become ready"
-        )
-        preserveScreenshot("Relationship activity Apple approval")
-        systemCancel.tap()
-        let discardChanges = app.buttons["Discard Changes"]
-        if discardChanges.waitForExistence(timeout: 3) {
-            discardChanges.tap()
-        }
-        XCTAssertTrue(
-            element("calendar-composer-unchanged").waitForExistence(timeout: 5)
-        )
+        XCTAssertTrue(element("calendar-activity-detail").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Off · event stays in Talent Signal"].exists)
+        XCTAssertFalse(app.buttons["cancel-button"].exists)
+        preserveScreenshot("Relationship activity confirmed in app")
     }
 
     func testRelationshipCalendarKeepsPersonContextVisibleInSimplifiedChinese() {
@@ -310,6 +274,31 @@ final class CandidateSignalUITests: XCTestCase {
         let setupConfirmation = app.buttons["confirm-action-button-setup"]
         scrollToVisible(setupConfirmation)
         XCTAssertTrue(setupConfirmation.exists)
+    }
+
+    func testWorkspaceMenuConfiguresOutboundOnlyCalendarSync() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-menu"].tap()
+        XCTAssertTrue(
+            app.buttons["close-relationship-menu"].waitForExistence(timeout: 5)
+        )
+
+        let calendarSettings = app.buttons["open-calendar-sync-settings"]
+        if !calendarSettings.waitForExistence(timeout: 2) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(calendarSettings.waitForExistence(timeout: 5))
+        calendarSettings.tap()
+
+        XCTAssertTrue(element("calendar-sync-settings").waitForExistence(timeout: 5))
+        let toggle = app.switches["calendar-sync-toggle"]
+        XCTAssertTrue(toggle.exists)
+        XCTAssertTrue(toggle.isEnabled)
+        XCTAssertTrue(app.staticTexts["Apple Calendar · default calendar"].exists)
+        XCTAssertTrue(app.staticTexts["Outbound only"].exists)
+        preserveScreenshot("Outbound-only Calendar settings")
     }
 
     func testWorkspaceMenuRoutesCompactReviewInboxToExactProposal() {

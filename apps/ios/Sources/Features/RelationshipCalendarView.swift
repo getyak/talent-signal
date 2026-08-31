@@ -1,5 +1,4 @@
 import CryptoKit
-import EventKit
 import SwiftUI
 
 struct RelationshipCalendarActivity: Identifiable, Equatable {
@@ -36,13 +35,16 @@ struct RelationshipCalendarActivity: Identifiable, Equatable {
     enum Source: String, Equatable {
         case governed
         case preview
-        case appleCalendar
+        case talentSignal
     }
 
-    enum DestinationVerification: Equatable {
-        case notRequired
-        case verified
-        case unavailable
+    enum CalendarSyncState: String, Equatable {
+        case disabled
+        case pending
+        case syncing
+        case synced
+        case failed
+        case unknown
     }
 
     let id: String
@@ -56,12 +58,31 @@ struct RelationshipCalendarActivity: Identifiable, Equatable {
     let endDate: Date
     let timeZoneIdentifier: String
     let source: Source
-    let eventIdentifier: String?
-    var destinationVerification: DestinationVerification = .notRequired
+    var eventIdentifier: String?
+    var calendarSyncState: CalendarSyncState = .disabled
+    var lastCalendarSyncAttempt: Date? = nil
 
     func displayTitle(in language: AppLanguage) -> String {
         source == .preview ? kind.title(in: language) : title
     }
+
+    func updatingCalendarSync(
+        _ state: CalendarSyncState,
+        eventIdentifier: String? = nil,
+        attemptedAt: Date = Date()
+    ) -> RelationshipCalendarActivity {
+        var updated = self
+        updated.calendarSyncState = state
+        updated.lastCalendarSyncAttempt = attemptedAt
+        if let eventIdentifier {
+            updated.eventIdentifier = eventIdentifier
+        }
+        return updated
+    }
+}
+
+enum CalendarSyncPreference {
+    static let isEnabledKey = "talent-signal.calendar-sync.enabled"
 }
 
 private struct StoredRelationshipCalendarActivity: Codable, Equatable {
@@ -73,7 +94,10 @@ private struct StoredRelationshipCalendarActivity: Codable, Equatable {
     let startDate: Date
     let endDate: Date
     let timeZoneIdentifier: String
-    let eventIdentifier: String
+    let source: String?
+    let eventIdentifier: String?
+    let calendarSyncState: String?
+    let lastCalendarSyncAttempt: Date?
     let savedAt: Date
 }
 
@@ -120,6 +144,9 @@ final class FileRelationshipCalendarActivityStore:
             }) else {
                 return nil
             }
+            let decodedSyncState = stored.calendarSyncState.flatMap(
+                RelationshipCalendarActivity.CalendarSyncState.init(rawValue:)
+            ) ?? (stored.eventIdentifier == nil ? .pending : .synced)
             return RelationshipCalendarActivity(
                 id: stored.id,
                 kind: kind,
@@ -131,18 +158,19 @@ final class FileRelationshipCalendarActivityStore:
                 startDate: stored.startDate,
                 endDate: stored.endDate,
                 timeZoneIdentifier: stored.timeZoneIdentifier,
-                source: .appleCalendar,
+                source: .talentSignal,
                 eventIdentifier: stored.eventIdentifier,
-                destinationVerification: .verified
+                calendarSyncState: decodedSyncState == .syncing
+                    ? .unknown
+                    : decodedSyncState,
+                lastCalendarSyncAttempt: stored.lastCalendarSyncAttempt
             )
         }
         .sorted { $0.startDate < $1.startDate }
     }
 
     func save(_ activity: RelationshipCalendarActivity) throws {
-        guard activity.source == .appleCalendar,
-              let eventIdentifier = activity.eventIdentifier,
-              !eventIdentifier.isEmpty else {
+        guard activity.source != .preview else {
             return
         }
         var next = try entries()
@@ -155,7 +183,10 @@ final class FileRelationshipCalendarActivityStore:
             startDate: activity.startDate,
             endDate: activity.endDate,
             timeZoneIdentifier: activity.timeZoneIdentifier,
-            eventIdentifier: eventIdentifier,
+            source: activity.source.rawValue,
+            eventIdentifier: activity.eventIdentifier,
+            calendarSyncState: activity.calendarSyncState.rawValue,
+            lastCalendarSyncAttempt: activity.lastCalendarSyncAttempt,
             savedAt: Date()
         )
         try write(next)
@@ -199,50 +230,6 @@ final class FileRelationshipCalendarActivityStore:
             to: fileURL,
             options: [.atomic, .completeFileProtectionUnlessOpen]
         )
-    }
-}
-
-enum DeviceCalendarEventObservation: Equatable {
-    case verified(DeviceCalendarSavedEvent)
-    case missing
-    case unavailable
-}
-
-@MainActor
-protocol DeviceCalendarEventObserving: AnyObject {
-    func observe(eventIdentifier: String) -> DeviceCalendarEventObservation
-}
-
-@MainActor
-final class EventKitDeviceCalendarEventObserver: DeviceCalendarEventObserving {
-    private let eventStore: EKEventStore
-
-    init(eventStore: EKEventStore = EKEventStore()) {
-        self.eventStore = eventStore
-    }
-
-    func observe(eventIdentifier: String) -> DeviceCalendarEventObservation {
-        if let event = eventStore.event(withIdentifier: eventIdentifier) {
-            return .verified(
-                DeviceCalendarSavedEvent(
-                    identifier: eventIdentifier,
-                    title: event.title,
-                    startDate: event.startDate,
-                    endDate: event.endDate,
-                    timeZoneIdentifier: event.timeZone?.identifier
-                        ?? TimeZone.current.identifier
-                )
-            )
-        }
-        return Self.canObserveAbsence ? .missing : .unavailable
-    }
-
-    private static var canObserveAbsence: Bool {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        if #available(iOS 17.0, *) {
-            return status == .fullAccess || status == .authorized
-        }
-        return status == .authorized
     }
 }
 
@@ -508,21 +495,24 @@ struct RelationshipCalendarView: View {
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(CalendarSyncPreference.isEnabledKey)
+    private var isCalendarSyncEnabled = true
     @State private var activities: [RelationshipCalendarActivity]
     @State private var selectedDate: Date
     @State private var isMonthExpanded = false
     @State private var destination: CalendarSheetDestination?
     @State private var calendarNotice: String?
+    @State private var syncingActivityIDs: Set<String> = []
 
     private let activityStore: (any RelationshipCalendarActivityPersisting)?
-    private let eventObserver: any DeviceCalendarEventObserving
+    private let calendarSync: any DeviceCalendarSyncing
 
     init(
         snapshot: PursuitWorkspaceSnapshot,
         isPreview: Bool,
         initialActivities: [RelationshipCalendarActivity],
         activityStore: (any RelationshipCalendarActivityPersisting)? = nil,
-        eventObserver: (any DeviceCalendarEventObserving)? = nil,
+        calendarSync: (any DeviceCalendarSyncing)? = nil,
         onPrepare: @escaping (RelationshipCalendarActivity) -> Void
     ) {
         self.snapshot = snapshot
@@ -534,8 +524,8 @@ struct RelationshipCalendarView: View {
                 accountID: snapshot.workspaceID
             ))
         self.activityStore = resolvedStore
-        self.eventObserver = eventObserver
-            ?? EventKitDeviceCalendarEventObserver()
+        self.calendarSync = calendarSync
+            ?? EventKitDeviceCalendarSyncService()
         let restored = (try? resolvedStore?.activities(in: snapshot)) ?? []
         var combined = initialActivities
         for activity in restored where !combined.contains(where: {
@@ -599,6 +589,12 @@ struct RelationshipCalendarView: View {
             case let .detail(activity):
                 RelationshipCalendarActivityDetail(
                     activity: activity,
+                    onRetryCalendarSync: [.pending, .failed].contains(
+                        activity.calendarSyncState
+                    )
+                        && isCalendarSyncEnabled
+                        ? { syncToCalendar(activityID: activity.id) }
+                        : nil,
                     onPrepare: {
                         self.destination = nil
                         onPrepare(activity)
@@ -606,81 +602,114 @@ struct RelationshipCalendarView: View {
                     }
                 )
             case .composer:
-                RelationshipCalendarComposer(snapshot: snapshot) { activity in
-                    do {
-                        try activityStore?.save(activity)
-                    } catch {
-                        calendarNotice = appLanguage.text(
-                            "The event is verified in Apple Calendar, but its Talent Signal link could not be saved on this device."
-                        )
-                    }
-                    activities.append(activity)
-                    activities.sort { $0.startDate < $1.startDate }
-                    selectedDate = Calendar.current.startOfDay(
-                        for: activity.startDate
-                    )
-                    self.destination = nil
-                    Task { @MainActor in
-                        await Task.yield()
-                        self.destination = .detail(activity)
-                    }
+                RelationshipCalendarComposer(
+                    snapshot: snapshot,
+                    syncsToCalendar: isCalendarSyncEnabled
+                ) { activity in
+                    confirm(activity)
                 }
             }
         }
-        .task { reconcileSavedActivities() }
         .accessibilityIdentifier("relationship-calendar")
+        .task { resumePendingCalendarSync() }
     }
 
-    private func reconcileSavedActivities() {
-        var next = activities
-        var removedActivityIDs: [String] = []
-        var couldNotVerify = false
-        for index in next.indices where next[index].source == .appleCalendar {
-            guard let eventIdentifier = next[index].eventIdentifier else {
-                next[index].destinationVerification = .unavailable
-                couldNotVerify = true
-                continue
-            }
-            switch eventObserver.observe(eventIdentifier: eventIdentifier) {
-            case let .verified(event):
-                next[index] = RelationshipCalendarActivity(
-                    id: next[index].id,
-                    kind: next[index].kind,
-                    title: event.title,
-                    personID: next[index].personID,
-                    relationshipContextID: next[index].relationshipContextID,
-                    personDisplayLabel: next[index].personDisplayLabel,
-                    contextDisplayLabel: next[index].contextDisplayLabel,
-                    startDate: event.startDate,
-                    endDate: event.endDate,
-                    timeZoneIdentifier: event.timeZoneIdentifier,
-                    source: .appleCalendar,
-                    eventIdentifier: event.identifier,
-                    destinationVerification: .verified
+    private func confirm(_ activity: RelationshipCalendarActivity) {
+        do {
+            try activityStore?.save(activity)
+        } catch {
+            calendarNotice = appLanguage.text(
+                "The event could not be saved in Talent Signal. Nothing was added to Apple Calendar."
+            )
+            return
+        }
+
+        activities.removeAll { $0.id == activity.id }
+        activities.append(activity)
+        activities.sort { $0.startDate < $1.startDate }
+        selectedDate = Calendar.current.startOfDay(for: activity.startDate)
+        destination = .detail(activity)
+        guard activity.calendarSyncState == .pending else { return }
+        syncToCalendar(activityID: activity.id)
+    }
+
+    private func syncToCalendar(activityID: String) {
+        guard !syncingActivityIDs.contains(activityID),
+              let index = activities.firstIndex(where: { $0.id == activityID }),
+              [.pending, .failed].contains(activities[index].calendarSyncState),
+              isCalendarSyncEnabled else { return }
+
+        let syncingActivity = activities[index].updatingCalendarSync(.syncing)
+        do {
+            try activityStore?.save(syncingActivity)
+        } catch {
+            calendarNotice = appLanguage.text(
+                "The sync attempt could not be recorded in Talent Signal. Nothing was added to Apple Calendar."
+            )
+            return
+        }
+        activities[index] = syncingActivity
+        destination = .detail(syncingActivity)
+        syncingActivityIDs.insert(activityID)
+        calendarNotice = nil
+
+        Task { @MainActor in
+            let proposal = DeviceCalendarProposal(
+                sourceID: syncingActivity.id,
+                personDisplayName: syncingActivity.personDisplayLabel,
+                title: syncingActivity.title,
+                startDate: syncingActivity.startDate,
+                endDate: syncingActivity.endDate,
+                timeZoneIdentifier: syncingActivity.timeZoneIdentifier,
+                evidenceQuote: appLanguage.text(
+                    "User-confirmed Talent Signal calendar event"
+                ),
+                detectedDateText: syncingActivity.startDate.ISO8601Format(),
+                durationWasExplicit: true
+            )
+            let result = await calendarSync.createEvent(from: proposal)
+            syncingActivityIDs.remove(activityID)
+            guard let index = activities.firstIndex(where: {
+                $0.id == activityID
+            }) else { return }
+
+            switch result {
+            case let .success(event):
+                activities[index] = activities[index].updatingCalendarSync(
+                    .synced,
+                    eventIdentifier: event.identifier
                 )
-                try? activityStore?.save(next[index])
-            case .missing:
-                removedActivityIDs.append(next[index].id)
-            case .unavailable:
-                next[index].destinationVerification = .unavailable
-                couldNotVerify = true
+            case .failure(.saveFailed):
+                activities[index] = activities[index].updatingCalendarSync(
+                    .unknown
+                )
+                calendarNotice = appLanguage.text(
+                    "The event is saved in Talent Signal. Apple Calendar returned an uncertain result; check Apple Calendar before taking any further action."
+                )
+            case .failure:
+                activities[index] = activities[index].updatingCalendarSync(
+                    .failed
+                )
+                calendarNotice = appLanguage.text(
+                    "The event is saved in Talent Signal. Apple Calendar sync failed; open the event to try again."
+                )
             }
-        }
-        if !removedActivityIDs.isEmpty {
-            next.removeAll { removedActivityIDs.contains($0.id) }
-            for activityID in removedActivityIDs {
-                try? activityStore?.remove(activityID: activityID)
+            do {
+                try activityStore?.save(activities[index])
+            } catch {
+                calendarNotice = appLanguage.text(
+                    "Calendar sync finished, but its receipt could not be saved in Talent Signal."
+                )
             }
-            calendarNotice = appLanguage.text(
-                "A previously linked event is no longer in Apple Calendar and was removed from this view."
-            )
-        } else if couldNotVerify {
-            calendarNotice = appLanguage.text(
-                "Saved events are shown from this device, but Apple Calendar could not be rechecked."
-            )
+            destination = .detail(activities[index])
         }
-        next.sort { $0.startDate < $1.startDate }
-        activities = next
+    }
+
+    private func resumePendingCalendarSync() {
+        guard isCalendarSyncEnabled else { return }
+        for activity in activities where activity.calendarSyncState == .pending {
+            syncToCalendar(activityID: activity.id)
+        }
     }
 
     private var calendarPicker: some View {
@@ -1218,6 +1247,7 @@ private struct RelationshipCalendarActivityRow: View {
 
 private struct RelationshipCalendarActivityDetail: View {
     let activity: RelationshipCalendarActivity
+    let onRetryCalendarSync: (() -> Void)?
     let onPrepare: () -> Void
 
     @Environment(\.appLanguage) private var appLanguage
@@ -1263,8 +1293,31 @@ private struct RelationshipCalendarActivityDetail: View {
                             label: appLanguage.text("Source"),
                             value: sourceText
                         )
+                        if activity.source == .talentSignal {
+                            detailLine(
+                                icon: calendarSyncIcon,
+                                label: appLanguage.text("Apple Calendar"),
+                                value: calendarSyncText
+                            )
+                        }
                     }
                     .padding(.top, 28)
+
+                    if let onRetryCalendarSync {
+                        Button {
+                            onRetryCalendarSync()
+                            dismiss()
+                        } label: {
+                            Label(
+                                appLanguage.text("Try Calendar sync again"),
+                                systemImage: "arrow.clockwise"
+                            )
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                        .buttonStyle(TSSecondaryButtonStyle())
+                        .padding(.top, 20)
+                        .accessibilityIdentifier("calendar-retry-sync")
+                    }
 
                     Button(action: onPrepare) {
                         HStack(spacing: 12) {
@@ -1346,10 +1399,42 @@ private struct RelationshipCalendarActivityDetail: View {
             return appLanguage.text("Linked relationship activity")
         case .preview:
             return appLanguage.text("Synthetic preview · not in Apple Calendar")
-        case .appleCalendar:
-            return activity.destinationVerification == .verified
-                ? appLanguage.text("Verified in Apple Calendar")
-                : appLanguage.text("Saved on this device · Apple Calendar not rechecked")
+        case .talentSignal:
+            return appLanguage.text("Confirmed in Talent Signal")
+        }
+    }
+
+    private var calendarSyncText: String {
+        switch activity.calendarSyncState {
+        case .disabled:
+            return appLanguage.text("Off · event stays in Talent Signal")
+        case .pending:
+            return appLanguage.text("Waiting to sync")
+        case .syncing:
+            return appLanguage.text("Syncing one way")
+        case .synced:
+            return appLanguage.text("Synced one way")
+        case .failed:
+            return appLanguage.text("Sync failed · event kept in Talent Signal")
+        case .unknown:
+            return appLanguage.text("Sync result unknown · check Apple Calendar")
+        }
+    }
+
+    private var calendarSyncIcon: String {
+        switch activity.calendarSyncState {
+        case .disabled:
+            return "calendar.badge.minus"
+        case .pending:
+            return "clock"
+        case .syncing:
+            return "arrow.up.forward.app"
+        case .synced:
+            return "checkmark.circle"
+        case .failed:
+            return "exclamationmark.triangle"
+        case .unknown:
+            return "questionmark.diamond"
         }
     }
 
@@ -1425,7 +1510,9 @@ private struct RelationshipCalendarScope: Identifiable, Hashable {
 @MainActor
 private struct RelationshipCalendarComposer: View {
     let snapshot: PursuitWorkspaceSnapshot
-    let onSaved: (RelationshipCalendarActivity) -> Void
+    let syncsToCalendar: Bool
+    let onConfirmed: (RelationshipCalendarActivity) -> Void
+    private let activityID: String
 
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dismiss) private var dismiss
@@ -1435,16 +1522,16 @@ private struct RelationshipCalendarComposer: View {
     @State private var titleWasEdited = false
     @State private var startDate: Date
     @State private var durationMinutes = 30
-    @State private var editorProposal: DeviceCalendarProposal?
-    @State private var calendarWasUnchanged = false
-    @State private var calendarSaveNeedsVerification = false
 
     init(
         snapshot: PursuitWorkspaceSnapshot,
-        onSaved: @escaping (RelationshipCalendarActivity) -> Void
+        syncsToCalendar: Bool,
+        onConfirmed: @escaping (RelationshipCalendarActivity) -> Void
     ) {
         self.snapshot = snapshot
-        self.onSaved = onSaved
+        self.syncsToCalendar = syncsToCalendar
+        self.onConfirmed = onConfirmed
+        activityID = "calendar-\(UUID().uuidString.lowercased())"
         let scopes = Self.scopes(in: snapshot)
         _selectedScopeID = State(initialValue: scopes.first?.id ?? "")
         let now = Date().addingTimeInterval(60 * 60)
@@ -1523,36 +1610,17 @@ private struct RelationshipCalendarComposer: View {
                 Section {
                     Label(
                         appLanguage.text(
-                            "Apple Calendar shows the final title and time before saving. Talent Signal does not read the rest of your calendar."
+                            syncsToCalendar
+                                ? "Confirm to save here and sync to Apple Calendar."
+                                : "Confirm to save in Talent Signal. Calendar sync is off."
                         ),
-                        systemImage: "lock.shield"
+                        systemImage: syncsToCalendar
+                            ? "arrow.up.forward.app"
+                            : "checkmark.circle"
                     )
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
                         .fixedSize(horizontal: false, vertical: true)
-                    if calendarWasUnchanged {
-                        Label(
-                            appLanguage.text("Calendar unchanged"),
-                            systemImage: "xmark.circle"
-                        )
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.tsMutedInk)
-                            .accessibilityIdentifier("calendar-composer-unchanged")
-                    }
-                    if calendarSaveNeedsVerification {
-                        Label(
-                            appLanguage.text(
-                                "Apple Calendar returned from Save, but Talent Signal could not read the exact event back. Check Apple Calendar before trying again."
-                            ),
-                            systemImage: "exclamationmark.shield"
-                        )
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.tsWarning)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier(
-                                "calendar-composer-needs-verification"
-                            )
-                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -1567,20 +1635,21 @@ private struct RelationshipCalendarComposer: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(
-                        appLanguage.text("Review in Calendar")
+                        appLanguage.text("Confirm")
                     ) {
-                        editorProposal = proposal
-                        calendarWasUnchanged = false
-                        calendarSaveNeedsVerification = false
+                        guard let activity else { return }
+                        onConfirmed(activity)
                     }
                     .font(.subheadline.weight(.semibold))
-                    .disabled(proposal == nil || calendarSaveNeedsVerification)
+                    .disabled(activity == nil)
                     .accessibilityHint(
                         appLanguage.text(
-                            "Opens Apple's final event editor. Nothing is saved yet."
+                            syncsToCalendar
+                                ? "Saves in Talent Signal, then syncs one way to Apple Calendar."
+                                : "Saves in Talent Signal without changing Apple Calendar."
                         )
                     )
-                    .accessibilityIdentifier("calendar-review-in-apple")
+                    .accessibilityIdentifier("calendar-confirm-activity")
                 }
             }
         }
@@ -1592,38 +1661,8 @@ private struct RelationshipCalendarComposer: View {
         .onChange(of: selectedKind) { _ in
             updateDefaultTitleIfNeeded()
         }
-        .sheet(item: $editorProposal) { proposal in
-            DeviceCalendarEditorSheet(proposal: proposal) { completion in
-                switch completion {
-                case let .saved(event):
-                    guard let scope = selectedScope else { return }
-                    onSaved(
-                        RelationshipCalendarActivity(
-                            id: "calendar-\(proposal.sourceID)",
-                            kind: selectedKind,
-                            title: event.title,
-                            personID: scope.personID,
-                            relationshipContextID: scope.relationshipContextID,
-                            personDisplayLabel: scope.personDisplayLabel,
-                            contextDisplayLabel: scope.contextDisplayLabel,
-                            startDate: event.startDate,
-                            endDate: event.endDate,
-                            timeZoneIdentifier: event.timeZoneIdentifier,
-                            source: .appleCalendar,
-                            eventIdentifier: event.identifier,
-                            destinationVerification: .verified
-                        )
-                    )
-                case .cancelled:
-                    calendarWasUnchanged = true
-                case .verificationNeeded:
-                    calendarSaveNeedsVerification = true
-                }
-            }
-        }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(editorProposal != nil)
         .accessibilityIdentifier("relationship-calendar-composer")
     }
 
@@ -1635,22 +1674,25 @@ private struct RelationshipCalendarComposer: View {
         scopes.first { $0.id == selectedScopeID }
     }
 
-    private var proposal: DeviceCalendarProposal? {
+    private var activity: RelationshipCalendarActivity? {
         guard let selectedScope else { return nil }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return nil }
-        return DeviceCalendarProposal(
-            sourceID: UUID().uuidString.lowercased(),
-            personDisplayName: selectedScope.personDisplayLabel,
+        return RelationshipCalendarActivity(
+            id: activityID,
+            kind: selectedKind,
             title: trimmedTitle,
+            personID: selectedScope.personID,
+            relationshipContextID: selectedScope.relationshipContextID,
+            personDisplayLabel: selectedScope.personDisplayLabel,
+            contextDisplayLabel: selectedScope.contextDisplayLabel,
             startDate: startDate,
             endDate: startDate.addingTimeInterval(TimeInterval(durationMinutes * 60)),
             timeZoneIdentifier: TimeZone.current.identifier,
-            evidenceQuote: appLanguage.text(
-                "User-authored relationship calendar activity"
-            ),
-            detectedDateText: startDate.ISO8601Format(),
-            durationWasExplicit: true
+            source: .talentSignal,
+            eventIdentifier: nil,
+            calendarSyncState: syncsToCalendar ? .pending : .disabled,
+            lastCalendarSyncAttempt: nil
         )
     }
 

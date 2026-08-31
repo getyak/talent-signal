@@ -98,12 +98,12 @@ reset only the standalone Demo session and its local recordings; it never
 resets system permissions, removes user-authored Share captures, or deletes
 user Calendar events.
 
-For real Calendar proof, use `--standalone-onboarding` on an iOS 17+ device,
-choose Calendar, read the purpose explanation, then tap `Allow Calendar Access`.
-The adapter requests EventKit Full Access, reads only the bounded recent and
-upcoming window, listens for EventKit changes, and treats write-only, denied,
-restricted, empty, and revoked states as distinct recoverable outcomes. It does
-not write an event during onboarding.
+Calendar is outbound-only. A recruiter confirms the final title and time in
+Talent Signal; the app persists the relationship-scoped event first, then uses
+EventKit write-only access to add it to the system default calendar. Settings
+can disable this projection. Talent Signal never imports, listens to, or
+rechecks Apple Calendar events, and a failed device write leaves the in-app
+event available for retry.
 
 For real voice proof on iOS 26+, choose Voice, confirm the purpose-bound capture
 authorization, and start the recorder while the app is foregrounded. The Draft
