@@ -1,5 +1,4 @@
 import EventKit
-import EventKitUI
 import SwiftUI
 
 struct DeviceCalendarWriteReceipt: Codable, Equatable {
@@ -53,9 +52,87 @@ struct DeviceCalendarReceiptStore {
 private enum DeviceCalendarHandoffResult: Equatable {
     case notStarted
     case dismissed
-    case cancelled
-    case verificationNeeded
+    case syncing
+    case failed(String)
+    case unknown(String)
+    case savedInApp
     case saved(DeviceCalendarWriteReceipt)
+}
+
+enum DeviceCalendarSyncFailure: Error, Equatable {
+    case permissionDenied
+    case noDefaultCalendar
+    case unsupportedOS
+    case saveFailed(String)
+}
+
+@MainActor
+protocol DeviceCalendarSyncing: AnyObject {
+    func createEvent(from proposal: DeviceCalendarProposal) async
+        -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure>
+}
+
+@MainActor
+final class EventKitDeviceCalendarSyncService: DeviceCalendarSyncing {
+    private let eventStore: EKEventStore
+
+    init(eventStore: EKEventStore = EKEventStore()) {
+        self.eventStore = eventStore
+    }
+
+    func createEvent(
+        from proposal: DeviceCalendarProposal
+    ) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure> {
+        guard #available(iOS 17.0, *) else {
+            return .failure(.unsupportedOS)
+        }
+        do {
+            guard try await ensureWriteAccess() else {
+                return .failure(.permissionDenied)
+            }
+            guard let destination = eventStore.defaultCalendarForNewEvents else {
+                return .failure(.noDefaultCalendar)
+            }
+
+            let event = EKEvent(eventStore: eventStore)
+            event.calendar = destination
+            event.title = proposal.title
+            event.startDate = proposal.startDate
+            event.endDate = proposal.endDate
+            event.timeZone = TimeZone(identifier: proposal.timeZoneIdentifier)
+            try eventStore.save(event, span: .thisEvent, commit: true)
+
+            return .success(
+                DeviceCalendarSavedEvent(
+                    identifier: event.eventIdentifier ?? "",
+                    title: proposal.title,
+                    startDate: proposal.startDate,
+                    endDate: proposal.endDate,
+                    timeZoneIdentifier: proposal.timeZoneIdentifier
+                )
+            )
+        } catch {
+            return .failure(.saveFailed(error.localizedDescription))
+        }
+    }
+
+    private func ensureWriteAccess() async throws -> Bool {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        if #available(iOS 17.0, *) {
+            switch status {
+            case .writeOnly, .fullAccess, .authorized:
+                return true
+            case .notDetermined:
+                return try await eventStore.requestWriteOnlyAccessToEvents()
+            case .denied, .restricted:
+                return false
+            @unknown default:
+                return false
+            }
+        }
+
+        return false
+    }
 }
 
 struct DeviceCalendarHandoffView: View {
@@ -63,18 +140,28 @@ struct DeviceCalendarHandoffView: View {
 
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var editorProposal: DeviceCalendarProposal?
+    @AppStorage(CalendarSyncPreference.isEnabledKey)
+    private var isCalendarSyncEnabled = true
     @State private var showsEvidence = false
     @State private var result: DeviceCalendarHandoffResult
 
     private let receiptStore: DeviceCalendarReceiptStore
+    private let calendarSync: any DeviceCalendarSyncing
+    private let activityStore: (any RelationshipCalendarActivityPersisting)?
+    private let canonicalActivity: RelationshipCalendarActivity?
 
     init(
         proposal: DeviceCalendarProposal,
-        receiptStore: DeviceCalendarReceiptStore = DeviceCalendarReceiptStore()
+        receiptStore: DeviceCalendarReceiptStore = DeviceCalendarReceiptStore(),
+        calendarSync: (any DeviceCalendarSyncing)? = nil,
+        activityStore: (any RelationshipCalendarActivityPersisting)? = nil,
+        canonicalActivity: RelationshipCalendarActivity? = nil
     ) {
         self.proposal = proposal
         self.receiptStore = receiptStore
+        self.calendarSync = calendarSync ?? EventKitDeviceCalendarSyncService()
+        self.activityStore = activityStore
+        self.canonicalActivity = canonicalActivity
         if let receipt = receiptStore.receipt(for: proposal.sourceID) {
             _result = State(initialValue: .saved(receipt))
         } else {
@@ -89,35 +176,19 @@ struct DeviceCalendarHandoffView: View {
                 dismissedContent
             case let .saved(receipt):
                 savedContent(receipt)
-            case .verificationNeeded:
-                verificationNeededContent
-            case .notStarted, .cancelled:
+            case .syncing:
+                syncingContent
+            case let .failed(message):
+                failedContent(message)
+            case let .unknown(message):
+                unknownContent(message)
+            case .savedInApp:
+                savedInAppContent
+            case .notStarted:
                 proposalContent
             }
         }
         .tsCard()
-        .sheet(item: $editorProposal) { proposal in
-            DeviceCalendarEditorSheet(proposal: proposal) { completion in
-                switch completion {
-                case let .saved(event):
-                    receiptStore.recordSaved(
-                        sourceID: proposal.sourceID,
-                        eventIdentifier: event.identifier
-                    )
-                    result = .saved(
-                        DeviceCalendarWriteReceipt(
-                            sourceID: proposal.sourceID,
-                            eventIdentifier: event.identifier,
-                            savedAt: Date()
-                        )
-                    )
-                case .cancelled:
-                    result = .cancelled
-                case .verificationNeeded:
-                    result = .verificationNeeded
-                }
-            }
-        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("device-calendar-handoff")
     }
@@ -182,16 +253,6 @@ struct DeviceCalendarHandoffView: View {
                     .accessibilityIdentifier("calendar-proposal-evidence")
             }
 
-            if result == .cancelled {
-                Label(
-                    appLanguage.text("Calendar unchanged"),
-                    systemImage: "xmark.circle"
-                )
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.tsMutedInk)
-                .accessibilityIdentifier("calendar-editor-cancelled")
-            }
-
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(spacing: 10) { proposalActions }
@@ -205,14 +266,14 @@ struct DeviceCalendarHandoffView: View {
     @ViewBuilder
     private var proposalActions: some View {
         Button {
-            editorProposal = proposal
+            sync()
         } label: {
-            Text(appLanguage.text("Add event"))
+            Text(appLanguage.text("Confirm"))
         }
         .buttonStyle(TSPrimaryButtonStyle())
-        .accessibilityLabel(appLanguage.text("Add to Calendar"))
+        .accessibilityLabel(appLanguage.text("Confirm calendar event"))
         .accessibilityHint(
-            appLanguage.text("Opens Apple's editor with this title and time.")
+            appLanguage.text("Saves this event and syncs it to Apple Calendar.")
         )
         .accessibilityIdentifier("add-calendar-proposal")
 
@@ -249,24 +310,69 @@ struct DeviceCalendarHandoffView: View {
         }
     }
 
-    private var verificationNeededContent: some View {
+    private var syncingContent: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+            Text(appLanguage.text("Syncing to Calendar…"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+        }
+        .accessibilityIdentifier("calendar-syncing")
+    }
+
+    private var savedInAppContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(
-                appLanguage.text("Calendar save needs verification"),
-                systemImage: "exclamationmark.shield"
+                appLanguage.text("Saved in Talent Signal"),
+                systemImage: "checkmark.circle.fill"
             )
                 .font(.headline)
-                .foregroundStyle(Color.tsWarning)
+                .foregroundStyle(Color.tsConfirmed)
             Text(
                 appLanguage.text(
-                    "Apple Calendar returned from Save, but Talent Signal could not read the exact event back. Check Apple Calendar before trying again."
+                    "Calendar sync is off. You can change this in Settings."
                 )
             )
                 .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
+        }
+        .accessibilityIdentifier("calendar-saved-in-app")
+    }
+
+    private func failedContent(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(
+                appLanguage.text("Saved in Talent Signal · Calendar sync failed"),
+                systemImage: "exclamationmark.shield"
+            )
+                .font(.headline)
+                .foregroundStyle(Color.tsWarning)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(appLanguage.text("Try Calendar sync again")) {
+                sync()
+            }
+            .buttonStyle(TSSecondaryButtonStyle())
+        }
+        .accessibilityIdentifier("calendar-sync-failed")
+    }
+
+    private func unknownContent(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(
+                appLanguage.text("Calendar sync result unknown"),
+                systemImage: "questionmark.diamond"
+            )
+                .font(.headline)
+                .foregroundStyle(Color.tsWarning)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .accessibilityIdentifier("calendar-save-needs-verification")
+        .accessibilityIdentifier("calendar-sync-unknown")
     }
 
     private func savedContent(
@@ -319,9 +425,126 @@ struct DeviceCalendarHandoffView: View {
         formatter.setLocalizedDateFormatFromTemplate("EEE MMM d HH:mm")
         return formatter.string(from: proposal.startDate)
     }
+
+    private func sync() {
+        guard result != .syncing else { return }
+        if var canonicalActivity, let activityStore {
+            canonicalActivity.calendarSyncState = isCalendarSyncEnabled
+                ? .syncing
+                : .disabled
+            canonicalActivity.lastCalendarSyncAttempt = isCalendarSyncEnabled
+                ? Date()
+                : nil
+            do {
+                try activityStore.save(canonicalActivity)
+            } catch {
+                result = .failed(
+                    appLanguage.text(
+                        "The event could not be saved in Talent Signal. Nothing was added to Apple Calendar."
+                    )
+                )
+                return
+            }
+            if !isCalendarSyncEnabled {
+                result = .savedInApp
+                return
+            }
+        }
+        result = .syncing
+        Task { @MainActor in
+            switch await calendarSync.createEvent(from: proposal) {
+            case let .success(event):
+                if let canonicalActivity, let activityStore {
+                    try? activityStore.save(
+                        canonicalActivity.updatingCalendarSync(
+                            .synced,
+                            eventIdentifier: event.identifier
+                        )
+                    )
+                }
+                receiptStore.recordSaved(
+                    sourceID: proposal.sourceID,
+                    eventIdentifier: event.identifier
+                )
+                result = .saved(
+                    DeviceCalendarWriteReceipt(
+                        sourceID: proposal.sourceID,
+                        eventIdentifier: event.identifier,
+                        savedAt: Date()
+                    )
+                )
+            case let .failure(.saveFailed(message)):
+                if let canonicalActivity, let activityStore {
+                    try? activityStore.save(
+                        canonicalActivity.updatingCalendarSync(.unknown)
+                    )
+                }
+                result = .unknown(
+                    uncertainResultMessage(providerMessage: message)
+                )
+            case let .failure(failure):
+                if let canonicalActivity, let activityStore {
+                    try? activityStore.save(
+                        canonicalActivity.updatingCalendarSync(.failed)
+                    )
+                }
+                result = .failed(failureMessage(failure))
+            }
+        }
+    }
+
+    private func failureMessage(_ failure: DeviceCalendarSyncFailure) -> String {
+        let appState = canonicalActivity != nil && activityStore != nil
+            ? appLanguage.text("The event is saved in Talent Signal.") + " "
+            : ""
+        switch failure {
+        case .permissionDenied:
+            return appState + appLanguage.text(
+                "Allow Calendar write access in Settings, then try again."
+            )
+        case .noDefaultCalendar:
+            return appState + appLanguage.text(
+                "Choose a default calendar in Apple Calendar, then try again."
+            )
+        case .unsupportedOS:
+            return appState + appLanguage.text(
+                "One-way Calendar sync requires iOS 17 or later."
+            )
+        case .saveFailed:
+            return appState + appLanguage.text(
+                "Apple Calendar could not save the event."
+            )
+        }
+    }
+
+    private func uncertainResultMessage(providerMessage _: String) -> String {
+        let appState = canonicalActivity != nil && activityStore != nil
+            ? appLanguage.text("The event is saved in Talent Signal.") + " "
+            : ""
+        return appState + appLanguage.text(
+            "Apple Calendar returned an uncertain result. Check Apple Calendar before taking any further action."
+        )
+    }
 }
 
 #if DEBUG
+@MainActor
+private final class DeterministicDeviceCalendarSyncService: DeviceCalendarSyncing {
+    func createEvent(
+        from proposal: DeviceCalendarProposal
+    ) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure> {
+        .success(
+            DeviceCalendarSavedEvent(
+                identifier: "synthetic-\(proposal.sourceID)",
+                title: proposal.title,
+                startDate: proposal.startDate,
+                endDate: proposal.endDate,
+                timeZoneIdentifier: proposal.timeZoneIdentifier
+            )
+        )
+    }
+}
+
 struct DeviceCalendarHandoffScenarioView: View {
     private let proposal = DeviceCalendarProposal(
         sourceID: "calendar-handoff-ui-\(ProcessInfo.processInfo.processIdentifier)",
@@ -338,7 +561,10 @@ struct DeviceCalendarHandoffScenarioView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                DeviceCalendarHandoffView(proposal: proposal)
+                DeviceCalendarHandoffView(
+                    proposal: proposal,
+                    calendarSync: DeterministicDeviceCalendarSyncService()
+                )
                     .padding(20)
             }
             .background(Color.tsCanvas)
@@ -356,101 +582,6 @@ struct DeviceCalendarSavedEvent: Equatable {
     let startDate: Date
     let endDate: Date
     let timeZoneIdentifier: String
-}
-
-enum DeviceCalendarEditorCompletion {
-    case saved(DeviceCalendarSavedEvent)
-    case cancelled
-    case verificationNeeded
-}
-
-struct DeviceCalendarEditorSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let proposal: DeviceCalendarProposal
-    let onComplete: (DeviceCalendarEditorCompletion) -> Void
-
-    var body: some View {
-        DeviceCalendarEditorController(proposal: proposal) { completion in
-            onComplete(completion)
-            dismiss()
-        }
-        .ignoresSafeArea()
-        .interactiveDismissDisabled()
-    }
-}
-
-private struct DeviceCalendarEditorController: UIViewControllerRepresentable {
-    let proposal: DeviceCalendarProposal
-    let onComplete: (DeviceCalendarEditorCompletion) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onComplete: onComplete)
-    }
-
-    func makeUIViewController(context: Context) -> EKEventEditViewController {
-        let eventStore = EKEventStore()
-        let event = EKEvent(eventStore: eventStore)
-        event.title = proposal.title
-        event.startDate = proposal.startDate
-        event.endDate = proposal.endDate
-        event.timeZone = TimeZone(identifier: proposal.timeZoneIdentifier)
-
-        let controller = EKEventEditViewController()
-        controller.eventStore = eventStore
-        controller.event = event
-        controller.editViewDelegate = context.coordinator
-        context.coordinator.eventStore = eventStore
-        return controller
-    }
-
-    func updateUIViewController(
-        _ uiViewController: EKEventEditViewController,
-        context: Context
-    ) {}
-
-    final class Coordinator: NSObject, EKEventEditViewDelegate {
-        var eventStore: EKEventStore?
-        private let onComplete: (DeviceCalendarEditorCompletion) -> Void
-        private var completed = false
-
-        init(onComplete: @escaping (DeviceCalendarEditorCompletion) -> Void) {
-            self.onComplete = onComplete
-        }
-
-        func eventEditViewController(
-            _ controller: EKEventEditViewController,
-            didCompleteWith action: EKEventEditViewAction
-        ) {
-            guard !completed else { return }
-            completed = true
-            switch action {
-            case .saved:
-                guard let identifier = controller.event?.eventIdentifier,
-                      !identifier.isEmpty,
-                      let event = eventStore?.event(withIdentifier: identifier) else {
-                    onComplete(.verificationNeeded)
-                    return
-                }
-                onComplete(
-                    .saved(
-                        DeviceCalendarSavedEvent(
-                            identifier: identifier,
-                            title: event.title,
-                            startDate: event.startDate,
-                            endDate: event.endDate,
-                            timeZoneIdentifier: event.timeZone?.identifier
-                                ?? TimeZone.current.identifier
-                        )
-                    )
-                )
-            case .canceled, .deleted:
-                onComplete(.cancelled)
-            @unknown default:
-                onComplete(.cancelled)
-            }
-        }
-    }
 }
 
 #Preview("Calendar proposal") {

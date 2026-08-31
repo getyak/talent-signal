@@ -18,7 +18,6 @@ struct StandaloneOnboardingView: View {
     }
 
     @StateObject private var store: StandaloneOnboardingStore
-    @StateObject private var calendarService = StandaloneCalendarService()
     @StateObject private var voiceService = StandaloneVoiceCaptureService()
     @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @ObservedObject private var intentRouter = CaptureIntentRouter.shared
@@ -126,18 +125,6 @@ struct StandaloneOnboardingView: View {
         .foregroundStyle(Color.tsInk)
         .tint(.tsVermilion)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: store.state.route)
-        .onChange(of: calendarService.permission) { permission in
-            store.observeCalendar(
-                permission,
-                selectedCalendarIDs: Array(calendarService.selectedCalendarIDs).sorted()
-            )
-        }
-        .onChange(of: calendarService.selectedCalendarIDs) { selectedCalendarIDs in
-            store.observeCalendar(
-                calendarService.permission,
-                selectedCalendarIDs: Array(selectedCalendarIDs).sorted()
-            )
-        }
         .onChange(of: voiceService.phase) { phase in
             switch phase {
             case .idle: break
@@ -205,7 +192,6 @@ struct StandaloneOnboardingView: View {
                     captureHandoff.resume()
                     await importPendingIntentCapture()
                     await voiceService.reconcileOrphanedLiveActivities()
-                    await calendarService.refresh()
                 }
             } else if phase != .active, voiceService.isRecording {
                 voiceService.stopForInterruption()
@@ -219,8 +205,6 @@ struct StandaloneOnboardingView: View {
             captureHandoff.resume()
             await importPendingIntentCapture()
             await voiceService.reconcileOrphanedLiveActivities()
-            calendarService.restoreSelection(Set(store.state.selectedCalendarIDs))
-            await calendarService.refresh()
             if let initialURL { handleDeepLink(initialURL) }
         }
         .sheet(item: $todayDetail) { detail in
@@ -267,8 +251,7 @@ struct StandaloneOnboardingView: View {
         case .pursuit: pursuit
         case .productDemo: productDemo
         case .sourceChoice: sourceChoice
-        case .calendarExplanation: calendarExplanation
-        case .meetingSelection: meetingSelection
+        case .calendarExplanation, .meetingSelection: sourceChoice
         case .capture: capture
         case .processing: processing
         case .proposalReview: proposalReview
@@ -453,12 +436,6 @@ struct StandaloneOnboardingView: View {
                 store.chooseSource(.text)
             }
             sourceChoiceButton(
-                icon: "calendar",
-                title: "Calendar",
-                detail: "Connect a meeting to the right Pursuit",
-                badge: nil
-            ) { store.chooseSource(.calendar) }
-            sourceChoiceButton(
                 icon: "waveform",
                 title: "Voice",
                 detail: "Capture what you just learned",
@@ -470,126 +447,6 @@ struct StandaloneOnboardingView: View {
             Text(localized("Available now: Share Extension · Later: Contacts · Gmail"))
                 .font(.footnote)
                 .foregroundStyle(Color.tsMutedInk)
-        }
-    }
-
-    private var calendarExplanation: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            pageTitle("Connect the conversation to the right moment.", eyebrow: "CALENDAR")
-            Text(localized("Talent Signal reads event titles, times, and calendars so you can choose a meeting. It never changes calendar events during onboarding."))
-                .foregroundStyle(Color.tsMutedInk)
-            VStack(alignment: .leading, spacing: 14) {
-                permissionLine("Read a bounded two-week window", icon: "calendar.badge.clock")
-                permissionLine("Show at most five choices", icon: "list.number")
-                permissionLine("No Calendar writes", icon: "lock.shield")
-            }
-            .tsCard()
-            calendarStatus
-            if calendarService.permission == .notDetermined {
-                Button(localized("Allow Calendar Access")) {
-                    Task {
-                        await calendarService.requestFullAccess()
-                        store.observeCalendar(calendarService.permission)
-                        if [.fullAccess, .connectedEmpty, .connectedWithMeetings].contains(calendarService.permission) {
-                            store.showMeetingSelection()
-                        }
-                    }
-                }
-                .buttonStyle(TSPrimaryButtonStyle())
-                .accessibilityIdentifier("standalone-allow-calendar")
-            } else if [.fullAccess, .connectedEmpty, .connectedWithMeetings].contains(calendarService.permission) {
-                Button(localized("Choose a Meeting")) { store.showMeetingSelection() }
-                    .buttonStyle(TSPrimaryButtonStyle())
-            }
-            Button(localized("Not Now")) { store.returnToSourceChoice() }
-                .buttonStyle(TSSecondaryButtonStyle())
-            Button(localized("Use a Demo Meeting")) {
-                store.chooseMeeting(StandaloneCalendarService.demoMeeting())
-            }
-            .buttonStyle(TSTextButtonStyle())
-            .accessibilityIdentifier("standalone-calendar-demo-meeting")
-            if [.denied, .restricted, .writeOnly].contains(calendarService.permission) {
-                Button(localized("Open Settings")) { openSystemSettings() }
-                    .buttonStyle(TSTextButtonStyle())
-            }
-        }
-        .task { await calendarService.refresh() }
-    }
-
-    private var meetingSelection: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            pageTitle("Which conversation just moved?", eyebrow: "MEETING")
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localized("Calendar window")).font(.subheadline.weight(.semibold))
-                Picker(
-                    "Calendar window",
-                    selection: Binding(
-                        get: { store.state.calendarWindow },
-                        set: { window in
-                            store.selectCalendarWindow(window)
-                            Task { await calendarService.setWindow(window) }
-                        }
-                    )
-                ) {
-                    ForEach(StandaloneCalendarWindow.allCases) { window in
-                        Text(localized(window.rawValue)).tag(window)
-                    }
-                }
-                .pickerStyle(.menu)
-                Text(localized("Confirm the smallest recent or upcoming window needed to identify the meeting."))
-                    .font(.footnote)
-                    .foregroundStyle(Color.tsMutedInk)
-            }
-            .tsCard()
-            if !calendarService.calendars.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(localized("Calendars")).font(.subheadline.weight(.semibold))
-                    Text(localized("Choose only the calendars needed for this Pursuit. No events are read until you select one."))
-                        .font(.footnote)
-                        .foregroundStyle(Color.tsMutedInk)
-                    ForEach(calendarService.calendars) { calendar in
-                        Toggle(
-                            calendar.title,
-                            isOn: Binding(
-                                get: { calendarService.selectedCalendarIDs.contains(calendar.id) },
-                                set: { _ in Task { await calendarService.toggleCalendar(calendar.id) } }
-                            )
-                        )
-                    }
-                }
-                .tsCard()
-            }
-            if calendarService.isLoading {
-                ProgressView("Reading the bounded Calendar window…")
-            } else if calendarService.selectedCalendarIDs.isEmpty {
-                emptyState(
-                    title: localized("Choose a calendar to begin"),
-                    body: localized("No events have been read. Select only the calendar needed for this Pursuit, or continue with a Demo Meeting, Voice, or Text.")
-                )
-            } else if calendarService.meetings.isEmpty {
-                emptyState(
-                    title: "No meeting needs choosing",
-                    body: "Calendar is connected, but the selected window has no eligible events. A Demo Meeting, Voice, or Text can continue the journey."
-                )
-            } else {
-                ForEach(calendarService.meetings) { meeting in
-                    meetingButton(meeting)
-                }
-            }
-            meetingButton(StandaloneCalendarService.demoMeeting())
-            Button(localized("Use Voice Instead")) {
-                captureMode = .voice
-                store.chooseSource(.voice)
-            }
-            .buttonStyle(TSSecondaryButtonStyle())
-            Button(localized("Type a Signal Instead")) {
-                captureMode = .text
-                store.chooseSource(.text)
-            }
-            .buttonStyle(TSTextButtonStyle())
-        }
-        .task {
-            await calendarService.setWindow(store.state.calendarWindow)
         }
     }
 
@@ -1196,15 +1053,7 @@ struct StandaloneOnboardingView: View {
         if store.state.selectedMeeting?.isDemo == true {
             return "Demo meeting · not connected"
         }
-        switch store.state.lastObservedCalendarPermission {
-        case .fullAccess:
-            return store.state.selectedCalendarIDs.isEmpty
-                ? "Full access · choose a calendar"
-                : "Connected"
-        case .connectedEmpty, .connectedWithMeetings: return "Connected"
-        case .denied, .restricted, .writeOnly: return "Skipped · text remains available"
-        case .notDetermined: return "Not connected"
-        }
+        return "Outbound only · no calendar import"
     }
 
     private var sourceEvidenceLabel: String {
@@ -1295,24 +1144,6 @@ struct StandaloneOnboardingView: View {
         .padding(12)
         .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
         .overlay { RoundedRectangle(cornerRadius: 14).stroke(Color.tsLine) }
-    }
-
-    private var calendarStatus: some View {
-        let status: (String, String, Color) = {
-            switch calendarService.permission {
-            case .notDetermined: return ("Not requested", "You decide when the system prompt appears.", .tsMutedInk)
-            case .fullAccess:
-                return calendarService.selectedCalendarIDs.isEmpty
-                    ? ("Full access · no calendar selected", "No events have been read. Choose only the calendar needed for this Pursuit.", .tsWarning)
-                    : ("Full access", "Only the selected calendars can be read for meeting selection.", .tsConfirmed)
-            case .connectedEmpty, .connectedWithMeetings: return ("Full access", "Only the selected calendars can be read for meeting selection.", .tsConfirmed)
-            case .writeOnly: return ("Write-only is not connected", "Reading meetings requires Full Access.", .tsWarning)
-            case .denied: return ("Access denied", "Continue with Voice or Text; Talent Signal will not ask again automatically.", .tsWarning)
-            case .restricted: return ("Access restricted", "This device does not currently allow Calendar reading.", .tsWarning)
-            }
-        }()
-        return summaryRow(label: status.0, value: status.1, icon: "calendar.badge.exclamationmark")
-            .foregroundStyle(status.2)
     }
 
     private var voicePhaseTitle: String {

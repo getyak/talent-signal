@@ -661,6 +661,19 @@ struct RelationshipMenuView: View {
                     .accessibilityIdentifier("open-action-button-settings")
 
                     NavigationLink {
+                        expandedDestination(CalendarSyncSettingsView())
+                    } label: {
+                        RelationshipMenuUtilityRow(
+                            systemImage: "calendar.badge.plus",
+                            title: appLanguage.text("Calendar sync"),
+                            detail: appLanguage.text(
+                                "Project confirmed events one way to Apple Calendar."
+                            )
+                        )
+                    }
+                    .accessibilityIdentifier("open-calendar-sync-settings")
+
+                    NavigationLink {
                         expandedDestination(AppSettingsView())
                     } label: {
                         RelationshipMenuUtilityRow(
