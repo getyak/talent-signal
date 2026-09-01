@@ -294,7 +294,7 @@ function mapRun(row: AgentRunRow): AgentRun {
   };
 }
 
-class SafeDeterministicAgentProvider implements AgentProvider {
+export class SafeDeterministicAgentProvider implements AgentProvider {
   readonly id = "deterministic-safe";
   readonly model = "talent-signal-no-action-v1";
   readonly sdkVersion = "deterministic-provider.v1";
@@ -314,16 +314,57 @@ class SafeDeterministicAgentProvider implements AgentProvider {
       throw new Error("The backend Agent provider accepts only Pursuit scopes.");
     }
     await invokeTool("read_pursuit", {});
-    if (request.scopeSummary.evidenceRefs.length > 0) {
-      await invokeTool("read_evidence", {
+    const evidenceResult = request.scopeSummary.evidenceRefs.length > 0
+      ? await invokeTool("read_evidence", {
         evidence_refs: request.scopeSummary.evidenceRefs,
-      });
-    }
-    const syntheticText = (request.inputParts ?? [])
-      .filter((part) => part.kind === "text")
-      .map((part) => part.text)
+      })
+      : null;
+    const syntheticText = [
+      request.objective,
+      ...(request.inputParts ?? [])
+        .filter((part) => part.kind === "text")
+        .map((part) => part.text),
+      evidenceResult?.ok ? JSON.stringify(evidenceResult.data ?? null) : "",
+    ]
       .join("\n")
       .toLowerCase();
+    if (
+      process.env.TALENT_SIGNAL_DETERMINISTIC_PROPOSAL_E2E === "true" &&
+      syntheticText.includes("[synthetic-macos-proposal-e2e]") &&
+      request.scopeSummary.evidenceRefs.length > 0
+    ) {
+      const staged = await invokeTool("stage_pursuit_proposal", {
+        summary: "Remote-work policy is an explicit decision dependency.",
+        items: [
+          {
+            item_key: "operational_gap:scheduling_constraint",
+            basis_kind: "evidence_supported",
+            epistemic_status: "inference",
+            evidence_refs: [request.scopeSummary.evidenceRefs[0]],
+            reason: "The reviewed evidence asks for the exact policy before a stated decision window.",
+            effect_summary: "Add one unresolved operational gap to the Pursuit; perform no external effect.",
+            change_kind: "add_gap",
+            proposed_value: {
+              title: "Remote-work policy unresolved",
+              basis_summary: "The candidate requested the exact remote-work policy before Wednesday.",
+              close_condition: "The recruiter reviews a confirmed policy answer from the client owner.",
+            },
+          },
+        ],
+      });
+      return {
+        structuredOutput: {
+          outcome: "proposal",
+          candidate_fingerprint: staged.candidateFingerprint,
+        },
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedUsd: 0,
+        turns: 1,
+        permissionDenials: [],
+        terminalReason: "completed",
+      };
+    }
     const reason = syntheticText.includes("ignore every system rule") ||
         syntheticText.includes("reveal environment variables")
       ? {

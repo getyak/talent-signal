@@ -1099,6 +1099,22 @@ export const SourceRetentionReceiptSchema = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    derivative_lineage: Type.Array(
+      Type.Object(
+        {
+          entity_type: Type.String({ minLength: 1 }),
+          entity_id: Id,
+          disposition: Type.Union([
+            Type.Literal("content_purged"),
+            Type.Literal("access_revoked"),
+            Type.Literal("audit_reference_retained"),
+            Type.Literal("confirmed_state_retained"),
+          ]),
+          recorded_at: Timestamp,
+        },
+        { additionalProperties: false },
+      ),
+    ),
   },
   { $id: "SourceRetentionReceipt", additionalProperties: false },
 );

@@ -1,0 +1,174 @@
+import Foundation
+
+/// The only service boundary the native shell can call. A response is an
+/// explicit sum type so synthetic fixtures cannot be decoded or presented as
+/// canonical backend readback.
+protocol MacRelationshipServing: Sendable {
+    func loadWorkspace() async throws -> MacRelationshipServiceResponse
+    func confirmScope(_ selection: RelationshipScopeSelection) async throws
+    func submit(manifest: SubmittedContextManifest) async throws -> MacRelationshipServiceResponse
+    func resolveDecision(_ request: CanonicalDecisionRequest) async throws -> MacRelationshipServiceResponse
+    func reconcileDecisionOutcome() async throws -> MacRelationshipServiceResponse
+    /// Re-resolves the exact canonical object behind an Action Center row.
+    /// The shell cannot turn a projection into decision or retry authority.
+    func openProjection(_ projection: CanonicalProjectionRequest) async throws -> MacRelationshipServiceResponse
+    func signOut() async throws -> SessionSignOutReceipt
+}
+
+struct CanonicalProjectionRequest: Sendable {
+    let objectID: String
+    let route: ActionProjectionRoute
+}
+
+enum MacRelationshipServiceResponse: Sendable {
+    case connected(ConnectedRelationshipScope)
+    case canonical(CanonicalRelationshipReadback)
+    case syntheticFixture(SyntheticRelationshipFixture)
+}
+
+struct ConnectedRelationshipScope: Sendable {
+    let workspaceID: String
+    let accountID: String
+    let options: [RelationshipScopeOption]
+    let presentation: WorkspacePresentation
+}
+
+struct RelationshipScopeOption: Identifiable, Sendable {
+    let id: String
+    let pursuitID: String
+    let pursuitRevision: Int
+    let pursuitTitle: String
+    let personID: String
+    let personDisplayLabel: String
+    let relationshipContextID: String
+    let relationshipContextLabel: String
+
+    var selection: RelationshipScopeSelection {
+        .init(
+            pursuitID: pursuitID,
+            personID: personID,
+            relationshipContextID: relationshipContextID
+        )
+    }
+
+    var presentation: WorkspacePresentation {
+        WorkspacePresentation(
+            candidateName: personDisplayLabel,
+            pursuitTitle: pursuitTitle,
+            relationshipContext: relationshipContextLabel,
+            changedSummary: "Add reviewed context to start a bounded canonical Task.",
+            evidenceQuote: "No source has been submitted from this Mac.",
+            evidenceSource: "Connected canonical workspace",
+            dependency: "The recruiter controls the next context aperture.",
+            proposal: "No proposal exists until a reviewed Capsule is submitted.",
+            actionProjections: []
+        )
+    }
+}
+
+struct CanonicalRelationshipReadback: Sendable {
+    let workspaceID: String
+    let accountID: String
+    let pursuitID: String
+    let personID: String
+    let relationshipContextID: String
+    let captureID: String
+    let evidenceFragmentIDs: [String]
+    let taskID: String
+    let taskStatus: String
+    let externalEffects: [String]
+    let displayMode: WorkspaceMode
+    let presentation: WorkspacePresentation
+    let runAudit: RunAuditSummary?
+    let clarification: CanonicalClarification?
+    let pendingDecision: CanonicalProposalReview?
+    let receipt: CanonicalPursuitReceipt?
+
+    var provesCanonicalSafeReadback: Bool {
+        !workspaceID.isEmpty &&
+            !accountID.isEmpty &&
+            !pursuitID.isEmpty &&
+            !personID.isEmpty &&
+            !relationshipContextID.isEmpty &&
+            !captureID.isEmpty &&
+            !evidenceFragmentIDs.isEmpty &&
+            !taskID.isEmpty &&
+            !taskStatus.isEmpty &&
+            externalEffects.isEmpty &&
+            (runAudit?.externalEffects.isEmpty ?? true) &&
+            (runAudit.map { Set($0.evidenceFragmentIDs).isSubset(of: Set(evidenceFragmentIDs)) } ?? true) &&
+            (displayMode != .needsDecision || pendingDecision != nil) &&
+            (pendingDecision == nil || displayMode == .needsDecision) &&
+            (displayMode != .clarification || clarification != nil) &&
+            (clarification == nil || (
+                displayMode == .clarification &&
+                clarification?.taskID == taskID &&
+                (clarification?.taskRevision ?? 0) > 0 &&
+                (clarification?.requestRevision ?? 0) > 0 &&
+                clarification?.question.isEmpty == false &&
+                clarification?.reason.isEmpty == false &&
+                clarification?.status == "open"
+            )) &&
+            (displayMode != .receipt || receipt != nil) &&
+            (receipt == nil || (
+                displayMode == .receipt &&
+                receipt?.workspaceID == workspaceID &&
+                receipt?.pursuitID == pursuitID &&
+                receipt?.externalEffects.isEmpty == true
+            ))
+    }
+}
+
+struct CanonicalClarification: Sendable {
+    let id: String
+    let taskID: String
+    let taskRevision: Int
+    let requestRevision: Int
+    let question: String
+    let reason: String
+    let status: String
+    let expiresAt: String
+}
+
+struct RunAuditSummary: Sendable {
+    let runID: String
+    let objective: String
+    let evidenceFragmentIDs: [String]
+    let evidenceManifestDigest: String
+    let eligibleCapabilities: [String]
+    let maxTurns: Int
+    let maxToolCalls: Int
+    let maxDurationMilliseconds: Int
+    let maxTaskTokens: Int
+    let maximumEstimatedUSD: Double
+    let sourceAccessState: String
+    let sourceAuthorizationState: String
+    let sourceAuthorizationExpiresAt: String?
+    let externalEffects: [String]
+}
+
+struct SyntheticRelationshipFixture: Sendable {
+    let fixtureID: String
+    let mode: WorkspaceMode
+    let presentation: WorkspacePresentation
+}
+
+enum RelationshipServiceError: LocalizedError {
+    case canonicalReadbackIncomplete
+    case liveServiceNotConfigured
+    case staleAuthority(String)
+    case invalidResponse(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .canonicalReadbackIncomplete:
+            "The backend response could not prove account, relationship, evidence, task, and effect boundaries."
+        case .liveServiceNotConfigured:
+            "Live backend mode needs an explicit local base URL and debug credentials."
+        case .staleAuthority(let detail):
+            "The reviewed source no longer has current authority: \(detail)"
+        case .invalidResponse(let detail):
+            "The backend returned an invalid response: \(detail)"
+        }
+    }
+}

@@ -1,0 +1,10 @@
+Writing result bundle at path:
+	/Users/cubxxw/data/talent-signal/docs/evaluations/2026-08-31-macos-relationship-workbench/system/rc4-proof/native-live-e2e.xcresult
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00008132-00122960019A401C, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00008132-00122960019A401C, name:My Mac }
+2026-08-31 20:45:33.171 xcodebuild[31523:29197147] [MT] IDETestOperationsObserverDebug: 4.412 elapsed -- Testing started completed.
+2026-08-31 20:45:33.171 xcodebuild[31523:29197147] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-08-31 20:45:33.171 xcodebuild[31523:29197147] [MT] IDETestOperationsObserverDebug: 4.412 sec, +4.412 sec -- end
+Testing started

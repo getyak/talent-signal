@@ -38,7 +38,11 @@ interface CaptureRow {
   identity_status: "bound" | "ambiguous" | "unbound";
   subject_id: string | null;
   assignment_id: string | null;
-  source_metadata: Omit<CaptureSourceInput, "retention">;
+  source_kind: string;
+  purpose: string;
+  source_metadata: Partial<Omit<CaptureSourceInput, "retention">> & {
+    observed_at?: string;
+  };
   requested_mode: CaptureResponse["source"]["retention"]["requested_mode"];
   effective_mode: CaptureResponse["source"]["retention"]["effective_mode"];
   source_scope: CaptureResponse["source"]["retention"]["source_scope"];
@@ -176,7 +180,8 @@ async function loadCapture(
     `SELECT
        captures.id, captures.account_id, captures.fixture_case_id,
        captures.status, captures.version, captures.identity_status,
-       captures.subject_id, captures.assignment_id, captures.source_metadata,
+       captures.subject_id, captures.assignment_id, captures.source_kind,
+       captures.purpose, captures.source_metadata,
        receipts.requested_mode, receipts.effective_mode,
        receipts.source_scope, receipts.source_access_state,
        receipts.source_access_reason, receipts.requested_retention_until,
@@ -220,7 +225,30 @@ async function loadCapture(
     subject_id: capture.subject_id,
     assignment_id: capture.assignment_id,
     source: {
-      ...capture.source_metadata,
+      kind:
+        capture.source_metadata.kind ??
+        (capture.source_kind.includes("screenshot") ||
+        capture.source_kind.includes("image")
+          ? "screenshot_metadata"
+          : "transcript"),
+      ...(capture.source_metadata.channel
+        ? { channel: capture.source_metadata.channel }
+        : {}),
+      captured_at:
+        capture.source_metadata.captured_at ??
+        capture.source_metadata.observed_at ??
+        capture.created_at.toISOString(),
+      source_timezone: capture.source_metadata.source_timezone ?? null,
+      purpose: capture.source_metadata.purpose ?? capture.purpose,
+      ...(capture.source_metadata.source_locator
+        ? { source_locator: capture.source_metadata.source_locator }
+        : {}),
+      ...(capture.source_metadata.authorization_expires_at
+        ? {
+            authorization_expires_at:
+              capture.source_metadata.authorization_expires_at,
+          }
+        : {}),
       retention: {
         policy_version: SOURCE_RETENTION_POLICY_VERSION,
         requested_mode: capture.requested_mode,
@@ -929,6 +957,125 @@ export async function deleteCapture(
       [auth.accountId, governedCaptureIds],
     );
 
+    // The Agent control plane is a registered derivative of the reviewed
+    // capture too. Keep its structural audit identity, but explicitly account
+    // for every row family that can retain source-derived text, projections,
+    // or a reusable reference after the source is deleted.
+    const agentDerivatives = await client.query<{
+      entity_type: string;
+      entity_id: string;
+    }>(
+      `WITH affected_tasks AS (
+         SELECT id
+         FROM agent_tasks
+         WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
+       ),
+       affected_runs AS (
+         SELECT id
+         FROM agent_runs
+         WHERE account_id = $1 AND capture_id = ANY($2::uuid[])
+       )
+       SELECT 'agent_task' AS entity_type, id AS entity_id
+         FROM affected_tasks
+       UNION ALL
+       SELECT 'agent_task_run', runs.id
+         FROM agent_task_runs runs
+         WHERE runs.account_id = $1
+           AND runs.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_task_checkpoint', checkpoints.id
+         FROM agent_task_checkpoints checkpoints
+         WHERE checkpoints.account_id = $1
+           AND checkpoints.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_artifact', artifacts.id
+         FROM agent_artifacts artifacts
+         WHERE artifacts.account_id = $1
+           AND artifacts.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT DISTINCT 'agent_artifact_evidence_registry', links.artifact_id
+         FROM agent_artifact_evidence links
+         JOIN agent_artifacts artifacts
+           ON artifacts.account_id = links.account_id
+          AND artifacts.id = links.artifact_id
+         WHERE links.account_id = $1
+           AND artifacts.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_clarification_request', requests.id
+         FROM agent_clarification_requests requests
+         WHERE requests.account_id = $1
+           AND requests.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_decision_bundle', bundles.id
+         FROM agent_decision_bundles bundles
+         WHERE bundles.account_id = $1
+           AND bundles.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_decision_item', items.id
+         FROM agent_decision_items items
+         JOIN agent_decision_bundles bundles
+           ON bundles.account_id = items.account_id
+          AND bundles.id = items.bundle_id
+         WHERE items.account_id = $1
+           AND bundles.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_task_event', events.event_id
+         FROM agent_task_events events
+         WHERE events.account_id = $1
+           AND events.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT DISTINCT 'agent_delivery_outbox_registry', outbox.event_id
+         FROM agent_delivery_outbox outbox
+         WHERE outbox.account_id = $1
+           AND outbox.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_run', id FROM affected_runs
+       UNION ALL
+       SELECT DISTINCT 'agent_run_evidence_registry', evidence.run_id
+         FROM agent_run_evidence evidence
+         WHERE evidence.account_id = $1
+           AND evidence.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT DISTINCT 'agent_run_event_registry', events.run_id
+         FROM agent_run_events events
+         WHERE events.account_id = $1
+           AND events.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT 'agent_tool_call', calls.id
+         FROM agent_tool_calls calls
+         WHERE calls.account_id = $1
+           AND calls.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT 'agent_run_output', outputs.id
+         FROM agent_run_outputs outputs
+         WHERE outputs.account_id = $1
+           AND outputs.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT 'agent_no_action', no_actions.id
+         FROM agent_no_actions no_actions
+         WHERE no_actions.account_id = $1
+           AND no_actions.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT DISTINCT 'pursuit_gap_audit_reference', gaps.id
+         FROM pursuit_gaps gaps
+         JOIN pursuit_gap_evidence links
+           ON links.account_id = gaps.account_id
+          AND links.gap_id = gaps.id
+         JOIN evidence_fragments fragments
+           ON fragments.account_id = links.account_id
+          AND fragments.id = links.evidence_fragment_id
+         WHERE gaps.account_id = $1
+           AND fragments.capture_id = ANY($2::uuid[])`,
+      [auth.accountId, governedCaptureIds],
+    );
+    entities.rows.push(...agentDerivatives.rows);
+    const affectedAgentTaskIds = agentDerivatives.rows
+      .filter((entity) => entity.entity_type === "agent_task")
+      .map((entity) => entity.entity_id);
+    const affectedAgentRunIds = agentDerivatives.rows
+      .filter((entity) => entity.entity_type === "agent_run")
+      .map((entity) => entity.entity_id);
+
     const affectedKnowledge = await client.query<{
       entity_type: string;
       entity_id: string;
@@ -1011,6 +1158,147 @@ export async function deleteCapture(
          AND exact_preview->'target'->>'destination_key' IS NOT NULL`,
       [auth.accountId, governedCaptureIds],
     );
+
+    if (affectedAgentTaskIds.length > 0) {
+      await client.query(
+        `UPDATE agent_tasks
+         SET objective = '[source deleted]',
+             evidence_refs = '[]'::jsonb,
+             input_artifact_refs = '[]'::jsonb,
+             status = CASE
+               WHEN status IN (
+                 'active', 'waiting_for_clarification',
+                 'waiting_for_domain_decision', 'waiting_for_external'
+               ) THEN 'needs_rebase'
+               ELSE status
+             END,
+             task_revision = task_revision + 1,
+             continue_allowed = false,
+             lease_owner = NULL,
+             lease_expires_at = NULL,
+             updated_at = now()
+         WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+      await client.query(
+        `UPDATE agent_task_runs
+         SET status = 'cancelled', completed_at = now()
+         WHERE account_id = $1
+           AND task_id = ANY($2::uuid[])
+           AND status IN ('scheduled', 'running', 'suspended')`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+      await client.query(
+        `UPDATE agent_task_checkpoints
+         SET public_state = '{"source_content_state":"removed"}'::jsonb
+         WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+      await client.query(
+        `UPDATE agent_artifacts
+         SET status = 'redacted',
+             title = '[source deleted]',
+             content = '{
+               "summary":"Source-derived Artifact content was removed.",
+               "what_changed":[],
+               "what_matters_now":{
+                 "dependency":"Review current evidence before continuing.",
+                 "reason":"The prior source was deleted.",
+                 "authority":"agent_interpretation",
+                 "evidence_refs":[]
+               },
+               "next_move":{
+                 "kind":"no_action",
+                 "label":"Review changed source",
+                 "reason":"Create a new immutable Task version only from currently authorized evidence."
+               },
+               "limitations":["Source-derived content was removed; this Artifact has no current authority."]
+             }'::jsonb
+         WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+      await client.query(
+        `UPDATE agent_clarification_requests
+         SET question = '[source deleted]',
+             reason = '[source deleted]',
+             response_schema = '{}'::jsonb,
+             status = CASE WHEN status = 'open' THEN 'cancelled' ELSE status END
+         WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+      await client.query(
+        `UPDATE agent_decision_bundles
+         SET dependency = '[source deleted]',
+             status = CASE
+               WHEN status IN ('open', 'partially_resolved') THEN 'cancelled'
+               ELSE status
+             END,
+             updated_at = now()
+         WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+      await client.query(
+        `UPDATE agent_decision_items items
+         SET status = CASE WHEN items.status = 'open' THEN 'expired' ELSE items.status END,
+             updated_at = now()
+         FROM agent_decision_bundles bundles
+         WHERE bundles.account_id = $1
+           AND bundles.task_id = ANY($2::uuid[])
+           AND items.account_id = bundles.account_id
+           AND items.bundle_id = bundles.id`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+      await client.query(
+        `UPDATE agent_task_events
+         SET public_payload = '{"source_content_state":"removed"}'::jsonb
+         WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+      await client.query(
+        `UPDATE agent_delivery_outbox
+         SET payload = jsonb_set(
+           payload,
+           '{public_payload}',
+           '{"source_content_state":"removed"}'::jsonb,
+           true
+         )
+         WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentTaskIds],
+      );
+    }
+    if (affectedAgentRunIds.length > 0) {
+      await client.query(
+        `UPDATE agent_runs
+         SET objective = '[source deleted]',
+             context_manifest = jsonb_build_object(
+               'pursuit_revision', base_revision,
+               'evidence', '[]'::jsonb,
+               'input_artifacts', '[]'::jsonb
+             )
+         WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentRunIds],
+      );
+      await client.query(
+        `UPDATE agent_run_evidence
+         SET inclusion_reason = '[source deleted]',
+             authorization_scope = '[source deleted]'
+         WHERE account_id = $1 AND run_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentRunIds],
+      );
+      await client.query(
+        `UPDATE agent_run_outputs
+         SET status = 'quarantined',
+             structured_output = '{"source_content_state":"removed"}'::jsonb
+         WHERE account_id = $1 AND run_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentRunIds],
+      );
+      await client.query(
+        `UPDATE agent_no_actions
+         SET reason = '[source deleted]', missing_evidence_refs = '[]'::jsonb
+         WHERE account_id = $1 AND run_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedAgentRunIds],
+      );
+    }
 
     await client.query(
       `UPDATE action_approvals approvals
@@ -1164,6 +1452,24 @@ export async function deleteCapture(
     const affectedPursuitProposalIds = affectedPursuitProposals.rows.map(
       (proposal) => proposal.id,
     );
+    if (affectedPursuitProposalIds.length > 0) {
+      const pursuitDecisionDerivatives = await client.query<{
+        entity_type: string;
+        entity_id: string;
+      }>(
+        `SELECT 'pursuit_operation_audit_reference' AS entity_type, operations.id AS entity_id
+           FROM pursuit_operations operations
+           WHERE operations.account_id = $1
+             AND operations.proposal_id = ANY($2::uuid[])
+         UNION ALL
+         SELECT 'pursuit_receipt_audit_reference', receipts.id
+           FROM pursuit_receipts receipts
+           WHERE receipts.account_id = $1
+             AND receipts.proposal_id = ANY($2::uuid[])`,
+        [auth.accountId, affectedPursuitProposalIds],
+      );
+      entities.rows.push(...pursuitDecisionDerivatives.rows);
+    }
     const supersededPursuitProposalIds = affectedPursuitProposals.rows
       .filter((proposal) =>
         ["needs_review", "confirming", "conflict", "failed"].includes(
@@ -1391,9 +1697,9 @@ export async function deleteCapture(
     );
     const resourceIdempotency = await client.query<{ id: string }>(
       `SELECT id
-       FROM idempotency_records
-       WHERE account_id = $1
-         AND (
+         FROM idempotency_records
+         WHERE account_id = $1
+           AND (
            (
              (
                operation_scope IN (
@@ -1432,7 +1738,17 @@ export async function deleteCapture(
                  = ANY($4::text[])
              )
            )
-         )`,
+           )
+       UNION
+       SELECT tasks.idempotency_record_id
+         FROM agent_tasks tasks
+         WHERE tasks.account_id = $1
+           AND tasks.capture_id = ANY($2::uuid[])
+       UNION
+       SELECT runs.idempotency_record_id
+         FROM agent_runs runs
+         WHERE runs.account_id = $1
+           AND runs.capture_id = ANY($2::uuid[])`,
       [
         auth.accountId,
         governedCaptureIds,
@@ -1666,6 +1982,22 @@ export async function deleteCapture(
       }
     }
 
+    const auditReferenceEntityTypes = new Set([
+      "effect_attempt",
+      "agent_task",
+      "agent_task_run",
+      "agent_task_checkpoint",
+      "agent_artifact_evidence_registry",
+      "agent_task_event",
+      "agent_delivery_outbox_registry",
+      "agent_run",
+      "agent_run_evidence_registry",
+      "agent_run_event_registry",
+      "agent_tool_call",
+      "pursuit_gap_audit_reference",
+      "pursuit_operation_audit_reference",
+      "pursuit_receipt_audit_reference",
+    ]);
     for (const entity of entities.rows) {
       await client.query(
         `INSERT INTO deletion_lineage(
@@ -1678,7 +2010,7 @@ export async function deleteCapture(
           deletionId,
           entity.entity_type,
           entity.entity_id,
-          entity.entity_type === "effect_attempt"
+          auditReferenceEntityTypes.has(entity.entity_type)
             ? "audit_reference_retained"
             : "content_removed",
         ],

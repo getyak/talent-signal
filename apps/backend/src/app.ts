@@ -563,7 +563,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '036_governed_agent_tasks'`,
+           WHERE version = '037_source_retention_derivative_lineage'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");

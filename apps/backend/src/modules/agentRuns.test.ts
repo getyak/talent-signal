@@ -9,6 +9,7 @@ import {
   assertRemoteProviderDataBoundary,
   configuredAgentProvider,
   resolveAgentInputArtifacts,
+  SafeDeterministicAgentProvider,
 } from "./agentRuns.js";
 
 const environmentKeys = [
@@ -50,6 +51,51 @@ afterEach(() => {
 });
 
 describe("configuredAgentProvider", () => {
+  it("uses only tool-authorized evidence when classifying an ambiguous time", async () => {
+    const provider = new SafeDeterministicAgentProvider();
+    const invokeTool = vi.fn(async (name: string) => ({
+      ok: true,
+      callID: `call-${name}`,
+      name,
+      data: name === "read_evidence"
+        ? { fragments: [{ text: "Thursday afternoon, with no timezone." }] }
+        : { pursuit: { title: "Synthetic Pursuit" } },
+    }));
+
+    const result = await provider.run(
+      {
+        runID: "10000000-0000-4000-8000-000000000099",
+        objective: "Clarify the selected scheduling evidence.",
+        systemPrompt: "Return a governed result.",
+        scopeSummary: {
+          kind: "pursuit",
+          workspaceID: "10000000-0000-4000-8000-000000000001",
+          pursuitID: "10000000-0000-4000-8000-000000000002",
+          pursuitRevision: 1,
+          evidenceRefs: ["10000000-0000-4000-8000-000000000003"],
+        },
+        toolManifest: ["read_pursuit", "read_evidence", "stage_pursuit_proposal"],
+        budget: {
+          maxTurns: 2,
+          maxToolCalls: 3,
+          maxDurationMs: 1_000,
+          maxTaskTokens: 1_000,
+          maxEstimatedUsd: 0.01,
+        },
+      },
+      invokeTool,
+      new AbortController().signal,
+    );
+
+    expect(result.structuredOutput).toMatchObject({
+      outcome: "no_action",
+      reason_code: "AMBIGUOUS_TIME",
+    });
+    expect(invokeTool).toHaveBeenCalledWith("read_evidence", {
+      evidence_refs: ["10000000-0000-4000-8000-000000000003"],
+    });
+  });
+
   it("keeps the deterministic provider as the safe default", () => {
     delete process.env.TALENT_SIGNAL_AGENT_PROVIDER;
     delete process.env.TALENT_SIGNAL_AGENT_MODEL;

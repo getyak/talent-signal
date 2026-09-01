@@ -384,8 +384,15 @@ async function main(): Promise<void> {
       reason: "Prove source deletion propagates to future artifact readback.",
     });
     const redacted = await getAgentTask(pool, auth, terminal.id);
-    assert.equal(redacted.task.artifact?.status, "stale");
-    assert.equal(redacted.task.artifact?.what_changed[0]?.freshness, "unavailable");
+    assert.equal(redacted.task.artifact?.status, "redacted");
+    assert.deepEqual(redacted.task.artifact?.what_changed, []);
+    assert.equal(redacted.task.artifact?.title, "[source deleted]");
+    assert.equal(redacted.task.artifact?.next_move.kind, "no_action");
+    assert(
+      redacted.task.artifact?.limitations.some((limitation) =>
+        limitation.includes("no current authority"),
+      ),
+    );
 
     const evidenceResult = {
       evidence_id: "TS-GOVERNED-AGENT-TASK-RUNTIME-01",
@@ -398,7 +405,7 @@ async function main(): Promise<void> {
         grounded_non_canonical_artifact: "pass",
         public_event_payload_minimization: "pass",
         cross_workspace_read: "not_found",
-        source_deletion_propagation: "stale_and_unavailable",
+        source_deletion_propagation: "redacted_and_no_current_authority",
         operational_proposal_normalization: "pass",
         waiting_run_releases_lease: "suspended",
         correlated_direct_review: "denied",

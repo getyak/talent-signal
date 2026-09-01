@@ -1,0 +1,65 @@
+name: TalentSignalMac
+
+options:
+  bundleIdPrefix: com.talentsignal
+  deploymentTarget:
+    macOS: "14.0"
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    CURRENT_PROJECT_VERSION: 7
+    MARKETING_VERSION: 0.1.0
+    SWIFT_VERSION: 5.9
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+targets:
+  TalentSignalMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Talent Signal
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_LSUIElement: NO
+        PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.macos
+        PRODUCT_NAME: TalentSignalMac
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: ""
+    scheme:
+      gatherCoverageData: true
+      testTargets:
+        - TalentSignalMacTests
+        - TalentSignalMacUITests
+
+  TalentSignalMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: TalentSignalMac
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.macos.tests
+
+  TalentSignalMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: TalentSignalMac
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.macos.uitests
+        TEST_TARGET_NAME: TalentSignalMac

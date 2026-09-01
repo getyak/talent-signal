@@ -176,6 +176,27 @@ describe("authority schema", () => {
     );
   });
 
+  it("persists an idempotent source-retention derivative disposition ledger", async () => {
+    const sql = await readFile(
+      new URL(
+        "./037_source_retention_derivative_lineage.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(sql).toContain(
+      "CREATE TABLE source_retention_derivative_lineage",
+    );
+    expect(sql).toContain(
+      "UNIQUE (account_id, receipt_id, entity_type, entity_id)",
+    );
+    expect(sql).toContain("'content_purged'");
+    expect(sql).toContain("'access_revoked'");
+    expect(sql).toContain("'audit_reference_retained'");
+    expect(sql).toContain("'confirmed_state_retained'");
+  });
+
   it("adds reviewed screenshot transcription as an explicit source scope", async () => {
     const sql = await readFile(
       new URL("./003_reviewed_extracted_text.sql", import.meta.url),
