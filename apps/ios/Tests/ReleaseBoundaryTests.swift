@@ -133,6 +133,11 @@ final class ReleaseBoundaryTests: XCTestCase {
                 arguments: ["TalentSignal", "--agent-work-showcase"]
             )
         )
+        XCTAssertTrue(
+            TalentSignalRootRoute.opensResearchShowcase(
+                arguments: ["TalentSignal", "--synthetic-research-showcase"]
+            )
+        )
 #else
         let arguments = [
             "TalentSignal",
@@ -147,6 +152,7 @@ final class ReleaseBoundaryTests: XCTestCase {
             "--demo-proposal-engine",
             "--simulate-action-button",
             "--agent-work-showcase",
+            "--synthetic-research-showcase",
         ]
 
         XCTAssertFalse(TalentSignalRootRoute.opensReviewWorkbench(arguments: arguments))
@@ -170,6 +176,9 @@ final class ReleaseBoundaryTests: XCTestCase {
         )
         XCTAssertFalse(
             TalentSignalRootRoute.opensAgentWorkShowcase(arguments: arguments)
+        )
+        XCTAssertFalse(
+            TalentSignalRootRoute.opensResearchShowcase(arguments: arguments)
         )
 #endif
     }
