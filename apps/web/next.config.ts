@@ -12,6 +12,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  experimental: {
+    // Next.js needs the TypeScript 6 API while the workspace CLI uses native TypeScript 7.
+    useTypeScriptCli: false,
+  },
   reactStrictMode: true,
   poweredByHeader: false,
   serverExternalPackages: ["mammoth", "pdf-parse"],
