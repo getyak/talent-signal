@@ -24,6 +24,14 @@ type RetentionEvent =
   SourceRetentionReceipt["lineage"][number]["event_type"];
 type RetentionEventReason =
   SourceRetentionReceipt["lineage"][number]["reason"];
+type RetentionDerivativeDisposition =
+  SourceRetentionReceipt["derivative_lineage"][number]["disposition"];
+
+interface RetentionDerivative {
+  entity_type: string;
+  entity_id: string;
+  disposition: RetentionDerivativeDisposition;
+}
 
 export interface ResolvedSourceRetentionPolicy {
   requestedMode: SourceRetentionRequest["requested_mode"];
@@ -322,6 +330,553 @@ async function retentionRow(
   return row;
 }
 
+async function collectRetentionDerivatives(
+  client: PoolClient,
+  row: RetentionRow,
+): Promise<RetentionDerivative[]> {
+  const result = await client.query<RetentionDerivative>(
+    `WITH affected_fragments AS (
+       SELECT id
+       FROM evidence_fragments
+       WHERE account_id = $1 AND capture_id = $2
+     ),
+     affected_roles AS (
+       SELECT DISTINCT roles.id
+       FROM pursuit_roles roles
+       JOIN pursuit_role_evidence evidence
+         ON evidence.account_id = roles.account_id
+        AND evidence.role_id = roles.id
+       WHERE evidence.account_id = $1
+         AND evidence.evidence_fragment_id IN (
+           SELECT id FROM affected_fragments
+         )
+     ),
+     affected_proposals AS (
+       SELECT DISTINCT proposals.id
+       FROM pursuit_proposals proposals
+       LEFT JOIN pursuit_proposal_items items
+         ON items.account_id = proposals.account_id
+        AND items.proposal_id = proposals.id
+       LEFT JOIN pursuit_proposal_item_evidence evidence
+         ON evidence.account_id = items.account_id
+        AND evidence.proposal_item_id = items.id
+       WHERE proposals.account_id = $1
+         AND (
+           proposals.capture_id = $2
+           OR evidence.evidence_fragment_id IN (
+             SELECT id FROM affected_fragments
+           )
+         )
+     ),
+     affected_proposal_items AS (
+       SELECT items.id
+       FROM pursuit_proposal_items items
+       WHERE items.account_id = $1
+         AND items.proposal_id IN (SELECT id FROM affected_proposals)
+     ),
+     affected_tasks AS (
+       SELECT id, idempotency_record_id
+       FROM agent_tasks
+       WHERE account_id = $1 AND capture_id = $2
+     ),
+     affected_runs AS (
+       SELECT id, idempotency_record_id
+       FROM agent_runs
+       WHERE account_id = $1 AND capture_id = $2
+     ),
+     affected_artifacts AS (
+       SELECT id
+       FROM agent_artifacts
+       WHERE account_id = $1
+         AND task_id IN (SELECT id FROM affected_tasks)
+     ),
+     affected_bundles AS (
+       SELECT id
+       FROM agent_decision_bundles
+       WHERE account_id = $1
+         AND task_id IN (SELECT id FROM affected_tasks)
+     ),
+     inventory AS (
+       SELECT 'capture'::text AS entity_type,
+              captures.id AS entity_id,
+              'access_revoked'::text AS disposition
+       FROM captures
+       WHERE captures.account_id = $1 AND captures.id = $2
+       UNION ALL
+       SELECT 'subject', captures.subject_id, 'confirmed_state_retained'
+       FROM captures
+       WHERE captures.account_id = $1
+         AND captures.id = $2
+         AND captures.subject_id IS NOT NULL
+       UNION ALL
+       SELECT 'assignment', captures.assignment_id, 'confirmed_state_retained'
+       FROM captures
+       WHERE captures.account_id = $1
+         AND captures.id = $2
+         AND captures.assignment_id IS NOT NULL
+       UNION ALL
+       SELECT 'source_resource', resources.id, 'content_purged'
+       FROM source_resources resources
+       WHERE resources.account_id = $1 AND resources.capture_id = $2
+       UNION ALL
+       SELECT 'evidence_fragment', fragments.id, 'content_purged'
+       FROM evidence_fragments fragments
+       WHERE fragments.account_id = $1 AND fragments.capture_id = $2
+       UNION ALL
+       SELECT 'evidence_fragment_review', reviews.id, 'audit_reference_retained'
+       FROM evidence_fragment_reviews reviews
+       JOIN evidence_fragments fragments
+         ON fragments.account_id = reviews.account_id
+        AND fragments.id = reviews.fragment_id
+       WHERE fragments.account_id = $1 AND fragments.capture_id = $2
+       UNION ALL
+       SELECT 'analysis_proposal', proposals.id, 'content_purged'
+       FROM analysis_proposals proposals
+       WHERE proposals.account_id = $1 AND proposals.capture_id = $2
+       UNION ALL
+       SELECT 'assertion_proposal', assertions.id,
+              CASE
+                WHEN assertions.review_status = 'confirmed'
+                  THEN 'confirmed_state_retained'
+                ELSE 'content_purged'
+              END
+       FROM proposed_assertions assertions
+       WHERE assertions.account_id = $1 AND assertions.capture_id = $2
+       UNION ALL
+       SELECT 'fact_decision', decisions.id, 'audit_reference_retained'
+       FROM fact_decisions decisions
+       JOIN proposed_assertions assertions
+         ON assertions.account_id = decisions.account_id
+        AND assertions.id = decisions.assertion_id
+       WHERE assertions.account_id = $1 AND assertions.capture_id = $2
+       UNION ALL
+       SELECT 'confirmed_state', states.id, 'confirmed_state_retained'
+       FROM confirmed_states states
+       JOIN proposed_assertions assertions
+         ON assertions.account_id = states.account_id
+        AND assertions.id = states.source_assertion_id
+       WHERE assertions.account_id = $1 AND assertions.capture_id = $2
+       UNION ALL
+       SELECT 'pursuit_role', id, 'confirmed_state_retained'
+       FROM affected_roles
+       UNION ALL
+       SELECT 'pursuit_role_evidence_registry', id, 'access_revoked'
+       FROM affected_roles
+       UNION ALL
+       SELECT 'pursuit_proposal', id, 'content_purged'
+       FROM affected_proposals
+       UNION ALL
+       SELECT 'pursuit_proposal_item', id, 'content_purged'
+       FROM affected_proposal_items
+       UNION ALL
+       SELECT DISTINCT 'pursuit_proposal_item_evidence_registry',
+              evidence.proposal_item_id, 'access_revoked'
+       FROM pursuit_proposal_item_evidence evidence
+       WHERE evidence.account_id = $1
+         AND evidence.proposal_item_id IN (
+           SELECT id FROM affected_proposal_items
+         )
+       UNION ALL
+       SELECT 'pursuit_operation_audit_reference', operations.id,
+              'audit_reference_retained'
+       FROM pursuit_operations operations
+       WHERE operations.account_id = $1
+         AND operations.proposal_id IN (SELECT id FROM affected_proposals)
+       UNION ALL
+       SELECT 'pursuit_receipt_audit_reference', receipts.id,
+              'confirmed_state_retained'
+       FROM pursuit_receipts receipts
+       WHERE receipts.account_id = $1
+         AND receipts.proposal_id IN (SELECT id FROM affected_proposals)
+       UNION ALL
+       SELECT 'agent_task', id, 'content_purged'
+       FROM affected_tasks
+       UNION ALL
+       SELECT 'agent_task_run', task_runs.id, 'audit_reference_retained'
+       FROM agent_task_runs task_runs
+       WHERE task_runs.account_id = $1
+         AND task_runs.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_task_checkpoint', checkpoints.id, 'content_purged'
+       FROM agent_task_checkpoints checkpoints
+       WHERE checkpoints.account_id = $1
+         AND checkpoints.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_artifact', id, 'content_purged'
+       FROM affected_artifacts
+       UNION ALL
+       SELECT DISTINCT 'agent_artifact_evidence_registry',
+              evidence.artifact_id, 'access_revoked'
+       FROM agent_artifact_evidence evidence
+       WHERE evidence.account_id = $1
+         AND evidence.artifact_id IN (SELECT id FROM affected_artifacts)
+       UNION ALL
+       SELECT 'agent_clarification_request', requests.id, 'content_purged'
+       FROM agent_clarification_requests requests
+       WHERE requests.account_id = $1
+         AND requests.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_decision_bundle', id, 'content_purged'
+       FROM affected_bundles
+       UNION ALL
+       SELECT 'agent_decision_item', items.id, 'access_revoked'
+       FROM agent_decision_items items
+       WHERE items.account_id = $1
+         AND items.bundle_id IN (SELECT id FROM affected_bundles)
+       UNION ALL
+       SELECT 'agent_task_event', events.event_id, 'content_purged'
+       FROM agent_task_events events
+       WHERE events.account_id = $1
+         AND events.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT DISTINCT 'agent_delivery_outbox_registry', outbox.event_id,
+              'content_purged'
+       FROM agent_delivery_outbox outbox
+       WHERE outbox.account_id = $1
+         AND outbox.task_id IN (SELECT id FROM affected_tasks)
+       UNION ALL
+       SELECT 'agent_run', id, 'content_purged'
+       FROM affected_runs
+       UNION ALL
+       SELECT DISTINCT 'agent_run_evidence_registry', evidence.run_id,
+              'access_revoked'
+       FROM agent_run_evidence evidence
+       WHERE evidence.account_id = $1
+         AND evidence.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT DISTINCT 'agent_run_event_registry', events.run_id,
+              'audit_reference_retained'
+       FROM agent_run_events events
+       WHERE events.account_id = $1
+         AND events.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT 'agent_tool_call', calls.id, 'audit_reference_retained'
+       FROM agent_tool_calls calls
+       WHERE calls.account_id = $1
+         AND calls.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT 'agent_run_output', outputs.id, 'content_purged'
+       FROM agent_run_outputs outputs
+       WHERE outputs.account_id = $1
+         AND outputs.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT 'agent_no_action', no_actions.id, 'content_purged'
+       FROM agent_no_actions no_actions
+       WHERE no_actions.account_id = $1
+         AND no_actions.run_id IN (SELECT id FROM affected_runs)
+       UNION ALL
+       SELECT 'idempotency_record', records.id, 'content_purged'
+       FROM idempotency_records records
+       WHERE records.account_id = $1
+         AND (
+           records.id IN (
+             SELECT idempotency_record_id FROM affected_tasks
+             UNION
+             SELECT idempotency_record_id FROM affected_runs
+           )
+           OR (
+             records.operation_scope IN (
+               'create_resource_capture', 'create_capture'
+             )
+             AND COALESCE(
+               records.response_body->>'capture_id',
+               records.response_body->>'id'
+             ) = $2::text
+           )
+           OR (
+             (
+               records.operation_scope LIKE 'stage_pursuit_proposal:%'
+               OR records.operation_scope LIKE 'review_pursuit_proposal:%'
+             )
+             AND records.response_body->'proposal'->>'id' IN (
+               SELECT id::text FROM affected_proposals
+             )
+           )
+         )
+     )
+     SELECT DISTINCT entity_type, entity_id,
+            disposition::text AS disposition
+     FROM inventory
+     WHERE entity_id IS NOT NULL
+     ORDER BY entity_type, entity_id`,
+    [row.account_id, row.capture_id],
+  );
+  return result.rows;
+}
+
+async function purgeRetentionDerivatives(
+  client: PoolClient,
+  row: RetentionRow,
+  derivatives: RetentionDerivative[],
+  occurredAt: Date,
+): Promise<void> {
+  const ids = (entityType: string): string[] =>
+    derivatives
+      .filter((item) => item.entity_type === entityType)
+      .map((item) => item.entity_id);
+  const taskIds = ids("agent_task");
+  const runIds = ids("agent_run");
+  const proposalIds = ids("pursuit_proposal");
+  const idempotencyIds = ids("idempotency_record");
+
+  await client.query(
+    `UPDATE evidence_fragments
+     SET status = 'purged',
+         text_content = NULL,
+         content_hash = 'purged',
+         locator = '{"purged":true}'::jsonb
+     WHERE account_id = $1 AND capture_id = $2`,
+    [row.account_id, row.capture_id],
+  );
+  await client.query(
+    `UPDATE source_resources
+     SET display_name = '[source expired]',
+         content_hash = NULL,
+         source_locator = NULL,
+         payload_ref = NULL,
+         updated_at = $3
+     WHERE account_id = $1 AND capture_id = $2`,
+    [row.account_id, row.capture_id, occurredAt],
+  );
+  await client.query(
+    `UPDATE proposed_assertions
+     SET evidence_quote = NULL,
+         proposed_value = CASE
+           WHEN review_status = 'confirmed' THEN proposed_value
+           ELSE NULL
+         END,
+         proposal_status = CASE
+           WHEN review_status = 'confirmed' THEN proposal_status
+           ELSE 'superseded'
+         END,
+         version = version + 1
+     WHERE account_id = $1 AND capture_id = $2`,
+    [row.account_id, row.capture_id],
+  );
+
+  if (taskIds.length > 0) {
+    await client.query(
+      `UPDATE agent_tasks
+       SET objective = '[source expired]',
+           evidence_refs = '[]'::jsonb,
+           input_artifact_refs = '[]'::jsonb,
+           status = CASE
+             WHEN status IN (
+               'active', 'waiting_for_clarification',
+               'waiting_for_domain_decision', 'waiting_for_external'
+             ) THEN 'needs_rebase'
+             ELSE status
+           END,
+           task_revision = task_revision + 1,
+           continue_allowed = false,
+           lease_owner = NULL,
+           lease_expires_at = NULL,
+           updated_at = $3
+       WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+      [row.account_id, taskIds, occurredAt],
+    );
+    await client.query(
+      `UPDATE agent_task_runs
+       SET status = 'cancelled', completed_at = $3
+       WHERE account_id = $1
+         AND task_id = ANY($2::uuid[])
+         AND status IN ('scheduled', 'running', 'suspended')`,
+      [row.account_id, taskIds, occurredAt],
+    );
+    await client.query(
+      `UPDATE agent_task_checkpoints
+       SET public_state = '{"source_content_state":"purged"}'::jsonb
+       WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+      [row.account_id, taskIds],
+    );
+    await client.query(
+      `UPDATE agent_artifacts
+       SET title = '[source expired]',
+           content = '{
+             "summary":"Source-derived Artifact content expired with its authorized source.",
+             "what_changed":[],
+             "what_matters_now":{
+               "dependency":"Review current evidence before continuing.",
+               "reason":"The prior source authorization and retention window expired.",
+               "authority":"agent_interpretation",
+               "evidence_refs":[]
+             },
+             "next_move":{
+               "kind":"no_action",
+               "label":"Review changed source",
+               "reason":"Create a new immutable Task version only from currently authorized evidence."
+             },
+             "limitations":["Source-derived content was purged; this Artifact has no current authority."]
+           }'::jsonb
+       WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+      [row.account_id, taskIds],
+    );
+    await client.query(
+      `UPDATE agent_clarification_requests
+       SET question = '[source expired]',
+           reason = '[source expired]',
+           response_schema = '{}'::jsonb,
+           status = CASE WHEN status = 'open' THEN 'cancelled' ELSE status END
+       WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+      [row.account_id, taskIds],
+    );
+    await client.query(
+      `UPDATE agent_decision_bundles
+       SET dependency = '[source expired]',
+           status = CASE
+             WHEN status IN ('open', 'partially_resolved') THEN 'cancelled'
+             ELSE status
+           END,
+           updated_at = $3
+       WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+      [row.account_id, taskIds, occurredAt],
+    );
+    await client.query(
+      `UPDATE agent_decision_items items
+       SET status = CASE WHEN items.status = 'open' THEN 'expired' ELSE items.status END,
+           updated_at = $3
+       FROM agent_decision_bundles bundles
+       WHERE bundles.account_id = $1
+         AND bundles.task_id = ANY($2::uuid[])
+         AND items.account_id = bundles.account_id
+         AND items.bundle_id = bundles.id`,
+      [row.account_id, taskIds, occurredAt],
+    );
+    await client.query(
+      `UPDATE agent_task_events
+       SET public_payload = '{"source_content_state":"purged"}'::jsonb
+       WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+      [row.account_id, taskIds],
+    );
+    await client.query(
+      `UPDATE agent_delivery_outbox
+       SET payload = jsonb_set(
+         payload,
+         '{public_payload}',
+         '{"source_content_state":"purged"}'::jsonb,
+         true
+       )
+       WHERE account_id = $1 AND task_id = ANY($2::uuid[])`,
+      [row.account_id, taskIds],
+    );
+  }
+
+  if (runIds.length > 0) {
+    await client.query(
+      `UPDATE agent_runs
+       SET objective = '[source expired]',
+           context_manifest = jsonb_build_object(
+             'pursuit_revision', base_revision,
+             'evidence', '[]'::jsonb,
+             'input_artifacts', '[]'::jsonb
+           )
+       WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+      [row.account_id, runIds],
+    );
+    await client.query(
+      `UPDATE agent_run_evidence
+       SET inclusion_reason = '[source expired]',
+           authorization_scope = '[source expired]'
+       WHERE account_id = $1 AND run_id = ANY($2::uuid[])`,
+      [row.account_id, runIds],
+    );
+    await client.query(
+      `UPDATE agent_run_events
+       SET metadata = '{"source_content_state":"purged"}'::jsonb
+       WHERE account_id = $1 AND run_id = ANY($2::uuid[])`,
+      [row.account_id, runIds],
+    );
+    await client.query(
+      `UPDATE agent_run_outputs
+       SET status = 'quarantined',
+           structured_output = '{"source_content_state":"purged"}'::jsonb
+       WHERE account_id = $1 AND run_id = ANY($2::uuid[])`,
+      [row.account_id, runIds],
+    );
+    await client.query(
+      `UPDATE agent_no_actions
+       SET reason = '[source expired]', missing_evidence_refs = '[]'::jsonb
+       WHERE account_id = $1 AND run_id = ANY($2::uuid[])`,
+      [row.account_id, runIds],
+    );
+  }
+
+  if (proposalIds.length > 0) {
+    await client.query(
+      `UPDATE pursuit_proposals
+       SET status = CASE
+             WHEN status IN ('needs_review', 'confirming', 'conflict', 'failed')
+               THEN 'superseded'
+             ELSE status
+           END,
+           summary = '[source-derived Proposal content expired]',
+           revision = revision + 1,
+           updated_at = $3
+       WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+      [row.account_id, proposalIds, occurredAt],
+    );
+    await client.query(
+      `UPDATE pursuit_proposal_items
+       SET before_value = NULL,
+           proposed_value = '{"content_purged":true}'::jsonb,
+           epistemic_status = 'superseded',
+           reason = '[source-derived Proposal reason expired]',
+           effect_summary = '[source-derived Proposal effect expired]',
+           decided_value = CASE
+             WHEN decided_value IS NULL THEN NULL
+             ELSE '{"content_purged":true}'::jsonb
+           END,
+           decision_reason = CASE
+             WHEN decision_reason IS NULL THEN NULL
+             ELSE '[source-derived review reason expired]'
+           END
+       WHERE account_id = $1 AND proposal_id = ANY($2::uuid[])`,
+      [row.account_id, proposalIds],
+    );
+  }
+
+  if (idempotencyIds.length > 0) {
+    await client.query(
+      `UPDATE idempotency_records
+       SET response_body = jsonb_build_object(
+         'source_content_state', 'purged',
+         'capture_id', $3::text
+       )
+       WHERE account_id = $1 AND id = ANY($2::uuid[])`,
+      [row.account_id, idempotencyIds, row.capture_id],
+    );
+  }
+}
+
+async function recordRetentionDerivatives(
+  client: PoolClient,
+  row: RetentionRow,
+  derivatives: RetentionDerivative[],
+  occurredAt: Date,
+): Promise<void> {
+  for (const derivative of derivatives) {
+    await client.query(
+      `INSERT INTO source_retention_derivative_lineage(
+         id, account_id, receipt_id, capture_id,
+         entity_type, entity_id, disposition, recorded_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (account_id, receipt_id, entity_type, entity_id)
+       DO NOTHING`,
+      [
+        randomUUID(),
+        row.account_id,
+        row.receipt_id,
+        row.capture_id,
+        derivative.entity_type,
+        derivative.entity_id,
+        derivative.disposition,
+        occurredAt,
+      ],
+    );
+  }
+}
+
 async function purgeSourceContent(
   client: PoolClient,
   row: RetentionRow,
@@ -346,6 +901,19 @@ async function purgeSourceContent(
   );
   if (updated.rowCount !== 1) {
     return false;
+  }
+
+  // Resource-intake completion drops the transient transport payload while
+  // preserving the explicitly reviewed fragment as governed evidence. A
+  // retention deadline is the stronger lifecycle boundary: it expires every
+  // still-source-dependent Task, Proposal, Artifact, and registry reference
+  // and therefore receives the complete derivative-disposition ledger.
+  const derivatives =
+    reason === "retention_deadline_elapsed"
+      ? await collectRetentionDerivatives(client, row)
+      : [];
+  if (derivatives.length > 0) {
+    await purgeRetentionDerivatives(client, row, derivatives, occurredAt);
   }
 
   await client.query(
@@ -407,6 +975,9 @@ async function purgeSourceContent(
        AND response_body ? 'assertions'`,
     [row.account_id, `submit_analysis:${row.capture_id}`],
   );
+  if (derivatives.length > 0) {
+    await recordRetentionDerivatives(client, row, derivatives, occurredAt);
+  }
   await appendRetentionEvent(
     client,
     row,
@@ -507,7 +1078,7 @@ async function loadSourceRetentionReceipt(
   now = new Date(),
 ): Promise<SourceRetentionReceipt> {
   const row = await retentionRow(client, accountId, captureId);
-  const [events, deletion] = await Promise.all([
+  const [events, derivatives, deletion] = await Promise.all([
     client.query<{
       id: string;
       event_type: RetentionEvent;
@@ -526,6 +1097,18 @@ async function loadSourceRetentionReceipt(
            WHEN 'source_deleted' THEN 4
          END,
          id`,
+      [accountId, row.receipt_id],
+    ),
+    client.query<{
+      entity_type: string;
+      entity_id: string;
+      disposition: RetentionDerivativeDisposition;
+      recorded_at: Date;
+    }>(
+      `SELECT entity_type, entity_id, disposition, recorded_at
+       FROM source_retention_derivative_lineage
+       WHERE account_id = $1 AND receipt_id = $2
+       ORDER BY entity_type, entity_id`,
       [accountId, row.receipt_id],
     ),
     client.query<{ id: string }>(
@@ -596,6 +1179,12 @@ async function loadSourceRetentionReceipt(
       event_type: event.event_type,
       reason: event.reason,
       occurred_at: event.occurred_at.toISOString(),
+    })),
+    derivative_lineage: derivatives.rows.map((derivative) => ({
+      entity_type: derivative.entity_type,
+      entity_id: derivative.entity_id,
+      disposition: derivative.disposition,
+      recorded_at: derivative.recorded_at.toISOString(),
     })),
   };
 }

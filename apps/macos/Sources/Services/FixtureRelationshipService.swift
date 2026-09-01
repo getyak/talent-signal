@@ -1,0 +1,183 @@
+import Foundation
+
+struct FixtureRelationshipService: MacRelationshipServing {
+    let initialMode: WorkspaceMode
+
+    func loadWorkspace() async throws -> MacRelationshipServiceResponse {
+        .syntheticFixture(Self.fixture(mode: initialMode))
+    }
+
+    func confirmScope(_ selection: RelationshipScopeSelection) async throws {
+        guard selection == RelationshipScopeSelection(
+            pursuitID: "synthetic-pursuit",
+            personID: "synthetic-person",
+            relationshipContextID: "synthetic-relationship-context"
+        ) else {
+            throw RelationshipServiceError.invalidResponse("The synthetic relationship scope changed before confirmation.")
+        }
+    }
+
+    func submit(manifest: SubmittedContextManifest) async throws -> MacRelationshipServiceResponse {
+        guard !manifest.selectedItems.isEmpty else { throw CapsuleValidationError.noReviewedSharedContext }
+        return .syntheticFixture(Self.fixture(mode: .needsDecision))
+    }
+
+    func resolveDecision(_ request: CanonicalDecisionRequest) async throws -> MacRelationshipServiceResponse {
+        guard !request.decisions.isEmpty else {
+            throw RelationshipServiceError.invalidResponse("Every proposal item needs an explicit decision.")
+        }
+        return .syntheticFixture(Self.fixture(mode: .receipt))
+    }
+
+    func reconcileDecisionOutcome() async throws -> MacRelationshipServiceResponse {
+        .syntheticFixture(Self.fixture(mode: .receipt))
+    }
+
+    func openProjection(_ projection: CanonicalProjectionRequest) async throws -> MacRelationshipServiceResponse {
+        .syntheticFixture(Self.fixture(mode: initialMode))
+    }
+
+    func signOut() async throws -> SessionSignOutReceipt {
+        .init(sessionID: "synthetic-session", revokedAt: ISO8601DateFormatter().string(from: Date()))
+    }
+
+    static func fixture(mode: WorkspaceMode) -> SyntheticRelationshipFixture {
+        let changedSummary = mode == .clarification
+            ? "A relative meeting time was observed, but exact scheduling authority is incomplete."
+            : mode == .noAction
+                ? "The reviewed evidence reinforces the current remote-policy dependency; it does not justify a second recruiter task."
+                : "The decision window moved earlier; remote policy is still unresolved."
+        let dependency = mode == .clarification
+            ? "The exact calendar date, timezone, duration, and meeting consent remain unresolved."
+            : mode == .noAction
+                ? "The existing recruiter-owned action remains open; the selected evidence does not justify a duplicate."
+                : "Client owner must confirm remote policy before the candidate’s Wednesday decision window."
+        let proposal = mode == .clarification
+            ? "What exact calendar date, timezone, duration, and meeting consent apply?"
+            : mode == .noAction
+                ? "Continue the existing client-policy question; no new action is proposed."
+                : "Prepare one local response draft asking the client owner for the exact policy. This is not approval to send."
+        let actionProjections = mode == .noAction
+            ? [
+                ActionProjection(
+                    id: "synthetic-owned-action",
+                    objectName: "Prepare the exact client policy question",
+                    consequence: "Continue the action already owned by the recruiter",
+                    authority: "Existing owned action · no duplicate created · external_effects is empty",
+                    status: .verified,
+                    nextOperation: "Open the canonical Task and evidence",
+                    route: .openCurrent
+                )
+            ]
+            : [
+                ActionProjection(
+                    id: "synthetic-awaiting",
+                    objectName: "VP Engineering · remote policy",
+                    consequence: "Prepare a local draft; no message delivery",
+                    authority: "Proposal only · recruiter decision required",
+                    status: .awaitingDecision,
+                    nextOperation: "Review exact evidence and choose prepare or dismiss",
+                    route: .reviewDecision
+                ),
+                ActionProjection(
+                    id: "synthetic-unknown",
+                    objectName: "Prior internal reminder",
+                    consequence: "Internal action only",
+                    authority: "Outcome has not been independently read back",
+                    status: .outcomeUnknown,
+                    nextOperation: "Reconcile the original operation before retry",
+                    route: .reconcileOperation
+                ),
+                ActionProjection(
+                    id: "synthetic-receipt",
+                    objectName: "Pursuit brief",
+                    consequence: "Local artifact prepared",
+                    authority: "Synthetic receipt for UI testing only",
+                    status: .reversible,
+                    nextOperation: "Open fixture history",
+                    route: .openReceipt
+                )
+            ]
+        return SyntheticRelationshipFixture(
+            fixtureID: "synthetic-macos-workbench-v1-\(mode.rawValue)",
+            mode: mode,
+            presentation: WorkspacePresentation(
+                candidateName: "Alexandra 陈嘉宁-Sørensen — International Leadership & Platform Transformation",
+                pursuitTitle: "VP Engineering · APAC platform expansion",
+                relationshipContext: "Candidate in this Pursuit · identity deliberately reviewable",
+                changedSummary: changedSummary,
+                evidenceQuote: "“I need clarity on the remote policy before Wednesday because the other process has accelerated.”",
+                evidenceSource: "Synthetic selected conversation · exact fixture fragment",
+                dependency: dependency,
+                proposal: proposal,
+                actionProjections: actionProjections
+            )
+        )
+    }
+
+    static func decisionReviewFixture() -> CanonicalProposalReview {
+        CanonicalProposalReview(
+            bundleID: "20000000-0000-4000-8000-000000000001",
+            taskID: "20000000-0000-4000-8000-000000000002",
+            taskRevision: 2,
+            bundleRevision: 1,
+            proposalID: "20000000-0000-4000-8000-000000000003",
+            baseRevision: 7,
+            summary: "Remote-work policy is an explicit decision dependency.",
+            dependency: "The recruiter must decide whether this evidence supports one unresolved operational gap.",
+            expiresAt: "2026-09-01T09:00:00Z",
+            evidence: [
+                .init(
+                    id: "20000000-0000-4000-8000-000000000004",
+                    text: "I need the exact remote-work policy before Wednesday because another process moved earlier.",
+                    source: "Synthetic selected conversation",
+                    observedAt: "2026-08-31T05:00:00Z",
+                    attributedActor: "candidate",
+                    attributionStatus: "confirmed",
+                    reviewStatus: "reviewed"
+                )
+            ],
+            items: [
+                .init(
+                    id: "20000000-0000-4000-8000-000000000005",
+                    domainItemID: "20000000-0000-4000-8000-000000000006",
+                    key: "operational_gap:scheduling_constraint",
+                    changeKind: "add_gap",
+                    beforeValue: "None",
+                    proposedValue: "basis summary: Reviewed evidence names a scheduling constraint that is not resolved. · close condition: Close when the scheduling constraint is resolved or expires. · title: Scheduling constraint unresolved",
+                    reason: "Reviewed evidence names a scheduling constraint that is not resolved.",
+                    effectSummary: "Would add one operational gap for human review only.",
+                    epistemicStatus: "inference",
+                    evidenceAvailability: "available",
+                    evidenceRefs: ["20000000-0000-4000-8000-000000000004"]
+                )
+            ]
+        )
+    }
+
+    static func receiptFixture() -> CanonicalPursuitReceipt {
+        CanonicalPursuitReceipt(
+            id: "20000000-0000-4000-8000-000000000007",
+            operationID: "20000000-0000-4000-8000-000000000008",
+            workspaceID: "synthetic-account",
+            pursuitID: "synthetic-pursuit",
+            proposalID: "20000000-0000-4000-8000-000000000003",
+            outcome: "canonical_applied",
+            summary: "Synthetic receipt fixture: 1 applied, 0 rejected, 0 unresolved.",
+            beforeRevision: 7,
+            afterRevision: 8,
+            changedFields: ["gaps"],
+            externalEffects: [],
+            occurredAt: "2026-08-31T05:05:00Z"
+        )
+    }
+
+    static func identityReviewReceiptFixture() -> IdentityReviewReceipt {
+        IdentityReviewReceipt(
+            id: "synthetic-identity-review-20000000-0000-4000-8000-000000000009",
+            taskID: nil,
+            summary: "Synthetic identity review saved. No person was bound and no fact or action authority was granted.",
+            occurredAt: Date(timeIntervalSince1970: 1_788_152_800)
+        )
+    }
+}

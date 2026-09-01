@@ -10,6 +10,11 @@ let actionCompletionPostCount = 0;
 let droppedActionResponseCount = 0;
 let resourceCapturePostCount = 0;
 let droppedResourceCaptureResponseCount = 0;
+let operationLookupCount = 0;
+let blockedOperationLookupCount = 0;
+const operationLookupsToBlock = Number(
+  process.env.RESPONSE_LOSS_PROXY_BLOCK_OPERATION_LOOKUPS ?? "0",
+);
 const proposalReviewPathsWithDroppedResponse = new Set<string>();
 const actionCompletionPathsWithDroppedResponse = new Set<string>();
 let hasDroppedResourceCaptureResponse = false;
@@ -70,7 +75,10 @@ function differingJSONPaths(
 function isReviewRequest(method: string | undefined, path: string): boolean {
   return (
     method === "POST" &&
-    /^\/v1\/pursuit-proposals\/[0-9a-f-]+\/reviews$/.test(path)
+    (
+      /^\/v1\/pursuit-proposals\/[0-9a-f-]+\/reviews$/.test(path) ||
+      /^\/v1\/decision-bundles\/[0-9a-f-]+\/resolve$/.test(path)
+    )
   );
 }
 
@@ -109,12 +117,31 @@ const server = createServer(async (request, response) => {
         resource_capture_request_hashes: resourceCaptureRequestHashes,
         resource_capture_request_difference_paths:
           resourceCaptureRequestDifferencePaths,
+        operation_lookup_count: operationLookupCount,
+        blocked_operation_lookup_count: blockedOperationLookupCount,
       }),
     );
     return;
   }
 
   try {
+    const operationLookup =
+      request.method === "GET" &&
+      /^\/v1\/operations\/[0-9a-f-]+$/.test(path);
+    if (operationLookup) {
+      operationLookupCount += 1;
+      if (blockedOperationLookupCount < operationLookupsToBlock) {
+        blockedOperationLookupCount += 1;
+        response.writeHead(503, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            error: "SYNTHETIC_OPERATION_READBACK_UNAVAILABLE",
+            message: "Synthetic proof keeps the committed operation unreadable until the client relaunches.",
+          }),
+        );
+        return;
+      }
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of request) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -187,7 +214,11 @@ const server = createServer(async (request, response) => {
       response.destroy();
       return;
     }
-    if (resourceCaptureRequest && !hasDroppedResourceCaptureResponse) {
+    if (
+      resourceCaptureRequest &&
+      process.env.RESPONSE_LOSS_PROXY_DROP_RESOURCE_CAPTURE !== "false" &&
+      !hasDroppedResourceCaptureResponse
+    ) {
       hasDroppedResourceCaptureResponse = true;
       droppedResourceCaptureResponseCount += 1;
       process.stdout.write(

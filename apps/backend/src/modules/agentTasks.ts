@@ -430,6 +430,21 @@ async function readTaskProjection(
       }
     : null;
 
+  // Source authorization is evaluated again at read time. A historical Task
+  // row may still say it is waiting for a decision, but a now-stale Artifact
+  // must never keep presenting that decision as current authority. Preserve
+  // the stored history and project the safe refresh state to every client.
+  const projectedStatus: AgentTaskStatus =
+    mappedArtifact?.status === "stale" &&
+    [
+      "active",
+      "waiting_for_clarification",
+      "waiting_for_domain_decision",
+      "waiting_for_external",
+    ].includes(task.status)
+      ? "needs_rebase"
+      : task.status;
+
   return {
     id: task.id,
     workspace_id: task.account_id,
@@ -438,7 +453,7 @@ async function readTaskProjection(
     kind: task.kind,
     objective: task.objective,
     task_revision: task.task_revision,
-    status: task.status,
+    status: projectedStatus,
     permission_ceiling: task.permission_ceiling,
     semantic_snapshot: task.semantic_snapshot,
     latest_run: taskRun
@@ -868,7 +883,11 @@ async function buildBriefing(
   agentRunID: string,
   proposalID: string | null,
   noActionID: string | null,
-): Promise<{ artifactID: string; dependency: string }> {
+): Promise<{
+  artifactID: string;
+  dependency: string;
+  noActionReasonCode: string | null;
+}> {
   const pursuit = await readPursuit(client, task.account_id, task.pursuit_id);
   const excerpts = await evidenceExcerpts(client, task);
   const openGap = pursuit.gaps.find((gap) => gap.status === "open") ?? null;
@@ -883,17 +902,27 @@ async function buildBriefing(
       )).rows[0] ?? null
     : null;
   const noAction = noActionID
-    ? (await client.query<{ reason: string }>(
-        `SELECT reason FROM agent_no_actions
+    ? (await client.query<{ reason: string; reason_code: string }>(
+        `SELECT reason, reason_code FROM agent_no_actions
          WHERE account_id = $1 AND id = $2`,
         [task.account_id, noActionID],
       )).rows[0] ?? null
     : null;
-  const dependency = openGap?.title ??
-    (proposal
-      ? "A review-only Pursuit change is waiting for a human decision."
-      : "No unresolved dependency is supported by the selected evidence.");
-  const dependencyRefs = openGap?.basis.evidence_refs ?? [];
+  const isAmbiguousTime = noAction?.reason_code === "AMBIGUOUS_TIME";
+  const dependency = isAmbiguousTime
+    ? "The exact calendar date, timezone, duration, and meeting consent remain unresolved."
+    : openGap
+      ? openAction
+        ? `${openGap.title} The existing recruiter-owned action “${openAction.title}” remains open; the selected evidence does not justify a duplicate.`
+        : openGap.title
+      : proposal
+        ? "A review-only Pursuit change is waiting for a human decision."
+        : openAction
+          ? `The existing recruiter-owned action “${openAction.title}” remains open; the selected evidence does not justify a duplicate.`
+          : "No unresolved dependency is supported by the selected evidence.";
+  const dependencyRefs = isAmbiguousTime
+    ? task.evidence_refs
+    : openGap?.basis.evidence_refs ?? [];
   const observedAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + ARTIFACT_TTL_MS).toISOString();
   const artifactID = randomUUID();
@@ -914,11 +943,15 @@ async function buildBriefing(
     })),
     what_matters_now: {
       dependency,
-      reason: openGap
+      reason: isAmbiguousTime
+        ? noAction.reason
+        : openGap
         ? openGap.close_condition
         : proposal?.summary ??
-          "No new milestone, commitment, or recruiter-owned action is justified by this snapshot.",
-      authority: openGap ? "canonical_pursuit" : "agent_interpretation",
+          (openAction
+            ? `Continue the existing action owned by ${openAction.owner_display_name}; do not create another action for the same work.`
+            : "No new milestone, commitment, or recruiter-owned action is justified by this snapshot."),
+      authority: !isAmbiguousTime && openGap ? "canonical_pursuit" : "agent_interpretation",
       evidence_refs: dependencyRefs,
     },
     next_move: proposalID
@@ -927,6 +960,12 @@ async function buildBriefing(
           label: "Review the exact Pursuit proposal",
           reason: "The proposal is review-only and has no execution authority.",
         }
+      : isAmbiguousTime
+        ? {
+            kind: "clarify",
+            label: "Confirm the exact date, timezone, duration, and meeting consent",
+            reason: noAction.reason,
+          }
       : openAction
         ? {
             kind: "continue_owned_action",
@@ -978,7 +1017,47 @@ async function buildBriefing(
       [task.account_id, artifactID, item.fragment_id, index, item.content_hash],
     );
   }
-  return { artifactID, dependency };
+  return {
+    artifactID,
+    dependency,
+    noActionReasonCode: noAction?.reason_code ?? null,
+  };
+}
+
+async function createClarificationRequest(
+  client: PoolClient,
+  task: AgentTaskRow,
+  nextTaskRevision: number,
+): Promise<string> {
+  const clarificationID = randomUUID();
+  await client.query(
+    `INSERT INTO agent_clarification_requests(
+       id, account_id, task_id, task_revision, request_revision,
+       question, reason, response_schema, status, expires_at
+     )
+     VALUES ($1, $2, $3, $4, 1, $5, $6, $7::jsonb, 'open', $8)`,
+    [
+      clarificationID,
+      task.account_id,
+      task.id,
+      nextTaskRevision,
+      "What exact calendar date, timezone, duration, and meeting consent apply?",
+      "The selected evidence contains a relative time phrase without enough temporal or consent authority for a meeting action.",
+      JSON.stringify({
+        type: "object",
+        required: ["date", "timezone", "duration_minutes", "meeting_consent"],
+        properties: {
+          date: { type: "string", format: "date" },
+          timezone: { type: "string" },
+          duration_minutes: { type: "integer", minimum: 1 },
+          meeting_consent: { type: "boolean" },
+        },
+        additionalProperties: false,
+      }),
+      new Date(Date.now() + DECISION_TTL_MS).toISOString(),
+    ],
+  );
+  return clarificationID;
 }
 
 async function createDecisionBundle(
@@ -1130,6 +1209,36 @@ async function finalizeTask(
         task,
         "decision.requested",
         { bundle_id: bundleID, proposal_id: receipt.proposal_id },
+        run.id,
+      );
+    } else if (
+      run.status === "no_action" &&
+      briefing &&
+      briefing.noActionReasonCode === "AMBIGUOUS_TIME"
+    ) {
+      const clarificationID = await createClarificationRequest(
+        client,
+        task,
+        nextTaskRevision,
+      );
+      nextStatus = "waiting_for_clarification";
+      continueAllowed = true;
+      eventName = "run.completed";
+      await appendTaskEvent(
+        client,
+        task,
+        "artifact.ready",
+        { artifact_id: briefing.artifactID, authority: "non_canonical" },
+        run.id,
+      );
+      await appendTaskEvent(
+        client,
+        task,
+        "clarification.requested",
+        {
+          clarification_id: clarificationID,
+          reason_code: briefing.noActionReasonCode,
+        },
         run.id,
       );
     } else if (run.status === "no_action" && briefing) {

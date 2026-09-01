@@ -1,0 +1,618 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04CEA8F3868CCADEED3E8C76 /* AppModelSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E345FFFB4FA94F245199A55 /* AppModelSafetyTests.swift */; };
+		0691119F8DFC6A62F5C21B72 /* URLMacRelationshipService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C28EB4D881AFA45D42DC4A /* URLMacRelationshipService.swift */; };
+		1DD909C228F16F50CF040D4D /* TalentSignalMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF63B8C4CBD1F557FB2E251 /* TalentSignalMacApp.swift */; };
+		346977F72FEE9A8CE680927C /* ActionCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95968B80225F1074D1C652DC /* ActionCenterView.swift */; };
+		3A5542F18A3DB78CE2F57A55 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B9B30DF64BA43145B533741 /* AppModel.swift */; };
+		3FE0346C7FE6B8983C315C3A /* FixtureRelationshipService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F8B857FFA895078C5309513 /* FixtureRelationshipService.swift */; };
+		46F9C7CA93CCFEEFD18E6725 /* SystemWindowCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A2935D6338E63247EADFD31 /* SystemWindowCaptureService.swift */; };
+		4CBF6251C4370E10124956DD /* ContextCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 750C5D4E760DCA22DDCBA30D /* ContextCapsule.swift */; };
+		5253AAF9E52F01769922CFBA /* QuickPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E6DB7F49153959759AE19DC /* QuickPanelView.swift */; };
+		54C8BA6397A6328D6D4E5233 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E77B2AAB13C6A41F0DFF02B6 /* Brand.swift */; };
+		67826B9FE8353AAECF115B65 /* LiveBackendRelationshipServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3389E0A990B828DC5A3EE74C /* LiveBackendRelationshipServiceTests.swift */; };
+		6C44D03C3AB0570D73B2CCBB /* ContextCapsuleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E93922878080B661AC6341 /* ContextCapsuleTests.swift */; };
+		776AB6E98F8C341FB55BDF7B /* TalentSignalMacUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E176B0638C441E812A4A9C /* TalentSignalMacUITests.swift */; };
+		919F4E2749BE33F0660B17E1 /* RelationshipServiceBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74605F1A134E222A618F488C /* RelationshipServiceBoundaryTests.swift */; };
+		936F52F1B10C2EC124AFF47F /* LocalCapsuleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661A333F702E2811C85497DE /* LocalCapsuleStore.swift */; };
+		937AF8BC62C5509E00FAEC4E /* PreparedDraftClipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB89700F0E28FC0CD969E011 /* PreparedDraftClipboard.swift */; };
+		993FB5795F9C6F6813658BC2 /* UnknownResolutionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403CD2B6C2719BC492AABAF8 /* UnknownResolutionStore.swift */; };
+		9962F6B4F791FAC543B3FC3C /* MacRelationshipServing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5CB7A2A0C56C92C8D0E613E /* MacRelationshipServing.swift */; };
+		A4F4FE3FA1694F494D161362 /* MenuBarPresenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2EE6E7A1F0FB14D992C4265 /* MenuBarPresenceView.swift */; };
+		BCF73069BC705D7512C1863F /* ContextCapsuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E6569297B7F41919556E1B /* ContextCapsuleView.swift */; };
+		F77ED9C73B0A8BFBF97D20EC /* LocalCapsuleStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E2BA31FCA4AC157C1D4EC87 /* LocalCapsuleStoreTests.swift */; };
+		F93640AEBCA9C15F9B3A80AE /* RelationshipWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BD2D0F76015AF2901E23C8E /* RelationshipWorkspaceView.swift */; };
+		FC7752C3411ABBD7627BFE56 /* WorkspaceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A820A2B0E2EC7D8B340B03F4 /* WorkspaceState.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3104DEE81E4457D1A1ABEE28 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5AE07DC9A734DEC1098BA075 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 348DCAF6C3FF243D04ACB1AA;
+			remoteInfo = TalentSignalMac;
+		};
+		3A95B8FC46FDAA1B5B469DB6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5AE07DC9A734DEC1098BA075 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 348DCAF6C3FF243D04ACB1AA;
+			remoteInfo = TalentSignalMac;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		22C28EB4D881AFA45D42DC4A /* URLMacRelationshipService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLMacRelationshipService.swift; sourceTree = "<group>"; };
+		27E176B0638C441E812A4A9C /* TalentSignalMacUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalMacUITests.swift; sourceTree = "<group>"; };
+		2E2BA31FCA4AC157C1D4EC87 /* LocalCapsuleStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCapsuleStoreTests.swift; sourceTree = "<group>"; };
+		2E6DB7F49153959759AE19DC /* QuickPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickPanelView.swift; sourceTree = "<group>"; };
+		3389E0A990B828DC5A3EE74C /* LiveBackendRelationshipServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBackendRelationshipServiceTests.swift; sourceTree = "<group>"; };
+		403CD2B6C2719BC492AABAF8 /* UnknownResolutionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnknownResolutionStore.swift; sourceTree = "<group>"; };
+		4BD2D0F76015AF2901E23C8E /* RelationshipWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipWorkspaceView.swift; sourceTree = "<group>"; };
+		5EF63B8C4CBD1F557FB2E251 /* TalentSignalMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalMacApp.swift; sourceTree = "<group>"; };
+		661A333F702E2811C85497DE /* LocalCapsuleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCapsuleStore.swift; sourceTree = "<group>"; };
+		6A2935D6338E63247EADFD31 /* SystemWindowCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemWindowCaptureService.swift; sourceTree = "<group>"; };
+		74605F1A134E222A618F488C /* RelationshipServiceBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipServiceBoundaryTests.swift; sourceTree = "<group>"; };
+		750C5D4E760DCA22DDCBA30D /* ContextCapsule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextCapsule.swift; sourceTree = "<group>"; };
+		7E345FFFB4FA94F245199A55 /* AppModelSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelSafetyTests.swift; sourceTree = "<group>"; };
+		8B9B30DF64BA43145B533741 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		8F8B857FFA895078C5309513 /* FixtureRelationshipService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureRelationshipService.swift; sourceTree = "<group>"; };
+		95968B80225F1074D1C652DC /* ActionCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionCenterView.swift; sourceTree = "<group>"; };
+		A820A2B0E2EC7D8B340B03F4 /* WorkspaceState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceState.swift; sourceTree = "<group>"; };
+		A8368F596C3A099BF577EB42 /* TalentSignalMacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TalentSignalMacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B67BED6CE3083921942B7F42 /* TalentSignalMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TalentSignalMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CB89700F0E28FC0CD969E011 /* PreparedDraftClipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparedDraftClipboard.swift; sourceTree = "<group>"; };
+		D2EE6E7A1F0FB14D992C4265 /* MenuBarPresenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPresenceView.swift; sourceTree = "<group>"; };
+		E2E93922878080B661AC6341 /* ContextCapsuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextCapsuleTests.swift; sourceTree = "<group>"; };
+		E5CB7A2A0C56C92C8D0E613E /* MacRelationshipServing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacRelationshipServing.swift; sourceTree = "<group>"; };
+		E77B2AAB13C6A41F0DFF02B6 /* Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brand.swift; sourceTree = "<group>"; };
+		F2E6569297B7F41919556E1B /* ContextCapsuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextCapsuleView.swift; sourceTree = "<group>"; };
+		F5F4BF10C127E86072A4B89B /* TalentSignalMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TalentSignalMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		06718F1A9D1CD3C9B7640437 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B67BED6CE3083921942B7F42 /* TalentSignalMac.app */,
+				F5F4BF10C127E86072A4B89B /* TalentSignalMacTests.xctest */,
+				A8368F596C3A099BF577EB42 /* TalentSignalMacUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		08E239DF831309D74038C919 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				27E176B0638C441E812A4A9C /* TalentSignalMacUITests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		49309E7726BA351F0BB32DDF /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				750C5D4E760DCA22DDCBA30D /* ContextCapsule.swift */,
+				A820A2B0E2EC7D8B340B03F4 /* WorkspaceState.swift */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		65B6C3E27074A208D528C4B5 = {
+			isa = PBXGroup;
+			children = (
+				71CAA219BA8FAFBF8474D6CF /* Sources */,
+				F2060F3551C4AADD5BDB8139 /* Tests */,
+				08E239DF831309D74038C919 /* UITests */,
+				06718F1A9D1CD3C9B7640437 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		71CAA219BA8FAFBF8474D6CF /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				926B357515F9E5E7C53533EE /* App */,
+				49309E7726BA351F0BB32DDF /* Domain */,
+				7499B98DED8F885B6FEA369A /* Features */,
+				E5D14E3E0C7FE52A7F55DA8A /* Services */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		7499B98DED8F885B6FEA369A /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				95968B80225F1074D1C652DC /* ActionCenterView.swift */,
+				E77B2AAB13C6A41F0DFF02B6 /* Brand.swift */,
+				F2E6569297B7F41919556E1B /* ContextCapsuleView.swift */,
+				D2EE6E7A1F0FB14D992C4265 /* MenuBarPresenceView.swift */,
+				2E6DB7F49153959759AE19DC /* QuickPanelView.swift */,
+				4BD2D0F76015AF2901E23C8E /* RelationshipWorkspaceView.swift */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		926B357515F9E5E7C53533EE /* App */ = {
+			isa = PBXGroup;
+			children = (
+				8B9B30DF64BA43145B533741 /* AppModel.swift */,
+				5EF63B8C4CBD1F557FB2E251 /* TalentSignalMacApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		E5D14E3E0C7FE52A7F55DA8A /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				8F8B857FFA895078C5309513 /* FixtureRelationshipService.swift */,
+				661A333F702E2811C85497DE /* LocalCapsuleStore.swift */,
+				E5CB7A2A0C56C92C8D0E613E /* MacRelationshipServing.swift */,
+				CB89700F0E28FC0CD969E011 /* PreparedDraftClipboard.swift */,
+				6A2935D6338E63247EADFD31 /* SystemWindowCaptureService.swift */,
+				403CD2B6C2719BC492AABAF8 /* UnknownResolutionStore.swift */,
+				22C28EB4D881AFA45D42DC4A /* URLMacRelationshipService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		F2060F3551C4AADD5BDB8139 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				7E345FFFB4FA94F245199A55 /* AppModelSafetyTests.swift */,
+				E2E93922878080B661AC6341 /* ContextCapsuleTests.swift */,
+				3389E0A990B828DC5A3EE74C /* LiveBackendRelationshipServiceTests.swift */,
+				2E2BA31FCA4AC157C1D4EC87 /* LocalCapsuleStoreTests.swift */,
+				74605F1A134E222A618F488C /* RelationshipServiceBoundaryTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		348DCAF6C3FF243D04ACB1AA /* TalentSignalMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2662A3B3991FC17992B927E6 /* Build configuration list for PBXNativeTarget "TalentSignalMac" */;
+			buildPhases = (
+				8979452681399B04A6DCB50C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TalentSignalMac;
+			packageProductDependencies = (
+			);
+			productName = TalentSignalMac;
+			productReference = B67BED6CE3083921942B7F42 /* TalentSignalMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C6B18A63C3EFD117C611A9FD /* TalentSignalMacUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FF9F8DC486ECD2DCAE245CDA /* Build configuration list for PBXNativeTarget "TalentSignalMacUITests" */;
+			buildPhases = (
+				D5CF4F4D857E048CEA8551F6 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A2D8C1CE79110C785308ACC2 /* PBXTargetDependency */,
+			);
+			name = TalentSignalMacUITests;
+			packageProductDependencies = (
+			);
+			productName = TalentSignalMacUITests;
+			productReference = A8368F596C3A099BF577EB42 /* TalentSignalMacUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		DEA7A1F4935AA30BBC9C728C /* TalentSignalMacTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 224D2A063770AB9921CF1F0F /* Build configuration list for PBXNativeTarget "TalentSignalMacTests" */;
+			buildPhases = (
+				1EC1D478E971963BA0D99219 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1DB21B776355DBC372762E2D /* PBXTargetDependency */,
+			);
+			name = TalentSignalMacTests;
+			packageProductDependencies = (
+			);
+			productName = TalentSignalMacTests;
+			productReference = F5F4BF10C127E86072A4B89B /* TalentSignalMacTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5AE07DC9A734DEC1098BA075 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					348DCAF6C3FF243D04ACB1AA = {
+						ProvisioningStyle = Automatic;
+					};
+					C6B18A63C3EFD117C611A9FD = {
+						ProvisioningStyle = Automatic;
+						TestTargetID = 348DCAF6C3FF243D04ACB1AA;
+					};
+					DEA7A1F4935AA30BBC9C728C = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 81033B1DCBA34C38EA387CE3 /* Build configuration list for PBXProject "TalentSignalMac" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 65B6C3E27074A208D528C4B5;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 06718F1A9D1CD3C9B7640437 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				348DCAF6C3FF243D04ACB1AA /* TalentSignalMac */,
+				DEA7A1F4935AA30BBC9C728C /* TalentSignalMacTests */,
+				C6B18A63C3EFD117C611A9FD /* TalentSignalMacUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1EC1D478E971963BA0D99219 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				04CEA8F3868CCADEED3E8C76 /* AppModelSafetyTests.swift in Sources */,
+				6C44D03C3AB0570D73B2CCBB /* ContextCapsuleTests.swift in Sources */,
+				67826B9FE8353AAECF115B65 /* LiveBackendRelationshipServiceTests.swift in Sources */,
+				F77ED9C73B0A8BFBF97D20EC /* LocalCapsuleStoreTests.swift in Sources */,
+				919F4E2749BE33F0660B17E1 /* RelationshipServiceBoundaryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8979452681399B04A6DCB50C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				346977F72FEE9A8CE680927C /* ActionCenterView.swift in Sources */,
+				3A5542F18A3DB78CE2F57A55 /* AppModel.swift in Sources */,
+				54C8BA6397A6328D6D4E5233 /* Brand.swift in Sources */,
+				4CBF6251C4370E10124956DD /* ContextCapsule.swift in Sources */,
+				BCF73069BC705D7512C1863F /* ContextCapsuleView.swift in Sources */,
+				3FE0346C7FE6B8983C315C3A /* FixtureRelationshipService.swift in Sources */,
+				936F52F1B10C2EC124AFF47F /* LocalCapsuleStore.swift in Sources */,
+				9962F6B4F791FAC543B3FC3C /* MacRelationshipServing.swift in Sources */,
+				A4F4FE3FA1694F494D161362 /* MenuBarPresenceView.swift in Sources */,
+				937AF8BC62C5509E00FAEC4E /* PreparedDraftClipboard.swift in Sources */,
+				5253AAF9E52F01769922CFBA /* QuickPanelView.swift in Sources */,
+				F93640AEBCA9C15F9B3A80AE /* RelationshipWorkspaceView.swift in Sources */,
+				46F9C7CA93CCFEEFD18E6725 /* SystemWindowCaptureService.swift in Sources */,
+				1DD909C228F16F50CF040D4D /* TalentSignalMacApp.swift in Sources */,
+				0691119F8DFC6A62F5C21B72 /* URLMacRelationshipService.swift in Sources */,
+				993FB5795F9C6F6813658BC2 /* UnknownResolutionStore.swift in Sources */,
+				FC7752C3411ABBD7627BFE56 /* WorkspaceState.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D5CF4F4D857E048CEA8551F6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				776AB6E98F8C341FB55BDF7B /* TalentSignalMacUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1DB21B776355DBC372762E2D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 348DCAF6C3FF243D04ACB1AA /* TalentSignalMac */;
+			targetProxy = 3A95B8FC46FDAA1B5B469DB6 /* PBXContainerItemProxy */;
+		};
+		A2D8C1CE79110C785308ACC2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 348DCAF6C3FF243D04ACB1AA /* TalentSignalMac */;
+			targetProxy = 3104DEE81E4457D1A1ABEE28 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		09DA226876DE477D041C394E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 7;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		1DEF4FD369FC5A31BE017380 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 7;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		3707A27F3F5CF7068924FE0A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Talent Signal";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.macos;
+				PRODUCT_NAME = TalentSignalMac;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		4260DEA75CA1A415C18FA76A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Talent Signal";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.macos;
+				PRODUCT_NAME = TalentSignalMac;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		42929A8DF20C4381F662EC10 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.macos.uitests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = TalentSignalMac;
+			};
+			name = Release;
+		};
+		793306D848C4C62C763C09C9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.macos.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TalentSignalMac.app/Contents/MacOS/TalentSignalMac";
+			};
+			name = Debug;
+		};
+		C51A0458E82DCE1E8157D920 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.macos.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TalentSignalMac.app/Contents/MacOS/TalentSignalMac";
+			};
+			name = Release;
+		};
+		D8C6002A8B69137192D5ECB6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.talentsignal.macos.uitests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = TalentSignalMac;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		224D2A063770AB9921CF1F0F /* Build configuration list for PBXNativeTarget "TalentSignalMacTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				793306D848C4C62C763C09C9 /* Debug */,
+				C51A0458E82DCE1E8157D920 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		2662A3B3991FC17992B927E6 /* Build configuration list for PBXNativeTarget "TalentSignalMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3707A27F3F5CF7068924FE0A /* Debug */,
+				4260DEA75CA1A415C18FA76A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		81033B1DCBA34C38EA387CE3 /* Build configuration list for PBXProject "TalentSignalMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1DEF4FD369FC5A31BE017380 /* Debug */,
+				09DA226876DE477D041C394E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FF9F8DC486ECD2DCAE245CDA /* Build configuration list for PBXNativeTarget "TalentSignalMacUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D8C6002A8B69137192D5ECB6 /* Debug */,
+				42929A8DF20C4381F662EC10 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5AE07DC9A734DEC1098BA075 /* Project object */;
+}
