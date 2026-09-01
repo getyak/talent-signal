@@ -625,13 +625,23 @@ struct RelationshipAskView: View {
                 pendingScopedSend = recoverableObjective
                 draft = ""
                 isSending = true
-                relationshipRecallPhase = .finding
-                updateAskSubmissionPhase(.routingLocally)
-                startRelationshipRecall(
-                    sessionID: sessionID,
-                    effectiveObjective: recoverableObjective,
-                    originalDraft: recoverableObjective
-                )
+                if session.hasPendingUnscopedChat {
+                    relationshipRecallPhase = .replyingWithoutRelationship
+                    updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+                    performUnscopedChat(
+                        sessionID: sessionID,
+                        effectiveObjective: recoverableObjective,
+                        originalDraft: recoverableObjective
+                    )
+                } else {
+                    relationshipRecallPhase = .finding
+                    updateAskSubmissionPhase(.routingLocally)
+                    startRelationshipRecall(
+                        sessionID: sessionID,
+                        effectiveObjective: recoverableObjective,
+                        originalDraft: recoverableObjective
+                    )
+                }
             }
             if sessionID != nil || initialSeed != nil || contactDraft != nil {
                 presentationDetent = .large
@@ -1108,7 +1118,9 @@ struct RelationshipAskView: View {
                             language: appLanguage,
                             recallPhase: relationshipRecallPhase,
                             onChooseCandidate: chooseRecallCandidate,
-                            onChangeMatch: changeRecalledRelationship
+                            onChangeMatch: changeRecalledRelationship,
+                            onContinueWithoutRelationship:
+                                continueWithoutRelationship
                         )
                         .id("ask-loading")
                     }
@@ -2839,6 +2851,20 @@ struct RelationshipAskView: View {
             )
             return
         }
+        if mediaDrafts.isEmpty,
+           AgentUnscopedConversationPolicy.route(
+               objective: effectiveObjective
+           ) == .directConversation {
+            relationshipRecallPhase = .replyingWithoutRelationship
+            updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+            presentationDetent = .large
+            performUnscopedChat(
+                sessionID: unscopedSessionID,
+                effectiveObjective: effectiveObjective,
+                originalDraft: trimmed
+            )
+            return
+        }
         relationshipRecallPhase = .finding
         updateAskSubmissionPhase(.routingLocally)
         presentationDetent = .large
@@ -2925,6 +2951,135 @@ struct RelationshipAskView: View {
             isSending = false
             askOperation = nil
         }
+    }
+
+    private func performUnscopedChat(
+        sessionID: UUID,
+        effectiveObjective: String,
+        originalDraft: String
+    ) {
+        guard let idempotencyKey = sessionStore.beginUnscopedChat(
+            sessionID: sessionID,
+            objective: effectiveObjective,
+            proposedIdempotencyKey: "ios:unscoped-chat:\(UUID().uuidString.lowercased())"
+        ) else {
+            isSending = false
+            pendingObjective = nil
+            pendingScopedSend = nil
+            relationshipRecallPhase = .idle
+            updateAskSubmissionPhase(.idle)
+            draft = originalDraft
+            errorMessage = appLanguage.text(
+                "A protected conversation retry could not be saved. Your message was not sent."
+            )
+            return
+        }
+
+        if !isCanonical {
+            let response = previewUnscopedResponse(for: effectiveObjective)
+            guard sessionStore.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: effectiveObjective,
+                response: response
+            ) else {
+                isSending = false
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                draft = originalDraft
+                errorMessage = appLanguage.text(
+                    "The preview reply could not be saved."
+                )
+                return
+            }
+            pendingObjective = nil
+            pendingScopedSend = nil
+            relationshipRecallPhase = .idle
+            updateAskSubmissionPhase(.idle)
+            sessionStore.saveGlobalDraft("")
+            isSending = false
+            return
+        }
+
+        askOperation?.cancel()
+        askOperation = Task {
+            do {
+                let response = try await workspaceStore.chatUnscoped(
+                    objective: effectiveObjective,
+                    idempotencyKey: idempotencyKey
+                )
+                try Task.checkCancellation()
+                guard activeSessionID == sessionID,
+                      pendingScopedSend == effectiveObjective else { return }
+                guard sessionStore.recordUnscopedChat(
+                    sessionID: sessionID,
+                    objective: effectiveObjective,
+                    response: response.relationshipAskProjection
+                ) else {
+                    throw PursuitWorkspaceClientError.invalidResponse
+                }
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                sessionStore.saveGlobalDraft("")
+            } catch {
+                if Task.isCancelled { return }
+                draft = originalDraft
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                errorMessage = askFailureMessage(error)
+            }
+            isSending = false
+            askOperation = nil
+        }
+    }
+
+    private func previewUnscopedResponse(
+        for objective: String
+    ) -> RelationshipAskResponse {
+        let usesChinese = objective.range(
+            of: #"\p{Script=Han}"#,
+            options: .regularExpression
+        ) != nil
+        return RelationshipAskResponse(
+            contractVersion: "preview",
+            taskID: UUID().uuidString.lowercased(),
+            contextManifestID: "none-unbound-conversation",
+            knowledgeSnapshotID: "none-unbound-conversation",
+            disposition: "answer",
+            blocks: [
+                .init(
+                    id: UUID().uuidString.lowercased(),
+                    kind: "answer",
+                    title: usesChinese ? "Agent · 预览" : "Agent · Preview",
+                    body: usesChinese
+                        ? "你好，我在。你可以直接和我聊，或者告诉我想回顾哪段关系。"
+                        : "Hello, I’m here. You can chat directly or tell me which relationship you want to revisit.",
+                    status: "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: false
+                ),
+            ],
+            createdAt: ISO8601DateFormatter().string(from: Date())
+        )
+    }
+
+    private func continueWithoutRelationship() {
+        guard mediaDrafts.isEmpty,
+              let sessionID = activeSessionID,
+              let effectiveObjective = pendingScopedSend else { return }
+        isSending = true
+        relationshipRecallPhase = .replyingWithoutRelationship
+        updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+        performUnscopedChat(
+            sessionID: sessionID,
+            effectiveObjective: effectiveObjective,
+            originalDraft: effectiveObjective
+        )
     }
 
     private func startRelationshipRecall(
@@ -4839,6 +4994,7 @@ private enum RelationshipRecallPhase: Equatable {
     case finding
     case matched(AgentRelationshipRecallCandidate)
     case reading(AgentRelationshipRecallCandidate?)
+    case replyingWithoutRelationship
     case ambiguous(
         candidates: [AgentRelationshipRecallCandidate],
         possibleDuplicate: Bool
@@ -4871,6 +5027,7 @@ private struct AskPendingTurnView: View {
     let recallPhase: RelationshipRecallPhase
     let onChooseCandidate: (AgentRelationshipRecallCandidate) -> Void
     let onChangeMatch: () -> Void
+    let onContinueWithoutRelationship: () -> Void
     @State private var recallQuery = ""
 
     var body: some View {
@@ -4910,6 +5067,13 @@ private struct AskPendingTurnView: View {
                 language.text("Reading the current record…")
             )
             .accessibilityIdentifier("ask-loading")
+        case .replyingWithoutRelationship:
+            activityRow(
+                language.text(
+                    "Replying without opening a relationship…"
+                )
+            )
+            .accessibilityIdentifier("ask-unscoped-loading")
         case let .ambiguous(candidates, possibleDuplicate):
             candidateDecision(
                 candidates: candidates,
@@ -5057,6 +5221,26 @@ private struct AskPendingTurnView: View {
                     Divider().foregroundStyle(Color.tsLine)
                 }
                 .accessibilityIdentifier("ask-recall-candidate-\(candidate.id)")
+            }
+
+            if isFallback, mediaDrafts.isEmpty {
+                Button(action: onContinueWithoutRelationship) {
+                    Text(
+                        language.text(
+                            "Continue without a relationship"
+                        )
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.tsInk)
+                .accessibilityHint(
+                    language.text(
+                        "Replies without reading candidate or relationship evidence"
+                    )
+                )
+                .accessibilityIdentifier("ask-continue-unscoped")
             }
         }
         .accessibilityElement(children: .contain)

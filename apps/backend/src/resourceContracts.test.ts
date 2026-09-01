@@ -13,6 +13,8 @@ import {
   RelationshipAgentHistorySchema,
   ResourceCaptureRequestSchema,
   ResourceCaptureResponseSchema,
+  UnscopedChatTaskRequestSchema,
+  UnscopedChatTaskResponseSchema,
 } from "@talent-signal/contracts";
 import { FormatRegistry } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
@@ -730,6 +732,42 @@ describe("multichannel relationship-resource contracts", () => {
       Value.Check(ChatTaskResponseSchema, {
         ...response,
         knowledge_snapshot_id: undefined,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps an unscoped Agent reply free of relationship context and effects", () => {
+    expect(
+      Value.Check(UnscopedChatTaskRequestSchema, {
+        idempotency_key: "ios:unscoped-chat:fixture",
+        objective: "你好",
+      }),
+    ).toBe(true);
+    expect(
+      Value.Check(UnscopedChatTaskResponseSchema, {
+        contract_version: CONTRACT_VERSION,
+        task_id: taskId,
+        disposition: "answer",
+        blocks: [
+          {
+            id: blockId,
+            kind: "answer",
+            title: "你好",
+            body: "你好，我在。你想聊什么？",
+            status: "informational",
+            citation_dependency_ids: [],
+            requires_user_decision: false,
+          },
+        ],
+        external_effects: [],
+        created_at: "2026-09-02T00:00:00.000Z",
+      }),
+    ).toBe(true);
+    expect(
+      Value.Check(UnscopedChatTaskRequestSchema, {
+        idempotency_key: "ios:unscoped-chat:fixture",
+        objective: "你好",
+        person_id: personId,
       }),
     ).toBe(false);
   });

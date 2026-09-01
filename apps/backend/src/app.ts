@@ -21,6 +21,8 @@ import {
   ChatTaskRequestSchema,
   ChatTaskReadbackSchema,
   ChatTaskResponseSchema,
+  UnscopedChatTaskRequestSchema,
+  UnscopedChatTaskResponseSchema,
   PersonResearchTaskRequestSchema,
   PersonResearchTaskResponseSchema,
   ChatMediaAssetSchema,
@@ -109,6 +111,7 @@ import {
   type CancelAgentTaskRequest,
   type CaptureIdentityCorrectionRequest,
   type ChatTaskRequest,
+  type UnscopedChatTaskRequest,
   type CreateChatMediaRequest,
   type PersonResearchTaskRequest,
   type CompileKnowledgeRequest,
@@ -196,6 +199,7 @@ import {
 } from "./modules/captures.js";
 import { decideAssertion } from "./modules/decisions.js";
 import { createChatTask, getChatTaskReadback } from "./modules/chat.js";
+import { createUnscopedChatTask } from "./modules/unscopedChat.js";
 import {
   createEnvironmentPersonResearchAgentClient,
   type PersonResearchAgentProviding,
@@ -2143,6 +2147,43 @@ export async function buildApp(
         chatMediaStorage,
         request.params.id,
       ),
+  );
+
+  app.post<{ Body: UnscopedChatTaskRequest }>(
+    "/v1/chat/unscoped-tasks",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["chat", "agent"],
+        security,
+        body: UnscopedChatTaskRequestSchema,
+        response: {
+          201: UnscopedChatTaskResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createUnscopedChatTask(
+        pool,
+        request.auth,
+        request.body,
+        remoteChatProvider,
+      );
+      request.log.info(
+        {
+          unscoped_chat_task_id: result.body.task_id,
+          chat_disposition: result.body.disposition,
+          context_scope: "none",
+          external_effect_count: 0,
+        },
+        "unscoped chat task completed",
+      );
+      return reply
+        .header("idempotent-replayed", result.replayed)
+        .status(result.status)
+        .send(result.body);
+    },
   );
 
   app.post<{ Body: ChatTaskRequest }>(

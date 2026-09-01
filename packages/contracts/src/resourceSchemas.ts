@@ -1626,6 +1626,32 @@ export const ChatTaskRequestSchema = Type.Object(
   { $id: "ChatTaskRequest", additionalProperties: false },
 );
 
+export const UnscopedChatTaskRequestSchema = Type.Object(
+  {
+    idempotency_key: IdempotencyKey,
+    objective: Type.String({ minLength: 1, maxLength: 1_000 }),
+  },
+  { $id: "UnscopedChatTaskRequest", additionalProperties: false },
+);
+
+export const UnscopedChatTaskResponseSchema = Type.Object(
+  {
+    contract_version: Type.Literal(CONTRACT_VERSION),
+    task_id: Id,
+    disposition: Type.Union([
+      Type.Literal("answer"),
+      Type.Literal("clarify"),
+    ]),
+    blocks: Type.Array(ChatResponseBlockSchema, {
+      minItems: 1,
+      maxItems: 1,
+    }),
+    external_effects: Type.Tuple([]),
+    created_at: Timestamp,
+  },
+  { $id: "UnscopedChatTaskResponse", additionalProperties: false },
+);
+
 const PersonResearchImageMediaTypeSchema = Type.Union([
   Type.Literal("image/jpeg"),
   Type.Literal("image/png"),
@@ -2065,6 +2091,12 @@ export type ChatTaskResponse = Static<typeof ChatTaskResponseSchema>;
 export type ChatCitation = Static<typeof ChatCitationSchema>;
 export type ChatTaskReadback = Static<typeof ChatTaskReadbackSchema>;
 export type ChatTaskRequest = Static<typeof ChatTaskRequestSchema>;
+export type UnscopedChatTaskRequest = Static<
+  typeof UnscopedChatTaskRequestSchema
+>;
+export type UnscopedChatTaskResponse = Static<
+  typeof UnscopedChatTaskResponseSchema
+>;
 export type PersonResearchTaskRequest = Static<
   typeof PersonResearchTaskRequestSchema
 >;
