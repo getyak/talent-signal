@@ -353,6 +353,19 @@ final class PursuitWorkspaceStore: ObservableObject {
         )
     }
 
+    func chatUnscoped(
+        objective: String,
+        idempotencyKey: String
+    ) async throws -> UnscopedChatTaskResponse {
+        guard let service else {
+            throw PursuitWorkspaceClientError.askUnavailable
+        }
+        return try await service.chatUnscoped(
+            objective: objective,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
     func researchPerson(
         objective: String,
         imageData: Data,

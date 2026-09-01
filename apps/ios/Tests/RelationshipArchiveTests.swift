@@ -2,6 +2,34 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    func testUnscopedConversationRoutesGreetingsWithoutOpeningRelationshipEvidence() {
+        for greeting in [
+            "你好",
+            "您好呀",
+            "Hello",
+            "What can you do?",
+            "帮我整理一下今天的想法",
+        ] {
+            XCTAssertEqual(
+                AgentUnscopedConversationPolicy.route(objective: greeting),
+                .directConversation
+            )
+        }
+        for relationshipQuestion in [
+            "What changed in this relationship?",
+            "候选人最近有什么进展？",
+            "下一步应该怎么跟进？",
+            "Can you check Maya Chen, maya@example.com?",
+        ] {
+            XCTAssertEqual(
+                AgentUnscopedConversationPolicy.route(
+                    objective: relationshipQuestion
+                ),
+                .relationshipRecall
+            )
+        }
+    }
+
     func testSingleUnscopedScreenshotRoutesDirectlyWithoutRelationshipOrToolSelection() {
         XCTAssertEqual(
             AskScreenshotResearchRoutingPolicy.route(
@@ -2088,6 +2116,88 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(
             relaunchedTurn.response.blocks.first?.body,
             "No identity was confirmed."
+        )
+    }
+
+    @MainActor
+    func testUnscopedConversationReusesUnknownOutcomeKeyAndCanLaterBindRelationship() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let first = AgentSessionStore(persistence: persistence)
+        let objective = "你好"
+        let sessionID = try XCTUnwrap(
+            first.beginUnscopedSession(objective: objective)
+        )
+        let firstKey = try XCTUnwrap(
+            first.beginUnscopedChat(
+                sessionID: sessionID,
+                objective: objective,
+                proposedIdempotencyKey: "ios:unscoped-chat:first"
+            )
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertTrue(
+            try XCTUnwrap(restored.session(id: sessionID))
+                .hasPendingUnscopedChat
+        )
+        let retryKey = try XCTUnwrap(
+            restored.beginUnscopedChat(
+                sessionID: sessionID,
+                objective: objective,
+                proposedIdempotencyKey: "ios:unscoped-chat:duplicate"
+            )
+        )
+        XCTAssertEqual(retryKey, firstKey)
+
+        let response = RelationshipAskResponse(
+            contractVersion: TalentSignalAPIContract.version,
+            taskID: "11111111-1111-4111-8111-111111111111",
+            contextManifestID: "none-unbound-conversation",
+            knowledgeSnapshotID: "none-unbound-conversation",
+            disposition: "answer",
+            blocks: [
+                .init(
+                    id: "22222222-2222-4222-8222-222222222222",
+                    kind: "answer",
+                    title: "你好",
+                    body: "你好，我在。你想聊什么？",
+                    status: "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: false
+                ),
+            ],
+            createdAt: "2026-09-02T00:00:00.000Z"
+        )
+        XCTAssertTrue(
+            restored.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: objective,
+                response: response
+            )
+        )
+        XCTAssertFalse(
+            try XCTUnwrap(restored.session(id: sessionID))
+                .hasPendingUnscopedChat
+        )
+
+        let relaunched = AgentSessionStore(persistence: persistence)
+        let relaunchedTurn = try XCTUnwrap(
+            relaunched.session(id: sessionID)?.turns.first
+        )
+        XCTAssertEqual(relaunchedTurn.response.blocks.first?.kind, "answer")
+        XCTAssertEqual(
+            relaunchedTurn.response.blocks.first?.body,
+            "你好，我在。你想聊什么？"
+        )
+
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        XCTAssertTrue(
+            relaunched.bindUnscopedSession(
+                id: sessionID,
+                person: person,
+                context: context
+            )
         )
     }
 

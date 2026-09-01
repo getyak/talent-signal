@@ -7,6 +7,24 @@
     "A protected Session could not be created. Your message was not sent." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法创建受保护的会话。你的消息尚未发送。" } } }
     },
+    "A protected conversation retry could not be saved. Your message was not sent." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存受保护的对话重试信息。你的消息尚未发送。" } } }
+    },
+    "Agent conversation" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 对话" } } }
+    },
+    "Continue without a relationship" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不关联联系人，继续聊天" } } }
+    },
+    "Replies without reading candidate or relationship evidence" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不会读取候选人或关系证据，直接回复" } } }
+    },
+    "Replying without opening a relationship…" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在直接回复，不会读取联系人关系…" } } }
+    },
+    "The preview reply could not be saved." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存预览回复。" } } }
+    },
     "Ask about anyone or anything…" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "问任何人或任何事…" } } }
     },

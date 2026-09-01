@@ -204,6 +204,37 @@ enum AgentRelationshipRecallOutcome: Equatable {
     case unresolved(recent: [AgentRelationshipRecallCandidate])
 }
 
+enum AgentUnscopedConversationRoute: Equatable {
+    case directConversation
+    case relationshipRecall
+}
+
+enum AgentUnscopedConversationPolicy {
+    static func route(objective: String) -> AgentUnscopedConversationRoute {
+        let normalized = objective
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return .relationshipRecall }
+
+        let relationshipSignals = [
+            "relationship", "candidate", "client", "pursuit", "follow up",
+            "follow-up", "last conversation", "next step", "what changed",
+            "联系人", "候选人", "客户", "关系", "跟进", "上次", "进展",
+            "下一步", "变化", "这个人",
+        ]
+        if normalized.contains("@")
+            || relationshipSignals.contains(where: normalized.contains) {
+            return .relationshipRecall
+        }
+
+        return .directConversation
+    }
+}
+
 enum AgentRelationshipRecallPolicy {
     static func recentCandidatesForReview(
         people: [WorkspacePerson],
@@ -411,6 +442,7 @@ struct AgentSession: Identifiable, Equatable {
     var turns: [AgentSessionTurn]
     var contactReceipts: [AgentContactReceipt]
     var pendingObjective: String? = nil
+    var pendingUnscopedChatIdempotencyKey: String? = nil
     var pendingPersonResearchIdempotencyKey: String? = nil
     var pendingPersonResearchRequestIdentity: String? = nil
     var updatedAt: Date
@@ -435,6 +467,10 @@ struct AgentSession: Identifiable, Equatable {
     var hasPendingPersonResearch: Bool {
         pendingPersonResearchIdempotencyKey != nil
             && pendingPersonResearchRequestIdentity != nil
+    }
+
+    var hasPendingUnscopedChat: Bool {
+        pendingUnscopedChatIdempotencyKey != nil
     }
 
     var latestPreview: String {
@@ -487,11 +523,17 @@ struct AgentSession: Identifiable, Equatable {
 
     func displayContextLabel(in language: AppLanguage) -> String {
         if isUnresolvedIntent {
-            return turns.contains { turn in
+            if turns.contains(where: { turn in
                 turn.response.blocks.contains { $0.kind == "person_research" }
+            }) {
+                return language.text("Public profile research")
             }
-                ? language.text("Public profile research")
-                : language.text("Finding relationship")
+            if turns.contains(where: {
+                $0.response.contextManifestID == "none-unbound-conversation"
+            }) {
+                return language.text("Agent conversation")
+            }
+            return language.text("Finding relationship")
         }
         return isIdentityReview
             ? language.text("Identity review")
@@ -687,6 +729,7 @@ private struct PersistedAgentSession: Codable {
     let turns: [PersistedAgentSessionTurn]
     let contactReceipts: [PersistedAgentContactReceipt]?
     let pendingObjective: String?
+    let pendingUnscopedChatIdempotencyKey: String?
     let pendingPersonResearchIdempotencyKey: String?
     let pendingPersonResearchRequestIdentity: String?
     let updatedAt: Date
@@ -706,6 +749,7 @@ private struct PersistedAgentSession: Codable {
         turns = value.turns.map(PersistedAgentSessionTurn.init)
         contactReceipts = value.contactReceipts.map(PersistedAgentContactReceipt.init)
         pendingObjective = value.pendingObjective
+        pendingUnscopedChatIdempotencyKey = value.pendingUnscopedChatIdempotencyKey
         pendingPersonResearchIdempotencyKey = value.pendingPersonResearchIdempotencyKey
         pendingPersonResearchRequestIdentity = value.pendingPersonResearchRequestIdentity
         updatedAt = value.updatedAt
@@ -742,6 +786,7 @@ private struct PersistedAgentSession: Codable {
             turns: turns.map(\.value),
             contactReceipts: (contactReceipts ?? []).map(\.value),
             pendingObjective: pendingObjective,
+            pendingUnscopedChatIdempotencyKey: pendingUnscopedChatIdempotencyKey,
             pendingPersonResearchIdempotencyKey: pendingPersonResearchIdempotencyKey,
             pendingPersonResearchRequestIdentity: pendingPersonResearchRequestIdentity,
             updatedAt: updatedAt,
@@ -829,6 +874,7 @@ private struct PersistedRelationshipAskResponse: Codable {
     let knowledgeSnapshotID: String
     let disposition: String
     let unboundPersonResearchBlocks: [RelationshipAskResponse.Block]?
+    let unboundConversationBlocks: [RelationshipAskResponse.Block]?
     let media: [ChatMediaAsset]?
     let createdAt: String
 
@@ -842,6 +888,10 @@ private struct PersistedRelationshipAskResponse: Codable {
             == "none-unbound-person-research"
             ? value.blocks
             : nil
+        unboundConversationBlocks = value.contextManifestID
+            == "none-unbound-conversation"
+            ? value.blocks
+            : nil
         media = value.media
         createdAt = value.createdAt
     }
@@ -853,7 +903,7 @@ private struct PersistedRelationshipAskResponse: Codable {
             contextManifestID: contextManifestID,
             knowledgeSnapshotID: knowledgeSnapshotID,
             disposition: disposition,
-            blocks: unboundPersonResearchBlocks ?? [
+            blocks: unboundPersonResearchBlocks ?? unboundConversationBlocks ?? [
                 .init(
                     id: "restored-\(taskID)",
                     kind: "continuity",
@@ -1015,8 +1065,37 @@ final class AgentSessionStore: ObservableObject {
         }
         let prior = storedSessions[index]
         storedSessions[index].pendingObjective = objective
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
         storedSessions[index].pendingPersonResearchIdempotencyKey = proposedIdempotencyKey
         storedSessions[index].pendingPersonResearchRequestIdentity = requestIdentity
+        storedSessions[index].updatedAt = now()
+        guard persist() else {
+            storedSessions[index] = prior
+            scheduleNextExpiration()
+            return nil
+        }
+        return proposedIdempotencyKey
+    }
+
+    func beginUnscopedChat(
+        sessionID: UUID,
+        objective: String,
+        proposedIdempotencyKey: String
+    ) -> String? {
+        _ = pruneExpiredState()
+        guard let index = storedSessions.firstIndex(where: {
+            $0.id == sessionID && $0.isUnresolvedIntent
+        }) else { return nil }
+        if storedSessions[index].pendingObjective == objective,
+           let pending = storedSessions[index]
+                .pendingUnscopedChatIdempotencyKey {
+            return pending
+        }
+        let prior = storedSessions[index]
+        storedSessions[index].pendingObjective = objective
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = proposedIdempotencyKey
+        storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+        storedSessions[index].pendingPersonResearchRequestIdentity = nil
         storedSessions[index].updatedAt = now()
         guard persist() else {
             storedSessions[index] = prior
@@ -1033,6 +1112,35 @@ final class AgentSessionStore: ObservableObject {
         response: RelationshipAskResponse,
         createdAt: Date = Date()
     ) -> Bool {
+        recordUnscopedResponse(
+            sessionID: sessionID,
+            objective: objective,
+            response: response,
+            createdAt: createdAt
+        )
+    }
+
+    @discardableResult
+    func recordUnscopedChat(
+        sessionID: UUID,
+        objective: String,
+        response: RelationshipAskResponse,
+        createdAt: Date = Date()
+    ) -> Bool {
+        recordUnscopedResponse(
+            sessionID: sessionID,
+            objective: objective,
+            response: response,
+            createdAt: createdAt
+        )
+    }
+
+    private func recordUnscopedResponse(
+        sessionID: UUID,
+        objective: String,
+        response: RelationshipAskResponse,
+        createdAt: Date
+    ) -> Bool {
         _ = pruneExpiredState()
         guard let index = storedSessions.firstIndex(where: {
             $0.id == sessionID && $0.isUnresolvedIntent
@@ -1048,6 +1156,7 @@ final class AgentSessionStore: ObservableObject {
             )
         )
         storedSessions[index].pendingObjective = nil
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
         storedSessions[index].pendingPersonResearchIdempotencyKey = nil
         storedSessions[index].pendingPersonResearchRequestIdentity = nil
         storedSessions[index].updatedAt = createdAt
@@ -1074,7 +1183,9 @@ final class AgentSessionStore: ObservableObject {
     ) -> Bool {
         _ = pruneExpiredState()
         guard let index = storedSessions.firstIndex(where: { $0.id == id }),
-              storedSessions[index].turns.isEmpty,
+              storedSessions[index].turns.allSatisfy({
+                  $0.response.contextManifestID == "none-unbound-conversation"
+              }),
               storedSessions[index].contactReceipts.isEmpty else {
             return false
         }
@@ -1087,6 +1198,7 @@ final class AgentSessionStore: ObservableObject {
         )
         storedSessions[index].pendingPersonResearchIdempotencyKey = nil
         storedSessions[index].pendingPersonResearchRequestIdentity = nil
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
         storedSessions[index].updatedAt = now()
         guard persist() else {
             storedSessions[index] = prior
@@ -1135,6 +1247,7 @@ final class AgentSessionStore: ObservableObject {
                 )
             }
             storedSessions[index].pendingObjective = nil
+            storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
             storedSessions[index].pendingPersonResearchIdempotencyKey = nil
             storedSessions[index].pendingPersonResearchRequestIdentity = nil
             storedSessions[index].turns.append(turn)

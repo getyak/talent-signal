@@ -55,6 +55,13 @@ Provider capabilities are admitted independently. Selecting a model for image
 generation does not make that model, credential, or data path suitable for
 understanding private conversation evidence.
 
+Unscoped conversational Chat is admitted independently from relationship
+answering. Its provider request contains only the current submitted text and an
+explicit empty context and citation manifest. The response may answer or ask a
+clarifying question, but it cannot claim access to private relationship state or
+return an external effect. Relationship context is never added implicitly when
+no Person or relationship has been selected.
+
 ### Public-web providers
 
 Public search is admitted separately from model processing and private

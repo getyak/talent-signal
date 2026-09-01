@@ -83,6 +83,36 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Editorial Today default return surface")
     }
 
+    func testUnscopedGreetingRepliesWithoutOpeningRelationshipChoices() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        typeTextReliably("Hello", into: composer)
+
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.isEnabled)
+        send.tap()
+
+        XCTAssertTrue(
+            app.staticTexts[
+                "Hello, I’m here. You can chat directly or tell me which relationship you want to revisit."
+            ].waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
+        XCTAssertFalse(
+            app.buttons.matching(
+                NSPredicate(
+                    format: "identifier BEGINSWITH %@",
+                    "ask-recall-candidate-"
+                )
+            ).firstMatch.exists
+        )
+        preserveScreenshot("Agent replies without relationship context")
+    }
+
     func testTodayCalendarOpensAgendaAndReturnsToLinkedAgentSession() {
         app.launch()
 
@@ -714,6 +744,55 @@ final class CandidateSignalUITests: XCTestCase {
         )
         XCTAssertFalse(element("audio-signal-capture").exists)
         preserveScreenshot("Canonical loopback voice input disclosure")
+    }
+
+    func testCanonicalLoopbackRepliesToUnscopedGreetingWithoutRelationshipChoice() async throws {
+        let backendURL = testConfiguration(
+            "TS_IOS_BACKEND_URL",
+            fallback: "http://127.0.0.1:4320"
+        )
+        guard await canonicalBackendFixtureIsAvailable(at: backendURL) else {
+            throw XCTSkip("The canonical loopback backend was not configured.")
+        }
+        app.launchArguments = [
+            "--workspace-backend-url", backendURL,
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            element("canonical-pursuit-today").waitForExistence(timeout: 15)
+        )
+        let ask = app.buttons["relationship-guide"]
+        XCTAssertTrue(ask.waitForExistence(timeout: 5))
+        ask.tap()
+
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        typeTextReliably("你好", into: composer)
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.isEnabled)
+        send.tap()
+
+        let response = element("ask-response-turn")
+        XCTAssertTrue(response.waitForExistence(timeout: 30))
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(format: "label CONTAINS %@", "Zhipu AI")
+            ).firstMatch.waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
+        XCTAssertFalse(
+            app.buttons.matching(
+                NSPredicate(
+                    format: "identifier BEGINSWITH %@",
+                    "ask-recall-candidate-"
+                )
+            ).firstMatch.exists
+        )
+        preserveScreenshot("Canonical unscoped greeting remote reply")
     }
 
     func testVoiceListeningStateRemainsLegibleInSimplifiedChinese() {
