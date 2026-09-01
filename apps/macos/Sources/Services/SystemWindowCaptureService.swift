@@ -21,6 +21,11 @@ enum LocalTextRecognitionStatus: Equatable, Sendable {
 @MainActor
 protocol WindowCapturing {
     func captureOneWindow() async throws -> WindowCapturePayload
+    func cancelCapture()
+}
+
+extension WindowCapturing {
+    func cancelCapture() { }
 }
 
 enum WindowCaptureError: LocalizedError {
@@ -74,7 +79,7 @@ final class SystemWindowCaptureService: NSObject, WindowCapturing, @preconcurren
         }
         let recognized: (String, LocalTextRecognitionStatus)
         do {
-            recognized = (try Self.recognizeText(in: image), .available)
+            recognized = (try LocalWindowTextRecognizer.recognizeText(in: image), .available)
         } catch {
             // OCR is an optional local fast path. A Vision failure does not
             // discard the user-authorized still or cause a cloud fallback;
@@ -121,17 +126,8 @@ final class SystemWindowCaptureService: NSObject, WindowCapturing, @preconcurren
         continuation.resume(with: result)
     }
 
-    private static func recognizeText(in image: CGImage) throws -> String {
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        let handler = VNImageRequestHandler(cgImage: image)
-        try handler.perform([request])
-        return (request.results ?? [])
-            .compactMap { $0.topCandidates(1).first?.string }
-            .joined(separator: "\n")
-            .prefix(20_000)
-            .description
+    func cancelCapture() {
+        finishPicker(.failure(WindowCaptureError.cancelled))
     }
 
     func contentSharingPicker(
@@ -148,5 +144,38 @@ final class SystemWindowCaptureService: NSObject, WindowCapturing, @preconcurren
 
     func contentSharingPickerStartDidFailWithError(_ error: any Error) {
         finishPicker(.failure(error))
+    }
+}
+
+/// Deterministic, on-device OCR for the one frame the user chose. Vision's
+/// result array is explicitly ordered into reading order so a chat screenshot
+/// cannot silently invert later and earlier messages before review.
+enum LocalWindowTextRecognizer {
+    static func recognizeText(in image: CGImage) throws -> String {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.automaticallyDetectsLanguage = true
+        let handler = VNImageRequestHandler(cgImage: image)
+        try handler.perform([request])
+        return (request.results ?? [])
+            .sorted(by: precedesInReadingOrder)
+            .compactMap { $0.topCandidates(1).first?.string.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+            .prefix(20_000)
+            .description
+    }
+
+    private static func precedesInReadingOrder(
+        _ lhs: VNRecognizedTextObservation,
+        _ rhs: VNRecognizedTextObservation
+    ) -> Bool {
+        let verticalTolerance: CGFloat = 0.02
+        let verticalDifference = lhs.boundingBox.midY - rhs.boundingBox.midY
+        if abs(verticalDifference) > verticalTolerance {
+            return verticalDifference > 0
+        }
+        return lhs.boundingBox.minX < rhs.boundingBox.minX
     }
 }

@@ -62,9 +62,16 @@ final class SecureLocalCapsuleStore: LocalCapsulePersisting, @unchecked Sendable
         envelope.draft.items.removeAll { item in
             item.capturedAt.addingTimeInterval(item.retention.localRecoveryLifetime) <= now
         }
+        let hadPreparedDraft = envelope.draft.localPreparedDraft != nil
+        if let prepared = envelope.draft.localPreparedDraft,
+           prepared.expiresAt <= now || !envelope.draft.items.contains(where: { $0.id == prepared.sourceItemID }) {
+            envelope.draft.localPreparedDraft = nil
+        }
         let expired = before - envelope.draft.items.count
         if expired > 0 {
             envelope.draft.version += 1
+        }
+        if expired > 0 || (hadPreparedDraft && envelope.draft.localPreparedDraft == nil) {
             try save(envelope.draft, accountID: accountID, now: now)
         }
         return .init(draft: envelope.draft, expiredItemCount: expired)
@@ -74,6 +81,10 @@ final class SecureLocalCapsuleStore: LocalCapsulePersisting, @unchecked Sendable
         var retained = draft
         retained.items.removeAll { item in
             item.capturedAt.addingTimeInterval(item.retention.localRecoveryLifetime) <= now
+        }
+        if let prepared = retained.localPreparedDraft,
+           prepared.expiresAt <= now || !retained.items.contains(where: { $0.id == prepared.sourceItemID }) {
+            retained.localPreparedDraft = nil
         }
         let file = fileURL(accountID: accountID)
         guard !retained.items.isEmpty else {

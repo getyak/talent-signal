@@ -41,7 +41,7 @@ enum WorkspaceMode: String, CaseIterable, Identifiable, Sendable {
         case .working: "Working"
         case .needsDecision: "Needs decision"
         case .noAction: "No action"
-        case .receipt: "Receipt verified"
+        case .receipt: "Saved"
         case .clarification: "Clarification needed"
         case .ambiguousIdentity: "Identity unresolved"
         case .identityReviewSaved: "Identity review saved"

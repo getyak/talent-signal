@@ -23,10 +23,8 @@ targets:
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Talent Signal
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
-        INFOPLIST_KEY_LSUIElement: NO
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.talentsignal.macos
         PRODUCT_NAME: TalentSignalMac
         ENABLE_HARDENED_RUNTIME: YES

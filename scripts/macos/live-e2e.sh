@@ -3,9 +3,10 @@ set -euo pipefail
 
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE_PROJECT="talent-signal-macos-e2e-$$"
-BACKEND_PORT=44317
-POSTGRES_PORT=55434
-RESPONSE_LOSS_PROXY_PORT=44318
+BACKEND_PORT="${MACOS_E2E_BACKEND_PORT:-44317}"
+POSTGRES_PORT="${MACOS_E2E_POSTGRES_PORT:-55434}"
+RESPONSE_LOSS_PROXY_PORT="${MACOS_E2E_RESPONSE_LOSS_PROXY_PORT:-44318}"
+LIVE_E2E_ENDPOINTS_FILE="/tmp/talent-signal-macos-live-e2e-endpoints.json"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 ARTIFACT_DIR="${MACOS_E2E_ARTIFACT_DIR:-$REPOSITORY_ROOT/docs/evaluations/2026-08-31-macos-relationship-workbench/system/live-e2e-$RUN_ID}"
 DERIVED_DATA="$(mktemp -d "${TMPDIR:-/tmp}/talent-signal-macos-live-e2e.XXXXXX")"
@@ -60,6 +61,7 @@ cleanup() {
     BACKEND_PORT="$BACKEND_PORT" POSTGRES_PORT="$POSTGRES_PORT" \
       docker compose -p "$COMPOSE_PROJECT" down --volumes --remove-orphans >/dev/null 2>&1 || true
   fi
+  rm -f "$LIVE_E2E_ENDPOINTS_FILE"
   rm -rf "$DERIVED_DATA"
 }
 trap cleanup EXIT
@@ -91,6 +93,11 @@ curl -fsS "http://127.0.0.1:$RESPONSE_LOSS_PROXY_PORT/__response_loss_proxy/stat
 
 export TS_MACOS_RESPONSE_LOSS_PROXY_URL="http://127.0.0.1:$RESPONSE_LOSS_PROXY_PORT"
 export TS_MACOS_BACKEND_URL="http://127.0.0.1:$BACKEND_PORT"
+jq -n \
+  --arg backend_url "$TS_MACOS_BACKEND_URL" \
+  --arg response_loss_proxy_url "$TS_MACOS_RESPONSE_LOSS_PROXY_URL" \
+  '{backend_url: $backend_url, response_loss_proxy_url: $response_loss_proxy_url}' \
+  > "$LIVE_E2E_ENDPOINTS_FILE"
 
 ./scripts/macos/generate.sh
 

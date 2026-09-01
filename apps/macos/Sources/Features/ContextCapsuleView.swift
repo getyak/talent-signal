@@ -8,20 +8,26 @@ struct ContextCapsuleView: View {
     @FocusState private var isTextFocused: Bool
 
     let compact: Bool
+    let showsIntake: Bool
+
+    init(compact: Bool, showsIntake: Bool = true) {
+        self.compact = compact
+        self.showsIntake = showsIntake
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
-                    SectionLabel(text: "Context Capsule")
+                    SectionLabel(text: "Included context")
                     Text("Only items visible here can be considered for this task.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(TSBrand.secondaryInk)
                 }
                 Spacer()
                 Text("Draft v\(model.capsule.version)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                .font(.caption.monospacedDigit())
+                    .foregroundStyle(TSBrand.secondaryInk)
             }
 
             if let notice = model.localRecoveryNotice {
@@ -47,44 +53,67 @@ struct ContextCapsuleView: View {
                     .accessibilityIdentifier("capsule.windowCaptureReceipt")
             }
 
-            TextEditor(text: $selectedText)
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .frame(minHeight: compact ? 72 : 88, maxHeight: compact ? 100 : 130)
-                .background(TSBrand.surface, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.25)))
-                .focused($isTextFocused)
-                .accessibilityLabel("Recruiter-selected text")
-                .accessibilityHint("Nothing is captured automatically. Enter only the text you intend to review.")
-                .accessibilityIdentifier("capsule.textEditor")
-
-            HStack {
-                Button("Add selected text", systemImage: "text.badge.plus") {
-                    model.addSelectedText(selectedText)
-                    if model.errorMessage == nil { selectedText = "" }
-                }
-                .keyboardShortcut(.return, modifiers: [.command])
-                .disabled(selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isPaused)
-                .accessibilityIdentifier("capsule.addText")
-
-                Button("Choose file…", systemImage: "doc.badge.plus") {
-                    isPickingFile = true
-                }
-                .disabled(model.isPaused)
-                .accessibilityIdentifier("capsule.addFile")
-
-                Button(model.isSelectingWindow ? "Choosing window…" : "Choose window…", systemImage: "macwindow.badge.plus") {
-                    Task { await model.addSystemSelectedWindow() }
-                }
-                .disabled(model.isPaused || model.isSelectingWindow)
-                .accessibilityHint("Opens the macOS single-window picker, then captures one still frame with no cursor or audio")
-                .accessibilityIdentifier("capsule.addWindow")
-
-                Spacer()
-                Text(model.isPaused ? "Intake paused" : "Explicit intake only")
+            if let receipt = model.fileIngestReceipt {
+                Label(receipt, systemImage: "doc.text.magnifyingglass")
                     .font(.caption)
-                    .foregroundStyle(model.isPaused ? TSBrand.seam : .secondary)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("capsule.fileIngestReceipt")
+            }
+
+            if showsIntake {
+                TextEditor(text: $selectedText)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .frame(minHeight: compact ? 72 : 88, maxHeight: compact ? 100 : 130)
+                    .background(TSBrand.raisedSurface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(TSBrand.hairline))
+                    .focused($isTextFocused)
+                    .accessibilityLabel("Recruiter-selected text")
+                    .accessibilityHint("Nothing is captured automatically. Enter only the text you intend to review.")
+                    .accessibilityIdentifier("capsule.textEditor")
+
+                HStack {
+                    Button("Add selected text", systemImage: "text.badge.plus") {
+                        model.addSelectedText(selectedText)
+                        if model.errorMessage == nil { selectedText = "" }
+                    }
+                    .keyboardShortcut(.return, modifiers: [.command])
+                    .disabled(
+                        selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                            model.isPaused || model.isImportingFiles || model.isSelectingWindow
+                    )
+                    .accessibilityIdentifier("capsule.addText")
+
+                    Button(model.isImportingFiles ? "Reading locally…" : "Choose screenshot or document…", systemImage: "doc.viewfinder") {
+                        isPickingFile = true
+                    }
+                    .disabled(model.isPaused || model.isImportingFiles || model.isSelectingWindow)
+                    .accessibilityHint("Reads only the chosen image, PDF, or text document on this Mac; nothing is uploaded")
+                    .accessibilityIdentifier("capsule.addFile")
+
+                    Button(
+                        model.isSelectingWindow ? "Cancel window choice" : "Choose window…",
+                        systemImage: model.isSelectingWindow ? "xmark.circle" : "macwindow.badge.plus"
+                    ) {
+                        if model.isSelectingWindow {
+                            model.cancelSystemSelectedWindow()
+                        } else {
+                            Task { await model.addSystemSelectedWindow() }
+                        }
+                    }
+                    .disabled(model.isPaused || model.isImportingFiles)
+                    .accessibilityHint(model.isSelectingWindow
+                        ? "Cancels the macOS picker without capturing or retaining a window"
+                        : "Opens the macOS single-window picker, then captures one still frame with no cursor or audio")
+                    .accessibilityIdentifier("capsule.addWindow")
+
+                    Spacer()
+                    Text(model.isPaused ? "Intake paused" : "Explicit intake only")
+                        .font(.caption)
+                        .foregroundStyle(model.isPaused ? TSBrand.seam : .secondary)
+                }
             }
 
             if model.capsule.items.isEmpty {
@@ -110,14 +139,17 @@ struct ContextCapsuleView: View {
         .accessibilityIdentifier("capsule.section")
         .fileImporter(
             isPresented: $isPickingFile,
-            allowedContentTypes: [.plainText, .pdf, .image, .data],
+            allowedContentTypes: [.plainText, .pdf, .image],
             allowsMultipleSelection: true
         ) { result in
-            if case .success(let urls) = result { model.addFiles(urls) }
+            if case .success(let urls) = result {
+                Task { await model.addFiles(urls) }
+            }
         }
         .dropDestination(for: URL.self) { urls, _ in
-            model.addFiles(urls)
-            return !urls.isEmpty
+            guard !urls.isEmpty else { return false }
+            Task { await model.addFiles(urls) }
+            return true
         }
         .onAppear { if compact { isTextFocused = true } }
     }
@@ -138,7 +170,11 @@ private struct CapsuleEmptyState: View {
         }
         .frame(maxWidth: .infinity, minHeight: 110)
         .padding()
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .background(TSBrand.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(TSBrand.hairline, style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+        }
         .accessibilityIdentifier("capsule.empty")
     }
 }
@@ -159,7 +195,7 @@ private struct CapsuleItemRow: View {
                     Text(item.displayName)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(2)
-                    Text(item.preview)
+                    Text(item.preview.isEmpty ? "No reviewable text was recognized. The raw file remains local-only." : item.preview)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
@@ -247,9 +283,8 @@ private struct CapsuleItemRow: View {
                 }
             }
         }
-        .padding(12)
-        .background(TSBrand.surface, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.18)))
+        .padding(14)
+        .tsSurface()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("capsule.item.\(item.id.uuidString)")
         .sheet(isPresented: $isRedacting) {
@@ -313,6 +348,12 @@ private struct CapsuleBoundarySummary: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+        .padding(14)
+        .background(TSBrand.evidenceTint.opacity(0.42), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(TSBrand.evidence.opacity(0.18))
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("capsule.boundary")
