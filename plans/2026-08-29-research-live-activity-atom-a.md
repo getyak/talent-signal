@@ -2,12 +2,11 @@
 
 ## Status
 
-Reopened on 2026-08-30 and most recently verified from working-tree base
-`5e97700e4ce1b32e248881ea3c30469c8b16a965`. The 2026-08-29 implementation is
-a strong Debug-only executable slice, but it does not yet satisfy the linked
-Notion completion contract. Direction `73` (Quiet Handoff) remains the
-user-authorized implementation baseline because it makes the
-running-to-review attention handoff primary. This is not a Gate 1 research
+Restored on 2026-08-31 from committed base `76344ea` plus the current working
+tree. The repository now contains an independent, exact Synthetic Research
+implementation alongside the older Agent-work showcase. Direction `73` (Quiet
+Handoff) remains the user-authorized implementation baseline because it makes
+the running-to-review attention handoff primary. This is not a Gate 1 research
 result.
 
 The visual evidence contract still requires all of the following before the
@@ -19,16 +18,19 @@ repository may claim Gate 1 validation:
   passed its compact misunderstanding gate and the Lock Screen comprehension
   and privacy gate.
 
-The connected Notion pages still report `0/8`, `UNSET`, `0/10` real ActivityKit
-screenshots, `0/4` boundary-atlas states, and `0/2` uncut system videos. Local
-repository evidence now proves `2/10` compact system states and `4/4` boundary
-atlas states, but has not yet been promoted to that external evidence board.
-The current session has no recoverable Gate 1 participant results. An Agent
-must not invent the participants or present direction 73 as
-recruiter-validated. The existing recording Live Activity also cannot become
-proof of the Agent-work Activity.
+Local evidence now retains seven exact Synthetic Research receipts. TS-LA-01,
+02, 03, 05, 06, and 09 pass their Simulator screenshot contract; TS-LA-10 is
+partial because only its App fallback is proved. TS-LA-04, 07, and 08 remain
+missing, as do the no-Dynamic-Island system half of TS-LA-10, the uncut minimal
+video, signed-device Always-On, and the eight-person Gate 1 source. The
+52-second uncut main journey and its 22.5-second edit are retained. The current session has
+no recoverable participant results. An Agent must not invent them or present
+direction 73 as recruiter-validated.
 
-### Reopened completion audit
+The exact evidence package is
+`docs/evaluations/2026-08-31-synthetic-research-live-activity/`.
+
+### Historical completion audit that drove the restoration
 
 The following findings make the earlier "Completed" milestone labels too broad:
 
@@ -100,6 +102,10 @@ Out of scope:
 
 - The current evidence artifact records its exact working-tree base revision;
   unrelated concurrent changes remain outside this plan's ownership.
+- The independent Research path now owns `ResearchActivityAttributes`, its pure
+  projector and transition policy, exact deep links, its controller, Debug
+  showcase, ActivityKit widget, and focused unit/UI tests. It contains only
+  deterministic `example.test` public-page fixtures and redacted identifiers.
 - The repository already embeds `TalentSignalLiveActivity`, but it projects the
   foreground audio-recording contract (`Recording Signal` → `Saved ·
   Organizing` → `Ready to Review`). It has a Stop App Intent and may remain a
@@ -112,8 +118,9 @@ Out of scope:
   ten-system-screenshot manifest, four-state boundary atlas, two uncut videos,
   and synthetic-timing disclosure. Those pages are dated external evidence,
   not proof that the code or recruiter study is complete.
-- The only unrelated worktree state observed at planning time is untracked
-  `.data/`; this plan does not inspect, edit, or remove it.
+- Concurrent living-contact-page source and plan changes are present in the
+  shared working tree. They remain outside this plan's ownership and were not
+  edited, staged, or removed by this verification work.
 
 ## Design read
 
@@ -183,17 +190,18 @@ Rejected approaches:
      cards derived only from confirmed facts;
    - preserved truthful App Shortcut / Action Button setup and simulated state.
 5. **In progress — implementation verification and evidence**
-   - 16 focused state, ordering, deep-link, restoration, and fallback tests pass;
-   - the real Simulator boundary-atlas test passes with four retained system
-     screenshots, and the compact running-to-review test passes with two;
-   - the iOS Release build and 228 unit tests pass;
-   - a full UI run attempted 87 journeys but is inconclusive because unrelated
-     capture, Ask/contact, onboarding, and language-state work changed in the
-     shared working tree during the run; it is not recorded as a repository-wide
-     PASS;
-   - the full TS-LA-01…10 manifest, two uncut videos, signed-device Always-On,
-     a stable full repository check, and external evidence-board promotion
-     remain.
+   - all 243 iOS unit tests pass;
+   - the iOS Release Simulator build, localization boundary, documentation
+     checks, and generated project pass;
+   - the exact running-to-review system journey passes with six attachments,
+     direct SpringBoard copy assertions, exact deep-link identity validation,
+     exact Activity end, and a 56.609-second test duration;
+   - the App fallback journey passes with one retained attachment;
+   - a continuous 52-second main journey records the same real system actions,
+     exact review route, and terminal Activity state;
+   - six exact TS-LA receipts pass and one is partial; Lock Screen, true
+     minimal, no-island system, the minimal recording,
+     signed-device Always-On, and external Gate 1 evidence remain.
 
 ## Implementation completion proof
 
@@ -205,19 +213,21 @@ Rejected approaches:
 - Actions management shows one current next step, separates setup from
   execution, discloses simulation, and never claims a physical mapping or
   external write that cannot be read back.
-- Focused Agent-work checks, localization checks, documentation checks, the
-  Release build, and the 228-test unit suite pass. A stable full `pnpm
-  ios:check` receipt remains open because the concurrent full UI run was
-  inconclusive.
+- The full 243-test iOS unit suite, localization checks, documentation checks,
+  generated project, Release Simulator build, exact Research system journey,
+  and App fallback journey pass.
 
 ## Research validation still unverified
 
 - The exact Gate 1 export and recruiter-selected direction have not been
   supplied. No Agent-authored participant result is used.
-- The remaining TS-LA-01…10 system surfaces beyond the two compact receipts,
-  physical-device Always-On proof, and independent recruiter comprehension
-  results remain research work. The four-state Simulator atlas is complete,
-  but it is not a substitute for those external gates.
+- Six exact Synthetic Research Simulator receipts pass and the App fallback is
+  retained as a partial seventh receipt. Running/review Lock Screen, true
+  minimal with a valid system trigger, no-island system fallback,
+  physical-device Always-On, the uncut minimal video, and independent recruiter
+  comprehension remain open. The uncut main journey and its 22.5-second edit
+  are retained. Source implementation or a widget preview is not substituted
+  for those system and external gates.
 
 ## Replanning signals
 

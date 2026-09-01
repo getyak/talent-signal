@@ -10,6 +10,7 @@ struct TalentSignalApp: App {
     @StateObject private var appSessionStore: AppSessionStore
     @State private var standaloneOpenURL: URL?
     @State private var agentWorkOpenURL: URL?
+    @State private var researchOpenURL: URL?
 
     init() {
         _appSessionStore = StateObject(
@@ -66,6 +67,19 @@ struct TalentSignalApp: App {
 #endif
     }
 
+    private var researchShowcaseRoot: AnyView? {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard TalentSignalRootRoute.opensResearchShowcase(arguments: arguments)
+                || researchOpenURL.flatMap(ResearchDeepLink.parse) != nil else {
+            return nil
+        }
+        return AnyView(ResearchShowcaseView(initialURL: researchOpenURL))
+#else
+        return nil
+#endif
+    }
+
     private var calendarHandoffScenarioRoot: AnyView? {
 #if DEBUG
         guard TalentSignalRootRoute.opensCalendarHandoff(
@@ -111,7 +125,9 @@ struct TalentSignalApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if let agentWorkShowcaseRoot {
+                if let researchShowcaseRoot {
+                    researchShowcaseRoot
+                } else if let agentWorkShowcaseRoot {
                     agentWorkShowcaseRoot
                 } else if let standaloneOnboardingRoot {
                     standaloneOnboardingRoot
@@ -164,7 +180,9 @@ struct TalentSignalApp: App {
                     }
                 }
                 .onOpenURL { url in
-                    if AgentWorkDeepLink.parse(url) != nil {
+                    if ResearchDeepLink.parse(url) != nil {
+                        researchOpenURL = url
+                    } else if AgentWorkDeepLink.parse(url) != nil {
                         agentWorkOpenURL = url
                     } else if StandaloneOnboardingConfiguration.opens(url: url) {
                         standaloneOpenURL = url
@@ -189,6 +207,7 @@ struct TalentSignalApp: App {
                 session: .authenticated(session),
                 onSignOut: {
                     await AgentWorkActivityController.shared.endAllActivities()
+                    await ResearchActivityController.shared.endAllActivities()
                     await appSessionStore.signOut()
                 }
             )
@@ -238,6 +257,7 @@ enum TalentSignalAuthenticationConfiguration {
         if TalentSignalRootRoute.opensReviewWorkbench(arguments: arguments)
             || TalentSignalRootRoute.opensCalendarHandoff(arguments: arguments)
             || TalentSignalRootRoute.opensAgentWorkShowcase(arguments: arguments)
+            || TalentSignalRootRoute.opensResearchShowcase(arguments: arguments)
             || StandaloneOnboardingConfiguration.isEnabled(arguments: arguments) {
             return false
         }
@@ -335,6 +355,14 @@ enum TalentSignalRootRoute {
     static func opensAgentWorkShowcase(arguments: [String]) -> Bool {
 #if DEBUG
         arguments.contains("--agent-work-showcase")
+#else
+        false
+#endif
+    }
+
+    static func opensResearchShowcase(arguments: [String]) -> Bool {
+#if DEBUG
+        arguments.contains("--synthetic-research-showcase")
 #else
         false
 #endif

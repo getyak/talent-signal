@@ -1063,11 +1063,17 @@
     "Open Agent lifecycle demo" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Agent 生命周期演示" } } }
     },
+    "Open Synthetic Research Showcase" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开合成研究演示" } } }
+    },
     "Open the latest pending Proposal for a human decision." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开最新的待处理 Proposal，由人作出决定。" } } }
     },
     "Return to one stable Pursuit without recording a change." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回一个稳定的 Pursuit，不记录任何变更。" } } }
+    },
+    "Run the deterministic approved-page ActivityKit handoff and exact review deep link." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行确定性的已批准页面 ActivityKit 交接与精确审核深层链接。" } } }
     },
     "Review Signal" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅 Signal" } } }
