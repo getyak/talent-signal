@@ -226,7 +226,7 @@ test("automatic releases classify all changes since the last trusted receipt", (
   );
 
   assert.ok(prepareJob, "expected the release preparation job");
-  assert.match(prepareJob[1], /actions\/github-script@[0-9a-f]{40} # v8/);
+  assert.match(prepareJob[1], /actions\/github-script@[0-9a-f]{40} # v9\.0\.0/);
   assert.match(prepareJob[1], /process\.env\.VERIFIED_SHA !== releaseSha/);
   assert.match(prepareJob[1], /repos\.listReleases/);
   assert.match(prepareJob[1], /selectLatestTestFlightRelease/);
@@ -271,7 +271,7 @@ test("automatic releases classify all changes since the last trusted receipt", (
   );
   assert.match(
     releaseWorkflow,
-    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+    /Infisical\/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1\.0\.17/,
   );
   assert.match(releaseWorkflow, /method: oidc/);
   assert.match(
@@ -299,7 +299,7 @@ test("automatic releases classify all changes since the last trusted receipt", (
   );
   assert.match(
     releaseWorkflow,
-    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+    /Infisical\/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1\.0\.17/,
   );
   assert.match(releaseWorkflow, /method: oidc/);
   assert.match(releaseWorkflow, /secret-path: \/release/);
@@ -522,7 +522,7 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   assert.match(refreshWorkflow, /id-token: write/);
   assert.match(
     refreshWorkflow,
-    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+    /Infisical\/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1\.0\.17/,
   );
   assert.match(refreshWorkflow, /secret-path: \/release/);
   assert.match(refreshWorkflow, /MATCH_MAINTENANCE_DEPLOY_KEY/);
@@ -537,7 +537,7 @@ test("signing refresh is explicit, entitlement-checked, and separately authorize
   assert.match(refreshWorkflow, /id-token: write/);
   assert.match(
     refreshWorkflow,
-    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+    /Infisical\/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1\.0\.17/,
   );
 });
 
@@ -550,7 +550,7 @@ test("TestFlight access uses the same Infisical OIDC boundary", () => {
   assert.match(accessWorkflow, /id-token: write/);
   assert.match(
     accessWorkflow,
-    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+    /Infisical\/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1\.0\.17/,
   );
   assert.match(accessWorkflow, /env-slug: staging/);
   assert.match(accessWorkflow, /secret-path: \/release/);
@@ -586,7 +586,7 @@ test("TestFlight access uses the release-scoped Infisical OIDC identity", () => 
   assert.match(accessWorkflow, /environment:\n\s+name: testflight/);
   assert.match(
     accessWorkflow,
-    /Infisical\/secrets-action@03d3fa38607956c493f53c6633f94006a13c47ae # v1\.0\.7/,
+    /Infisical\/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1\.0\.17/,
   );
   assert.match(accessWorkflow, /method: oidc/);
   assert.match(
