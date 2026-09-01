@@ -57,8 +57,9 @@ struct FixtureRelationshipService: MacRelationshipServing {
             : mode == .noAction
                 ? "Continue the existing client-policy question; no new action is proposed."
                 : "Prepare one local response draft asking the client owner for the exact policy. This is not approval to send."
-        let actionProjections = mode == .noAction
-            ? [
+        let actionProjections: [ActionProjection] = switch mode {
+        case .noAction:
+            [
                 ActionProjection(
                     id: "synthetic-owned-action",
                     objectName: "Prepare the exact client policy question",
@@ -69,7 +70,8 @@ struct FixtureRelationshipService: MacRelationshipServing {
                     route: .openCurrent
                 )
             ]
-            : [
+        case .needsDecision:
+            [
                 ActionProjection(
                     id: "synthetic-awaiting",
                     objectName: "VP Engineering · remote policy",
@@ -78,7 +80,10 @@ struct FixtureRelationshipService: MacRelationshipServing {
                     status: .awaitingDecision,
                     nextOperation: "Review exact evidence and choose prepare or dismiss",
                     route: .reviewDecision
-                ),
+                )
+            ]
+        case .outcomeUnknown:
+            [
                 ActionProjection(
                     id: "synthetic-unknown",
                     objectName: "Prior internal reminder",
@@ -87,7 +92,10 @@ struct FixtureRelationshipService: MacRelationshipServing {
                     status: .outcomeUnknown,
                     nextOperation: "Reconcile the original operation before retry",
                     route: .reconcileOperation
-                ),
+                )
+            ]
+        case .receipt:
+            [
                 ActionProjection(
                     id: "synthetic-receipt",
                     objectName: "Pursuit brief",
@@ -98,6 +106,9 @@ struct FixtureRelationshipService: MacRelationshipServing {
                     route: .openReceipt
                 )
             ]
+        default:
+            []
+        }
         return SyntheticRelationshipFixture(
             fixtureID: "synthetic-macos-workbench-v1-\(mode.rawValue)",
             mode: mode,
@@ -123,8 +134,8 @@ struct FixtureRelationshipService: MacRelationshipServing {
             bundleRevision: 1,
             proposalID: "20000000-0000-4000-8000-000000000003",
             baseRevision: 7,
-            summary: "Remote-work policy is an explicit decision dependency.",
-            dependency: "The recruiter must decide whether this evidence supports one unresolved operational gap.",
+            summary: "Remote-work policy still needs your judgment.",
+            dependency: "Decide whether the reviewed evidence should add one unresolved follow-up to this relationship.",
             expiresAt: "2026-09-01T09:00:00Z",
             evidence: [
                 .init(

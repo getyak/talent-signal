@@ -10,9 +10,7 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         }
         #endif
 
-        let baseURL = try XCTUnwrap(
-            URL(string: environment["TS_MACOS_BACKEND_URL"] ?? "http://127.0.0.1:44317")
-        )
+        let baseURL = try liveBackendURL(environment)
         let service = try URLMacRelationshipService(
             configuration: .init(
                 baseURL: baseURL,
@@ -30,7 +28,16 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
             XCTFail("Live load must establish a connected canonical scope before capture.")
             return
         }
-        let option = try XCTUnwrap(scope.options.first)
+        let option = try seededScopeOption(in: scope)
+        let consequencePreflight = try XCTUnwrap(option.consequencePreflight)
+        XCTAssertEqual(consequencePreflight.milestone, "shortlist_review")
+        XCTAssertEqual(consequencePreflight.targetDate, "2026-10-30")
+        XCTAssertEqual(
+            consequencePreflight.openActions.first?.title,
+            "Prepare the exact client policy question"
+        )
+        XCTAssertFalse(scope.todayAttention.items.isEmpty)
+        XCTAssertGreaterThanOrEqual(scope.todayAttention.totalPursuitCount, 1)
         var draft = ContextCapsuleDraft()
         draft.purpose = "Identify the decision dependency and propose the smallest safe recruiter-owned next step."
         draft.addSelectedText(
@@ -94,9 +101,7 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         }
         #endif
 
-        let baseURL = try XCTUnwrap(
-            URL(string: environment["TS_MACOS_BACKEND_URL"] ?? "http://127.0.0.1:44317")
-        )
+        let baseURL = try liveBackendURL(environment)
         let service = try URLMacRelationshipService(configuration: .init(
             baseURL: baseURL,
             accountSlug: environment["TS_MACOS_ACCOUNT_SLUG"] ?? "fixture-alpha",
@@ -105,7 +110,7 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         guard case .connected(let scope) = try await service.loadWorkspace() else {
             return XCTFail("Live load must establish a canonical scope.")
         }
-        let option = try XCTUnwrap(scope.options.first)
+        let option = try seededScopeOption(in: scope)
         try await service.confirmScope(option.selection)
 
         var draft = ContextCapsuleDraft()
@@ -145,16 +150,14 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         }
         #endif
 
-        #if TS_MACOS_LIVE_E2E
-        let baseURL = try XCTUnwrap(URL(string: "http://127.0.0.1:44318"))
-        #else
-        let baseURL = try XCTUnwrap(
-            URL(string: environment["TS_MACOS_RESPONSE_LOSS_PROXY_URL"] ?? environment["TS_MACOS_BACKEND_URL"] ?? "http://127.0.0.1:44317")
-        )
-        #endif
+        let baseURL = try liveProxyURL(environment)
         let recoveryDirectory = FileManager.default.temporaryDirectory
             .appending(path: "talent-signal-live-relaunch-\(UUID().uuidString)", directoryHint: .isDirectory)
-        defer { try? FileManager.default.removeItem(at: recoveryDirectory) }
+        defer {
+            if FileManager.default.fileExists(atPath: recoveryDirectory.path) {
+                try? FileManager.default.removeItem(at: recoveryDirectory)
+            }
+        }
         let recoveryStore = SecureUnknownResolutionStore(
             directory: recoveryDirectory,
             keyProvider: LiveE2EUnknownResolutionKeyProvider()
@@ -172,7 +175,7 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         guard case .connected(let scope) = connected else {
             return XCTFail("Live load must establish a canonical scope.")
         }
-        let option = try XCTUnwrap(scope.options.first)
+        let option = try seededScopeOption(in: scope)
         try await service.confirmScope(option.selection)
 
         var draft = ContextCapsuleDraft()
@@ -206,6 +209,20 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         XCTAssertGreaterThan(run.maxToolCalls, 0)
         XCTAssertGreaterThan(run.maxTaskTokens, 0)
         XCTAssertEqual(run.externalEffects, [])
+
+        let todayOpened = try await service.openTodayProposalReview(
+            pursuitID: option.pursuitID,
+            proposalID: initialReview.proposalID
+        )
+        guard case .canonical(let todayReview) = todayOpened,
+              let todayDecision = todayReview.pendingDecision else {
+            return XCTFail("A proposal-led Today item must open its exact active Decision Bundle.")
+        }
+        XCTAssertEqual(todayReview.taskID, awaiting.taskID)
+        XCTAssertEqual(todayDecision.bundleID, initialReview.bundleID)
+        XCTAssertEqual(todayDecision.proposalID, initialReview.proposalID)
+        XCTAssertEqual(todayReview.displayMode, .needsDecision)
+        XCTAssertTrue(todayReview.externalEffects.isEmpty)
 
         let action = try XCTUnwrap(awaiting.presentation.actionProjections.first)
         let reopened = try await service.openProjection(.init(objectID: action.id, route: action.route))
@@ -305,8 +322,8 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         }
         #endif
 
-        let backendURL = try XCTUnwrap(URL(string: environment["TS_MACOS_BACKEND_URL"] ?? "http://127.0.0.1:44317"))
-        let proxyURL = try XCTUnwrap(URL(string: environment["TS_MACOS_RESPONSE_LOSS_PROXY_URL"] ?? "http://127.0.0.1:44318"))
+        let backendURL = try liveBackendURL(environment)
+        let proxyURL = try liveProxyURL(environment)
         let service = try URLMacRelationshipService(configuration: .init(
             baseURL: proxyURL,
             accountSlug: environment["TS_MACOS_ACCOUNT_SLUG"] ?? "fixture-alpha",
@@ -315,7 +332,7 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         guard case .connected(let scope) = try await service.loadWorkspace() else {
             return XCTFail("Live load must establish a canonical scope.")
         }
-        let option = try XCTUnwrap(scope.options.first)
+        let option = try seededScopeOption(in: scope)
         try await service.confirmScope(option.selection)
 
         var draft = ContextCapsuleDraft()
@@ -393,7 +410,7 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         }
         #endif
 
-        let backendURL = try XCTUnwrap(URL(string: environment["TS_MACOS_BACKEND_URL"] ?? "http://127.0.0.1:44317"))
+        let backendURL = try liveBackendURL(environment)
         let service = try URLMacRelationshipService(configuration: .init(
             baseURL: backendURL,
             accountSlug: environment["TS_MACOS_ACCOUNT_SLUG"] ?? "fixture-alpha",
@@ -402,7 +419,7 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         guard case .connected(let scope) = try await service.loadWorkspace() else {
             return XCTFail("Live load must establish a canonical scope.")
         }
-        let option = try XCTUnwrap(scope.options.first)
+        let option = try seededScopeOption(in: scope)
         try await service.confirmScope(option.selection)
 
         var draft = ContextCapsuleDraft()
@@ -464,6 +481,45 @@ final class LiveBackendRelationshipServiceTests: XCTestCase {
         guard let itemID = draft.items.last?.id else { return }
         draft.setActorKind(id: itemID, value: .candidate)
         draft.confirmAttribution(id: itemID)
+    }
+
+    private func seededScopeOption(
+        in scope: ConnectedRelationshipScope
+    ) throws -> RelationshipScopeOption {
+        try XCTUnwrap(scope.options.first {
+            $0.pursuitTitle == "Synthetic macOS Relationship Workbench E2E"
+        })
+    }
+
+    private func liveProxyURL(_ environment: [String: String]) throws -> URL {
+        if let explicit = environment["TS_MACOS_RESPONSE_LOSS_PROXY_URL"] {
+            return try XCTUnwrap(URL(string: explicit))
+        }
+        if let configured = try liveE2EEndpoints()["response_loss_proxy_url"] {
+            return try XCTUnwrap(URL(string: configured))
+        }
+        let backend = try liveBackendURL(environment)
+        var components = try XCTUnwrap(URLComponents(url: backend, resolvingAgainstBaseURL: false))
+        components.port = (components.port ?? 44317) + 1
+        return try XCTUnwrap(components.url)
+    }
+
+    private func liveBackendURL(_ environment: [String: String]) throws -> URL {
+        if let explicit = environment["TS_MACOS_BACKEND_URL"] {
+            return try XCTUnwrap(URL(string: explicit))
+        }
+        let configured = try liveE2EEndpoints()["backend_url"] ?? "http://127.0.0.1:44317"
+        return try XCTUnwrap(URL(string: configured))
+    }
+
+    private func liveE2EEndpoints() throws -> [String: String] {
+        #if TS_MACOS_LIVE_E2E
+        let url = URL(filePath: "/tmp/talent-signal-macos-live-e2e-endpoints.json")
+        let data = try Data(contentsOf: url)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
+        #else
+        return [:]
+        #endif
     }
 
     private func loginToken(baseURL: URL) async throws -> String {

@@ -58,6 +58,9 @@ struct ContextCapsuleItem: Identifiable, Equatable, Codable, Sendable {
     let sourceFingerprint: String?
     let localAssetData: Data?
     let localAssetMediaType: String?
+    /// Optional for backward-compatible decoding of drafts written before
+    /// file extraction existed. Metadata-only files remain fail-closed.
+    let textDerivativeIsReviewable: Bool?
     /// Nil is the fail-closed, unresolved default. Optional fields preserve
     /// decoding of encrypted drafts written by earlier builds.
     var actorKind: CapsuleActorKind?
@@ -76,6 +79,7 @@ struct ContextCapsuleItem: Identifiable, Equatable, Codable, Sendable {
         sourceFingerprint: String? = nil,
         localAssetData: Data? = nil,
         localAssetMediaType: String? = nil,
+        textDerivativeIsReviewable: Bool? = nil,
         actorKind: CapsuleActorKind? = nil,
         attributionConfirmedAt: Date? = nil
     ) {
@@ -91,6 +95,7 @@ struct ContextCapsuleItem: Identifiable, Equatable, Codable, Sendable {
         self.sourceFingerprint = sourceFingerprint
         self.localAssetData = localAssetData
         self.localAssetMediaType = localAssetMediaType
+        self.textDerivativeIsReviewable = textDerivativeIsReviewable
         self.actorKind = actorKind
         self.attributionConfirmedAt = attributionConfirmedAt
     }
@@ -102,7 +107,8 @@ struct ContextCapsuleItem: Identifiable, Equatable, Codable, Sendable {
         case .window:
             return !preview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .file:
-            return false
+            return textDerivativeIsReviewable == true &&
+                !preview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -116,6 +122,9 @@ struct ContextCapsuleDraft: Equatable, Codable, Sendable {
     var version = 1
     var purpose = "Understand what changed and propose the smallest safe next step."
     var items: [ContextCapsuleItem] = []
+    /// Encrypted with the account-scoped Capsule but never included in a
+    /// submitted manifest. Copy/open receipts are intentionally not durable.
+    var localPreparedDraft: LocalPreparedDraftRecovery?
 
     var sharedItems: [ContextCapsuleItem] {
         items.filter {
@@ -157,6 +166,33 @@ struct ContextCapsuleDraft: Equatable, Codable, Sendable {
         version += 1
     }
 
+    mutating func addProcessedFile(
+        displayName: String,
+        reviewedText: String,
+        rawData: Data,
+        mediaType: String,
+        acquisition: String,
+        sourceFingerprint: String,
+        now: Date = Date()
+    ) {
+        let normalized = reviewedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        items.append(
+            ContextCapsuleItem(
+                kind: .file,
+                displayName: displayName,
+                preview: normalized,
+                acquisition: acquisition,
+                capturedAt: now,
+                localOnly: true,
+                sourceFingerprint: sourceFingerprint,
+                localAssetData: rawData,
+                localAssetMediaType: mediaType,
+                textDerivativeIsReviewable: !normalized.isEmpty
+            )
+        )
+        version += 1
+    }
+
     mutating func addWindowCapture(
         recognizedText: String,
         imagePNG: Data,
@@ -184,6 +220,9 @@ struct ContextCapsuleDraft: Equatable, Codable, Sendable {
 
     mutating func remove(id: UUID) {
         items.removeAll { $0.id == id }
+        if localPreparedDraft?.sourceItemID == id {
+            localPreparedDraft = nil
+        }
         version += 1
     }
 
@@ -250,7 +289,13 @@ struct ContextCapsuleDraft: Equatable, Codable, Sendable {
         let before = items.count
         items.removeAll { $0.retention == .taskOnly }
         let removed = before - items.count
-        if removed > 0 { version += 1 }
+        if removed > 0 {
+            if let sourceID = localPreparedDraft?.sourceItemID,
+               !items.contains(where: { $0.id == sourceID }) {
+                localPreparedDraft = nil
+            }
+            version += 1
+        }
         return removed
     }
 
@@ -279,6 +324,41 @@ struct ContextCapsuleDraft: Equatable, Codable, Sendable {
                 )
             }
         )
+    }
+}
+
+struct LocalPreparedDraftRecovery: Equatable, Codable, Sendable {
+    let sourceItemID: UUID
+    let sourceDigest: String
+    /// Binds an unsent draft to the exact local interpretation rules that
+    /// produced it. Older drafts fail closed when compiler behavior changes.
+    let derivationVersion: String?
+    /// Optional for backward-compatible recovery of drafts saved before the
+    /// four communication purposes were introduced.
+    let kind: PreparedDraftKind?
+    let subject: String
+    let body: String
+    let savedAt: Date
+    let expiresAt: Date
+
+    init(
+        sourceItemID: UUID,
+        sourceDigest: String,
+        derivationVersion: String? = nil,
+        kind: PreparedDraftKind? = nil,
+        subject: String,
+        body: String,
+        savedAt: Date,
+        expiresAt: Date
+    ) {
+        self.sourceItemID = sourceItemID
+        self.sourceDigest = sourceDigest
+        self.derivationVersion = derivationVersion
+        self.kind = kind
+        self.subject = subject
+        self.body = body
+        self.savedAt = savedAt
+        self.expiresAt = expiresAt
     }
 }
 

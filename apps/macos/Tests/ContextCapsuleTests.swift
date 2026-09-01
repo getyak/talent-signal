@@ -139,6 +139,36 @@ final class ContextCapsuleTests: XCTestCase {
         XCTAssertFalse(draft.canSubmit)
     }
 
+    func testProcessedFileDerivativeStaysLocalUntilAttributionAndBoundaryReview() throws {
+        var draft = ContextCapsuleDraft()
+        draft.addProcessedFile(
+            displayName: "authorized-screenshot.png",
+            reviewedText: "Candidate needs the remote work policy before September 3, 2026.",
+            rawData: Data([1, 2, 3]),
+            mediaType: "image/png",
+            acquisition: "Explicit file picker or drop · local Vision OCR",
+            sourceFingerprint: "synthetic-file-fingerprint"
+        )
+        let itemID = try XCTUnwrap(draft.items.first?.id)
+
+        XCTAssertTrue(draft.items[0].hasReviewedTextDerivative)
+        XCTAssertTrue(draft.items[0].localOnly)
+        XCTAssertFalse(draft.canSubmit)
+
+        draft.setActorKind(id: itemID, value: .candidate)
+        draft.confirmAttribution(id: itemID)
+        draft.setLocalOnly(id: itemID, value: false)
+
+        let manifest = try draft.freeze(
+            accountID: "account-1",
+            pursuitID: "pursuit-1",
+            personID: "person-1"
+        )
+        XCTAssertEqual(manifest.selectedItems.map(\.reviewedContent), [draft.items[0].preview])
+        XCTAssertEqual(manifest.selectedItems.map(\.sourceFingerprint), ["synthetic-file-fingerprint"])
+        XCTAssertEqual(draft.items[0].localAssetData, Data([1, 2, 3]))
+    }
+
     func testEveryExplicitIntakePathCreatesAVisibleAcquisitionReceipt() {
         var draft = ContextCapsuleDraft()
         draft.addSelectedText("Explicit selected text")

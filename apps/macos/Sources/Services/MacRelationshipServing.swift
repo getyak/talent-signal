@@ -9,10 +9,28 @@ protocol MacRelationshipServing: Sendable {
     func submit(manifest: SubmittedContextManifest) async throws -> MacRelationshipServiceResponse
     func resolveDecision(_ request: CanonicalDecisionRequest) async throws -> MacRelationshipServiceResponse
     func reconcileDecisionOutcome() async throws -> MacRelationshipServiceResponse
+    /// Re-resolves a proposal-led Today row to its exact current Agent
+    /// Decision Bundle. The Today projection itself grants no decision
+    /// authority.
+    func openTodayProposalReview(
+        pursuitID: String,
+        proposalID: String
+    ) async throws -> MacRelationshipServiceResponse
     /// Re-resolves the exact canonical object behind an Action Center row.
     /// The shell cannot turn a projection into decision or retry authority.
     func openProjection(_ projection: CanonicalProjectionRequest) async throws -> MacRelationshipServiceResponse
     func signOut() async throws -> SessionSignOutReceipt
+}
+
+extension MacRelationshipServing {
+    func openTodayProposalReview(
+        pursuitID: String,
+        proposalID: String
+    ) async throws -> MacRelationshipServiceResponse {
+        throw RelationshipServiceError.invalidResponse(
+            "This relationship service cannot open a Today Proposal review."
+        )
+    }
 }
 
 struct CanonicalProjectionRequest: Sendable {
@@ -31,6 +49,81 @@ struct ConnectedRelationshipScope: Sendable {
     let accountID: String
     let options: [RelationshipScopeOption]
     let presentation: WorkspacePresentation
+    var todayAttention: TodayAttentionProjection = .empty
+}
+
+struct TodayAttentionProjection: Equatable, Sendable {
+    let items: [TodayAttentionItem]
+    let noActionCount: Int
+    let totalPursuitCount: Int
+
+    static let empty = TodayAttentionProjection(items: [], noActionCount: 0, totalPursuitCount: 0)
+}
+
+struct TodayAttentionEvidence: Identifiable, Equatable, Sendable {
+    let id: String
+    let text: String
+    let source: String
+    let observedAt: String
+    let attributedActor: String
+}
+
+struct TodayAttentionItem: Identifiable, Equatable, Sendable {
+    enum Kind: String, Equatable, Sendable {
+        case proposalReview
+        case ownedAction
+        case openGap
+    }
+
+    let id: String
+    let pursuitID: String
+    let pursuitTitle: String
+    let personLabel: String?
+    let kind: Kind
+    let whyNow: String
+    let unresolved: String
+    let owner: String
+    let dueAt: Date?
+    let dueFallback: String
+    let nextMove: String
+    let evidenceAvailability: String
+    let scopeOptionID: String?
+    let proposalID: String?
+    let evidence: [TodayAttentionEvidence]
+
+    init(
+        id: String,
+        pursuitID: String,
+        pursuitTitle: String,
+        personLabel: String?,
+        kind: Kind,
+        whyNow: String,
+        unresolved: String,
+        owner: String,
+        dueAt: Date?,
+        dueFallback: String,
+        nextMove: String,
+        evidenceAvailability: String,
+        scopeOptionID: String?,
+        proposalID: String? = nil,
+        evidence: [TodayAttentionEvidence] = []
+    ) {
+        self.id = id
+        self.pursuitID = pursuitID
+        self.pursuitTitle = pursuitTitle
+        self.personLabel = personLabel
+        self.kind = kind
+        self.whyNow = whyNow
+        self.unresolved = unresolved
+        self.owner = owner
+        self.dueAt = dueAt
+        self.dueFallback = dueFallback
+        self.nextMove = nextMove
+        self.evidenceAvailability = evidenceAvailability
+        self.scopeOptionID = scopeOptionID
+        self.proposalID = proposalID
+        self.evidence = evidence
+    }
 }
 
 struct RelationshipScopeOption: Identifiable, Sendable {
@@ -42,6 +135,7 @@ struct RelationshipScopeOption: Identifiable, Sendable {
     let personDisplayLabel: String
     let relationshipContextID: String
     let relationshipContextLabel: String
+    var consequencePreflight: RelationshipConsequencePreflight? = nil
 
     var selection: RelationshipScopeSelection {
         .init(
@@ -64,6 +158,29 @@ struct RelationshipScopeOption: Identifiable, Sendable {
             actionProjections: []
         )
     }
+}
+
+struct RelationshipConsequencePreflight: Equatable, Sendable {
+    struct OpenAction: Identifiable, Equatable, Sendable {
+        let id: String
+        let title: String
+        let owner: String
+        let dueAt: Date?
+        let status: String
+    }
+
+    struct OpenGap: Identifiable, Equatable, Sendable {
+        let id: String
+        let title: String
+        let closeCondition: String
+        let evidenceAvailability: String
+    }
+
+    let milestone: String
+    let targetDate: String
+    let evidenceAvailability: String
+    let openActions: [OpenAction]
+    let openGaps: [OpenGap]
 }
 
 struct CanonicalRelationshipReadback: Sendable {

@@ -2,33 +2,55 @@ import SwiftUI
 
 @main
 struct TalentSignalMacApp: App {
+    @NSApplicationDelegateAdaptor(TalentSignalMacAppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel.bootstrap()
 
+    private var isQuickPanelPreview: Bool {
+        ProcessInfo.processInfo.arguments.contains("--quick-panel-preview")
+    }
+
     var body: some Scene {
-        WindowGroup("Talent Signal", id: "workspace") {
+        Window("Talent Signal", id: "workspace") {
             ApplicationZoomContainer(enabled: model.isAccessibilityZoomPreview) {
-                RelationshipWorkspaceView()
+                Group {
+                    if isQuickPanelPreview {
+                        QuickPanelView()
+                            .frame(width: 560, height: 640)
+                    } else {
+                        RelationshipWorkspaceView()
+                    }
+                }
                     .environmentObject(model)
                     .environment(\.dynamicTypeSize, model.isAccessibilityZoomPreview ? .accessibility2 : .large)
+                    .preferredColorScheme(model.isDarkAppearancePreview ? .dark : nil)
                     .task { await model.load() }
+                    .background(SelectedTextServiceBridge().environmentObject(model))
             }
-            .frame(minWidth: 1_020, minHeight: 680)
+            .frame(
+                minWidth: isQuickPanelPreview ? 520 : 1_020,
+                minHeight: isQuickPanelPreview ? 580 : 680
+            )
         }
-        .defaultSize(width: 1_280, height: 820)
+        .defaultSize(
+            width: isQuickPanelPreview ? 560 : 1_280,
+            height: isQuickPanelPreview ? 640 : 820
+        )
+        .windowResizability(isQuickPanelPreview ? .contentSize : .automatic)
         .commands {
             TalentSignalCommands(model: model)
         }
 
-        WindowGroup("Quick Panel", id: "quick-panel") {
+        Window("Quick Panel", id: "quick-panel") {
             ApplicationZoomContainer(enabled: model.isAccessibilityZoomPreview) {
                 QuickPanelView()
                     .environmentObject(model)
                     .environment(\.dynamicTypeSize, model.isAccessibilityZoomPreview ? .accessibility2 : .large)
+                    .preferredColorScheme(model.isDarkAppearancePreview ? .dark : nil)
             }
             .frame(minWidth: 520, idealWidth: 560, minHeight: 580, idealHeight: 640)
         }
         .defaultSize(width: 560, height: 640)
-        .windowResizability(.contentMinSize)
+        .windowResizability(.contentSize)
 
         MenuBarExtra {
             MenuBarPresenceView()
@@ -72,10 +94,46 @@ private struct TalentSignalCommands: Commands {
             }
             .keyboardShortcut(.space, modifiers: [.command, .shift])
 
-            Button("Open Relationship Workspace") {
+            Button("Open Today") {
+                model.selectedNavigation = .today
                 openWindow(id: "workspace")
             }
             .keyboardShortcut("1", modifiers: [.command, .shift])
+
+            Button("Open Relationship Workspace") {
+                model.selectedNavigation = .workspace
+                openWindow(id: "workspace")
+            }
+            .keyboardShortcut("2", modifiers: [.command, .shift])
+
+            Button("Open first relationship follow-up") {
+                model.openFirstTodayAttentionFromKeyboard()
+                openWindow(id: "workspace")
+            }
+            .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+            .disabled(model.selectedNavigation != .today || model.todayAttention.items.isEmpty)
+
+            Button("Prepare current conversation next step") {
+                model.prepareCurrentConversationNextStep()
+                if model.errorMessage == nil {
+                    openWindow(id: "quick-panel")
+                }
+            }
+            .keyboardShortcut("n", modifiers: [.command, .option])
+            .disabled(model.selectedNavigation != .today || !model.canPrepareCurrentConversationNextStep)
+
+            Button("Review current proposed changes") {
+                Task { await model.reviewFocusedTodayProposal() }
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
+            .disabled(
+                model.focusedTodayAttentionItem?.kind != .proposalReview ||
+                    model.focusedTodayAttentionItem?.proposalID == nil
+            )
+
+            Button("Set Up Selection Service…") {
+                SelectionServiceSetup.openKeyboardShortcutSettings()
+            }
 
             Divider()
 
@@ -133,7 +191,7 @@ private struct TalentSignalCommands: Commands {
             .keyboardShortcut("3", modifiers: [.command, .option, .shift])
             .disabled(model.pendingDecision?.items.first(where: { model.decisionSelections[$0.id] == nil }) == nil)
 
-            Button("Resolve reviewed decision bundle") {
+            Button("Save reviewed changes") {
                 Task { await model.resolveCanonicalDecision() }
             }
             .keyboardShortcut(.return, modifiers: [.command, .option])

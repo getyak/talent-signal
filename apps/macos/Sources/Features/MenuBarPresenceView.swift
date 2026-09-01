@@ -11,12 +11,15 @@ struct MenuBarPresenceView: View {
         .keyboardShortcut(.space, modifiers: [.command, .shift])
 
         Button("Open Relationship Workspace") {
+            model.selectedNavigation = .workspace
             openWindow(id: "workspace")
         }
 
-        Button("Open Action Center") {
-            model.selectedNavigation = .actionCenter
-            openWindow(id: "workspace")
+        if model.hasActionCenterWork {
+            Button("Open Action Center") {
+                model.selectedNavigation = .actionCenter
+                openWindow(id: "workspace")
+            }
         }
 
         Divider()

@@ -12,6 +12,8 @@ trap cleanup EXIT
 
 "$REPOSITORY_ROOT/scripts/macos/generate.sh"
 
+node --test "$REPOSITORY_ROOT/scripts/macos/summarize-companion-trials.test.mjs"
+
 xcodebuild \
   -quiet \
   -project "$MAC_APP_DIR/TalentSignalMac.xcodeproj" \
