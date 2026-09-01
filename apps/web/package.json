@@ -17,27 +17,27 @@
     "@radix-ui/react-dialog": "1.1.23",
     "@sinclair/typebox": "^0.34.41",
     "@talent-signal/contracts": "workspace:*",
-    "mammoth": "^1.12.1",
+    "mammoth": "^1.12.2",
     "motion": "13.1.1",
-    "next": "16.3.1",
+    "next": "16.3.3",
     "next-auth": "5.0.0-beta.32",
     "pdf-parse": "^2.4.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "undici": "^8.10.0",
-    "zod": "^4.4.3"
+    "zod": "^4.5.2"
   },
   "devDependencies": {
     "@eslint/compat": "2.1.0",
     "@tailwindcss/postcss": "4.3.3",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.4.0",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react-dom": "^19.2.5",
     "@typescript/native": "npm:typescript@7.0.2",
-    "eslint": "10.9.0",
-    "eslint-config-next": "16.3.1",
+    "eslint": "10.9.1",
+    "eslint-config-next": "16.3.3",
     "tailwindcss": "4.3.3",
-    "typescript": "6.0.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "4.1.11"
   }
 }
