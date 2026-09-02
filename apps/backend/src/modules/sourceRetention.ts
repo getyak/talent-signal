@@ -419,6 +419,14 @@ async function collectRetentionDerivatives(
        FROM source_resources resources
        WHERE resources.account_id = $1 AND resources.capture_id = $2
        UNION ALL
+       SELECT 'reviewed_person_public_profile', profiles.subject_id,
+              'content_purged'
+       FROM reviewed_person_public_profiles profiles
+       JOIN source_resources resources
+         ON resources.account_id = profiles.account_id
+        AND resources.id = profiles.source_resource_id
+       WHERE resources.account_id = $1 AND resources.capture_id = $2
+       UNION ALL
        SELECT 'evidence_fragment', fragments.id, 'content_purged'
        FROM evidence_fragments fragments
        WHERE fragments.account_id = $1 AND fragments.capture_id = $2
@@ -619,6 +627,15 @@ async function purgeRetentionDerivatives(
   const proposalIds = ids("pursuit_proposal");
   const idempotencyIds = ids("idempotency_record");
 
+  await client.query(
+    `DELETE FROM reviewed_person_public_profiles profiles
+     USING source_resources resources
+     WHERE resources.account_id = $1
+       AND resources.capture_id = $2
+       AND profiles.account_id = resources.account_id
+       AND profiles.source_resource_id = resources.id`,
+    [row.account_id, row.capture_id],
+  );
   await client.query(
     `UPDATE evidence_fragments
      SET status = 'purged',

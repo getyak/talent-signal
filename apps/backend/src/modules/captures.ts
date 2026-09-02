@@ -1834,6 +1834,15 @@ export async function deleteCapture(
       [auth.accountId, governedCaptureIds],
     );
     await client.query(
+      `DELETE FROM reviewed_person_public_profiles profiles
+       USING source_resources resources
+       WHERE resources.account_id = $1
+         AND resources.capture_id = ANY($2::uuid[])
+         AND profiles.account_id = resources.account_id
+         AND profiles.source_resource_id = resources.id`,
+      [auth.accountId, governedCaptureIds],
+    );
+    await client.query(
       `UPDATE research_snapshots snapshots
        SET canonical_url = '[deleted]',
            content_hash = 'deleted:' || snapshots.id::text,

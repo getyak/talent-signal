@@ -32,6 +32,15 @@ interface PersonDirectoryRow {
   profile_authored_by_user_id: string | null;
   profile_revision: number | null;
   profile_updated_at: Date | null;
+  public_profile_card_headline: string | null;
+  public_profile_confirmed_by_user_id: string | null;
+  public_profile_revision: number | null;
+  public_profile_confirmed_at: Date | null;
+  public_profile_url: string | null;
+  public_profile_platform: string | null;
+  public_profile_avatar_url: string | null;
+  public_profile_use_avatar: boolean | null;
+  public_profile_retrieved_at: Date | null;
   contexts: Array<{
     id: string;
     display_label: string;
@@ -65,6 +74,16 @@ async function queryPeople(
        person_profiles.authored_by_user_id AS profile_authored_by_user_id,
        person_profiles.revision AS profile_revision,
        person_profiles.updated_at AS profile_updated_at,
+       public_profiles.card_headline AS public_profile_card_headline,
+       public_profiles.confirmed_by_user_id
+         AS public_profile_confirmed_by_user_id,
+       public_profiles.revision AS public_profile_revision,
+       public_profiles.confirmed_at AS public_profile_confirmed_at,
+       public_profiles.profile_url AS public_profile_url,
+       public_profiles.platform AS public_profile_platform,
+       public_profiles.avatar_url AS public_profile_avatar_url,
+       public_profiles.use_avatar AS public_profile_use_avatar,
+       public_profiles.retrieved_at AS public_profile_retrieved_at,
        ($2 <> '' AND lower(subjects.display_label) LIKE '%' || $2 || '%')
          AS name_match,
        matched_handle.handle_type AS matched_handle_type,
@@ -159,6 +178,25 @@ async function queryPeople(
      LEFT JOIN person_profiles
        ON person_profiles.account_id = subjects.account_id
       AND person_profiles.subject_id = subjects.id
+     LEFT JOIN LATERAL (
+       SELECT profiles.*
+       FROM reviewed_person_public_profiles profiles
+       JOIN source_resources profile_resources
+         ON profile_resources.account_id = profiles.account_id
+        AND profile_resources.id = profiles.source_resource_id
+        AND profile_resources.processing_state <> 'deleted'
+       JOIN source_retention_receipts profile_receipts
+         ON profile_receipts.account_id = profile_resources.account_id
+        AND profile_receipts.capture_id = profile_resources.capture_id
+        AND profile_receipts.authorization_state = 'authorized'
+        AND (
+          profile_receipts.authorization_expires_at IS NULL
+          OR profile_receipts.authorization_expires_at > now()
+        )
+       WHERE profiles.account_id = subjects.account_id
+         AND profiles.subject_id = subjects.id
+       LIMIT 1
+     ) public_profiles ON true
      LEFT JOIN LATERAL (
        SELECT
          handles.handle_type,
@@ -292,6 +330,40 @@ async function queryPeople(
                 authored_by_user_id: person.profile_authored_by_user_id,
                 revision: person.profile_revision,
                 updated_at: person.profile_updated_at.toISOString(),
+              }
+            : person.public_profile_card_headline &&
+                person.public_profile_confirmed_by_user_id &&
+                person.public_profile_revision &&
+                person.public_profile_confirmed_at &&
+                person.public_profile_url &&
+                person.public_profile_platform &&
+                person.public_profile_retrieved_at
+              ? {
+                  headline: person.public_profile_card_headline,
+                  summary: person.public_profile_card_headline,
+                  provenance_kind: "reviewed_public_source" as const,
+                  authored_by_user_id:
+                    person.public_profile_confirmed_by_user_id,
+                  source_profile_url: person.public_profile_url,
+                  source_platform: person.public_profile_platform,
+                  revision: person.public_profile_revision,
+                  updated_at:
+                    person.public_profile_confirmed_at.toISOString(),
+                }
+              : null,
+        avatar:
+          person.public_profile_use_avatar &&
+          person.public_profile_avatar_url &&
+          person.public_profile_url &&
+          person.public_profile_platform &&
+          person.public_profile_retrieved_at &&
+          person.public_profile_confirmed_at
+            ? {
+                url: person.public_profile_avatar_url,
+                source_profile_url: person.public_profile_url,
+                source_platform: person.public_profile_platform,
+                retrieved_at: person.public_profile_retrieved_at.toISOString(),
+                confirmed_at: person.public_profile_confirmed_at.toISOString(),
               }
             : null,
         contexts: person.contexts.map((context) => ({

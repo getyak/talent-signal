@@ -1,6 +1,135 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Adjust reading size and retrieval-card density." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "调整阅读字号与检索卡片密度。" } } }
+    },
+    "Appearance" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "外观" } } }
+    },
+    "Avatar remains at source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "头像保留在来源中" } } }
+    },
+    "Avatar remains at source because display rights are unavailable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "由于没有展示授权，头像保留在来源中" } } }
+    },
+    "All people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所有人物" } } }
+    },
+    "Card density" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "卡片密度" } } }
+    },
+    "Card headline" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "卡片标题" } } }
+    },
+    "Changes card spacing and avatar size without shrinking controls below their accessible target." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "调整卡片间距与头像尺寸，同时保持控件的可访问触控范围。" } } }
+    },
+    "Clear search and filter" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清除搜索与筛选" } } }
+    },
+    "Comfortable" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "宽松" } } }
+    },
+    "Compact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "紧凑" } } }
+    },
+    "Confirmed from a reviewed public source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来自已核对的公开来源" } } }
+    },
+    "Display & text" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示与文字" } } }
+    },
+    "Filter people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "筛选人物" } } }
+    },
+    "It appears on the person card only after this contact is confirmed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在确认联系人后显示于人物卡片" } } }
+    },
+    "Large" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "较大" } } }
+    },
+    "Needs judgment" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待判断" } } }
+    },
+    "No matching people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有匹配的人物" } } }
+    },
+    "Not in a Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未加入目标" } } }
+    },
+    "Now" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "刚刚" } } }
+    },
+    "Open source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开来源" } } }
+    },
+    "Optional title, role, or company" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可选的职位、角色或公司" } } }
+    },
+    "Preview" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览" } } }
+    },
+    "Preview person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人物预览" } } }
+    },
+    "Profile fields stay proposed until the contact save is confirmed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认保存联系人前，资料字段始终只是提议" } } }
+    },
+    "Provider verified" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "平台已验证" } } }
+    },
+    "Public source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "公开来源" } } }
+    },
+    "Pursuits" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标" } } }
+    },
+    "Refresh needed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要刷新" } } }
+    },
+    "Relative to your iPhone text size. Accessibility sizes are never reduced." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "相对于 iPhone 系统字号调整；辅助功能大字号绝不会被缩小。" } } }
+    },
+    "Review contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "核对联系人" } } }
+    },
+    "Review identity and fields before creating or attaching a contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "创建或关联联系人前核对身份与字段" } } }
+    },
+    "Role · Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "角色 · 目标" } } }
+    },
+    "Search people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索人物" } } }
+    },
+    "Small" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "较小" } } }
+    },
+    "Standard" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标准" } } }
+    },
+    "System" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } } }
+    },
+    "Text size" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文字大小" } } }
+    },
+    "Unconfirmed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未确认" } } }
+    },
+    "Unconfirmed public avatar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未确认的公开头像" } } }
+    },
+    "Unconfirmed source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未确认来源" } } }
+    },
+    "Use this public avatar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "采用此公开头像" } } }
+    },
+    "Waiting to continue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待继续" } } }
+    },
     "%@ · +%lld more" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ · 另有 %lld 个情境" } } }
     },

@@ -548,6 +548,9 @@ struct RelationshipArchiveView: View {
                     archivePage(.sessions) {
                         AgentSessionListView(
                             sessions: sessionStore.sessions,
+                            people: Dictionary(
+                                uniqueKeysWithValues: snapshot.people.map { ($0.id, $0) }
+                            ),
                             isPreview: !workspaceStore.isCanonical,
                             persistenceNotice: sessionStore.persistenceNotice,
                             restorationPosition: sessionRestorationPosition,
@@ -2284,6 +2287,7 @@ private struct TodayDecisionContextLine: View {
 
 private struct AgentSessionListView: View {
     let sessions: [AgentSession]
+    let people: [String: WorkspacePerson]
     let isPreview: Bool
     let persistenceNotice: String?
     let restorationPosition: UUID?
@@ -2293,6 +2297,7 @@ private struct AgentSessionListView: View {
     let onMarkUnread: (UUID) -> Void
     let onDelete: (UUID) -> Bool
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.workspaceCardDensity) private var cardDensity
     @State private var presentedAlert: AgentSessionAlert?
     @State private var isRestoringScroll = false
 
@@ -2412,7 +2417,10 @@ private struct AgentSessionListView: View {
         List {
                     ForEach(sessions) { session in
                         Button { onOpen(session) } label: {
-                            AgentSessionRow(session: session)
+                            AgentSessionRow(
+                                session: session,
+                                person: session.personID.flatMap { people[$0] }
+                            )
                         }
                         .buttonStyle(RelationshipRetrievalButtonStyle())
                         .background {
@@ -2430,7 +2438,12 @@ private struct AgentSessionListView: View {
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(
-                            EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20)
+                            EdgeInsets(
+                                top: cardDensity.rowVerticalInset,
+                                leading: 16,
+                                bottom: cardDensity.rowVerticalInset,
+                                trailing: 16
+                            )
                         )
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button {
@@ -2571,65 +2584,95 @@ private struct AgentSessionRowPositionKey: PreferenceKey {
 
 private struct AgentSessionRow: View {
     let session: AgentSession
+    let person: WorkspacePerson?
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.workspaceCardDensity) private var cardDensity
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            RelationshipInitials(
-                initials: String(session.personDisplayLabel.prefix(2)).uppercased(),
-                size: 46
-            )
-
-            VStack(alignment: .leading, spacing: 6) {
-                if dynamicTypeSize.isAccessibilitySize {
-                    sessionTitle
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        sessionTitle
-                        Spacer(minLength: 8)
-                        relativeTime
-                    }
-                }
-                Text(
-                    "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
-                )
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Color.tsMutedInk)
-                    .lineLimit(2)
-                Text(session.latestPreview)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .lineLimit(2)
-
-                if dynamicTypeSize.isAccessibilitySize {
-                    HStack(spacing: 10) {
-                        relativeTime
-                        if session.isUnread { unreadStatus }
-                    }
-                } else if session.isUnread {
-                    unreadStatus
-                }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityLayout
+            } else {
+                compactLayout
             }
         }
-        .padding(16)
+        .padding(cardDensity.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Color.tsCanvas,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            in: RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
         )
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
+            .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(sessionAccessibilityLabel)
         .accessibilityIdentifier("agent-session-\(session.id.uuidString)")
     }
 
+    private var compactLayout: some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    unreadIndicator
+                    sessionTitle
+                    Spacer(minLength: 5)
+                    relativeTime
+                }
+                participantContext
+                attentionState
+            }
+            participantAvatar
+        }
+    }
+
+    private var accessibilityLayout: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                unreadIndicator
+                sessionTitle
+                Spacer(minLength: 8)
+            }
+            relativeTime
+            HStack(alignment: .center, spacing: 10) {
+                participantContext
+                Spacer(minLength: 8)
+                participantAvatar
+            }
+            attentionState
+        }
+    }
+
     private var sessionTitle: some View {
         Text(session.displayTitle(in: appLanguage))
-            .font(.headline)
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(Color.tsInk)
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var unreadIndicator: some View {
+        if session.isUnread {
+            Circle()
+                .fill(Color.tsVermilion)
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
+        }
     }
 
     private var relativeTime: some View {
@@ -2643,25 +2686,104 @@ private struct AgentSessionRow: View {
         .fixedSize()
     }
 
-    private var unreadStatus: some View {
-        Label(
-            appLanguage.text("Unread"),
-            systemImage: "circle.fill"
-        )
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(Color.tsVermilion)
+    private var participantContext: some View {
+        Text(participantContextLabel)
+            .font(.caption)
+            .foregroundStyle(Color.tsMutedInk)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+            .fixedSize(
+                horizontal: false,
+                vertical: dynamicTypeSize.isAccessibilitySize
+            )
+            .accessibilityIdentifier(
+                "agent-session-summary-\(session.id.uuidString)"
+            )
+    }
+
+    @ViewBuilder
+    private var participantAvatar: some View {
+        if !session.isUnresolvedIntent {
+            Group {
+                if let person {
+                    WorkspacePersonAvatar(
+                        person: person,
+                        size: dynamicTypeSize.isAccessibilitySize
+                            ? max(32, cardDensity.sessionAvatarSize)
+                            : cardDensity.sessionAvatarSize
+                    )
+                } else {
+                    RelationshipInitials(
+                        initials: String(session.personDisplayLabel.prefix(2)).uppercased(),
+                        size: dynamicTypeSize.isAccessibilitySize
+                            ? max(32, cardDensity.sessionAvatarSize)
+                            : cardDensity.sessionAvatarSize
+                    )
+                }
+            }
+            .accessibilityLabel(session.personDisplayLabel)
+            .accessibilityIdentifier(
+                "agent-session-participant-\(session.id.uuidString)"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var attentionState: some View {
+        if let attention = session.retrievalAttention {
+            switch attention {
+            case .needsJudgment:
+                Label(
+                    appLanguage.text("Needs judgment"),
+                    systemImage: "questionmark.circle"
+                )
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.tsVermilion)
+            case .waitingToContinue:
+                Label(
+                    appLanguage.text("Waiting to continue"),
+                    systemImage: "clock"
+                )
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
+            case .refreshNeeded:
+                Label(
+                    appLanguage.text("Refresh needed"),
+                    systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90"
+                )
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.tsMutedInk)
+            }
+        }
+    }
+
+    private var participantContextLabel: String {
+        if session.isUnresolvedIntent {
+            return session.displayContextLabel(in: appLanguage)
+        }
+        if session.isIdentityReview {
+            return session.personDisplayLabel
+        }
+        return "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
+    }
+
+    private var attentionAccessibilityLabel: String? {
+        guard let attention = session.retrievalAttention else { return nil }
+        switch attention {
+        case .needsJudgment: return appLanguage.text("Needs judgment")
+        case .waitingToContinue: return appLanguage.text("Waiting to continue")
+        case .refreshNeeded: return appLanguage.text("Refresh needed")
+        }
     }
 
     private var sessionAccessibilityLabel: String {
-        String(
-            format: appLanguage.text("%@, %@, %@, %@%@"),
-            locale: appLanguage.locale,
+        [
             session.displayTitle(in: appLanguage),
-            session.personDisplayLabel,
-            session.displayContextLabel(in: appLanguage),
-            session.latestPreview,
-            session.isUnread ? appLanguage.text(", unread") : ""
-        )
+            participantContextLabel,
+            attentionAccessibilityLabel,
+            session.isUnread ? appLanguage.text("Unread") : nil,
+        ]
+        .compactMap { $0 }
+        .joined(separator: ", ")
     }
 }
 
@@ -2778,17 +2900,168 @@ private struct WorkspacePeopleView: View {
     let onSelect: (WorkspacePerson) -> Void
     let onAsk: (WorkspacePerson) -> Void
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.workspaceCardDensity) private var cardDensity
     @State private var isRestoringScroll = false
+    @State private var searchText = ""
+    @State private var selectedScope: WorkspacePeopleScope = .all
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             if snapshot.people.isEmpty {
                 Spacer(minLength: 0)
+            } else {
+                retrievalRail
+                peopleList
             }
-            peopleList
         }
         .background(Color.tsSurface)
-        .accessibilityIdentifier("relationship-people")
+        .background(alignment: .topLeading) {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel(appLanguage.text("People"))
+                .accessibilityIdentifier("relationship-people")
+        }
+    }
+
+    private var retrievalRail: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityHidden(true)
+
+                TextField(appLanguage.text("Search people"), text: $searchText)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .padding(.vertical, 9)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .focused($isSearchFocused)
+                    .accessibilityIdentifier("people-search-field")
+
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Color.tsMutedInk)
+                            .frame(width: 30, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(appLanguage.text("Clear search"))
+                    .accessibilityIdentifier("people-search-clear")
+                }
+            }
+            .padding(.leading, 12)
+            .padding(.trailing, searchText.isEmpty ? 12 : 3)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                Color.tsCanvas,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.tsLine, lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .onTapGesture { isSearchFocused = true }
+
+            scopeMenu
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+    }
+
+    private var scopeMenu: some View {
+        Menu {
+            Button {
+                selectedScope = .all
+            } label: {
+                scopeMenuItem(
+                    title: appLanguage.text("All people"),
+                    isSelected: selectedScope == .all
+                )
+            }
+            .accessibilityIdentifier("people-filter-all")
+
+            if !snapshot.pursuits.isEmpty {
+                Section(appLanguage.text("Pursuits")) {
+                    ForEach(snapshot.pursuits) { pursuit in
+                        let scope = WorkspacePeopleScope.pursuit(
+                            id: pursuit.id,
+                            title: pursuit.title
+                        )
+                        Button { selectedScope = scope } label: {
+                            scopeMenuItem(
+                                title: pursuit.title,
+                                isSelected: selectedScope == scope
+                            )
+                        }
+                        .accessibilityIdentifier(
+                            "people-filter-pursuit-\(pursuit.id)"
+                        )
+                    }
+                }
+            }
+
+            if WorkspacePeopleRetrievalPolicy.hasUnassignedPeople(in: snapshot) {
+                Button { selectedScope = .unassigned } label: {
+                    scopeMenuItem(
+                        title: appLanguage.text("Not in a Pursuit"),
+                        isSelected: selectedScope == .unassigned
+                    )
+                }
+                .accessibilityIdentifier("people-filter-unassigned")
+            }
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                if selectedScope != .all {
+                    Circle()
+                        .fill(Color.tsVermilion)
+                        .frame(width: 6, height: 6)
+                        .offset(x: -6, y: 6)
+                        .accessibilityHidden(true)
+                }
+            }
+            .foregroundStyle(
+                selectedScope == .all ? Color.tsInk : Color.tsVermilion
+            )
+            .background(
+                Color.tsCanvas,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.tsLine, lineWidth: 1)
+            }
+        }
+        .accessibilityLabel(
+            "\(appLanguage.text("Filter people")), \(selectedScope.displayLabel(in: appLanguage))"
+        )
+        .accessibilityIdentifier("people-filter-menu")
+    }
+
+    @ViewBuilder
+    private func scopeMenuItem(title: String, isSelected: Bool) -> some View {
+        if isSelected {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
+        }
+    }
+
+    private var filteredPeople: [WorkspacePerson] {
+        WorkspacePeopleRetrievalPolicy.filteredPeople(
+            in: snapshot,
+            query: searchText,
+            scope: selectedScope
+        )
     }
 
     private var peopleList: some View {
@@ -2820,11 +3093,23 @@ private struct WorkspacePeopleView: View {
                             EdgeInsets(top: 14, leading: 20, bottom: 2, trailing: 20)
                         )
                 }
-                ForEach(snapshot.people) { person in
+                if filteredPeople.isEmpty {
+                    noMatchesView
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(
+                            EdgeInsets(top: 18, leading: 16, bottom: 8, trailing: 16)
+                        )
+                }
+                ForEach(filteredPeople) { person in
                     Button { onSelect(person) } label: {
                         WorkspacePersonRow(
                             person: person,
-                            roles: personRoles(person.id)
+                            metadata: WorkspacePeopleRetrievalPolicy.metadata(
+                                for: person,
+                                in: snapshot,
+                                scope: selectedScope
+                            )
                         )
                     }
                     .buttonStyle(RelationshipRetrievalButtonStyle())
@@ -2843,7 +3128,12 @@ private struct WorkspacePeopleView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .listRowInsets(
-                        EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20)
+                        EdgeInsets(
+                            top: cardDensity.rowVerticalInset,
+                            leading: 16,
+                            bottom: cardDensity.rowVerticalInset,
+                            trailing: 16
+                        )
                     )
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button {
@@ -2908,12 +3198,37 @@ private struct WorkspacePeopleView: View {
 
     private static let minimumInteractiveRowY: CGFloat = 120
 
-    private func personRoles(_ personID: String) -> [String] {
-        snapshot.pursuits.flatMap { pursuit in
-            pursuit.personRoles
-                .filter { $0.subjectRef.id == personID }
-                .map { "\($0.roleType.humanized) · \(pursuit.title)" }
+    private var noMatchesView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(appLanguage.text("No matching people"))
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+                .accessibilityIdentifier("people-no-matches")
+            Button {
+                searchText = ""
+                selectedScope = .all
+            } label: {
+                Label(
+                    appLanguage.text("Clear search and filter"),
+                    systemImage: "arrow.counterclockwise"
+                )
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 13)
+                .background(
+                    Color.tsCanvas,
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.tsLine, lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.tsVermilion)
+            .accessibilityIdentifier("people-filter-reset")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -2930,90 +3245,174 @@ private struct WorkspacePersonRowPositionKey: PreferenceKey {
 
 private struct WorkspacePersonRow: View {
     let person: WorkspacePerson
-    let roles: [String]
+    let metadata: WorkspacePersonRetrievalMetadata
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.workspaceCardDensity) private var cardDensity
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            RelationshipInitials(
-                initials: String(person.displayLabel.prefix(2)).uppercased(),
-                size: 48
-            )
-            VStack(alignment: .leading, spacing: 6) {
-                Text(person.displayLabel)
-                    .font(.custom("Georgia", size: 19, relativeTo: .headline))
-                    .foregroundStyle(Color.tsInk)
-                if let profile = person.profile {
-                    Text(profile.headline)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.tsMutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let role = roles.first {
-                    Text(roleSummary(role))
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                provenanceSummary
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityLayout
+            } else {
+                compactLayout
             }
         }
-        .padding(16)
+        .padding(cardDensity.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Color.tsCanvas,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            in: RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
         )
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
+            .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
+        )
+        .accessibilityElement(children: .combine)
     }
 
-    private func roleSummary(_ firstRole: String) -> String {
-        guard roles.count > 1 else { return firstRole }
-        return String(
-            format: appLanguage.text("%@ · +%lld more"),
-            locale: appLanguage.locale,
-            firstRole,
-            Int64(roles.count - 1)
-        )
+    private var compactLayout: some View {
+        HStack(alignment: .center, spacing: 10) {
+            WorkspacePersonAvatar(
+                person: person,
+                size: cardDensity.personAvatarSize
+            )
+            metadataStack
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 7) {
+                activityTime
+                chevron
+            }
+        }
+    }
+
+    private var accessibilityLayout: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .center, spacing: 12) {
+                WorkspacePersonAvatar(
+                    person: person,
+                    size: cardDensity.personAvatarSize
+                )
+                Text(person.displayLabel)
+                    .font(.headline)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                chevron
+            }
+            if let headline = metadata.headline {
+                Text(headline)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("workspace-person-headline-\(person.id)")
+            }
+            roleAndPursuit
+            activityTime
+        }
+    }
+
+    private var metadataStack: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(person.displayLabel)
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+                .lineLimit(1)
+            if let headline = metadata.headline {
+                Text(headline)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsInk)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("workspace-person-headline-\(person.id)")
+            }
+            roleAndPursuit
+        }
     }
 
     @ViewBuilder
-    private var provenanceSummary: some View {
-        let source = Label(
-            String(
-                format: appLanguage.text(
-                    person.captureCount == 1 ? "%lld source" : "%lld sources"
-                ),
-                locale: appLanguage.locale,
-                Int64(person.captureCount)
-            ),
-            systemImage: "doc.text"
-        )
-        let identity = Label(
-            String(
-                format: appLanguage.text("%lld confirmed"),
-                locale: appLanguage.locale,
-                Int64(person.confirmedIdentityCount)
-            ),
-            systemImage: "checkmark.seal"
-        )
+    private var roleAndPursuit: some View {
+        let values = [metadata.roleType?.humanized, metadata.pursuitTitle]
+            .compactMap { $0 }
+        if !values.isEmpty {
+            Text(values.joined(separator: " · "))
+                .font(.caption2)
+                .foregroundStyle(Color.tsMutedInk)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+                .accessibilityIdentifier("workspace-person-context-\(person.id)")
+        }
+    }
 
+    @ViewBuilder
+    private var activityTime: some View {
+        if let lastActivityAt = metadata.lastActivityAt {
+            Text(
+                lastActivityAt.formatted(
+                    .relative(presentation: .numeric, unitsStyle: .abbreviated)
+                )
+            )
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(Color.tsMutedInk)
+            .fixedSize()
+            .accessibilityIdentifier("workspace-person-activity-\(person.id)")
+        }
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color.tsMutedInk.opacity(0.7))
+            .accessibilityHidden(true)
+    }
+}
+
+private struct WorkspacePersonAvatar: View {
+    let person: WorkspacePerson
+    let size: CGFloat
+
+    private var avatarURL: URL? {
+        guard let value = person.avatar?.url,
+              let url = URL(string: value),
+              url.scheme?.lowercased() == "https",
+              url.host != nil else { return nil }
+        return url
+    }
+
+    var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 5) {
-                    source
-                    identity
+            if let avatarURL {
+                AsyncImage(url: avatarURL) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    initials
                 }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+                .overlay { Circle().stroke(Color.tsLine, lineWidth: 1) }
             } else {
-                HStack(spacing: 12) {
-                    source
-                    identity
-                }
+                initials
             }
         }
-        .font(.caption2.weight(.medium))
-        .foregroundStyle(Color.tsMutedInk.opacity(0.88))
+        .accessibilityHidden(true)
+    }
+
+    private var initials: some View {
+        RelationshipInitials(
+            initials: String(person.displayLabel.prefix(2)).uppercased(),
+            size: size
+        )
     }
 }
 
@@ -3791,12 +4190,15 @@ private struct WorkspacePersonDetailView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     RelationshipEyebrow(appLanguage.text("Stable person identity"))
                         .padding(.top, 26)
-                    Text(person.displayLabel)
-                        .font(.custom("Georgia", size: 38, relativeTo: .largeTitle))
-                        .foregroundStyle(Color.tsInk)
-                        .tracking(-0.8)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 10)
+                    HStack(alignment: .center, spacing: 14) {
+                        WorkspacePersonAvatar(person: person, size: 54)
+                        Text(person.displayLabel)
+                            .font(.custom("Georgia", size: 34, relativeTo: .largeTitle))
+                            .foregroundStyle(Color.tsInk)
+                            .tracking(-0.7)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.top, 10)
                     Text(
                         appLanguage.text(
                             "Roles below are contextual. They do not redefine identity or rank this person."
@@ -3820,12 +4222,30 @@ private struct WorkspacePersonDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 8)
                         Label(
-                            appLanguage.text("Written by the workspace owner"),
-                            systemImage: "person.crop.circle.badge.checkmark"
+                            profile.provenanceKind == "reviewed_public_source"
+                                ? appLanguage.text("Confirmed from a reviewed public source")
+                                : appLanguage.text("Written by the workspace owner"),
+                            systemImage: profile.provenanceKind == "reviewed_public_source"
+                                ? "link.badge.plus"
+                                : "person.crop.circle.badge.checkmark"
                         )
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
                         .padding(.top, 10)
+                        if let sourceURL = profile.sourceProfileURL,
+                           let url = URL(string: sourceURL),
+                           url.scheme?.lowercased() == "https" {
+                            Link(destination: url) {
+                                Label(
+                                    profile.sourcePlatform ?? appLanguage.text("Public source"),
+                                    systemImage: "arrow.up.right.square"
+                                )
+                                .font(.caption.weight(.semibold))
+                                .frame(minHeight: 44)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.tsInk)
+                        }
                     }
 
                     RelationshipEyebrow(appLanguage.text("Pursuit roles"))
@@ -4080,7 +4500,7 @@ private struct RelationshipPersonRow: View {
     }
 }
 
-private struct RelationshipInitials: View {
+struct RelationshipInitials: View {
     let initials: String
     let size: CGFloat
 

@@ -168,6 +168,7 @@ describe("multichannel relationship-resource contracts", () => {
           confirmed_identity_count: 1,
           last_activity_at: "2026-08-06T10:00:00.000Z",
           profile: null,
+          avatar: null,
           contexts: [
             {
               id: contextId,
@@ -195,6 +196,7 @@ describe("multichannel relationship-resource contracts", () => {
           confirmed_identity_count: 0,
           last_activity_at: "2026-08-07T10:00:00.000Z",
           profile: null,
+          avatar: null,
           contexts: [
             {
               id: contextId,
@@ -628,6 +630,82 @@ describe("multichannel relationship-resource contracts", () => {
     expect(Value.Check(ResourceCaptureRequestSchema, request)).toBe(
       true,
     );
+  });
+
+  it("carries a reviewed public profile only as an explicit contact proposal", () => {
+    const contentHash = "a".repeat(64);
+    const profileURL = "https://example.com/in/zhou-yu";
+    const request = {
+      contract_version: CONTRACT_VERSION,
+      idempotency_key: "reviewed-public-profile-1",
+      channel: "chat",
+      purpose: "Preserve a recruiter-reviewed public profile",
+      captured_at: "2026-08-06T10:00:00.000Z",
+      source_timezone: "Asia/Singapore",
+      person_scope: {
+        status: "new_person",
+        display_label: "周屿",
+        relationship_context: {
+          status: "proposed",
+          label: "Candidate relationship",
+          purpose: "Recruiter-defined relationship context",
+        },
+        binding_basis:
+          "The recruiter reviewed the source and explicitly chose to create this person.",
+      },
+      resource: {
+        client_resource_id: "public-profile-contact-1",
+        kind: "contact_record",
+        display_name: "Reviewed public profile",
+        media_type: "text/plain",
+        observed_at: "2026-08-06T10:00:00.000Z",
+        source_timezone: "Asia/Singapore",
+        content_hash: contentHash,
+        source_locator: profileURL,
+        retention: {
+          requested_mode: "ephemeral",
+          source_scope: "reviewed_selected_text",
+        },
+      },
+      reviewed_public_profile: {
+        result_id: "provider-result-1",
+        provider_id: "tikhub",
+        platform: "douyin",
+        profile_url: profileURL,
+        display_name: "周屿",
+        handle: "zhou-yu",
+        verified: true,
+        match_basis: "Name and role matched the screenshot context.",
+        content_hash: contentHash,
+        retrieved_at: "2026-08-06T09:58:00.000Z",
+        card_headline: "VP Product · Example Co.",
+        use_avatar: false,
+      },
+      fragments: [
+        {
+          client_resource_id: "public-profile-contact-1",
+          kind: "contact_field",
+          sequence: 0,
+          text: "Reviewed public profile before contact creation.",
+          locator: {
+            kind: "contact_field",
+            field: "source_note",
+            source_record_version: "1",
+          },
+          attribution: {
+            actor_kind: "recruiter",
+            status: "confirmed",
+          },
+          review_status: "reviewed",
+          parser: {
+            name: "ios-agent-public-profile-review",
+            version: "1.0.0",
+          },
+        },
+      ],
+    };
+
+    expect(Value.Check(ResourceCaptureRequestSchema, request)).toBe(true);
   });
 
   it("represents a compiled Wiki block as a source-dependent projection", () => {

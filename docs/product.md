@@ -167,6 +167,17 @@ after the raw screenshot is discarded. This path cannot recognize a face,
 confirm identity, update relationship state, or perform an external action; a
 photo-only image ends in `no_action`.
 
+An unconfirmed public result may offer `Review contact`, but never `Create`
+directly. Review shows platform, handle, biography, match basis, and source
+link together; lets the recruiter edit a short People-card headline; then
+reuses the normal identity lookup and exact create-or-attach decision. A source
+avatar remains link-only unless its provider supplies an explicit display
+license or the profile owner has consented; public visibility and recruiter
+confirmation alone grant neither right. Only the final contact confirmation
+may store selected card fields. The resulting public-source headline remains
+attributable to the reviewed URL and disappears from People when its governed
+source is deleted or loses authorization.
+
 Local typed-signal recovery follows the authenticated workspace. The app does
 not display a restored payload until workspace readback agrees, so switching
 accounts on a shared device cannot expose another workspace's draft. Retry and

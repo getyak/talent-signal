@@ -6,6 +6,143 @@ enum TalentSignalSetupPreference {
         "talent-signal.setup.action-button-complete"
 }
 
+enum WorkspaceTextSizePreference: String, CaseIterable, Identifiable {
+    case compact
+    case system
+    case comfortable
+
+    static let storageKey = "talent-signal.display.text-size"
+    var id: String { rawValue }
+
+    static func stored(_ value: String) -> Self {
+        Self(rawValue: value) ?? .system
+    }
+
+    func adjusted(_ systemSize: DynamicTypeSize) -> DynamicTypeSize {
+        guard !systemSize.isAccessibilitySize else { return systemSize }
+        let sizes: [DynamicTypeSize] = [
+            .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
+        ]
+        guard let current = sizes.firstIndex(of: systemSize) else {
+            return systemSize
+        }
+        let offset: Int
+        switch self {
+        case .compact: offset = -1
+        case .system: offset = 0
+        case .comfortable: offset = 1
+        }
+        return sizes[min(max(current + offset, 0), sizes.count - 1)]
+    }
+
+    func displayName(in language: AppLanguage) -> String {
+        switch self {
+        case .compact: return language.text("Small")
+        case .system: return language.text("System")
+        case .comfortable: return language.text("Large")
+        }
+    }
+}
+
+enum WorkspaceCardDensityPreference: String, CaseIterable, Identifiable {
+    case compact
+    case standard
+    case comfortable
+
+    static let storageKey = "talent-signal.display.card-density"
+    var id: String { rawValue }
+
+    static func stored(_ value: String) -> Self {
+        Self(rawValue: value) ?? .compact
+    }
+
+    func displayName(in language: AppLanguage) -> String {
+        switch self {
+        case .compact: return language.text("Compact")
+        case .standard: return language.text("Standard")
+        case .comfortable: return language.text("Comfortable")
+        }
+    }
+
+    var rowVerticalInset: CGFloat {
+        switch self {
+        case .compact: return 3
+        case .standard: return 5
+        case .comfortable: return 7
+        }
+    }
+
+    var cardPadding: CGFloat {
+        switch self {
+        case .compact: return 10
+        case .standard: return 12
+        case .comfortable: return 15
+        }
+    }
+
+    var cardCornerRadius: CGFloat {
+        switch self {
+        case .compact: return 14
+        case .standard: return 16
+        case .comfortable: return 18
+        }
+    }
+
+    var personAvatarSize: CGFloat {
+        switch self {
+        case .compact: return 34
+        case .standard: return 38
+        case .comfortable: return 44
+        }
+    }
+
+    var sessionAvatarSize: CGFloat {
+        switch self {
+        case .compact: return 26
+        case .standard: return 30
+        case .comfortable: return 34
+        }
+    }
+}
+
+private struct WorkspaceCardDensityPreferenceKey: EnvironmentKey {
+    static let defaultValue = WorkspaceCardDensityPreference.compact
+}
+
+extension EnvironmentValues {
+    var workspaceCardDensity: WorkspaceCardDensityPreference {
+        get { self[WorkspaceCardDensityPreferenceKey.self] }
+        set { self[WorkspaceCardDensityPreferenceKey.self] = newValue }
+    }
+}
+
+struct WorkspaceDisplayPreferencesRoot<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var systemDynamicTypeSize
+
+    private let textSize: WorkspaceTextSizePreference
+    private let cardDensity: WorkspaceCardDensityPreference
+    private let content: Content
+
+    init(
+        textSize: WorkspaceTextSizePreference,
+        cardDensity: WorkspaceCardDensityPreference,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.textSize = textSize
+        self.cardDensity = cardDensity
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .environment(
+                \.dynamicTypeSize,
+                textSize.adjusted(systemDynamicTypeSize)
+            )
+            .environment(\.workspaceCardDensity, cardDensity)
+    }
+}
+
 struct AppSettingsView: View {
     @AppStorage(AppLanguage.storageKey) private var storedLanguage =
         AppLanguage.system.rawValue
@@ -55,6 +192,155 @@ struct AppSettingsView: View {
         .navigationTitle(interfaceLanguage.text("Language"))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("app-settings")
+    }
+}
+
+struct DisplaySettingsView: View {
+    @AppStorage(WorkspaceTextSizePreference.storageKey)
+    private var storedTextSize = WorkspaceTextSizePreference.system.rawValue
+    @AppStorage(WorkspaceCardDensityPreference.storageKey)
+    private var storedCardDensity = WorkspaceCardDensityPreference.compact.rawValue
+    @Environment(\.appLanguage) private var appLanguage
+
+    private var textSize: WorkspaceTextSizePreference {
+        WorkspaceTextSizePreference.stored(storedTextSize)
+    }
+
+    private var cardDensity: WorkspaceCardDensityPreference {
+        WorkspaceCardDensityPreference.stored(storedCardDensity)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                DisplayPreferencePreview()
+                    .environment(\.workspaceCardDensity, cardDensity)
+                    .id(cardDensity)
+            } header: {
+                Text(appLanguage.text("Preview"))
+            }
+
+            Section {
+                ForEach(WorkspaceTextSizePreference.allCases) { preference in
+                    DisplayPreferenceRow(
+                        title: preference.displayName(in: appLanguage),
+                        isSelected: preference == textSize,
+                        identifier: "text-size-\(preference.rawValue)"
+                    ) {
+                        storedTextSize = preference.rawValue
+                    }
+                }
+            } header: {
+                Text(appLanguage.text("Text size"))
+            } footer: {
+                Text(
+                    appLanguage.text(
+                        "Relative to your iPhone text size. Accessibility sizes are never reduced."
+                    )
+                )
+            }
+
+            Section {
+                ForEach(WorkspaceCardDensityPreference.allCases) { preference in
+                    DisplayPreferenceRow(
+                        title: preference.displayName(in: appLanguage),
+                        isSelected: preference == cardDensity,
+                        identifier: "card-density-\(preference.rawValue)"
+                    ) {
+                        storedCardDensity = preference.rawValue
+                    }
+                }
+            } header: {
+                Text(appLanguage.text("Card density"))
+            } footer: {
+                Text(
+                    appLanguage.text(
+                        "Changes card spacing and avatar size without shrinking controls below their accessible target."
+                    )
+                )
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.tsSurface)
+        .navigationTitle(appLanguage.text("Display & text"))
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("display-settings")
+    }
+}
+
+private struct DisplayPreferenceRow: View {
+    @Environment(\.appLanguage) private var appLanguage
+
+    let title: String
+    let isSelected: Bool
+    let identifier: String
+    let select: () -> Void
+
+    var body: some View {
+        Button(action: select) {
+            HStack(spacing: 12) {
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(Color.tsInk)
+                Spacer(minLength: 12)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.tsInk : Color.tsLine)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(
+            appLanguage.text(isSelected ? "Selected" : "Not selected")
+        )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+private struct DisplayPreferencePreview: View {
+    @Environment(\.workspaceCardDensity) private var density
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        HStack(spacing: 10) {
+            AccountInitialsAvatar(
+                label: appLanguage.text("Preview person"),
+                size: density.personAvatarSize
+            )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(appLanguage.text("Preview person"))
+                    .font(.headline)
+                    .foregroundStyle(Color.tsInk)
+                Text(appLanguage.text("Role · Pursuit"))
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+            }
+            Spacer(minLength: 8)
+            Text(appLanguage.text("Now"))
+                .font(.caption2)
+                .foregroundStyle(Color.tsMutedInk)
+        }
+        .padding(density.cardPadding)
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(
+                cornerRadius: density.cardCornerRadius,
+                style: .continuous
+            )
+        )
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: density.cardCornerRadius,
+                style: .continuous
+            )
+            .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(density.displayName(in: appLanguage))
+        .accessibilityIdentifier("display-settings-preview")
     }
 }
 

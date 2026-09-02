@@ -2,6 +2,30 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    func testReadingSizePreferenceNeverShrinksAccessibilitySizes() {
+        XCTAssertEqual(
+            WorkspaceTextSizePreference.compact.adjusted(.large),
+            .medium
+        )
+        XCTAssertEqual(
+            WorkspaceTextSizePreference.comfortable.adjusted(.large),
+            .xLarge
+        )
+        XCTAssertEqual(
+            WorkspaceTextSizePreference.compact.adjusted(.accessibility5),
+            .accessibility5
+        )
+    }
+
+    func testDisplayPreferencesRecoverSafeDefaultsFromUnknownStorage() {
+        XCTAssertEqual(WorkspaceTextSizePreference.stored("unknown"), .system)
+        XCTAssertEqual(WorkspaceCardDensityPreference.stored("unknown"), .compact)
+        XCTAssertLessThan(
+            WorkspaceCardDensityPreference.compact.cardPadding,
+            WorkspaceCardDensityPreference.comfortable.cardPadding
+        )
+    }
+
     func testContactCountRoutesToTheOnDeviceWorkspaceIndex() {
         for question in [
             "查看我有多少个联系人",
