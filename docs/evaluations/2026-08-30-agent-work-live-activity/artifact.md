@@ -2,12 +2,15 @@
 
 ## Result
 
-The Debug-only ActivityKit implementation is materially stronger and the
-four-state boundary atlas is now reproducible on real Simulator system
-surfaces. The linked implementation package is not yet globally complete:
-Gate 1 recruiter research, eight participant receipts, the full TS-LA-01…10
-system-screenshot set, two uncut videos, and signed-device Always-On evidence
-remain `WAITING`.
+The Debug-only ActivityKit implementation is materially stronger. The
+four-state boundary atlas is reproducible on real Simulator system surfaces,
+and one uninterrupted Agent-work journey now retains six full-screen receipts:
+showcase, running compact/expanded, review compact/expanded, and exact
+deep-link/end. These are not promoted to Notion TS-LA `PASS` entries because
+the executable scenario is an Agent-work handoff rather than the specified
+Synthetic Research Showcase. Gate 1 recruiter research, eight participant
+receipts, the exact ten-image research contract, two uncut videos, and
+signed-device Always-On evidence remain `WAITING`.
 
 Direction 73 is an explicitly authorized implementation baseline. It is not a
 substitute for a recruiter-selected Gate 1 result.
@@ -18,16 +21,19 @@ in the `atlas/manifest.json` and `system/manifest.json` exports.
 
 ## Repository verification boundary
 
-The iOS Release build and all 228 unit tests passed. The focused Agent-work
-suite passed 16/16 tests, and both real ActivityKit UI journeys passed with six
-retained system attachments.
+The current iOS Release build and all 236 unit tests passed. The focused
+Agent-work suite passed 16/16 tests. The real ActivityKit boundary journey
+retains four screenshots, and the running-to-review journey passes with six
+retained screenshots plus direct SpringBoard assertions for both English
+expanded titles.
 
-A full UI run attempted 87 isolated journeys but is not a valid repository-wide
-PASS receipt. The shared working tree changed while it was running: unrelated
-capture-entry, Ask/contact, onboarding, and language-dependent journeys failed,
-and `scripts/ios/check.sh` was transiently syntactically invalid while the
-already-running shell was still reading it. The current script passes
-`bash -n`; no unrelated concurrent file was changed as part of this artifact.
+The latest aggregate UI run attempted 89 isolated journeys: 83 passed, four
+were skipped, and two were interrupted only after the unrelated
+`com.daypage.app` took the shared Simulator foreground. Both affected journeys
+then passed together, 2/2, after Simulator isolation. This covers the journeys
+without mislabeling the interrupted aggregate command as one clean exit-zero
+receipt. The current script passes `bash -n`; unrelated concurrent files were
+not changed as part of this artifact.
 
 ## What is directly proved
 
@@ -42,21 +48,44 @@ already-running shell was still reading it. The current script passes
 - Repeated start reuses one valid nonterminal task instance and removes
   duplicates; sign-out, explicit end, fixture reset, expiry, and exact handoff
   clean up their authorized Activity scope.
-- The extension owns localized English and Simplified Chinese strings, keeps
-  its action independently focusable for VoiceOver, and allows the expanded
-  title to reflow.
+- The extension owns localized English and Simplified Chinese strings, declares
+  `CFBundleDevelopmentRegion = en`, keeps its action independently focusable
+  for VoiceOver, and allows the expanded title to reflow. The declaration is
+  regression-protected by direct English-title queries on SpringBoard; without
+  it, an English App could render the system Live Activity in Chinese.
 - Partial, failed, unknown, and stale states each run through a deterministic
   Debug fixture and produce a real ActivityKit compact surface.
 
 ## System receipts
 
+Showcase before start:
+
+![Synthetic Agent-work showcase before start](system/TS-LA-01-showcase-start.png)
+
 Running compact state:
 
-![Running compact ActivityKit state](system/F668EF27-9A44-4A3A-BA0E-C40D71D88737.png)
+![Running compact ActivityKit state](system/TS-LA-02-running-compact.png)
+
+Running expanded state:
+
+![Running expanded ActivityKit state](system/TS-LA-03-running-expanded.png)
 
 Completed review compact state:
 
-![Review compact ActivityKit state](system/BE9A930E-124E-4333-A8DB-AFE8D82132D1.png)
+![Review compact ActivityKit state](system/TS-LA-05-review-compact.png)
+
+Completed review expanded state:
+
+![Review expanded ActivityKit state](system/TS-LA-06-review-expanded.png)
+
+Exact review route and Activity end:
+
+![Exact synthetic review opened and expected Activity ended](system/TS-LA-09-open-review-ended.png)
+
+All six entries are `PARTIAL` against the linked research screenshot contract.
+Missing system receipts are running/review Lock Screen, true minimal with its
+trigger condition, and a no-Dynamic-Island fallback. The machine-readable
+ledger records the semantic mismatch for every retained image.
 
 ## Boundary atlas
 

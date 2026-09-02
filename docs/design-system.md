@@ -254,8 +254,11 @@ or turn weak associations into authoritative relationships.
 
 ### Mobile
 
-Optimize for capture, one-thumb review, Today, interruption, and device-owned
-action.
+Optimize for capture, one-thumb review, Today, interruption, and device-owned action.
+
+When rows reveal horizontal swipe actions, Today, Sessions, and People change only through explicit accessible controls. Reveals are transient, close on new
+intent rather than a timer, and expose no hidden higher-consequence command;
+see the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#fifth-iteration-row-gesture-ownership).
 
 Row swipe reveals are transient, close on new intent, never change Today, Sessions, or People, and hide no higher-consequence command; see the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#fifth-iteration-row-gesture-ownership).
 Treat screenshot intake as one progressive decision, not a miniature contact
@@ -313,5 +316,3 @@ usage constraints live in the repository
 External comparisons and borrowing boundaries live in the
 [Design reference catalog](research/design-reference-catalog.md) and
 [iOS relationship library benchmark](research/ios-relationship-library-design-benchmark.md).
-
-See [Product](product.md) and [Capture to action](capture-to-action.md).

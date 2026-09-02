@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
-  "observedAt": "2026-08-30T18:04:19+08:00",
-  "baseRevision": "5e97700e4ce1b32e248881ea3c30469c8b16a965",
+  "schemaVersion": 2,
+  "observedAt": "2026-08-31T00:29:00+08:00",
+  "baseRevision": "76344eaf5bada9a33ba9f3cc56e2e0da6e744fbc",
   "artifactState": "working_tree",
   "implementationDirection": {
     "id": 73,
@@ -16,27 +16,87 @@
     "selectedDirection": null,
     "reason": "No raw authorized recruiter study export was available."
   },
+  "captureEnvironment": {
+    "device": "iPhone 17 Pro",
+    "deviceId": "02B4F0C1-A92F-469D-9DCC-5ED13F119507",
+    "osVersion": "iOS 26.5 (23F77)",
+    "xcode": "26.6 (17F113)",
+    "locale": "en_US",
+    "appearance": "light",
+    "reduceMotion": true,
+    "statusBarTime": "9:41",
+    "batteryLevel": 100,
+    "captureSource": "simulator",
+    "resultBundle": "/tmp/talent-signal-live-activity-evidence-locale-fixed.xcresult"
+  },
   "systemScreenshotContract": {
     "status": "PARTIAL",
-    "observed": 2,
+    "captured": 6,
+    "contractPassed": 0,
     "required": 10,
+    "reason": "Six real Simulator surfaces are retained, but the executable Agent-work showcase is not the Notion Synthetic Research Showcase and therefore none is promoted to a TS-LA contract PASS.",
     "receipts": [
       {
-        "state": "running_compact_away",
-        "file": "system/F668EF27-9A44-4A3A-BA0E-C40D71D88737.png",
-        "sha256": "36699734572c6d38589e1feb85d0c7285dc85ce96116c4e35621353aae8c40de"
+        "id": "TS-LA-01",
+        "status": "PARTIAL",
+        "state": "showcase_before_start",
+        "file": "system/TS-LA-01-showcase-start.png",
+        "sha256": "d1d66edf80e54de2b3f7577b917cd13671bbfabc9d497ef4416efdb022d198ce",
+        "contractGap": "The screen discloses a synthetic Agent handoff, not the specified Synthetic Research Showcase and selected visual direction."
       },
       {
+        "id": "TS-LA-02",
+        "status": "PARTIAL",
+        "state": "running_compact_away",
+        "file": "system/TS-LA-02-running-compact.png",
+        "sha256": "1881102c694fa012d9f956a53001f95fe7e8126cf8c5bff91ec57e11db13d7d0",
+        "contractGap": "This is the Agent-work compact state; recruiter comprehension and the public-research semantic contract remain unverified."
+      },
+      {
+        "id": "TS-LA-03",
+        "status": "PARTIAL",
+        "state": "running_expanded",
+        "file": "system/TS-LA-03-running-expanded.png",
+        "sha256": "5ed32a2e453610984be59a747a2dc993c64daa1f215fb83532e5dfa2b7fd93af",
+        "contractGap": "The system-expanded surface says Reading selected evidence, not Reading approved pages and Public sources only."
+      },
+      {
+        "id": "TS-LA-05",
+        "status": "PARTIAL",
         "state": "completed_compact_review",
-        "file": "system/BE9A930E-124E-4333-A8DB-AFE8D82132D1.png",
-        "sha256": "964d05c4f03db4b2577dfb3ccbbee7bd0a406382a2847db3a24fccb094979e0c"
+        "file": "system/TS-LA-05-review-compact.png",
+        "sha256": "7324fc9beb5595ad60e2cb85c0383ca636e451c8afc72e462cbd341f1e8718db",
+        "contractGap": "The compact state truthfully requests review, but it belongs to the Agent-work scenario rather than the research contract."
+      },
+      {
+        "id": "TS-LA-06",
+        "status": "PARTIAL",
+        "state": "completed_expanded_review",
+        "file": "system/TS-LA-06-review-expanded.png",
+        "sha256": "d0bc150fdaea0a1cb3844027473a0b33cc3090b3369faf6014fd5b1d0ccffdd5",
+        "contractGap": "The exact system-expanded Agent-work CTA is proven, but Pages ready for review and Review required before use are not."
+      },
+      {
+        "id": "TS-LA-09",
+        "status": "PARTIAL",
+        "state": "exact_review_opened_activity_ended",
+        "file": "system/TS-LA-09-open-review-ended.png",
+        "sha256": "91592917bce0e2ef22ccaf44338fc9ef5fb56c56958936b3b4884f37888194b8",
+        "contractGap": "The exact Agent-work task and instance route/end is asserted, but the required research review destination is not implemented."
       }
+    ],
+    "missing": [
+      "TS-LA-04 running Lock Screen",
+      "TS-LA-07 review Lock Screen",
+      "TS-LA-08 true minimal with trigger condition",
+      "TS-LA-10 no-Dynamic-Island fallback"
     ]
   },
   "boundaryAtlas": {
     "status": "PASS",
     "observed": 4,
     "required": 4,
+    "scope": "Agent-work projector and Simulator compact surfaces",
     "receipts": [
       {
         "state": "partial",
@@ -71,14 +131,21 @@
   },
   "automatedChecks": [
     {
-      "name": "iOS Release build",
+      "name": "iOS Release build after Live Activity locale fix",
       "result": "PASS",
+      "failures": 0,
+      "extensionDevelopmentRegion": "en"
+    },
+    {
+      "name": "iOS localization boundary",
+      "result": "PASS",
+      "catalogKeys": 740,
       "failures": 0
     },
     {
-      "name": "Full iOS unit suite",
+      "name": "Full iOS unit suite from current base",
       "result": "PASS",
-      "tests": 228,
+      "tests": 236,
       "failures": 0
     },
     {
@@ -95,18 +162,27 @@
       "failures": 0
     },
     {
-      "name": "Real compact running-to-review UI test",
+      "name": "Real compact-expanded running-to-review UI test",
       "result": "PASS",
       "tests": 1,
-      "attachments": 2,
-      "failures": 0
+      "attachments": 6,
+      "failures": 0,
+      "assertions": [
+        "English expanded running title is visible on SpringBoard",
+        "English expanded review title is visible on SpringBoard",
+        "Exact review route ends the expected Activity instance"
+      ]
     },
     {
-      "name": "Full iOS UI suite",
-      "result": "INCONCLUSIVE",
-      "testsAttempted": 87,
-      "reason": "The shared working tree changed during the run. Unrelated capture, Ask/contact, onboarding, and language-dependent journeys failed, and scripts/ios/check.sh was transiently invalid while the shell was still reading it. Focused Agent-work tests remained green; this run is not a repository-wide PASS receipt."
+      "name": "Full iOS UI coverage",
+      "result": "COVERED_WITH_INFRA_RERUN",
+      "testsAttempted": 89,
+      "passedInAggregate": 83,
+      "skipped": 4,
+      "interruptedByUnrelatedForegroundApp": 2,
+      "cleanFocusedRerun": "2/2 PASS",
+      "reason": "The two aggregate failures were captured after com.daypage.app took the shared Simulator foreground; both affected journeys passed after Simulator isolation. The aggregate command itself is not labeled as one clean exit-zero receipt."
     }
   ],
-  "overall": "WAITING_EXTERNAL_GATES"
+  "overall": "WAITING_EXTERNAL_AND_CONTRACT_GATES"
 }

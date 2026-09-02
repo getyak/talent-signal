@@ -701,7 +701,14 @@ fileprivate extension WorkspacePerson {
         captureCount: 1,
         confirmedIdentityCount: 1,
         lastActivityAt: "2026-08-23T18:00:00.000Z",
-        profile: nil,
+        profile: .init(
+            headline: "VP Product · Meridian Labs",
+            summary: "Product leader in a recruiter-authored synthetic preview.",
+            provenanceKind: "user_authored",
+            authoredByUserID: "10000000-0000-4000-8000-000000000001",
+            revision: 1,
+            updatedAt: "2026-08-23T18:00:00.000Z"
+        ),
         contexts: [
             .init(
                 id: "21000000-0000-4000-8000-000000000001",
@@ -718,7 +725,14 @@ fileprivate extension WorkspacePerson {
         captureCount: 1,
         confirmedIdentityCount: 1,
         lastActivityAt: "2026-08-23T15:00:00.000Z",
-        profile: nil,
+        profile: .init(
+            headline: "Operating Partner · Northlight Capital",
+            summary: "Board adviser in a recruiter-authored synthetic preview.",
+            provenanceKind: "user_authored",
+            authoredByUserID: "10000000-0000-4000-8000-000000000001",
+            revision: 1,
+            updatedAt: "2026-08-23T15:00:00.000Z"
+        ),
         contexts: [
             .init(
                 id: "21000000-0000-4000-8000-000000000002",

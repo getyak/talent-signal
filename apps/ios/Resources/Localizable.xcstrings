@@ -1813,6 +1813,9 @@
     "Contact created" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人已创建" } } }
     },
+    "Contact updated" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人已更新" } } }
+    },
     "Contact tool" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人工具" } } }
     },
@@ -1878,6 +1881,9 @@
     },
     "Identity needs review" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份需要审阅" } } }
+    },
+    "No person linked" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未关联人物" } } }
     },
     "Included in the saved source" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已包含在保存的来源中" } } }

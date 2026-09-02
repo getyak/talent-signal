@@ -626,7 +626,7 @@ struct RelationshipAskView: View {
                !session.hasPendingPersonResearch,
                let recoverableObjective = session.pendingObjective,
                !recoverableObjective.trimmingCharacters(
-                    in: .whitespacesAndNewlines
+                   in: .whitespacesAndNewlines
                ).isEmpty {
                 pendingObjective = recoverableObjective
                 pendingScopedSend = recoverableObjective

@@ -1,7 +1,7 @@
 {
   "artifact_version": "talent-signal.v1-p0-runtime.1",
   "contract_version": "2026-08-24.10",
-  "generated_at": "2026-08-24T23:06:05.533Z",
+  "generated_at": "2026-08-31T21:41:27.682Z",
   "data_classification": "synthetic_only",
   "manifest": "docs/evaluations/2026-08-24-v1-final-panel-retest-04/evidence/p0-journey-manifest.json",
   "verdict": "pass",

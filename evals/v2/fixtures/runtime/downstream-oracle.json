@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "evaluation-dependency-fixture.v1",
+  "fixtureId": "dependency:downstream-oracle:r1",
+  "component": "downstream_evaluator",
+  "value": {
+    "acceptsProposalsOnly": true,
+    "persistsNoModelConfirmedState": true,
+    "allowsNoAction": true
+  }
+}

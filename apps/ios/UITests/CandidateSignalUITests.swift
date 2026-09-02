@@ -101,6 +101,91 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Nia Williams"].waitForExistence(timeout: 3))
     }
 
+    func testPeopleSearchAndPursuitFilterNarrowWithoutRanking() {
+        app.launch()
+
+        let people = app.buttons["archive-tab-people"]
+        XCTAssertTrue(people.waitForExistence(timeout: 8))
+        people.tap()
+
+        let search = app.textFields["people-search-field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 4))
+        search.tap()
+        search.typeText("Nia")
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000002"
+            ].waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].exists
+        )
+
+        let clear = element("people-search-clear")
+        XCTAssertTrue(clear.waitForExistence(timeout: 2))
+        clear.tap()
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].waitForExistence(timeout: 2)
+        )
+
+        search.tap()
+        search.typeText("Meridian")
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000002"
+            ].exists
+        )
+        XCTAssertTrue(clear.waitForExistence(timeout: 2))
+        clear.tap()
+
+        let filter = element("people-filter-menu")
+        filter.tap()
+        let chiefProductOfficerFilter = element(
+            "people-filter-pursuit-30000000-0000-4000-8000-000000000001"
+        )
+        XCTAssertTrue(chiefProductOfficerFilter.waitForExistence(timeout: 2))
+        chiefProductOfficerFilter.tap()
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000002"
+            ].exists
+        )
+        preserveScreenshot("People Pursuit scope filter")
+
+        search.tap()
+        search.typeText("Nia")
+        XCTAssertTrue(element("people-no-matches").waitForExistence(timeout: 2))
+        let reset = element("people-filter-reset")
+        XCTAssertTrue(reset.exists)
+        XCTAssertGreaterThanOrEqual(reset.frame.height, 44)
+        reset.tap()
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000002"
+            ].exists
+        )
+        preserveScreenshot("People search and Pursuit filter recovery")
+    }
+
     func testCalendarProposalConfirmsWithoutOpeningSystemEditor() {
         app.launchArguments = [
             "--scenario", "calendar-handoff",
@@ -594,6 +679,38 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
         XCTAssertFalse(app.buttons["archive-tab-people"].isSelected)
         preserveScreenshot("Session row owns trailing swipe")
+    }
+
+    func testSessionUnreadAndJudgmentMetadataRemainCompact() {
+        app.launch()
+
+        let sessions = app.buttons["archive-tab-sessions"]
+        XCTAssertTrue(sessions.waitForExistence(timeout: 8))
+        sessions.tap()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+
+        let session = app.buttons[
+            "agent-session-90000000-0000-4000-8000-000000000001"
+        ]
+        XCTAssertTrue(session.waitForExistence(timeout: 5))
+        XCTAssertTrue(session.label.contains("Leila Hartmann"))
+        XCTAssertTrue(session.label.contains("Needs judgment"))
+        XCTAssertTrue(session.label.contains("Chief Product Officer search"))
+
+        session.swipeRight()
+        let markUnread = app.buttons["Unread"]
+        XCTAssertTrue(markUnread.waitForExistence(timeout: 5))
+        markUnread.tap()
+        let unread = NSPredicate(format: "label CONTAINS %@", "Unread")
+        let unreadExpectation = XCTNSPredicateExpectation(
+            predicate: unread,
+            object: session
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [unreadExpectation], timeout: 5),
+            .completed
+        )
+        preserveScreenshot("Session unread participant and judgment metadata")
     }
 
     func testTopControlsAreTheOnlyDestinationNavigation() {
@@ -3044,6 +3161,12 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(people.frame.height, 44)
         people.tap()
         XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 4))
+        let peopleSearch = app.textFields["people-search-field"]
+        XCTAssertTrue(peopleSearch.exists)
+        XCTAssertTrue(peopleSearch.isHittable)
+        let peopleFilter = element("people-filter-menu")
+        XCTAssertTrue(peopleFilter.exists)
+        XCTAssertGreaterThanOrEqual(peopleFilter.frame.height, 44)
         XCTAssertTrue(app.staticTexts["Leila Hartmann"].exists)
         XCTAssertFalse(
             app.staticTexts[
@@ -4652,7 +4775,7 @@ final class CandidateSignalUITests: XCTestCase {
             )
         ).firstMatch
         XCTAssertTrue(session.waitForExistence(timeout: 5))
-        session.tap()
+        tapVisibleCenter(session)
 
         let restoredReceipt = app.descendants(matching: .any).matching(
             NSPredicate(

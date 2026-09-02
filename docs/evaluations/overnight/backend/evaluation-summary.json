@@ -1,7 +1,7 @@
 {
   "suite_id": "talent-signal-candidate-momentum-v1",
   "fixture_version": "2026-08-05.1",
-  "api_base_url": "http://127.0.0.1:52029",
+  "api_base_url": "http://127.0.0.1:49206",
   "simulated_accounts": [
     "fixture-alpha",
     "fixture-alpha",

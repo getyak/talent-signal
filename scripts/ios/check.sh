@@ -379,8 +379,9 @@ ios_part_index=0
 
 is_retryable_simulator_failure() {
   local result_path="$1"
+  local attachment_dir=""
   [ -d "$result_path" ] || return 1
-  xcrun xcresulttool get test-results summary \
+  if xcrun xcresulttool get test-results summary \
     --path "$result_path" \
     --format json 2>/dev/null |
     ruby -rjson -e '
@@ -394,7 +395,23 @@ is_retryable_simulator_failure() {
       query_timeout = failures.length == 1 &&
         only_failure.fetch("failureText", "").include?("Timed out while evaluating UI query")
       exit((bootstrap_failure || query_timeout) ? 0 : 1)
-    '
+    '; then
+    return 0
+  fi
+
+  attachment_dir="$(mktemp -d "${TMPDIR:-/tmp}/talent-signal-ios-infra.XXXXXX")"
+  if xcrun xcresulttool export attachments \
+      --path "$result_path" \
+      --output-path "$attachment_dir" >/dev/null 2>&1 &&
+    rg --files-with-matches \
+      --glob '*.ips' \
+      '"app_name":"backboardd"' \
+      "$attachment_dir" >/dev/null; then
+    rm -rf -- "$attachment_dir"
+    return 0
+  fi
+  rm -rf -- "$attachment_dir"
+  return 1
 }
 
 reboot_simulator_for_retry() {

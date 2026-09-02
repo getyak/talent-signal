@@ -9,6 +9,7 @@ export * from "./personResearchServiceSchemas.js";
 export * from "./publicResearchPolicy.js";
 export * from "./publicResearchRunner.js";
 export * from "./runner.js";
+export * from "./runtimeDependencies.js";
 export * from "./schemas.js";
 export * from "./scriptedProvider.js";
 export * from "./toolCatalog.js";

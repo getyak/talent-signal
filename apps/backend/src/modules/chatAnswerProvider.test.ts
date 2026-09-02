@@ -113,6 +113,58 @@ describe("Zhipu Chat answer provider", () => {
     ).resolves.toMatchObject({ kind: "clarification", citation_ids: [] });
   });
 
+  it("answers an unscoped greeting without relationship context or citations", async () => {
+    const result = await provider(
+      {
+        kind: "answer",
+        title: "你好",
+        body: "你好，我在。你想聊什么？",
+        citation_ids: [],
+      },
+      (_url, init) => {
+        const body = JSON.parse(String(init.body)) as {
+          messages: Array<{ role: string; content: string }>;
+        };
+        const userPayload = JSON.parse(body.messages[1]!.content) as {
+          mode: string;
+          context_blocks: unknown[];
+          allowed_citation_ids: string[];
+        };
+        expect(userPayload).toMatchObject({
+          mode: "unscoped_conversation",
+          context_blocks: [],
+          allowed_citation_ids: [],
+        });
+        expect(body.messages[1]!.content).not.toContain("fact.availability");
+      },
+    ).answer({
+      mode: "unscoped_conversation",
+      objective: "你好",
+      context_blocks: [],
+      allowed_citation_ids: [],
+    });
+
+    expect(result).toMatchObject({
+      kind: "answer",
+      body: "你好，我在。你想聊什么？",
+      citation_ids: [],
+    });
+  });
+
+  it("rejects candidate context at the unscoped conversation boundary", async () => {
+    await expect(
+      provider({
+        kind: "answer",
+        title: "Unsafe",
+        body: "An answer that should never be requested.",
+        citation_ids: [],
+      }).answer({
+        ...request(),
+        mode: "unscoped_conversation",
+      }),
+    ).rejects.toThrow("cannot receive relationship context");
+  });
+
   it("fails closed on unsupported effect-oriented output", async () => {
     await expect(
       provider({

@@ -69,8 +69,6 @@ interaction mismatch remains at the tested viewport.
 
 final result: passed
 
----
-
 # Design QA — iOS natural contact understanding
 
 ## Evidence

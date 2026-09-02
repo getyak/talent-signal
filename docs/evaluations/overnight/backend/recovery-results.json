@@ -3,8 +3,8 @@
     {
       "scenario": "duplicate execution",
       "passed": true,
-      "first_attempt_id": "0af99930-23a1-4d80-9fd3-04e081e0719d",
-      "duplicate_attempt_id": "0af99930-23a1-4d80-9fd3-04e081e0719d",
+      "first_attempt_id": "85d12cb0-fb79-4790-be34-ffef7dacb998",
+      "duplicate_attempt_id": "85d12cb0-fb79-4790-be34-ffef7dacb998",
       "reused": true
     },
     {

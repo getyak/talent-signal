@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { fingerprint } from "./fingerprint.js";
 import {
   assertPublicResearchAuthorization,
@@ -18,6 +16,7 @@ import {
   AGENT_BUDGET_CEILING,
   AgentCapabilityError,
 } from "./runtimePolicy.js";
+import { SYSTEM_AGENT_RUNTIME } from "./runtimeDependencies.js";
 import {
   RESEARCH_AGENT_TOOL_NAMES,
   type AgentBudget,
@@ -91,6 +90,7 @@ function usage(
   startedAtMs: number,
   toolCalls: number,
   provider: AgentProviderResult | null,
+  nowMs: number,
 ): AgentUsage {
   const inputTokens = provider?.inputTokens ?? 0;
   const outputTokens = provider?.outputTokens ?? 0;
@@ -101,7 +101,7 @@ function usage(
     estimatedUsd: provider?.estimatedUsd ?? 0,
     turns: provider?.turns ?? 0,
     toolCalls,
-    durationMs: Math.max(0, Date.now() - startedAtMs),
+    durationMs: Math.max(0, nowMs - startedAtMs),
   };
 }
 
@@ -195,6 +195,7 @@ function checkpoint(
 export async function runPublicResearchAgent(
   request: AgentPublicResearchRunRequest,
 ): Promise<AgentPublicResearchTerminalReceipt> {
+  const runtime = request.runtime ?? SYSTEM_AGENT_RUNTIME;
   assertBudget(request.budget);
   if (!request.scope.runID.trim() || !request.scope.objective.trim()) {
     throw new AgentPublicResearchPolicyError(
@@ -215,7 +216,7 @@ export async function runPublicResearchAgent(
     ...request.scope,
     authorization,
   });
-  const startedAtMs = Date.now();
+  const startedAtMs = runtime.nowMs();
   const startedAt = new Date(startedAtMs).toISOString();
   await request.journal.start({
     scope,
@@ -244,7 +245,7 @@ export async function runPublicResearchAgent(
   let terminalCompletionStarted = false;
   const permissionDenials: string[] = [];
   const timeoutController = new AbortController();
-  const timeout = setTimeout(
+  const timeout = runtime.setTimeout(
     () => timeoutController.abort(new Error("Agent duration budget exhausted.")),
     request.budget.maxDurationMs,
   );
@@ -285,7 +286,7 @@ export async function runPublicResearchAgent(
       noActionID,
       candidateFingerprint: runState.candidate?.fingerprint ?? null,
       externalEffects: [],
-      usage: usage(startedAtMs, toolCalls, providerResult),
+      usage: usage(startedAtMs, toolCalls, providerResult, runtime.nowMs()),
       permissionDenials: [
         ...new Set([
           ...permissionDenials,
@@ -293,7 +294,7 @@ export async function runPublicResearchAgent(
         ]),
       ],
       providerSessionID: providerResult?.sessionID ?? null,
-      completedAt: new Date().toISOString(),
+      completedAt: new Date(runtime.nowMs()).toISOString(),
     };
     sequence += 1;
     const terminalEvent = {
@@ -315,8 +316,8 @@ export async function runPublicResearchAgent(
     rawInput: unknown,
   ): Promise<AgentToolResult> => {
     toolCalls += 1;
-    const callID = randomUUID();
-    const occurredAt = new Date().toISOString();
+    const callID = runtime.randomUUID();
+    const occurredAt = new Date(runtime.nowMs()).toISOString();
     const append = async (result: AgentToolResult) => {
       sequence += 1;
       const event = {
@@ -496,7 +497,7 @@ export async function runPublicResearchAgent(
       runID: scope.runID,
       sequence,
       kind: "provider_result",
-      occurredAt: new Date().toISOString(),
+      occurredAt: new Date(runtime.nowMs()).toISOString(),
       status: "received",
       outputFingerprint: fingerprint(providerResult.structuredOutput),
       metadata: {
@@ -527,7 +528,7 @@ export async function runPublicResearchAgent(
       return complete("quarantined", "STRUCTURED_OUTPUT_RETRY_EXHAUSTED");
     }
     const budgetReason = exceededBudget(
-      usage(startedAtMs, toolCalls, providerResult),
+      usage(startedAtMs, toolCalls, providerResult, runtime.nowMs()),
       request.budget,
     );
     if (budgetReason) return complete("budget_exhausted", budgetReason);
@@ -537,7 +538,7 @@ export async function runPublicResearchAgent(
         status: "quarantined",
         outputFingerprint: fingerprint(providerResult.structuredOutput),
         structuredOutput: providerResult.structuredOutput,
-        recordedAt: new Date().toISOString(),
+        recordedAt: new Date(runtime.nowMs()).toISOString(),
       });
       return complete("quarantined", runState.boundaryFailure.code);
     }
@@ -550,7 +551,7 @@ export async function runPublicResearchAgent(
         status: "quarantined",
         outputFingerprint: fingerprint(providerResult.structuredOutput),
         structuredOutput: providerResult.structuredOutput,
-        recordedAt: new Date().toISOString(),
+        recordedAt: new Date(runtime.nowMs()).toISOString(),
       });
       return complete("quarantined", "STRUCTURED_OUTPUT_INVALID");
     }
@@ -564,7 +565,7 @@ export async function runPublicResearchAgent(
           status: "quarantined",
           outputFingerprint: fingerprint(output.data),
           structuredOutput: output.data,
-          recordedAt: new Date().toISOString(),
+          recordedAt: new Date(runtime.nowMs()).toISOString(),
         });
         return complete(
           "quarantined",
@@ -589,7 +590,7 @@ export async function runPublicResearchAgent(
         status: "quarantined",
         outputFingerprint: fingerprint(output.data),
         structuredOutput: output.data,
-        recordedAt: new Date().toISOString(),
+        recordedAt: new Date(runtime.nowMs()).toISOString(),
       });
       return complete(
         "quarantined",
@@ -603,7 +604,7 @@ export async function runPublicResearchAgent(
       status: "validated",
       outputFingerprint: fingerprint(output.data),
       structuredOutput: output.data,
-      recordedAt: new Date().toISOString(),
+      recordedAt: new Date(runtime.nowMs()).toISOString(),
     });
     if (runState.candidate.kind === "artifact") {
       const committed = await request.gateway.commitResearchArtifact(
@@ -648,7 +649,7 @@ export async function runPublicResearchAgent(
         : "PROVIDER_OR_COMMIT_FAILED",
     );
   } finally {
-    clearTimeout(timeout);
+    runtime.clearTimeout(timeout);
     request.signal?.removeEventListener("abort", onExternalAbort);
     timeoutController.signal.removeEventListener("abort", onTimeout);
   }

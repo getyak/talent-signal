@@ -7,7 +7,7 @@
       "step": 1,
       "actor": "evaluation-client-a",
       "transition": "intentional capture",
-      "capture_id": "802cf29e-22e4-4862-bd7e-688c91563b23",
+      "capture_id": "1db79abc-8397-46ff-ae7e-3313247d484d",
       "identity_status": "bound",
       "evidence_count": 1
     },
@@ -29,10 +29,10 @@
       "actor": "evaluation-client-a",
       "transition": "independent fact decisions",
       "confirmed_state_ids": [
-        "6deb7d62-f69d-4753-9f0e-3b53d67b5ebc",
-        "985493f6-da85-4470-917b-3b86cb59a398",
-        "5a5df74b-0c98-43a4-b0f9-9850082738a3",
-        "6f76f8fe-8690-4c0f-9ae0-77cccd13f0aa"
+        "d418d7a9-0c1d-4857-9d40-d3ad5a17ca04",
+        "56c92910-3301-41a5-89ab-8ff4eab827a9",
+        "e4be0163-a57f-4219-866e-1dda7c82b4d8",
+        "1f988dc6-efbf-4d13-91ba-d91e25e56b90"
       ],
       "confirmation_count": 4
     },
@@ -59,7 +59,7 @@
       "step": 5,
       "actor": "evaluation-client-b",
       "transition": "exact version-bound action approval",
-      "approval_id": "4666c412-ca0a-47c7-9189-e71a4b2d946d",
+      "approval_id": "1c858b71-b7a2-4cb7-a930-6d4918f3e72c",
       "action_version": 1,
       "preview_digest": "df28476e7c4a55b2b4fd517ba2935f8e76e1aaaa10152a087dccceb94aa9dd04"
     },
@@ -67,7 +67,7 @@
       "step": 6,
       "actor": "local deterministic adapter",
       "transition": "simulated effect and destination readback",
-      "attempt_id": "0af99930-23a1-4d80-9fd3-04e081e0719d",
+      "attempt_id": "85d12cb0-fb79-4790-be34-ffef7dacb998",
       "attempt_status": "verified",
       "simulated": true,
       "destination_match": "matched",

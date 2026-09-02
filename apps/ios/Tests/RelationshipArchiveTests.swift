@@ -1843,6 +1843,10 @@ final class RelationshipArchiveTests: XCTestCase {
             live.latestPreview(in: .simplifiedChinese),
             "联系人已创建 · 回执 12345678"
         )
+        XCTAssertEqual(
+            live.retrievalSubtitle(in: .simplifiedChinese),
+            "联系人已创建"
+        )
 
         let persistedData = try XCTUnwrap(persistence.load())
         let persistedText = try XCTUnwrap(
@@ -1856,13 +1860,16 @@ final class RelationshipArchiveTests: XCTestCase {
             persistence: persistence,
             now: { now }
         )
-        let restoredReceipt = try XCTUnwrap(
-            restored.session(id: sessionID)?.contactReceipts.first
-        )
+        let restoredSession = try XCTUnwrap(restored.session(id: sessionID))
+        let restoredReceipt = try XCTUnwrap(restoredSession.contactReceipts.first)
         XCTAssertTrue(restoredReceipt.requiresRefresh)
         XCTAssertEqual(restoredReceipt.captureID, result.captureID)
         XCTAssertEqual(restoredReceipt.resourceID, result.resource.id)
         XCTAssertNil(restoredReceipt.currentPerson(in: .preview))
+        XCTAssertEqual(
+            restoredSession.retrievalSubtitle(in: .simplifiedChinese),
+            "联系人已创建 · 需要刷新"
+        )
 
         let currentPerson = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
         let currentReceipt = AgentContactReceipt(
@@ -3237,6 +3244,98 @@ final class RelationshipArchiveTests: XCTestCase {
                 )
             }
         }
+    }
+
+    func testPeopleRetrievalSearchAndPursuitScopePreserveCanonicalOrder() throws {
+        let snapshot = PursuitWorkspaceSnapshot.preview
+        XCTAssertEqual(
+            WorkspacePeopleRetrievalPolicy.filteredPeople(
+                in: snapshot,
+                query: "",
+                scope: .all
+            ).map(\.displayLabel),
+            ["Leila Hartmann", "Nia Williams"]
+        )
+        XCTAssertEqual(
+            WorkspacePeopleRetrievalPolicy.filteredPeople(
+                in: snapshot,
+                query: "  nia  ",
+                scope: .all
+            ).map(\.displayLabel),
+            ["Nia Williams"]
+        )
+        XCTAssertEqual(
+            WorkspacePeopleRetrievalPolicy.filteredPeople(
+                in: snapshot,
+                query: "Meridian",
+                scope: .all
+            ).map(\.displayLabel),
+            ["Leila Hartmann"]
+        )
+        XCTAssertEqual(
+            WorkspacePeopleRetrievalPolicy.filteredPeople(
+                in: snapshot,
+                query: "candidate",
+                scope: .all
+            ).map(\.displayLabel),
+            ["Leila Hartmann", "Nia Williams"]
+        )
+
+        let chiefProductOfficerSearch = try XCTUnwrap(snapshot.pursuits.first)
+        let chiefProductOfficerScope = WorkspacePeopleScope.pursuit(
+            id: chiefProductOfficerSearch.id,
+            title: chiefProductOfficerSearch.title
+        )
+        XCTAssertEqual(
+            WorkspacePeopleRetrievalPolicy.filteredPeople(
+                in: snapshot,
+                query: "",
+                scope: chiefProductOfficerScope
+            ).map(\.displayLabel),
+            ["Leila Hartmann"]
+        )
+        XCTAssertTrue(
+            WorkspacePeopleRetrievalPolicy.filteredPeople(
+                in: snapshot,
+                query: "Nia",
+                scope: chiefProductOfficerScope
+            ).isEmpty
+        )
+
+        let leila = try XCTUnwrap(snapshot.people.first)
+        let metadata = WorkspacePeopleRetrievalPolicy.metadata(
+            for: leila,
+            in: snapshot,
+            scope: chiefProductOfficerScope
+        )
+        XCTAssertEqual(metadata.headline, "VP Product · Meridian Labs")
+        XCTAssertEqual(metadata.roleType, "candidate")
+        XCTAssertEqual(metadata.pursuitTitle, "Chief Product Officer search")
+        XCTAssertNotNil(metadata.lastActivityAt)
+    }
+
+    @MainActor
+    func testSessionRetrievalAttentionUsesOnlyCurrentOperationalState() throws {
+        let store = AgentSessionStore.preview(snapshot: .preview)
+        let decisionSession = try XCTUnwrap(store.sessions.first)
+        XCTAssertEqual(decisionSession.retrievalAttention, .needsJudgment)
+
+        var staleSession = decisionSession
+        let latestTurn = try XCTUnwrap(staleSession.turns.first)
+        staleSession.turns = [
+            AgentSessionTurn(
+                id: latestTurn.id,
+                objective: latestTurn.objective,
+                response: latestTurn.response,
+                createdAt: latestTurn.createdAt,
+                requiresRefresh: true
+            ),
+        ]
+        XCTAssertEqual(staleSession.retrievalAttention, .refreshNeeded)
+
+        var waitingSession = try XCTUnwrap(store.sessions.last)
+        waitingSession.pendingObjective = "Continue the reviewed follow-up"
+        XCTAssertEqual(waitingSession.retrievalAttention, .waitingToContinue)
     }
 }
 

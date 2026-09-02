@@ -17,6 +17,7 @@ import {
   type AgentProvider,
   type AgentRunRequest,
   type AgentRunScope,
+  type AgentRuntimeDependencies,
 } from "./types.js";
 
 const ids = {
@@ -179,6 +180,19 @@ function request(
     provider,
     gateway,
     journal,
+  };
+}
+
+function deterministicRuntime(): AgentRuntimeDependencies {
+  let nextID = 0;
+  return {
+    nowMs: () => Date.parse("2026-08-24T12:00:00.000Z"),
+    randomUUID: () => {
+      nextID += 1;
+      return `00000000-0000-4000-8000-${String(nextID).padStart(12, "0")}`;
+    },
+    setTimeout: () => ({ kind: "deterministic-timeout" }),
+    clearTimeout: () => undefined,
   };
 }
 
@@ -410,6 +424,35 @@ describe("bounded Agent control plane", () => {
     expect(second.reasonCode).toBe("PROPOSAL_REPLAYED");
     expect(first.proposalID).toBe(second.proposalID);
     expect(gateway.proposalCommitCount).toBe(1);
+  });
+
+  it("produces byte-stable journals and receipts with injected runtime dependencies", async () => {
+    const firstJournal = new MemoryAgentRunJournal();
+    const secondJournal = new MemoryAgentRunJournal();
+    const firstRequest = request(proposalProvider(), new Gateway(), firstJournal);
+    const secondRequest = request(proposalProvider(), new Gateway(), secondJournal);
+    firstRequest.runtime = deterministicRuntime();
+    secondRequest.runtime = deterministicRuntime();
+
+    const first = await runBoundedAgent(firstRequest);
+    const second = await runBoundedAgent(secondRequest);
+
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+    expect(
+      JSON.stringify({
+        start: firstJournal.startRecord,
+        events: firstJournal.events,
+        outputs: firstJournal.outputs,
+      }),
+    ).toBe(
+      JSON.stringify({
+        start: secondJournal.startRecord,
+        events: secondJournal.events,
+        outputs: secondJournal.outputs,
+      }),
+    );
+    expect(first.usage.durationMs).toBe(0);
+    expect(first.completedAt).toBe("2026-08-24T12:00:00.000Z");
   });
 
   it("quarantines changed evidence authority or content identity", async () => {

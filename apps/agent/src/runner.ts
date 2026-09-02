@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import {
   PursuitAgentFinalOutputSchema,
   type PursuitNoActionOutput,
@@ -14,6 +12,7 @@ import {
   AGENT_BUDGET_CEILING,
   AgentCapabilityError,
 } from "./runtimePolicy.js";
+import { SYSTEM_AGENT_RUNTIME } from "./runtimeDependencies.js";
 import {
   PURSUIT_AGENT_TOOL_NAMES,
   type AgentBudget,
@@ -331,6 +330,7 @@ function usage(
     estimatedUsd: number;
     turns: number;
   } | null,
+  nowMs: number,
 ): AgentUsage {
   const inputTokens = provider?.inputTokens ?? 0;
   const outputTokens = provider?.outputTokens ?? 0;
@@ -341,7 +341,7 @@ function usage(
     estimatedUsd: provider?.estimatedUsd ?? 0,
     turns: provider?.turns ?? 0,
     toolCalls,
-    durationMs: Math.max(0, Date.now() - startedAtMs),
+    durationMs: Math.max(0, nowMs - startedAtMs),
   };
 }
 
@@ -357,6 +357,7 @@ function exceededBudget(value: AgentUsage, budget: AgentBudget): string | null {
 export async function runBoundedAgent(
   request: AgentRunRequest,
 ): Promise<AgentTerminalReceipt> {
+  const runtime = request.runtime ?? SYSTEM_AGENT_RUNTIME;
   request = Object.freeze({
     ...request,
     definition: Object.freeze({
@@ -380,7 +381,7 @@ export async function runBoundedAgent(
     budget: Object.freeze({ ...request.budget }),
   });
   assertConfiguration(request);
-  const startedAtMs = Date.now();
+  const startedAtMs = runtime.nowMs();
   const startedAt = new Date(startedAtMs).toISOString();
   const fingerprints = buildFingerprints(request);
   let sequence = 0;
@@ -396,7 +397,7 @@ export async function runBoundedAgent(
   let terminalCompletionStarted = false;
   const permissionDenials: string[] = [];
   const timeoutController = new AbortController();
-  const timeout = setTimeout(
+  const timeout = runtime.setTimeout(
     () => timeoutController.abort(new Error("Agent duration budget exhausted.")),
     request.budget.maxDurationMs,
   );
@@ -416,7 +417,12 @@ export async function runBoundedAgent(
       throw new Error("The Agent terminal commit was already attempted.");
     }
     terminalCompletionStarted = true;
-    const resultUsage = usage(startedAtMs, toolCalls, providerResult);
+    const resultUsage = usage(
+      startedAtMs,
+      toolCalls,
+      providerResult,
+      runtime.nowMs(),
+    );
     const receipt: AgentTerminalReceipt = {
       runID: request.scope.runID,
       status,
@@ -434,7 +440,7 @@ export async function runBoundedAgent(
         ]),
       ],
       providerSessionID: providerResult?.sessionID ?? null,
-      completedAt: new Date().toISOString(),
+      completedAt: new Date(runtime.nowMs()).toISOString(),
     };
     sequence += 1;
     await request.journal.append({
@@ -457,8 +463,8 @@ export async function runBoundedAgent(
     rawInput: unknown,
   ): Promise<AgentToolResult> => {
     toolCalls += 1;
-    const callID = randomUUID();
-    const occurredAt = new Date().toISOString();
+    const callID = runtime.randomUUID();
+    const occurredAt = new Date(runtime.nowMs()).toISOString();
     const inputFingerprint = fingerprint(rawInput);
     const append = async (result: AgentToolResult): Promise<AgentToolResult> => {
       sequence += 1;
@@ -640,7 +646,7 @@ export async function runBoundedAgent(
       runID: request.scope.runID,
       sequence,
       kind: "provider_result",
-      occurredAt: new Date().toISOString(),
+      occurredAt: new Date(runtime.nowMs()).toISOString(),
       status: "received",
       outputFingerprint: fingerprint(providerResult.structuredOutput),
       metadata: {
@@ -669,7 +675,12 @@ export async function runBoundedAgent(
     if (providerResult.terminalReason === "structured_output_retry_exhausted") {
       return complete("quarantined", "STRUCTURED_OUTPUT_RETRY_EXHAUSTED");
     }
-    const resultUsage = usage(startedAtMs, toolCalls, providerResult);
+    const resultUsage = usage(
+      startedAtMs,
+      toolCalls,
+      providerResult,
+      runtime.nowMs(),
+    );
     const budgetReason = exceededBudget(resultUsage, request.budget);
     if (budgetReason) return complete("budget_exhausted", budgetReason);
 
@@ -679,7 +690,7 @@ export async function runBoundedAgent(
         status: "quarantined",
         outputFingerprint: fingerprint(providerResult.structuredOutput),
         structuredOutput: providerResult.structuredOutput,
-        recordedAt: new Date().toISOString(),
+        recordedAt: new Date(runtime.nowMs()).toISOString(),
       });
       return complete("quarantined", runState.boundaryFailure.code);
     }
@@ -693,7 +704,7 @@ export async function runBoundedAgent(
         status: "quarantined",
         outputFingerprint: fingerprint(providerResult.structuredOutput),
         structuredOutput: providerResult.structuredOutput,
-        recordedAt: new Date().toISOString(),
+        recordedAt: new Date(runtime.nowMs()).toISOString(),
       });
       return complete("quarantined", "STRUCTURED_OUTPUT_INVALID");
     }
@@ -710,7 +721,7 @@ export async function runBoundedAgent(
           status: "quarantined",
           outputFingerprint: fingerprint(output.data),
           structuredOutput: output.data,
-          recordedAt: new Date().toISOString(),
+          recordedAt: new Date(runtime.nowMs()).toISOString(),
         });
         return complete("quarantined", "NO_ACTION_REFERENCE_OUT_OF_SCOPE");
       }
@@ -720,7 +731,7 @@ export async function runBoundedAgent(
           status: "quarantined",
           outputFingerprint: fingerprint(output.data),
           structuredOutput: output.data,
-          recordedAt: new Date().toISOString(),
+          recordedAt: new Date(runtime.nowMs()).toISOString(),
         });
         return complete("quarantined", "TERMINAL_OUTPUT_MISMATCH");
       }
@@ -740,7 +751,7 @@ export async function runBoundedAgent(
         status: "quarantined",
         outputFingerprint: fingerprint(providerResult.structuredOutput),
         structuredOutput: providerResult.structuredOutput,
-        recordedAt: new Date().toISOString(),
+        recordedAt: new Date(runtime.nowMs()).toISOString(),
       });
       return complete(
         "quarantined",
@@ -755,7 +766,7 @@ export async function runBoundedAgent(
       status: "validated",
       outputFingerprint: fingerprint(output.data),
       structuredOutput: output.data,
-      recordedAt: new Date().toISOString(),
+      recordedAt: new Date(runtime.nowMs()).toISOString(),
     });
     if (runState.terminalCandidate.kind === "proposal") {
       const committed = await request.gateway.commitProposal(
@@ -801,7 +812,7 @@ export async function runBoundedAgent(
         : "PROVIDER_OR_COMMIT_FAILED",
     );
   } finally {
-    clearTimeout(timeout);
+    runtime.clearTimeout(timeout);
     request.signal?.removeEventListener("abort", onExternalAbort);
     timeoutController.signal.removeEventListener("abort", onTimeout);
   }

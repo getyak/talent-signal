@@ -629,6 +629,45 @@ struct AgentSession: Identifiable, Equatable {
         }
         return latestReceipt.compactPreview(in: language)
     }
+
+    func retrievalSubtitle(in language: AppLanguage) -> String {
+        let latestTurn = turns.max { $0.createdAt < $1.createdAt }
+        let latestReceipt = contactReceipts.max { $0.createdAt < $1.createdAt }
+        if let latestReceipt,
+           latestTurn.map({ latestReceipt.createdAt >= $0.createdAt }) ?? true {
+            let result: String
+            switch latestReceipt.outcome {
+            case .createdPerson:
+                result = language.text("Contact created")
+            case .matchedExisting:
+                result = language.text("Contact updated")
+            case .identityReview:
+                result = language.text("Identity needs review")
+            }
+            return latestReceipt.requiresRefresh
+                ? "\(result) · \(language.text("Refresh needed"))"
+                : result
+        }
+
+        if let pendingObjective,
+           !pendingObjective.trimmingCharacters(
+                in: .whitespacesAndNewlines
+           ).isEmpty {
+            return "\(personDisplayLabel) · \(language.text("Waiting to continue"))"
+        }
+
+        if latestTurn?.requiresRefresh == true {
+            return "\(personDisplayLabel) · \(language.text("Refresh needed"))"
+        }
+
+        if isIdentityReview {
+            return language.text("Identity needs review")
+        }
+        if isUnresolvedIntent {
+            return language.text("No person linked")
+        }
+        return personDisplayLabel
+    }
 }
 
 enum AgentSessionRetrievalAttention: Equatable {

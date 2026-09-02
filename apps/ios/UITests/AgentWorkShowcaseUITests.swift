@@ -63,6 +63,7 @@ final class AgentWorkShowcaseUITests: XCTestCase {
 
     func testRealDynamicIslandMovesFromAwayToReview() {
         launchShowcase()
+        preserveScreenshot("TS-LA-01 showcase before start")
 
         tapWhenVisible(app.buttons["agent-work-start"])
         XCTAssertTrue(app.buttons["Read selected evidence"].waitForExistence(timeout: 5))
@@ -71,7 +72,9 @@ final class AgentWorkShowcaseUITests: XCTestCase {
 
         XCUIDevice.shared.press(.home)
         waitForSystemSurface()
-        preserveSystemScreenshot("Dynamic Island while Agent can work away")
+        preserveSystemScreenshot("TS-LA-02 running compact")
+        expandDynamicIsland(expectedTitle: "Reading selected evidence")
+        preserveSystemScreenshot("TS-LA-03 running expanded")
 
         tapDynamicIsland()
         XCTAssertTrue(element("agent-work-showcase-header").waitForExistence(timeout: 8))
@@ -83,7 +86,9 @@ final class AgentWorkShowcaseUITests: XCTestCase {
 
         XCUIDevice.shared.press(.home)
         waitForSystemSurface()
-        preserveSystemScreenshot("Dynamic Island when actions need review")
+        preserveSystemScreenshot("TS-LA-05 review compact")
+        expandDynamicIsland(expectedTitle: "Actions ready to review")
+        preserveSystemScreenshot("TS-LA-06 review expanded")
 
         tapDynamicIsland()
         XCTAssertTrue(element("fixture-banner").waitForExistence(timeout: 8))
@@ -91,6 +96,7 @@ final class AgentWorkShowcaseUITests: XCTestCase {
             app.buttons["agent-work-close-live-activity"]
                 .waitForNonExistence(timeout: 5)
         )
+        preserveScreenshot("TS-LA-09 exact review opened and activity ended")
     }
 
     func testBoundaryAtlasUsesRealSystemSurfaces() {
@@ -151,6 +157,18 @@ final class AgentWorkShowcaseUITests: XCTestCase {
         XCUIApplication(bundleIdentifier: "com.apple.springboard").coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.06)
         ).tap()
+    }
+
+    private func expandDynamicIsland(expectedTitle: String) {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        springboard.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.06)
+        ).press(forDuration: 1)
+        waitForSystemSurface()
+        XCTAssertTrue(
+            springboard.staticTexts[expectedTitle].waitForExistence(timeout: 3),
+            "Expected the expanded Live Activity to use the English development language"
+        )
     }
 
     private func runProcessingLifecycle() {
