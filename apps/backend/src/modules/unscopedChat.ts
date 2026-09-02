@@ -37,7 +37,7 @@ function responseBlock(answer: RemoteChatAnswerResult): ChatResponseBlock {
   return {
     id: randomUUID(),
     kind: answer.kind,
-    title: `Zhipu AI · ${answer.title}`.slice(0, 240),
+    title: answer.title.slice(0, 240),
     body: answer.body,
     status: answer.kind === "clarification" ? "needs_review" : "informational",
     citation_dependency_ids: [],
@@ -54,10 +54,8 @@ function localFallbackBlock(
     id: randomUUID(),
     kind: "answer",
     title: remoteFailed
-      ? usesChinese
-        ? "Agent · 本地回复"
-        : "Agent · Local reply"
-      : "Agent",
+      ? usesChinese ? "本地回复" : "Local reply"
+      : usesChinese ? "你好" : "Hello",
     body: usesChinese
       ? "你好，我在。你可以直接和我聊，或者告诉我想回顾哪段关系；涉及联系人资料或发送操作时，我会先请你确认范围和最终效果。"
       : "Hello, I’m here. You can chat directly or tell me which relationship you want to revisit. I’ll ask you to confirm the scope and exact effect before using contact data or sending anything.",

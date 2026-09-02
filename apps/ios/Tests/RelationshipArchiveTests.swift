@@ -2,6 +2,28 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    func testContactCountRoutesToTheOnDeviceWorkspaceIndex() {
+        for question in [
+            "查看我有多少个联系人",
+            "联系人数量是多少？",
+            "How many contacts do I have?",
+        ] {
+            XCTAssertEqual(
+                AgentLocalWorkspacePolicy.intent(for: question),
+                .peopleCount
+            )
+        }
+        for relationshipQuestion in [
+            "neo 公司有多少人？",
+            "How many people work at Neo?",
+            "候选人最近有什么进展？",
+        ] {
+            XCTAssertNil(
+                AgentLocalWorkspacePolicy.intent(for: relationshipQuestion)
+            )
+        }
+    }
+
     func testUnscopedConversationRoutesGreetingsWithoutOpeningRelationshipEvidence() {
         for greeting in [
             "你好",
@@ -3138,9 +3160,30 @@ final class RelationshipArchiveTests: XCTestCase {
 
     func testAskReadbackRejectsMissingReviewAuthorityAsReviewFailure() {
         let response = relationshipAskResponseFixture()
-        let invalidReadbacks = [
+        let repairableReadbacks = [
             relationshipAskReadbackFixture(citationReviewStatus: "rejected"),
             relationshipAskReadbackFixture(citationLastReviewID: nil),
+        ]
+
+        for readback in repairableReadbacks {
+            XCTAssertThrowsError(
+                try readback.validated(
+                    response,
+                    expectedAccountID: "account-1",
+                    expectedPersonID: "person-1",
+                    expectedRelationshipContextID: "context-1"
+                )
+            ) { error in
+                guard let typed = error as? PursuitWorkspaceClientError,
+                      case let .askCitationReviewRequired(requirement) = typed else {
+                    return XCTFail("Expected the exact source review requirement")
+                }
+                XCTAssertEqual(requirement.taskID, "task-1")
+                XCTAssertEqual(requirement.citation.id, "evidence-1")
+            }
+        }
+
+        let unrepairableReadbacks = [
             relationshipAskReadbackFixture(
                 citationAttributionStatus: "proposed"
             ),
@@ -3148,7 +3191,7 @@ final class RelationshipArchiveTests: XCTestCase {
             relationshipAskReadbackFixture(citationExactExcerpt: nil),
         ]
 
-        for readback in invalidReadbacks {
+        for readback in unrepairableReadbacks {
             XCTAssertThrowsError(
                 try readback.validated(
                     response,

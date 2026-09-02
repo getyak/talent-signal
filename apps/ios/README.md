@@ -174,8 +174,9 @@ pnpm ios:e2e:remote-chat
 
 This focused test injects the development secret at process start, enables
 remote Chat processing only for its isolated backend, and fails unless the
-UI exposes a `Zhipu AI` answer block. The regular `ios:check` remains
-deterministic and does not require or invoke a remote model. Treat the test
+UI exposes the provider-neutral `Agent answer` provenance label. The regular
+`ios:check` remains deterministic and does not require or invoke a remote
+model. Treat the test
 result and its screenshot attachment as proof: reopening the installed test app
 does not retain the test's temporary backend session and returns to account
 setup instead of silently opening Preview data.

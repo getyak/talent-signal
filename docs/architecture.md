@@ -125,7 +125,9 @@ reviewed Proposal appends after current items and UUIDs never determine order.
 Only the shared backend verifies a platform identity assertion, binds its stable
 provider subject, and owns replay, nonce, audience, expiry, revocation, and
 account scope. The device stores the protected session; provider identity is
-never relationship evidence.
+never relationship evidence. An authenticated surface may answer deterministic navigation
+or aggregates from its synchronized workspace index without a model or source access, but
+the result stays snapshot-bound; relationship evidence, review, identity, and effects still require server scope at use time.
 
 ### Identity is stable; roles are contextual
 

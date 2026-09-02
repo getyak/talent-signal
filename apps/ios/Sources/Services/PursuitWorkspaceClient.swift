@@ -1253,6 +1253,11 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
     }
 }
 
+struct AskCitationReviewRequirement: Equatable {
+    let taskID: String
+    let citation: RelationshipAskResponse.Citation
+}
+
 enum PursuitWorkspaceClientError: LocalizedError, Equatable {
     case loopbackOnly
     case loginFailed
@@ -1263,6 +1268,7 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
     case askReadbackEnvelopeMismatch
     case askCitationBindingMismatch
     case askCitationReviewAuthorityMissing
+    case askCitationReviewRequired(AskCitationReviewRequirement)
     case citedEvidenceUnavailable
     case personResearchReceiptMismatch
     case actionCompletionUnavailable
@@ -1292,7 +1298,8 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
             return "Ask stopped because the task readback did not match the selected person, context, and workspace."
         case .askCitationBindingMismatch:
             return "Ask stopped because a cited source was not bound to the selected person and context."
-        case .askCitationReviewAuthorityMissing:
+        case .askCitationReviewAuthorityMissing,
+             .askCitationReviewRequired(_):
             return "Ask stopped because a cited source needs a current recruiter review before it can be used."
         case .citedEvidenceUnavailable:
             return "Ask stopped because one cited source is unavailable or outside its current authorization."
@@ -1734,6 +1741,25 @@ struct RelationshipAskReadback: Decodable, Equatable {
                 && citation.authorizationScope == expectedCitationScope
         }) else {
             throw PursuitWorkspaceClientError.askCitationBindingMismatch
+        }
+        let citationNeedingReview = citations.first { citation in
+            citedIDs.contains(citation.id)
+                && (
+                    citation.reviewStatus != "reviewed"
+                        || citation.lastReviewID == nil
+                )
+                && citation.attribution.status == "confirmed"
+                && citation.exactExcerpt?.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ).isEmpty == false
+        }
+        if let citationNeedingReview {
+            throw PursuitWorkspaceClientError.askCitationReviewRequired(
+                AskCitationReviewRequirement(
+                    taskID: response.taskID,
+                    citation: citationNeedingReview
+                )
+            )
         }
         guard citedIDs.allSatisfy({ id in
             guard let citation = detailsByID[id] else { return false }

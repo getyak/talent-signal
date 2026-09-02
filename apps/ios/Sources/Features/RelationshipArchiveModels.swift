@@ -236,6 +236,32 @@ enum AgentUnscopedConversationRoute: Equatable {
     case relationshipRecall
 }
 
+enum AgentLocalWorkspaceIntent: Equatable {
+    case peopleCount
+}
+
+enum AgentLocalWorkspacePolicy {
+    static func intent(for objective: String) -> AgentLocalWorkspaceIntent? {
+        let normalized = objective
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+
+        let countSignals = [
+            "how many contacts", "contact count",
+            "number of contacts", "多少个联系人", "多少联系人",
+            "联系人数量", "有多少位联系人",
+        ]
+        return countSignals.contains(where: normalized.contains)
+            ? .peopleCount
+            : nil
+    }
+}
+
 enum AgentUnscopedConversationPolicy {
     static func route(objective: String) -> AgentUnscopedConversationRoute {
         let normalized = objective
