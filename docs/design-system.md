@@ -181,6 +181,10 @@ Use:
 Exact tokens, breakpoints, and component behavior belong in implementation;
 the surrounding product is the reference for density and idiom.
 
+Mobile reading preferences keep `Text size` and `Card density` independent. Text shifts only standard Dynamic Type categories and never reduces an accessibility category.
+Density changes card spacing, shape, and avatars without shrinking controls below 44 points; Settings previews the result and compact is the retrieval default.
+People and Sessions use independent stroked cards, concise title/context/recency metadata, and vertical accessibility fallbacks instead of source counts or answer excerpts.
+
 On working surfaces, headings name the current object, date, state, or
 decision within a bounded operational scale. Page and object titles never
 behave like marketing heroes, and metadata remains legible rather than tiny.
@@ -219,12 +223,9 @@ failed or uncertain state look complete.
 
 ## Pursuit and candidate pages
 
-The Pursuit page is the current explanation of one target outcome. It leads
-with outcome, deadline, milestone, supported blockers, and the smallest next
-step before showing the broader resource map.
+The Pursuit page explains one target outcome. It leads with outcome, deadline, milestone, supported blockers, and the smallest next step before the broader resource map.
 
-The living candidate page is a current, Pursuit-scoped explanation of the
-relationship. It should combine:
+The living candidate page is a current, Pursuit-scoped explanation of the relationship. It should combine:
 
 - the current dependency;
 - confirmed decision drivers;
@@ -233,16 +234,13 @@ relationship. It should combine:
 - action and outcome history;
 - one next step when appropriate.
 
-It is a governed projection, not a permanent generated essay. The user should
-be able to reach exact evidence and earlier state from every important claim.
+It is a governed projection, not a permanent generated essay. Every important claim should reach exact evidence and earlier state.
 
 ## Timeline
 
-The timeline is the trust surface. It explains what was observed, what changed,
-who decided, what action occurred, and what result was seen.
+The timeline is the trust surface: what was observed, what changed, who decided, what action occurred, and what result was seen.
 
-Group low-value system mechanics so human decisions and relationship changes
-remain legible.
+Group low-value system mechanics so human decisions and relationship changes remain legible.
 
 ## Relationship graph
 

@@ -526,6 +526,33 @@ struct AgentSession: Identifiable, Equatable {
         pendingUnscopedChatIdempotencyKey != nil
     }
 
+    var retrievalAttention: AgentSessionRetrievalAttention? {
+        if let pendingObjective,
+           !pendingObjective.trimmingCharacters(
+                in: .whitespacesAndNewlines
+           ).isEmpty {
+            return .waitingToContinue
+        }
+
+        let latestTurn = turns.max { $0.createdAt < $1.createdAt }
+        let latestReceipt = contactReceipts.max { $0.createdAt < $1.createdAt }
+        if let latestReceipt,
+           latestTurn.map({ latestReceipt.createdAt >= $0.createdAt }) ?? true {
+            if latestReceipt.requiresRefresh { return .refreshNeeded }
+            if latestReceipt.outcome == .identityReview { return .needsJudgment }
+            return nil
+        }
+
+        if let latestTurn {
+            if latestTurn.requiresRefresh { return .refreshNeeded }
+            if latestTurn.response.blocks.contains(where: \.requiresUserDecision) {
+                return .needsJudgment
+            }
+        }
+
+        return isIdentityReview ? .needsJudgment : nil
+    }
+
     var latestPreview: String {
         let latestTurn = turns.max { $0.createdAt < $1.createdAt }
         let latestReceipt = contactReceipts.max { $0.createdAt < $1.createdAt }
@@ -602,6 +629,12 @@ struct AgentSession: Identifiable, Equatable {
         }
         return latestReceipt.compactPreview(in: language)
     }
+}
+
+enum AgentSessionRetrievalAttention: Equatable {
+    case needsJudgment
+    case waitingToContinue
+    case refreshNeeded
 }
 
 struct AgentSessionValidationTarget: Equatable {
@@ -2516,4 +2549,143 @@ struct WorkspacePersonRole: Equatable, Identifiable {
     let evidenceState: WorkspaceEvidenceState
 
     var id: String { "\(pursuitID)-\(roleID)" }
+}
+
+struct WorkspacePersonRetrievalMetadata: Equatable {
+    let headline: String?
+    let roleType: String?
+    let pursuitTitle: String?
+    let lastActivityAt: Date?
+}
+
+enum WorkspacePeopleScope: Equatable, Identifiable {
+    case all
+    case pursuit(id: String, title: String)
+    case unassigned
+
+    var id: String {
+        switch self {
+        case .all: return "all"
+        case let .pursuit(id, _): return "pursuit-\(id)"
+        case .unassigned: return "unassigned"
+        }
+    }
+
+    func displayLabel(in language: AppLanguage) -> String {
+        switch self {
+        case .all: return language.text("All people")
+        case let .pursuit(_, title): return title
+        case .unassigned: return language.text("Not in a Pursuit")
+        }
+    }
+}
+
+enum WorkspacePeopleRetrievalPolicy {
+    static func filteredPeople(
+        in snapshot: PursuitWorkspaceSnapshot,
+        query: String,
+        scope: WorkspacePeopleScope
+    ) -> [WorkspacePerson] {
+        let normalizedQuery = normalize(
+            query.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        let assignedPersonIDs = Set(
+            snapshot.pursuits.flatMap { pursuit in
+                pursuit.personRoles.map(\.subjectRef.id)
+            }
+        )
+
+        return snapshot.people.filter { person in
+            let isInScope: Bool
+            switch scope {
+            case .all:
+                isInScope = true
+            case let .pursuit(id, _):
+                isInScope = snapshot.pursuit(id: id)?.personRoles.contains {
+                    $0.subjectRef.id == person.id
+                } == true
+            case .unassigned:
+                isInScope = !assignedPersonIDs.contains(person.id)
+            }
+            guard isInScope else { return false }
+            guard !normalizedQuery.isEmpty else { return true }
+
+            let roleSearchValues = snapshot.pursuits.flatMap { pursuit in
+                pursuit.personRoles
+                    .filter { $0.subjectRef.id == person.id }
+                    .flatMap {
+                        [
+                            pursuit.title,
+                            $0.roleType.replacingOccurrences(of: "_", with: " "),
+                        ]
+                    }
+            }
+            let searchableValues = [
+                person.displayLabel,
+                person.profile?.headline,
+            ].compactMap { $0 }
+                + person.contexts.map(\.displayLabel)
+                + roleSearchValues
+            return searchableValues.contains {
+                normalize($0).contains(normalizedQuery)
+            }
+        }
+    }
+
+    static func metadata(
+        for person: WorkspacePerson,
+        in snapshot: PursuitWorkspaceSnapshot,
+        scope: WorkspacePeopleScope
+    ) -> WorkspacePersonRetrievalMetadata {
+        let matches: [(pursuit: WorkspacePursuit, role: WorkspaceRole)] =
+            snapshot.pursuits.flatMap { pursuit in
+                pursuit.personRoles
+                    .filter { $0.subjectRef.id == person.id }
+                    .map { (pursuit, $0) }
+            }
+        let scopedMatches: [(pursuit: WorkspacePursuit, role: WorkspaceRole)]
+        switch scope {
+        case let .pursuit(id, _):
+            scopedMatches = matches.filter { $0.pursuit.id == id }
+        case .all, .unassigned:
+            scopedMatches = matches
+        }
+        let selectedMatch = scopedMatches.first(where: {
+            $0.role.status == "active"
+        }) ?? scopedMatches.first
+        let headline = person.profile?.headline.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+
+        return WorkspacePersonRetrievalMetadata(
+            headline: headline?.isEmpty == false ? headline : nil,
+            roleType: selectedMatch?.role.roleType,
+            pursuitTitle: selectedMatch?.pursuit.title,
+            lastActivityAt: parseDate(person.lastActivityAt)
+        )
+    }
+
+    static func hasUnassignedPeople(in snapshot: PursuitWorkspaceSnapshot) -> Bool {
+        let assignedPersonIDs = Set(
+            snapshot.pursuits.flatMap { pursuit in
+                pursuit.personRoles.map(\.subjectRef.id)
+            }
+        )
+        return snapshot.people.contains { !assignedPersonIDs.contains($0.id) }
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let standard = ISO8601DateFormatter()
+        standard.formatOptions = [.withInternetDateTime]
+        return fractional.date(from: value) ?? standard.date(from: value)
+    }
 }

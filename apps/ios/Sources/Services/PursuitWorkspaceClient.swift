@@ -70,6 +70,7 @@ private struct ConversationContactCaptureBody: Encodable {
     let personScope: PersonScope
     let resource: Resource
     let confirmedIdentityHandles: [IdentityHandle]?
+    let reviewedPublicProfile: ReviewedPublicProfile?
     let fragments: [Fragment]
 
     enum CodingKeys: String, CodingKey {
@@ -81,6 +82,7 @@ private struct ConversationContactCaptureBody: Encodable {
         case personScope = "person_scope"
         case resource
         case confirmedIdentityHandles = "confirmed_identity_handles"
+        case reviewedPublicProfile = "reviewed_public_profile"
         case fragments
     }
 
@@ -156,6 +158,8 @@ private struct ConversationContactCaptureBody: Encodable {
         let mediaType: String
         let observedAt: String
         let sourceTimezone: String
+        let contentHash: String?
+        let sourceLocator: String?
         let retention: Retention
 
         enum CodingKeys: String, CodingKey {
@@ -165,7 +169,43 @@ private struct ConversationContactCaptureBody: Encodable {
             case mediaType = "media_type"
             case observedAt = "observed_at"
             case sourceTimezone = "source_timezone"
+            case contentHash = "content_hash"
+            case sourceLocator = "source_locator"
             case retention
+        }
+    }
+
+    struct ReviewedPublicProfile: Encodable {
+        let resultID: String
+        let providerID: String
+        let platform: String
+        let profileURL: String
+        let displayName: String
+        let handle: String?
+        let avatarURL: String?
+        let avatarRightsBasis: String?
+        let verified: Bool?
+        let matchBasis: String
+        let contentHash: String
+        let retrievedAt: String
+        let cardHeadline: String?
+        let useAvatar: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case resultID = "result_id"
+            case providerID = "provider_id"
+            case platform
+            case profileURL = "profile_url"
+            case displayName = "display_name"
+            case handle
+            case avatarURL = "avatar_url"
+            case avatarRightsBasis = "avatar_rights_basis"
+            case verified
+            case matchBasis = "match_basis"
+            case contentHash = "content_hash"
+            case retrievedAt = "retrieved_at"
+            case cardHeadline = "card_headline"
+            case useAvatar = "use_avatar"
         }
     }
 
@@ -669,6 +709,32 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         } else {
             confirmedHandles = nil
         }
+        let reviewedPublicProfile: ConversationContactCaptureBody.ReviewedPublicProfile?
+        if target != .unresolved, let profile = draft.reviewedPublicProfile {
+            let headline = profile.cardHeadline.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            reviewedPublicProfile = .init(
+                resultID: profile.resultID,
+                providerID: profile.providerID,
+                platform: profile.platform,
+                profileURL: profile.profileURL,
+                displayName: profile.displayName,
+                handle: profile.handle,
+                avatarURL: profile.includeAvatar ? profile.avatarURL : nil,
+                avatarRightsBasis: profile.includeAvatar
+                    ? profile.avatarRightsBasis
+                    : nil,
+                verified: profile.verified,
+                matchBasis: profile.matchBasis,
+                contentHash: profile.contentHash,
+                retrievedAt: profile.retrievedAt,
+                cardHeadline: headline.isEmpty ? nil : headline,
+                useAvatar: profile.includeAvatar
+            )
+        } else {
+            reviewedPublicProfile = nil
+        }
         let body = ConversationContactCaptureBody(
             contractVersion: TalentSignalAPIContract.version,
             idempotencyKey: idempotencyKey,
@@ -684,12 +750,15 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
                 mediaType: "text/plain",
                 observedAt: observedAt,
                 sourceTimezone: TimeZone.current.identifier,
+                contentHash: draft.reviewedPublicProfile?.contentHash,
+                sourceLocator: draft.reviewedPublicProfile?.profileURL,
                 retention: .init(
                     requestedMode: "ephemeral",
                     sourceScope: "reviewed_selected_text"
                 )
             ),
             confirmedIdentityHandles: confirmedHandles,
+            reviewedPublicProfile: reviewedPublicProfile,
             fragments: [
                 .init(
                     clientResourceID: clientResourceID,
@@ -1348,6 +1417,8 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             let handle: String?
             let biography: String?
             let avatarURL: String?
+            let avatarDisplayPolicy: String?
+            let avatarRightsBasis: String?
             let verified: Bool?
             let matchBasis: String
             let contentHash: String
@@ -1363,6 +1434,8 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
                 case displayName = "display_name"
                 case handle, biography
                 case avatarURL = "avatar_url"
+                case avatarDisplayPolicy = "avatar_display_policy"
+                case avatarRightsBasis = "avatar_rights_basis"
                 case verified
                 case matchBasis = "match_basis"
                 case contentHash = "content_hash"

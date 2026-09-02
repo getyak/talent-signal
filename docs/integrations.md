@@ -112,6 +112,25 @@ authority. The capability excludes face matching, reverse-face search, private
 accounts or cookies, contact details, background checks, protected/sensitive
 traits, candidate scoring or ranking, and acceptance prediction. Binding a
 result to a Talent Signal Person remains a separate human identity decision.
+That decision starts from a visible review card, never from provider output
+alone. The client may propose a short card headline, but the recruiter can edit
+or omit it and must still choose an exact existing Person or explicitly create
+a new one. Provider biography text remains review-only and is not copied into
+the confirmed Person projection. Public-source avatars remain link-only for
+TikHub because its terms
+do not grant Talent Signal display or storage rights and source-platform terms
+still apply. A future avatar write requires a provider display license or
+profile-owner consent, not recruiter confirmation alone. The backend accepts a
+reviewed card only on a governed contact record whose HTTPS profile URL and
+content hash exactly match the same provider result. The durable projection
+retains its confirming user, source resource, retrieval time, and revision,
+and People returns it only while the linked source remains active and
+authorized. Manual source deletion or a reached retention deadline removes the
+reviewed profile derivative and records that removal in the source lineage.
+
+LinkedIn is not a current person-research adapter. Its official profile API is
+limited to an authenticated member with the required permission, and Talent
+Signal does not substitute scraping or an unofficial provider for that grant.
 
 ### Connectors
 

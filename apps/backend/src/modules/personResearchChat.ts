@@ -54,6 +54,7 @@ export function personResearchChatBlock(
         handle: source.handle,
         biography: source.biography,
         avatar_url: source.avatar_url,
+        avatar_display_policy: "source_link_only" as const,
         verified: source.verified,
         match_basis: matchBasis.get(source.result_id) ??
           "Returned by the bounded public-profile provider for a visible screenshot clue.",

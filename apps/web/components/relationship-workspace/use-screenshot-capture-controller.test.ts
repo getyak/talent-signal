@@ -142,6 +142,7 @@ describe("screenshot capture controller", () => {
           id: "person-1",
           identity_matches: [{ kind: "name" }],
           last_activity_at: "2026-08-30T08:00:00.000Z",
+          avatar: null,
           profile: null,
         },
         query: "maya c",

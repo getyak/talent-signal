@@ -68,6 +68,7 @@ describe("people directory", () => {
         confirmed_identity_count: 1,
         last_activity_at: "2026-08-06T10:00:00.000Z",
         profile: null,
+        avatar: null,
         contexts: [
           {
             id: "55555555-5555-4555-8555-555555555555",
@@ -120,6 +121,65 @@ describe("people directory", () => {
         authored_by_user_id: auth.userId,
         revision: 1,
         updated_at: "2026-08-26T10:00:00.000Z",
+      },
+    });
+  });
+
+  it("returns a recruiter-confirmed public card with governed avatar provenance", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          display_label: "周屿",
+          context_count: 1,
+          capture_count: 1,
+          confirmed_identity_count: 1,
+          last_activity_at: new Date("2026-09-02T08:00:00.000Z"),
+          name_match: false,
+          matched_handle_status: null,
+          matched_handle_type: null,
+          matched_handle_hint: null,
+          matched_handle_source_resource_id: null,
+          matched_handle_valid_until: null,
+          profile_headline: null,
+          profile_summary: null,
+          profile_provenance_kind: null,
+          profile_authored_by_user_id: null,
+          profile_revision: null,
+          profile_updated_at: null,
+          public_profile_card_headline: "VP Product · Example Co.",
+          public_profile_confirmed_by_user_id: auth.userId,
+          public_profile_revision: 1,
+          public_profile_confirmed_at: new Date("2026-09-02T08:00:00.000Z"),
+          public_profile_url: "https://example.com/in/zhou-yu",
+          public_profile_platform: "linkedin",
+          public_profile_avatar_url: "https://example.com/avatar.jpg",
+          public_profile_use_avatar: true,
+          public_profile_retrieved_at: new Date("2026-09-02T07:58:00.000Z"),
+          contexts: [],
+        },
+      ],
+    });
+
+    const response = await listPeople({ query } as unknown as Pool, auth);
+
+    expect(query.mock.calls[0]?.[0]).toContain(
+      "profile_receipts.authorization_state = 'authorized'",
+    );
+    expect(response.people[0]).toMatchObject({
+      profile: {
+        headline: "VP Product · Example Co.",
+        summary: "VP Product · Example Co.",
+        provenance_kind: "reviewed_public_source",
+        source_profile_url: "https://example.com/in/zhou-yu",
+        source_platform: "linkedin",
+      },
+      avatar: {
+        url: "https://example.com/avatar.jpg",
+        source_profile_url: "https://example.com/in/zhou-yu",
+        source_platform: "linkedin",
+        retrieved_at: "2026-09-02T07:58:00.000Z",
+        confirmed_at: "2026-09-02T08:00:00.000Z",
       },
     });
   });

@@ -85,6 +85,42 @@ describe("authority schema", () => {
     expect(sql).not.toContain("confirmed_states");
   });
 
+  it("keeps reviewed public cards source-bound and rights-gates avatars", async () => {
+    const sql = await readFile(
+      new URL("./038_reviewed_person_public_profiles.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE TABLE reviewed_person_public_profiles");
+    expect(sql).toContain("source_resource_id uuid NOT NULL");
+    expect(sql).toContain("confirmed_by_user_id uuid NOT NULL");
+    expect(sql).toContain("avatar_rights_basis");
+    expect(sql).toContain(
+      "use_avatar = false OR (\n      avatar_url IS NOT NULL AND avatar_rights_basis IS NOT NULL",
+    );
+    expect(sql).toContain("REFERENCES source_resources(account_id, id)");
+    expect(sql).not.toContain("biography");
+    expect(sql).not.toContain("candidate_score");
+    expect(sql).not.toContain("acceptance_probability");
+
+    const deletionSource = await readFile(
+      new URL("../modules/captures.ts", import.meta.url),
+      "utf8",
+    );
+    const retentionSource = await readFile(
+      new URL("../modules/sourceRetention.ts", import.meta.url),
+      "utf8",
+    );
+    expect(deletionSource).toContain(
+      "DELETE FROM reviewed_person_public_profiles profiles",
+    );
+    expect(retentionSource).toContain(
+      "SELECT 'reviewed_person_public_profile', profiles.subject_id",
+    );
+    expect(retentionSource).toContain(
+      "DELETE FROM reviewed_person_public_profiles profiles",
+    );
+  });
+
   it("keeps password identity server-owned and account-scoped", async () => {
     const sql = await readFile(
       new URL("./028_password_auth.sql", import.meta.url),

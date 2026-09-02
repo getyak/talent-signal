@@ -26,6 +26,81 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Bare Debug launch requires a workspace")
     }
 
+    func testDisplaySettingsSeparateTextSizeFromCardDensity() {
+        app.launchEnvironment["TS_IOS_UI_TEST_TEXT_SIZE"] = "system"
+        app.launchEnvironment["TS_IOS_UI_TEST_CARD_DENSITY"] = "compact"
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-menu"].tap()
+        let display = app.buttons["open-display-settings"]
+        XCTAssertTrue(display.waitForExistence(timeout: 5))
+        display.tap()
+
+        XCTAssertTrue(element("display-settings").waitForExistence(timeout: 5))
+        let preview = element("display-settings-preview")
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        XCTAssertEqual(preview.value as? String, "Compact")
+
+        let comfortable = app.buttons["card-density-comfortable"]
+        XCTAssertTrue(comfortable.exists)
+        scrollToVisible(comfortable)
+        XCTAssertTrue(comfortable.isHittable)
+        XCTAssertGreaterThanOrEqual(comfortable.frame.height, 44)
+        comfortable.tap()
+        XCTAssertEqual(
+            app.buttons["card-density-comfortable"].value as? String,
+            "Selected"
+        )
+        XCTAssertEqual(
+            element("display-settings-preview").value as? String,
+            "Comfortable"
+        )
+
+        let smallText = app.buttons["text-size-compact"]
+        XCTAssertTrue(smallText.exists)
+        scrollToVisible(smallText)
+        XCTAssertTrue(smallText.isHittable)
+        XCTAssertGreaterThanOrEqual(smallText.frame.height, 44)
+        smallText.tap()
+        XCTAssertEqual(
+            app.buttons["text-size-compact"].value as? String,
+            "Selected"
+        )
+        XCTAssertEqual(
+            app.buttons["card-density-comfortable"].value as? String,
+            "Selected"
+        )
+        preserveScreenshot("Display settings separate size and density")
+    }
+
+    func testPeopleSearchKeepsCompactCardsIndependent() {
+        app.launchEnvironment["TS_IOS_UI_TEST_TEXT_SIZE"] = "system"
+        app.launchEnvironment["TS_IOS_UI_TEST_CARD_DENSITY"] = "compact"
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["archive-tab-people"].tap()
+        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
+        let leila = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "workspace-person-")
+        ).element(boundBy: 0)
+        XCTAssertTrue(leila.waitForExistence(timeout: 5))
+        XCTAssertLessThan(leila.frame.height, 100)
+
+        let search = app.textFields["people-search-field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(search.frame.height, 44)
+        search.tap()
+        search.typeText("Leila")
+        XCTAssertTrue(app.staticTexts["Leila Hartmann"].exists)
+        XCTAssertFalse(app.staticTexts["Nia Williams"].exists)
+        preserveScreenshot("Compact People search")
+
+        app.buttons["people-search-clear"].tap()
+        XCTAssertTrue(app.staticTexts["Nia Williams"].waitForExistence(timeout: 3))
+    }
+
     func testCalendarProposalConfirmsWithoutOpeningSystemEditor() {
         app.launchArguments = [
             "--scenario", "calendar-handoff",
