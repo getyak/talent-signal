@@ -73,14 +73,131 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Today"].exists)
-        XCTAssertEqual(element("today-attention-summary").label, "2 to consider")
+        XCTAssertEqual(
+            element("today-attention-summary").label,
+            "Needs your decision · 2"
+        )
         XCTAssertFalse(element("today-unread-session").exists)
         XCTAssertTrue(element("workspace-preview-boundary").exists)
+        XCTAssertTrue(element("today-calendar-reminder").exists)
         XCTAssertTrue(element("today-focus").exists)
+        for decisionID in ["preview-contact", "preview-calendar"] {
+            let add = app.buttons["today-decision-add-\(decisionID)"]
+            let edit = app.buttons["today-decision-edit-\(decisionID)"]
+            let dismiss = app.buttons["today-decision-dismiss-\(decisionID)"]
+            XCTAssertTrue(add.exists)
+            XCTAssertTrue(edit.exists)
+            XCTAssertTrue(dismiss.exists)
+            XCTAssertGreaterThanOrEqual(add.frame.height, 43.5)
+            XCTAssertGreaterThanOrEqual(edit.frame.height, 43.5)
+            XCTAssertGreaterThanOrEqual(dismiss.frame.height, 43.5)
+        }
         XCTAssertFalse(element("no-action-summary").exists)
         XCTAssertFalse(element("today-calendar-card").exists)
         XCTAssertFalse(app.staticTexts["90-second product loop"].exists)
         preserveScreenshot("Editorial Today default return surface")
+    }
+
+    func testTodayInlineDecisionsSupportEvidenceEditApprovalDismissAndUndo() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+
+        let evidence = app.buttons["today-decision-evidence-preview-contact"]
+        XCTAssertTrue(evidence.exists)
+        evidence.tap()
+        XCTAssertTrue(
+            element("today-decision-evidence-quote-preview-contact")
+                .waitForExistence(timeout: 3)
+        )
+
+        let addContact = app.buttons["today-decision-add-preview-contact"]
+        tapWhenVisible(addContact)
+        let contactReceipt = element("today-decision-receipt-preview-contact")
+        XCTAssertTrue(contactReceipt.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No write was made to Contacts."].exists)
+        preserveScreenshot("Contact decision local receipt")
+        app.buttons["today-decision-restore-preview-contact"].tap()
+        XCTAssertTrue(addContact.waitForExistence(timeout: 3))
+
+        let editCalendar = app.buttons["today-decision-edit-preview-calendar"]
+        tapWhenVisible(editCalendar)
+        XCTAssertTrue(element("today-decision-editor").waitForExistence(timeout: 3))
+        let primary = element("today-decision-editor-primary")
+        XCTAssertTrue(primary.waitForExistence(timeout: 3))
+        primary.tap()
+        primary.typeText("Confirmed · ")
+        app.buttons["today-decision-editor-save"].tap()
+        XCTAssertTrue(
+            element("today-decision-effect-preview-calendar")
+                .waitForExistence(timeout: 3)
+        )
+        XCTAssertTrue(
+            element("today-decision-effect-preview-calendar")
+                .label.contains("Confirmed")
+        )
+
+        let dismissCalendar = app.buttons["today-decision-dismiss-preview-calendar"]
+        tapWhenVisible(dismissCalendar)
+        XCTAssertTrue(
+            element("today-decision-receipt-preview-calendar")
+                .waitForExistence(timeout: 3)
+        )
+        XCTAssertTrue(
+            app.staticTexts["No write was made to Apple Calendar."].exists
+        )
+        preserveScreenshot("Calendar dismissed local receipt")
+        app.buttons["today-decision-restore-preview-calendar"].tap()
+        XCTAssertTrue(dismissCalendar.waitForExistence(timeout: 3))
+        preserveScreenshot("Today inline decision states")
+    }
+
+    func testTodayInlineDecisionsRemainReachableInChineseDarkAX5() {
+        app.launchArguments = [
+            "--force-dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        XCTAssertTrue(element("today-calendar-reminder").exists)
+
+        let addContact = app.buttons["today-decision-add-preview-contact"]
+        tapWhenVisible(addContact)
+        XCTAssertTrue(
+            element("today-decision-receipt-preview-contact")
+                .waitForExistence(timeout: 3)
+        )
+        let restoreContact = app.buttons[
+            "today-decision-restore-preview-contact"
+        ]
+        XCTAssertGreaterThanOrEqual(restoreContact.frame.height, 43.5)
+        restoreContact.tap()
+
+        let editCalendar = app.buttons["today-decision-edit-preview-calendar"]
+        tapWhenVisible(editCalendar)
+        XCTAssertTrue(element("today-decision-editor").waitForExistence(timeout: 3))
+        XCTAssertTrue(element("today-decision-editor-primary").exists)
+        app.buttons["取消"].tap()
+
+        let dismissCalendar = app.buttons[
+            "today-decision-dismiss-preview-calendar"
+        ]
+        tapWhenVisible(dismissCalendar)
+        XCTAssertTrue(
+            element("today-decision-receipt-preview-calendar")
+                .waitForExistence(timeout: 3)
+        )
+        XCTAssertGreaterThanOrEqual(
+            app.buttons["today-decision-restore-preview-calendar"].frame.height,
+            43.5
+        )
+        preserveScreenshot("Today decisions Chinese dark AX5")
     }
 
     func testUnscopedGreetingRepliesWithoutOpeningRelationshipChoices() {
@@ -2198,7 +2315,7 @@ final class CandidateSignalUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH %@", "today-review-proposal-")
         ).firstMatch
         XCTAssertTrue(review.waitForExistence(timeout: 8))
-        review.tap()
+        tapWhenVisible(review)
 
         let evidence = element("review-exact-evidence")
         XCTAssertTrue(evidence.waitForExistence(timeout: 5))

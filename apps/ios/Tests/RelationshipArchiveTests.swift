@@ -247,6 +247,13 @@ final class RelationshipArchiveTests: XCTestCase {
             PursuitWorkspaceSnapshot.preview.people.first?.id
         )
         XCTAssertTrue(activities.allSatisfy { $0.eventIdentifier == nil })
+        XCTAssertTrue(
+            activities.allSatisfy { $0.timeZoneIdentifier == "Asia/Singapore" }
+        )
+        XCTAssertEqual(
+            activities.first.map { calendar.component(.hour, from: $0.startDate) },
+            15
+        )
         XCTAssertEqual(
             RelationshipCalendarProjection.next(in: activities, now: now)?.id,
             activities.first?.id

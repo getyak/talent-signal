@@ -1896,3 +1896,80 @@ entry were not moved or restyled.
 - Vetoes: none.
 
 final result: passed
+
+---
+
+# Design QA — iOS Today inline decisions
+
+## Source truth and implementation evidence
+
+- Selected visual direction: option 2,
+  `docs/evaluations/2026-09-02-ios-today-inline-decisions/selected-direction-2.png`.
+- Implemented iPhone 17 Pro Simulator surface:
+  `docs/evaluations/2026-09-02-ios-today-inline-decisions/implementation-final.png`.
+- Same-state combined comparison:
+  `docs/evaluations/2026-09-02-ios-today-inline-decisions/source-vs-implementation.png`.
+- Reference source: 852 × 1844 pixels. The comparison pads it to the
+  implementation viewport without cropping.
+- Implementation viewport: 1206 × 2622 pixels at iPhone 17 Pro Simulator
+  density, iOS 26.5, Simplified Chinese, light appearance, standard Dynamic
+  Type.
+- Compared state: synthetic preview, next relationship moment visible, two
+  pending inline decisions, evidence collapsed.
+- Focused approved-contact receipt:
+  `docs/evaluations/2026-09-02-ios-today-inline-decisions/contact-approved-receipt.png`.
+- Focused dismissed-calendar receipt:
+  `docs/evaluations/2026-09-02-ios-today-inline-decisions/calendar-dismissed-receipt.png`.
+
+## Finding and resolution
+
+The first implementation pass preserved the selected card hierarchy but made
+the calendar rail too wide, exposed a redundant activity-count badge, truncated
+the relationship moment, used 10:00 after the afternoon cutoff, and inherited
+generic Chinese labels (`日历`, `修正`, `关闭`) that did not match the selected
+decision language. The final pass narrows the time rail, removes the badge,
+localizes the preview relationship context, keeps Singapore time visible, and
+projects the next preview moment at 15:00. Card labels now read `日程`, `编辑`,
+and `忽略`.
+
+The native Talent Signal navigation and global Agent composer intentionally
+remain around the selected content. Within that real shell, both decision cards
+fit in the initial viewport with their complete three-option controls. The
+source's quiet surface, serif decision question, vermilion category, evidence
+row, light border, and black primary action are preserved. The compact
+`合成预览` marker is an intentional authority boundary absent from the visual
+concept.
+
+Approval and dismissal replace a proposal with a compact local receipt and an
+Undo control. The receipts explicitly say that Contacts or Apple Calendar were
+not written. Editing changes preview proposal fields only. Evidence expansion
+shows the exact synthetic conversation excerpt and does not promote it to
+confirmed state.
+
+## Behavioral, safety, and accessibility proof
+
+- Release simulator build passed.
+- Three focused UI tests passed: the complete default Today hierarchy; the
+  evidence, edit, approve, dismiss, receipt, and undo journey; and the same
+  interaction controls in Simplified Chinese, dark appearance, AX5 Dynamic
+  Type, and Reduce Motion.
+- Two focused relationship-calendar unit tests passed, including the preview
+  projection and canonical no-invention boundary.
+- All six inline action buttons retain an effective 44-point target (XCTest
+  tolerance accounts for fractional simulator coordinates).
+- New Today copy is routed through `Localizable.xcstrings`, and the repository
+  localization boundary passes.
+- The synthetic decisions cannot write to Contacts or Calendar. Canonical Today
+  continues to render only typed backend attention and governed calendar state;
+  it does not infer an external-write proposal from summary text.
+
+## Mobile UX rubric
+
+- Task legibility: 3 — date, next moment, decision count, and exact effect lead.
+- Hierarchy: 3 — two cards carry the work; secondary context is visually quiet.
+- Platform interaction: 3 — native sheet editing, buttons, scrolling, and Undo.
+- Accessibility: 3 — semantic labels, evidence state, receipts, and 44 pt targets.
+- Visual craft: 3 — selected direction matched inside the established app shell.
+- Vetoes: none.
+
+final result: passed

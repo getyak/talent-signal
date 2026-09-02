@@ -2622,6 +2622,81 @@
     },
     "Unconfirmed public sources" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未确认的公开来源" } } }
+    },
+    "Needs your decision · %d" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要你决定 · %d" } } }
+    },
+    "%d more to handle later" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还有 %d 项稍后处理" } } }
+    },
+    "Contacts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统联系人" } } }
+    },
+    "Add Maya Ortiz?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加 Maya Ortiz？" } } }
+    },
+    "Create new contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建联系人" } } }
+    },
+    "Conversation evidence · 1" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "对话证据 1 条" } } }
+    },
+    "Add a video call with Alex Chen?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加与 Alex Chen 的视频通话？" } } }
+    },
+    "Tomorrow 15:00–15:30" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "明天 15:00–15:30" } } }
+    },
+    "Singapore time · Apple Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新加坡时间 · 写入 Apple 日历" } } }
+    },
+    "Tomorrow at 3pm Singapore time works for a 30-minute video call." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "明天下午 3 点（新加坡时间）可以进行 30 分钟视频通话。" } } }
+    },
+    "Add" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加" } } }
+    },
+    "Approve this %@ proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "批准此%@提议" } } }
+    },
+    "Records a preview decision only. No external write occurs." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅记录预览判决，不会发生外部写入。" } } }
+    },
+    "Preview decision recorded" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览判决已记录" } } }
+    },
+    "Proposal dismissed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提议已忽略" } } }
+    },
+    "No write was made to %@." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未写入%@。" } } }
+    },
+    "Undo" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "撤销" } } }
+    },
+    "Proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提议" } } }
+    },
+    "Decision question" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "判决问题" } } }
+    },
+    "Exact effect" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "精确效果" } } }
+    },
+    "Primary detail" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主要信息" } } }
+    },
+    "Editing changes this proposal only. The preview cannot write to an external app." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑只会修改这条提议；预览不会写入外部应用。" } } }
+    },
+    "Edit proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑提议" } } }
+    },
+    "Save" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存" } } }
+    },
+    "Singapore time" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新加坡时间" } } }
     }
   },
   "version" : "1.0"
