@@ -132,10 +132,31 @@ struct RelationshipArchiveView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.tsSurface.ignoresSafeArea()
-            pageContent
-                .id(retrievalIntentGeneration)
+        NavigationStack {
+            ZStack {
+                Color.tsSurface.ignoresSafeArea()
+                pageContent
+                    .id(retrievalIntentGeneration)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                RelationshipArchiveHeader(
+                    selectedPage: Binding(
+                        get: { selectedPage },
+                        set: selectPage
+                    ),
+                    onOpenMenu: {
+                        clearTransientRetrievalIntent()
+                        presentedSheet = .menu
+                    },
+                    onOpenCalendar: {
+                        clearTransientRetrievalIntent()
+                        isRelationshipCalendarPresented = true
+                    }
+                )
+            }
+            .toolbarBackground(.automatic, for: .navigationBar)
+            .relationshipNavigationMinimization()
         }
         .overlay(alignment: .top) {
             if let notice = workspaceStore.refreshNotice {
@@ -171,24 +192,6 @@ struct RelationshipArchiveView: View {
             }
         }
 #endif
-        .safeAreaInset(edge: .top, spacing: 0) {
-            RelationshipArchiveHeader(
-                selectedPage: Binding(
-                    get: { selectedPage },
-                    set: { selectedPage in
-                        selectPage(selectedPage)
-                    }
-                ),
-                onOpenMenu: {
-                    clearTransientRetrievalIntent()
-                    presentedSheet = .menu
-                },
-                onOpenCalendar: {
-                    clearTransientRetrievalIntent()
-                    isRelationshipCalendarPresented = true
-                }
-            )
-        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             RelationshipGuideRail(
                 onGuide: {
@@ -905,7 +908,7 @@ private struct PursuitWorkspaceRefreshNotice: View {
     }
 }
 
-private struct RelationshipArchiveHeader: View {
+private struct RelationshipArchiveHeader: ToolbarContent {
     @Binding var selectedPage: RelationshipArchivePage
     let onOpenMenu: () -> Void
     let onOpenCalendar: () -> Void
@@ -913,8 +916,8 @@ private struct RelationshipArchiveHeader: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var selectionNamespace
 
-    var body: some View {
-        HStack(spacing: 12) {
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
             Button(action: onOpenMenu) {
                 ZStack {
                     Color.clear
@@ -933,7 +936,9 @@ private struct RelationshipArchiveHeader: View {
                 )
             )
             .accessibilityIdentifier("relationship-menu")
+        }
 
+        ToolbarItem(placement: .principal) {
             HStack(spacing: 0) {
                 ForEach(RelationshipArchivePage.allCases) { page in
                     Button {
@@ -949,7 +954,7 @@ private struct RelationshipArchiveHeader: View {
                             if selectedPage == page {
                                 Capsule()
                                     .fill(Color.tsInk.opacity(0.075))
-                                    .frame(height: 38)
+                                    .frame(height: 34)
                                     .matchedGeometryEffect(
                                         id: "archive-selection",
                                         in: selectionNamespace
@@ -960,9 +965,15 @@ private struct RelationshipArchiveHeader: View {
                                     selectedPage == page ? .semibold : .regular
                                 ))
                                 .foregroundStyle(Color.tsInk)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                                .layoutPriority(1)
                                 .accessibilityHidden(true)
                         }
-                        .frame(maxWidth: .infinity)
+                        .frame(
+                            minWidth: page == .sessions ? 72 : 60,
+                            maxWidth: .infinity
+                        )
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
@@ -976,7 +987,15 @@ private struct RelationshipArchiveHeader: View {
                     )
                 }
             }
+            .frame(minWidth: 210)
+            .animation(
+                reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
+                value: selectedPage
+            )
+            .accessibilityElement(children: .contain)
+        }
 
+        ToolbarItem(placement: .topBarTrailing) {
             Button(action: onOpenCalendar) {
                 ZStack {
                     Color.clear
@@ -997,15 +1016,6 @@ private struct RelationshipArchiveHeader: View {
             )
             .accessibilityIdentifier("today-calendar-peek")
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, minHeight: 58)
-        .background(Color.tsSurface.opacity(0.96))
-        .animation(
-            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
-            value: selectedPage
-        )
-        .accessibilityElement(children: .contain)
     }
 }
 
@@ -4317,11 +4327,11 @@ private struct RelationshipGuideRail: View {
                         .font(.body.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
                 }
-                .frame(width: 48, height: 48)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .frame(width: 48, height: 48)
+            .frame(width: 44, height: 44)
             .accessibilityLabel(
                 appLanguage.text("Choose what to add to an Agent message")
             )
@@ -4334,8 +4344,8 @@ private struct RelationshipGuideRail: View {
                         .foregroundStyle(Color.tsMutedInk)
                     Spacer(minLength: 6)
                 }
-                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                .padding(.leading, 10)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.leading, 8)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -4351,11 +4361,11 @@ private struct RelationshipGuideRail: View {
                         .font(.body.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
                 }
-                .frame(width: 48, height: 48)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .frame(width: 48, height: 48)
+            .frame(width: 44, height: 44)
             .accessibilityLabel(
                 appLanguage.text(
                     "Dictate an Agent message",
@@ -4364,11 +4374,66 @@ private struct RelationshipGuideRail: View {
             )
             .accessibilityIdentifier("dictate-agent-message")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 9)
-        .background(Color.tsCanvas, in: Capsule())
-        .padding(.horizontal, 20)
-        .background(Color.tsSurface.opacity(0.97))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
+        .modifier(RelationshipGuideGlassModifier())
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+    }
+}
+
+private struct RelationshipGuideGlassModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var usesOpaqueSurface: Bool {
+#if DEBUG
+        reduceTransparency || ProcessInfo.processInfo.arguments.contains(
+            "--simulate-reduce-transparency"
+        )
+#else
+        reduceTransparency
+#endif
+    }
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if usesOpaqueSurface {
+            content
+                .background(Color.tsCanvas, in: Capsule())
+                .overlay {
+                    Capsule().stroke(Color.tsLine, lineWidth: 1)
+                }
+        } else if #available(iOS 26.0, *) {
+            content.glassEffect(
+                .regular.tint(Color.tsVermilion.opacity(0.06)),
+                in: Capsule()
+            )
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule().stroke(Color.tsLine, lineWidth: 1)
+                }
+        }
+    }
+}
+
+private extension View {
+    // XcodeGen enables this condition only for iOS 27 device and Simulator SDKs.
+    // Older SDKs must not parse the beta SwiftUI toolbar symbols.
+    @ViewBuilder
+    func relationshipNavigationMinimization() -> some View {
+#if TS_IOS27_SDK
+        if #available(iOS 27.0, *) {
+            self
+                .toolbarMinimizationBehavior(.onScrollDown, for: .navigationBar)
+                .toolbarMinimizationRestoration(.automatic, for: .navigationBar)
+        } else {
+            self
+        }
+#else
+        self
+#endif
     }
 }
 
