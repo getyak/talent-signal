@@ -1107,6 +1107,41 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(composer.value as? String, message)
     }
 
+    func testContactCountUsesTheOnDeviceWorkspaceIndexWithoutAnAgentRequest() {
+        app.launchArguments = [
+            "--fixture-record-ask-request-count",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        typeTextReliably("查看我有多少个联系人", into: composer)
+        app.buttons["ask-send"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["本机工作区索引"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(
+                    format: "label CONTAINS %@",
+                    "没有调用远程模型"
+                )
+            ).firstMatch.exists
+        )
+        XCTAssertEqual(
+            element("ask-fixture-request-count").value as? String,
+            "0"
+        )
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
+        preserveScreenshot("Contact count answered on device")
+    }
+
     func testRecalledRelationshipStaysCorrectableWhileAgentReads() {
         app.launchArguments = ["--fixture-ask-delay-seconds", "3"]
         app.launch()
@@ -1230,11 +1265,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         let response = element("ask-response-turn")
         XCTAssertTrue(response.waitForExistence(timeout: 30))
-        XCTAssertTrue(
-            app.staticTexts.matching(
-                NSPredicate(format: "label CONTAINS %@", "Zhipu AI")
-            ).firstMatch.waitForExistence(timeout: 5)
-        )
+        XCTAssertTrue(app.staticTexts["Agent 回答"].waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-recall-unresolved").exists)
         XCTAssertFalse(
             app.buttons.matching(
@@ -1413,9 +1444,7 @@ final class CandidateSignalUITests: XCTestCase {
             fallback: "false"
         ) == "true"
         let responseTurn = element("ask-response-turn")
-        let remoteAnswer = responseTurn.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Zhipu AI · ")
-        ).firstMatch
+        let remoteAnswer = responseTurn.staticTexts["Agent answer"]
         if expectsRemoteAI {
             XCTAssertTrue(
                 remoteAnswer.waitForExistence(timeout: 5),
@@ -1545,9 +1574,7 @@ final class CandidateSignalUITests: XCTestCase {
         )
 
         let responseTurn = element("ask-response-turn")
-        let remoteAnswer = responseTurn.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Zhipu AI · ")
-        ).firstMatch
+        let remoteAnswer = responseTurn.staticTexts["Agent 回答"]
         let expectsRemoteAI = testConfiguration(
             "TS_IOS_EXPECT_REMOTE_CHAT",
             fallback: "false"

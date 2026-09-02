@@ -91,6 +91,75 @@
     "ADD TO MESSAGE" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到消息" } } }
     },
+    "Agent" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent" } } }
+    },
+    "Agent answer" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 回答" } } }
+    },
+    "Confirm review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认审阅" } } }
+    },
+    "Current workspace" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前工作区" } } }
+    },
+    "Dispute this source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "对这个来源提出异议" } } }
+    },
+    "On-device workspace index" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本机工作区索引" } } }
+    },
+    "One exact source has not completed its current recruiter review. Your question is still in the composer. Review the source below; a new Ask will still require a separate tap." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一条精确来源尚未完成当前招聘顾问审阅。你的问题仍保留在输入框；请先审阅下方来源，之后仍需由你再次点击发送。" } } }
+    },
+    "Open relationship sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看关系来源" } } }
+    },
+    "Review and confirm source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅并确认来源" } } }
+    },
+    "Review exact source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅精确来源" } } }
+    },
+    "Review one source to continue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先审阅一条来源，再继续" } } }
+    },
+    "Review this source?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅这个来源？" } } }
+    },
+    "Source disputed. The old answer stays stale; your question remains in the composer." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源已标记为有异议。旧回答保持过期；你的问题仍在输入框中。" } } }
+    },
+    "Source reviewed. Your question is still in the composer; send it when you are ready for a fresh answer." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源已审阅。你的问题仍在输入框中；准备好后再次发送即可获取新回答。" } } }
+    },
+    "The on-device answer could not be protected in Sessions. Your message is still here." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地回答无法安全保存到会话中，你的消息仍保留在输入框。" } } }
+    },
+    "The server found a relationship source whose current review or authorization changed. Your question is still here; inspect the relationship source before asking again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务端发现一条关系来源的审阅或授权状态已经变化。你的问题仍保留；请先检查关系来源，再重新提问。" } } }
+    },
+    "The source review was not saved." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源审阅未能保存。" } } }
+    },
+    "This answer did not complete" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这次回答没有完成" } } }
+    },
+    "This exact fragment needs your current review before a new Agent answer may cite it." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这条精确片段需要你完成当前审阅，新的 Agent 回答才能引用它。" } } }
+    },
+    "This records a new recruiter review. It does not send the saved question or perform any external action." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会记录一次新的招聘顾问审阅，不会自动发送已保留的问题，也不会执行任何外部操作。" } } }
+    },
+    "This relationship contains a source that is no longer current, reviewable, or authorized. Your question is still here; inspect the relationship source before asking again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这段关系中有一条来源已过期、尚不可审阅或不再具备授权。你的问题仍保留；请先检查关系来源，再重新提问。" } } }
+    },
+    "Try again" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新提问" } } }
+    },
+    "Why is it accurate and in scope?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为什么它准确且属于当前范围？" } } }
+    },
     "A protected Session could not be created. Your message was not sent." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法创建受保护的会话。你的消息尚未发送。" } } }
     },

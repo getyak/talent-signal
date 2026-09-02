@@ -76,7 +76,7 @@ describe("unscoped Agent conversation", () => {
     expect(execution.body.external_effects).toEqual([]);
     expect(execution.body.blocks[0]).toMatchObject({
       kind: "answer",
-      title: "Agent · 本地回复",
+      title: "本地回复",
       citation_dependency_ids: [],
       requires_user_decision: false,
     });
