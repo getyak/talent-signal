@@ -10,12 +10,12 @@ const repositoryRoot = path.resolve(
 const manifestPath = path.join(
   repositoryRoot,
   process.env.V1_P0_MANIFEST_PATH ??
-    "docs/evaluations/2026-08-24-v1-prd-08/p0-journey-manifest.json",
+    "docs/evaluations/2026-08-24-v1-final-panel-retest-04/evidence/p0-journey-manifest.json",
 );
 const outputPath = path.join(
   repositoryRoot,
   process.env.V1_P0_OUTPUT_PATH ??
-    "docs/evaluations/2026-08-24-v1-prd-08/p0-journey-runtime.json",
+    "docs/evaluations/2026-08-24-v1-final-panel-retest-04/evidence/p0-journey-runtime.json",
 );
 
 async function json(relativePath) {
@@ -101,7 +101,7 @@ for (const journey of manifest.journeys) {
 
 const agent = await json(
   process.env.V1_P0_AGENT_PATH ??
-    "docs/evaluations/2026-08-24-v1-prd-03/agent-control-plane-deterministic-runtime.json",
+    "docs/evaluations/2026-08-24-v1-final-panel-retest-04/evidence/agent-control-plane/agent-control-plane-deterministic-runtime.json",
 );
 const expectedAgentCases = new Map([
   ["supported_proposal", ["proposal_staged", "PROPOSAL_STAGED"]],
@@ -148,7 +148,7 @@ assert.equal(
 
 const live = await json(
   process.env.V1_P0_LIVE_AGENT_PATH ??
-    "docs/evaluations/2026-08-24-v1-prd-03/claude-agent-live-runtime.json",
+    "docs/evaluations/2026-08-24-v1-final-panel-retest-04/evidence/agent-control-plane/claude-agent-live-runtime.json",
 );
 assert(
   (live.status === "pass" && live.trial_count >= 5 && live.release_claim === "proven") ||

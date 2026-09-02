@@ -1,0 +1,113 @@
+{
+  "artifact": "ios-retrieval-post-change-2026-09-02-r4",
+  "artifact_identity": {
+    "app_debug_dylib_sha256": "bc731bba1e60a6a2818b228eb477b185cd706685f0c04d234e4c319fd686d058",
+    "repository_commit": "90dd83d68749f057203cc91b39429763885df124",
+    "retrieval_product_source_diff_sha256": "fbc0d4c29981f69973869d9852eb41bb4398c1dbe0eae9772f2b4a3b10c1e493",
+    "target_source_and_test_diff_sha256_at_build": "472268e9c884f04f30aa45d81c22b50bcf8aca4957be3b3db59a93352681c499",
+    "ui_test_binary_sha256": "7f521c01c40cd8d5254e505341d4d4cd4f05c2f8bb172acb9da142b2cabd452d",
+    "xctestrun_sha256": "ab6edbca7a068725ea76c28631d1621d1b12cf0eab754db5761f20a1aa59bec8"
+  },
+  "build": {
+    "configuration": "Debug-iphonesimulator",
+    "deployment_target": "iOS 16.0",
+    "sdk": "iphonesimulator26.5",
+    "xcode_build": "17F113",
+    "xcode_version": "26.6"
+  },
+  "core_result": {
+    "device": "TalentSignal Retrieval Final 20260902 (iPhone 17 Pro)",
+    "failed": 0,
+    "os": "iOS 26.5 (23F77)",
+    "passed": 13,
+    "result_bundle": "/tmp/talent-signal-retrieval-final-current-r4.xcresult",
+    "result_bundle_tree_sha256": "edd745e703483d267f42416ce8da700f63cc3765e37a31216ff8f89f1db2f754",
+    "skipped": 0,
+    "tests": [
+      "RelationshipArchiveTests.testSingleSessionDeletionRollsBackOnSaveFailureAndKeepsDrafts",
+      "RelationshipArchiveTests.testPreferredPersonAskRequiresExplicitChoiceAcrossMultipleContexts",
+      "CandidateSignalUITests.testSessionRowSwipeRevealsActionWithoutChangingDestination",
+      "CandidateSignalUITests.testTopControlsAreTheOnlyDestinationNavigation",
+      "CandidateSignalUITests.testReducedMotionKeepsSessionNavigationReachable",
+      "CandidateSignalUITests.testSessionRevealReturnsToRestForNewIntentAndInterruption",
+      "CandidateSignalUITests.testSessionDeletionRequiresExactConfirmationAndPreservesPeople",
+      "CandidateSignalUITests.testPeopleSwipeAndLongPressKeepAskInsideVisibleScope",
+      "CandidateSignalUITests.testPreferredPersonWithMultipleContextsCannotSendBeforeSelection",
+      "CandidateSignalUITests.testLongSessionListPreservesVisibleAnchorAcrossIntentResets",
+      "CandidateSignalUITests.testLongPeopleListPreservesVisibleAnchorAcrossIntentResets",
+      "CandidateSignalUITests.testSessionLongPressMirrorsTheGovernedActionSet",
+      "CandidateSignalUITests.testRetrievalInteractionLatencyBudgets"
+    ]
+  },
+  "evidence": {
+    "latency_json": {
+      "path": "evidence/retrieval-interaction-latency.raw.json",
+      "sha256": "f0ee6d8c9b2cafb11572085861bb162ad5198d1d35903b2b9cf10db8da54d992"
+    },
+    "screenshots": [
+      {
+        "path": "post-change/sessions-small-light.png",
+        "sha256": "6121a79704f9dbbef1351a9d3717f307110919d3d7a38beb5791568646e5fd3e"
+      },
+      {
+        "path": "post-change/people-small-light.png",
+        "sha256": "658c7f2cf4c33d1f7aa7e67ed73a52efa427425b7a0c4ef4a73239221f89070e"
+      },
+      {
+        "path": "post-change/sessions-small-zh-dark-ax5.png",
+        "sha256": "72a98eccb374bfce7a4edd80abfa330d699939073539ee3a2c541049b0b25849"
+      },
+      {
+        "path": "post-change/people-small-zh-dark-ax5.png",
+        "sha256": "8e0ec45adc2545ba6d885208634bdaa54bdb52eb4f9d376fa2bc1ede4a6d4f47"
+      },
+      {
+        "path": "evidence/preferred-person-explicit-scope.png",
+        "sha256": "34c1e37eb48835619245d1db80060c1f0e6471af5e090730235fea16a0f5b634"
+      },
+      {
+        "path": "evidence/session-trailing-swipe.png",
+        "sha256": "fa2d7e6f07122f5a8dc8ff66009db881b85fedcc117283c8978af554d1abc857"
+      },
+      {
+        "path": "evidence/reduced-motion-session-navigation.png",
+        "sha256": "51069219d3dc20966b69581011438ced6d272485081c1214bdd4143a6af5a010"
+      }
+    ]
+  },
+  "latency": {
+    "destination_readiness_ms": {
+      "maximum": 660.58,
+      "p50": 356.06,
+      "p95": 496.5,
+      "trials": 30
+    },
+    "method": "Three destination cycles and three Session opens warmed before 30 recorded samples; XCTest synchronized tap completion through a synchronous semantic query; one-second waiter polling excluded; not touch-to-photon.",
+    "session_open_readiness_ms": {
+      "maximum": 1361.06,
+      "p50": 848.03,
+      "p95": 950.29,
+      "trials": 30
+    }
+  },
+  "source_scope": [
+    "apps/ios/Sources/Domain/PursuitWorkspace.swift",
+    "apps/ios/Sources/Features/PursuitWorkspaceStore.swift",
+    "apps/ios/Sources/Features/RelationshipArchiveModels.swift",
+    "apps/ios/Sources/Features/RelationshipArchiveView.swift",
+    "apps/ios/Sources/Features/RelationshipAskView.swift"
+  ],
+  "visual_result": {
+    "device": "Talent Signal iPhone SE 3rd Gen",
+    "failed": 0,
+    "os": "iOS 26.5 (23F77)",
+    "passed": 2,
+    "result_bundle": "/tmp/talent-signal-retrieval-visual-current-r4.xcresult",
+    "result_bundle_tree_sha256": "70c9e67093b99f8da5aff76f9a4b0266a4fabe94884c65b3261fb818dabd1df4",
+    "skipped": 0,
+    "tests": [
+      "CandidateSignalUITests.testWorkspaceKeepsSessionsAndPeopleDirectlyReachable",
+      "CandidateSignalUITests.testRetrievalCardsRemainReachableInChineseDarkAX5ReducedMotion"
+    ]
+  }
+}

@@ -114,6 +114,15 @@ new Ask before source authority is claimed again. A submitted question remains
 recoverable until validated recording succeeds, and retry reuses the same task
 intent instead of creating duplicate work.
 
+When no relationship is selected, a greeting, help request, or explicit request
+to chat may receive a direct conversational answer. That turn sends only the
+submitted text through a separate zero-context contract: it has no Person,
+relationship, Wiki, evidence, attachment, citation, Tool, or external-effect
+scope. A question that asks about relationship work still enters relationship
+recall; if recall cannot resolve a scope, the recruiter may explicitly continue
+without a relationship. A later scoped question must bind the Session before it
+can read relationship context.
+
 Ask reconciles its answer with canonical work already owned in that exact
 Pursuit. When an open action or evidence-backed gap exists, the response shows
 its owner, due time, and close condition without creating another action; it

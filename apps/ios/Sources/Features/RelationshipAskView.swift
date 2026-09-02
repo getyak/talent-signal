@@ -290,6 +290,21 @@ enum RelationshipAskEntryMode: Equatable, Sendable {
     case voice
 }
 
+private enum AskFailureRecovery: Equatable {
+    case retry
+    case reviewSource(AskCitationReviewRequirement)
+    case openRelationship(String)
+
+    var needsSourceAttention: Bool {
+        switch self {
+        case .reviewSource, .openRelationship:
+            return true
+        case .retry:
+            return false
+        }
+    }
+}
+
 @MainActor
 struct RelationshipAskView: View {
     let snapshot: PursuitWorkspaceSnapshot
@@ -298,6 +313,8 @@ struct RelationshipAskView: View {
     @ObservedObject var sessionStore: AgentSessionStore
     let sessionID: UUID?
     var initialSeed: AgentSessionSeed? = nil
+    var preferredPersonID: String? = nil
+    var preferredPersonLabel: String? = nil
     var initialEntryMode: RelationshipAskEntryMode = .text
     let ask: (
         _ objective: String,
@@ -362,8 +379,11 @@ struct RelationshipAskView: View {
 #if DEBUG
     @State private var fixtureAskFailureConsumed = false
     @State private var fixtureContactLookupFailureConsumed = false
+    @State private var fixtureAskRequestCount = 0
 #endif
     @State private var errorMessage: String?
+    @State private var errorRecovery: AskFailureRecovery = .retry
+    @State private var sourceReviewNotice: String?
     @State private var contactDraft: ConversationContactDraft?
     @State private var contactOperationKey: String?
     @State private var pendingContactTarget: ConversationContactTarget?
@@ -397,6 +417,12 @@ struct RelationshipAskView: View {
 
     private var compactPresentationDetent: PresentationDetent {
         .fraction(0.76)
+    }
+
+    private var preferredPersonName: String? {
+        guard let preferredPersonID else { return preferredPersonLabel }
+        return currentSnapshot.people.first(where: { $0.id == preferredPersonID })?.displayLabel
+            ?? preferredPersonLabel
     }
 
     var body: some View {
@@ -470,58 +496,21 @@ struct RelationshipAskView: View {
                 citation: selection.citation,
                 language: appLanguage,
                 onReject: isCanonical ? { reason in
-                    guard let authorityReviewID = selection.citation.lastReviewID else {
-                        throw PursuitWorkspaceClientError.askCitationBindingMismatch
-                    }
-                    let reviewKey = reviewIdempotencyKey(
-                        fragmentID: selection.citation.id,
-                        expectedReviewStatus: selection.citation.reviewStatus,
-                        authorityToken: authorityReviewID,
-                        reason: reason,
-                        decision: "rejected"
-                    )
-                    let scope = selectedScope
-                    _ = try sessionStore.beginEvidenceReview(
-                        idempotencyKey: reviewKey,
-                        taskID: selection.taskID,
-                        citation: selection.citation,
-                        personDisplayName: scope?.person.displayLabel ?? "Current person",
-                        relationshipContextDisplayName: scope?.context.displayLabel
-                            ?? "Current relationship",
-                        expectedReviewStatus: selection.citation.reviewStatus,
+                    try await submitCitationDecision(
+                        selection,
                         decision: "rejected",
                         reason: reason
                     )
-                    reviewPreparationError = nil
-                    sessionStore.markCitationStale(selection.citation.id)
-                    selectedCitation = nil
-                    guard sessionStore.claimEvidenceReview(reviewKey) else {
-                        return
-                    }
-                    defer { sessionStore.releaseEvidenceReview(reviewKey) }
-                    do {
-                        let result = try await reviewEvidence(
-                            selection.citation.id,
-                            selection.citation.reviewStatus,
-                            authorityReviewID,
-                            "rejected",
-                            reason,
-                            reviewKey
+                } : nil,
+                onReview: isCanonical && selection.citation.needsCurrentReview
+                    ? { reason in
+                        try await submitCitationDecision(
+                            selection,
+                            decision: "reviewed",
+                            reason: reason
                         )
-                        if !sessionStore.markEvidenceReviewApplied(
-                            reviewKey,
-                            result: result
-                        ) {
-                            reviewPreparationError = postReviewPersistenceMessage
-                        }
-                    } catch {
-                        let isTerminal = recordEvidenceReviewFailure(
-                            reviewKey,
-                            error: error
-                        )
-                        if !isTerminal { throw error }
                     }
-                } : nil
+                    : nil
             )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -610,6 +599,25 @@ struct RelationshipAskView: View {
                         zhHans: "当前工作区中找不到刚审阅的关系。"
                     )
                 }
+            } else if let preferredPersonID {
+                let matchingScopes = availableScopes.filter {
+                    $0.person.id == preferredPersonID
+                }
+                switch AgentPreferredPersonScopePolicy.resolve(
+                    matchingScopeCount: matchingScopes.count
+                ) {
+                case .exact:
+                    selectedScope = matchingScopes[0]
+                case .unavailable:
+                    errorMessage = appLanguage.text(
+                        "This person is not available in the current workspace.",
+                        zhHans: "当前工作区中找不到这个人物。"
+                    )
+                case .requiresSelection:
+                    scopeQuery = preferredPersonName ?? ""
+                    isChoosingScope = true
+                    presentationDetent = .large
+                }
             }
             restoreContactProposal()
             restoreDraft(preferred: initialSeed?.suggestedObjective)
@@ -619,26 +627,40 @@ struct RelationshipAskView: View {
                !session.hasPendingPersonResearch,
                let recoverableObjective = session.pendingObjective,
                !recoverableObjective.trimmingCharacters(
-                    in: .whitespacesAndNewlines
+                   in: .whitespacesAndNewlines
                ).isEmpty {
                 pendingObjective = recoverableObjective
                 pendingScopedSend = recoverableObjective
                 draft = ""
                 isSending = true
-                relationshipRecallPhase = .finding
-                updateAskSubmissionPhase(.routingLocally)
-                startRelationshipRecall(
-                    sessionID: sessionID,
-                    effectiveObjective: recoverableObjective,
-                    originalDraft: recoverableObjective
-                )
+                if session.hasPendingUnscopedChat {
+                    relationshipRecallPhase = .replyingWithoutRelationship
+                    updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+                    performUnscopedChat(
+                        sessionID: sessionID,
+                        effectiveObjective: recoverableObjective,
+                        originalDraft: recoverableObjective
+                    )
+                } else {
+                    relationshipRecallPhase = .finding
+                    updateAskSubmissionPhase(.routingLocally)
+                    startRelationshipRecall(
+                        sessionID: sessionID,
+                        effectiveObjective: recoverableObjective,
+                        originalDraft: recoverableObjective
+                    )
+                }
             }
-            if sessionID != nil || initialSeed != nil || contactDraft != nil {
+            if sessionID != nil
+                || initialSeed != nil
+                || contactDraft != nil
+                || preferredPersonID != nil {
                 presentationDetent = .large
             }
             if sessionID == nil,
                initialSeed == nil,
-               contactDraft == nil {
+               contactDraft == nil,
+               preferredPersonID == nil {
                 await Task.yield()
                 switch initialEntryMode {
                 case .text:
@@ -781,6 +803,22 @@ struct RelationshipAskView: View {
             )
         }
         .accessibilityIdentifier("relationship-ask-sheet")
+#if DEBUG
+        .overlay(alignment: .topTrailing) {
+            if ProcessInfo.processInfo.arguments.contains(
+                "--fixture-record-ask-request-count"
+            ) {
+                Text("\(fixtureAskRequestCount)")
+                    .font(.system(size: 1))
+                    .foregroundStyle(Color.clear)
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Agent request count")
+                    .accessibilityValue("\(fixtureAskRequestCount)")
+                    .accessibilityIdentifier("ask-fixture-request-count")
+            }
+        }
+#endif
     }
 
     private var scopeBar: some View {
@@ -804,7 +842,17 @@ struct RelationshipAskView: View {
                                 appLanguage.text(
                                     isRequestingScope
                                         ? "Who is this about?"
-                                        : "Choose a relationship"
+                                        : preferredPersonName.map {
+                                            String(
+                                                format: appLanguage.text(
+                                                    "Choose a relationship for %@",
+                                                    zhHans: "为 %@ 选择一个关系"
+                                                ),
+                                                locale: appLanguage.locale,
+                                                $0
+                                            )
+                                        }
+                                        ?? "Choose a relationship"
                                 )
                             )
                                 .font(.subheadline.weight(.semibold))
@@ -851,6 +899,18 @@ struct RelationshipAskView: View {
             .accessibilityIdentifier("ask-scope-selector")
 
             if isChoosingScope {
+                if requiresPreferredScopeSelection {
+                    Text(
+                        appLanguage.text(
+                            "Choose one relationship before sending. Agent will stay inside this person’s record.",
+                            zhHans: "发送前请选择一个关系。Agent 只会读取此人物的记录。"
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ask-preferred-scope-required")
+                }
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(Color.tsMutedInk)
@@ -867,7 +927,7 @@ struct RelationshipAskView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 10)
+        .padding(.vertical, usesAccessibilityLayout ? 10 : 6)
     }
 
     @ViewBuilder
@@ -983,7 +1043,8 @@ struct RelationshipAskView: View {
     }
 
     private var scopeSelectorMinimumHeight: CGFloat {
-        selectedScope == nil ? 44 : 80
+        guard selectedScope != nil else { return 44 }
+        return usesAccessibilityLayout ? 68 : 52
     }
 
     private var usesScrollableScopeBar: Bool {
@@ -1108,32 +1169,28 @@ struct RelationshipAskView: View {
                             language: appLanguage,
                             recallPhase: relationshipRecallPhase,
                             onChooseCandidate: chooseRecallCandidate,
-                            onChangeMatch: changeRecalledRelationship
+                            onChangeMatch: changeRecalledRelationship,
+                            onContinueWithoutRelationship:
+                                continueWithoutRelationship
                         )
                         .id("ask-loading")
                     }
 
+                    if let sourceReviewNotice {
+                        Label(
+                            sourceReviewNotice,
+                            systemImage: "checkmark.shield"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 4)
+                        .accessibilityIdentifier("ask-source-review-notice")
+                    }
+
                     if let errorMessage {
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "exclamationmark.circle")
-                                .foregroundStyle(Color.tsVermilion)
-                            Text(errorMessage)
-                                .font(.caption)
-                                .foregroundStyle(Color.tsInk)
-                            Spacer(minLength: 8)
-                            if isCanonical {
-                                Button(appLanguage.text("Retry", zhHans: "重试")) {
-                                    send(draft.isEmpty ? turns.last?.objective ?? "" : draft)
-                                }
-                                .font(.caption.weight(.semibold))
-                                .accessibilityIdentifier("ask-retry")
-                            }
-                        }
-                        .padding(14)
-                        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
+                        askFailureCard(errorMessage)
                         .id("ask-error")
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("ask-error")
                     }
 
                     if let reviewPreparationError {
@@ -1255,6 +1312,83 @@ struct RelationshipAskView: View {
                 .accessibilityIdentifier("ask-preview-send-boundary")
             }
         }
+    }
+
+    private func askFailureCard(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(
+                    systemName: errorRecovery.needsSourceAttention
+                        ? "exclamationmark.shield"
+                        : "exclamationmark.circle"
+                )
+                .foregroundStyle(Color.tsVermilion)
+                .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(
+                        errorRecovery.needsSourceAttention
+                            ? appLanguage.text("Review one source to continue")
+                            : appLanguage.text("This answer did not complete")
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if isCanonical {
+                switch errorRecovery {
+                case .retry:
+                    Button(appLanguage.text("Try again")) {
+                        send(draft.isEmpty ? turns.last?.objective ?? "" : draft)
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 44, alignment: .leading)
+                    .accessibilityIdentifier("ask-retry")
+                case let .reviewSource(requirement):
+                    Button {
+                        selectedCitation = SelectedAskCitation(
+                            taskID: requirement.taskID,
+                            citation: requirement.citation
+                        )
+                    } label: {
+                        Label(
+                            appLanguage.text("Review exact source"),
+                            systemImage: "quote.bubble"
+                        )
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 44, alignment: .leading)
+                    .accessibilityIdentifier("ask-review-required-source")
+                case let .openRelationship(personID):
+                    Button {
+                        onOpenPerson(personID)
+                    } label: {
+                        Label(
+                            appLanguage.text("Open relationship sources"),
+                            systemImage: "person.text.rectangle"
+                        )
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 44, alignment: .leading)
+                    .accessibilityIdentifier("ask-open-source-relationship")
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.tsLine.opacity(0.72), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-error")
     }
 
     private var composer: some View {
@@ -1969,6 +2103,12 @@ struct RelationshipAskView: View {
             return appLanguage.text("Understanding this message…")
         }
         if hasComposerInput {
+            if requiresPreferredScopeSelection {
+                return appLanguage.text(
+                    "Choose a relationship before sending",
+                    zhHans: "发送前请选择一个关系"
+                )
+            }
             return selectedScope == nil
                 ? appLanguage.text(
                     "Send and let Agent link the relationship",
@@ -1982,7 +2122,14 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryAccessibilityHint: String {
-        if hasComposerInput { return "" }
+        if hasComposerInput {
+            return requiresPreferredScopeSelection
+                ? appLanguage.text(
+                    "Select one of this person’s visible relationships first.",
+                    zhHans: "请先选择此人物显示的一个关系。"
+                )
+                : ""
+        }
         guard voiceTranscriber != nil else { return "" }
         if voiceInput.isRecording {
             return appLanguage.text(
@@ -2097,6 +2244,9 @@ struct RelationshipAskView: View {
             && activeSessionID == nil
             && initialSeed == nil
             && contactDraft == nil
+            && preferredPersonID == nil
+            && selectedScope == nil
+            && !isChoosingScope
             && !isSending
             && !isInterpretingContact
             && !isRequestingScope
@@ -2132,26 +2282,14 @@ struct RelationshipAskView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(appLanguage.text("Close", zhHans: "关闭"))
+            .accessibilityIdentifier("ask-close")
 
             Spacer(minLength: 0)
 
-            VStack(spacing: 1) {
-                Text(
-                    selectedScope?.person.displayLabel
-                        ?? appLanguage.text("Session", zhHans: "会话")
-                )
+            Text(appLanguage.text("Agent"))
                 .font(.headline)
                 .foregroundStyle(Color.tsInk)
                 .lineLimit(1)
-
-                if let context = selectedScope?.context.displayLabel {
-                    Text(context)
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .lineLimit(1)
-                }
-            }
-            .accessibilityElement(children: .combine)
 
             Spacer(minLength: 0)
 
@@ -2161,7 +2299,7 @@ struct RelationshipAskView: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, usesAccessibilityLayout ? 2 : 6)
-        .padding(.bottom, 4)
+        .padding(.bottom, 0)
     }
 
     private var usesAccessibilityLayout: Bool {
@@ -2389,10 +2527,18 @@ struct RelationshipAskView: View {
 
     private var shouldShowScopeBar: Bool {
         pendingObjective == nil
-            && (selectedScope != nil || isRequestingScope)
+            && (selectedScope != nil || isRequestingScope || isChoosingScope)
+    }
+
+    private var requiresPreferredScopeSelection: Bool {
+        !AgentPreferredPersonScopePolicy.canSubmit(
+            preferredPersonID: preferredPersonID,
+            selectedPersonID: selectedScope?.person.id
+        )
     }
 
     private var canSendDraft: Bool {
+        guard !requiresPreferredScopeSelection else { return false }
         let isContactIntent = ConversationContactIntake.propose(trimmedDraft) != nil
         if isContactIntent, mediaDrafts.isEmpty {
             return !isSending
@@ -2410,9 +2556,12 @@ struct RelationshipAskView: View {
     }
 
     private var filteredScopes: [AskScope] {
+        let allowedScopes = preferredPersonID.map { preferredPersonID in
+            availableScopes.filter { $0.person.id == preferredPersonID }
+        } ?? availableScopes
         let needle = scopeQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !needle.isEmpty else { return availableScopes }
-        return availableScopes.filter {
+        guard !needle.isEmpty else { return allowedScopes }
+        return allowedScopes.filter {
             $0.person.displayLabel.localizedCaseInsensitiveContains(needle)
                 || $0.context.displayLabel.localizedCaseInsensitiveContains(needle)
         }
@@ -2743,6 +2892,28 @@ struct RelationshipAskView: View {
               ),
               !isSending,
               !isInterpretingContact else { return }
+        if mediaDrafts.isEmpty,
+           let localIntent = AgentLocalWorkspacePolicy.intent(for: trimmed) {
+            flushDraftPersistence()
+            performLocalWorkspaceAnswer(
+                localIntent,
+                objective: trimmed,
+                originalDraft: trimmed
+            )
+            return
+        }
+        guard !requiresPreferredScopeSelection else {
+            isChoosingScope = true
+            presentationDetent = .large
+            composerFocused = false
+            errorMessage = appLanguage.text(
+                "Choose one relationship for this person before sending.",
+                zhHans: "发送前，请为此人物选择一个关系。"
+            )
+            return
+        }
+        sourceReviewNotice = nil
+        errorRecovery = .retry
         flushDraftPersistence()
         if mediaDrafts.isEmpty,
            let deterministicProposal = ConversationContactIntake.propose(trimmed) {
@@ -2839,6 +3010,20 @@ struct RelationshipAskView: View {
             )
             return
         }
+        if mediaDrafts.isEmpty,
+           AgentUnscopedConversationPolicy.route(
+               objective: effectiveObjective
+           ) == .directConversation {
+            relationshipRecallPhase = .replyingWithoutRelationship
+            updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+            presentationDetent = .large
+            performUnscopedChat(
+                sessionID: unscopedSessionID,
+                effectiveObjective: effectiveObjective,
+                originalDraft: trimmed
+            )
+            return
+        }
         relationshipRecallPhase = .finding
         updateAskSubmissionPhase(.routingLocally)
         presentationDetent = .large
@@ -2920,11 +3105,240 @@ struct RelationshipAskView: View {
                 pendingScopedSend = nil
                 relationshipRecallPhase = .idle
                 updateAskSubmissionPhase(.idle)
-                errorMessage = askFailureMessage(error)
+                presentAskFailure(error)
             }
             isSending = false
             askOperation = nil
         }
+    }
+
+    private func performUnscopedChat(
+        sessionID: UUID,
+        effectiveObjective: String,
+        originalDraft: String
+    ) {
+        guard let idempotencyKey = sessionStore.beginUnscopedChat(
+            sessionID: sessionID,
+            objective: effectiveObjective,
+            proposedIdempotencyKey: "ios:unscoped-chat:\(UUID().uuidString.lowercased())"
+        ) else {
+            isSending = false
+            pendingObjective = nil
+            pendingScopedSend = nil
+            relationshipRecallPhase = .idle
+            updateAskSubmissionPhase(.idle)
+            draft = originalDraft
+            errorMessage = appLanguage.text(
+                "A protected conversation retry could not be saved. Your message was not sent.",
+                zhHans: "无法保存受保护的对话重试信息。你的消息尚未发送。"
+            )
+            return
+        }
+
+        if !isCanonical {
+            let response = previewUnscopedResponse(for: effectiveObjective)
+            guard sessionStore.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: effectiveObjective,
+                response: response
+            ) else {
+                isSending = false
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                draft = originalDraft
+                errorMessage = appLanguage.text(
+                    "The preview reply could not be saved.",
+                    zhHans: "无法保存预览回复。"
+                )
+                return
+            }
+            pendingObjective = nil
+            pendingScopedSend = nil
+            relationshipRecallPhase = .idle
+            updateAskSubmissionPhase(.idle)
+            sessionStore.saveGlobalDraft("")
+            isSending = false
+            return
+        }
+
+        askOperation?.cancel()
+        askOperation = Task {
+            do {
+                let response = try await workspaceStore.chatUnscoped(
+                    objective: effectiveObjective,
+                    idempotencyKey: idempotencyKey
+                )
+                try Task.checkCancellation()
+                guard activeSessionID == sessionID,
+                      pendingScopedSend == effectiveObjective else { return }
+                guard sessionStore.recordUnscopedChat(
+                    sessionID: sessionID,
+                    objective: effectiveObjective,
+                    response: response.relationshipAskProjection
+                ) else {
+                    throw PursuitWorkspaceClientError.invalidResponse
+                }
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                sessionStore.saveGlobalDraft("")
+            } catch {
+                if Task.isCancelled { return }
+                draft = originalDraft
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                presentAskFailure(error)
+            }
+            isSending = false
+            askOperation = nil
+        }
+    }
+
+    private func performLocalWorkspaceAnswer(
+        _ intent: AgentLocalWorkspaceIntent,
+        objective: String,
+        originalDraft: String
+    ) {
+        let snapshot = currentSnapshot
+        let peopleCount = snapshot.people.count
+        let relationshipCount = snapshot.people.reduce(0) {
+            $0 + $1.contexts.count
+        }
+        let title: String
+        let body: String
+        switch intent {
+        case .peopleCount:
+            title = appLanguage.text("Current workspace")
+            if appLanguage.usesSimplifiedChinese() {
+                body = "当前已同步的工作区中有 \(peopleCount) 位联系人，覆盖 \(relationshipCount) 段关系。这个结果由本机工作区索引直接计算；没有打开候选人对话，也没有调用远程模型。"
+            } else {
+                let contacts = peopleCount == 1
+                    ? "1 contact"
+                    : "\(peopleCount) contacts"
+                let relationships = relationshipCount == 1
+                    ? "1 relationship"
+                    : "\(relationshipCount) relationships"
+                body = "The synced workspace contains \(contacts) across \(relationships). This was calculated on this device from the workspace index; no candidate conversation was opened and no remote model was called."
+            }
+        }
+        let response = RelationshipAskResponse(
+            contractVersion: TalentSignalAPIContract.version,
+            taskID: UUID().uuidString.lowercased(),
+            contextManifestID: "none-unbound-conversation",
+            knowledgeSnapshotID: "local-workspace-index",
+            disposition: "answer",
+            blocks: [
+                .init(
+                    id: UUID().uuidString.lowercased(),
+                    kind: "answer",
+                    title: title,
+                    body: body,
+                    status: "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: false
+                ),
+            ],
+            createdAt: ISO8601DateFormatter().string(from: Date())
+        )
+
+        errorMessage = nil
+        errorRecovery = .retry
+        sourceReviewNotice = nil
+        draft = ""
+        composerFocused = false
+        presentationDetent = .large
+        if let selectedScope {
+            activeSessionID = sessionStore.record(
+                sessionID: activeSessionID,
+                objective: objective,
+                response: response,
+                person: selectedScope.person,
+                context: selectedScope.context
+            )
+            sessionStore.clearDraft(
+                personID: selectedScope.person.id,
+                relationshipContextID: selectedScope.context.id
+            )
+            return
+        }
+
+        let sessionID: UUID
+        if let activeSessionID,
+           sessionStore.session(id: activeSessionID)?.isUnresolvedIntent == true {
+            sessionID = activeSessionID
+        } else if let created = sessionStore.beginUnscopedSession(
+            objective: objective
+        ) {
+            sessionID = created
+            activeSessionID = created
+        } else {
+            draft = originalDraft
+            errorMessage = appLanguage.text(
+                "The on-device answer could not be protected in Sessions. Your message is still here."
+            )
+            return
+        }
+        guard sessionStore.recordUnscopedChat(
+            sessionID: sessionID,
+            objective: objective,
+            response: response
+        ) else {
+            draft = originalDraft
+            errorMessage = appLanguage.text(
+                "The on-device answer could not be protected in Sessions. Your message is still here."
+            )
+            return
+        }
+        sessionStore.saveGlobalDraft("")
+    }
+
+    private func previewUnscopedResponse(
+        for objective: String
+    ) -> RelationshipAskResponse {
+        let usesChinese = objective.range(
+            of: #"\p{Script=Han}"#,
+            options: .regularExpression
+        ) != nil
+        return RelationshipAskResponse(
+            contractVersion: "preview",
+            taskID: UUID().uuidString.lowercased(),
+            contextManifestID: "none-unbound-conversation",
+            knowledgeSnapshotID: "none-unbound-conversation",
+            disposition: "answer",
+            blocks: [
+                .init(
+                    id: UUID().uuidString.lowercased(),
+                    kind: "answer",
+                    title: usesChinese ? "Agent · 预览" : "Agent · Preview",
+                    body: usesChinese
+                        ? "你好，我在。你可以直接和我聊，或者告诉我想回顾哪段关系。"
+                        : "Hello, I’m here. You can chat directly or tell me which relationship you want to revisit.",
+                    status: "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: false
+                ),
+            ],
+            createdAt: ISO8601DateFormatter().string(from: Date())
+        )
+    }
+
+    private func continueWithoutRelationship() {
+        guard mediaDrafts.isEmpty,
+              let sessionID = activeSessionID,
+              let effectiveObjective = pendingScopedSend else { return }
+        isSending = true
+        relationshipRecallPhase = .replyingWithoutRelationship
+        updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+        performUnscopedChat(
+            sessionID: sessionID,
+            effectiveObjective: effectiveObjective,
+            originalDraft: effectiveObjective
+        )
     }
 
     private func startRelationshipRecall(
@@ -3111,6 +3525,9 @@ struct RelationshipAskView: View {
                         : mediaIDs.joined(separator: ":")
                 )
                 try await waitForFixtureAskDelayIfNeeded()
+#if DEBUG
+                fixtureAskRequestCount += 1
+#endif
                 let response = try await ask(
                     effectiveObjective,
                     scope.person.id,
@@ -3154,7 +3571,7 @@ struct RelationshipAskView: View {
                 pendingObjective = nil
                 relationshipRecallPhase = .idle
                 updateAskSubmissionPhase(.idle)
-                errorMessage = askFailureMessage(error)
+                presentAskFailure(error)
             }
             isSending = false
             askOperation = nil
@@ -3171,6 +3588,48 @@ struct RelationshipAskView: View {
         errorMessage = appLanguage.text(
             "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
         )
+    }
+
+    private func presentAskFailure(_ error: Error) {
+        if case let PursuitWorkspaceClientError.askCitationReviewRequired(
+            requirement
+        ) = error {
+            errorRecovery = .reviewSource(requirement)
+            errorMessage = appLanguage.text(
+                "One exact source has not completed its current recruiter review. Your question is still in the composer. Review the source below; a new Ask will still require a separate tap."
+            )
+            return
+        }
+        if let typed = error as? PursuitWorkspaceClientError {
+            switch typed {
+            case .askCitationReviewAuthorityMissing,
+                 .citedEvidenceUnavailable:
+                if let personID = selectedScope?.person.id {
+                    errorRecovery = .openRelationship(personID)
+                } else {
+                    errorRecovery = .retry
+                }
+                errorMessage = appLanguage.text(
+                    "This relationship contains a source that is no longer current, reviewable, or authorized. Your question is still here; inspect the relationship source before asking again."
+                )
+                return
+            case let .backend(code, _)
+                where code == "CHAT_CITED_EVIDENCE_UNAVAILABLE":
+                if let personID = selectedScope?.person.id {
+                    errorRecovery = .openRelationship(personID)
+                } else {
+                    errorRecovery = .retry
+                }
+                errorMessage = appLanguage.text(
+                    "The server found a relationship source whose current review or authorization changed. Your question is still here; inspect the relationship source before asking again."
+                )
+                return
+            default:
+                break
+            }
+        }
+        errorRecovery = .retry
+        errorMessage = askFailureMessage(error)
     }
 
     private func askFailureMessage(_ error: Error) -> String {
@@ -3838,6 +4297,72 @@ struct RelationshipAskView: View {
             decision: decision,
             reason: reason
         )
+    }
+
+    private func submitCitationDecision(
+        _ selection: SelectedAskCitation,
+        decision: String,
+        reason: String
+    ) async throws {
+        let citation = selection.citation
+        let reviewKey = reviewIdempotencyKey(
+            fragmentID: citation.id,
+            expectedReviewStatus: citation.reviewStatus,
+            authorityToken: citation.lastReviewID ?? "no-current-review",
+            reason: reason,
+            decision: decision
+        )
+        let scope = selectedScope
+        _ = try sessionStore.beginEvidenceReview(
+            idempotencyKey: reviewKey,
+            taskID: selection.taskID,
+            citation: citation,
+            personDisplayName: scope?.person.displayLabel ?? "Current person",
+            relationshipContextDisplayName: scope?.context.displayLabel
+                ?? "Current relationship",
+            expectedReviewStatus: citation.reviewStatus,
+            decision: decision,
+            reason: reason
+        )
+        reviewPreparationError = nil
+        sessionStore.markCitationStale(citation.id)
+        guard sessionStore.claimEvidenceReview(reviewKey) else { return }
+        defer { sessionStore.releaseEvidenceReview(reviewKey) }
+        do {
+            let result = try await reviewEvidence(
+                citation.id,
+                citation.reviewStatus,
+                citation.lastReviewID,
+                decision,
+                reason,
+                reviewKey
+            )
+            guard sessionStore.markEvidenceReviewApplied(
+                reviewKey,
+                result: result
+            ) else {
+                reviewPreparationError = postReviewPersistenceMessage
+                return
+            }
+            selectedCitation = nil
+            errorMessage = nil
+            errorRecovery = .retry
+            sourceReviewNotice = decision == "reviewed"
+                ? appLanguage.text(
+                    "Source reviewed. Your question is still in the composer; send it when you are ready for a fresh answer."
+                )
+                : appLanguage.text(
+                    "Source disputed. The old answer stays stale; your question remains in the composer."
+                )
+            await revalidateAndDismissUnavailableCitation()
+        } catch {
+            let isTerminal = recordEvidenceReviewFailure(
+                reviewKey,
+                error: error
+            )
+            if !isTerminal { throw error }
+            selectedCitation = nil
+        }
     }
 
     private func retryEvidenceReview(_ operation: AgentEvidenceReviewOperation) {
@@ -4839,6 +5364,7 @@ private enum RelationshipRecallPhase: Equatable {
     case finding
     case matched(AgentRelationshipRecallCandidate)
     case reading(AgentRelationshipRecallCandidate?)
+    case replyingWithoutRelationship
     case ambiguous(
         candidates: [AgentRelationshipRecallCandidate],
         possibleDuplicate: Bool
@@ -4871,6 +5397,7 @@ private struct AskPendingTurnView: View {
     let recallPhase: RelationshipRecallPhase
     let onChooseCandidate: (AgentRelationshipRecallCandidate) -> Void
     let onChangeMatch: () -> Void
+    let onContinueWithoutRelationship: () -> Void
     @State private var recallQuery = ""
 
     var body: some View {
@@ -4910,6 +5437,14 @@ private struct AskPendingTurnView: View {
                 language.text("Reading the current record…")
             )
             .accessibilityIdentifier("ask-loading")
+        case .replyingWithoutRelationship:
+            activityRow(
+                language.text(
+                    "Replying without opening a relationship…",
+                    zhHans: "正在直接回复，不会读取联系人关系…"
+                )
+            )
+            .accessibilityIdentifier("ask-unscoped-loading")
         case let .ambiguous(candidates, possibleDuplicate):
             candidateDecision(
                 candidates: candidates,
@@ -5058,6 +5593,28 @@ private struct AskPendingTurnView: View {
                 }
                 .accessibilityIdentifier("ask-recall-candidate-\(candidate.id)")
             }
+
+            if isFallback, mediaDrafts.isEmpty {
+                Button(action: onContinueWithoutRelationship) {
+                    Text(
+                        language.text(
+                            "Continue without a relationship",
+                            zhHans: "不关联联系人，继续聊天"
+                        )
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.tsInk)
+                .accessibilityHint(
+                    language.text(
+                        "Replies without reading candidate or relationship evidence",
+                        zhHans: "不会读取候选人或关系证据，直接回复"
+                    )
+                )
+                .accessibilityIdentifier("ask-continue-unscoped")
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(
@@ -5156,11 +5713,10 @@ private struct AskUserMessageBubble: View {
             .fixedSize(horizontal: fixesWidth, vertical: true)
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
-            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(Color.tsLine, lineWidth: 1)
-            }
+            .background(
+                Color.tsSurfaceMuted,
+                in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+            )
     }
 }
 
@@ -5378,8 +5934,14 @@ private struct AskTurnView: View {
 
             ForEach(turn.response.blocks) { block in
                 VStack(alignment: .leading, spacing: 9) {
+                    if let eyebrow = responseEyebrow(for: block) {
+                        Text(eyebrow)
+                            .font(.caption2.weight(.semibold))
+                            .tracking(0.7)
+                            .foregroundStyle(Color.tsMutedInk)
+                    }
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(block.title)
+                        Text(responseTitle(for: block))
                             .font(.headline)
                             .foregroundStyle(Color.tsInk)
                         Spacer(minLength: 8)
@@ -5547,6 +6109,30 @@ private struct AskTurnView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ask-response-turn")
+    }
+
+    private func responseEyebrow(
+        for block: RelationshipAskResponse.Block
+    ) -> String? {
+        if turn.response.knowledgeSnapshotID == "local-workspace-index" {
+            return language.text("On-device workspace index")
+        }
+        switch block.kind {
+        case "answer", "clarification", "question_set":
+            return language.text("Agent answer")
+        default:
+            return nil
+        }
+    }
+
+    private func responseTitle(
+        for block: RelationshipAskResponse.Block
+    ) -> String {
+        let legacyProviderPrefix = "Zhipu AI · "
+        guard block.title.hasPrefix(legacyProviderPrefix) else {
+            return block.title
+        }
+        return String(block.title.dropFirst(legacyProviderPrefix.count))
     }
 }
 
@@ -5984,6 +6570,15 @@ private struct AskEvidenceReviewHistoryView: View {
 }
 
 extension RelationshipAskResponse.Citation {
+    var needsCurrentReview: Bool {
+        reviewStatus != "reviewed"
+            || lastReviewID == nil
+            || attribution.status != "confirmed"
+            || exactExcerpt?.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).isEmpty != false
+    }
+
     func compactProvenance(in language: AppLanguage) -> String {
         let day = observedDate.map { date in
             Self.observedDateFormatter(timeZone: resolvedSourceTimeZone).string(from: date)
@@ -6052,10 +6647,15 @@ private struct AskCitationDetailView: View {
     let citation: RelationshipAskResponse.Citation
     let language: AppLanguage
     let onReject: ((String) async throws -> Void)?
+    let onReview: ((String) async throws -> Void)?
     @Environment(\.dismiss) private var dismiss
+    @State private var isReviewing = false
     @State private var isRejecting = false
+    @State private var showsReviewPrompt = false
     @State private var showsRejectPrompt = false
+    @State private var reviewReason = ""
     @State private var rejectionReason = ""
+    @State private var reviewError: String?
     @State private var rejectionError: String?
 
     var body: some View {
@@ -6107,31 +6707,59 @@ private struct AskCitationDetailView: View {
                     }
 
                     Label(
-                        language.text(
-                            "This exact governed fragment supports the Agent response.",
-                            zhHans: "这个受治理的精确片段支持了 Agent 的回答。"
-                        ),
-                        systemImage: "checkmark.shield"
+                        citation.needsCurrentReview
+                            ? language.text(
+                                "This exact fragment needs your current review before a new Agent answer may cite it."
+                            )
+                            : language.text(
+                                "This exact governed fragment supports the Agent response.",
+                                zhHans: "这个受治理的精确片段支持了 Agent 的回答。"
+                            ),
+                        systemImage: citation.needsCurrentReview
+                            ? "exclamationmark.shield"
+                            : "checkmark.shield"
                     )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
+
+                    if onReview != nil {
+                        Button {
+                            showsReviewPrompt = true
+                        } label: {
+                            Label(
+                                language.text("Review and confirm source"),
+                                systemImage: "checkmark.shield"
+                            )
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.tsInk)
+                        .disabled(isReviewing || isRejecting)
+                        .accessibilityIdentifier("ask-confirm-citation-review")
+
+                        if let reviewError {
+                            Text(reviewError)
+                                .font(.caption)
+                                .foregroundStyle(Color.tsMutedInk)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("ask-confirm-citation-review-error")
+                        }
+                    }
 
                     if onReject != nil {
                         Button {
                             showsRejectPrompt = true
                         } label: {
                             Label(
-                                language.text(
-                                    "Review this source",
-                                    zhHans: "审阅这个来源"
-                                ),
+                                language.text("Dispute this source"),
                                 systemImage: "exclamationmark.bubble"
                             )
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(isRejecting)
+                        .disabled(isReviewing || isRejecting)
                         .accessibilityIdentifier("ask-review-citation")
 
                         if let rejectionError {
@@ -6157,6 +6785,44 @@ private struct AskCitationDetailView: View {
         }
         .tint(.tsInk)
         .accessibilityIdentifier("ask-citation-detail")
+        .alert(
+            language.text("Review this source?"),
+            isPresented: $showsReviewPrompt
+        ) {
+            TextField(
+                language.text("Why is it accurate and in scope?"),
+                text: $reviewReason
+            )
+            Button(language.text("Cancel"), role: .cancel) {}
+            Button(language.text("Confirm review")) {
+                let reason = reviewReason.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+                guard let onReview, !reason.isEmpty else { return }
+                isReviewing = true
+                reviewError = nil
+                Task {
+                    do {
+                        try await onReview(reason)
+                    } catch {
+                        reviewError = (error as? LocalizedError)?.errorDescription
+                            ?? language.text("The source review was not saved.")
+                    }
+                    isReviewing = false
+                }
+            }
+            .disabled(
+                reviewReason.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ).isEmpty || isReviewing
+            )
+        } message: {
+            Text(
+                language.text(
+                    "This records a new recruiter review. It does not send the saved question or perform any external action."
+                )
+            )
+        }
         .alert(
             language.text("Dispute this source?", zhHans: "对这个来源提出异议？"),
             isPresented: $showsRejectPrompt

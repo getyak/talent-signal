@@ -103,7 +103,7 @@ function remoteAnswerBlock(answer: RemoteChatAnswerResult): ChatResponseBlock {
   return {
     id: randomUUID(),
     kind: answer.kind,
-    title: `Zhipu AI · ${answer.title}`.slice(0, 240),
+    title: answer.title.slice(0, 240),
     body: answer.body,
     status:
       answer.kind === "question_set"

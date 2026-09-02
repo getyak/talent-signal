@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "evaluation-dependency-fixture.v1",
+  "fixtureId": "dependency:confirmed-perception:r1",
+  "component": "perception",
+  "value": {
+    "speakerAttributionReviewed": true,
+    "spansInspectable": true,
+    "uncertaintyPreserved": true
+  }
+}

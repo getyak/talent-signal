@@ -1,6 +1,6 @@
 # iOS relationship library design benchmark
 
-Date: 2026-08-07
+Date: 2026-08-07; row-gesture study updated 2026-09-01
 
 ## Question
 
@@ -466,3 +466,265 @@ was written. Resume-with-context names what was preserved, where the recruiter
 stopped, and what did not happen. The bottom Agent threshold supports search,
 one-line intent, and capture, but remains draft-only until the affected
 relationship object is reviewed.
+
+## Fifth iteration: row gesture ownership
+
+### Question
+
+How should Session and People rows support swipe and long press without making
+the same horizontal drag unpredictably navigate among Today, Sessions, and
+People, and when should a revealed row return to rest?
+
+This study owns the dated evidence and implementation direction. The stable
+product rule is summarized in the canonical design system; executable behavior
+still belongs in the iOS code and tests.
+
+### Current implementation and direct evidence
+
+The conflict is structural:
+
+- the retrieval shell uses a page-style `TabView`, so the full content region
+  recognizes horizontal drag as a destination change;
+- Session rows use native `List` row `swipeActions` for `Unread` and `Remove`;
+- People rows are buttons in a `ScrollView` and have no row swipe or context
+  actions;
+- the existing paging tests prove destination swiping, but do not exercise row
+  reveal, mutual exclusion, dismissal, long press, or assistive alternatives.
+
+The owning code is
+[`RelationshipArchiveView.swift`](../../apps/ios/Sources/Features/RelationshipArchiveView.swift):
+the page container begins around line 436, Session row actions around line 1656,
+and the People `ScrollView` around line 1880. The paging-only proof is in
+[`CandidateSignalUITests.swift`](../../apps/ios/UITests/CandidateSignalUITests.swift)
+around line 369.
+
+Evidence level 1 testing on an iPhone 17 Pro Simulator running iOS 26.5 with
+Xcode 26.6 produced three outcomes:
+
+| Drag begun on a Session row | Expected | Observed |
+| --- | --- | --- |
+| Standard full left swipe | Reveal `Remove`; remain in Sessions | Navigated to People |
+| Short, fast left drag | Reveal `Remove`; remain in Sessions | Navigated to People |
+| Slower medium left drag | Reveal `Remove`; remain in Sessions | Stayed in Sessions; revealed nothing |
+
+The captured synthetic evidence is in the
+[`2026-09-01 iOS row gesture baseline`](../evaluations/2026-09-01-ios-row-gesture-research/README.md).
+The probes did not reach a stable revealed state, so they could not truthfully
+validate dismissal. This is evidence of an arbitration failure, not evidence
+that dismissal is correct or incorrect in isolation.
+
+### Primary-source judgment
+
+[Apple's gesture guidance](https://developer.apple.com/design/human-interface-guidelines/gestures)
+describes swipe as a standard way to reveal actions, dismiss views, and scroll,
+but also says gestures should be predictable, responsive, and distinct from
+other gestures. It recommends system behavior, more than one interaction path,
+and custom gestures only when necessary.
+
+The SwiftUI [`swipeActions`](https://developer.apple.com/documentation/swiftui/view/swipeactions%28edge%3Aallowsfullswipe%3Acontent%3A%29)
+API is specifically a List-row interaction, while
+[`PageTabViewStyle`](https://developer.apple.com/documentation/swiftui/pagetabviewstyle)
+is explicitly a paged scrolling container. Nesting both on the same axis gives
+two legitimate recognizers no semantic way to infer whether the recruiter meant
+"act on this row" or "leave this destination."
+
+[Apple's context-menu guidance](https://developer.apple.com/design/human-interface-guidelines/context-menus)
+supports touch-and-hold for a small set of highly relevant item actions, warns
+that the menu is hidden by default, and places destructive items last. It is a
+useful equivalent and discovery aid, not the only path to an important action.
+
+[Apple's motion guidance](https://developer.apple.com/design/human-interface-guidelines/motion)
+prefers brief, precise motion that follows the gesture, discourages repeated
+ornamental movement, and requires motion to be optional. Apple's
+[`Animate with springs`](https://developer.apple.com/videos/play/wwdc2023/10158/)
+session explains why a spring can preserve the gesture's release velocity
+without implying that every interaction should bounce.
+
+[Apple's accessibility guidance](https://developer.apple.com/design/human-interface-guidelines/accessibility)
+requires alternatives to gestures and cautions against time-boxed UI.
+SwiftUI's
+[`accessibilityAction(named:_:)`](https://developer.apple.com/documentation/swiftui/view/accessibilityaction%28named%3A_%3A%29)
+provides the VoiceOver action equivalent.
+
+### Decision: one horizontal owner at each level
+
+The selected direction is:
+
+1. **Explicit top controls own primary retrieval.** Today, Sessions, and People
+   remain stable, labeled, at least 44-point targets. Content-wide page swiping
+   is removed. The top selection changes destinations by tap, keyboard, Switch
+   Control, or VoiceOver activation.
+2. **Rows own horizontal direct manipulation.** A drag that begins on a Session
+   or People row can reveal only that row's actions. It never changes the
+   primary destination.
+3. **Vertical movement owns scrolling.** Use native `List` recognition rather
+   than app-defined angle, distance, or velocity thresholds.
+4. **Tap owns the primary row action.** Tapping a row opens the Session or
+   person. Swipe and long press accelerate secondary actions and never replace
+   the visible primary path.
+5. **Long press owns the contextual menu.** It exposes the same semantic
+   actions as swipe plus the primary `Open` action; it does not introduce a
+   more consequential hidden command.
+
+This intentionally supersedes the earlier plan-level choice to combine explicit
+top controls with content-wide paging. Tuning drag thresholds while keeping both
+horizontal owners is rejected because the direct probes already show a dead
+zone and a navigation zone, and hand speed, row height, Dynamic Type, and device
+size would keep moving that boundary.
+
+### Action vocabulary and authority
+
+Directions describe where the action surface originates, not a universal moral
+meaning. Do not add a second edge merely for symmetry.
+
+| Surface | Finger movement | Initial action | Full swipe | Authority boundary |
+| --- | --- | --- | --- | --- |
+| Session | Left, revealing trailing edge | `Remove from this device` | Disabled | Opens an exact-effect confirmation or a recoverable undo; never silently deletes protected history |
+| Session | Right, revealing leading edge | `Mark unread` or `Mark read` | Allowed only after persistence and recovery are verified | Changes only the Session's local retrieval state |
+| People | Left, revealing trailing edge | `Ask about this person` | Disabled | Opens the existing composer with visible person and relationship scope; sends nothing and changes no relationship state |
+| People | Right, revealing leading edge | None in the first slice | Not applicable | Do not invent favorite, priority, or relationship-health state to fill an edge |
+
+The People long-press menu may contain `Open person`, `Ask about this person`,
+and `Remember a moment` only when each routes into the existing governed surface
+with visible scope. `Remove person`, merge, evidence deletion, message, calendar,
+contact, ATS, CRM, and notification writes do not belong in a row shortcut.
+
+The existing Session label `Remove` is too vague for protected history and its
+current store mutation has no visible recovery. Swipe implementation must not
+make that current behavior easier to trigger. A first slice should either stage
+an exact-effect confirmation or supply a real undo that survives interruption;
+full swipe remains disabled.
+
+### Revealed-state contract
+
+Only one row action surface may be open in a container. A revealed row returns
+to rest whenever the recruiter expresses a new intent outside that action
+surface:
+
+- taps or starts a swipe on another row;
+- begins vertical scrolling;
+- taps Today, Sessions, or People, including the already-selected destination;
+- opens the menu, calendar, global composer, a sheet, or a person/Session;
+- changes search, filter, language, or accessibility layout;
+- backgrounds the app or the scene becomes inactive;
+- completes, cancels, or fails the selected row action.
+
+Do not dismiss on a timer. A passive pause is not a new intent, and timed
+dismissal creates a cognitive and motor-accessibility penalty. Tapping inside
+the revealed action surface performs or confirms that action; long press first
+returns any swiped row to rest and then presents one system context menu.
+
+This can be represented as a small interaction state machine:
+
+```text
+rest
+  -> tracking(row, edge)
+  -> revealed(row, edge)
+  -> confirming(row, action) | executing(row, action)
+  -> rest
+
+any new intent outside row/action, scene interruption, or container change
+  -> rest
+```
+
+The state is transient presentation only. It is not persisted, restored on
+launch, recorded as relationship state, or interpreted as user authorization.
+
+### Motion and feedback language
+
+- Track the finger one-to-one. Keep the action underlay stationary while the
+  row moves; do not scale, tilt, blur, parallax, or turn the row into a glass
+  card.
+- Let native row mechanics own resistance, velocity, threshold, and release
+  spring. A custom drag engine is a fallback only if the non-paged native List
+  fails the dismissal contract in executable testing.
+- Keep the action width large enough for a 44-by-44-point target and reveal its
+  symbol and text without truncating the action effect.
+- Use graphite or the existing neutral fill for read-state actions. Reserve
+  system destructive red for the revealed removal control. Vermilion continues
+  to mark consequential evidence-to-change attention, not generic swiping.
+- Use the existing restrained selection spring for the top indicator, close to
+  a 0.3-second snappy response with little or no overshoot. Change the content
+  with a brief cross-fade; a normal-motion build may add at most a subtle
+  directional offset because the destination changed by explicit selection,
+  not by a dragged page.
+- Under Reduce Motion, keep direct finger tracking but remove bounce and page
+  displacement; use an opacity-only transition of about 0.2 seconds.
+- Use the system context-menu haptic. Add no haptic for partial reveal or
+  automatic dismissal. A discrete haptic may accompany a verified reversible
+  full-swipe commit, never a pending or failed mutation.
+
+### Current-toolchain implementation direction
+
+The project currently uses Xcode 26.6 and supports iOS 16. The smallest native
+prototype is therefore:
+
+1. replace page-style primary navigation with a non-paging selection container
+   while preserving each destination's search and scroll state;
+2. express both Sessions and People as native List rows;
+3. use `swipeActions` and `contextMenu`, with the same action definitions also
+   supplied as VoiceOver accessibility actions;
+4. keep destructive Session removal staged and explicit;
+5. test native mutual exclusion and dismissal before adding app-owned gesture
+   state.
+
+Apple's current beta SwiftUI documentation also introduces a
+`swipeActionsContainer()` coordinator and a `swipeActions` overload that reports
+presentation changes. They are a future simplification after the project
+toolchain supports them and final-OS testing passes; the research does not make
+a beta API or an iOS 27-only path a release dependency.
+
+Rejected alternatives:
+
+- **Keep page swiping and tune thresholds:** preserves the failure class and
+  creates device- and velocity-dependent behavior.
+- **Custom row drag inside the pager:** adds recognition, RTL, pointer,
+  accessibility, Dynamic Type, and physics debt while the parent still owns the
+  same axis.
+- **Long press only:** avoids the conflict but makes common shortcuts hidden and
+  does not satisfy direct row manipulation.
+- **Persist the open row:** mistakes temporary presentation for user state and
+  recreates the stale reveal after relaunch.
+
+### Verification matrix for implementation
+
+The affected path cannot pass on a build or screenshot alone. Use direct
+interaction and record `pass`, `fail`, or `not_run` for each row:
+
+| Area | Required proof |
+| --- | --- |
+| Gesture ownership | Short, medium, full, slow, fast, and slightly diagonal row drags never change Today/Sessions/People; top controls still change every destination |
+| Edge semantics | Session leading/trailing and People trailing actions match their visible labels; an empty edge neither navigates nor produces false feedback |
+| Mutual exclusion | Swiping row B closes row A; no two action surfaces remain visible |
+| Dismissal | Tap outside, vertical scroll, selected and unselected top tabs, search/filter change, menu/calendar/composer/sheet, action completion/failure, background/foreground, and relaunch all return to rest |
+| Consequence | Session removal cannot full-swipe, names local deletion scope, requires confirmation or real undo, and preserves governed Person/Pursuit/evidence state |
+| Long press | System context menu contains the same allowed actions, destructive last, no sensitive custom preview, and closes an existing reveal |
+| Accessibility | VoiceOver actions perform every shortcut without swiping; Switch Control and Full Keyboard Access reach equivalents; targets are at least 44 points |
+| Motion | Normal motion tracks the finger without jank; Reduce Motion removes bounce and page displacement; no required meaning depends on animation or haptic |
+| Content | English, Simplified Chinese, 200-percent expansion, RTL, long names, AX3, and AX5 do not clip identity or action effect |
+| Devices | Small and large supported iPhones, current iOS and the iOS 16 deployment target, light/dark/increased contrast, and interruption are exercised |
+
+Add regression tests that first assert the selected top destination, then swipe
+a specific row and assert both the revealed action and the unchanged
+destination. Separate tests must reveal an action, trigger each dismissal event,
+and assert the action is no longer in the accessibility hierarchy. Retain the
+existing top-control navigation test, but replace the current content-wide
+paging test because that behavior is intentionally removed.
+
+### Mobile UX review packet
+
+- `reviewer: mobile-ux-reviewer`
+- `lens: mobile task completion, visual hierarchy, accessibility, and recovery`
+- `device/state: iPhone 17 Pro Simulator, iOS 26.5, synthetic preview, standard English`
+- `evidence: executable build with direct interaction for the conflict; code and
+  primary-source research for the unimplemented direction`
+- `confidence: observed` for the gesture conflict and `supported_inference` for
+  the proposed post-fix behavior
+- `verdict: fail` for the affected gesture path
+
+The current path scores platform interaction 1 and state completeness 1: a
+standard row swipe changes the primary destination, a slower drag can produce no
+result, People lacks parity, and the revealed-state recovery path cannot be
+reliably entered for validation. This does not re-score the rest of the mobile
+product. Release status can move to `pass_with_changes` only after the ownership,
+dismissal, consequence, and accessibility rows above have executable proof.

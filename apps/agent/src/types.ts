@@ -549,6 +549,7 @@ export interface AgentPublicResearchRunRequest {
   provider: AgentProvider;
   gateway: AgentPublicResearchGateway;
   journal: AgentPublicResearchJournal;
+  runtime?: AgentRuntimeDependencies;
   signal?: AbortSignal;
 }
 
@@ -634,6 +635,7 @@ export interface AgentPersonResearchRunRequest {
   provider: AgentProvider;
   gateway: AgentPersonResearchGateway;
   journal: AgentPersonResearchJournal;
+  runtime?: AgentRuntimeDependencies;
   providerInputParts: readonly AgentProviderInputPart[];
   signal?: AbortSignal;
 }
@@ -645,6 +647,13 @@ export interface AgentRunJournal {
   complete(receipt: AgentTerminalReceipt): Promise<AgentTerminalReceipt>;
 }
 
+export interface AgentRuntimeDependencies {
+  nowMs(): number;
+  randomUUID(): string;
+  setTimeout(callback: () => void, delayMs: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
 export interface AgentRunRequest {
   definition: AgentDefinition;
   scope: AgentRunScope;
@@ -652,6 +661,7 @@ export interface AgentRunRequest {
   provider: AgentProvider;
   gateway: AgentCapabilityGateway;
   journal: AgentRunJournal;
+  runtime?: AgentRuntimeDependencies;
   providerInputParts?: readonly AgentProviderInputPart[];
   signal?: AbortSignal;
 }

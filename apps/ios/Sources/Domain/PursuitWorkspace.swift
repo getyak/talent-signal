@@ -124,6 +124,74 @@ struct PursuitWorkspaceSnapshot: Equatable {
         proposals: [.previewProposal],
         loadedAt: Date(timeIntervalSince1970: 1_787_515_200)
     )
+
+#if DEBUG
+    static let previewMultiContextPerson: PursuitWorkspaceSnapshot = {
+        let existing = preview.people[0]
+        let secondContext = WorkspacePerson.Context(
+            id: "21000000-0000-4000-8000-000000000003",
+            displayLabel: "Portfolio advisory relationship",
+            lastActivityAt: "2026-08-22T16:00:00.000Z"
+        )
+        let multiContextPerson = WorkspacePerson(
+            id: existing.id,
+            displayLabel: existing.displayLabel,
+            contextCount: existing.contexts.count + 1,
+            captureCount: existing.captureCount,
+            confirmedIdentityCount: existing.confirmedIdentityCount,
+            lastActivityAt: existing.lastActivityAt,
+            profile: existing.profile,
+            contexts: existing.contexts + [secondContext],
+            identityMatches: existing.identityMatches
+        )
+        return PursuitWorkspaceSnapshot(
+            workspaceID: preview.workspaceID,
+            currentUserID: preview.currentUserID,
+            currentUserName: preview.currentUserName,
+            pursuits: preview.pursuits,
+            people: [multiContextPerson] + preview.people.dropFirst(),
+            proposals: preview.proposals,
+            loadedAt: preview.loadedAt
+        )
+    }()
+
+    static let previewLongPeople: PursuitWorkspaceSnapshot = {
+        let additionalPeople = (3...50).map { sequence in
+            WorkspacePerson(
+                id: String(
+                    format: "20000000-0000-4000-8000-%012d",
+                    sequence
+                ),
+                displayLabel: String(format: "Continuity person %02d", sequence),
+                contextCount: 1,
+                captureCount: sequence % 4,
+                confirmedIdentityCount: sequence % 2,
+                lastActivityAt: "2026-08-20T12:00:00.000Z",
+                profile: nil,
+                contexts: [
+                    WorkspacePerson.Context(
+                        id: String(
+                            format: "21000000-0000-4000-8000-%012d",
+                            sequence + 1_000
+                        ),
+                        displayLabel: "Continuity relationship",
+                        lastActivityAt: "2026-08-20T12:00:00.000Z"
+                    ),
+                ],
+                identityMatches: []
+            )
+        }
+        return PursuitWorkspaceSnapshot(
+            workspaceID: preview.workspaceID,
+            currentUserID: preview.currentUserID,
+            currentUserName: preview.currentUserName,
+            pursuits: preview.pursuits,
+            people: preview.people + additionalPeople,
+            proposals: preview.proposals,
+            loadedAt: preview.loadedAt
+        )
+    }()
+#endif
 }
 
 struct WorkspacePursuit: Decodable, Equatable, Identifiable {
@@ -567,7 +635,14 @@ fileprivate extension WorkspacePerson {
         captureCount: 1,
         confirmedIdentityCount: 1,
         lastActivityAt: "2026-08-23T18:00:00.000Z",
-        profile: nil,
+        profile: .init(
+            headline: "VP Product · Meridian Labs",
+            summary: "Product leader in a recruiter-authored synthetic preview.",
+            provenanceKind: "user_authored",
+            authoredByUserID: "10000000-0000-4000-8000-000000000001",
+            revision: 1,
+            updatedAt: "2026-08-23T18:00:00.000Z"
+        ),
         contexts: [
             .init(
                 id: "21000000-0000-4000-8000-000000000001",
@@ -584,7 +659,14 @@ fileprivate extension WorkspacePerson {
         captureCount: 1,
         confirmedIdentityCount: 1,
         lastActivityAt: "2026-08-23T15:00:00.000Z",
-        profile: nil,
+        profile: .init(
+            headline: "Operating Partner · Northlight Capital",
+            summary: "Board adviser in a recruiter-authored synthetic preview.",
+            provenanceKind: "user_authored",
+            authoredByUserID: "10000000-0000-4000-8000-000000000001",
+            revision: 1,
+            updatedAt: "2026-08-23T15:00:00.000Z"
+        ),
         contexts: [
             .init(
                 id: "21000000-0000-4000-8000-000000000002",

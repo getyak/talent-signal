@@ -184,6 +184,33 @@ struct AgentSessionSeed: Equatable {
     }
 }
 
+enum AgentPreferredPersonScopeResolution: Equatable {
+    case unavailable
+    case exact
+    case requiresSelection
+}
+
+enum AgentPreferredPersonScopePolicy {
+    static func resolve(matchingScopeCount: Int) -> AgentPreferredPersonScopeResolution {
+        switch matchingScopeCount {
+        case 0:
+            return .unavailable
+        case 1:
+            return .exact
+        default:
+            return .requiresSelection
+        }
+    }
+
+    static func canSubmit(
+        preferredPersonID: String?,
+        selectedPersonID: String?
+    ) -> Bool {
+        guard let preferredPersonID else { return true }
+        return selectedPersonID == preferredPersonID
+    }
+}
+
 struct AgentRelationshipRecallCandidate: Equatable, Identifiable {
     let person: WorkspacePerson
     let context: WorkspacePerson.Context
@@ -202,6 +229,72 @@ enum AgentRelationshipRecallOutcome: Equatable {
         possibleDuplicate: Bool
     )
     case unresolved(recent: [AgentRelationshipRecallCandidate])
+}
+
+enum AgentUnscopedConversationRoute: Equatable {
+    case directConversation
+    case relationshipRecall
+}
+
+enum AgentLocalWorkspaceIntent: Equatable {
+    case peopleCount
+}
+
+enum AgentLocalWorkspacePolicy {
+    static func intent(for objective: String) -> AgentLocalWorkspaceIntent? {
+        let normalized = objective
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+
+        let countSignals = [
+            "how many contacts", "contact count",
+            "number of contacts", "多少个联系人", "多少联系人",
+            "联系人数量", "有多少位联系人",
+        ]
+        return countSignals.contains(where: normalized.contains)
+            ? .peopleCount
+            : nil
+    }
+}
+
+enum AgentUnscopedConversationPolicy {
+    static func route(objective: String) -> AgentUnscopedConversationRoute {
+        let normalized = objective
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                locale: Locale(identifier: "en_US_POSIX")
+            )
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return .relationshipRecall }
+
+        let relationshipSignals = [
+            "relationship", "candidate", "client", "pursuit", "follow up",
+            "follow-up", "last conversation", "next step", "what changed",
+            "联系人", "候选人", "客户", "关系", "跟进", "上次", "进展",
+            "下一步", "变化", "这个人",
+        ]
+        if relationshipSignals.contains(where: normalized.contains) {
+            return .relationshipRecall
+        }
+
+        let conversationalPrefixes = [
+            "你好", "您好", "嗨", "哈喽", "hello", "hi", "hey",
+            "早上好", "下午好", "晚上好", "谢谢", "多谢", "thanks",
+            "thank you", "再见", "拜拜", "bye", "你是谁", "你能做什么",
+            "怎么用", "help", "what can you do", "how can you help",
+            "聊聊", "随便聊", "just chat",
+        ]
+        if conversationalPrefixes.contains(where: normalized.hasPrefix) {
+            return .directConversation
+        }
+        return .relationshipRecall
+    }
 }
 
 enum AgentRelationshipRecallPolicy {
@@ -411,6 +504,7 @@ struct AgentSession: Identifiable, Equatable {
     var turns: [AgentSessionTurn]
     var contactReceipts: [AgentContactReceipt]
     var pendingObjective: String? = nil
+    var pendingUnscopedChatIdempotencyKey: String? = nil
     var pendingPersonResearchIdempotencyKey: String? = nil
     var pendingPersonResearchRequestIdentity: String? = nil
     var updatedAt: Date
@@ -435,6 +529,37 @@ struct AgentSession: Identifiable, Equatable {
     var hasPendingPersonResearch: Bool {
         pendingPersonResearchIdempotencyKey != nil
             && pendingPersonResearchRequestIdentity != nil
+    }
+
+    var hasPendingUnscopedChat: Bool {
+        pendingUnscopedChatIdempotencyKey != nil
+    }
+
+    var retrievalAttention: AgentSessionRetrievalAttention? {
+        if let pendingObjective,
+           !pendingObjective.trimmingCharacters(
+                in: .whitespacesAndNewlines
+           ).isEmpty {
+            return .waitingToContinue
+        }
+
+        let latestTurn = turns.max { $0.createdAt < $1.createdAt }
+        let latestReceipt = contactReceipts.max { $0.createdAt < $1.createdAt }
+        if let latestReceipt,
+           latestTurn.map({ latestReceipt.createdAt >= $0.createdAt }) ?? true {
+            if latestReceipt.requiresRefresh { return .refreshNeeded }
+            if latestReceipt.outcome == .identityReview { return .needsJudgment }
+            return nil
+        }
+
+        if let latestTurn {
+            if latestTurn.requiresRefresh { return .refreshNeeded }
+            if latestTurn.response.blocks.contains(where: \.requiresUserDecision) {
+                return .needsJudgment
+            }
+        }
+
+        return isIdentityReview ? .needsJudgment : nil
     }
 
     var latestPreview: String {
@@ -487,11 +612,17 @@ struct AgentSession: Identifiable, Equatable {
 
     func displayContextLabel(in language: AppLanguage) -> String {
         if isUnresolvedIntent {
-            return turns.contains { turn in
+            if turns.contains(where: { turn in
                 turn.response.blocks.contains { $0.kind == "person_research" }
+            }) {
+                return language.text("Public profile research")
             }
-                ? language.text("Public profile research")
-                : language.text("Finding relationship")
+            if turns.contains(where: {
+                $0.response.contextManifestID == "none-unbound-conversation"
+            }) {
+                return language.text("Agent conversation", zhHans: "Agent 对话")
+            }
+            return language.text("Finding relationship")
         }
         return isIdentityReview
             ? language.text("Identity review")
@@ -507,6 +638,51 @@ struct AgentSession: Identifiable, Equatable {
         }
         return latestReceipt.compactPreview(in: language)
     }
+
+    func retrievalSubtitle(in language: AppLanguage) -> String {
+        let latestTurn = turns.max { $0.createdAt < $1.createdAt }
+        let latestReceipt = contactReceipts.max { $0.createdAt < $1.createdAt }
+        if let latestReceipt,
+           latestTurn.map({ latestReceipt.createdAt >= $0.createdAt }) ?? true {
+            let result: String
+            switch latestReceipt.outcome {
+            case .createdPerson:
+                result = language.text("Contact created")
+            case .matchedExisting:
+                result = language.text("Contact updated")
+            case .identityReview:
+                result = language.text("Identity needs review")
+            }
+            return latestReceipt.requiresRefresh
+                ? "\(result) · \(language.text("Refresh needed"))"
+                : result
+        }
+
+        if let pendingObjective,
+           !pendingObjective.trimmingCharacters(
+                in: .whitespacesAndNewlines
+           ).isEmpty {
+            return "\(personDisplayLabel) · \(language.text("Waiting to continue"))"
+        }
+
+        if latestTurn?.requiresRefresh == true {
+            return "\(personDisplayLabel) · \(language.text("Refresh needed"))"
+        }
+
+        if isIdentityReview {
+            return language.text("Identity needs review")
+        }
+        if isUnresolvedIntent {
+            return language.text("No person linked")
+        }
+        return personDisplayLabel
+    }
+}
+
+enum AgentSessionRetrievalAttention: Equatable {
+    case needsJudgment
+    case waitingToContinue
+    case refreshNeeded
 }
 
 struct AgentSessionValidationTarget: Equatable {
@@ -687,6 +863,7 @@ private struct PersistedAgentSession: Codable {
     let turns: [PersistedAgentSessionTurn]
     let contactReceipts: [PersistedAgentContactReceipt]?
     let pendingObjective: String?
+    let pendingUnscopedChatIdempotencyKey: String?
     let pendingPersonResearchIdempotencyKey: String?
     let pendingPersonResearchRequestIdentity: String?
     let updatedAt: Date
@@ -706,6 +883,7 @@ private struct PersistedAgentSession: Codable {
         turns = value.turns.map(PersistedAgentSessionTurn.init)
         contactReceipts = value.contactReceipts.map(PersistedAgentContactReceipt.init)
         pendingObjective = value.pendingObjective
+        pendingUnscopedChatIdempotencyKey = value.pendingUnscopedChatIdempotencyKey
         pendingPersonResearchIdempotencyKey = value.pendingPersonResearchIdempotencyKey
         pendingPersonResearchRequestIdentity = value.pendingPersonResearchRequestIdentity
         updatedAt = value.updatedAt
@@ -742,6 +920,7 @@ private struct PersistedAgentSession: Codable {
             turns: turns.map(\.value),
             contactReceipts: (contactReceipts ?? []).map(\.value),
             pendingObjective: pendingObjective,
+            pendingUnscopedChatIdempotencyKey: pendingUnscopedChatIdempotencyKey,
             pendingPersonResearchIdempotencyKey: pendingPersonResearchIdempotencyKey,
             pendingPersonResearchRequestIdentity: pendingPersonResearchRequestIdentity,
             updatedAt: updatedAt,
@@ -829,6 +1008,7 @@ private struct PersistedRelationshipAskResponse: Codable {
     let knowledgeSnapshotID: String
     let disposition: String
     let unboundPersonResearchBlocks: [RelationshipAskResponse.Block]?
+    let unboundConversationBlocks: [RelationshipAskResponse.Block]?
     let media: [ChatMediaAsset]?
     let createdAt: String
 
@@ -842,6 +1022,10 @@ private struct PersistedRelationshipAskResponse: Codable {
             == "none-unbound-person-research"
             ? value.blocks
             : nil
+        unboundConversationBlocks = value.contextManifestID
+            == "none-unbound-conversation"
+            ? value.blocks
+            : nil
         media = value.media
         createdAt = value.createdAt
     }
@@ -853,7 +1037,7 @@ private struct PersistedRelationshipAskResponse: Codable {
             contextManifestID: contextManifestID,
             knowledgeSnapshotID: knowledgeSnapshotID,
             disposition: disposition,
-            blocks: unboundPersonResearchBlocks ?? [
+            blocks: unboundPersonResearchBlocks ?? unboundConversationBlocks ?? [
                 .init(
                     id: "restored-\(taskID)",
                     kind: "continuity",
@@ -1015,8 +1199,37 @@ final class AgentSessionStore: ObservableObject {
         }
         let prior = storedSessions[index]
         storedSessions[index].pendingObjective = objective
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
         storedSessions[index].pendingPersonResearchIdempotencyKey = proposedIdempotencyKey
         storedSessions[index].pendingPersonResearchRequestIdentity = requestIdentity
+        storedSessions[index].updatedAt = now()
+        guard persist() else {
+            storedSessions[index] = prior
+            scheduleNextExpiration()
+            return nil
+        }
+        return proposedIdempotencyKey
+    }
+
+    func beginUnscopedChat(
+        sessionID: UUID,
+        objective: String,
+        proposedIdempotencyKey: String
+    ) -> String? {
+        _ = pruneExpiredState()
+        guard let index = storedSessions.firstIndex(where: {
+            $0.id == sessionID && $0.isUnresolvedIntent
+        }) else { return nil }
+        if storedSessions[index].pendingObjective == objective,
+           let pending = storedSessions[index]
+                .pendingUnscopedChatIdempotencyKey {
+            return pending
+        }
+        let prior = storedSessions[index]
+        storedSessions[index].pendingObjective = objective
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = proposedIdempotencyKey
+        storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+        storedSessions[index].pendingPersonResearchRequestIdentity = nil
         storedSessions[index].updatedAt = now()
         guard persist() else {
             storedSessions[index] = prior
@@ -1033,6 +1246,35 @@ final class AgentSessionStore: ObservableObject {
         response: RelationshipAskResponse,
         createdAt: Date = Date()
     ) -> Bool {
+        recordUnscopedResponse(
+            sessionID: sessionID,
+            objective: objective,
+            response: response,
+            createdAt: createdAt
+        )
+    }
+
+    @discardableResult
+    func recordUnscopedChat(
+        sessionID: UUID,
+        objective: String,
+        response: RelationshipAskResponse,
+        createdAt: Date = Date()
+    ) -> Bool {
+        recordUnscopedResponse(
+            sessionID: sessionID,
+            objective: objective,
+            response: response,
+            createdAt: createdAt
+        )
+    }
+
+    private func recordUnscopedResponse(
+        sessionID: UUID,
+        objective: String,
+        response: RelationshipAskResponse,
+        createdAt: Date
+    ) -> Bool {
         _ = pruneExpiredState()
         guard let index = storedSessions.firstIndex(where: {
             $0.id == sessionID && $0.isUnresolvedIntent
@@ -1048,6 +1290,7 @@ final class AgentSessionStore: ObservableObject {
             )
         )
         storedSessions[index].pendingObjective = nil
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
         storedSessions[index].pendingPersonResearchIdempotencyKey = nil
         storedSessions[index].pendingPersonResearchRequestIdentity = nil
         storedSessions[index].updatedAt = createdAt
@@ -1074,7 +1317,9 @@ final class AgentSessionStore: ObservableObject {
     ) -> Bool {
         _ = pruneExpiredState()
         guard let index = storedSessions.firstIndex(where: { $0.id == id }),
-              storedSessions[index].turns.isEmpty,
+              storedSessions[index].turns.allSatisfy({
+                  $0.response.contextManifestID == "none-unbound-conversation"
+              }),
               storedSessions[index].contactReceipts.isEmpty else {
             return false
         }
@@ -1087,6 +1332,7 @@ final class AgentSessionStore: ObservableObject {
         )
         storedSessions[index].pendingPersonResearchIdempotencyKey = nil
         storedSessions[index].pendingPersonResearchRequestIdentity = nil
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
         storedSessions[index].updatedAt = now()
         guard persist() else {
             storedSessions[index] = prior
@@ -1135,6 +1381,7 @@ final class AgentSessionStore: ObservableObject {
                 )
             }
             storedSessions[index].pendingObjective = nil
+            storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
             storedSessions[index].pendingPersonResearchIdempotencyKey = nil
             storedSessions[index].pendingPersonResearchRequestIdentity = nil
             storedSessions[index].turns.append(turn)
@@ -1274,10 +1521,20 @@ final class AgentSessionStore: ObservableObject {
         persist()
     }
 
-    func delete(_ id: UUID) {
+    @discardableResult
+    func delete(_ id: UUID) -> Bool {
         _ = pruneExpiredState()
+        guard storedSessions.contains(where: { $0.id == id }) else {
+            return true
+        }
+        let priorSessions = storedSessions
         storedSessions.removeAll { $0.id == id }
-        persist()
+        guard persist() else {
+            storedSessions = priorSessions
+            scheduleNextExpiration()
+            return false
+        }
+        return true
     }
 
     func draft(personID: String, relationshipContextID: String) -> String {
@@ -2057,7 +2314,10 @@ private extension JSONDecoder {
 }
 
 extension AgentSessionStore {
-    static func preview(snapshot: PursuitWorkspaceSnapshot) -> AgentSessionStore {
+    static func preview(
+        snapshot: PursuitWorkspaceSnapshot,
+        sessionCount: Int = 2
+    ) -> AgentSessionStore {
         let people = snapshot.people
         guard let first = people.first,
               let firstContext = first.contexts.first else {
@@ -2153,7 +2413,27 @@ extension AgentSessionStore {
             updatedAt: now.addingTimeInterval(-7_200),
             isUnread: false
         )
-        return AgentSessionStore(sessions: [primary, secondary])
+        var sessions = [primary, secondary]
+        if sessionCount > sessions.count {
+            sessions.append(contentsOf: (sessions.count..<sessionCount).map { index in
+                let sequence = index + 1
+                return AgentSession(
+                    id: UUID(
+                        uuidString: String(
+                            format: "90000000-0000-4000-8000-%012d",
+                            sequence
+                        )
+                    )!,
+                    scope: secondary.scope,
+                    title: String(format: "Continuity session %02d", sequence),
+                    turns: [],
+                    contactReceipts: [],
+                    updatedAt: now.addingTimeInterval(Double(-3_600 * sequence)),
+                    isUnread: sequence.isMultiple(of: 3)
+                )
+            })
+        }
+        return AgentSessionStore(sessions: sessions)
     }
 }
 
@@ -2317,4 +2597,149 @@ struct WorkspacePersonRole: Equatable, Identifiable {
     let evidenceState: WorkspaceEvidenceState
 
     var id: String { "\(pursuitID)-\(roleID)" }
+}
+
+struct WorkspacePersonRetrievalMetadata: Equatable {
+    let headline: String?
+    let roleType: String?
+    let pursuitTitle: String?
+    let lastActivityAt: Date?
+}
+
+enum WorkspacePeopleScope: Equatable, Identifiable {
+    case all
+    case pursuit(id: String, title: String)
+    case unassigned
+
+    var id: String {
+        switch self {
+        case .all:
+            return "all"
+        case let .pursuit(id, _):
+            return "pursuit-\(id)"
+        case .unassigned:
+            return "unassigned"
+        }
+    }
+
+    func displayLabel(in language: AppLanguage) -> String {
+        switch self {
+        case .all:
+            return language.text("All people")
+        case let .pursuit(_, title):
+            return title
+        case .unassigned:
+            return language.text("Not in a Pursuit")
+        }
+    }
+}
+
+enum WorkspacePeopleRetrievalPolicy {
+    static func filteredPeople(
+        in snapshot: PursuitWorkspaceSnapshot,
+        query: String,
+        scope: WorkspacePeopleScope
+    ) -> [WorkspacePerson] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedQuery = normalize(trimmedQuery)
+        let assignedPersonIDs = Set(
+            snapshot.pursuits.flatMap { pursuit in
+                pursuit.personRoles.map(\.subjectRef.id)
+            }
+        )
+
+        return snapshot.people.filter { person in
+            let isInScope: Bool
+            switch scope {
+            case .all:
+                isInScope = true
+            case let .pursuit(id, _):
+                isInScope = snapshot.pursuit(id: id)?.personRoles.contains {
+                    $0.subjectRef.id == person.id
+                } == true
+            case .unassigned:
+                isInScope = !assignedPersonIDs.contains(person.id)
+            }
+
+            guard isInScope else { return false }
+            guard !normalizedQuery.isEmpty else { return true }
+
+            let roleSearchValues = snapshot.pursuits.flatMap { pursuit in
+                pursuit.personRoles
+                    .filter { $0.subjectRef.id == person.id }
+                    .flatMap {
+                        [
+                            pursuit.title,
+                            $0.roleType.replacingOccurrences(of: "_", with: " "),
+                        ]
+                    }
+            }
+            let searchableValues = [
+                person.displayLabel,
+                person.profile?.headline,
+            ].compactMap { $0 }
+                + person.contexts.map(\.displayLabel)
+                + roleSearchValues
+            return searchableValues.contains {
+                normalize($0).contains(normalizedQuery)
+            }
+        }
+    }
+
+    static func metadata(
+        for person: WorkspacePerson,
+        in snapshot: PursuitWorkspaceSnapshot,
+        scope: WorkspacePeopleScope
+    ) -> WorkspacePersonRetrievalMetadata {
+        let matches: [(pursuit: WorkspacePursuit, role: WorkspaceRole)] =
+            snapshot.pursuits.flatMap { pursuit in
+                pursuit.personRoles
+                    .filter { $0.subjectRef.id == person.id }
+                    .map { (pursuit, $0) }
+            }
+        let scopedMatches: [(pursuit: WorkspacePursuit, role: WorkspaceRole)]
+        switch scope {
+        case let .pursuit(id, _):
+            scopedMatches = matches.filter { $0.pursuit.id == id }
+        case .all, .unassigned:
+            scopedMatches = matches
+        }
+        let selectedMatch = scopedMatches.first(where: {
+            $0.role.status == "active"
+        }) ?? scopedMatches.first
+        let headline = person.profile?.headline.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+
+        return WorkspacePersonRetrievalMetadata(
+            headline: headline?.isEmpty == false ? headline : nil,
+            roleType: selectedMatch?.role.roleType,
+            pursuitTitle: selectedMatch?.pursuit.title,
+            lastActivityAt: parseDate(person.lastActivityAt)
+        )
+    }
+
+    static func hasUnassignedPeople(in snapshot: PursuitWorkspaceSnapshot) -> Bool {
+        let assignedPersonIDs = Set(
+            snapshot.pursuits.flatMap { pursuit in
+                pursuit.personRoles.map(\.subjectRef.id)
+            }
+        )
+        return snapshot.people.contains { !assignedPersonIDs.contains($0.id) }
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let standard = ISO8601DateFormatter()
+        standard.formatOptions = [.withInternetDateTime]
+        return fractional.date(from: value) ?? standard.date(from: value)
+    }
 }

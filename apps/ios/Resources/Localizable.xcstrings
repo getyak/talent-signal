@@ -4,6 +4,75 @@
     "ADD TO MESSAGE" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到消息" } } }
     },
+    "Agent" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent" } } }
+    },
+    "Agent answer" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 回答" } } }
+    },
+    "Confirm review" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认审阅" } } }
+    },
+    "Current workspace" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前工作区" } } }
+    },
+    "Dispute this source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "对这个来源提出异议" } } }
+    },
+    "On-device workspace index" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本机工作区索引" } } }
+    },
+    "One exact source has not completed its current recruiter review. Your question is still in the composer. Review the source below; a new Ask will still require a separate tap." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有一条精确来源尚未完成当前招聘顾问审阅。你的问题仍保留在输入框；请先审阅下方来源，之后仍需由你再次点击发送。" } } }
+    },
+    "Open relationship sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看关系来源" } } }
+    },
+    "Review and confirm source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅并确认来源" } } }
+    },
+    "Review exact source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅精确来源" } } }
+    },
+    "Review one source to continue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先审阅一条来源，再继续" } } }
+    },
+    "Review this source?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅这个来源？" } } }
+    },
+    "Source disputed. The old answer stays stale; your question remains in the composer." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源已标记为有异议。旧回答保持过期；你的问题仍在输入框中。" } } }
+    },
+    "Source reviewed. Your question is still in the composer; send it when you are ready for a fresh answer." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源已审阅。你的问题仍在输入框中；准备好后再次发送即可获取新回答。" } } }
+    },
+    "The on-device answer could not be protected in Sessions. Your message is still here." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地回答无法安全保存到会话中，你的消息仍保留在输入框。" } } }
+    },
+    "The server found a relationship source whose current review or authorization changed. Your question is still here; inspect the relationship source before asking again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务端发现一条关系来源的审阅或授权状态已经变化。你的问题仍保留；请先检查关系来源，再重新提问。" } } }
+    },
+    "The source review was not saved." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来源审阅未能保存。" } } }
+    },
+    "This answer did not complete" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这次回答没有完成" } } }
+    },
+    "This exact fragment needs your current review before a new Agent answer may cite it." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这条精确片段需要你完成当前审阅，新的 Agent 回答才能引用它。" } } }
+    },
+    "This records a new recruiter review. It does not send the saved question or perform any external action." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会记录一次新的招聘顾问审阅，不会自动发送已保留的问题，也不会执行任何外部操作。" } } }
+    },
+    "This relationship contains a source that is no longer current, reviewable, or authorized. Your question is still here; inspect the relationship source before asking again." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这段关系中有一条来源已过期、尚不可审阅或不再具备授权。你的问题仍保留；请先检查关系来源，再重新提问。" } } }
+    },
+    "Try again" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新提问" } } }
+    },
+    "Why is it accurate and in scope?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为什么它准确且属于当前范围？" } } }
+    },
     "A protected Session could not be created. Your message was not sent." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法创建受保护的会话。你的消息尚未发送。" } } }
     },
@@ -1063,11 +1132,17 @@
     "Open Agent lifecycle demo" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Agent 生命周期演示" } } }
     },
+    "Open Synthetic Research Showcase" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开合成研究演示" } } }
+    },
     "Open the latest pending Proposal for a human decision." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开最新的待处理 Proposal，由人作出决定。" } } }
     },
     "Return to one stable Pursuit without recording a change." : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回一个稳定的 Pursuit，不记录任何变更。" } } }
+    },
+    "Run the deterministic approved-page ActivityKit handoff and exact review deep link." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行确定性的已批准页面 ActivityKit 交接与精确审核深层链接。" } } }
     },
     "Review Signal" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "审阅 Signal" } } }
@@ -1504,6 +1579,9 @@
     "Contact created" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人已创建" } } }
     },
+    "Contact updated" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人已更新" } } }
+    },
     "Contact tool" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "联系人工具" } } }
     },
@@ -1569,6 +1647,42 @@
     },
     "Identity needs review" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "身份需要审阅" } } }
+    },
+    "No person linked" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未关联人物" } } }
+    },
+    "All people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部人物" } } }
+    },
+    "Clear search and filter" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清除搜索和筛选" } } }
+    },
+    "Filter people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "筛选人物" } } }
+    },
+    "No matching people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有匹配的人物" } } }
+    },
+    "Needs judgment" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待判断" } } }
+    },
+    "Not in a Pursuit" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未加入目标空间" } } }
+    },
+    "Pursuits" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标空间" } } }
+    },
+    "Search people" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索人物" } } }
+    },
+    "Unread" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未读" } } }
+    },
+    "Refresh needed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需刷新" } } }
+    },
+    "Waiting to continue" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待继续" } } }
     },
     "Included in the saved source" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已包含在保存的来源中" } } }
@@ -2442,6 +2556,81 @@
     },
     "Unconfirmed public sources" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未确认的公开来源" } } }
+    },
+    "Needs your decision · %d" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要你决定 · %d" } } }
+    },
+    "%d more to handle later" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还有 %d 项稍后处理" } } }
+    },
+    "Contacts" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统联系人" } } }
+    },
+    "Add Maya Ortiz?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加 Maya Ortiz？" } } }
+    },
+    "Create new contact" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建联系人" } } }
+    },
+    "Conversation evidence · 1" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "对话证据 1 条" } } }
+    },
+    "Add a video call with Alex Chen?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加与 Alex Chen 的视频通话？" } } }
+    },
+    "Tomorrow 15:00–15:30" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "明天 15:00–15:30" } } }
+    },
+    "Singapore time · Apple Calendar" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新加坡时间 · 写入 Apple 日历" } } }
+    },
+    "Tomorrow at 3pm Singapore time works for a 30-minute video call." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "明天下午 3 点（新加坡时间）可以进行 30 分钟视频通话。" } } }
+    },
+    "Add" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加" } } }
+    },
+    "Approve this %@ proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "批准此%@提议" } } }
+    },
+    "Records a preview decision only. No external write occurs." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅记录预览判决，不会发生外部写入。" } } }
+    },
+    "Preview decision recorded" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览判决已记录" } } }
+    },
+    "Proposal dismissed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提议已忽略" } } }
+    },
+    "No write was made to %@." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未写入%@。" } } }
+    },
+    "Undo" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "撤销" } } }
+    },
+    "Proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提议" } } }
+    },
+    "Decision question" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "判决问题" } } }
+    },
+    "Exact effect" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "精确效果" } } }
+    },
+    "Primary detail" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主要信息" } } }
+    },
+    "Editing changes this proposal only. The preview cannot write to an external app." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑只会修改这条提议；预览不会写入外部应用。" } } }
+    },
+    "Edit proposal" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑提议" } } }
+    },
+    "Save" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存" } } }
+    },
+    "Singapore time" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新加坡时间" } } }
     }
   },
   "version" : "1.0"

@@ -13,6 +13,8 @@ settings:
     DEVELOPMENT_TEAM: 6RG2F8YY59
     MARKETING_VERSION: 0.1.0
     SWIFT_VERSION: 5.0
+    "SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos27.*]": "$(inherited) TS_IOS27_SDK"
+    "SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator27.*]": "$(inherited) TS_IOS27_SDK"
 
 targets:
   TalentSignal:
@@ -81,7 +83,9 @@ targets:
       - path: Shared/SharedCaptureEnvelope.swift
       - path: Shared/SignalRecordingActivity.swift
       - path: Shared/AgentWorkActivity.swift
+      - path: Shared/ResearchActivity.swift
       - path: Sources/App/AgentWorkDeepLink.swift
+      - path: Sources/App/ResearchDeepLink.swift
       - path: Resources/Localizable.xcstrings
         buildPhase: resources
     settings:

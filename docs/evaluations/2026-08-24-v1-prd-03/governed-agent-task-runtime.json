@@ -9,7 +9,7 @@
     "grounded_non_canonical_artifact": "pass",
     "public_event_payload_minimization": "pass",
     "cross_workspace_read": "not_found",
-    "source_deletion_propagation": "stale_and_unavailable",
+    "source_deletion_propagation": "redacted_and_no_current_authority",
     "operational_proposal_normalization": "pass",
     "waiting_run_releases_lease": "suspended",
     "correlated_direct_review": "denied",
@@ -18,7 +18,7 @@
     "external_effects": []
   },
   "task": {
-    "id": "1fd48a27-a416-4a78-8403-f89ed5195359",
+    "id": "55a0fdf1-7ca7-4650-8640-01742dc97528",
     "status": "no_action",
     "revision": 2,
     "event_count": 6,

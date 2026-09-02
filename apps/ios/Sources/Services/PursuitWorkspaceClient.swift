@@ -285,6 +285,10 @@ protocol PursuitWorkspaceServing {
         idempotencyKey: String,
         mediaIDs: [String]
     ) async throws -> RelationshipAskResponse
+    func chatUnscoped(
+        objective: String,
+        idempotencyKey: String
+    ) async throws -> UnscopedChatTaskResponse
     func researchPerson(
         objective: String,
         imageData: Data,
@@ -383,6 +387,13 @@ extension PursuitWorkspaceServing {
         mediaType: String,
         idempotencyKey: String
     ) async throws -> PersonResearchTaskResponse {
+        throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func chatUnscoped(
+        objective: String,
+        idempotencyKey: String
+    ) async throws -> UnscopedChatTaskResponse {
         throw PursuitWorkspaceClientError.askUnavailable
     }
 
@@ -803,6 +814,38 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         )
     }
 
+    func chatUnscoped(
+        objective: String,
+        idempotencyKey: String
+    ) async throws -> UnscopedChatTaskResponse {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
+            throw PursuitWorkspaceClientError.loopbackOnly
+        }
+        let login = try await loginIfNeeded()
+        let response: UnscopedChatTaskResponse = try await post(
+            path: "v1/chat/unscoped-tasks",
+            token: login.accessToken,
+            body: UnscopedChatTaskBody(
+                idempotencyKey: idempotencyKey,
+                objective: objective
+            )
+        )
+        guard response.contractVersion == TalentSignalAPIContract.version,
+              UUID(uuidString: response.taskID) != nil,
+              ["answer", "clarify"].contains(response.disposition),
+              response.externalEffects.isEmpty,
+              response.blocks.count == 1,
+              response.blocks.allSatisfy({ block in
+                  ["answer", "clarification"].contains(block.kind)
+                      && block.citationDependencyIDs.isEmpty
+                      && block.targetRef == nil
+                      && (block.publicSources ?? []).isEmpty
+              }) else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+        return response
+    }
+
     func researchPerson(
         objective: String,
         imageData: Data,
@@ -1210,6 +1253,11 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
     }
 }
 
+struct AskCitationReviewRequirement: Equatable {
+    let taskID: String
+    let citation: RelationshipAskResponse.Citation
+}
+
 enum PursuitWorkspaceClientError: LocalizedError, Equatable {
     case loopbackOnly
     case loginFailed
@@ -1220,6 +1268,7 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
     case askReadbackEnvelopeMismatch
     case askCitationBindingMismatch
     case askCitationReviewAuthorityMissing
+    case askCitationReviewRequired(AskCitationReviewRequirement)
     case citedEvidenceUnavailable
     case personResearchReceiptMismatch
     case actionCompletionUnavailable
@@ -1249,7 +1298,8 @@ enum PursuitWorkspaceClientError: LocalizedError, Equatable {
             return "Ask stopped because the task readback did not match the selected person, context, and workspace."
         case .askCitationBindingMismatch:
             return "Ask stopped because a cited source was not bound to the selected person and context."
-        case .askCitationReviewAuthorityMissing:
+        case .askCitationReviewAuthorityMissing,
+             .askCitationReviewRequired(_):
             return "Ask stopped because a cited source needs a current recruiter review before it can be used."
         case .citedEvidenceUnavailable:
             return "Ask stopped because one cited source is unavailable or outside its current authorization."
@@ -1598,6 +1648,37 @@ struct PersonResearchTaskResponse: Decodable, Equatable, Identifiable {
     }
 }
 
+struct UnscopedChatTaskResponse: Decodable, Equatable, Identifiable {
+    let contractVersion: String
+    let taskID: String
+    let disposition: String
+    let blocks: [RelationshipAskResponse.Block]
+    let externalEffects: [String]
+    let createdAt: String
+
+    var id: String { taskID }
+
+    var relationshipAskProjection: RelationshipAskResponse {
+        RelationshipAskResponse(
+            contractVersion: contractVersion,
+            taskID: taskID,
+            contextManifestID: "none-unbound-conversation",
+            knowledgeSnapshotID: "none-unbound-conversation",
+            disposition: disposition,
+            blocks: blocks,
+            createdAt: createdAt
+        )
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case disposition, blocks
+        case contractVersion = "contract_version"
+        case taskID = "task_id"
+        case externalEffects = "external_effects"
+        case createdAt = "created_at"
+    }
+}
+
 struct RelationshipAskReadback: Decodable, Equatable {
     let contractVersion: String
     let accountID: String
@@ -1661,6 +1742,25 @@ struct RelationshipAskReadback: Decodable, Equatable {
         }) else {
             throw PursuitWorkspaceClientError.askCitationBindingMismatch
         }
+        let citationNeedingReview = citations.first { citation in
+            citedIDs.contains(citation.id)
+                && (
+                    citation.reviewStatus != "reviewed"
+                        || citation.lastReviewID == nil
+                        || citation.attribution.status != "confirmed"
+                        || citation.exactExcerpt?.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty != false
+                )
+        }
+        if let citationNeedingReview {
+            throw PursuitWorkspaceClientError.askCitationReviewRequired(
+                AskCitationReviewRequirement(
+                    taskID: response.taskID,
+                    citation: citationNeedingReview
+                )
+            )
+        }
         guard citedIDs.allSatisfy({ id in
             guard let citation = detailsByID[id] else { return false }
             return citation.reviewStatus == "reviewed"
@@ -1706,6 +1806,16 @@ private struct RelationshipAskBody: Encodable {
         case personID = "person_id"
         case relationshipContextID = "relationship_context_id"
         case mediaIDs = "media_ids"
+    }
+}
+
+private struct UnscopedChatTaskBody: Encodable {
+    let idempotencyKey: String
+    let objective: String
+
+    enum CodingKeys: String, CodingKey {
+        case objective
+        case idempotencyKey = "idempotency_key"
     }
 }
 

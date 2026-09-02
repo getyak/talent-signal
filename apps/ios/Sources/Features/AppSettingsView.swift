@@ -161,6 +161,19 @@ struct ActionButtonSetupView: View {
                 )
 #if DEBUG
                 NavigationLink {
+                    ResearchShowcaseView()
+                } label: {
+                    SettingsExplanationRow(
+                        systemImage: "doc.text.magnifyingglass",
+                        title: appLanguage.text("Open Synthetic Research Showcase"),
+                        detail: appLanguage.text(
+                            "Run the deterministic approved-page ActivityKit handoff and exact review deep link."
+                        )
+                    )
+                }
+                .accessibilityIdentifier("open-research-showcase")
+
+                NavigationLink {
                     AgentWorkShowcaseView()
                 } label: {
                     SettingsExplanationRow(
