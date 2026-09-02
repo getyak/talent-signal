@@ -528,6 +528,91 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testSingleSessionDeletionRollsBackOnSaveFailureAndKeepsDrafts() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let previewSessions = AgentSessionStore.preview(snapshot: .preview).sessions
+        let target = try XCTUnwrap(previewSessions.first)
+        let personID = try XCTUnwrap(target.personID)
+        let contextID = try XCTUnwrap(target.relationshipContextID)
+        let store = AgentSessionStore(
+            sessions: previewSessions,
+            persistence: persistence
+        )
+
+        store.saveDraft(
+            "Keep this local draft",
+            personID: personID,
+            relationshipContextID: contextID
+        )
+        let sessionsBeforeDeletion = store.sessions
+        let durableDataBeforeDeletion = persistence.data
+
+        persistence.failSave = true
+        XCTAssertFalse(store.delete(target.id))
+        XCTAssertEqual(store.sessions, sessionsBeforeDeletion)
+        XCTAssertEqual(persistence.data, durableDataBeforeDeletion)
+        XCTAssertEqual(
+            store.draft(personID: personID, relationshipContextID: contextID),
+            "Keep this local draft"
+        )
+        XCTAssertNotNil(store.persistenceNotice)
+
+        persistence.failSave = false
+        XCTAssertTrue(store.delete(target.id))
+        XCTAssertFalse(store.sessions.contains { $0.id == target.id })
+        XCTAssertEqual(
+            store.draft(personID: personID, relationshipContextID: contextID),
+            "Keep this local draft"
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertFalse(restored.sessions.contains { $0.id == target.id })
+        XCTAssertEqual(
+            restored.draft(personID: personID, relationshipContextID: contextID),
+            "Keep this local draft"
+        )
+    }
+
+    func testPreferredPersonAskRequiresExplicitChoiceAcrossMultipleContexts() {
+        XCTAssertEqual(
+            AgentPreferredPersonScopePolicy.resolve(matchingScopeCount: 0),
+            .unavailable
+        )
+        XCTAssertEqual(
+            AgentPreferredPersonScopePolicy.resolve(matchingScopeCount: 1),
+            .exact
+        )
+        XCTAssertEqual(
+            AgentPreferredPersonScopePolicy.resolve(matchingScopeCount: 2),
+            .requiresSelection
+        )
+        XCTAssertTrue(
+            AgentPreferredPersonScopePolicy.canSubmit(
+                preferredPersonID: nil,
+                selectedPersonID: nil
+            )
+        )
+        XCTAssertFalse(
+            AgentPreferredPersonScopePolicy.canSubmit(
+                preferredPersonID: "person-a",
+                selectedPersonID: nil
+            )
+        )
+        XCTAssertFalse(
+            AgentPreferredPersonScopePolicy.canSubmit(
+                preferredPersonID: "person-a",
+                selectedPersonID: "person-b"
+            )
+        )
+        XCTAssertTrue(
+            AgentPreferredPersonScopePolicy.canSubmit(
+                preferredPersonID: "person-a",
+                selectedPersonID: "person-a"
+            )
+        )
+    }
+
+    @MainActor
     func testRejectingACitationMarksOnlyItsAgentTurnStale() throws {
         let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
         let context = try XCTUnwrap(person.contexts.first)

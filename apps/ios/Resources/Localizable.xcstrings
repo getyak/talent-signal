@@ -1,6 +1,93 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ · +%lld more" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ · 另有 %lld 个情境" } } }
+    },
+    "%@, %@, %@, %@%@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@，%@，%@，%@%@" } } }
+    },
+    "%lld confirmed" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 条已确认" } } }
+    },
+    "%lld source" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 个来源" } } }
+    },
+    "%lld sources" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 个来源" } } }
+    },
+    ", unread" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "，未读" } } }
+    },
+    "Ask about this person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "询问这个人" } } }
+    },
+    "Agent request count" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Agent 请求次数" } } }
+    },
+    "Choose a relationship for %@" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为 %@ 选择一个关系" } } }
+    },
+    "Choose one relationship before sending. Agent will stay inside this person’s record." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发送前请选择一个关系。Agent 只会读取此人物的记录。" } } }
+    },
+    "Choose one relationship for this person before sending." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发送前，请为此人物选择一个关系。" } } }
+    },
+    "Delete session history" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除会话历史" } } }
+    },
+    "Delete session history from this device" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从此设备删除会话历史" } } }
+    },
+    "Delete this session history from this device?" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要从此设备删除这段会话历史吗？" } } }
+    },
+    "Mark as read" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标为已读" } } }
+    },
+    "Mark as unread" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标为未读" } } }
+    },
+    "OK" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } } }
+    },
+    "Open person" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开人物" } } }
+    },
+    "Open session" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开会话" } } }
+    },
+    "People scroll anchor" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "人物滚动锚点" } } }
+    },
+    "Read" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标为已读" } } }
+    },
+    "Select one of this person’s visible relationships first." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请先选择此人物显示的一个关系。" } } }
+    },
+    "Session history was not deleted" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会话历史未删除" } } }
+    },
+    "Session scroll anchor" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "会话滚动锚点" } } }
+    },
+    "The local save failed, so the original session is still here. Nothing was removed." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本机保存失败，因此原会话仍然保留，没有删除任何内容。" } } }
+    },
+    "This deletes this session’s local messages, Agent responses, and receipts. Saved drafts, People, Pursuits, and workspace evidence stay unchanged." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会删除此会话在本机保存的消息、Agent 回复和回执。草稿、人物、目标空间和工作区证据都不会改变。" } } }
+    },
+    "This person is not available in the current workspace." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前工作区中找不到这个人物。" } } }
+    },
+    "Unread" : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未读" } } }
+    },
+    "Use the field below to begin." : {
+      "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用下方输入框开始。" } } }
+    },
     "ADD TO MESSAGE" : {
       "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加到消息" } } }
     },

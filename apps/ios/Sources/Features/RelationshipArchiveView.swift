@@ -5,11 +5,17 @@ import SwiftUI
 struct RelationshipArchiveView: View {
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @StateObject private var captureIntentRouter = CaptureIntentRouter.shared
     @StateObject private var workspaceStore: PursuitWorkspaceStore
     @StateObject private var sessionStore: AgentSessionStore
     @State private var selectedPage: RelationshipArchivePage = .today
+    @State private var retrievalIntentGeneration = 0
+    @State private var sessionScrollPosition: UUID?
+    @State private var peopleScrollPosition: String?
+    @State private var sessionRestorationPosition: UUID?
+    @State private var peopleRestorationPosition: String?
     @State private var presentedSheet: RelationshipArchiveSheet?
     @State private var askPresentation: RelationshipAskPresentation?
     @State private var capturePresentation: RelationshipCapturePresentation?
@@ -30,6 +36,23 @@ struct RelationshipArchiveView: View {
         service: PursuitWorkspaceServing? = nil,
         onSignOut: (() async -> Void)? = nil
     ) {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        let previewSnapshot: PursuitWorkspaceSnapshot
+        if arguments.contains("--preview-long-people-list") {
+            previewSnapshot = .previewLongPeople
+        } else if arguments.contains("--preview-multi-context-person") {
+            previewSnapshot = .previewMultiContextPerson
+        } else {
+            previewSnapshot = .preview
+        }
+        let previewSessionCount = arguments.contains("--preview-long-session-list")
+            ? 50
+            : 2
+#else
+        let previewSnapshot: PursuitWorkspaceSnapshot = .preview
+        let previewSessionCount = 2
+#endif
         let resolvedService = service ?? session.map {
             URLPursuitWorkspaceClient(
                 baseURL: $0.baseURL,
@@ -46,7 +69,8 @@ struct RelationshipArchiveView: View {
                 service: resolvedService,
                 actionCompletions: session?.accountID.map {
                     FilePursuitActionCompletionStore(accountID: $0)
-                } ?? UserDefaultsPursuitActionCompletionStore()
+                } ?? UserDefaultsPursuitActionCompletionStore(),
+                previewSnapshot: previewSnapshot
             )
         )
         let resolvedSessionStore: AgentSessionStore
@@ -67,7 +91,10 @@ struct RelationshipArchiveView: View {
             }
             resolvedSessionStore = previewStore
         } else if resolvedService == nil {
-            resolvedSessionStore = AgentSessionStore.preview(snapshot: .preview)
+            resolvedSessionStore = AgentSessionStore.preview(
+                snapshot: previewSnapshot,
+                sessionCount: previewSessionCount
+            )
         } else {
             let canonicalStore = AgentSessionStore(
                 persistence: session?.accountID.map {
@@ -83,7 +110,10 @@ struct RelationshipArchiveView: View {
         }
 #else
         if resolvedService == nil {
-            resolvedSessionStore = AgentSessionStore.preview(snapshot: .preview)
+            resolvedSessionStore = AgentSessionStore.preview(
+                snapshot: previewSnapshot,
+                sessionCount: previewSessionCount
+            )
         } else {
             resolvedSessionStore = AgentSessionStore(
                 persistence: session?.accountID.map {
@@ -104,6 +134,7 @@ struct RelationshipArchiveView: View {
         ZStack {
             Color.tsSurface.ignoresSafeArea()
             pageContent
+                .id(retrievalIntentGeneration)
         }
         .overlay(alignment: .top) {
             if let notice = workspaceStore.refreshNotice {
@@ -113,33 +144,79 @@ struct RelationshipArchiveView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+#if DEBUG
+        .overlay(alignment: .bottomTrailing) {
+            if ProcessInfo.processInfo.arguments.contains(
+                "--fixture-record-retrieval-anchor"
+            ) {
+                Text(sessionScrollPosition?.uuidString.lowercased() ?? "none")
+                    .font(.system(size: 1))
+                    .foregroundStyle(Color.clear)
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(appLanguage.text("Session scroll anchor"))
+                    .accessibilityValue(
+                        sessionScrollPosition?.uuidString.lowercased() ?? "none"
+                    )
+                    .accessibilityIdentifier("session-scroll-anchor-probe")
+                Text(peopleScrollPosition ?? "none")
+                    .font(.system(size: 1))
+                    .foregroundStyle(Color.clear)
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(appLanguage.text("People scroll anchor"))
+                    .accessibilityValue(peopleScrollPosition ?? "none")
+                    .accessibilityIdentifier("people-scroll-anchor-probe")
+            }
+        }
+#endif
         .safeAreaInset(edge: .top, spacing: 0) {
             RelationshipArchiveHeader(
-                selectedPage: $selectedPage,
-                onOpenMenu: { presentedSheet = .menu },
-                onOpenCalendar: { isRelationshipCalendarPresented = true }
+                selectedPage: Binding(
+                    get: { selectedPage },
+                    set: { selectedPage in
+                        selectPage(selectedPage)
+                    }
+                ),
+                onOpenMenu: {
+                    clearTransientRetrievalIntent()
+                    presentedSheet = .menu
+                },
+                onOpenCalendar: {
+                    clearTransientRetrievalIntent()
+                    isRelationshipCalendarPresented = true
+                }
             )
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             RelationshipGuideRail(
                 onGuide: {
+                    clearTransientRetrievalIntent()
                     askPresentation = .init(
                         sessionID: nil,
                         seed: nil,
+                        preferredPersonID: nil,
+                        preferredPersonLabel: nil,
                         entryMode: .text
                     )
                 },
                 onAttach: {
+                    clearTransientRetrievalIntent()
                     askPresentation = .init(
                         sessionID: nil,
                         seed: nil,
+                        preferredPersonID: nil,
+                        preferredPersonLabel: nil,
                         entryMode: .attachment
                     )
                 },
                 onVoice: {
+                    clearTransientRetrievalIntent()
                     askPresentation = .init(
                         sessionID: nil,
                         seed: nil,
+                        preferredPersonID: nil,
+                        preferredPersonLabel: nil,
                         entryMode: .voice
                     )
                 }
@@ -219,6 +296,8 @@ struct RelationshipArchiveView: View {
                     sessionStore: sessionStore,
                     sessionID: presentation.sessionID,
                     initialSeed: presentation.seed,
+                    preferredPersonID: presentation.preferredPersonID,
+                    preferredPersonLabel: presentation.preferredPersonLabel,
                     initialEntryMode: presentation.entryMode,
                     ask: { objective, personID, contextID, idempotencyKey, mediaIDs in
                         try await workspaceStore.ask(
@@ -329,7 +408,10 @@ struct RelationshipArchiveView: View {
             }
         }
         .onChange(of: scenePhase) { phase in
-            guard phase == .active else { return }
+            guard phase == .active else {
+                clearTransientRetrievalIntent()
+                return
+            }
             Task {
                 sessionStore.pruneExpired()
                 await revalidateSessionEvidence()
@@ -433,68 +515,131 @@ struct RelationshipArchiveView: View {
         case .empty:
             PursuitWorkspaceEmptyView(selectedPage: selectedPage)
         case let .preview(snapshot), let .loaded(snapshot):
-            TabView(selection: $selectedPage) {
-                PursuitTodayView(
-                    snapshot: snapshot,
-                    isPreview: !workspaceStore.isCanonical,
-                    unreadSessions: sessionStore.unreadSessions,
-                    actionRecovery: workspaceStore.latestActionRecovery(
-                        in: snapshot
-                    ),
-                    onOpenSession: openSession,
-                    onOpenAttention: openAttention,
-                    onOpenPursuit: { presentedSheet = .pursuit($0) },
-                    onOpenActionRecovery: { pursuitID in
-                        guard let pursuit = snapshot.pursuit(id: pursuitID) else {
-                            return
-                        }
-                        presentedSheet = .pursuit(pursuit)
-                    }
-                )
-                .tag(RelationshipArchivePage.today)
-
-                AgentSessionListView(
-                    sessions: sessionStore.sessions,
-                    isPreview: !workspaceStore.isCanonical,
-                    persistenceNotice: sessionStore.persistenceNotice,
-                    onOpen: openSession,
-                    onNewSession: {
-                        askPresentation = .init(
-                            sessionID: nil,
-                            seed: nil,
-                            entryMode: .text
-                        )
-                    },
-                    onMarkUnread: sessionStore.markUnread,
-                    onDelete: sessionStore.delete
-                )
-                .tag(RelationshipArchivePage.sessions)
-
-                WorkspacePeopleView(
-                    snapshot: snapshot,
-                    isPreview: !workspaceStore.isCanonical,
-                    onSelect: { person in
-                        presentedSheet = .workspacePerson(
-                            person,
-                            roles(for: person.id, in: snapshot)
+            ZStack {
+                if selectedPage == .today {
+                    archivePage(.today) {
+                        PursuitTodayView(
+                            snapshot: snapshot,
+                            isPreview: !workspaceStore.isCanonical,
+                            unreadSessions: sessionStore.unreadSessions,
+                            actionRecovery: workspaceStore.latestActionRecovery(
+                                in: snapshot
+                            ),
+                            onOpenSession: openSession,
+                            onOpenAttention: openAttention,
+                            onOpenPursuit: { presentedSheet = .pursuit($0) },
+                            onOpenActionRecovery: { pursuitID in
+                                guard let pursuit = snapshot.pursuit(id: pursuitID) else {
+                                    return
+                                }
+                                presentedSheet = .pursuit(pursuit)
+                            }
                         )
                     }
-                )
-                .tag(RelationshipArchivePage.people)
+                } else if selectedPage == .sessions {
+                    archivePage(.sessions) {
+                        AgentSessionListView(
+                            sessions: sessionStore.sessions,
+                            isPreview: !workspaceStore.isCanonical,
+                            persistenceNotice: sessionStore.persistenceNotice,
+                            restorationPosition: sessionRestorationPosition,
+                            scrollPosition: Binding(
+                                get: { sessionScrollPosition },
+                                set: { newPosition in
+                                    if let newPosition {
+                                        sessionScrollPosition = newPosition
+                                    }
+                                }
+                            ),
+                            onOpen: openSession,
+                            onMarkRead: sessionStore.markRead,
+                            onMarkUnread: sessionStore.markUnread,
+                            onDelete: sessionStore.delete
+                        )
+                    }
+                } else {
+                    archivePage(.people) {
+                        WorkspacePeopleView(
+                            snapshot: snapshot,
+                            isPreview: !workspaceStore.isCanonical,
+                            restorationPosition: peopleRestorationPosition,
+                            scrollPosition: Binding(
+                                get: { peopleScrollPosition },
+                                set: { newPosition in
+                                    if let newPosition {
+                                        peopleScrollPosition = newPosition
+                                    }
+                                }
+                            ),
+                            onSelect: { person in
+                                presentedSheet = .workspacePerson(
+                                    person,
+                                    roles(for: person.id, in: snapshot)
+                                )
+                            },
+                            onAsk: askAboutPerson
+                        )
+                    }
+                }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .indexViewStyle(.page(backgroundDisplayMode: .never))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.18),
+                value: selectedPage
+            )
         }
     }
 
+    @ViewBuilder
+    private func archivePage<Content: View>(
+        _ page: RelationshipArchivePage,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .transition(reduceMotion ? .identity : .opacity)
+    }
+
     private func openSession(_ session: AgentSession) {
+        clearTransientRetrievalIntent()
         sessionStore.markRead(session.id)
         askPresentation = .init(
             sessionID: session.id,
             seed: nil,
+            preferredPersonID: nil,
+            preferredPersonLabel: nil,
             entryMode: .text
         )
+    }
+
+    private func askAboutPerson(_ person: WorkspacePerson) {
+        clearTransientRetrievalIntent()
+        askPresentation = .init(
+            sessionID: nil,
+            seed: nil,
+            preferredPersonID: person.id,
+            preferredPersonLabel: person.displayLabel,
+            entryMode: .text
+        )
+    }
+
+    private func selectPage(_ page: RelationshipArchivePage) {
+        guard page != selectedPage else {
+            clearTransientRetrievalIntent()
+            return
+        }
+        captureRetrievalPositions()
+        selectedPage = page
+    }
+
+    private func clearTransientRetrievalIntent() {
+        captureRetrievalPositions()
+        retrievalIntentGeneration &+= 1
+    }
+
+    private func captureRetrievalPositions() {
+        sessionRestorationPosition = sessionScrollPosition
+        peopleRestorationPosition = peopleScrollPosition
     }
 
     private func stageCalendarPreparation(
@@ -529,6 +674,8 @@ struct RelationshipArchiveView: View {
             deferredAskPresentation = .init(
                 sessionID: matchingSession.id,
                 seed: nil,
+                preferredPersonID: nil,
+                preferredPersonLabel: nil,
                 entryMode: .text
             )
         } else {
@@ -539,6 +686,8 @@ struct RelationshipArchiveView: View {
                     relationshipContextID: activity.relationshipContextID,
                     suggestedObjective: objective
                 ),
+                preferredPersonID: nil,
+                preferredPersonLabel: nil,
                 entryMode: .text
             )
         }
@@ -603,6 +752,8 @@ struct RelationshipArchiveView: View {
             deferredAskPresentation = .init(
                 sessionID: nil,
                 seed: seed,
+                preferredPersonID: nil,
+                preferredPersonLabel: nil,
                 entryMode: .text
             )
             capturePresentation = nil
@@ -672,6 +823,8 @@ private struct RelationshipAskPresentation: Identifiable {
     let id = UUID()
     let sessionID: UUID?
     let seed: AgentSessionSeed?
+    let preferredPersonID: String?
+    let preferredPersonLabel: String?
     let entryMode: RelationshipAskEntryMode
 }
 
@@ -761,6 +914,7 @@ private struct RelationshipArchiveHeader: View {
                             if selectedPage == page {
                                 Capsule()
                                     .fill(Color.tsInk.opacity(0.075))
+                                    .frame(height: 38)
                                     .matchedGeometryEffect(
                                         id: "archive-selection",
                                         in: selectionNamespace
@@ -774,7 +928,7 @@ private struct RelationshipArchiveHeader: View {
                                 .accessibilityHidden(true)
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 38)
+                        .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -1572,53 +1726,31 @@ private struct AgentSessionListView: View {
     let sessions: [AgentSession]
     let isPreview: Bool
     let persistenceNotice: String?
+    let restorationPosition: UUID?
+    @Binding var scrollPosition: UUID?
     let onOpen: (AgentSession) -> Void
-    let onNewSession: () -> Void
+    let onMarkRead: (UUID) -> Void
     let onMarkUnread: (UUID) -> Void
-    let onDelete: (UUID) -> Void
+    let onDelete: (UUID) -> Bool
     @Environment(\.appLanguage) private var appLanguage
+    @State private var presentedAlert: AgentSessionAlert?
+    @State private var isRestoringScroll = false
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .bottom, spacing: 18) {
-                VStack(alignment: .leading, spacing: 7) {
-                    RelationshipEyebrow(
-                        appLanguage.text("AGENT CONVERSATIONS", zhHans: "AGENT 对话"),
-                        color: .tsInk
-                    )
-                    Text(appLanguage.text("Sessions", zhHans: "会话"))
-                        .font(.custom("Georgia", size: 42, relativeTo: .largeTitle))
-                        .foregroundStyle(Color.tsInk)
-                        .tracking(-1.1)
-                }
-                Spacer(minLength: 8)
-                Button(action: onNewSession) {
-                    Image(systemName: "plus")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.tsSurface)
-                        .frame(width: 44, height: 44)
-                        .background(Color.tsInk, in: Circle())
-                }
-                .accessibilityLabel(
-                    appLanguage.text("New session", zhHans: "新建会话")
-                )
-                .accessibilityIdentifier("new-agent-session")
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 28)
-            .padding(.bottom, isPreview ? 14 : 22)
-
             if isPreview {
                 PursuitPreviewBoundary()
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .padding(.bottom, 6)
             }
 
             if let persistenceNotice {
                 Label(persistenceNotice, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 20)
+                    .padding(.top, isPreview ? 0 : 14)
                     .padding(.bottom, 8)
                     .accessibilityIdentifier("agent-session-persistence-notice")
             }
@@ -1632,9 +1764,7 @@ private struct AgentSessionListView: View {
                         .font(.headline)
                         .foregroundStyle(Color.tsInk)
                     Text(
-                        appLanguage.text(
-                            "Use the bottom field. Successful Agent responses and confirmed tool receipts appear here without becoming relationship truth."
-                        )
+                        appLanguage.text("Use the field below to begin.")
                     )
                     .font(.subheadline)
                     .foregroundStyle(Color.tsMutedInk)
@@ -1645,98 +1775,333 @@ private struct AgentSessionListView: View {
                 .padding(.top, 42)
                 .accessibilityIdentifier("agent-sessions-empty")
             } else {
-                List {
+                sessionList
+            }
+        }
+        .background(Color.tsSurface)
+        .alert(item: $presentedAlert) { alert in
+            switch alert {
+            case let .delete(session):
+                return Alert(
+                    title: Text(
+                        appLanguage.text("Delete this session history from this device?")
+                    ),
+                    message: Text(
+                        appLanguage.text(
+                            "This deletes this session’s local messages, Agent responses, and receipts. Saved drafts, People, Pursuits, and workspace evidence stay unchanged."
+                        )
+                    ),
+                    primaryButton: .destructive(
+                        Text(
+                            appLanguage.text("Delete session history from this device")
+                        )
+                    ) {
+                        guard !onDelete(session.id) else {
+                            if scrollPosition == session.id {
+                                scrollPosition = nil
+                            }
+                            return
+                        }
+                        Task { @MainActor in
+                            await Task.yield()
+                            presentedAlert = .failure
+                        }
+                    },
+                    secondaryButton: .cancel(
+                        Text(appLanguage.text("Cancel"))
+                    )
+                )
+            case .failure:
+                return Alert(
+                    title: Text(
+                        appLanguage.text("Session history was not deleted")
+                    ),
+                    message: Text(
+                        appLanguage.text(
+                            "The local save failed, so the original session is still here. Nothing was removed."
+                        )
+                    ),
+                    dismissButton: .cancel(
+                        Text(appLanguage.text("OK"))
+                    )
+                )
+            }
+        }
+    }
+
+    private var sessionList: some View {
+        ScrollViewReader { proxy in
+            sessionListContent
+                .onAppear {
+                    guard let restorationPosition else { return }
+                    isRestoringScroll = true
+                    DispatchQueue.main.async {
+                        withAnimation(nil) {
+                            proxy.scrollTo(restorationPosition, anchor: .top)
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            scrollPosition = restorationPosition
+                            isRestoringScroll = false
+                        }
+                    }
+                }
+        }
+    }
+
+    private var sessionListContent: some View {
+        List {
                     ForEach(sessions) { session in
                         Button { onOpen(session) } label: {
                             AgentSessionRow(session: session)
                         }
-                        .buttonStyle(.plain)
-                        .listRowBackground(Color.tsSurface)
-                        .listRowSeparatorTint(Color.tsLine)
+                        .buttonStyle(RelationshipRetrievalButtonStyle())
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: AgentSessionRowPositionKey.self,
+                                    value: [
+                                        session.id: proxy.frame(
+                                            in: .global
+                                        ).minY,
+                                    ]
+                                )
+                            }
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(
+                            EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20)
+                        )
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button {
-                                onMarkUnread(session.id)
+                                toggleReadState(for: session)
                             } label: {
                                 Label(
-                                    appLanguage.text("Unread", zhHans: "标为未读"),
-                                    systemImage: "circle.fill"
+                                    session.isUnread
+                                        ? appLanguage.text("Read")
+                                        : appLanguage.text("Unread"),
+                                    systemImage: session.isUnread ? "circle" : "circle.fill"
                                 )
                             }
                             .tint(Color.tsMutedInk)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
-                                onDelete(session.id)
+                                presentedAlert = .delete(session)
                             } label: {
                                 Label(
-                                    appLanguage.text("Remove", zhHans: "移除"),
+                                    appLanguage.text("Delete session history"),
                                     systemImage: "trash"
                                 )
                             }
+                            .accessibilityLabel(
+                                appLanguage.text("Delete session history from this device")
+                            )
+                            .accessibilityIdentifier("delete-session-history")
+                        }
+                        .contextMenu {
+                            Button {
+                                onOpen(session)
+                            } label: {
+                                Label(
+                                    appLanguage.text("Open session"),
+                                    systemImage: "arrow.up.right"
+                                )
+                            }
+                            Button {
+                                toggleReadState(for: session)
+                            } label: {
+                                Label(
+                                    session.isUnread
+                                        ? appLanguage.text("Mark as read")
+                                        : appLanguage.text("Mark as unread"),
+                                    systemImage: session.isUnread ? "circle" : "circle.fill"
+                                )
+                            }
+                            Button(role: .destructive) {
+                                presentedAlert = .delete(session)
+                            } label: {
+                                Label(
+                                    appLanguage.text("Delete session history from this device"),
+                                    systemImage: "trash"
+                                )
+                            }
+                        }
+                        .accessibilityAction(
+                            named: Text(appLanguage.text("Open session"))
+                        ) {
+                            onOpen(session)
+                        }
+                        .accessibilityAction(
+                            named: Text(
+                                session.isUnread
+                                    ? appLanguage.text("Mark as read")
+                                    : appLanguage.text("Mark as unread")
+                            )
+                        ) {
+                            toggleReadState(for: session)
+                        }
+                        .accessibilityAction(
+                            named: Text(
+                                appLanguage.text("Delete session history from this device")
+                            )
+                        ) {
+                            presentedAlert = .delete(session)
                         }
                     }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .background(Color.tsSurface)
+                .onPreferenceChange(AgentSessionRowPositionKey.self) {
+                    positions in
+                    guard !isRestoringScroll else { return }
+                    if let anchor = closestTopAnchor(in: positions) {
+                        scrollPosition = anchor
+                    }
+                }
                 .accessibilityIdentifier("agent-session-list")
-            }
+    }
+
+    private func closestTopAnchor(in positions: [UUID: CGFloat]) -> UUID? {
+        let fullyVisible = positions.filter {
+            $0.value >= Self.minimumInteractiveRowY
         }
-        .background(Color.tsSurface)
+        if let firstVisible = fullyVisible.min(by: { $0.value < $1.value }) {
+            return firstVisible.key
+        }
+        return positions.max(by: { $0.value < $1.value })?.key
+    }
+
+    private static let minimumInteractiveRowY: CGFloat = 120
+
+    private func toggleReadState(for session: AgentSession) {
+        if session.isUnread {
+            onMarkRead(session.id)
+        } else {
+            onMarkUnread(session.id)
+        }
+    }
+}
+
+private enum AgentSessionAlert: Identifiable {
+    case delete(AgentSession)
+    case failure
+
+    var id: String {
+        switch self {
+        case let .delete(session):
+            return "delete-\(session.id.uuidString)"
+        case .failure:
+            return "failure"
+        }
+    }
+}
+
+private struct AgentSessionRowPositionKey: PreferenceKey {
+    static var defaultValue: [UUID: CGFloat] { [:] }
+
+    static func reduce(
+        value: inout [UUID: CGFloat],
+        nextValue: () -> [UUID: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
     }
 }
 
 private struct AgentSessionRow: View {
     let session: AgentSession
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(session.isUnread ? Color.tsInk : Color.tsCanvas)
-                    .frame(width: 46, height: 46)
-                Image(systemName: "sparkles")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(session.isUnread ? Color.tsSurface : Color.tsInk)
-            }
-            .accessibilityHidden(true)
+            RelationshipInitials(
+                initials: String(session.personDisplayLabel.prefix(2)).uppercased(),
+                size: 46
+            )
 
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(session.title)
-                        .font(.headline)
-                        .foregroundStyle(Color.tsInk)
-                        .lineLimit(1)
-                    Spacer(minLength: 6)
-                    Text(session.updatedAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(Color.tsMutedInk)
+            VStack(alignment: .leading, spacing: 6) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    sessionTitle
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        sessionTitle
+                        Spacer(minLength: 8)
+                        relativeTime
+                    }
                 }
                 Text(
                     "\(session.personDisplayLabel) · \(session.displayContextLabel(in: appLanguage))"
                 )
-                    .font(.caption)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(Color.tsMutedInk)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 Text(session.latestPreview)
                     .font(.subheadline)
                     .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(2)
-            }
 
-            if session.isUnread {
-                Circle()
-                    .fill(Color.tsVermilion)
-                    .frame(width: 7, height: 7)
-                    .padding(.top, 8)
-                    .accessibilityLabel(appLanguage.text("Unread", zhHans: "未读"))
+                if dynamicTypeSize.isAccessibilitySize {
+                    HStack(spacing: 10) {
+                        relativeTime
+                        if session.isUnread { unreadStatus }
+                    }
+                } else if session.isUnread {
+                    unreadStatus
+                }
             }
         }
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(sessionAccessibilityLabel)
         .accessibilityIdentifier("agent-session-\(session.id.uuidString)")
+    }
+
+    private var sessionTitle: some View {
+        Text(session.displayTitle(in: appLanguage))
+            .font(.headline)
+            .foregroundStyle(Color.tsInk)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var relativeTime: some View {
+        Text(
+            session.updatedAt.formatted(
+                .relative(presentation: .numeric, unitsStyle: .abbreviated)
+            )
+        )
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(Color.tsMutedInk)
+        .fixedSize()
+    }
+
+    private var unreadStatus: some View {
+        Label(
+            appLanguage.text("Unread"),
+            systemImage: "circle.fill"
+        )
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(Color.tsVermilion)
+    }
+
+    private var sessionAccessibilityLabel: String {
+        String(
+            format: appLanguage.text("%@, %@, %@, %@%@"),
+            locale: appLanguage.locale,
+            session.displayTitle(in: appLanguage),
+            session.personDisplayLabel,
+            session.displayContextLabel(in: appLanguage),
+            session.latestPreview,
+            session.isUnread ? appLanguage.text(", unread") : ""
+        )
     }
 }
 
@@ -1848,25 +2213,53 @@ private struct PursuitListRow: View {
 private struct WorkspacePeopleView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
+    let restorationPosition: String?
+    @Binding var scrollPosition: String?
     let onSelect: (WorkspacePerson) -> Void
+    let onAsk: (WorkspacePerson) -> Void
     @Environment(\.appLanguage) private var appLanguage
+    @State private var isRestoringScroll = false
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                RelationshipPageIntro(
-                    eyebrow: appLanguage.text(
-                        "Stable identities · \(snapshot.people.count)",
-                        zhHans: "稳定身份 · \(snapshot.people.count)"
-                    ),
-                    title: appLanguage.text("People", zhHans: "人物"),
-                    summary: appLanguage.text(
-                        "One person may hold different roles across Pursuits; the role never becomes identity.",
-                        zhHans: "同一个人可在不同目标中承担不同角色；角色不会取代身份。"
-                    )
-                )
-                .padding(.bottom, 24)
-                if isPreview { PursuitPreviewBoundary() }
+        VStack(spacing: 0) {
+            if snapshot.people.isEmpty {
+                Spacer(minLength: 0)
+            }
+            peopleList
+        }
+        .background(Color.tsSurface)
+        .accessibilityIdentifier("relationship-people")
+    }
+
+    private var peopleList: some View {
+        ScrollViewReader { proxy in
+            peopleListContent
+                .onAppear {
+                    guard let restorationPosition else { return }
+                    isRestoringScroll = true
+                    DispatchQueue.main.async {
+                        withAnimation(nil) {
+                            proxy.scrollTo(restorationPosition, anchor: .top)
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            scrollPosition = restorationPosition
+                            isRestoringScroll = false
+                        }
+                    }
+                }
+        }
+    }
+
+    private var peopleListContent: some View {
+        List {
+                if isPreview {
+                    PursuitPreviewBoundary()
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(
+                            EdgeInsets(top: 14, leading: 20, bottom: 2, trailing: 20)
+                        )
+                }
                 ForEach(snapshot.people) { person in
                     Button { onSelect(person) } label: {
                         WorkspacePersonRow(
@@ -1874,17 +2267,86 @@ private struct WorkspacePeopleView: View {
                             roles: personRoles(person.id)
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(RelationshipRetrievalButtonStyle())
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: WorkspacePersonRowPositionKey.self,
+                                value: [
+                                    person.id: proxy.frame(
+                                        in: .global
+                                    ).minY,
+                                ]
+                            )
+                        }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(
+                        EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20)
+                    )
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button {
+                            onAsk(person)
+                        } label: {
+                            Label(
+                                appLanguage.text("Ask about this person"),
+                                systemImage: "bubble.left.and.text.bubble.right"
+                            )
+                        }
+                        .tint(Color.tsInk)
+                    }
+                    .contextMenu {
+                        Button {
+                            onSelect(person)
+                        } label: {
+                            Label(
+                                appLanguage.text("Open person"),
+                                systemImage: "person.crop.circle"
+                            )
+                        }
+                        Button {
+                            onAsk(person)
+                        } label: {
+                            Label(
+                                appLanguage.text("Ask about this person"),
+                                systemImage: "bubble.left.and.text.bubble.right"
+                            )
+                        }
+                    }
+                    .accessibilityAction(
+                        named: Text(appLanguage.text("Open person"))
+                    ) {
+                        onSelect(person)
+                    }
+                    .accessibilityAction(
+                        named: Text(
+                            appLanguage.text("Ask about this person")
+                        )
+                    ) {
+                        onAsk(person)
+                    }
                     .accessibilityIdentifier("workspace-person-\(person.id)")
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 24)
-            .padding(.bottom, 28)
-        }
-        .scrollIndicators(.hidden)
-        .accessibilityIdentifier("relationship-people")
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.tsSurface)
+            .onPreferenceChange(WorkspacePersonRowPositionKey.self) {
+                positions in
+                guard !isRestoringScroll else { return }
+                let fullyVisible = positions.filter {
+                    $0.value >= Self.minimumInteractiveRowY
+                }
+                let anchor = fullyVisible.min(by: { $0.value < $1.value })?.key
+                    ?? positions.max(by: { $0.value < $1.value })?.key
+                if let anchor {
+                    scrollPosition = anchor
+                }
+            }
     }
+
+    private static let minimumInteractiveRowY: CGFloat = 120
 
     private func personRoles(_ personID: String) -> [String] {
         snapshot.pursuits.flatMap { pursuit in
@@ -1895,10 +2357,22 @@ private struct WorkspacePeopleView: View {
     }
 }
 
+private struct WorkspacePersonRowPositionKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] { [:] }
+
+    static func reduce(
+        value: inout [String: CGFloat],
+        nextValue: () -> [String: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
+
 private struct WorkspacePersonRow: View {
     let person: WorkspacePerson
     let roles: [String]
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -1916,42 +2390,87 @@ private struct WorkspacePersonRow: View {
                         .foregroundStyle(Color.tsMutedInk)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if roles.isEmpty {
-                    Text(
-                        appLanguage.text(
-                            "No active Pursuit role",
-                            zhHans: "暂无活跃目标角色"
-                        )
-                    )
-                        .font(.subheadline)
+                if let role = roles.first {
+                    Text(roleSummary(role))
+                        .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
-                } else {
-                    ForEach(roles.prefix(2), id: \.self) { role in
-                        Text(role)
-                            .font(.caption)
-                            .foregroundStyle(Color.tsMutedInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(
-                    appLanguage.text(
-                        "\(person.captureCount) governed source\(person.captureCount == 1 ? "" : "s") · \(person.confirmedIdentityCount) confirmed identity clue\(person.confirmedIdentityCount == 1 ? "" : "s")",
-                        zhHans: "\(person.captureCount) 个受治理来源 · \(person.confirmedIdentityCount) 条已确认身份线索"
-                    )
-                )
-                    .font(.caption2)
-                    .foregroundStyle(Color.tsMutedInk.opacity(0.82))
+                provenanceSummary
             }
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(Color.tsMutedInk)
-                .frame(minHeight: 48)
         }
-        .padding(.vertical, 18)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func roleSummary(_ firstRole: String) -> String {
+        guard roles.count > 1 else { return firstRole }
+        return String(
+            format: appLanguage.text("%@ · +%lld more"),
+            locale: appLanguage.locale,
+            firstRole,
+            Int64(roles.count - 1)
+        )
+    }
+
+    @ViewBuilder
+    private var provenanceSummary: some View {
+        let source = Label(
+            String(
+                format: appLanguage.text(
+                    person.captureCount == 1 ? "%lld source" : "%lld sources"
+                ),
+                locale: appLanguage.locale,
+                Int64(person.captureCount)
+            ),
+            systemImage: "doc.text"
+        )
+        let identity = Label(
+            String(
+                format: appLanguage.text("%lld confirmed"),
+                locale: appLanguage.locale,
+                Int64(person.confirmedIdentityCount)
+            ),
+            systemImage: "checkmark.seal"
+        )
+
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 5) {
+                    source
+                    identity
+                }
+            } else {
+                HStack(spacing: 12) {
+                    source
+                    identity
+                }
+            }
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(Color.tsMutedInk.opacity(0.88))
+    }
+}
+
+private struct RelationshipRetrievalButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .scaleEffect(
+                configuration.isPressed && !reduceMotion ? 0.992 : 1,
+                anchor: .center
+            )
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.14),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -1970,8 +2489,16 @@ private struct PursuitPreviewBoundary: View {
         .foregroundStyle(Color.tsMutedInk)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .top) { Divider().overlay(Color.tsLine) }
-        .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.tsLine)
+                .frame(height: 1)
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.tsLine)
+                .frame(height: 1)
+        }
         .accessibilityIdentifier("workspace-preview-boundary")
     }
 }
