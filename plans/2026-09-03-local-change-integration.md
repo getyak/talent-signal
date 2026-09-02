@@ -1,6 +1,6 @@
 # Local work integration and remote preservation
 
-Status: active
+Status: complete
 Owner: Codex
 Started: 2026-09-03
 
@@ -76,6 +76,10 @@ Out of scope:
   all 265 iOS unit tests, and the two locally added iOS retrieval UI regressions.
   The deterministic evaluation safety cases passed 12/12; their release-readiness
   result remains `needs_review` and is not treated as approval.
+- The integration merge `6c7b0bb` was pushed to
+  `origin/codex/integrate-local-work-20260903`; an independent `ls-remote`
+  readback returned the exact same full commit ID. The branch contains
+  `origin/main` and no force push or direct update to `main` was used.
 
 ## Chosen approach
 
@@ -102,8 +106,8 @@ Out of scope:
    conflicts are resolved against the shipped authority and safety boundaries.
 4. **Complete — verification.** Evaluation, Agent, backend, documentation,
    secrets, iOS Release, unit, and locally added UI regression checks pass.
-5. **Pending — remote readback.** Push the branch and prove the remote reference
-   resolves to the verified local tip.
+5. **Complete — remote readback.** The branch was pushed without force, and the
+   remote reference resolved exactly to the verified local merge tip.
 
 ## Replanning signals
 
