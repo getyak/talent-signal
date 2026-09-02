@@ -362,8 +362,33 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
     let confirmedIdentityCount: Int
     let lastActivityAt: String
     let profile: Profile?
+    let avatar: Avatar?
     let contexts: [Context]
     var identityMatches: [IdentityMatch] = []
+
+    init(
+        id: String,
+        displayLabel: String,
+        contextCount: Int,
+        captureCount: Int,
+        confirmedIdentityCount: Int,
+        lastActivityAt: String,
+        profile: Profile?,
+        avatar: Avatar? = nil,
+        contexts: [Context],
+        identityMatches: [IdentityMatch] = []
+    ) {
+        self.id = id
+        self.displayLabel = displayLabel
+        self.contextCount = contextCount
+        self.captureCount = captureCount
+        self.confirmedIdentityCount = confirmedIdentityCount
+        self.lastActivityAt = lastActivityAt
+        self.profile = profile
+        self.avatar = avatar
+        self.contexts = contexts
+        self.identityMatches = identityMatches
+    }
 
     struct IdentityMatch: Decodable, Equatable {
         let kind: String
@@ -386,14 +411,54 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
         let summary: String
         let provenanceKind: String
         let authoredByUserID: String
+        let sourceProfileURL: String?
+        let sourcePlatform: String?
         let revision: Int
         let updatedAt: String
+
+        init(
+            headline: String,
+            summary: String,
+            provenanceKind: String,
+            authoredByUserID: String,
+            sourceProfileURL: String? = nil,
+            sourcePlatform: String? = nil,
+            revision: Int,
+            updatedAt: String
+        ) {
+            self.headline = headline
+            self.summary = summary
+            self.provenanceKind = provenanceKind
+            self.authoredByUserID = authoredByUserID
+            self.sourceProfileURL = sourceProfileURL
+            self.sourcePlatform = sourcePlatform
+            self.revision = revision
+            self.updatedAt = updatedAt
+        }
 
         enum CodingKeys: String, CodingKey {
             case headline, summary, revision
             case provenanceKind = "provenance_kind"
             case authoredByUserID = "authored_by_user_id"
+            case sourceProfileURL = "source_profile_url"
+            case sourcePlatform = "source_platform"
             case updatedAt = "updated_at"
+        }
+    }
+
+    struct Avatar: Decodable, Equatable {
+        let url: String
+        let sourceProfileURL: String
+        let sourcePlatform: String
+        let retrievedAt: String
+        let confirmedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case url
+            case sourceProfileURL = "source_profile_url"
+            case sourcePlatform = "source_platform"
+            case retrievedAt = "retrieved_at"
+            case confirmedAt = "confirmed_at"
         }
     }
 
@@ -417,6 +482,7 @@ struct WorkspacePerson: Decodable, Equatable, Identifiable {
         case confirmedIdentityCount = "confirmed_identity_count"
         case lastActivityAt = "last_activity_at"
         case profile
+        case avatar
         case contexts
         case identityMatches = "identity_matches"
     }

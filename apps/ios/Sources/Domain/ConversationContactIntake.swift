@@ -6,6 +6,7 @@ struct ConversationContactDraft: Codable, Equatable, Sendable {
     var relationshipContext: String
     let sourceNote: String
     var interpreter: Interpreter?
+    var reviewedPublicProfile: ReviewedPublicProfile?
 
     struct IdentityClue: Codable, Equatable, Sendable {
         let type: String
@@ -16,9 +17,29 @@ struct ConversationContactDraft: Codable, Equatable, Sendable {
             case "email": return "Email"
             case "phone": return "Phone"
             case "linkedin_url": return "LinkedIn"
+            case "public_profile_url": return "Public profile"
             default: return "Identity clue"
             }
         }
+    }
+
+    struct ReviewedPublicProfile: Codable, Equatable, Sendable {
+        let resultID: String
+        let providerID: String
+        let platform: String
+        let profileURL: String
+        let displayName: String
+        let handle: String?
+        let biography: String?
+        let avatarURL: String?
+        let avatarDisplayPolicy: String?
+        let avatarRightsBasis: String?
+        let verified: Bool?
+        let matchBasis: String
+        let contentHash: String
+        let retrievedAt: String
+        var cardHeadline: String
+        var includeAvatar: Bool
     }
 
     struct Interpreter: Codable, Equatable, Sendable {
@@ -33,6 +54,10 @@ struct ConversationContactDraft: Codable, Equatable, Sendable {
             name: "apple-foundation-model-contact-intake",
             version: "1.0.0"
         )
+        static let reviewedPublicResearch = Self(
+            name: "ios-agent-public-profile-review",
+            version: "1.0.0"
+        )
     }
 
     init(
@@ -40,13 +65,15 @@ struct ConversationContactDraft: Codable, Equatable, Sendable {
         identityClue: IdentityClue?,
         relationshipContext: String,
         sourceNote: String,
-        interpreter: Interpreter? = nil
+        interpreter: Interpreter? = nil,
+        reviewedPublicProfile: ReviewedPublicProfile? = nil
     ) {
         self.name = name
         self.identityClue = identityClue
         self.relationshipContext = relationshipContext
         self.sourceNote = sourceNote
         self.interpreter = interpreter
+        self.reviewedPublicProfile = reviewedPublicProfile
     }
 }
 

@@ -354,6 +354,33 @@ export const EvidenceFragmentSchema = Type.Object(
   { $id: "EvidenceFragment", additionalProperties: false },
 );
 
+export const ReviewedPublicProfileInputSchema = Type.Object(
+  {
+    result_id: Type.String({ minLength: 1, maxLength: 128 }),
+    provider_id: Type.String({ minLength: 1, maxLength: 120 }),
+    platform: Type.String({ minLength: 1, maxLength: 80 }),
+    profile_url: Type.String({ format: "uri", maxLength: 2_000 }),
+    display_name: Type.String({ minLength: 1, maxLength: 200 }),
+    handle: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    avatar_url: Type.Optional(Type.String({ format: "uri", maxLength: 2_000 })),
+    avatar_rights_basis: Type.Optional(
+      Type.Union([
+        Type.Literal("provider_display_license"),
+        Type.Literal("profile_owner_consent"),
+      ]),
+    ),
+    verified: Type.Optional(Type.Boolean()),
+    match_basis: Type.String({ minLength: 1, maxLength: 1_000 }),
+    content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+    retrieved_at: Timestamp,
+    card_headline: Type.Optional(
+      Type.String({ minLength: 1, maxLength: 240 }),
+    ),
+    use_avatar: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
 export const ResourceCaptureRequestSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
@@ -375,6 +402,7 @@ export const ResourceCaptureRequestSchema = Type.Object(
         maxItems: 5,
       }),
     ),
+    reviewed_public_profile: Type.Optional(ReviewedPublicProfileInputSchema),
     fragments: Type.Array(EvidenceFragmentInputSchema, {
       minItems: 1,
       maxItems: 500,
@@ -1429,6 +1457,18 @@ export const ChatResponseBlockSchema = Type.Object(
               Type.String({ minLength: 1, maxLength: 2_000 }),
               Type.Null(),
             ]),
+            avatar_display_policy: Type.Optional(
+              Type.Union([
+                Type.Literal("source_link_only"),
+                Type.Literal("display_and_store"),
+              ]),
+            ),
+            avatar_rights_basis: Type.Optional(
+              Type.Union([
+                Type.Literal("provider_display_license"),
+                Type.Literal("profile_owner_consent"),
+              ]),
+            ),
             verified: Type.Union([Type.Boolean(), Type.Null()]),
             match_basis: Type.String({ minLength: 1, maxLength: 1_000 }),
             content_hash: Type.String({ pattern: "^[a-f0-9]{64}$" }),
@@ -1753,10 +1793,30 @@ export const PersonDirectoryProfileSchema = Type.Object(
   {
     headline: Type.String({ minLength: 1, maxLength: 240 }),
     summary: Type.String({ minLength: 1, maxLength: 4_000 }),
-    provenance_kind: Type.Literal("user_authored"),
+    provenance_kind: Type.Union([
+      Type.Literal("user_authored"),
+      Type.Literal("reviewed_public_source"),
+    ]),
     authored_by_user_id: Id,
+    source_profile_url: Type.Optional(
+      Type.String({ format: "uri", maxLength: 2_000 }),
+    ),
+    source_platform: Type.Optional(
+      Type.String({ minLength: 1, maxLength: 80 }),
+    ),
     revision: Type.Integer({ minimum: 1 }),
     updated_at: Timestamp,
+  },
+  { additionalProperties: false },
+);
+
+export const PersonDirectoryAvatarSchema = Type.Object(
+  {
+    url: Type.String({ format: "uri", maxLength: 2_000 }),
+    source_profile_url: Type.String({ format: "uri", maxLength: 2_000 }),
+    source_platform: Type.String({ minLength: 1, maxLength: 80 }),
+    retrieved_at: Timestamp,
+    confirmed_at: Timestamp,
   },
   { additionalProperties: false },
 );
@@ -1770,6 +1830,7 @@ export const PersonDirectoryItemSchema = Type.Object(
     confirmed_identity_count: Type.Integer({ minimum: 0 }),
     last_activity_at: Timestamp,
     profile: Type.Union([PersonDirectoryProfileSchema, Type.Null()]),
+    avatar: Type.Union([PersonDirectoryAvatarSchema, Type.Null()]),
     contexts: Type.Array(PersonDirectoryContextSchema, {
       maxItems: 20,
     }),

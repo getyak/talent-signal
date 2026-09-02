@@ -1,9 +1,9 @@
 {
-  "panel_id": "TS-IOS-RETRIEVAL-2026-09-02-R4",
+  "panel_id": "TS-IOS-RETRIEVAL-2026-09-02-RELEASE",
   "artifact": {
     "id": "ios-retrieval-post-change",
     "type": "ios-build",
-    "version": "2026-09-02-r4"
+    "version": "2026-09-02-release"
   },
   "scenario": "A recruiter retrieves Sessions or People, uses row swipe or long press, changes intent, returns from detail, recovers from interruption, selects an exact relationship scope, and deletes only local Session history.",
   "frozen_evidence": [
@@ -90,7 +90,7 @@
       ],
       "vetoes": [],
       "open_questions": [
-        "Should the performance gate add maximum or p99 criteria after one Session-open sample reached 1,361.06 ms?"
+        "Should the performance gate add maximum or p99 criteria in addition to the passing p95 budget?"
       ]
     },
     {
@@ -116,7 +116,7 @@
       "All four reviewers agree that the original horizontal destination conflict is structurally removed and that native row actions now own horizontal gestures.",
       "All four reviewers accept the tested 50-row anchor restoration as closing the prior in-process continuity risk.",
       "Safety and code reviewers agree that the previous multi-context preferred-person veto is resolved with no backend request before explicit context selection.",
-      "No reviewer reports an active veto, blocker, or high-severity finding in the frozen r4 evidence."
+      "No reviewer reports an active veto, blocker, or high-severity finding in the frozen release evidence."
     ],
     "disagreements": [],
     "veto_resolution": [

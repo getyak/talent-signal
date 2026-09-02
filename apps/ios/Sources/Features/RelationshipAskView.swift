@@ -610,8 +610,7 @@ struct RelationshipAskView: View {
                     selectedScope = matchingScopes[0]
                 case .unavailable:
                     errorMessage = appLanguage.text(
-                        "This person is not available in the current workspace.",
-                        zhHans: "当前工作区中找不到这个人物。"
+                        "This person is not available in the current workspace."
                     )
                 case .requiresSelection:
                     scopeQuery = preferredPersonName ?? ""
@@ -808,12 +807,12 @@ struct RelationshipAskView: View {
             if ProcessInfo.processInfo.arguments.contains(
                 "--fixture-record-ask-request-count"
             ) {
-                Text("\(fixtureAskRequestCount)")
+                Text(verbatim: "\(fixtureAskRequestCount)")
                     .font(.system(size: 1))
                     .foregroundStyle(Color.clear)
                     .frame(width: 1, height: 1)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Agent request count")
+                    .accessibilityLabel(appLanguage.text("Agent request count"))
                     .accessibilityValue("\(fixtureAskRequestCount)")
                     .accessibilityIdentifier("ask-fixture-request-count")
             }
@@ -845,8 +844,7 @@ struct RelationshipAskView: View {
                                         : preferredPersonName.map {
                                             String(
                                                 format: appLanguage.text(
-                                                    "Choose a relationship for %@",
-                                                    zhHans: "为 %@ 选择一个关系"
+                                                    "Choose a relationship for %@"
                                                 ),
                                                 locale: appLanguage.locale,
                                                 $0
@@ -902,8 +900,7 @@ struct RelationshipAskView: View {
                 if requiresPreferredScopeSelection {
                     Text(
                         appLanguage.text(
-                            "Choose one relationship before sending. Agent will stay inside this person’s record.",
-                            zhHans: "发送前请选择一个关系。Agent 只会读取此人物的记录。"
+                            "Choose one relationship before sending. Agent will stay inside this person’s record."
                         )
                     )
                     .font(.caption)
@@ -1155,6 +1152,9 @@ struct RelationshipAskView: View {
                                         pursuit: pursuit,
                                         actionID: actionID
                                     )
+                                },
+                                onReviewPublicProfile: { source in
+                                    stagePublicProfileReview(source)
                                 }
                             )
                                 .id(item.id)
@@ -2104,10 +2104,7 @@ struct RelationshipAskView: View {
         }
         if hasComposerInput {
             if requiresPreferredScopeSelection {
-                return appLanguage.text(
-                    "Choose a relationship before sending",
-                    zhHans: "发送前请选择一个关系"
-                )
+                return appLanguage.text("Choose a relationship before sending")
             }
             return selectedScope == nil
                 ? appLanguage.text(
@@ -2125,8 +2122,7 @@ struct RelationshipAskView: View {
         if hasComposerInput {
             return requiresPreferredScopeSelection
                 ? appLanguage.text(
-                    "Select one of this person’s visible relationships first.",
-                    zhHans: "请先选择此人物显示的一个关系。"
+                    "Select one of this person’s visible relationships first."
                 )
                 : ""
         }
@@ -2907,8 +2903,7 @@ struct RelationshipAskView: View {
             presentationDetent = .large
             composerFocused = false
             errorMessage = appLanguage.text(
-                "Choose one relationship for this person before sending.",
-                zhHans: "发送前，请为此人物选择一个关系。"
+                "Choose one relationship for this person before sending."
             )
             return
         }
@@ -3129,8 +3124,7 @@ struct RelationshipAskView: View {
             updateAskSubmissionPhase(.idle)
             draft = originalDraft
             errorMessage = appLanguage.text(
-                "A protected conversation retry could not be saved. Your message was not sent.",
-                zhHans: "无法保存受保护的对话重试信息。你的消息尚未发送。"
+                "A protected conversation retry could not be saved. Your message was not sent."
             )
             return
         }
@@ -3149,8 +3143,7 @@ struct RelationshipAskView: View {
                 updateAskSubmissionPhase(.idle)
                 draft = originalDraft
                 errorMessage = appLanguage.text(
-                    "The preview reply could not be saved.",
-                    zhHans: "无法保存预览回复。"
+                    "The preview reply could not be saved."
                 )
                 return
             }
@@ -3835,6 +3828,57 @@ struct RelationshipAskView: View {
         }
         draft = ""
         composerFocused = false
+    }
+
+    private func stagePublicProfileReview(
+        _ source: RelationshipAskResponse.Block.PublicSource
+    ) {
+        let biography = source.biography?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let headline = biography.count <= 240
+            ? biography
+            : String(biography.prefix(237)) + "…"
+        let profile = ConversationContactDraft.ReviewedPublicProfile(
+            resultID: source.resultID,
+            providerID: source.providerID,
+            platform: source.platform,
+            profileURL: source.profileURL,
+            displayName: source.displayName,
+            handle: source.handle,
+            biography: source.biography,
+            avatarURL: source.avatarURL,
+            avatarDisplayPolicy: source.avatarDisplayPolicy,
+            avatarRightsBasis: source.avatarRightsBasis,
+            verified: source.verified,
+            matchBasis: source.matchBasis,
+            contentHash: source.contentHash,
+            retrievedAt: source.retrievedAt,
+            cardHeadline: headline,
+            includeAvatar: source.avatarURL != nil
+                && source.avatarDisplayPolicy == "display_and_store"
+                && source.avatarRightsBasis != nil
+        )
+        stageContactProposal(
+            ConversationContactDraft(
+                name: source.displayName,
+                identityClue: .init(
+                    type: source.platform.lowercased() == "linkedin"
+                        ? "linkedin_url"
+                        : "public_profile_url",
+                    value: source.profileURL
+                ),
+                relationshipContext: appLanguage.text(
+                    "General relationship",
+                    zhHans: "一般关系"
+                ),
+                sourceNote: appLanguage.text(
+                    "Review public profile from \(source.platform): \(source.profileURL)",
+                    zhHans: "核对来自 \(source.platform) 的公开资料：\(source.profileURL)"
+                ),
+                interpreter: .reviewedPublicResearch,
+                reviewedPublicProfile: profile
+            )
+        )
     }
 
     private func waitForFixtureAskDelayIfNeeded() async throws {
@@ -4637,6 +4681,7 @@ private struct ConversationContactProposalTurn: View {
                 completedReceipt(saveMessage)
             } else {
                 contactDetails
+                reviewedPublicProfileDetails
 
                 if let clue = draft.identityClue {
                     Toggle(isOn: $confirmIdentityClue) {
@@ -4771,6 +4816,7 @@ private struct ConversationContactProposalTurn: View {
     private func completedReceipt(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             contactDetails
+            reviewedPublicProfileDetails
 
             if let clue = draft.identityClue {
                 Label {
@@ -4962,6 +5008,181 @@ private struct ConversationContactProposalTurn: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("contact-proposal-summary")
         }
+    }
+
+    @ViewBuilder
+    private var reviewedPublicProfileDetails: some View {
+        if let profile = draft.reviewedPublicProfile {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                    reviewedProfileAvatar(profile)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(profile.displayName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.tsInk)
+                            Spacer(minLength: 4)
+                            Text(language.text("Unconfirmed source"))
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Color.tsVermilion)
+                        }
+                        Text(
+                            [profile.platform.capitalized, profile.handle]
+                                .compactMap { $0 }
+                                .joined(separator: " · ")
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(Color.tsMutedInk)
+                        Text(profile.matchBasis)
+                            .font(.caption2)
+                            .foregroundStyle(Color.tsMutedInk)
+                            .lineLimit(3)
+                    }
+                }
+
+                if let profileURL = httpsURL(profile.profileURL) {
+                    Link(destination: profileURL) {
+                        Label(
+                            language.text("Open source"),
+                            systemImage: "arrow.up.right.square"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.tsInk)
+                    .accessibilityIdentifier("contact-public-profile-source")
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(language.text("Card headline"))
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                    TextField(
+                        language.text("Optional title, role, or company"),
+                        text: reviewedProfileHeadlineBinding
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsInk)
+                    .disabled(isReadOnly)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityIdentifier("contact-public-profile-headline")
+                }
+
+                if profile.avatarDisplayPolicy == "display_and_store",
+                   profile.avatarRightsBasis != nil,
+                   profile.avatarURL.flatMap(httpsURL) != nil {
+                    Toggle(isOn: reviewedProfileAvatarBinding) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(language.text("Use this public avatar"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.tsInk)
+                            Text(
+                                language.text(
+                                    "It appears on the person card only after this contact is confirmed"
+                                )
+                            )
+                            .font(.caption)
+                            .foregroundStyle(Color.tsMutedInk)
+                        }
+                    }
+                    .tint(Color.tsVermilion)
+                    .disabled(isReadOnly)
+                    .accessibilityIdentifier("contact-public-profile-avatar-toggle")
+                } else if profile.avatarURL != nil {
+                    Label(
+                        language.text(
+                            "Avatar remains at source because display rights are unavailable"
+                        ),
+                        systemImage: "photo.badge.exclamationmark"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                }
+
+                Label(
+                    language.text(
+                        "Profile fields stay proposed until the contact save is confirmed"
+                    ),
+                    systemImage: "lock.shield"
+                )
+                .font(.caption2)
+                .foregroundStyle(Color.tsMutedInk)
+            }
+            .padding(12)
+            .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.tsLine, lineWidth: 1)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("contact-public-profile-review")
+        }
+    }
+
+    private var reviewedProfileHeadlineBinding: Binding<String> {
+        Binding(
+            get: { draft.reviewedPublicProfile?.cardHeadline ?? "" },
+            set: { value in
+                guard var profile = draft.reviewedPublicProfile else { return }
+                profile.cardHeadline = String(value.prefix(240))
+                draft.reviewedPublicProfile = profile
+            }
+        )
+    }
+
+    private var reviewedProfileAvatarBinding: Binding<Bool> {
+        Binding(
+            get: { draft.reviewedPublicProfile?.includeAvatar ?? false },
+            set: { value in
+                guard var profile = draft.reviewedPublicProfile else { return }
+                profile.includeAvatar = value
+                draft.reviewedPublicProfile = profile
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func reviewedProfileAvatar(
+        _ profile: ConversationContactDraft.ReviewedPublicProfile
+    ) -> some View {
+        if profile.avatarDisplayPolicy == "display_and_store",
+           profile.avatarRightsBasis != nil,
+           let avatarURL = profile.avatarURL.flatMap(httpsURL) {
+            AsyncImage(url: avatarURL) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                RelationshipInitials(
+                    initials: String(profile.displayName.prefix(2)).uppercased(),
+                    size: 40
+                )
+            }
+            .frame(width: 40, height: 40)
+            .clipShape(Circle())
+            .overlay { Circle().stroke(Color.tsLine, lineWidth: 1) }
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(Color.tsVermilion)
+                    .background(Color.tsCanvas, in: Circle())
+            }
+            .accessibilityLabel(language.text("Unconfirmed public avatar"))
+        } else {
+            RelationshipInitials(
+                initials: String(profile.displayName.prefix(2)).uppercased(),
+                size: 40
+            )
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func httpsURL(_ value: String) -> URL? {
+        guard let url = URL(string: value),
+              url.scheme?.lowercased() == "https",
+              url.host != nil else { return nil }
+        return url
     }
 
     @ViewBuilder
@@ -5440,8 +5661,7 @@ private struct AskPendingTurnView: View {
         case .replyingWithoutRelationship:
             activityRow(
                 language.text(
-                    "Replying without opening a relationship…",
-                    zhHans: "正在直接回复，不会读取联系人关系…"
+                    "Replying without opening a relationship…"
                 )
             )
             .accessibilityIdentifier("ask-unscoped-loading")
@@ -5598,8 +5818,7 @@ private struct AskPendingTurnView: View {
                 Button(action: onContinueWithoutRelationship) {
                     Text(
                         language.text(
-                            "Continue without a relationship",
-                            zhHans: "不关联联系人，继续聊天"
+                            "Continue without a relationship"
                         )
                     )
                     .font(.subheadline.weight(.semibold))
@@ -5609,8 +5828,7 @@ private struct AskPendingTurnView: View {
                 .foregroundStyle(Color.tsInk)
                 .accessibilityHint(
                     language.text(
-                        "Replies without reading candidate or relationship evidence",
-                        zhHans: "不会读取候选人或关系证据，直接回复"
+                        "Replies without reading candidate or relationship evidence"
                     )
                 )
                 .accessibilityIdentifier("ask-continue-unscoped")
@@ -5893,6 +6111,153 @@ private struct AgentContactReceiptTurn: View {
     }
 }
 
+private struct PublicProfileCandidateCard: View {
+    let source: RelationshipAskResponse.Block.PublicSource
+    let language: AppLanguage
+    let canReview: Bool
+    let onReview: () -> Void
+
+    private var profileURL: URL? {
+        Self.httpsURL(source.profileURL)
+    }
+
+    private var avatarURL: URL? {
+        guard source.avatarDisplayPolicy == "display_and_store",
+              source.avatarRightsBasis != nil else {
+            return nil
+        }
+        return source.avatarURL.flatMap(Self.httpsURL)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            candidateAvatar
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(source.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.tsInk)
+                    if source.verified == true {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.caption2)
+                            .foregroundStyle(Color.tsMutedInk)
+                            .accessibilityLabel(language.text("Provider verified"))
+                    }
+                    Spacer(minLength: 4)
+                    Text(language.text("Unconfirmed"))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.tsVermilion)
+                }
+                Text(
+                    [source.platform.capitalized, source.handle]
+                        .compactMap { $0 }
+                        .joined(separator: " · ")
+                )
+                .font(.caption2)
+                .foregroundStyle(Color.tsMutedInk)
+                if source.avatarURL != nil && avatarURL == nil {
+                    Label(
+                        language.text("Avatar remains at source"),
+                        systemImage: "photo.badge.exclamationmark"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(Color.tsMutedInk)
+                }
+                if let biography = source.biography, !biography.isEmpty {
+                    Text(biography)
+                        .font(.caption)
+                        .foregroundStyle(Color.tsInk)
+                        .lineLimit(3)
+                }
+                Text(source.matchBasis)
+                    .font(.caption2)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(2)
+
+                HStack(spacing: 8) {
+                    if let profileURL {
+                        Link(destination: profileURL) {
+                            Label(
+                                language.text("Open source"),
+                                systemImage: "arrow.up.right.square"
+                            )
+                            .frame(minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .accessibilityHint(language.text("Open the public provider source"))
+                    }
+                    Button(action: onReview) {
+                        Label(
+                            language.text("Review contact"),
+                            systemImage: "person.crop.circle.badge.plus"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(canReview ? Color.tsVermilion : Color.tsMutedInk)
+                    .disabled(!canReview)
+                    .accessibilityHint(
+                        language.text(
+                            "Review identity and fields before creating or attaching a contact"
+                        )
+                    )
+                    .accessibilityIdentifier("ask-public-source-review-\(source.resultID)")
+                }
+                .font(.caption.weight(.semibold))
+            }
+        }
+        .padding(10)
+        .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-public-source-\(source.resultID)")
+    }
+
+    @ViewBuilder
+    private var candidateAvatar: some View {
+        if let avatarURL {
+            AsyncImage(url: avatarURL) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                RelationshipInitials(
+                    initials: String(source.displayName.prefix(2)).uppercased(),
+                    size: 38
+                )
+            }
+            .frame(width: 38, height: 38)
+            .clipShape(Circle())
+            .overlay {
+                Circle().stroke(Color.tsLine, lineWidth: 1)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(Color.tsVermilion)
+                    .background(Color.tsCanvas, in: Circle())
+            }
+            .accessibilityLabel(language.text("Unconfirmed public avatar"))
+        } else {
+            RelationshipInitials(
+                initials: String(source.displayName.prefix(2)).uppercased(),
+                size: 38
+            )
+            .accessibilityHidden(true)
+        }
+    }
+
+    private static func httpsURL(_ value: String) -> URL? {
+        guard let url = URL(string: value),
+              url.scheme?.lowercased() == "https",
+              url.host != nil else { return nil }
+        return url
+    }
+}
+
 private struct AskTurnView: View {
     let turn: AgentSessionTurn
     let language: AppLanguage
@@ -5907,6 +6272,7 @@ private struct AskTurnView: View {
     let onReinstateEvidence: (AgentEvidenceReviewOperation) -> Void
     let onStartFreshAsk: () -> Void
     let onOpenPursuit: (String, String) -> Void
+    let onReviewPublicProfile: (RelationshipAskResponse.Block.PublicSource) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -5977,49 +6343,12 @@ private struct AskTurnView: View {
                             .foregroundStyle(Color.tsMutedInk)
 
                             ForEach(publicSources) { source in
-                                if let url = URL(string: source.profileURL) {
-                                    Link(destination: url) {
-                                        HStack(alignment: .firstTextBaseline, spacing: 7) {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(source.displayName)
-                                                    .font(.caption.weight(.semibold))
-                                                    .foregroundStyle(Color.tsInk)
-                                                Text(
-                                                    [source.platform.capitalized, source.handle]
-                                                        .compactMap { $0 }
-                                                        .joined(separator: " · ")
-                                                )
-                                                .font(.caption2)
-                                                .foregroundStyle(Color.tsMutedInk)
-                                                Text(source.matchBasis)
-                                                    .font(.caption2)
-                                                    .foregroundStyle(Color.tsMutedInk)
-                                                    .lineLimit(3)
-                                            }
-                                            Spacer(minLength: 6)
-                                            Image(systemName: "arrow.up.right.square")
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(Color.tsMutedInk)
-                                        }
-                                        .frame(minHeight: 44)
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel(
-                                        String(
-                                            format: language.text(
-                                                "Unconfirmed public profile for %@ on %@"
-                                            ),
-                                            locale: language.locale,
-                                            source.displayName,
-                                            source.platform
-                                        )
-                                    )
-                                    .accessibilityHint(
-                                        language.text("Open the public provider source")
-                                    )
-                                    .accessibilityIdentifier("ask-public-source-\(source.resultID)")
-                                }
+                                PublicProfileCandidateCard(
+                                    source: source,
+                                    language: language,
+                                    canReview: !turn.requiresRefresh,
+                                    onReview: { onReviewPublicProfile(source) }
+                                )
                             }
                         }
                     }
@@ -6571,12 +6900,11 @@ private struct AskEvidenceReviewHistoryView: View {
 
 extension RelationshipAskResponse.Citation {
     var needsCurrentReview: Bool {
-        reviewStatus != "reviewed"
-            || lastReviewID == nil
-            || attribution.status != "confirmed"
-            || exactExcerpt?.trimmingCharacters(
+        (reviewStatus != "reviewed" || lastReviewID == nil)
+            && attribution.status == "confirmed"
+            && exactExcerpt?.trimmingCharacters(
                 in: .whitespacesAndNewlines
-            ).isEmpty != false
+            ).isEmpty == false
     }
 
     func compactProvenance(in language: AppLanguage) -> String {

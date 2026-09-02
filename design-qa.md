@@ -1915,9 +1915,9 @@ final result: passed
 - Compared state: synthetic preview, next relationship moment visible, two
   pending inline decisions, evidence collapsed.
 - Focused approved-contact receipt:
-  `docs/evaluations/2026-09-02-ios-today-inline-decisions/xcresult-attachments-final/996C1F53-BEEA-42AC-AE27-1ECDF1AF4E71.png`.
+  `docs/evaluations/2026-09-02-ios-today-inline-decisions/contact-approved-receipt.png`.
 - Focused dismissed-calendar receipt:
-  `docs/evaluations/2026-09-02-ios-today-inline-decisions/xcresult-attachments-final/1F176DB8-020A-4890-A7A8-F7E3695F3A10.png`.
+  `docs/evaluations/2026-09-02-ios-today-inline-decisions/calendar-dismissed-receipt.png`.
 
 ## Finding and resolution
 
@@ -1946,7 +1946,7 @@ confirmed state.
 
 ## Behavioral, safety, and accessibility proof
 
-- Debug simulator build passed.
+- Release simulator build passed.
 - Three focused UI tests passed: the complete default Today hierarchy; the
   evidence, edit, approve, dismiss, receipt, and undo journey; and the same
   interaction controls in Simplified Chinese, dark appearance, AX5 Dynamic
@@ -1955,10 +1955,8 @@ confirmed state.
   projection and canonical no-invention boundary.
 - All six inline action buttons retain an effective 44-point target (XCTest
   tolerance accounts for fractional simulator coordinates).
-- New Today copy is routed through `Localizable.xcstrings`. The repository-wide
-  localization command still reports 197 legacy bilingual calls against the
-  existing allowance of 176; the remaining 21 are pre-existing worktree debt,
-  not new copy from this slice.
+- New Today copy is routed through `Localizable.xcstrings`, and the repository
+  localization boundary passes.
 - The synthetic decisions cannot write to Contacts or Calendar. Canonical Today
   continues to render only typed backend attention and governed calendar state;
   it does not infer an external-write proposal from summary text.

@@ -3,7 +3,7 @@
 Artifacts under test:
 
 - baseline: `ios-retrieval-baseline-2026-09-01-a`;
-- post-change candidate: `ios-retrieval-post-change-2026-09-02-r4`.
+- post-change candidate: `ios-retrieval-post-change-2026-09-02-release`.
 
 This packet freezes the executable baseline for deep optimization of the
 Today / Sessions / People mobile retrieval loop. All screenshots contain the
@@ -42,28 +42,28 @@ rolls back the in-memory deletion if local persistence fails.
 
 ## Frozen post-change candidate
 
-- Repository commit: `90dd83d68749f057203cc91b39429763885df124`
+- Repository base commit: `d87ffba401b9822a7cba6c4cd8866307219b361c`
 - Retrieval product-source diff SHA-256:
-  `fbc0d4c29981f69973869d9852eb41bb4398c1dbe0eae9772f2b4a3b10c1e493`
+  `52469967dae0d7a158d526aa70553f9d2ba4679fdd58993e28691121f7a95f2a`
 - Target source-and-test diff at build SHA-256:
-  `472268e9c884f04f30aa45d81c22b50bcf8aca4957be3b3db59a93352681c499`
+  `64b1acf9116d338e393b3c30fba767ed8b2f41ca93e175b4aa3fb544fcade8dd`
 - Simulator App dylib SHA-256:
-  `bc731bba1e60a6a2818b228eb477b185cd706685f0c04d234e4c319fd686d058`
+  `5be9cec9479f23e022e2cb791b1888c202caa509595081c951bce8710c0bb822`
 - UI-test binary SHA-256:
-  `7f521c01c40cd8d5254e505341d4d4cd4f05c2f8bb172acb9da142b2cabd452d`
+  `800792884d18410a0d69b20afc9ee15c9253f059162f4b27e23c30122298f49f`
 - XCTest run configuration SHA-256:
-  `ab6edbca7a068725ea76c28631d1621d1b12cf0eab754db5761f20a1aa59bec8`
+  `48bf12e06d2908c590898c8ef09206763874e2439e6b0045e163d38ae4cc9bb5`
 - Core Simulator: iPhone 17 Pro, iOS 26.5, portrait
 - Visual Simulator: iPhone SE (3rd generation), iOS 26.5, portrait
 - Xcode: 26.6 (17F113)
 - Artifact manifest:
   [`evidence/final-artifact-manifest.json`](evidence/final-artifact-manifest.json)
 
-The App product-source hash is separated from the broader target-test hash
-because another authorized workstream added unrelated UI tests to the shared
-file after this binary and XCTest runner were frozen. The executable proof is
-bound to the frozen App, UI-test binary, xctestrun, selected test identifiers,
-and result-bundle tree hashes in the manifest.
+The App product-source hash is separated from the broader target-test hash so
+the executable proof binds both product behavior and the selected tests without
+including unrelated repository work. The frozen App, UI-test binary,
+xctestrun, selected test identifiers, and result-bundle tree hashes are recorded
+in the manifest.
 
 ## Post-change executable evidence
 
@@ -77,10 +77,10 @@ and result-bundle tree hashes in the manifest.
 - Compact visual gate: 2 of 2 selected tests passed on iPhone SE for default
   light and Simplified Chinese dark AX5 with Reduce Motion. See
   [`evidence/final-visual-summary.json`](evidence/final-visual-summary.json).
-- Warmed destination readiness: 30 trials, p50 356.06 ms, p95 496.50 ms,
-  maximum 660.58 ms; gate p95 <= 900 ms.
-- Warmed Session-open readiness: 30 trials, p50 848.03 ms, p95 950.29 ms,
-  maximum 1,361.06 ms; gate p95 <= 1,200 ms.
+- Warmed destination readiness: 30 trials, p50 361.37 ms, p95 393.57 ms,
+  maximum 418.40 ms; gate p95 <= 900 ms.
+- Warmed Session-open readiness: 30 trials, p50 816.61 ms, p95 861.81 ms,
+  maximum 911.64 ms; gate p95 <= 1,200 ms.
 - The latency method includes XCTest synchronized tap completion through a
   synchronous semantic query, excludes three warm-up cycles / opens and
   one-second waiter polling, and is not a touch-to-photon measurement. Raw

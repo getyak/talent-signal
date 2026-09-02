@@ -77,10 +77,20 @@ function invalidResource(code: string, message: string): never {
   throw new ApiError(422, code, message);
 }
 
-function validateResourceRequest(request: ResourceCaptureRequest): void {
+function isHttpsURL(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export function validateResourceRequest(request: ResourceCaptureRequest): void {
   const { resource, fragments } = request;
   const confirmedIdentityHandles =
     request.confirmed_identity_handles ?? [];
+  const reviewedPublicProfile = request.reviewed_public_profile;
   if (resource.payload_ref) {
     invalidResource(
       "RESOURCE_PAYLOAD_REFERENCE_UNSUPPORTED",
@@ -125,6 +135,71 @@ function validateResourceRequest(request: ResourceCaptureRequest): void {
       "IDENTITY_HANDLE_SCOPE_UNRESOLVED",
       "A confirmed identity clue requires an explicitly bound person.",
     );
+  }
+  if (reviewedPublicProfile) {
+    if (resource.kind !== "contact_record") {
+      invalidResource(
+        "PUBLIC_PROFILE_SOURCE_INVALID",
+        "A reviewed public profile must be submitted as a governed contact record.",
+      );
+    }
+    if (!["confirmed", "new_person"].includes(request.person_scope.status)) {
+      invalidResource(
+        "PUBLIC_PROFILE_SCOPE_UNRESOLVED",
+        "A reviewed public profile requires an explicitly bound person.",
+      );
+    }
+    if (
+      resource.source_locator !== reviewedPublicProfile.profile_url ||
+      resource.content_hash !== reviewedPublicProfile.content_hash
+    ) {
+      invalidResource(
+        "PUBLIC_PROFILE_PROVENANCE_MISMATCH",
+        "The reviewed public profile must match the governed source URL and content hash.",
+      );
+    }
+    if (!isHttpsURL(reviewedPublicProfile.profile_url)) {
+      invalidResource(
+        "PUBLIC_PROFILE_URL_INVALID",
+        "A reviewed public profile requires an HTTPS provider URL.",
+      );
+    }
+    if (
+      reviewedPublicProfile.avatar_url &&
+      !isHttpsURL(reviewedPublicProfile.avatar_url)
+    ) {
+      invalidResource(
+        "PUBLIC_PROFILE_AVATAR_URL_INVALID",
+        "A reviewed public avatar requires an HTTPS URL.",
+      );
+    }
+    if (
+      reviewedPublicProfile.provider_id === "tikhub" &&
+      (reviewedPublicProfile.avatar_url || reviewedPublicProfile.use_avatar)
+    ) {
+      invalidResource(
+        "PUBLIC_PROFILE_AVATAR_RIGHTS_UNAVAILABLE",
+        "TikHub does not grant Talent Signal display or storage rights for source-platform avatars.",
+      );
+    }
+    if (
+      reviewedPublicProfile.avatar_url &&
+      !reviewedPublicProfile.avatar_rights_basis
+    ) {
+      invalidResource(
+        "PUBLIC_PROFILE_AVATAR_RIGHTS_REQUIRED",
+        "A stored public avatar requires an explicit provider license or profile-owner consent basis.",
+      );
+    }
+    if (
+      reviewedPublicProfile.use_avatar &&
+      !reviewedPublicProfile.avatar_url
+    ) {
+      invalidResource(
+        "PUBLIC_PROFILE_AVATAR_MISSING",
+        "A public avatar can be selected only when the reviewed source supplied it.",
+      );
+    }
   }
   const confirmedHandleKeys = new Set<string>();
   for (const handle of confirmedIdentityHandles) {
@@ -955,6 +1030,65 @@ export async function createResourceCapture(
         duplicateOfResourceId,
       ],
     );
+
+    if (request.reviewed_public_profile) {
+      const profile = request.reviewed_public_profile;
+      await client.query(
+        `INSERT INTO reviewed_person_public_profiles(
+           account_id, subject_id, source_resource_id, confirmed_by_user_id,
+           result_id, provider_id, platform, profile_url, display_name,
+           handle, avatar_url, avatar_rights_basis, verified,
+           match_basis, content_hash,
+           retrieved_at, card_headline, use_avatar, confirmed_at, updated_at
+         )
+         VALUES (
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+           $14, $15, $16, $17, $18, $19, $19
+         )
+         ON CONFLICT (account_id, subject_id) DO UPDATE SET
+           source_resource_id = EXCLUDED.source_resource_id,
+           confirmed_by_user_id = EXCLUDED.confirmed_by_user_id,
+           result_id = EXCLUDED.result_id,
+           provider_id = EXCLUDED.provider_id,
+           platform = EXCLUDED.platform,
+           profile_url = EXCLUDED.profile_url,
+           display_name = EXCLUDED.display_name,
+           handle = EXCLUDED.handle,
+           avatar_url = EXCLUDED.avatar_url,
+           avatar_rights_basis = EXCLUDED.avatar_rights_basis,
+           verified = EXCLUDED.verified,
+           match_basis = EXCLUDED.match_basis,
+           content_hash = EXCLUDED.content_hash,
+           retrieved_at = EXCLUDED.retrieved_at,
+           card_headline = EXCLUDED.card_headline,
+           use_avatar = EXCLUDED.use_avatar,
+           revision = reviewed_person_public_profiles.revision + 1,
+           confirmed_at = EXCLUDED.confirmed_at,
+           updated_at = EXCLUDED.updated_at
+         WHERE EXCLUDED.retrieved_at >= reviewed_person_public_profiles.retrieved_at`,
+        [
+          auth.accountId,
+          resolvedIdentity.personId,
+          resourceId,
+          auth.userId,
+          profile.result_id,
+          profile.provider_id,
+          profile.platform,
+          profile.profile_url,
+          profile.display_name,
+          profile.handle ?? null,
+          profile.avatar_url ?? null,
+          profile.avatar_rights_basis ?? null,
+          profile.verified ?? null,
+          profile.match_basis,
+          profile.content_hash,
+          profile.retrieved_at,
+          profile.card_headline ?? null,
+          profile.use_avatar,
+          submittedAt,
+        ],
+      );
+    }
 
     const identityHandlesConfirmed =
       request.confirmed_identity_handles &&

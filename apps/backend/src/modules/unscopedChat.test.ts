@@ -47,12 +47,14 @@ describe("unscoped Agent conversation", () => {
       body: {
         disposition: "answer",
         external_effects: [],
-        blocks: [{
-          kind: "answer",
-          body: "你好，我在。你想聊什么？",
-          citation_dependency_ids: [],
-          requires_user_decision: false,
-        }],
+        blocks: [
+          {
+            kind: "answer",
+            body: "你好，我在。你想聊什么？",
+            citation_dependency_ids: [],
+            requires_user_decision: false,
+          },
+        ],
       },
     });
   });

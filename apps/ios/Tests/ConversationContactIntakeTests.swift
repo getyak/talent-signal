@@ -2,6 +2,45 @@ import XCTest
 @testable import TalentSignal
 
 final class ConversationContactIntakeTests: XCTestCase {
+    func testReviewedPublicProfileSurvivesProtectedProposalCoding() throws {
+        let draft = ConversationContactDraft(
+            name: "周屿",
+            identityClue: .init(
+                type: "public_profile_url",
+                value: "https://example.com/in/zhou-yu"
+            ),
+            relationshipContext: "Candidate relationship",
+            sourceNote: "Review this public profile.",
+            interpreter: .reviewedPublicResearch,
+            reviewedPublicProfile: .init(
+                resultID: "result-1",
+                providerID: "provider-1",
+                platform: "linkedin",
+                profileURL: "https://example.com/in/zhou-yu",
+                displayName: "周屿",
+                handle: "zhou-yu",
+                biography: "VP Product at Example Co.",
+                avatarURL: "https://example.com/avatar.jpg",
+                avatarDisplayPolicy: "display_and_store",
+                avatarRightsBasis: "provider_display_license",
+                verified: true,
+                matchBasis: "Name and role matched the supplied context.",
+                contentHash: String(repeating: "a", count: 64),
+                retrievedAt: "2026-09-02T07:58:00.000Z",
+                cardHeadline: "VP Product · Example Co.",
+                includeAvatar: true
+            )
+        )
+
+        let restored = try JSONDecoder().decode(
+            ConversationContactDraft.self,
+            from: JSONEncoder().encode(draft)
+        )
+
+        XCTAssertEqual(restored, draft)
+        XCTAssertEqual(restored.identityClue?.label, "Public profile")
+    }
+
     func testProposesEnglishContactFromNaturalMessage() {
         let draft = ConversationContactIntake.propose(
             "Add Maya Chen for the Chief Product Officer search, maya@brightway.com, referred by Elena."
@@ -258,6 +297,46 @@ final class ConversationContactIntakeTests: XCTestCase {
         XCTAssertEqual(person.identityMatches.first?.kind, "confirmed_handle")
         XCTAssertEqual(person.identityMatches.first?.handleType, "email")
         XCTAssertEqual(person.identityMatches.first?.displayHint, "m•••@example.com")
+    }
+
+    func testWorkspacePersonDecodesReviewedPublicCardProvenance() throws {
+        let data = Data(
+            #"""
+            {
+              "id": "11111111-1111-4111-8111-111111111111",
+              "display_label": "周屿",
+              "context_count": 1,
+              "capture_count": 1,
+              "confirmed_identity_count": 1,
+              "last_activity_at": "2026-09-02T08:00:00.000Z",
+              "profile": {
+                "headline": "VP Product · Example Co.",
+                "summary": "VP Product · Example Co.",
+                "provenance_kind": "reviewed_public_source",
+                "authored_by_user_id": "22222222-2222-4222-8222-222222222222",
+                "source_profile_url": "https://example.com/in/zhou-yu",
+                "source_platform": "linkedin",
+                "revision": 1,
+                "updated_at": "2026-09-02T08:00:00.000Z"
+              },
+              "avatar": {
+                "url": "https://example.com/avatar.jpg",
+                "source_profile_url": "https://example.com/in/zhou-yu",
+                "source_platform": "linkedin",
+                "retrieved_at": "2026-09-02T07:58:00.000Z",
+                "confirmed_at": "2026-09-02T08:00:00.000Z"
+              },
+              "contexts": [],
+              "identity_matches": []
+            }
+            """#.utf8
+        )
+
+        let person = try JSONDecoder().decode(WorkspacePerson.self, from: data)
+
+        XCTAssertEqual(person.profile?.provenanceKind, "reviewed_public_source")
+        XCTAssertEqual(person.profile?.sourcePlatform, "linkedin")
+        XCTAssertEqual(person.avatar?.url, "https://example.com/avatar.jpg")
     }
 
     func testModelInterpreterProducesOnlyAReviewableExactSourceDraft() async {

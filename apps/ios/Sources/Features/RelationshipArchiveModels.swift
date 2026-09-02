@@ -279,21 +279,12 @@ enum AgentUnscopedConversationPolicy {
             "联系人", "候选人", "客户", "关系", "跟进", "上次", "进展",
             "下一步", "变化", "这个人",
         ]
-        if relationshipSignals.contains(where: normalized.contains) {
+        if normalized.contains("@")
+            || relationshipSignals.contains(where: normalized.contains) {
             return .relationshipRecall
         }
 
-        let conversationalPrefixes = [
-            "你好", "您好", "嗨", "哈喽", "hello", "hi", "hey",
-            "早上好", "下午好", "晚上好", "谢谢", "多谢", "thanks",
-            "thank you", "再见", "拜拜", "bye", "你是谁", "你能做什么",
-            "怎么用", "help", "what can you do", "how can you help",
-            "聊聊", "随便聊", "just chat",
-        ]
-        if conversationalPrefixes.contains(where: normalized.hasPrefix) {
-            return .directConversation
-        }
-        return .relationshipRecall
+        return .directConversation
     }
 }
 
@@ -620,7 +611,7 @@ struct AgentSession: Identifiable, Equatable {
             if turns.contains(where: {
                 $0.response.contextManifestID == "none-unbound-conversation"
             }) {
-                return language.text("Agent conversation", zhHans: "Agent 对话")
+                return language.text("Agent conversation")
             }
             return language.text("Finding relationship")
         }
@@ -2613,23 +2604,17 @@ enum WorkspacePeopleScope: Equatable, Identifiable {
 
     var id: String {
         switch self {
-        case .all:
-            return "all"
-        case let .pursuit(id, _):
-            return "pursuit-\(id)"
-        case .unassigned:
-            return "unassigned"
+        case .all: return "all"
+        case let .pursuit(id, _): return "pursuit-\(id)"
+        case .unassigned: return "unassigned"
         }
     }
 
     func displayLabel(in language: AppLanguage) -> String {
         switch self {
-        case .all:
-            return language.text("All people")
-        case let .pursuit(_, title):
-            return title
-        case .unassigned:
-            return language.text("Not in a Pursuit")
+        case .all: return language.text("All people")
+        case let .pursuit(_, title): return title
+        case .unassigned: return language.text("Not in a Pursuit")
         }
     }
 }
@@ -2640,8 +2625,9 @@ enum WorkspacePeopleRetrievalPolicy {
         query: String,
         scope: WorkspacePeopleScope
     ) -> [WorkspacePerson] {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedQuery = normalize(trimmedQuery)
+        let normalizedQuery = normalize(
+            query.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
         let assignedPersonIDs = Set(
             snapshot.pursuits.flatMap { pursuit in
                 pursuit.personRoles.map(\.subjectRef.id)
@@ -2660,7 +2646,6 @@ enum WorkspacePeopleRetrievalPolicy {
             case .unassigned:
                 isInScope = !assignedPersonIDs.contains(person.id)
             }
-
             guard isInScope else { return false }
             guard !normalizedQuery.isEmpty else { return true }
 

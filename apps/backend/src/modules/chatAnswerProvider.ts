@@ -329,9 +329,10 @@ export class ZhipuChatAnswerProvider implements RemoteChatAnswerProviding {
         messages: [
           {
             role: "system",
-            content: mode === "unscoped_conversation"
-              ? UNSCOPED_CONVERSATION_SYSTEM_PROMPT
-              : RELATIONSHIP_SYSTEM_PROMPT,
+            content:
+              mode === "unscoped_conversation"
+                ? UNSCOPED_CONVERSATION_SYSTEM_PROMPT
+                : RELATIONSHIP_SYSTEM_PROMPT,
           },
           { role: "user", content: userContent },
         ],

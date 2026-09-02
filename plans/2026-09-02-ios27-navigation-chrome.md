@@ -42,17 +42,17 @@ Out of scope:
 
 ## Current evidence and unknowns
 
-- The current shell uses a custom opaque top safe-area inset, so it cannot gain
-  standard iOS 27 toolbar diffusion, system personalization, or native
+- The former shell used a custom opaque top safe-area inset, so it could not
+  gain standard iOS 27 toolbar diffusion, system personalization, or native
   minimization.
-- The bottom intent rail is a custom capsule over an almost-opaque strip; it is
+- The bottom intent rail was a custom capsule over an almost-opaque strip; it is
   navigation chrome and is eligible for one Liquid Glass surface.
 - Existing UI tests address the top controls by stable accessibility IDs and
   assert their status-bar safety, destination ownership, reduced-motion
   behavior, row gestures, and scroll continuity.
 - This host has Xcode 26.6 with the iOS 26.5 SDK. It can verify standard Liquid
-  Glass and all existing behavior, but it cannot compile or render the beta
-  iOS 27 toolbar-minimization API unless the project activates the SDK-specific
+  Glass and existing behavior, but it cannot compile or render the beta iOS 27
+  toolbar-minimization API unless the project activates the SDK-specific
   compilation path under Xcode 27.
 
 ## Chosen approach
@@ -83,39 +83,23 @@ Rejected:
 
 ## Milestones
 
-1. **Complete — native chrome.** Replaced the custom top inset with system toolbar
-   content and add the SDK-gated iOS 27 minimization behavior.
+1. **Complete — native chrome.** Replaced the custom top inset with system
+   toolbar content and added the SDK-gated iOS 27 minimization behavior.
 2. **Complete — adaptive glass.** Gave the bottom intent rail one Liquid Glass
    surface with an opaque Reduce Transparency fallback.
-3. **Complete for the available SDK — deterministic proof.** Ran a full Debug
-   Simulator build on Xcode 26.6 / iOS 26.5, followed by the existing
-   retrieval navigation, gesture, continuity, compact-width, dark, Simplified
-   Chinese, AX5, and reduced-motion checks that are practical on this host.
-   The focused iPhone 17 Pro set passed four tests; the final English-label
-   refinement passed again under Reduce Motion; and two Today/navigation tests
-   passed on iPhone SE. `pnpm docs:check` and targeted `git diff --check` pass.
-4. **Complete for current visual review — future-SDK gate remains.** Reviewed
-   the standard light surface, Simplified Chinese dark AX5 surface, English
-   Reduce Motion surface, compact iPhone SE surface, and the Debug-only opaque
-   fallback. Full labels and 44-point controls remain reachable; glass stays in
-   navigation chrome and the content cards remain solid. Exact minimize motion,
-   scroll-edge diffusion, and both ends of the system transparency slider still
-   require Xcode 27 plus an iOS 27 Simulator or device.
+3. **Complete for the available SDK — deterministic proof.** Release build,
+   263 unit tests, the eight-journey CI smoke UI suite, documentation, release
+   policy, and diff checks pass on Xcode 26.6 / iOS 26.5.
+4. **Future-SDK gate remains.** Exact minimize motion, scroll-edge diffusion,
+   and both ends of the system transparency slider require Xcode 27 plus an iOS
+   27 Simulator or device.
 
 ## Verification result
 
-- Build: Xcode 26.6, iOS 26.5 Simulator SDK, Debug, unsigned — passed.
-- iPhone 17 Pro focused UI tests: default Today, explicit top-control
-  navigation, Reduce Motion navigation, and Simplified Chinese dark AX5
-  retrieval — 4 passed, 0 failed.
-- Final label/tint regression: English Reduce Motion navigation — 1 passed,
-  0 failed.
-- Compact-width regression on iPhone SE (3rd generation): default Today and
-  explicit top-control navigation — 2 passed, 0 failed.
-- Visual review: `Today`, `Sessions`, and `People` remain fully visible on the
-  compact surface; the custom rail uses one restrained glass capsule; the
-  opaque fallback removes tint and blur without changing layout.
-- Documentation and diff checks — passed.
+- Release build on Xcode 26.6 / iOS 26.5 Simulator SDK — passed.
+- iOS unit tests — 263 passed, 0 failed.
+- CI smoke UI suite — 8 journeys passed, 0 failed.
+- Documentation, release-policy, and targeted diff checks — passed.
 
 The implementation is ready for an Xcode 27 validation pass. This plan remains
 open because the host has no iOS 27 SDK, so it would be false to claim the beta

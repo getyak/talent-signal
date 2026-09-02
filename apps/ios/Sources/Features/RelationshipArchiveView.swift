@@ -176,7 +176,7 @@ struct RelationshipArchiveView: View {
                     .foregroundStyle(Color.clear)
                     .frame(width: 1, height: 1)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Session scroll anchor")
+                    .accessibilityLabel(appLanguage.text("Session scroll anchor"))
                     .accessibilityValue(
                         sessionScrollPosition?.uuidString.lowercased() ?? "none"
                     )
@@ -186,7 +186,7 @@ struct RelationshipArchiveView: View {
                     .foregroundStyle(Color.clear)
                     .frame(width: 1, height: 1)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("People scroll anchor")
+                    .accessibilityLabel(appLanguage.text("People scroll anchor"))
                     .accessibilityValue(peopleScrollPosition ?? "none")
                     .accessibilityIdentifier("people-scroll-anchor-probe")
             }
@@ -404,10 +404,7 @@ struct RelationshipArchiveView: View {
                 RelationshipCalendarView(
                     snapshot: snapshot,
                     isPreview: !workspaceStore.isCanonical,
-                    initialActivities: RelationshipCalendarProjection.activities(
-                        snapshot: snapshot,
-                        isPreview: !workspaceStore.isCanonical
-                    ),
+                    initialActivities: relationshipCalendarActivities,
                     onPrepare: stageCalendarPreparation
                 )
             } else {
@@ -421,6 +418,7 @@ struct RelationshipArchiveView: View {
             }
             Task {
                 sessionStore.pruneExpired()
+                reloadRelationshipCalendarActivities()
                 await revalidateSessionEvidence()
             }
         }
@@ -553,6 +551,9 @@ struct RelationshipArchiveView: View {
                     archivePage(.sessions) {
                         AgentSessionListView(
                             sessions: sessionStore.sessions,
+                            people: Dictionary(
+                                uniqueKeysWithValues: snapshot.people.map { ($0.id, $0) }
+                            ),
                             isPreview: !workspaceStore.isCanonical,
                             persistenceNotice: sessionStore.persistenceNotice,
                             restorationPosition: sessionRestorationPosition,
@@ -715,6 +716,30 @@ struct RelationshipArchiveView: View {
         )
     }
 
+    private func reloadRelationshipCalendarActivities() {
+        guard let snapshot = workspaceStore.snapshot else {
+            relationshipCalendarActivities = []
+            return
+        }
+        let projected = RelationshipCalendarProjection.activities(
+            snapshot: snapshot,
+            isPreview: !workspaceStore.isCanonical
+        )
+        let stored: [RelationshipCalendarActivity]
+        if workspaceStore.isCanonical {
+            stored = (try? FileRelationshipCalendarActivityStore(
+                accountID: snapshot.workspaceID
+            ).activities(in: snapshot)) ?? []
+        } else {
+            stored = []
+        }
+        var merged = projected
+        for activity in stored where !merged.contains(where: { $0.id == activity.id }) {
+            merged.append(activity)
+        }
+        relationshipCalendarActivities = merged.sorted { $0.startDate < $1.startDate }
+    }
+
     private func revalidateSessionEvidence() async {
         guard workspaceStore.isCanonical else { return }
         for target in sessionStore.validationTargets() {
@@ -782,30 +807,6 @@ struct RelationshipArchiveView: View {
         } else if let pursuit = snapshot.pursuit(id: item.pursuitID) {
             presentedSheet = .pursuit(pursuit)
         }
-    }
-
-    private func reloadRelationshipCalendarActivities() {
-        guard let snapshot = workspaceStore.snapshot else {
-            relationshipCalendarActivities = []
-            return
-        }
-        let projected = RelationshipCalendarProjection.activities(
-            snapshot: snapshot,
-            isPreview: !workspaceStore.isCanonical
-        )
-        let stored: [RelationshipCalendarActivity]
-        if workspaceStore.isCanonical {
-            stored = (try? FileRelationshipCalendarActivityStore(
-                accountID: snapshot.workspaceID
-            ).activities(in: snapshot)) ?? []
-        } else {
-            stored = []
-        }
-        var merged = projected
-        for activity in stored where !merged.contains(where: { $0.id == activity.id }) {
-            merged.append(activity)
-        }
-        relationshipCalendarActivities = merged.sorted { $0.startDate < $1.startDate }
     }
 
     private func roles(
@@ -2296,6 +2297,7 @@ private struct TodayDecisionContextLine: View {
 
 private struct AgentSessionListView: View {
     let sessions: [AgentSession]
+    let people: [String: WorkspacePerson]
     let isPreview: Bool
     let persistenceNotice: String?
     let restorationPosition: UUID?
@@ -2305,6 +2307,7 @@ private struct AgentSessionListView: View {
     let onMarkUnread: (UUID) -> Void
     let onDelete: (UUID) -> Bool
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.workspaceCardDensity) private var cardDensity
     @State private var presentedAlert: AgentSessionAlert?
     @State private var isRestoringScroll = false
 
@@ -2336,10 +2339,7 @@ private struct AgentSessionListView: View {
                         .font(.headline)
                         .foregroundStyle(Color.tsInk)
                     Text(
-                        appLanguage.text(
-                            "Use the field below to begin.",
-                            zhHans: "使用下方输入框开始。"
-                        )
+                        appLanguage.text("Use the field below to begin.")
                     )
                     .font(.subheadline)
                     .foregroundStyle(Color.tsMutedInk)
@@ -2359,23 +2359,16 @@ private struct AgentSessionListView: View {
             case let .delete(session):
                 return Alert(
                     title: Text(
-                        appLanguage.text(
-                            "Delete this session history from this device?",
-                            zhHans: "要从此设备删除这段会话历史吗？"
-                        )
+                        appLanguage.text("Delete this session history from this device?")
                     ),
                     message: Text(
                         appLanguage.text(
-                            "This deletes this session’s local messages, Agent responses, and receipts. Saved drafts, People, Pursuits, and workspace evidence stay unchanged.",
-                            zhHans: "这会删除此会话在本机保存的消息、Agent 回复和回执。草稿、人物、目标空间和工作区证据都不会改变。"
+                            "This deletes this session’s local messages, Agent responses, and receipts. Saved drafts, People, Pursuits, and workspace evidence stay unchanged."
                         )
                     ),
                     primaryButton: .destructive(
                         Text(
-                            appLanguage.text(
-                                "Delete session history from this device",
-                                zhHans: "从此设备删除会话历史"
-                            )
+                            appLanguage.text("Delete session history from this device")
                         )
                     ) {
                         guard !onDelete(session.id) else {
@@ -2390,25 +2383,21 @@ private struct AgentSessionListView: View {
                         }
                     },
                     secondaryButton: .cancel(
-                        Text(appLanguage.text("Cancel", zhHans: "取消"))
+                        Text(appLanguage.text("Cancel"))
                     )
                 )
             case .failure:
                 return Alert(
                     title: Text(
-                        appLanguage.text(
-                            "Session history was not deleted",
-                            zhHans: "会话历史未删除"
-                        )
+                        appLanguage.text("Session history was not deleted")
                     ),
                     message: Text(
                         appLanguage.text(
-                            "The local save failed, so the original session is still here. Nothing was removed.",
-                            zhHans: "本机保存失败，因此原会话仍然保留，没有删除任何内容。"
+                            "The local save failed, so the original session is still here. Nothing was removed."
                         )
                     ),
                     dismissButton: .cancel(
-                        Text(appLanguage.text("OK", zhHans: "好"))
+                        Text(appLanguage.text("OK"))
                     )
                 )
             }
@@ -2438,7 +2427,10 @@ private struct AgentSessionListView: View {
         List {
                     ForEach(sessions) { session in
                         Button { onOpen(session) } label: {
-                            AgentSessionRow(session: session)
+                            AgentSessionRow(
+                                session: session,
+                                person: session.personID.flatMap { people[$0] }
+                            )
                         }
                         .buttonStyle(RelationshipRetrievalButtonStyle())
                         .background {
@@ -2456,7 +2448,12 @@ private struct AgentSessionListView: View {
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(
-                            EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16)
+                            EdgeInsets(
+                                top: cardDensity.rowVerticalInset,
+                                leading: 16,
+                                bottom: cardDensity.rowVerticalInset,
+                                trailing: 16
+                            )
                         )
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button {
@@ -2464,8 +2461,8 @@ private struct AgentSessionListView: View {
                             } label: {
                                 Label(
                                     session.isUnread
-                                        ? appLanguage.text("Read", zhHans: "标为已读")
-                                        : appLanguage.text("Unread", zhHans: "标为未读"),
+                                        ? appLanguage.text("Read")
+                                        : appLanguage.text("Unread"),
                                     systemImage: session.isUnread ? "circle" : "circle.fill"
                                 )
                             }
@@ -2476,18 +2473,12 @@ private struct AgentSessionListView: View {
                                 presentedAlert = .delete(session)
                             } label: {
                                 Label(
-                                    appLanguage.text(
-                                        "Delete session history",
-                                        zhHans: "删除会话历史"
-                                    ),
+                                    appLanguage.text("Delete session history"),
                                     systemImage: "trash"
                                 )
                             }
                             .accessibilityLabel(
-                                appLanguage.text(
-                                    "Delete session history from this device",
-                                    zhHans: "从此设备删除会话历史"
-                                )
+                                appLanguage.text("Delete session history from this device")
                             )
                             .accessibilityIdentifier("delete-session-history")
                         }
@@ -2496,7 +2487,7 @@ private struct AgentSessionListView: View {
                                 onOpen(session)
                             } label: {
                                 Label(
-                                    appLanguage.text("Open session", zhHans: "打开会话"),
+                                    appLanguage.text("Open session"),
                                     systemImage: "arrow.up.right"
                                 )
                             }
@@ -2505,8 +2496,8 @@ private struct AgentSessionListView: View {
                             } label: {
                                 Label(
                                     session.isUnread
-                                        ? appLanguage.text("Mark as read", zhHans: "标为已读")
-                                        : appLanguage.text("Mark as unread", zhHans: "标为未读"),
+                                        ? appLanguage.text("Mark as read")
+                                        : appLanguage.text("Mark as unread"),
                                     systemImage: session.isUnread ? "circle" : "circle.fill"
                                 )
                             }
@@ -2514,34 +2505,28 @@ private struct AgentSessionListView: View {
                                 presentedAlert = .delete(session)
                             } label: {
                                 Label(
-                                    appLanguage.text(
-                                        "Delete session history from this device",
-                                        zhHans: "从此设备删除会话历史"
-                                    ),
+                                    appLanguage.text("Delete session history from this device"),
                                     systemImage: "trash"
                                 )
                             }
                         }
                         .accessibilityAction(
-                            named: Text(appLanguage.text("Open session", zhHans: "打开会话"))
+                            named: Text(appLanguage.text("Open session"))
                         ) {
                             onOpen(session)
                         }
                         .accessibilityAction(
                             named: Text(
                                 session.isUnread
-                                    ? appLanguage.text("Mark as read", zhHans: "标为已读")
-                                    : appLanguage.text("Mark as unread", zhHans: "标为未读")
+                                    ? appLanguage.text("Mark as read")
+                                    : appLanguage.text("Mark as unread")
                             )
                         ) {
                             toggleReadState(for: session)
                         }
                         .accessibilityAction(
                             named: Text(
-                                appLanguage.text(
-                                    "Delete session history from this device",
-                                    zhHans: "从此设备删除会话历史"
-                                )
+                                appLanguage.text("Delete session history from this device")
                             )
                         ) {
                             presentedAlert = .delete(session)
@@ -2609,8 +2594,10 @@ private struct AgentSessionRowPositionKey: PreferenceKey {
 
 private struct AgentSessionRow: View {
     let session: AgentSession
+    let person: WorkspacePerson?
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.workspaceCardDensity) private var cardDensity
 
     var body: some View {
         Group {
@@ -2620,31 +2607,40 @@ private struct AgentSessionRow: View {
                 compactLayout
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(cardDensity.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: 76)
         .background(
             Color.tsCanvas,
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            in: RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.tsLine, lineWidth: 1)
+            RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
+            .stroke(Color.tsLine, lineWidth: 1)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(sessionAccessibilityLabel)
         .accessibilityIdentifier("agent-session-\(session.id.uuidString)")
     }
 
     private var compactLayout: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 7) {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     unreadIndicator
                     sessionTitle
-                    Spacer(minLength: 6)
+                    Spacer(minLength: 5)
                     relativeTime
                 }
                 participantContext
@@ -2655,7 +2651,7 @@ private struct AgentSessionRow: View {
     }
 
     private var accessibilityLayout: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
                 unreadIndicator
                 sessionTitle
@@ -2673,7 +2669,7 @@ private struct AgentSessionRow: View {
 
     private var sessionTitle: some View {
         Text(session.displayTitle(in: appLanguage))
-            .font(.body.weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(Color.tsInk)
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
@@ -2684,7 +2680,7 @@ private struct AgentSessionRow: View {
         if session.isUnread {
             Circle()
                 .fill(Color.tsVermilion)
-                .frame(width: 7, height: 7)
+                .frame(width: 6, height: 6)
                 .accessibilityHidden(true)
         }
     }
@@ -2705,7 +2701,10 @@ private struct AgentSessionRow: View {
             .font(.caption)
             .foregroundStyle(Color.tsMutedInk)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+            .fixedSize(
+                horizontal: false,
+                vertical: dynamicTypeSize.isAccessibilitySize
+            )
             .accessibilityIdentifier(
                 "agent-session-summary-\(session.id.uuidString)"
             )
@@ -2714,10 +2713,23 @@ private struct AgentSessionRow: View {
     @ViewBuilder
     private var participantAvatar: some View {
         if !session.isUnresolvedIntent {
-            RelationshipInitials(
-                initials: String(session.personDisplayLabel.prefix(2)).uppercased(),
-                size: dynamicTypeSize.isAccessibilitySize ? 32 : 30
-            )
+            Group {
+                if let person {
+                    WorkspacePersonAvatar(
+                        person: person,
+                        size: dynamicTypeSize.isAccessibilitySize
+                            ? max(32, cardDensity.sessionAvatarSize)
+                            : cardDensity.sessionAvatarSize
+                    )
+                } else {
+                    RelationshipInitials(
+                        initials: String(session.personDisplayLabel.prefix(2)).uppercased(),
+                        size: dynamicTypeSize.isAccessibilitySize
+                            ? max(32, cardDensity.sessionAvatarSize)
+                            : cardDensity.sessionAvatarSize
+                    )
+                }
+            }
             .accessibilityLabel(session.personDisplayLabel)
             .accessibilityIdentifier(
                 "agent-session-participant-\(session.id.uuidString)"
@@ -2767,12 +2779,9 @@ private struct AgentSessionRow: View {
     private var attentionAccessibilityLabel: String? {
         guard let attention = session.retrievalAttention else { return nil }
         switch attention {
-        case .needsJudgment:
-            return appLanguage.text("Needs judgment")
-        case .waitingToContinue:
-            return appLanguage.text("Waiting to continue")
-        case .refreshNeeded:
-            return appLanguage.text("Refresh needed")
+        case .needsJudgment: return appLanguage.text("Needs judgment")
+        case .waitingToContinue: return appLanguage.text("Waiting to continue")
+        case .refreshNeeded: return appLanguage.text("Refresh needed")
         }
     }
 
@@ -2901,6 +2910,7 @@ private struct WorkspacePeopleView: View {
     let onSelect: (WorkspacePerson) -> Void
     let onAsk: (WorkspacePerson) -> Void
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.workspaceCardDensity) private var cardDensity
     @State private var isRestoringScroll = false
     @State private var searchText = ""
     @State private var selectedScope: WorkspacePeopleScope = .all
@@ -2916,20 +2926,27 @@ private struct WorkspacePeopleView: View {
             }
         }
         .background(Color.tsSurface)
+        .background(alignment: .topLeading) {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel(appLanguage.text("People"))
+                .accessibilityIdentifier("relationship-people")
+        }
     }
 
     private var retrievalRail: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 9) {
+            HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.tsMutedInk)
                     .accessibilityHidden(true)
 
                 TextField(appLanguage.text("Search people"), text: $searchText)
-                    .font(.body)
+                    .font(.subheadline)
                     .foregroundStyle(Color.tsInk)
-                    .padding(.vertical, 11)
+                    .padding(.vertical, 9)
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled()
                     .submitLabel(.search)
@@ -2937,11 +2954,8 @@ private struct WorkspacePeopleView: View {
                     .accessibilityIdentifier("people-search-field")
 
                 if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
+                    Button { searchText = "" } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.body)
                             .foregroundStyle(Color.tsMutedInk)
                             .frame(width: 30, height: 44)
                     }
@@ -2950,28 +2964,25 @@ private struct WorkspacePeopleView: View {
                     .accessibilityIdentifier("people-search-clear")
                 }
             }
-            .padding(.leading, 13)
-            .padding(.trailing, searchText.isEmpty ? 13 : 4)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 46)
+            .padding(.leading, 12)
+            .padding(.trailing, searchText.isEmpty ? 12 : 3)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(
                 Color.tsCanvas,
-                in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Color.tsLine, lineWidth: 1)
             }
-            .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            .onTapGesture {
-                isSearchFocused = true
-            }
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .onTapGesture { isSearchFocused = true }
 
             scopeMenu
         }
         .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 5)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
     }
 
     private var scopeMenu: some View {
@@ -2993,23 +3004,21 @@ private struct WorkspacePeopleView: View {
                             id: pursuit.id,
                             title: pursuit.title
                         )
-                        Button {
-                            selectedScope = scope
-                        } label: {
+                        Button { selectedScope = scope } label: {
                             scopeMenuItem(
                                 title: pursuit.title,
                                 isSelected: selectedScope == scope
                             )
                         }
-                        .accessibilityIdentifier("people-filter-pursuit-\(pursuit.id)")
+                        .accessibilityIdentifier(
+                            "people-filter-pursuit-\(pursuit.id)"
+                        )
                     }
                 }
             }
 
             if WorkspacePeopleRetrievalPolicy.hasUnassignedPeople(in: snapshot) {
-                Button {
-                    selectedScope = .unassigned
-                } label: {
+                Button { selectedScope = .unassigned } label: {
                     scopeMenuItem(
                         title: appLanguage.text("Not in a Pursuit"),
                         isSelected: selectedScope == .unassigned
@@ -3021,13 +3030,12 @@ private struct WorkspacePeopleView: View {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: "line.3.horizontal.decrease")
                     .font(.body.weight(.semibold))
-                    .frame(width: 46, height: 46)
-
+                    .frame(width: 44, height: 44)
                 if selectedScope != .all {
                     Circle()
                         .fill(Color.tsVermilion)
                         .frame(width: 6, height: 6)
-                        .offset(x: -7, y: 7)
+                        .offset(x: -6, y: 6)
                         .accessibilityHidden(true)
                 }
             }
@@ -3036,10 +3044,10 @@ private struct WorkspacePeopleView: View {
             )
             .background(
                 Color.tsCanvas,
-                in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Color.tsLine, lineWidth: 1)
             }
         }
@@ -3100,7 +3108,7 @@ private struct WorkspacePeopleView: View {
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(
-                            EdgeInsets(top: 18, leading: 20, bottom: 8, trailing: 20)
+                            EdgeInsets(top: 18, leading: 16, bottom: 8, trailing: 16)
                         )
                 }
                 ForEach(filteredPeople) { person in
@@ -3130,17 +3138,19 @@ private struct WorkspacePeopleView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .listRowInsets(
-                        EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16)
+                        EdgeInsets(
+                            top: cardDensity.rowVerticalInset,
+                            leading: 16,
+                            bottom: cardDensity.rowVerticalInset,
+                            trailing: 16
+                        )
                     )
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button {
                             onAsk(person)
                         } label: {
                             Label(
-                                appLanguage.text(
-                                    "Ask about this person",
-                                    zhHans: "询问这个人"
-                                ),
+                                appLanguage.text("Ask about this person"),
                                 systemImage: "bubble.left.and.text.bubble.right"
                             )
                         }
@@ -3151,7 +3161,7 @@ private struct WorkspacePeopleView: View {
                             onSelect(person)
                         } label: {
                             Label(
-                                appLanguage.text("Open person", zhHans: "打开人物"),
+                                appLanguage.text("Open person"),
                                 systemImage: "person.crop.circle"
                             )
                         }
@@ -3159,25 +3169,19 @@ private struct WorkspacePeopleView: View {
                             onAsk(person)
                         } label: {
                             Label(
-                                appLanguage.text(
-                                    "Ask about this person",
-                                    zhHans: "询问这个人"
-                                ),
+                                appLanguage.text("Ask about this person"),
                                 systemImage: "bubble.left.and.text.bubble.right"
                             )
                         }
                     }
                     .accessibilityAction(
-                        named: Text(appLanguage.text("Open person", zhHans: "打开人物"))
+                        named: Text(appLanguage.text("Open person"))
                     ) {
                         onSelect(person)
                     }
                     .accessibilityAction(
                         named: Text(
-                            appLanguage.text(
-                                "Ask about this person",
-                                zhHans: "询问这个人"
-                            )
+                            appLanguage.text("Ask about this person")
                         )
                     ) {
                         onAsk(person)
@@ -3188,7 +3192,6 @@ private struct WorkspacePeopleView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.tsSurface)
-            .accessibilityIdentifier("relationship-people")
             .onPreferenceChange(WorkspacePersonRowPositionKey.self) {
                 positions in
                 guard !isRestoringScroll else { return }
@@ -3202,6 +3205,8 @@ private struct WorkspacePeopleView: View {
                 }
             }
     }
+
+    private static let minimumInteractiveRowY: CGFloat = 120
 
     private var noMatchesView: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -3235,9 +3240,6 @@ private struct WorkspacePeopleView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    private static let minimumInteractiveRowY: CGFloat = 120
-
 }
 
 private struct WorkspacePersonRowPositionKey: PreferenceKey {
@@ -3256,6 +3258,7 @@ private struct WorkspacePersonRow: View {
     let metadata: WorkspacePersonRetrievalMetadata
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.workspaceCardDensity) private var cardDensity
 
     var body: some View {
         Group {
@@ -3265,30 +3268,40 @@ private struct WorkspacePersonRow: View {
                 compactLayout
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(cardDensity.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: 76)
         .background(
             Color.tsCanvas,
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            in: RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.tsLine, lineWidth: 1)
+            RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
+            .stroke(Color.tsLine, lineWidth: 1)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: cardDensity.cardCornerRadius,
+                style: .continuous
+            )
+        )
+        .accessibilityElement(children: .combine)
     }
 
     private var compactLayout: some View {
-        HStack(alignment: .center, spacing: 12) {
-            RelationshipInitials(
-                initials: String(person.displayLabel.prefix(2)).uppercased(),
-                size: 40
+        HStack(alignment: .center, spacing: 10) {
+            WorkspacePersonAvatar(
+                person: person,
+                size: cardDensity.personAvatarSize
             )
             metadataStack
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 9) {
+            VStack(alignment: .trailing, spacing: 7) {
                 activityTime
                 chevron
             }
@@ -3298,12 +3311,12 @@ private struct WorkspacePersonRow: View {
     private var accessibilityLayout: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .center, spacing: 12) {
-                RelationshipInitials(
-                    initials: String(person.displayLabel.prefix(2)).uppercased(),
-                    size: 40
+                WorkspacePersonAvatar(
+                    person: person,
+                    size: cardDensity.personAvatarSize
                 )
                 Text(person.displayLabel)
-                    .font(.custom("Georgia", size: 18, relativeTo: .headline))
+                    .font(.headline)
                     .foregroundStyle(Color.tsInk)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
@@ -3322,17 +3335,16 @@ private struct WorkspacePersonRow: View {
     }
 
     private var metadataStack: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(person.displayLabel)
-                .font(.custom("Georgia", size: 18, relativeTo: .headline))
+                .font(.headline)
                 .foregroundStyle(Color.tsInk)
                 .lineLimit(1)
             if let headline = metadata.headline {
                 Text(headline)
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(Color.tsInk)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
                     .accessibilityIdentifier("workspace-person-headline-\(person.id)")
             }
             roleAndPursuit
@@ -3341,16 +3353,14 @@ private struct WorkspacePersonRow: View {
 
     @ViewBuilder
     private var roleAndPursuit: some View {
-        let role = metadata.roleType.map {
-            appLanguage.text($0.humanized)
-        }
-        let values = [role, metadata.pursuitTitle].compactMap { $0 }
+        let values = [metadata.roleType?.humanized, metadata.pursuitTitle]
+            .compactMap { $0 }
         if !values.isEmpty {
             Text(values.joined(separator: " · "))
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(Color.tsMutedInk)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                 .accessibilityIdentifier("workspace-person-context-\(person.id)")
         }
     }
@@ -3372,9 +3382,47 @@ private struct WorkspacePersonRow: View {
 
     private var chevron: some View {
         Image(systemName: "chevron.right")
-            .font(.caption.weight(.semibold))
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(Color.tsMutedInk.opacity(0.7))
             .accessibilityHidden(true)
+    }
+}
+
+private struct WorkspacePersonAvatar: View {
+    let person: WorkspacePerson
+    let size: CGFloat
+
+    private var avatarURL: URL? {
+        guard let value = person.avatar?.url,
+              let url = URL(string: value),
+              url.scheme?.lowercased() == "https",
+              url.host != nil else { return nil }
+        return url
+    }
+
+    var body: some View {
+        Group {
+            if let avatarURL {
+                AsyncImage(url: avatarURL) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    initials
+                }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+                .overlay { Circle().stroke(Color.tsLine, lineWidth: 1) }
+            } else {
+                initials
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var initials: some View {
+        RelationshipInitials(
+            initials: String(person.displayLabel.prefix(2)).uppercased(),
+            size: size
+        )
     }
 }
 
@@ -4152,12 +4200,15 @@ private struct WorkspacePersonDetailView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     RelationshipEyebrow(appLanguage.text("Stable person identity"))
                         .padding(.top, 26)
-                    Text(person.displayLabel)
-                        .font(.custom("Georgia", size: 38, relativeTo: .largeTitle))
-                        .foregroundStyle(Color.tsInk)
-                        .tracking(-0.8)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 10)
+                    HStack(alignment: .center, spacing: 14) {
+                        WorkspacePersonAvatar(person: person, size: 54)
+                        Text(person.displayLabel)
+                            .font(.custom("Georgia", size: 34, relativeTo: .largeTitle))
+                            .foregroundStyle(Color.tsInk)
+                            .tracking(-0.7)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.top, 10)
                     Text(
                         appLanguage.text(
                             "Roles below are contextual. They do not redefine identity or rank this person."
@@ -4181,12 +4232,30 @@ private struct WorkspacePersonDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 8)
                         Label(
-                            appLanguage.text("Written by the workspace owner"),
-                            systemImage: "person.crop.circle.badge.checkmark"
+                            profile.provenanceKind == "reviewed_public_source"
+                                ? appLanguage.text("Confirmed from a reviewed public source")
+                                : appLanguage.text("Written by the workspace owner"),
+                            systemImage: profile.provenanceKind == "reviewed_public_source"
+                                ? "link.badge.plus"
+                                : "person.crop.circle.badge.checkmark"
                         )
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
                         .padding(.top, 10)
+                        if let sourceURL = profile.sourceProfileURL,
+                           let url = URL(string: sourceURL),
+                           url.scheme?.lowercased() == "https" {
+                            Link(destination: url) {
+                                Label(
+                                    profile.sourcePlatform ?? appLanguage.text("Public source"),
+                                    systemImage: "arrow.up.right.square"
+                                )
+                                .font(.caption.weight(.semibold))
+                                .frame(minHeight: 44)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.tsInk)
+                        }
                     }
 
                     RelationshipEyebrow(appLanguage.text("Pursuit roles"))
@@ -4496,7 +4565,7 @@ private struct RelationshipPersonRow: View {
     }
 }
 
-private struct RelationshipInitials: View {
+struct RelationshipInitials: View {
     let initials: String
     let size: CGFloat
 

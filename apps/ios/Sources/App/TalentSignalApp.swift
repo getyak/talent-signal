@@ -7,12 +7,33 @@ struct TalentSignalApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppLanguage.storageKey) private var storedLanguage =
         AppLanguage.system.rawValue
+    @AppStorage(WorkspaceTextSizePreference.storageKey)
+    private var storedTextSize = WorkspaceTextSizePreference.system.rawValue
+    @AppStorage(WorkspaceCardDensityPreference.storageKey)
+    private var storedCardDensity = WorkspaceCardDensityPreference.compact.rawValue
     @StateObject private var appSessionStore: AppSessionStore
     @State private var standaloneOpenURL: URL?
     @State private var agentWorkOpenURL: URL?
     @State private var researchOpenURL: URL?
 
     init() {
+#if DEBUG
+        let environment = ProcessInfo.processInfo.environment
+        if environment[
+            TalentSignalAuthenticationConfiguration.previewWorkspaceEnvironmentKey
+        ] == "true" {
+            UserDefaults.standard.set(
+                environment["TS_IOS_UI_TEST_TEXT_SIZE"]
+                    ?? WorkspaceTextSizePreference.system.rawValue,
+                forKey: WorkspaceTextSizePreference.storageKey
+            )
+            UserDefaults.standard.set(
+                environment["TS_IOS_UI_TEST_CARD_DENSITY"]
+                    ?? WorkspaceCardDensityPreference.compact.rawValue,
+                forKey: WorkspaceCardDensityPreference.storageKey
+            )
+        }
+#endif
         _appSessionStore = StateObject(
             wrappedValue: AppSessionStore(
                 baseURL: TalentSignalAuthenticationConfiguration.baseURL(
@@ -24,6 +45,14 @@ struct TalentSignalApp: App {
 
     private var appLanguage: AppLanguage {
         AppLanguage.stored(storedLanguage)
+    }
+
+    private var textSizePreference: WorkspaceTextSizePreference {
+        WorkspaceTextSizePreference.stored(storedTextSize)
+    }
+
+    private var cardDensityPreference: WorkspaceCardDensityPreference {
+        WorkspaceCardDensityPreference.stored(storedCardDensity)
     }
 
     private var requestedColorScheme: ColorScheme? {
@@ -124,37 +153,41 @@ struct TalentSignalApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if let researchShowcaseRoot {
-                    researchShowcaseRoot
-                } else if let agentWorkShowcaseRoot {
-                    agentWorkShowcaseRoot
-                } else if let standaloneOnboardingRoot {
-                    standaloneOnboardingRoot
-                } else if TalentSignalAuthenticationConfiguration.requiresAuthentication(
-                    arguments: ProcessInfo.processInfo.arguments
-                ) {
-                    authenticatedRoot
-                } else if let calendarHandoffScenarioRoot {
-                    calendarHandoffScenarioRoot
-                } else if let audioSignalStore {
-                    AudioSignalCaptureView(store: audioSignalStore)
-                } else if let textSignalSession {
-                    TextSignalCaptureView(
-                        backendURL: textSignalSession.baseURL,
-                        recordID: textSignalSession.recordID
-                    )
-                } else if let pursuitReviewSession {
-                    RelationshipChangeReviewView(
-                        person: .leila,
-                        reviewSession: pursuitReviewSession
-                    )
-                } else if opensReviewWorkbenchDirectly {
-                    CandidateSignalView()
-                } else {
-                    RelationshipArchiveView(session: pursuitWorkspaceSession)
+            WorkspaceDisplayPreferencesRoot(
+                textSize: textSizePreference,
+                cardDensity: cardDensityPreference
+            ) {
+                Group {
+                    if let researchShowcaseRoot {
+                        researchShowcaseRoot
+                    } else if let agentWorkShowcaseRoot {
+                        agentWorkShowcaseRoot
+                    } else if let standaloneOnboardingRoot {
+                        standaloneOnboardingRoot
+                    } else if TalentSignalAuthenticationConfiguration.requiresAuthentication(
+                        arguments: ProcessInfo.processInfo.arguments
+                    ) {
+                        authenticatedRoot
+                    } else if let calendarHandoffScenarioRoot {
+                        calendarHandoffScenarioRoot
+                    } else if let audioSignalStore {
+                        AudioSignalCaptureView(store: audioSignalStore)
+                    } else if let textSignalSession {
+                        TextSignalCaptureView(
+                            backendURL: textSignalSession.baseURL,
+                            recordID: textSignalSession.recordID
+                        )
+                    } else if let pursuitReviewSession {
+                        RelationshipChangeReviewView(
+                            person: .leila,
+                            reviewSession: pursuitReviewSession
+                        )
+                    } else if opensReviewWorkbenchDirectly {
+                        CandidateSignalView()
+                    } else {
+                        RelationshipArchiveView(session: pursuitWorkspaceSession)
+                    }
                 }
-            }
                 .preferredColorScheme(requestedColorScheme)
                 .environment(\.appLanguage, appLanguage)
                 .environment(\.locale, appLanguage.locale)
@@ -188,6 +221,7 @@ struct TalentSignalApp: App {
                         standaloneOpenURL = url
                     }
                 }
+            }
         }
     }
 

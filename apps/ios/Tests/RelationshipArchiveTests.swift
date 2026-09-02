@@ -2,6 +2,30 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    func testReadingSizePreferenceNeverShrinksAccessibilitySizes() {
+        XCTAssertEqual(
+            WorkspaceTextSizePreference.compact.adjusted(.large),
+            .medium
+        )
+        XCTAssertEqual(
+            WorkspaceTextSizePreference.comfortable.adjusted(.large),
+            .xLarge
+        )
+        XCTAssertEqual(
+            WorkspaceTextSizePreference.compact.adjusted(.accessibility5),
+            .accessibility5
+        )
+    }
+
+    func testDisplayPreferencesRecoverSafeDefaultsFromUnknownStorage() {
+        XCTAssertEqual(WorkspaceTextSizePreference.stored("unknown"), .system)
+        XCTAssertEqual(WorkspaceCardDensityPreference.stored("unknown"), .compact)
+        XCTAssertLessThan(
+            WorkspaceCardDensityPreference.compact.cardPadding,
+            WorkspaceCardDensityPreference.comfortable.cardPadding
+        )
+    }
+
     func testContactCountRoutesToTheOnDeviceWorkspaceIndex() {
         for question in [
             "查看我有多少个联系人",
@@ -25,7 +49,13 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     func testUnscopedConversationRoutesGreetingsWithoutOpeningRelationshipEvidence() {
-        for greeting in ["你好", "您好呀", "Hello", "What can you do?"] {
+        for greeting in [
+            "你好",
+            "您好呀",
+            "Hello",
+            "What can you do?",
+            "帮我整理一下今天的想法",
+        ] {
             XCTAssertEqual(
                 AgentUnscopedConversationPolicy.route(objective: greeting),
                 .directConversation
@@ -35,6 +65,7 @@ final class RelationshipArchiveTests: XCTestCase {
             "What changed in this relationship?",
             "候选人最近有什么进展？",
             "下一步应该怎么跟进？",
+            "Can you check Maya Chen, maya@example.com?",
         ] {
             XCTAssertEqual(
                 AgentUnscopedConversationPolicy.route(
@@ -240,6 +271,13 @@ final class RelationshipArchiveTests: XCTestCase {
             PursuitWorkspaceSnapshot.preview.people.first?.id
         )
         XCTAssertTrue(activities.allSatisfy { $0.eventIdentifier == nil })
+        XCTAssertTrue(
+            activities.allSatisfy { $0.timeZoneIdentifier == "Asia/Singapore" }
+        )
+        XCTAssertEqual(
+            activities.first.map { calendar.component(.hour, from: $0.startDate) },
+            15
+        )
         XCTAssertEqual(
             RelationshipCalendarProjection.next(in: activities, now: now)?.id,
             activities.first?.id
@@ -1830,7 +1868,7 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertNil(restoredReceipt.currentPerson(in: .preview))
         XCTAssertEqual(
             restoredSession.retrievalSubtitle(in: .simplifiedChinese),
-            "联系人已创建 · 需刷新"
+            "联系人已创建 · 需要刷新"
         )
 
         let currentPerson = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
@@ -3160,17 +3198,12 @@ final class RelationshipArchiveTests: XCTestCase {
 
     func testAskReadbackRejectsMissingReviewAuthorityAsReviewFailure() {
         let response = relationshipAskResponseFixture()
-        let invalidReadbacks = [
+        let repairableReadbacks = [
             relationshipAskReadbackFixture(citationReviewStatus: "rejected"),
             relationshipAskReadbackFixture(citationLastReviewID: nil),
-            relationshipAskReadbackFixture(
-                citationAttributionStatus: "proposed"
-            ),
-            relationshipAskReadbackFixture(citationAttributionStatus: "unknown"),
-            relationshipAskReadbackFixture(citationExactExcerpt: nil),
         ]
 
-        for readback in invalidReadbacks {
+        for readback in repairableReadbacks {
             XCTAssertThrowsError(
                 try readback.validated(
                     response,
@@ -3185,6 +3218,30 @@ final class RelationshipArchiveTests: XCTestCase {
                 }
                 XCTAssertEqual(requirement.taskID, "task-1")
                 XCTAssertEqual(requirement.citation.id, "evidence-1")
+            }
+        }
+
+        let unrepairableReadbacks = [
+            relationshipAskReadbackFixture(
+                citationAttributionStatus: "proposed"
+            ),
+            relationshipAskReadbackFixture(citationAttributionStatus: "unknown"),
+            relationshipAskReadbackFixture(citationExactExcerpt: nil),
+        ]
+
+        for readback in unrepairableReadbacks {
+            XCTAssertThrowsError(
+                try readback.validated(
+                    response,
+                    expectedAccountID: "account-1",
+                    expectedPersonID: "person-1",
+                    expectedRelationshipContextID: "context-1"
+                )
+            ) { error in
+                XCTAssertEqual(
+                    error as? PursuitWorkspaceClientError,
+                    .askCitationReviewAuthorityMissing
+                )
             }
         }
     }

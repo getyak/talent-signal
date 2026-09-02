@@ -60,6 +60,22 @@ Out of scope:
   are not proof and remain ignored.
 - A new branch, `codex/integrate-local-work-20260903`, owns this integration so
   the already-merged macOS branch is not silently recreated with unrelated work.
+- Commit `2005f09` preserves the valuable local source, tests, evaluation
+  platform, 36 synthetic cases, durable plans, and curated proof before remote
+  integration. It excludes ignored raw result bundles, application/archive
+  products, transient logs, dependencies, and environment-local files.
+- `origin/main` at `573ad21` is merged into the integration branch. Conflict
+  resolution retains the remote shipped authority and safety behavior while
+  preserving distinct local retrieval, recovery, evaluation, and iOS tests.
+- The merge exposed duplicate localization keys and one stale Chinese assertion.
+  The 11 duplicate keys introduced by the merge were removed, the remote
+  terminology was retained, and the corrected assertion now passes. No new
+  localization duplicates remain relative to `origin/main`.
+- Verification passed for `pnpm eval:ci`, `pnpm agent:check`,
+  `pnpm backend:check`, `pnpm docs:check`, the secret scan, a Release iOS build,
+  all 265 iOS unit tests, and the two locally added iOS retrieval UI regressions.
+  The deterministic evaluation safety cases passed 12/12; their release-readiness
+  result remains `needs_review` and is not treated as approval.
 
 ## Chosen approach
 
@@ -80,12 +96,12 @@ Out of scope:
 1. **Complete — repository-wide inventory.** Classified the current worktree,
    local branches, worktrees, stashes, remote ancestry, and generated-artifact
    concentration.
-2. **In progress — local preservation.** Stage and commit valuable local source,
-   tests, plans, and synthetic evidence while excluding raw outputs.
-3. **Pending — remote integration.** Merge `origin/main` and resolve duplicate or
-   divergent feature work against the current shipped implementations.
-4. **Pending — verification.** Run focused checks, secret scanning, documentation
-   validation, and final evidence-safety review.
+2. **Complete — local preservation.** Valuable local source, tests, plans, and
+   synthetic evidence are preserved in `2005f09`; raw outputs remain excluded.
+3. **Complete — remote integration.** Current `origin/main` is merged and all
+   conflicts are resolved against the shipped authority and safety boundaries.
+4. **Complete — verification.** Evaluation, Agent, backend, documentation,
+   secrets, iOS Release, unit, and locally added UI regression checks pass.
 5. **Pending — remote readback.** Push the branch and prove the remote reference
    resolves to the verified local tip.
 

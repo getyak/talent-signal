@@ -97,6 +97,7 @@ const expectedHashes = {
   "prototype-snapshot/moderator-study.css": manifest.source_sha256?.moderator_study_css,
   "prototype-snapshot/check-study-evidence.mjs": manifest.source_sha256?.evidence_test_script,
   "prototype-snapshot/package.json": manifest.source_sha256?.prototype_package,
+  "prototype-snapshot/package-lock.json": manifest.source_sha256?.prototype_lock,
   "prototype-snapshot/design-qa.md": manifest.source_sha256?.design_qa,
   "prototype-snapshot/today-signal-orb.png": manifest.source_sha256?.today_signal_orb,
   "human-test/protocol.md": manifest.source_sha256?.human_protocol,

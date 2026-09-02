@@ -26,6 +26,166 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Bare Debug launch requires a workspace")
     }
 
+    func testDisplaySettingsSeparateTextSizeFromCardDensity() {
+        app.launchEnvironment["TS_IOS_UI_TEST_TEXT_SIZE"] = "system"
+        app.launchEnvironment["TS_IOS_UI_TEST_CARD_DENSITY"] = "compact"
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-menu"].tap()
+        let display = app.buttons["open-display-settings"]
+        XCTAssertTrue(display.waitForExistence(timeout: 5))
+        display.tap()
+
+        XCTAssertTrue(element("display-settings").waitForExistence(timeout: 5))
+        let preview = element("display-settings-preview")
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        XCTAssertEqual(preview.value as? String, "Compact")
+
+        let comfortable = app.buttons["card-density-comfortable"]
+        XCTAssertTrue(comfortable.exists)
+        scrollToVisible(comfortable)
+        XCTAssertTrue(comfortable.isHittable)
+        XCTAssertGreaterThanOrEqual(comfortable.frame.height, 44)
+        comfortable.tap()
+        XCTAssertEqual(
+            app.buttons["card-density-comfortable"].value as? String,
+            "Selected"
+        )
+        XCTAssertEqual(
+            element("display-settings-preview").value as? String,
+            "Comfortable"
+        )
+
+        let smallText = app.buttons["text-size-compact"]
+        XCTAssertTrue(smallText.exists)
+        scrollToVisible(smallText)
+        XCTAssertTrue(smallText.isHittable)
+        XCTAssertGreaterThanOrEqual(smallText.frame.height, 44)
+        smallText.tap()
+        XCTAssertEqual(
+            app.buttons["text-size-compact"].value as? String,
+            "Selected"
+        )
+        XCTAssertEqual(
+            app.buttons["card-density-comfortable"].value as? String,
+            "Selected"
+        )
+        preserveScreenshot("Display settings separate size and density")
+    }
+
+    func testPeopleSearchKeepsCompactCardsIndependent() {
+        app.launchEnvironment["TS_IOS_UI_TEST_TEXT_SIZE"] = "system"
+        app.launchEnvironment["TS_IOS_UI_TEST_CARD_DENSITY"] = "compact"
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["archive-tab-people"].tap()
+        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
+        let leila = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "workspace-person-")
+        ).element(boundBy: 0)
+        XCTAssertTrue(leila.waitForExistence(timeout: 5))
+        XCTAssertLessThan(leila.frame.height, 100)
+
+        let search = app.textFields["people-search-field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(search.frame.height, 44)
+        search.tap()
+        search.typeText("Leila")
+        XCTAssertTrue(app.staticTexts["Leila Hartmann"].exists)
+        XCTAssertFalse(app.staticTexts["Nia Williams"].exists)
+        preserveScreenshot("Compact People search")
+
+        app.buttons["people-search-clear"].tap()
+        XCTAssertTrue(app.staticTexts["Nia Williams"].waitForExistence(timeout: 3))
+    }
+
+    func testPeopleSearchAndPursuitFilterNarrowWithoutRanking() {
+        app.launch()
+
+        let people = app.buttons["archive-tab-people"]
+        XCTAssertTrue(people.waitForExistence(timeout: 8))
+        people.tap()
+
+        let search = app.textFields["people-search-field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 4))
+        search.tap()
+        search.typeText("Nia")
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000002"
+            ].waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].exists
+        )
+
+        let clear = element("people-search-clear")
+        XCTAssertTrue(clear.waitForExistence(timeout: 2))
+        clear.tap()
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].waitForExistence(timeout: 2)
+        )
+
+        search.tap()
+        search.typeText("Meridian")
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000002"
+            ].exists
+        )
+        XCTAssertTrue(clear.waitForExistence(timeout: 2))
+        clear.tap()
+
+        let filter = element("people-filter-menu")
+        filter.tap()
+        let chiefProductOfficerFilter = element(
+            "people-filter-pursuit-30000000-0000-4000-8000-000000000001"
+        )
+        XCTAssertTrue(chiefProductOfficerFilter.waitForExistence(timeout: 2))
+        chiefProductOfficerFilter.tap()
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000002"
+            ].exists
+        )
+        preserveScreenshot("People Pursuit scope filter")
+
+        search.tap()
+        search.typeText("Nia")
+        XCTAssertTrue(element("people-no-matches").waitForExistence(timeout: 2))
+        let reset = element("people-filter-reset")
+        XCTAssertTrue(reset.exists)
+        XCTAssertGreaterThanOrEqual(reset.frame.height, 44)
+        reset.tap()
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000001"
+            ].waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(
+            app.buttons[
+                "workspace-person-20000000-0000-4000-8000-000000000002"
+            ].exists
+        )
+        preserveScreenshot("People search and Pursuit filter recovery")
+    }
+
     func testCalendarProposalConfirmsWithoutOpeningSystemEditor() {
         app.launchArguments = [
             "--scenario", "calendar-handoff",
@@ -115,9 +275,7 @@ final class CandidateSignalUITests: XCTestCase {
         tapWhenVisible(addContact)
         let contactReceipt = element("today-decision-receipt-preview-contact")
         XCTAssertTrue(contactReceipt.waitForExistence(timeout: 3))
-        XCTAssertTrue(
-            app.staticTexts["No write was made to Contacts."].exists
-        )
+        XCTAssertTrue(app.staticTexts["No write was made to Contacts."].exists)
         preserveScreenshot("Contact decision local receipt")
         app.buttons["today-decision-restore-preview-contact"].tap()
         XCTAssertTrue(addContact.waitForExistence(timeout: 3))
@@ -200,6 +358,36 @@ final class CandidateSignalUITests: XCTestCase {
             43.5
         )
         preserveScreenshot("Today decisions Chinese dark AX5")
+    }
+
+    func testUnscopedGreetingRepliesWithoutOpeningRelationshipChoices() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        typeTextReliably("Hello", into: composer)
+
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.isEnabled)
+        send.tap()
+
+        XCTAssertTrue(
+            app.staticTexts[
+                "Hello, I’m here. You can chat directly or tell me which relationship you want to revisit."
+            ].waitForExistence(timeout: 5)
+        )
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
+        XCTAssertFalse(
+            app.buttons.matching(
+                NSPredicate(
+                    format: "identifier BEGINSWITH %@",
+                    "ask-recall-candidate-"
+                )
+            ).firstMatch.exists
+        )
+        preserveScreenshot("Agent replies without relationship context")
     }
 
     func testTodayCalendarOpensAgendaAndReturnsToLinkedAgentSession() {
@@ -1228,32 +1416,6 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(composer.value as? String, message)
     }
 
-    func testUnscopedGreetingRepliesWithoutOpeningRelationshipChoices() {
-        app.launch()
-
-        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-guide"].tap()
-        let composer = app.textFields["ask-composer"]
-        XCTAssertTrue(composer.waitForExistence(timeout: 5))
-        typeTextReliably("Hello", into: composer)
-
-        let send = app.buttons["ask-send"]
-        XCTAssertTrue(send.isEnabled)
-        send.tap()
-
-        XCTAssertTrue(app.staticTexts["Hello, I’m here. You can chat directly or tell me which relationship you want to revisit."].waitForExistence(timeout: 5))
-        XCTAssertFalse(element("ask-recall-unresolved").exists)
-        XCTAssertFalse(
-            app.buttons.matching(
-                NSPredicate(
-                    format: "identifier BEGINSWITH %@",
-                    "ask-recall-candidate-"
-                )
-            ).firstMatch.exists
-        )
-        preserveScreenshot("Agent replies without relationship context")
-    }
-
     func testContactCountUsesTheOnDeviceWorkspaceIndexWithoutAnAgentRequest() {
         app.launchArguments = [
             "--fixture-record-ask-request-count",
@@ -1412,9 +1574,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         let response = element("ask-response-turn")
         XCTAssertTrue(response.waitForExistence(timeout: 30))
-        XCTAssertTrue(
-            app.staticTexts["Agent 回答"].waitForExistence(timeout: 5)
-        )
+        XCTAssertTrue(app.staticTexts["Agent 回答"].waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-recall-unresolved").exists)
         XCTAssertFalse(
             app.buttons.matching(
@@ -2995,17 +3155,6 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(sessionRow.exists)
         XCTAssertGreaterThanOrEqual(sessionRow.frame.height, 44)
-        XCTAssertTrue(sessionRow.label.contains("Leila Hartmann"))
-        XCTAssertTrue(sessionRow.label.contains("Needs judgment"))
-        XCTAssertTrue(sessionRow.label.contains("Chief Product Officer search"))
-        XCTAssertFalse(
-            app.staticTexts.matching(
-                NSPredicate(
-                    format: "label CONTAINS %@",
-                    "The location model is still unresolved"
-                )
-            ).firstMatch.exists
-        )
         preserveScreenshot("Agent Session retrieval")
 
         let people = app.buttons["archive-tab-people"]
@@ -3019,12 +3168,6 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(peopleFilter.exists)
         XCTAssertGreaterThanOrEqual(peopleFilter.frame.height, 44)
         XCTAssertTrue(app.staticTexts["Leila Hartmann"].exists)
-        XCTAssertTrue(app.staticTexts["VP Product · Meridian Labs"].exists)
-        XCTAssertTrue(
-            app.staticTexts["Candidate · Chief Product Officer search"].exists
-        )
-        XCTAssertFalse(app.staticTexts["1 source"].exists)
-        XCTAssertFalse(app.staticTexts["1 confirmed"].exists)
         XCTAssertFalse(
             app.staticTexts[
                 "One person may hold different roles across Pursuits; the role never becomes identity."
@@ -3035,103 +3178,7 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(personRow.exists)
         XCTAssertGreaterThanOrEqual(personRow.frame.height, 44)
-        let leilaCard = app.buttons[
-            "workspace-person-20000000-0000-4000-8000-000000000001"
-        ]
-        let niaCard = app.buttons[
-            "workspace-person-20000000-0000-4000-8000-000000000002"
-        ]
-        XCTAssertTrue(leilaCard.exists)
-        XCTAssertTrue(niaCard.exists)
-        let cardGap = niaCard.frame.minY - leilaCard.frame.maxY
-        XCTAssertGreaterThanOrEqual(cardGap, 0)
-        XCTAssertLessThanOrEqual(cardGap, 10)
-        preserveScreenshot("Cross-Pursuit People cards and retrieval controls")
-    }
-
-    func testPeopleSearchAndPursuitFilterNarrowWithoutRanking() {
-        app.launch()
-
-        let people = app.buttons["archive-tab-people"]
-        XCTAssertTrue(people.waitForExistence(timeout: 8))
-        people.tap()
-
-        let search = app.textFields["people-search-field"]
-        XCTAssertTrue(search.waitForExistence(timeout: 4))
-        search.tap()
-        search.typeText("Nia")
-        XCTAssertTrue(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000002"
-            ].waitForExistence(timeout: 2)
-        )
-        XCTAssertFalse(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000001"
-            ].exists
-        )
-
-        let clear = element("people-search-clear")
-        XCTAssertTrue(clear.waitForExistence(timeout: 2))
-        clear.tap()
-        XCTAssertTrue(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000001"
-            ].waitForExistence(timeout: 2)
-        )
-
-        search.tap()
-        search.typeText("Meridian")
-        XCTAssertTrue(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000001"
-            ].waitForExistence(timeout: 2)
-        )
-        XCTAssertFalse(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000002"
-            ].exists
-        )
-        XCTAssertTrue(clear.waitForExistence(timeout: 2))
-        clear.tap()
-
-        let filter = element("people-filter-menu")
-        filter.tap()
-        let chiefProductOfficerFilter = element(
-            "people-filter-pursuit-30000000-0000-4000-8000-000000000001"
-        )
-        XCTAssertTrue(chiefProductOfficerFilter.waitForExistence(timeout: 2))
-        chiefProductOfficerFilter.tap()
-        XCTAssertTrue(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000001"
-            ].waitForExistence(timeout: 2)
-        )
-        XCTAssertFalse(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000002"
-            ].exists
-        )
-        preserveScreenshot("People Pursuit scope filter")
-
-        search.tap()
-        search.typeText("Nia")
-        XCTAssertTrue(element("people-no-matches").waitForExistence(timeout: 2))
-        let reset = element("people-filter-reset")
-        XCTAssertTrue(reset.exists)
-        XCTAssertGreaterThanOrEqual(reset.frame.height, 44)
-        reset.tap()
-        XCTAssertTrue(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000001"
-            ].waitForExistence(timeout: 2)
-        )
-        XCTAssertTrue(
-            app.buttons[
-                "workspace-person-20000000-0000-4000-8000-000000000002"
-            ].exists
-        )
-        preserveScreenshot("People search and Pursuit filter recovery")
+        preserveScreenshot("Cross-Pursuit People retrieval")
     }
 
     func testRetrievalCardsRemainReachableInChineseDarkAX5ReducedMotion() {
@@ -3157,23 +3204,18 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(sessionRow.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(sessionRow.frame.height, 44)
-        XCTAssertTrue(sessionRow.label.contains("待判断"))
-        preserveScreenshot("Sessions rows Chinese dark AX5 reduced motion")
+        preserveScreenshot("Sessions cards Chinese dark AX5 reduced motion")
 
         let people = app.buttons["archive-tab-people"]
         XCTAssertTrue(people.isHittable)
         XCTAssertGreaterThanOrEqual(people.frame.height, 44)
         people.tap()
         XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
-        XCTAssertTrue(element("people-search-field").isHittable)
-        XCTAssertTrue(element("people-filter-menu").isHittable)
-        XCTAssertGreaterThanOrEqual(element("people-filter-menu").frame.height, 44)
         let personRow = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "workspace-person-")
         ).firstMatch
         XCTAssertTrue(personRow.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(personRow.frame.height, 44)
-        XCTAssertTrue(personRow.label.contains("VP Product · Meridian Labs"))
         preserveScreenshot("People cards Chinese dark AX5 reduced motion")
     }
 

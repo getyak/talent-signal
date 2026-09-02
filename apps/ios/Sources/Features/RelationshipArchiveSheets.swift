@@ -623,6 +623,37 @@ struct RelationshipMenuView: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        expandedDestination(DisplaySettingsView())
+                    } label: {
+                        RelationshipMenuUtilityRow(
+                            systemImage: "textformat.size",
+                            title: appLanguage.text("Display & text"),
+                            detail: appLanguage.text(
+                                "Adjust reading size and retrieval-card density."
+                            )
+                        )
+                    }
+                    .accessibilityIdentifier("open-display-settings")
+
+                    NavigationLink {
+                        expandedDestination(AppSettingsView())
+                    } label: {
+                        RelationshipMenuUtilityRow(
+                            systemImage: "globe",
+                            title: appLanguage.text("Interface language"),
+                            detail: appLanguage.text(
+                                "Choose the language used for controls and guidance."
+                            ),
+                            value: selectedLanguage.displayName(in: appLanguage)
+                        )
+                    }
+                    .accessibilityIdentifier("open-settings")
+                } header: {
+                    Text(appLanguage.text("Appearance"))
+                }
+
+                Section {
                     if !proposals.isEmpty {
                         NavigationLink {
                             expandedDestination(
@@ -672,20 +703,6 @@ struct RelationshipMenuView: View {
                         )
                     }
                     .accessibilityIdentifier("open-calendar-sync-settings")
-
-                    NavigationLink {
-                        expandedDestination(AppSettingsView())
-                    } label: {
-                        RelationshipMenuUtilityRow(
-                            systemImage: "globe",
-                            title: appLanguage.text("Interface language"),
-                            detail: appLanguage.text(
-                                "Choose the language used for controls and guidance."
-                            ),
-                            value: selectedLanguage.displayName(in: appLanguage)
-                        )
-                    }
-                    .accessibilityIdentifier("open-settings")
 
                     NavigationLink {
                         expandedDestination(ApprovalSettingsView())

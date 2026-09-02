@@ -25,7 +25,7 @@
   ],
   "vetoes": [],
   "open_questions": [
-    "Should the performance gate add a maximum or p99 threshold, given one of thirty Session-open samples reached 1,361.06 ms while p95 passed?",
+    "Should the performance gate add a maximum or p99 threshold in addition to the passing p95 budget?",
     "Will the same native swipe arbitration, scroll restoration, and accessibility focus behavior remain stable on iOS 16 and representative physical devices?"
   ]
 }

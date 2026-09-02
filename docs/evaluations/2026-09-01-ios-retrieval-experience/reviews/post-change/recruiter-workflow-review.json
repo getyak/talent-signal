@@ -11,7 +11,7 @@
     "People Ask preserves relationship authority: multiple-context entry exposes only that person's contexts, disables Send, records zero requests, and unlocks only after an explicit relationship choice.",
     "Session deletion is proportionate and recoverable: full-swipe deletion is disabled, confirmation names the device-local effect, cancellation changes nothing, and failed persistence restores the Session.",
     "Artifact provenance binds the source-at-build, App, test runner, xctestrun, selected tests, result bundles, latency samples, and final screenshots.",
-    "Thirty warmed Simulator trials pass both readiness gates: destination p95 is 496.50 ms and Session-open p95 is 950.29 ms."
+    "Thirty warmed Simulator trials pass both readiness gates: destination p95 is 393.57 ms and Session-open p95 is 861.81 ms."
   ],
   "missing_evidence": [
     "The evidence proves deterministic Simulator behavior, not physical touch-to-photon latency, production-device gesture variance, or field performance under real recruiter data volume.",

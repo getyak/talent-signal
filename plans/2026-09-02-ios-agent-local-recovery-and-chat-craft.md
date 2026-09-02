@@ -51,9 +51,6 @@ Out of scope:
 - The composer routes every selected-scope text turn to remote Ask before
   considering whether the current workspace snapshot can answer it
   deterministically.
-- The shared worktree contains substantial unrelated edits. This slice owns
-  only the narrow Agent routing, readback recovery, conversation presentation,
-  provider-neutral titles, focused tests, this plan, and resulting evidence.
 
 ## Chosen approach
 

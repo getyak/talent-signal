@@ -114,9 +114,9 @@ new Ask before source authority is claimed again. A submitted question remains
 recoverable until validated recording succeeds, and retry reuses the same task
 intent instead of creating duplicate work.
 
-When no relationship is selected, a greeting, help request, or explicit request
-to chat may receive a direct conversational answer. That turn sends only the
-submitted text through a separate zero-context contract: it has no Person,
+When no relationship is selected, a message that does not explicitly ask about
+relationship work receives a direct conversational answer. That turn sends only
+the submitted text through a separate zero-context contract: it has no Person,
 relationship, Wiki, evidence, attachment, citation, Tool, or external-effect
 scope. A question that asks about relationship work still enters relationship
 recall; if recall cannot resolve a scope, the recruiter may explicitly continue
@@ -166,6 +166,17 @@ draft and the normalized public result can survive in the protected Session
 after the raw screenshot is discarded. This path cannot recognize a face,
 confirm identity, update relationship state, or perform an external action; a
 photo-only image ends in `no_action`.
+
+An unconfirmed public result may offer `Review contact`, but never `Create`
+directly. Review shows platform, handle, biography, match basis, and source
+link together; lets the recruiter edit a short People-card headline; then
+reuses the normal identity lookup and exact create-or-attach decision. A source
+avatar remains link-only unless its provider supplies an explicit display
+license or the profile owner has consented; public visibility and recruiter
+confirmation alone grant neither right. Only the final contact confirmation
+may store selected card fields. The resulting public-source headline remains
+attributable to the reviewed URL and disappears from People when its governed
+source is deleted or loses authorization.
 
 Local typed-signal recovery follows the authenticated workspace. The app does
 not display a restored payload until workspace readback agrees, so switching
