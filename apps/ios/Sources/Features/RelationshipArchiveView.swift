@@ -21,6 +21,7 @@ struct RelationshipArchiveView: View {
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
     @State private var isRelationshipCalendarPresented = false
+    @State private var relationshipCalendarActivities: [RelationshipCalendarActivity] = []
     @State private var deferredIntakePresentation: AgentIntakePresentation?
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
     @State private var deferredAskPresentation: RelationshipAskPresentation?
@@ -391,16 +392,16 @@ struct RelationshipArchiveView: View {
         }
         .fullScreenCover(
             isPresented: $isRelationshipCalendarPresented,
-            onDismiss: completeDeferredTransition
+            onDismiss: {
+                reloadRelationshipCalendarActivities()
+                completeDeferredTransition()
+            }
         ) {
             if let snapshot = workspaceStore.snapshot {
                 RelationshipCalendarView(
                     snapshot: snapshot,
                     isPreview: !workspaceStore.isCanonical,
-                    initialActivities: RelationshipCalendarProjection.activities(
-                        snapshot: snapshot,
-                        isPreview: !workspaceStore.isCanonical
-                    ),
+                    initialActivities: relationshipCalendarActivities,
                     onPrepare: stageCalendarPreparation
                 )
             } else {
@@ -414,6 +415,7 @@ struct RelationshipArchiveView: View {
             }
             Task {
                 sessionStore.pruneExpired()
+                reloadRelationshipCalendarActivities()
                 await revalidateSessionEvidence()
             }
         }
@@ -469,6 +471,7 @@ struct RelationshipArchiveView: View {
         }
         .task {
             await workspaceStore.load()
+            reloadRelationshipCalendarActivities()
             await revalidateSessionEvidence()
         }
         .tint(.tsVermilion)
@@ -521,11 +524,16 @@ struct RelationshipArchiveView: View {
                         PursuitTodayView(
                             snapshot: snapshot,
                             isPreview: !workspaceStore.isCanonical,
+                            calendarActivities: relationshipCalendarActivities,
                             unreadSessions: sessionStore.unreadSessions,
                             actionRecovery: workspaceStore.latestActionRecovery(
                                 in: snapshot
                             ),
                             onOpenSession: openSession,
+                            onOpenCalendar: {
+                                clearTransientRetrievalIntent()
+                                isRelationshipCalendarPresented = true
+                            },
                             onOpenAttention: openAttention,
                             onOpenPursuit: { presentedSheet = .pursuit($0) },
                             onOpenActionRecovery: { pursuitID in
@@ -700,6 +708,30 @@ struct RelationshipArchiveView: View {
                 .minute()
                 .locale(appLanguage.locale)
         )
+    }
+
+    private func reloadRelationshipCalendarActivities() {
+        guard let snapshot = workspaceStore.snapshot else {
+            relationshipCalendarActivities = []
+            return
+        }
+        let projected = RelationshipCalendarProjection.activities(
+            snapshot: snapshot,
+            isPreview: !workspaceStore.isCanonical
+        )
+        let stored: [RelationshipCalendarActivity]
+        if workspaceStore.isCanonical {
+            stored = (try? FileRelationshipCalendarActivityStore(
+                accountID: snapshot.workspaceID
+            ).activities(in: snapshot)) ?? []
+        } else {
+            stored = []
+        }
+        var merged = projected
+        for activity in stored where !merged.contains(where: { $0.id == activity.id }) {
+            merged.append(activity)
+        }
+        relationshipCalendarActivities = merged.sorted { $0.startDate < $1.startDate }
     }
 
     private func revalidateSessionEvidence() async {
@@ -977,38 +1009,153 @@ private struct RelationshipArchiveHeader: View {
 private struct PursuitTodayView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
+    let calendarActivities: [RelationshipCalendarActivity]
     let unreadSessions: [AgentSession]
     let actionRecovery: PursuitActionRecoveryItem?
     let onOpenSession: (AgentSession) -> Void
+    let onOpenCalendar: () -> Void
     let onOpenAttention: (PursuitAttentionItem) -> Void
     let onOpenPursuit: (WorkspacePursuit) -> Void
     let onOpenActionRecovery: (String) -> Void
     @State private var showsAllAttention = false
+    @State private var decisionStates: [String: TodayInlineDecisionStatus] = [:]
+    @State private var decisionOverrides: [String: TodayInlineDecision] = [:]
+    @State private var expandedEvidenceDecisionID: String?
+    @State private var editingDecision: TodayInlineDecision?
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                RelationshipEyebrow(formattedToday, color: .tsInk)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    RelationshipEyebrow(formattedToday, color: .tsInk)
+                    Spacer(minLength: 8)
+                    if isPreview {
+                        PursuitPreviewBoundary(compact: true)
+                    }
+                }
                 Text(appLanguage.text("Today", zhHans: "今天"))
-                    .font(.custom("Georgia", size: 44, relativeTo: .largeTitle))
+                    .font(.custom("Georgia", size: 38, relativeTo: .largeTitle))
                     .foregroundStyle(Color.tsInk)
-                    .tracking(-1.3)
-                    .padding(.top, 7)
-                if !attentionItems.isEmpty || actionRecovery != nil {
+                    .tracking(-1.1)
+                    .padding(.top, 5)
+
+                if !calendarActivities.isEmpty {
+                    TodayRelationshipCalendarPeek(
+                        activities: calendarActivities,
+                        onOpen: onOpenCalendar
+                    )
+                    .padding(.top, 14)
+                }
+
+                if isPreview {
+                    previewDecisionContent
+                } else {
+                    canonicalAttentionContent
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
+        }
+        .scrollIndicators(.hidden)
+        .accessibilityIdentifier(
+            isPreview ? "editorial-today" : "canonical-pursuit-today"
+        )
+        .sheet(item: $editingDecision) { decision in
+            TodayInlineDecisionEditor(decision: decision) { updated in
+                decisionOverrides[decision.id] = updated
+                editingDecision = nil
+            }
+        }
+    }
+
+    private var previewDecisionContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(
+                String(
+                    format: appLanguage.text("Needs your decision · %d"),
+                    locale: appLanguage.locale,
+                    pendingDecisionCount
+                )
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.tsMutedInk)
+            .padding(.top, 24)
+            .accessibilityIdentifier("today-attention-summary")
+
+            ForEach(Array(previewDecisions.enumerated()), id: \.element.id) {
+                index,
+                decision in
+                let current = decisionOverrides[decision.id] ?? decision
+                let state = decisionStates[decision.id] ?? .pending
+                TodayInlineDecisionCard(
+                    decision: current,
+                    status: state,
+                    showsEvidence: expandedEvidenceDecisionID == decision.id,
+                    onApprove: {
+                        decisionStates[decision.id] = .approved
+                        expandedEvidenceDecisionID = nil
+                    },
+                    onEdit: { editingDecision = current },
+                    onDismiss: {
+                        decisionStates[decision.id] = .dismissed
+                        expandedEvidenceDecisionID = nil
+                    },
+                    onToggleEvidence: {
+                        expandedEvidenceDecisionID = expandedEvidenceDecisionID == decision.id
+                            ? nil
+                            : decision.id
+                    },
+                    onRestore: { decisionStates[decision.id] = .pending }
+                )
+                .padding(.top, index == 0 ? 12 : 10)
+                .accessibilityIdentifier(
+                    index == 0 ? "today-focus" : "today-inline-decision-\(decision.id)"
+                )
+            }
+
+            if let firstAttention = attentionItems.first {
+                Button { openPrimary(firstAttention) } label: {
+                    HStack(spacing: 8) {
+                        Text(
+                            String(
+                                format: appLanguage.text("%d more to handle later"),
+                                locale: appLanguage.locale,
+                                attentionItems.count
+                            )
+                        )
+                        .font(.caption)
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.tsMutedInk)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 8)
+                .accessibilityIdentifier(
+                    firstAttention.kind == .review
+                        ? "today-review-proposal-\(firstAttention.pursuitID)"
+                        : "today-attention-pursuit-\(firstAttention.pursuitID)"
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var canonicalAttentionContent: some View {
+        if !attentionItems.isEmpty || actionRecovery != nil {
                     Text(summary)
                         .font(.caption)
                         .foregroundStyle(Color.tsMutedInk)
                         .padding(.top, 6)
                         .accessibilityIdentifier("today-attention-summary")
-                }
+        }
 
-                if isPreview {
-                    PursuitPreviewBoundary()
-                        .padding(.top, 22)
-                }
-
-                if let unread = unreadSessions.first {
+        if let unread = unreadSessions.first {
                     Text(
                         appLanguage.text(
                             unreadSessions.count == 1
@@ -1028,9 +1175,9 @@ private struct PursuitTodayView: View {
                         action: { onOpenSession(unread) }
                     )
                     .padding(.top, 6)
-                }
+        }
 
-                if let actionRecovery = attentionRecovery {
+        if let actionRecovery = attentionRecovery {
                     Text(
                         appLanguage.text(
                             actionRecovery.status == .recorded
@@ -1053,14 +1200,14 @@ private struct PursuitTodayView: View {
                         }
                     )
                     .padding(.top, 6)
-                }
+        }
 
-                if attentionItems.isEmpty {
-                    if attentionRecovery == nil {
-                        PursuitNoActionView()
-                            .padding(.top, topWorkSpacing)
-                    }
-                } else if let focus = attentionItems.first {
+        if attentionItems.isEmpty {
+            if attentionRecovery == nil {
+                PursuitNoActionView()
+                    .padding(.top, topWorkSpacing)
+            }
+        } else if let focus = attentionItems.first {
                     Text(
                         appLanguage.text(
                             "People needing attention",
@@ -1122,17 +1269,17 @@ private struct PursuitTodayView: View {
                             .accessibilityIdentifier("today-attention-disclosure")
                         }
                     }
-                }
-
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 30)
-            .padding(.bottom, 36)
         }
-        .scrollIndicators(.hidden)
-        .accessibilityIdentifier(
-            isPreview ? "editorial-today" : "canonical-pursuit-today"
-        )
+    }
+
+    private var previewDecisions: [TodayInlineDecision] {
+        TodayInlineDecision.preview(in: appLanguage)
+    }
+
+    private var pendingDecisionCount: Int {
+        previewDecisions.filter {
+            (decisionStates[$0.id] ?? .pending) == .pending
+        }.count
     }
 
     private var summary: String {
@@ -1153,7 +1300,13 @@ private struct PursuitTodayView: View {
     }
 
     private var formattedToday: String {
-        Date.now.formatted(
+        if appLanguage.usesSimplifiedChinese() {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh-Hans")
+            formatter.dateFormat = "M月d日 · EEE"
+            return formatter.string(from: .now)
+        }
+        return Date.now.formatted(
             Date.FormatStyle()
                 .weekday(.wide)
                 .month(.wide)
@@ -1201,6 +1354,413 @@ private struct PursuitTodayView: View {
         }
     }
 
+}
+
+private enum TodayInlineDecisionStatus: Equatable {
+    case pending
+    case approved
+    case dismissed
+}
+
+private struct TodayInlineDecision: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case contact
+        case calendar
+
+        func title(in language: AppLanguage) -> String {
+            switch self {
+            case .contact:
+                return language.usesSimplifiedChinese() ? "联系人" : "Contact"
+            case .calendar:
+                return language.usesSimplifiedChinese() ? "日程" : "Calendar"
+            }
+        }
+
+        func destination(in language: AppLanguage) -> String {
+            switch self {
+            case .contact:
+                return language.text("Contacts")
+            case .calendar:
+                return language.text("Apple Calendar")
+            }
+        }
+    }
+
+    let id: String
+    let kind: Kind
+    var question: String
+    var effectPrimary: String
+    var effectSecondary: String
+    let evidenceLabel: String
+    let evidenceQuote: String
+
+    static func preview(in language: AppLanguage) -> [TodayInlineDecision] {
+        [
+            TodayInlineDecision(
+                id: "preview-contact",
+                kind: .contact,
+                question: language.text("Add Maya Ortiz?"),
+                effectPrimary: "maya@example.test",
+                effectSecondary: language.text("Create new contact"),
+                evidenceLabel: language.text("Conversation evidence · 1"),
+                evidenceQuote: "Maya Ortiz · maya@example.test"
+            ),
+            TodayInlineDecision(
+                id: "preview-calendar",
+                kind: .calendar,
+                question: language.text("Add a video call with Alex Chen?"),
+                effectPrimary: language.text("Tomorrow 15:00–15:30"),
+                effectSecondary: language.text(
+                    "Singapore time · Apple Calendar"
+                ),
+                evidenceLabel: language.text("Conversation evidence · 1"),
+                evidenceQuote: language.text(
+                    "Tomorrow at 3pm Singapore time works for a 30-minute video call."
+                )
+            ),
+        ]
+    }
+}
+
+private struct TodayInlineDecisionCard: View {
+    let decision: TodayInlineDecision
+    let status: TodayInlineDecisionStatus
+    let showsEvidence: Bool
+    let onApprove: () -> Void
+    let onEdit: () -> Void
+    let onDismiss: () -> Void
+    let onToggleEvidence: () -> Void
+    let onRestore: () -> Void
+
+    @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if status == .pending {
+                proposal
+            } else {
+                receipt
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var proposal: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(decision.kind.title(in: appLanguage))
+                .font(.caption.weight(.bold))
+                .tracking(0.8)
+                .foregroundStyle(Color.tsVermilion)
+
+            Text(decision.question)
+                .font(.custom("Georgia", size: 23, relativeTo: .title3))
+                .foregroundStyle(Color.tsInk)
+                .tracking(-0.35)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+
+            VStack(alignment: .leading, spacing: 0) {
+                effectCopy
+            }
+                .padding(.top, 7)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("today-decision-effect-\(decision.id)")
+
+            Button(action: onToggleEvidence) {
+                HStack(spacing: 10) {
+                    Image(systemName: "text.bubble")
+                        .font(.subheadline.weight(.semibold))
+                        .accessibilityHidden(true)
+                    Text(decision.evidenceLabel)
+                        .font(.caption)
+                    Spacer(minLength: 8)
+                    Image(systemName: showsEvidence ? "chevron.up" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .accessibilityHidden(true)
+                }
+                .foregroundStyle(Color.tsMutedInk)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 6)
+            .accessibilityLabel(decision.evidenceLabel)
+            .accessibilityValue(
+                appLanguage.text(showsEvidence ? "Expanded" : "Collapsed")
+            )
+            .accessibilityIdentifier("today-decision-evidence-\(decision.id)")
+
+            if showsEvidence {
+                Text(verbatim: "“\(decision.evidenceQuote)”")
+                    .font(.caption)
+                    .foregroundStyle(Color.tsInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        Color.tsEvidence,
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+                    .padding(.bottom, 8)
+                    .accessibilityIdentifier(
+                        "today-decision-evidence-quote-\(decision.id)"
+                    )
+            }
+
+            Divider().overlay(Color.tsLine)
+            decisionActions
+                .padding(.top, 10)
+        }
+    }
+
+    @ViewBuilder
+    private var decisionActions: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 8) {
+                approveButton
+                editButton
+                dismissButton
+            }
+        } else {
+            HStack(spacing: 9) {
+                approveButton
+                editButton
+                dismissButton
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var effectCopy: some View {
+        if decision.kind == .calendar {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(decision.effectPrimary)
+                Text(decision.effectSecondary)
+                    .foregroundStyle(Color.tsMutedInk.opacity(0.88))
+            }
+            .font(.subheadline)
+            .foregroundStyle(Color.tsMutedInk)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(verbatim: "\(decision.effectPrimary) · \(decision.effectSecondary)")
+                .font(.subheadline)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var approveButton: some View {
+        Button(action: onApprove) {
+            Text(appLanguage.text("Add"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tsSurface)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(
+                    Color.tsInk,
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            String(
+                format: appLanguage.text("Approve this %@ proposal"),
+                locale: appLanguage.locale,
+                decision.kind.title(in: appLanguage).lowercased()
+            )
+        )
+        .accessibilityHint(
+            appLanguage.text(
+                "Records a preview decision only. No external write occurs."
+            )
+        )
+        .accessibilityIdentifier("today-decision-add-\(decision.id)")
+    }
+
+    private var editButton: some View {
+        Button(action: onEdit) {
+            Text(appLanguage.usesSimplifiedChinese() ? "编辑" : "Edit")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(
+                    Color.tsCanvas,
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .stroke(Color.tsInk.opacity(0.72), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("today-decision-edit-\(decision.id)")
+    }
+
+    private var dismissButton: some View {
+        Button(role: .destructive, action: onDismiss) {
+            Text(appLanguage.usesSimplifiedChinese() ? "忽略" : "Dismiss")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.tsMutedInk)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("today-decision-dismiss-\(decision.id)")
+    }
+
+    private var receipt: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(
+                systemName: status == .approved
+                    ? "checkmark.circle.fill"
+                    : "minus.circle"
+            )
+            .font(.title3)
+            .foregroundStyle(
+                status == .approved ? Color.tsConfirmed : Color.tsMutedInk
+            )
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(
+                    status == .approved
+                        ? appLanguage.text("Preview decision recorded")
+                        : appLanguage.text("Proposal dismissed")
+                )
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+                .accessibilityIdentifier(
+                    "today-decision-receipt-\(decision.id)"
+                )
+                Text(
+                    String(
+                        format: appLanguage.text("No write was made to %@."),
+                        locale: appLanguage.locale,
+                        decision.kind.destination(in: appLanguage)
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: onRestore) {
+                Text(appLanguage.text("Undo"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("today-decision-restore-\(decision.id)")
+        }
+    }
+}
+
+private struct TodayInlineDecisionEditor: View {
+    let decision: TodayInlineDecision
+    let onSave: (TodayInlineDecision) -> Void
+
+    @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dismiss) private var dismiss
+    @State private var question: String
+    @State private var effectPrimary: String
+    @State private var effectSecondary: String
+
+    init(
+        decision: TodayInlineDecision,
+        onSave: @escaping (TodayInlineDecision) -> Void
+    ) {
+        self.decision = decision
+        self.onSave = onSave
+        _question = State(initialValue: decision.question)
+        _effectPrimary = State(initialValue: decision.effectPrimary)
+        _effectSecondary = State(initialValue: decision.effectSecondary)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(appLanguage.text("Proposal")) {
+                    TextField(
+                        appLanguage.text("Decision question"),
+                        text: $question,
+                        axis: .vertical
+                    )
+                    .accessibilityIdentifier("today-decision-editor-question")
+                }
+
+                Section(appLanguage.text("Exact effect")) {
+                    TextField(
+                        appLanguage.text("Primary detail"),
+                        text: $effectPrimary,
+                        axis: .vertical
+                    )
+                    .accessibilityIdentifier("today-decision-editor-primary")
+                    TextField(
+                        appLanguage.text("Destination"),
+                        text: $effectSecondary,
+                        axis: .vertical
+                    )
+                    .accessibilityIdentifier("today-decision-editor-secondary")
+                }
+
+                Section {
+                    Text(
+                        appLanguage.text(
+                            "Editing changes this proposal only. The preview cannot write to an external app."
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                }
+            }
+            .navigationTitle(appLanguage.text("Edit proposal"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(appLanguage.text("Cancel")) {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(appLanguage.text("Save")) {
+                        var updated = decision
+                        updated.question = question.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        )
+                        updated.effectPrimary = effectPrimary.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        )
+                        updated.effectSecondary = effectSecondary.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        )
+                        onSave(updated)
+                    }
+                    .disabled(!canSave)
+                    .accessibilityIdentifier("today-decision-editor-save")
+                }
+            }
+        }
+        .accessibilityIdentifier("today-decision-editor")
+    }
+
+    private var canSave: Bool {
+        !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !effectPrimary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !effectSecondary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }
 
 private struct TodayActionRecoveryCard: View {
@@ -2475,29 +3035,38 @@ private struct RelationshipRetrievalButtonStyle: ButtonStyle {
 }
 
 private struct PursuitPreviewBoundary: View {
+    var compact = false
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         Label(
             appLanguage.text(
-                "Synthetic preview · canonical backend not connected",
-                zhHans: "合成预览 · 尚未连接权威后端"
+                compact
+                    ? "Synthetic preview"
+                    : "Synthetic preview · canonical backend not connected",
+                zhHans: compact
+                    ? "合成预览"
+                    : "合成预览 · 尚未连接权威后端"
             ),
             systemImage: "eye.trianglebadge.exclamationmark"
         )
-        .font(.caption.weight(.semibold))
+        .font((compact ? Font.caption2 : Font.caption).weight(.semibold))
         .foregroundStyle(Color.tsMutedInk)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, compact ? 0 : 12)
+        .frame(maxWidth: compact ? nil : .infinity, alignment: .leading)
         .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.tsLine)
-                .frame(height: 1)
+            if !compact {
+                Rectangle()
+                    .fill(Color.tsLine)
+                    .frame(height: 1)
+            }
         }
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.tsLine)
-                .frame(height: 1)
+            if !compact {
+                Rectangle()
+                    .fill(Color.tsLine)
+                    .frame(height: 1)
+            }
         }
         .accessibilityIdentifier("workspace-preview-boundary")
     }

@@ -260,7 +260,7 @@ enum RelationshipCalendarProjection {
             let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)
                 ?? now.addingTimeInterval(24 * 60 * 60)
             firstStart = calendar.date(
-                bySettingHour: 10,
+                bySettingHour: 15,
                 minute: 0,
                 second: 0,
                 of: tomorrow
@@ -278,7 +278,7 @@ enum RelationshipCalendarProjection {
                 contextDisplayLabel: first.1.displayLabel,
                 startDate: firstStart,
                 endDate: firstStart.addingTimeInterval(45 * 60),
-                timeZoneIdentifier: TimeZone.current.identifier,
+                timeZoneIdentifier: "Asia/Singapore",
                 source: .preview,
                 eventIdentifier: nil
             ),
@@ -308,7 +308,7 @@ enum RelationshipCalendarProjection {
                     contextDisplayLabel: second.1.displayLabel,
                     startDate: secondStart,
                     endDate: secondStart.addingTimeInterval(30 * 60),
-                    timeZoneIdentifier: TimeZone.current.identifier,
+                    timeZoneIdentifier: "Asia/Singapore",
                     source: .preview,
                     eventIdentifier: nil
                 )
@@ -338,75 +338,73 @@ struct TodayRelationshipCalendarPeek: View {
         Button(action: onOpen) {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 10) {
-                        dateMark
+                    VStack(alignment: .leading, spacing: 8) {
+                        timeMark
                         momentCopy
                         openMark
                     }
                 } else {
-                    HStack(spacing: 13) {
-                        dateMark
+                    HStack(spacing: 14) {
+                        timeMark
                         momentCopy
+                            .layoutPriority(1)
                         Spacer(minLength: 8)
                         openMark
                     }
                 }
             }
-            .padding(.vertical, 13)
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color.tsInk.opacity(0.08))
+                    .fill(Color.tsLine)
                     .frame(height: 1)
-                    .padding(.horizontal, 14)
             }
-            .contentShape(RoundedRectangle(cornerRadius: 18))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(
             appLanguage.text("Opens the relationship calendar.")
         )
-        .accessibilityIdentifier("today-calendar-peek")
+        .accessibilityIdentifier("today-calendar-reminder")
     }
 
     private var nextActivity: RelationshipCalendarActivity? {
         RelationshipCalendarProjection.next(in: activities)
     }
 
-    private var dateMark: some View {
-        VStack(spacing: 1) {
-            Text(dateWeekday)
-                .font(.system(size: 10, weight: .bold))
-                .tracking(0.8)
-                .foregroundStyle(Color.tsInk)
-            Text(dateDay)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Color.tsInk)
+    private var timeMark: some View {
+        HStack(spacing: 9) {
+            VStack(spacing: 0) {
+                Circle()
+                    .fill(Color.tsVermilion)
+                    .frame(width: 7, height: 7)
+                Rectangle()
+                    .fill(Color.tsVermilion)
+                    .frame(width: 1, height: 35)
+            }
+            Text(nextActivity.map { timeText($0.startDate, in: $0) } ?? "—")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Color.tsVermilion)
+                .fixedSize()
         }
-        .frame(width: 42, height: 42)
-        .background(Color.tsSurfaceMuted, in: RoundedRectangle(cornerRadius: 12))
+        .frame(minWidth: dynamicTypeSize.isAccessibilitySize ? nil : 96, alignment: .leading)
         .accessibilityHidden(true)
     }
 
     private var momentCopy: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(appLanguage.text("Calendar"))
-                .font(.caption.weight(.bold))
-                .tracking(0.8)
-                .foregroundStyle(Color.tsMutedInk)
             if let nextActivity {
                 Text(
-                    verbatim: "\(timeText(nextActivity.startDate)) · \(nextActivity.personDisplayLabel)"
+                    verbatim: "\(nextActivity.personDisplayLabel) · \(nextActivity.displayTitle(in: appLanguage))"
                 )
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                 Text(
-                    verbatim: "\(nextActivity.displayTitle(in: appLanguage)) · \(appLanguage.workspaceTerm(nextActivity.contextDisplayLabel))"
+                    verbatim: "\(contextText(nextActivity)) · \(timeZoneText(nextActivity))"
                 )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
@@ -421,35 +419,11 @@ struct TodayRelationshipCalendarPeek: View {
     }
 
     private var openMark: some View {
-        HStack(spacing: 6) {
-            if activities.count > 1 {
-                Text(verbatim: "\(activities.count)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color.tsMutedInk)
-            }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.tsMutedInk)
-        }
+        Image(systemName: "chevron.right")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color.tsMutedInk)
         .frame(minWidth: 44, minHeight: 44)
         .accessibilityHidden(true)
-    }
-
-    private var dateWeekday: String {
-        let date = nextActivity?.startDate ?? Date()
-        return date.formatted(
-            Date.FormatStyle()
-                .weekday(.narrow)
-                .locale(appLanguage.locale)
-        ).uppercased()
-    }
-
-    private var dateDay: String {
-        let date = nextActivity?.startDate ?? Date()
-        // The tile already communicates month/day through the button's full
-        // accessibility label. Keep the decorative mark numeric so locales
-        // that append a day suffix do not clip inside its fixed square.
-        return String(Calendar(identifier: .gregorian).component(.day, from: date))
     }
 
     private var accessibilityLabel: String {
@@ -465,13 +439,38 @@ struct TodayRelationshipCalendarPeek: View {
         )
     }
 
-    private func timeText(_ date: Date) -> String {
-        date.formatted(
-            Date.FormatStyle()
-                .hour()
-                .minute()
-                .locale(appLanguage.locale)
-        )
+    private func timeText(
+        _ date: Date,
+        in activity: RelationshipCalendarActivity
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = appLanguage.locale
+        formatter.timeZone = TimeZone(identifier: activity.timeZoneIdentifier)
+            ?? .current
+        formatter.setLocalizedDateFormatFromTemplate("j:mm")
+        return formatter.string(from: date)
+    }
+
+    private func timeZoneText(_ activity: RelationshipCalendarActivity) -> String {
+        if activity.timeZoneIdentifier == "Asia/Singapore" {
+            return appLanguage.text("Singapore time")
+        }
+        return activity.timeZoneIdentifier.replacingOccurrences(of: "_", with: " ")
+    }
+
+    private func contextText(_ activity: RelationshipCalendarActivity) -> String {
+        guard activity.source == .preview,
+              appLanguage.usesSimplifiedChinese() else {
+            return appLanguage.workspaceTerm(activity.contextDisplayLabel)
+        }
+        switch activity.contextDisplayLabel {
+        case "Chief Product Officer search":
+            return "首席产品官搜索"
+        case "Board search":
+            return "董事会搜寻"
+        default:
+            return appLanguage.workspaceTerm(activity.contextDisplayLabel)
+        }
     }
 
     private func dateTimeText(_ date: Date) -> String {
