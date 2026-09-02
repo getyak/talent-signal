@@ -262,13 +262,14 @@ final class PursuitWorkspaceStore: ObservableObject {
     init(
         service: PursuitWorkspaceServing?,
         actionCompletions: PursuitActionCompletionPersisting = UserDefaultsPursuitActionCompletionStore(),
-        operationIDFactory: @escaping () -> UUID = UUID.init
+        operationIDFactory: @escaping () -> UUID = UUID.init,
+        previewSnapshot: PursuitWorkspaceSnapshot = .preview
     ) {
         self.service = service
         self.actionCompletions = actionCompletions
         self.operationIDFactory = operationIDFactory
         isCanonical = service != nil
-        phase = service == nil ? .preview(.preview) : .loading
+        phase = service == nil ? .preview(previewSnapshot) : .loading
     }
 
     func load() async {

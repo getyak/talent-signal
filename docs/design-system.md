@@ -259,6 +259,7 @@ or turn weak associations into authoritative relationships.
 Optimize for capture, one-thumb review, Today, interruption, and device-owned
 action.
 
+Row swipe reveals are transient, close on new intent, never change Today, Sessions, or People, and hide no higher-consequence command; see the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#fifth-iteration-row-gesture-ownership).
 Treat screenshot intake as one progressive decision, not a miniature contact
 form or a success toast:
 

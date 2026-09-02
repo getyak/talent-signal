@@ -298,6 +298,8 @@ struct RelationshipAskView: View {
     @ObservedObject var sessionStore: AgentSessionStore
     let sessionID: UUID?
     var initialSeed: AgentSessionSeed? = nil
+    var preferredPersonID: String? = nil
+    var preferredPersonLabel: String? = nil
     var initialEntryMode: RelationshipAskEntryMode = .text
     let ask: (
         _ objective: String,
@@ -362,6 +364,7 @@ struct RelationshipAskView: View {
 #if DEBUG
     @State private var fixtureAskFailureConsumed = false
     @State private var fixtureContactLookupFailureConsumed = false
+    @State private var fixtureAskRequestCount = 0
 #endif
     @State private var errorMessage: String?
     @State private var contactDraft: ConversationContactDraft?
@@ -397,6 +400,12 @@ struct RelationshipAskView: View {
 
     private var compactPresentationDetent: PresentationDetent {
         .fraction(0.76)
+    }
+
+    private var preferredPersonName: String? {
+        guard let preferredPersonID else { return preferredPersonLabel }
+        return currentSnapshot.people.first(where: { $0.id == preferredPersonID })?.displayLabel
+            ?? preferredPersonLabel
     }
 
     var body: some View {
@@ -610,6 +619,24 @@ struct RelationshipAskView: View {
                         zhHans: "当前工作区中找不到刚审阅的关系。"
                     )
                 }
+            } else if let preferredPersonID {
+                let matchingScopes = availableScopes.filter {
+                    $0.person.id == preferredPersonID
+                }
+                switch AgentPreferredPersonScopePolicy.resolve(
+                    matchingScopeCount: matchingScopes.count
+                ) {
+                case .exact:
+                    selectedScope = matchingScopes[0]
+                case .unavailable:
+                    errorMessage = appLanguage.text(
+                        "This person is not available in the current workspace."
+                    )
+                case .requiresSelection:
+                    scopeQuery = preferredPersonName ?? ""
+                    isChoosingScope = true
+                    presentationDetent = .large
+                }
             }
             restoreContactProposal()
             restoreDraft(preferred: initialSeed?.suggestedObjective)
@@ -643,12 +670,16 @@ struct RelationshipAskView: View {
                     )
                 }
             }
-            if sessionID != nil || initialSeed != nil || contactDraft != nil {
+            if sessionID != nil
+                || initialSeed != nil
+                || contactDraft != nil
+                || preferredPersonID != nil {
                 presentationDetent = .large
             }
             if sessionID == nil,
                initialSeed == nil,
-               contactDraft == nil {
+               contactDraft == nil,
+               preferredPersonID == nil {
                 await Task.yield()
                 switch initialEntryMode {
                 case .text:
@@ -791,6 +822,22 @@ struct RelationshipAskView: View {
             )
         }
         .accessibilityIdentifier("relationship-ask-sheet")
+#if DEBUG
+        .overlay(alignment: .topTrailing) {
+            if ProcessInfo.processInfo.arguments.contains(
+                "--fixture-record-ask-request-count"
+            ) {
+                Text(verbatim: "\(fixtureAskRequestCount)")
+                    .font(.system(size: 1))
+                    .foregroundStyle(Color.clear)
+                    .frame(width: 1, height: 1)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(appLanguage.text("Agent request count"))
+                    .accessibilityValue("\(fixtureAskRequestCount)")
+                    .accessibilityIdentifier("ask-fixture-request-count")
+            }
+        }
+#endif
     }
 
     private var scopeBar: some View {
@@ -814,7 +861,16 @@ struct RelationshipAskView: View {
                                 appLanguage.text(
                                     isRequestingScope
                                         ? "Who is this about?"
-                                        : "Choose a relationship"
+                                        : preferredPersonName.map {
+                                            String(
+                                                format: appLanguage.text(
+                                                    "Choose a relationship for %@"
+                                                ),
+                                                locale: appLanguage.locale,
+                                                $0
+                                            )
+                                        }
+                                        ?? "Choose a relationship"
                                 )
                             )
                                 .font(.subheadline.weight(.semibold))
@@ -861,6 +917,17 @@ struct RelationshipAskView: View {
             .accessibilityIdentifier("ask-scope-selector")
 
             if isChoosingScope {
+                if requiresPreferredScopeSelection {
+                    Text(
+                        appLanguage.text(
+                            "Choose one relationship before sending. Agent will stay inside this person’s record."
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("ask-preferred-scope-required")
+                }
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(Color.tsMutedInk)
@@ -1981,6 +2048,9 @@ struct RelationshipAskView: View {
             return appLanguage.text("Understanding this message…")
         }
         if hasComposerInput {
+            if requiresPreferredScopeSelection {
+                return appLanguage.text("Choose a relationship before sending")
+            }
             return selectedScope == nil
                 ? appLanguage.text(
                     "Send and let Agent link the relationship",
@@ -1994,7 +2064,13 @@ struct RelationshipAskView: View {
     }
 
     private var composerPrimaryAccessibilityHint: String {
-        if hasComposerInput { return "" }
+        if hasComposerInput {
+            return requiresPreferredScopeSelection
+                ? appLanguage.text(
+                    "Select one of this person’s visible relationships first."
+                )
+                : ""
+        }
         guard voiceTranscriber != nil else { return "" }
         if voiceInput.isRecording {
             return appLanguage.text(
@@ -2109,6 +2185,9 @@ struct RelationshipAskView: View {
             && activeSessionID == nil
             && initialSeed == nil
             && contactDraft == nil
+            && preferredPersonID == nil
+            && selectedScope == nil
+            && !isChoosingScope
             && !isSending
             && !isInterpretingContact
             && !isRequestingScope
@@ -2144,6 +2223,7 @@ struct RelationshipAskView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(appLanguage.text("Close", zhHans: "关闭"))
+            .accessibilityIdentifier("ask-close")
 
             Spacer(minLength: 0)
 
@@ -2401,10 +2481,18 @@ struct RelationshipAskView: View {
 
     private var shouldShowScopeBar: Bool {
         pendingObjective == nil
-            && (selectedScope != nil || isRequestingScope)
+            && (selectedScope != nil || isRequestingScope || isChoosingScope)
+    }
+
+    private var requiresPreferredScopeSelection: Bool {
+        !AgentPreferredPersonScopePolicy.canSubmit(
+            preferredPersonID: preferredPersonID,
+            selectedPersonID: selectedScope?.person.id
+        )
     }
 
     private var canSendDraft: Bool {
+        guard !requiresPreferredScopeSelection else { return false }
         let isContactIntent = ConversationContactIntake.propose(trimmedDraft) != nil
         if isContactIntent, mediaDrafts.isEmpty {
             return !isSending
@@ -2422,9 +2510,12 @@ struct RelationshipAskView: View {
     }
 
     private var filteredScopes: [AskScope] {
+        let allowedScopes = preferredPersonID.map { preferredPersonID in
+            availableScopes.filter { $0.person.id == preferredPersonID }
+        } ?? availableScopes
         let needle = scopeQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !needle.isEmpty else { return availableScopes }
-        return availableScopes.filter {
+        guard !needle.isEmpty else { return allowedScopes }
+        return allowedScopes.filter {
             $0.person.displayLabel.localizedCaseInsensitiveContains(needle)
                 || $0.context.displayLabel.localizedCaseInsensitiveContains(needle)
         }
@@ -2755,6 +2846,15 @@ struct RelationshipAskView: View {
               ),
               !isSending,
               !isInterpretingContact else { return }
+        guard !requiresPreferredScopeSelection else {
+            isChoosingScope = true
+            presentationDetent = .large
+            composerFocused = false
+            errorMessage = appLanguage.text(
+                "Choose one relationship for this person before sending."
+            )
+            return
+        }
         flushDraftPersistence()
         if mediaDrafts.isEmpty,
            let deterministicProposal = ConversationContactIntake.propose(trimmed) {
@@ -3266,6 +3366,9 @@ struct RelationshipAskView: View {
                         : mediaIDs.joined(separator: ":")
                 )
                 try await waitForFixtureAskDelayIfNeeded()
+#if DEBUG
+                fixtureAskRequestCount += 1
+#endif
                 let response = try await ask(
                     effectiveObjective,
                     scope.person.id,

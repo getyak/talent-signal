@@ -63,6 +63,10 @@ updated.
 - [Living contact page and relationship memory](research/living-contact-page-and-memory.md):
   separates stable person data, relationship-scoped memory, episodic history,
   and typed Agent tools for the Web People experience.
+- [iOS relationship library design benchmark](research/ios-relationship-library-design-benchmark.md):
+  compares the mobile relationship workspace with adjacent products and records
+  the current row-swipe, long-press, dismissal, motion, and navigation-gesture
+  decision.
 
 ## Operations and evaluation
 

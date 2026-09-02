@@ -184,6 +184,33 @@ struct AgentSessionSeed: Equatable {
     }
 }
 
+enum AgentPreferredPersonScopeResolution: Equatable {
+    case unavailable
+    case exact
+    case requiresSelection
+}
+
+enum AgentPreferredPersonScopePolicy {
+    static func resolve(matchingScopeCount: Int) -> AgentPreferredPersonScopeResolution {
+        switch matchingScopeCount {
+        case 0:
+            return .unavailable
+        case 1:
+            return .exact
+        default:
+            return .requiresSelection
+        }
+    }
+
+    static func canSubmit(
+        preferredPersonID: String?,
+        selectedPersonID: String?
+    ) -> Bool {
+        guard let preferredPersonID else { return true }
+        return selectedPersonID == preferredPersonID
+    }
+}
+
 struct AgentRelationshipRecallCandidate: Equatable, Identifiable {
     let person: WorkspacePerson
     let context: WorkspacePerson.Context
@@ -1387,10 +1414,20 @@ final class AgentSessionStore: ObservableObject {
         persist()
     }
 
-    func delete(_ id: UUID) {
+    @discardableResult
+    func delete(_ id: UUID) -> Bool {
         _ = pruneExpiredState()
+        guard storedSessions.contains(where: { $0.id == id }) else {
+            return true
+        }
+        let priorSessions = storedSessions
         storedSessions.removeAll { $0.id == id }
-        persist()
+        guard persist() else {
+            storedSessions = priorSessions
+            scheduleNextExpiration()
+            return false
+        }
+        return true
     }
 
     func draft(personID: String, relationshipContextID: String) -> String {
@@ -2170,7 +2207,10 @@ private extension JSONDecoder {
 }
 
 extension AgentSessionStore {
-    static func preview(snapshot: PursuitWorkspaceSnapshot) -> AgentSessionStore {
+    static func preview(
+        snapshot: PursuitWorkspaceSnapshot,
+        sessionCount: Int = 2
+    ) -> AgentSessionStore {
         let people = snapshot.people
         guard let first = people.first,
               let firstContext = first.contexts.first else {
@@ -2266,7 +2306,27 @@ extension AgentSessionStore {
             updatedAt: now.addingTimeInterval(-7_200),
             isUnread: false
         )
-        return AgentSessionStore(sessions: [primary, secondary])
+        var sessions = [primary, secondary]
+        if sessionCount > sessions.count {
+            sessions.append(contentsOf: (sessions.count..<sessionCount).map { index in
+                let sequence = index + 1
+                return AgentSession(
+                    id: UUID(
+                        uuidString: String(
+                            format: "90000000-0000-4000-8000-%012d",
+                            sequence
+                        )
+                    )!,
+                    scope: secondary.scope,
+                    title: String(format: "Continuity session %02d", sequence),
+                    turns: [],
+                    contactReceipts: [],
+                    updatedAt: now.addingTimeInterval(Double(-3_600 * sequence)),
+                    isUnread: sequence.isMultiple(of: 3)
+                )
+            })
+        }
+        return AgentSessionStore(sessions: sessions)
     }
 }
 
