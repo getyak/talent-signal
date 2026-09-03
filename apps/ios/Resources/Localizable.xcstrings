@@ -5320,6 +5320,16 @@
         }
       }
     },
+    "Open saved reference": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开已保存的资料引用"
+          }
+        }
+      }
+    },
     "Open session": {
       "localizations": {
         "zh-Hans": {
@@ -9850,6 +9860,16 @@
         }
       }
     },
+    "Website": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人网站"
+          }
+        }
+      }
+    },
     "Workspace": {
       "localizations": {
         "zh-Hans": {
@@ -9946,6 +9966,1086 @@
           "stringUnit": {
             "state": "translated",
             "value": "你推动了这个 Pursuit。"
+          }
+        }
+      }
+    },
+    "%lld profile references": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个资料引用"
+          }
+        }
+      }
+    },
+    "Account connections": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账户连接"
+          }
+        }
+      }
+    },
+    "Add profile reference": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加资料引用"
+          }
+        }
+      }
+    },
+    "Add reference": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加引用"
+          }
+        }
+      }
+    },
+    "Another CRM": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他 CRM"
+          }
+        }
+      }
+    },
+    "Blocked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止"
+          }
+        }
+      }
+    },
+    "Bring people in": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入联系人"
+          }
+        }
+      }
+    },
+    "Check identity again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新核对身份"
+          }
+        }
+      }
+    },
+    "Checking current and historical identity…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在核对当前与历史身份…"
+          }
+        }
+      }
+    },
+    "Choose a CSV, tab-separated text, or vCard file.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择 CSV、制表符分隔文本或 vCard 文件。"
+          }
+        }
+      }
+    },
+    "Choose a contacts file smaller than 10 MB.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择小于 10 MB 的联系人文件。"
+          }
+        }
+      }
+    },
+    "Choose file": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择文件"
+          }
+        }
+      }
+    },
+    "Confirm this identity clue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认这条身份线索"
+          }
+        }
+      }
+    },
+    "Contacts file": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "联系人文件"
+          }
+        }
+      }
+    },
+    "Create a new person": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建新联系人"
+          }
+        }
+      }
+    },
+    "Create a new relationship context": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建新的关系情境"
+          }
+        }
+      }
+    },
+    "Current clue · source-linked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前线索 · 已关联来源"
+          }
+        }
+      }
+    },
+    "Device capabilities": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备能力"
+          }
+        }
+      }
+    },
+    "Duplicate": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重复"
+          }
+        }
+      }
+    },
+    "Edit reference": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑引用"
+          }
+        }
+      }
+    },
+    "Enter a profile link or handle.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入资料链接或账号名。"
+          }
+        }
+      }
+    },
+    "Exact duplicate of row %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "与第 %lld 行完全重复"
+          }
+        }
+      }
+    },
+    "File import ready": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件导入可用"
+          }
+        }
+      }
+    },
+    "File snapshot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件快照"
+          }
+        }
+      }
+    },
+    "Google Contacts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 联系人"
+          }
+        }
+      }
+    },
+    "Historical clue · comparison only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "历史线索 · 仅供比较"
+          }
+        }
+      }
+    },
+    "Historical clue · requires reconfirmation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "历史线索 · 需要重新确认"
+          }
+        }
+      }
+    },
+    "Identity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份"
+          }
+        }
+      }
+    },
+    "LinkedIn connections": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LinkedIn 人脉"
+          }
+        }
+      }
+    },
+    "Microsoft 365": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microsoft 365"
+          }
+        }
+      }
+    },
+    "Missing name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺少姓名"
+          }
+        }
+      }
+    },
+    "Not connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未连接"
+          }
+        }
+      }
+    },
+    "Not mapped": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未映射"
+          }
+        }
+      }
+    },
+    "Not retained": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不保留"
+          }
+        }
+      }
+    },
+    "On-device review": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备端审阅"
+          }
+        }
+      }
+    },
+    "Organization": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "组织"
+          }
+        }
+      }
+    },
+    "People found": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发现的联系人"
+          }
+        }
+      }
+    },
+    "Platform": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平台"
+          }
+        }
+      }
+    },
+    "Position": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "职位"
+          }
+        }
+      }
+    },
+    "Raw file": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始文件"
+          }
+        }
+      }
+    },
+    "Reading contacts on this device…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在此设备上读取联系人…"
+          }
+        }
+      }
+    },
+    "Remove reference": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除引用"
+          }
+        }
+      }
+    },
+    "Resource receipt %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资源回执 %@"
+          }
+        }
+      }
+    },
+    "Retry the same decision": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试同一决定"
+          }
+        }
+      }
+    },
+    "Review a CSV or vCard before adding people.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加联系人前先审阅 CSV 或 vCard。"
+          }
+        }
+      }
+    },
+    "Review and save one person": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审阅并保存一位联系人"
+          }
+        }
+      }
+    },
+    "Review import": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审阅导入"
+          }
+        }
+      }
+    },
+    "Review person": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审阅联系人"
+          }
+        }
+      }
+    },
+    "Reviewable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可审阅"
+          }
+        }
+      }
+    },
+    "Reviewed fields": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已审阅字段"
+          }
+        }
+      }
+    },
+    "Row": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "行"
+          }
+        }
+      }
+    },
+    "Same name only · not an identity match": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅姓名相同 · 并非身份匹配"
+          }
+        }
+      }
+    },
+    "Saved": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存"
+          }
+        }
+      }
+    },
+    "Select Connections.csv from your member-requested export.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从你主动申请的导出文件中选择 Connections.csv。"
+          }
+        }
+      }
+    },
+    "Source attached to selected Person": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源已附加到所选联系人"
+          }
+        }
+      }
+    },
+    "Source fingerprint %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源指纹 %@"
+          }
+        }
+      }
+    },
+    "The CSV contains an unfinished quoted field.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CSV 中存在未闭合的引号字段。"
+          }
+        }
+      }
+    },
+    "The contacts file needs a recognizable header row.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "联系人文件需要可识别的标题行。"
+          }
+        }
+      }
+    },
+    "The file encoding could not be read safely.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法安全读取此文件的字符编码。"
+          }
+        }
+      }
+    },
+    "The selected file could not be read.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取所选文件。"
+          }
+        }
+      }
+    },
+    "The selected file is empty.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选文件为空。"
+          }
+        }
+      }
+    },
+    "The vCard could not be read safely.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法安全读取此 vCard。"
+          }
+        }
+      }
+    },
+    "This file could not be reviewed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法审阅此文件"
+          }
+        }
+      }
+    },
+    "This import supports up to 5,000 rows at a time.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "单次导入最多支持 5,000 行。"
+          }
+        }
+      }
+    },
+    "This link belongs to a different platform.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此链接属于另一个平台。"
+          }
+        }
+      }
+    },
+    "This link or handle is not valid for that platform.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此链接或账号名不符合该平台格式。"
+          }
+        }
+      }
+    },
+    "Use file": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用文件"
+          }
+        }
+      }
+    },
+    "Your profile references": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的资料引用"
+          }
+        }
+      }
+    },
+    "A current and historical owner conflict is active. Choose the current owner, remove the clue, or preserve an unresolved identity review.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前所有者与历史所有者存在冲突。请选择当前所有者、移除线索，或保留为待解决的身份审阅。"
+          }
+        }
+      }
+    },
+    "A live connection will show its exact read scope, last successful access, and revoke control here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实时连接会在这里明确显示读取范围、最近成功访问时间和撤销控制。"
+          }
+        }
+      }
+    },
+    "Choose what this one reviewed source should change.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择这一个已审阅来源应当改变什么。"
+          }
+        }
+      }
+    },
+    "Finish the existing protected contact review before starting another import decision.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先完成现有的受保护联系人审阅，再开始另一个导入决定。"
+          }
+        }
+      }
+    },
+    "Finish the protected review for %@ before importing another person.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先完成 %@ 的受保护审阅，再导入另一位联系人。"
+          }
+        }
+      }
+    },
+    "Name-only matches are suggestions. Current or historical handle ownership stays visible and no match is selected for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅姓名相同只是建议。当前或历史账号归属会保持可见，系统不会替你选择匹配项。"
+          }
+        }
+      }
+    },
+    "No Google account access has been granted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未授予 Google 账户访问权限。"
+          }
+        }
+      }
+    },
+    "No Microsoft account access has been granted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未授予 Microsoft 账户访问权限。"
+          }
+        }
+      }
+    },
+    "No supported match was found.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未发现可支持的匹配项。"
+          }
+        }
+      }
+    },
+    "No valid email, phone, or HTTPS profile link was found.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未发现有效的邮箱、电话或 HTTPS 资料链接。"
+          }
+        }
+      }
+    },
+    "One new Person and relationship context will be created after this exact review.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成这次明确审阅后，将创建一位新联系人及其关系情境。"
+          }
+        }
+      }
+    },
+    "Only mapped fields are held in this review. The selected raw file is not stored by Talent Signal.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本次审阅只保留已映射字段。Talent Signal 不会存储所选原始文件。"
+          }
+        }
+      }
+    },
+    "Open one person to check identity and choose create, attach, or leave unresolved. No person is preselected.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开一位联系人核对身份，再选择创建、附加或保留未解决。系统不会预选任何人。"
+          }
+        }
+      }
+    },
+    "Organization and position remain source evidence in this slice; they are not silently promoted to confirmed profile fields.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这一版中，组织和职位仍属于来源证据，不会被静默提升为已确认资料字段。"
+          }
+        }
+      }
+    },
+    "Person created from reviewed source": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已从审阅来源创建联系人"
+          }
+        }
+      }
+    },
+    "Preview workspace: file review works, but no canonical Person can be saved.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览工作区：可以审阅文件，但无法保存正式联系人。"
+          }
+        }
+      }
+    },
+    "These references describe how you identify yourself. They grant no account access, contact access, or background sync.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些资料引用描述你如何标识自己，但不会授予账户访问、联系人访问或后台同步权限。"
+          }
+        }
+      }
+    },
+    "The canonical save succeeded, but protected local recovery could not be cleared. Reopening still uses the same operation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正式保存已成功，但无法清除受保护的本地恢复状态。重新打开仍会使用同一操作。"
+          }
+        }
+      }
+    },
+    "The canonical save succeeded, but Session history could not be protected on this device.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正式保存已成功，但此设备无法安全保留会话历史。"
+          }
+        }
+      }
+    },
+    "The file is parsed on this device and discarded after review. Nothing is merged on name alone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件只在此设备上解析，并在审阅后丢弃。不会仅凭姓名合并联系人。"
+          }
+        }
+      }
+    },
+    "The reference could not be removed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法移除资料引用。"
+          }
+        }
+      }
+    },
+    "The reference could not be saved.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存资料引用。"
+          }
+        }
+      }
+    },
+    "The result is not assumed. Retry uses the same protected decision and cannot create a second operation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统不会假定结果。重试会使用同一受保护决定，不会创建第二个操作。"
+          }
+        }
+      }
+    },
+    "The result is unknown. Retry the same protected decision.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果未知。请重试同一个受保护决定。"
+          }
+        }
+      }
+    },
+    "The reviewed source will attach to the selected Person and relationship.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已审阅来源将附加到所选联系人和关系。"
+          }
+        }
+      }
+    },
+    "The source will be kept for identity review without creating or attaching a Person.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源会保留用于身份审阅，不会创建或附加联系人。"
+          }
+        }
+      }
+    },
+    "These column names remain visible for review, but their values are not imported.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些列名会在审阅中保持可见，但其中的值不会被导入。"
+          }
+        }
+      }
+    },
+    "This decision could not be protected for a safe retry. Nothing was sent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保护此决定以便安全重试。没有发送任何内容。"
+          }
+        }
+      }
+    },
+    "This is an identity reference only. Talent Signal will not sign in, sync, or publish through it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这只是一条身份引用。Talent Signal 不会通过它登录、同步或发布。"
+          }
+        }
+      }
+    },
+    "This review can create one Person, attach the source to one existing Person, or preserve an unresolved identity case.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本次审阅可以创建一位联系人、将来源附加到现有联系人，或保留一个未解决的身份案例。"
+          }
+        }
+      }
+    },
+    "Use its CSV export for a reviewable snapshot today.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前可使用其 CSV 导出创建可审阅的快照。"
+          }
+        }
+      }
+    },
+    "A contact field is too large to review safely.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "某个联系人字段过大，无法安全审阅。"
+          }
+        }
+      }
+    },
+    "A name is required before this row can be reviewed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要先补充姓名，才能审阅这一行。"
+          }
+        }
+      }
+    },
+    "A non-HTTPS profile link will not be used as an identity clue.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "非 HTTPS 资料链接不会被用作身份线索。"
+          }
+        }
+      }
+    },
+    "Imported notes are excluded until a separate evidence review exists.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入备注会被排除，直到完成独立的证据审阅。"
+          }
+        }
+      }
+    },
+    "Needs attention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要注意"
+          }
+        }
+      }
+    },
+    "The invalid email will not be used as an identity clue.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无效邮箱不会被用作身份线索。"
+          }
+        }
+      }
+    },
+    "The invalid phone will not be used as an identity clue.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无效电话不会被用作身份线索。"
+          }
+        }
+      }
+    },
+    "This contacts file has too many columns.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此联系人文件包含过多列。"
+          }
+        }
+      }
+    },
+    "This exact identity clue already appears earlier in the file.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条完全相同的身份线索已在文件前面出现。"
           }
         }
       }
