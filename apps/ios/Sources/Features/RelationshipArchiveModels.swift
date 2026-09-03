@@ -202,13 +202,6 @@ enum AgentPreferredPersonScopePolicy {
         }
     }
 
-    static func canSubmit(
-        preferredPersonID: String?,
-        selectedPersonID: String?
-    ) -> Bool {
-        guard let preferredPersonID else { return true }
-        return selectedPersonID == preferredPersonID
-    }
 }
 
 struct AgentRelationshipRecallCandidate: Equatable, Identifiable {
@@ -220,20 +213,6 @@ struct AgentRelationshipRecallCandidate: Equatable, Identifiable {
     let matchedRecentSession: Bool
 
     var id: String { "\(person.id):\(context.id)" }
-}
-
-enum AgentRelationshipRecallOutcome: Equatable {
-    case matched(AgentRelationshipRecallCandidate)
-    case ambiguous(
-        candidates: [AgentRelationshipRecallCandidate],
-        possibleDuplicate: Bool
-    )
-    case unresolved(recent: [AgentRelationshipRecallCandidate])
-}
-
-enum AgentUnscopedConversationRoute: Equatable {
-    case directConversation
-    case relationshipRecall
 }
 
 enum AgentLocalWorkspaceIntent: Equatable {
@@ -262,32 +241,6 @@ enum AgentLocalWorkspacePolicy {
     }
 }
 
-enum AgentUnscopedConversationPolicy {
-    static func route(objective: String) -> AgentUnscopedConversationRoute {
-        let normalized = objective
-            .folding(
-                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                locale: Locale(identifier: "en_US_POSIX")
-            )
-            .lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return .relationshipRecall }
-
-        let relationshipSignals = [
-            "relationship", "candidate", "client", "pursuit", "follow up",
-            "follow-up", "last conversation", "next step", "what changed",
-            "联系人", "候选人", "客户", "关系", "跟进", "上次", "进展",
-            "下一步", "变化", "这个人",
-        ]
-        if normalized.contains("@")
-            || relationshipSignals.contains(where: normalized.contains) {
-            return .relationshipRecall
-        }
-
-        return .directConversation
-    }
-}
-
 enum AgentRelationshipRecallPolicy {
     static func recentCandidatesForReview(
         people: [WorkspacePerson],
@@ -305,109 +258,6 @@ enum AgentRelationshipRecallPolicy {
         return recentCandidates(
             people: people,
             sessionScopes: sessionScopes
-        )
-    }
-
-    static func resolve(
-        objective: String,
-        people: [WorkspacePerson],
-        recentSessions: [AgentSession]
-    ) -> AgentRelationshipRecallOutcome {
-        let normalizedObjective = normalize(objective)
-        let relationshipCount = people.reduce(0) { $0 + $1.contexts.count }
-        if relationshipCount == 1,
-           let person = people.first(where: { !$0.contexts.isEmpty }),
-           let context = person.contexts.first {
-            return .matched(
-                candidate(
-                    person: person,
-                    context: context,
-                    score: 1,
-                    personMatch: false,
-                    contextMatch: false,
-                    sessionMatch: false
-                )
-            )
-        }
-
-        let sessionScopes = Set(
-            recentSessions.prefix(12).compactMap { session -> String? in
-                guard let personID = session.personID,
-                      let contextID = session.relationshipContextID else {
-                    return nil
-                }
-                return "\(personID):\(contextID)"
-            }
-        )
-        var candidates: [AgentRelationshipRecallCandidate] = []
-        for person in people {
-            let normalizedPerson = normalize(person.displayLabel)
-            let personTokens = normalizedPerson.split(separator: " ")
-                .map(String.init)
-                .filter { $0.count >= 2 }
-            let exactPersonMatch = !normalizedPerson.isEmpty
-                && normalizedObjective.contains(normalizedPerson)
-            let matchedPersonTokens = personTokens.filter {
-                normalizedObjective.contains($0)
-            }
-            let personMatch = exactPersonMatch || !matchedPersonTokens.isEmpty
-
-            for context in person.contexts {
-                let normalizedContext = normalize(context.displayLabel)
-                let contextMatch = normalizedContext.count >= 4
-                    && normalizedObjective.contains(normalizedContext)
-                let sessionMatch = sessionScopes.contains(
-                    "\(person.id):\(context.id)"
-                )
-                var score = 0
-                if exactPersonMatch { score += 200 }
-                score += matchedPersonTokens.count * 40
-                if contextMatch { score += 100 }
-                if sessionMatch, personMatch || contextMatch { score += 18 }
-                guard score > 0 else { continue }
-                candidates.append(
-                    candidate(
-                        person: person,
-                        context: context,
-                        score: score,
-                        personMatch: personMatch,
-                        contextMatch: contextMatch,
-                        sessionMatch: sessionMatch
-                    )
-                )
-            }
-        }
-
-        let ordered = candidates.sorted(by: recallOrder)
-        guard let best = ordered.first else {
-            return .unresolved(
-                recent: recentCandidates(
-                    people: people,
-                    sessionScopes: sessionScopes
-                )
-            )
-        }
-        let bestCandidates = ordered.filter { $0.matchScore == best.matchScore }
-        let distinctPeople = Set(bestCandidates.map { $0.person.id })
-        let samePerson = distinctPeople.count == 1
-        if bestCandidates.count == 1 {
-            return .matched(best)
-        }
-        if samePerson {
-            let contextMatches = bestCandidates.filter(\.matchedContextName)
-            if contextMatches.count == 1 {
-                return .matched(contextMatches[0])
-            }
-        }
-        let duplicateLabels = Dictionary(grouping: bestCandidates) {
-            normalize($0.person.displayLabel)
-        }
-        let possibleDuplicate = duplicateLabels.values.contains { group in
-            Set(group.map { $0.person.id }).count > 1
-        }
-        return .ambiguous(
-            candidates: Array(bestCandidates.prefix(6)),
-            possibleDuplicate: possibleDuplicate
         )
     }
 
@@ -460,32 +310,6 @@ enum AgentRelationshipRecallPolicy {
         )
     }
 
-    private static func recallOrder(
-        _ lhs: AgentRelationshipRecallCandidate,
-        _ rhs: AgentRelationshipRecallCandidate
-    ) -> Bool {
-        if lhs.matchScore != rhs.matchScore {
-            return lhs.matchScore > rhs.matchScore
-        }
-        if lhs.context.lastActivityAt != rhs.context.lastActivityAt {
-            return lhs.context.lastActivityAt > rhs.context.lastActivityAt
-        }
-        return lhs.id < rhs.id
-    }
-
-    private static func normalize(_ value: String) -> String {
-        value.folding(
-            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-            locale: Locale(identifier: "en_US_POSIX")
-        )
-        .precomposedStringWithCompatibilityMapping
-        .replacingOccurrences(
-            of: #"[^\p{L}\p{N}@+]+"#,
-            with: " ",
-            options: .regularExpression
-        )
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
 
 struct AgentSession: Identifiable, Equatable {
@@ -1730,6 +1554,69 @@ final class AgentSessionStore: ObservableObject {
     }
 
     @discardableResult
+    func promoteUnscopedChatToContactProposal(
+        sessionID: UUID,
+        objective: String,
+        unscopedChatIdempotencyKey: String,
+        draft: ConversationContactDraft,
+        proposalIdempotencyKey: String,
+        clearingGlobalDraft: Bool = false
+    ) -> Bool {
+        _ = pruneExpiredState()
+        guard let index = storedSessions.firstIndex(where: {
+            $0.id == sessionID && $0.isUnresolvedIntent
+        }), storedSessions[index].pendingObjective == objective,
+        storedSessions[index].pendingUnscopedChatIdempotencyKey
+            == unscopedChatIdempotencyKey else {
+            return false
+        }
+
+        let priorSessions = storedSessions
+        let priorContactProposal = storedContactProposal
+        let priorGlobalDraft = storedGlobalDraft
+        let capturedAt = Self.stableContactCaptureDate(
+            storedContactProposal.flatMap {
+                $0.idempotencyKey == proposalIdempotencyKey
+                    ? $0.capturedAt
+                    : nil
+            } ?? now()
+        )
+        storedContactProposal = AgentContactProposalDraft(
+            draft: draft,
+            idempotencyKey: proposalIdempotencyKey,
+            capturedAt: capturedAt,
+            pendingTarget: nil,
+            pendingConfirmIdentityClue: nil,
+            updatedAt: now()
+        )
+        if clearingGlobalDraft {
+            storedGlobalDraft = nil
+        }
+
+        if storedSessions[index].turns.isEmpty,
+           storedSessions[index].contactReceipts.isEmpty {
+            storedSessions.remove(at: index)
+        } else {
+            storedSessions[index].pendingObjective = nil
+            storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
+            storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+            storedSessions[index].pendingPersonResearchRequestIdentity = nil
+            storedSessions[index].updatedAt = now()
+            storedSessions[index].isUnread = false
+            sortSessions()
+        }
+
+        guard persist() else {
+            storedSessions = priorSessions
+            storedContactProposal = priorContactProposal
+            storedGlobalDraft = priorGlobalDraft
+            scheduleNextExpiration()
+            return false
+        }
+        return true
+    }
+
+    @discardableResult
     func clearContactProposal() -> Bool {
         _ = pruneExpiredState()
         let prior = storedContactProposal
@@ -2555,6 +2442,7 @@ enum RelationshipArchiveSheet: Identifiable {
     case pursuit(WorkspacePursuit)
     case workspacePerson(WorkspacePerson, [WorkspacePersonRole])
     case proposal(WorkspaceProposal)
+    case agentStudio
     case menu
 
     var id: String {
@@ -2571,6 +2459,8 @@ enum RelationshipArchiveSheet: Identifiable {
             return "workspace-person-\(person.id)"
         case let .proposal(proposal):
             return "proposal-\(proposal.id)"
+        case .agentStudio:
+            return "agent-studio"
         case .menu:
             return "menu"
         }

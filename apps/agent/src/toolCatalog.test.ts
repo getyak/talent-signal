@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { AgentFinalOutputSchema } from "./schemas.js";
+import {
+  AgentFinalOutputSchema,
+  ContactWorkspaceInputSchema,
+  WorkspaceConversationFinalOutputSchema,
+} from "./schemas.js";
 import {
   AGENT_TOOL_CATALOG,
   agentCapabilityManifest,
@@ -12,6 +16,7 @@ import {
   PERSON_RESEARCH_AGENT_TOOL_NAMES,
   PURSUIT_AGENT_TOOL_NAMES,
   RESEARCH_AGENT_TOOL_NAMES,
+  WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES,
 } from "./types.js";
 
 describe("provider-neutral Agent capability catalog", () => {
@@ -38,6 +43,9 @@ describe("provider-neutral Agent capability catalog", () => {
     expect(PURSUIT_AGENT_TOOL_NAMES).toHaveLength(3);
     expect(RESEARCH_AGENT_TOOL_NAMES).toHaveLength(3);
     expect(PERSON_RESEARCH_AGENT_TOOL_NAMES).toHaveLength(5);
+    expect(WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES).toEqual([
+      "contact_workspace",
+    ]);
     expect(candidateToolNames(PURSUIT_AGENT_TOOL_NAMES)).toEqual([
       "stage_pursuit_proposal",
     ]);
@@ -47,10 +55,16 @@ describe("provider-neutral Agent capability catalog", () => {
     expect(candidateToolNames(PERSON_RESEARCH_AGENT_TOOL_NAMES)).toEqual([
       "create_person_research_artifact",
     ]);
+    expect(candidateToolNames(WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES)).toEqual([
+      "contact_workspace",
+    ]);
     expect(candidateOutcome(PURSUIT_AGENT_TOOL_NAMES)).toBe("proposal");
     expect(candidateOutcome(RESEARCH_AGENT_TOOL_NAMES)).toBe("artifact");
     expect(candidateOutcome(PERSON_RESEARCH_AGENT_TOOL_NAMES)).toBe(
       "person_research_artifact",
+    );
+    expect(candidateOutcome(WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES)).toBe(
+      "contact_change_proposal",
     );
   });
 
@@ -60,11 +74,12 @@ describe("provider-neutral Agent capability catalog", () => {
       (capability) => capability.consequence === "durable_candidate",
     );
 
-    expect(capabilities).toHaveLength(11);
+    expect(capabilities).toHaveLength(12);
     expect(durable.map((capability) => capability.name)).toEqual([
       "stage_pursuit_proposal",
       "create_research_artifact",
       "create_person_research_artifact",
+      "contact_workspace",
     ]);
     expect(
       durable.every(
@@ -77,5 +92,31 @@ describe("provider-neutral Agent capability catalog", () => {
     expect(AGENT_TOOL_CATALOG.stage_pursuit_proposal.approval).toBe(
       "human_review_before_apply",
     );
+    expect(AGENT_TOOL_CATALOG.contact_workspace.approval).toBe(
+      "human_review_before_apply",
+    );
+  });
+
+  it("admits bounded contact operations but exposes no apply operation", () => {
+    expect(
+      ContactWorkspaceInputSchema.parse({
+        operation: "search",
+        query: "Maya",
+        maximum_results: 4,
+      }),
+    ).toMatchObject({ operation: "search", maximum_results: 4 });
+    expect(
+      ContactWorkspaceInputSchema.safeParse({
+        operation: "apply",
+        person_id: "b1c3f1fc-1e15-4cd3-89a1-b64cf0b66817",
+      }).success,
+    ).toBe(false);
+    expect(
+      WorkspaceConversationFinalOutputSchema.parse({
+        outcome: "reply",
+        title: "Hello",
+        body: "How can I help?",
+      }),
+    ).toMatchObject({ outcome: "reply" });
   });
 });

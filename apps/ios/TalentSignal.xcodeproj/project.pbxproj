@@ -91,6 +91,7 @@
 		ACCF73276C146F5561CD23D7 /* SharedCaptureEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */; };
 		AD08E92344FA0B6C172C1F68 /* CandidateSignalComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */; };
 		B3FCB11A82FE832BEF7B6B06 /* StandaloneOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */; };
+		BAC906FBE44C3289C00AD239 /* RelationshipAgentStudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0AB9B7264527674C941D66E /* RelationshipAgentStudioView.swift */; };
 		BB3580A3464A58431968556E /* TextSignalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA3B1B8042B74DA1B5D1670 /* TextSignalCaptureView.swift */; };
 		C2CD13773507FE9D6E9311FE /* DeviceCalendarHandoffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382034DC80F815EB41351067 /* DeviceCalendarHandoffView.swift */; };
 		C4F842118E9C6C983BD8F36C /* RelationshipArchiveSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */; };
@@ -252,6 +253,7 @@
 		DA9C76EA5C3003ACBC256441 /* Environment.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Environment.xcconfig; sourceTree = "<group>"; };
 		DB0A4A5861074DECBB9DD2A7 /* ResearchActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchActivity.swift; sourceTree = "<group>"; };
 		DC6D8F6894923DD54E359F8E /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
+		E0AB9B7264527674C941D66E /* RelationshipAgentStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAgentStudioView.swift; sourceTree = "<group>"; };
 		E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalTests.swift; sourceTree = "<group>"; };
 		E43E2D32DD9913AC4F6E097A /* PendingCaptureInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingCaptureInbox.swift; sourceTree = "<group>"; };
 		E4A87D8AD9EB892B7AA6D836 /* AskInputReliability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskInputReliability.swift; sourceTree = "<group>"; };
@@ -429,6 +431,7 @@
 				0F92CDD8245AFCCF10A4CFD3 /* DeviceContactHandoffView.swift */,
 				0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */,
 				080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */,
+				E0AB9B7264527674C941D66E /* RelationshipAgentStudioView.swift */,
 				7D60444BD109DBAA3780F88D /* RelationshipArchiveModels.swift */,
 				A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */,
 				8740830A52A1650A3FF8B41A /* RelationshipArchiveView.swift */,
@@ -749,6 +752,7 @@
 				0F66097E97A12D5433BD6CBE /* PursuitWorkspace.swift in Sources */,
 				373EC4428F3966B754C33E6F /* PursuitWorkspaceClient.swift in Sources */,
 				D08C2E84FC404988E0F82AE0 /* PursuitWorkspaceStore.swift in Sources */,
+				BAC906FBE44C3289C00AD239 /* RelationshipAgentStudioView.swift in Sources */,
 				A4B50D55CF2FD1DB578106DC /* RelationshipArchiveModels.swift in Sources */,
 				C4F842118E9C6C983BD8F36C /* RelationshipArchiveSheets.swift in Sources */,
 				19879CA4D7C15E17BD4FAAD2 /* RelationshipArchiveView.swift in Sources */,

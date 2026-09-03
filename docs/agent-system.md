@@ -256,7 +256,7 @@ boundaries or systems of record.
 
 ## V1 bounded runtime
 
-`@talent-signal/agent` is the provider-neutral runner. Each Pursuit, company/market, or public-person definition receives only its small Tool manifest; a second gate rejects every other Tool, and `no_action` remains a validated terminal output rather than a Tool call.
+`@talent-signal/agent` is the provider-neutral runner. Each Pursuit, company/market, public-person, or workspace-conversation definition receives only its small Tool manifest; a second gate rejects every other Tool, and terminal output remains schema-validated rather than becoming a Tool call.
 
 The backend freezes scope, context, objective, and budget; persists fingerprints,
 validated output, usage, and one terminal receipt without raw tool payloads;
@@ -269,14 +269,14 @@ The local host selects one provider, isolates credentials, guards fetches, check
 The screenshot public-person definition exposes only platform-specific public-profile searches and draft creation. Relationship Ask may start it automatically for exactly one supported image after both deployment gates pass, including when no Person or relationship has been selected.
 The result remains an unconfirmed response block with public-source references; it is not canonical evidence, identity state, or permission to act.
 
+The account-scoped workspace-conversation definition may answer directly or call only `contact_workspace`: `search`, `read`, `propose_create`, and `propose_update`. Search clues must come from the message; one uniquely resolved header may be read and handed to governed relationship Ask, while ambiguity stops for clarification. Same-Run authorization binds reads and update targets. Proposal fields and source excerpts must be grounded in the message or unchanged exact-target labels; the Tool returns a fingerprint and `needs_review`, never an apply operation or canonical mutation.
+
 Every catalog entry declares its capability class, consequence, approval,
 reversibility, idempotency, read-only behavior, and open-world behavior. These
 host-enforced descriptors keep provider adapters thin and make authority
 boundaries inspectable without asking the model to infer them from prose.
 
-The governed Pursuit Task adds durable attempts, snapshots, checkpoints,
-artifacts, and events with authoritative readback. It permits only normalized
-operational work; decisions retain domain owners. Resume and effects remain targets.
+The governed Pursuit Task adds durable attempts, snapshots, checkpoints, artifacts, and events with authoritative readback. It permits only normalized operational work; decisions retain domain owners. Resume and effects remain targets.
 
 ## Evaluation
 

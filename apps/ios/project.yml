@@ -62,6 +62,8 @@ targets:
         embed: true
     scheme:
       gatherCoverageData: true
+      commandLineArguments:
+        "--preview-workspace": true
       testTargets:
         - TalentSignalTests
         - TalentSignalUITests

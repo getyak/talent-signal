@@ -26,13 +26,99 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Bare Debug launch requires a workspace")
     }
 
+    func testAgentStudioIsADedicatedSparseDestination() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let agentEntry = app.buttons["relationship-agent-studio"]
+        XCTAssertTrue(agentEntry.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(agentEntry.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(agentEntry.frame.height, 44)
+        agentEntry.tap()
+
+        XCTAssertTrue(element("agent-studio").waitForExistence(timeout: 5))
+        for identifier in [
+            "agent-open-memory",
+            "agent-open-profile",
+            "agent-open-sources",
+            "agent-open-permissions",
+        ] {
+            let destination = app.buttons[identifier]
+            XCTAssertTrue(destination.exists, "Missing Agent destination: \(identifier)")
+            XCTAssertGreaterThanOrEqual(destination.frame.height, 44)
+        }
+        XCTAssertFalse(app.buttons["Ask Agent"].exists)
+        preserveScreenshot("Agent is a dedicated sparse destination")
+
+        app.buttons["agent-open-sources"].tap()
+        XCTAssertTrue(element("agent-sources").waitForExistence(timeout: 5))
+        let linkedIn = app.textFields["agent-linkedin-url"]
+        XCTAssertTrue(linkedIn.exists)
+        let clearReference = app.buttons["agent-clear-linkedin-url"]
+        if clearReference.exists {
+            clearReference.tap()
+        }
+        linkedIn.tap()
+        linkedIn.typeText("https://www.linkedin.com/in/example")
+        XCTAssertTrue(clearReference.waitForExistence(timeout: 3))
+        clearReference.tap()
+        XCTAssertTrue(app.staticTexts["Not added"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["LinkedIn connections archive"].exists)
+        XCTAssertTrue(app.staticTexts["Contacts, vCard & CSV"].exists)
+        preserveScreenshot("Agent sources distinguish available and planned")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-agent-studio"].tap()
+        XCTAssertTrue(element("agent-studio").waitForExistence(timeout: 5))
+        app.buttons["agent-open-sources"].tap()
+        XCTAssertTrue(element("agent-sources").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Not added"].exists)
+        XCTAssertFalse(app.buttons["agent-clear-linkedin-url"].exists)
+    }
+
+    func testAgentStudioRemainsReachableInChineseAtAX5() {
+        app.launchArguments = [
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let agentEntry = app.buttons["relationship-agent-studio"]
+        XCTAssertTrue(agentEntry.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(agentEntry.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(agentEntry.frame.height, 44)
+        agentEntry.tap()
+
+        XCTAssertTrue(element("agent-studio").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["agent-alias"].exists)
+        let sources = app.buttons["agent-open-sources"]
+        scrollToVisible(sources)
+        XCTAssertGreaterThanOrEqual(sources.frame.height, 44)
+        preserveScreenshot("Agent compact Chinese AX5")
+        sources.tap()
+
+        XCTAssertTrue(element("agent-sources").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["agent-linkedin-url"].exists)
+        let actionButton = app.buttons["agent-open-action-button"]
+        scrollToVisible(actionButton)
+        XCTAssertGreaterThanOrEqual(actionButton.frame.height, 44)
+        preserveScreenshot("Agent sources compact Chinese AX5")
+    }
+
     func testDisplaySettingsSeparateTextSizeFromCardDensity() {
         app.launchEnvironment["TS_IOS_UI_TEST_TEXT_SIZE"] = "system"
         app.launchEnvironment["TS_IOS_UI_TEST_CARD_DENSITY"] = "compact"
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-menu"].tap()
+        openRelationshipMenu()
         let display = app.buttons["open-display-settings"]
         XCTAssertTrue(display.waitForExistence(timeout: 5))
         display.tap()
@@ -422,7 +508,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(
             (scope.value as? String)?.contains("Leila Hartmann") == true
         )
-        let composer = element("ask-composer")
+        let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertTrue((composer.value as? String)?.contains("Prepare for the") == true)
         XCTAssertTrue(app.buttons["ask-attachment-menu"].isEnabled)
@@ -563,18 +649,27 @@ final class CandidateSignalUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-menu"].tap()
+        openRelationshipMenu()
 
         XCTAssertTrue(
             app.buttons["close-relationship-menu"].waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.buttons["open-account-settings"].exists)
-        XCTAssertTrue(app.buttons["open-action-button-onboarding"].exists)
-        XCTAssertTrue(app.buttons["open-action-button-settings"].exists)
+        let actionButtonOnboarding = app.buttons["open-action-button-onboarding"]
+        XCTAssertTrue(actionButtonOnboarding.exists)
+        let actionButtonSettings = app.buttons["open-action-button-settings"]
+        if !actionButtonSettings.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(actionButtonSettings.exists)
         XCTAssertFalse(app.staticTexts["Talent Signal"].exists)
         preserveScreenshot("Quiet workspace menu")
 
-        app.buttons["open-action-button-onboarding"].tap()
+        if !actionButtonOnboarding.isHittable {
+            app.swipeDown()
+        }
+        XCTAssertTrue(actionButtonOnboarding.isHittable)
+        actionButtonOnboarding.tap()
         XCTAssertTrue(element("action-button-settings").waitForExistence(timeout: 5))
         XCTAssertTrue(element("open-app-shortcuts").exists)
         preserveScreenshot("Action Button setup")
@@ -587,7 +682,7 @@ final class CandidateSignalUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-menu"].tap()
+        openRelationshipMenu()
         XCTAssertTrue(
             app.buttons["close-relationship-menu"].waitForExistence(timeout: 5)
         )
@@ -612,7 +707,7 @@ final class CandidateSignalUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-menu"].tap()
+        openRelationshipMenu()
 
         let reviewInbox = app.buttons["open-review-inbox"]
         XCTAssertTrue(reviewInbox.waitForExistence(timeout: 5))
@@ -641,7 +736,7 @@ final class CandidateSignalUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-menu"].tap()
+        openRelationshipMenu()
 
         let account = app.buttons["open-account-settings"]
         let onboarding = app.buttons["open-action-button-onboarding"]
@@ -1337,6 +1432,7 @@ final class CandidateSignalUITests: XCTestCase {
         app.launchArguments = [
             "--persist-preview-agent",
             "--reset-preview-agent",
+            "--fixture-agent-contact-proposal",
         ]
         app.launch()
 
@@ -1350,7 +1446,10 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(composer.value as? String, message)
 
         app.terminate()
-        app.launchArguments = ["--persist-preview-agent"]
+        app.launchArguments = [
+            "--persist-preview-agent",
+            "--fixture-agent-contact-proposal",
+        ]
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -1368,7 +1467,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("contact-proposal-card").waitForNonExistence(timeout: 5))
     }
 
-    func testUnscopedQuestionCreatesChatThenOffersInlineRelationshipChoices() {
+    func testUnscopedQuestionSendsWithoutAContactPicker() {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -1381,12 +1480,13 @@ final class CandidateSignalUITests: XCTestCase {
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.exists)
         XCTAssertTrue(send.isEnabled)
-        XCTAssertEqual(send.label, "Send and let Agent link the relationship")
+        XCTAssertEqual(send.label, "Send")
 
         send.tap()
 
-        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 5))
-        XCTAssertTrue(element("ask-recall-unresolved").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Agent · Preview"].exists)
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertFalse(element("ask-scope-search").exists)
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
@@ -1394,26 +1494,8 @@ final class CandidateSignalUITests: XCTestCase {
             app.keyboards.firstMatch.waitForNonExistence(timeout: 3),
             "Relationship clarification should not leave the composer keyboard over the choices."
         )
-        preserveScreenshot("Agent offers inline relationship choices in Chat")
-
-        let recalledRelationship = app.buttons.matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH %@",
-                "ask-recall-candidate-"
-            )
-        ).firstMatch
-        XCTAssertTrue(recalledRelationship.waitForExistence(timeout: 5))
-        recalledRelationship.tap()
-
-        let previewError = element("ask-error")
-        XCTAssertTrue(previewError.waitForExistence(timeout: 5))
-        XCTAssertTrue(
-            app.staticTexts[
-                "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
-            ].exists
-        )
-        XCTAssertFalse(app.buttons["ask-retry"].exists)
-        XCTAssertEqual(composer.value as? String, message)
+        XCTAssertTrue(composer.isEnabled)
+        preserveScreenshot("Agent answers without a mandatory contact picker")
     }
 
     func testContactCountUsesTheOnDeviceWorkspaceIndexWithoutAnAgentRequest() {
@@ -1451,7 +1533,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Contact count answered on device")
     }
 
-    func testRecalledRelationshipStaysCorrectableWhileAgentReads() {
+    func testNamedRelationshipQuestionDoesNotTriggerClientSideContactGuessing() {
         app.launchArguments = ["--fixture-ask-delay-seconds", "3"]
         app.launch()
 
@@ -1462,11 +1544,11 @@ final class CandidateSignalUITests: XCTestCase {
         typeTextReliably("What changed with Leila?", into: composer)
         app.buttons["ask-send"].tap()
 
-        XCTAssertTrue(element("ask-recall-match").waitForExistence(timeout: 5))
-        XCTAssertTrue(element("ask-loading").exists)
-        XCTAssertTrue(app.buttons["ask-recall-change"].isEnabled)
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("ask-recall-match").exists)
+        XCTAssertFalse(element("ask-loading").exists)
         XCTAssertFalse(element("ask-scope-selector").exists)
-        preserveScreenshot("Recalled relationship remains correctable while reading")
+        preserveScreenshot("Named relationship stays with the Agent")
     }
 
     func testVoiceInputInsertsAnEditableDraftWithoutSending() {
@@ -2008,7 +2090,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         app.buttons["relationship-guide"].tap()
-        let composer = element("ask-composer")
+        let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertTrue(composer.exists)
@@ -2039,20 +2121,18 @@ final class CandidateSignalUITests: XCTestCase {
         typeTextReliably("发生了什么变化？", into: composer)
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.isEnabled)
-        XCTAssertEqual(send.label, "发送并由 Agent 关联关系")
+        XCTAssertEqual(send.label, "发送")
         send.tap()
 
-        XCTAssertTrue(element("ask-recall-unresolved").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Agent · 预览"].exists)
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertFalse(element("ask-scope-search").exists)
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
-        XCTAssertLessThanOrEqual(
-            element("ask-recall-unresolved").frame.maxX,
-            app.frame.maxX
-        )
         XCTAssertLessThanOrEqual(composer.frame.maxY, app.frame.maxY)
-        preserveScreenshot("Ask Chinese dark AX5 inline relationship recall")
+        preserveScreenshot("Ask Chinese dark AX5 Agent reply")
     }
 
     func testSettingsSwitchesTheCoreWorkspaceBetweenChineseAndEnglish() {
@@ -2232,7 +2312,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(
             element("canonical-pursuit-today").waitForExistence(timeout: 15)
         )
-        app.buttons["relationship-menu"].tap()
+        openRelationshipMenu()
         let reviewInbox = app.buttons["open-review-inbox"]
         XCTAssertTrue(reviewInbox.waitForExistence(timeout: 8))
         reviewInbox.tap()
@@ -2265,7 +2345,7 @@ final class CandidateSignalUITests: XCTestCase {
             element("workspace-failed-attempt-2")
                 .waitForExistence(timeout: 12)
         )
-        let menu = app.buttons["relationship-menu"]
+        let menu = app.buttons["relationship-agent-studio"]
         XCTAssertTrue(menu.waitForExistence(timeout: 8))
         XCTAssertGreaterThan(
             menu.frame.minY,
@@ -2376,7 +2456,7 @@ final class CandidateSignalUITests: XCTestCase {
                     }
                 }
                 let frame = issueElement.frame
-                let top = self.app.buttons["relationship-menu"].frame.maxY
+                let top = self.app.buttons["relationship-agent-studio"].frame.maxY
                 let bottom = self.app.buttons["relationship-guide"].frame.minY
                 return frame.maxY <= top || frame.maxY >= bottom
             }
@@ -2489,7 +2569,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(people.isHittable)
         people.tap()
         XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 8))
-        let menu = app.buttons["relationship-menu"]
+        let menu = app.buttons["relationship-agent-studio"]
         XCTAssertTrue(menu.waitForExistence(timeout: 8))
         let window = app.windows.firstMatch
         XCTAssertGreaterThanOrEqual(
@@ -3751,7 +3831,11 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     func testNaturalContactProposalIsEditableAndRestoresAfterRelaunch() {
-        app.launchArguments = ["--persist-preview-agent", "--reset-preview-agent"]
+        app.launchArguments = [
+            "--persist-preview-agent",
+            "--reset-preview-agent",
+            "--fixture-agent-contact-proposal",
+        ]
         app.launch()
 
         XCTAssertTrue(
@@ -3850,7 +3934,11 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     func testGlobalAgentUnderstandsContactWithoutCommandOrScopeForm() {
-        app.launchArguments = ["--persist-preview-agent", "--reset-preview-agent"]
+        app.launchArguments = [
+            "--persist-preview-agent",
+            "--reset-preview-agent",
+            "--fixture-agent-contact-proposal",
+        ]
         app.launch()
 
         XCTAssertTrue(
@@ -3867,7 +3955,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(composer.value as? String, message)
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.isEnabled)
-        XCTAssertEqual(send.label, "Send and let Agent link the relationship")
+        XCTAssertEqual(send.label, "Send")
         XCTAssertFalse(element("ask-scope-selector").exists)
         send.tap()
 
@@ -3886,7 +3974,7 @@ final class CandidateSignalUITests: XCTestCase {
         tapWhenVisible(app.buttons["contact-dismiss-proposal"])
     }
 
-    func testIdentityQuestionStaysOutOfContactToolsAndUsesInlineRecall() {
+    func testIdentityQuestionDoesNotBecomeAContactWriteProposal() {
         app.launchArguments = ["--persist-preview-agent", "--reset-preview-agent"]
         app.launch()
 
@@ -3899,21 +3987,21 @@ final class CandidateSignalUITests: XCTestCase {
         typeTextReliably(message, into: composer)
         app.buttons["ask-send"].tap()
 
-        XCTAssertTrue(element("ask-recall-unresolved").waitForExistence(timeout: 10))
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertFalse(element("ask-scope-search").exists)
         XCTAssertFalse(element("contact-proposal-turn").exists)
         XCTAssertFalse(element("contact-proposal-card").exists)
         XCTAssertFalse(String(describing: composer.value).contains(message))
-        XCTAssertFalse(composer.isEnabled)
-        preserveScreenshot("Identity question uses inline relationship recall")
+        XCTAssertTrue(composer.isEnabled)
+        preserveScreenshot("Identity question remains a non-writing Agent turn")
     }
 
-    func testContactUnderstandingCanCancelWithoutLosingExactMessage() {
+    func testContactMentionHasNoClientSideInterpretationPhase() {
         app.launchArguments = [
             "--persist-preview-agent",
             "--reset-preview-agent",
-            "--fixture-contact-interpretation-delay-seconds", "3",
         ]
         app.launch()
 
@@ -3926,24 +4014,15 @@ final class CandidateSignalUITests: XCTestCase {
         typeTextReliably(message, into: composer)
         app.buttons["ask-send"].tap()
 
-        XCTAssertTrue(element("ask-contact-interpreting").waitForExistence(timeout: 2))
-        XCTAssertFalse(composer.isEnabled)
-        let attachmentMenu = app.buttons["ask-markdown-more"]
-        XCTAssertFalse(attachmentMenu.exists && attachmentMenu.isEnabled)
-        let cancel = app.buttons["ask-contact-interpretation-cancel"]
-        XCTAssertTrue(cancel.isEnabled)
-        preserveScreenshot("Global Agent contact understanding in progress")
-        cancel.tap()
-
-        XCTAssertTrue(
-            element("ask-contact-interpreting").waitForNonExistence(timeout: 3)
-        )
+        XCTAssertFalse(element("ask-contact-interpreting").exists)
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 5))
         XCTAssertTrue(composer.isEnabled)
+        let attachmentMenu = app.buttons["ask-attachment-menu"]
         XCTAssertTrue(attachmentMenu.waitForExistence(timeout: 3))
         XCTAssertTrue(attachmentMenu.isEnabled)
-        XCTAssertEqual(composer.value as? String, message)
         XCTAssertFalse(element("contact-proposal-turn").exists)
         XCTAssertFalse(element("ask-scope-selector").exists)
+        preserveScreenshot("Contact mention stays in the Agent conversation")
     }
 
     func testCanonicalContactNoMatchCreatesOnlyAfterExplicitConfirmation() async throws {
@@ -4362,6 +4441,7 @@ final class CandidateSignalUITests: XCTestCase {
         app.launchArguments = [
             "--persist-preview-agent",
             "--reset-preview-agent",
+            "--fixture-agent-contact-proposal",
             "--force-dark",
             "-AppleInterfaceStyle", "Dark",
             "-AppleLanguages", "(zh-Hans)",
@@ -4995,17 +5075,27 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     private func openSettings() {
-        app.buttons["relationship-menu"].tap()
-        XCTAssertTrue(
-            app.buttons["close-relationship-menu"]
-                .waitForExistence(timeout: 5)
-        )
+        openRelationshipMenu()
         let settings = app.buttons["open-settings"]
         if !settings.waitForExistence(timeout: 2) {
             app.swipeUp()
         }
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
         settings.tap()
+    }
+
+    private func openRelationshipMenu() {
+        let entry = app.buttons["relationship-agent-studio"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        entry.tap()
+        XCTAssertTrue(element("agent-studio").waitForExistence(timeout: 5))
+        let settings = app.buttons["agent-settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        XCTAssertTrue(
+            app.buttons["close-relationship-menu"]
+                .waitForExistence(timeout: 5)
+        )
     }
 
     private func positionBelowStatusBar(

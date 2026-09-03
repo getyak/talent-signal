@@ -8,7 +8,7 @@ import {
 } from "@talent-signal/contracts";
 import type { Pool } from "pg";
 
-import { inTransaction } from "../database/pool.js";
+import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
 import {
@@ -20,6 +20,10 @@ import type {
   RemoteChatAnswerProviding,
   RemoteChatAnswerResult,
 } from "./chatAnswerProvider.js";
+import {
+  executeWorkspaceConversationAgent,
+  isWorkspaceConversationAgentProvider,
+} from "./workspaceConversationAgent.js";
 
 export interface UnscopedChatTaskMutationResult {
   body: UnscopedChatTaskResponse;
@@ -29,8 +33,15 @@ export interface UnscopedChatTaskMutationResult {
 
 interface UnscopedChatExecution {
   body: UnscopedChatTaskResponse;
-  remoteStatus: "completed" | "disabled" | "fallback";
+  remoteStatus: "agent_completed" | "completed" | "disabled" | "fallback";
   providerResult: RemoteChatAnswerResult | null;
+  agentProviderResult: {
+    providerID: string;
+    model: string;
+    providerRequestID: string | null;
+    inputTokens: number;
+    outputTokens: number;
+  } | null;
 }
 
 function responseBlock(answer: RemoteChatAnswerResult): ChatResponseBlock {
@@ -68,30 +79,74 @@ function localFallbackBlock(
 export async function executeUnscopedChatTask(input: {
   request: UnscopedChatTaskRequest;
   provider: RemoteChatAnswerProviding | null;
+  database?: DatabaseClient;
+  auth?: AuthContext;
   createdAt?: Date;
 }): Promise<UnscopedChatExecution> {
   let providerResult: RemoteChatAnswerResult | null = null;
+  let agentProviderResult: UnscopedChatExecution["agentProviderResult"] = null;
   let remoteStatus: UnscopedChatExecution["remoteStatus"] = input.provider
     ? "fallback"
     : "disabled";
   let block: ChatResponseBlock;
+  let agentEvent: UnscopedChatTaskResponse["agent_event"] = null;
   if (input.provider) {
     try {
-      providerResult = await input.provider.answer({
-        mode: "unscoped_conversation",
-        objective: input.request.objective,
-        context_blocks: [],
-        allowed_citation_ids: [],
-        images: [],
-      });
-      if (providerResult.kind === "question_set") {
-        throw new Error("Unscoped Chat cannot return an evidence question set.");
+      if (
+        input.database &&
+        input.auth &&
+        isWorkspaceConversationAgentProvider(input.provider)
+      ) {
+        const execution = await executeWorkspaceConversationAgent({
+          database: input.database,
+          auth: input.auth,
+          objective: input.request.objective,
+          provider: input.provider,
+        });
+        block = execution.block;
+        agentEvent = execution.event;
+        agentProviderResult = {
+          providerID: input.provider.id,
+          model: input.provider.model,
+          providerRequestID: execution.providerResult.sessionID ?? null,
+          inputTokens: execution.providerResult.inputTokens,
+          outputTokens: execution.providerResult.outputTokens,
+        };
+        remoteStatus = "agent_completed";
+      } else {
+        providerResult = await input.provider.answer({
+          mode: "unscoped_conversation",
+          objective: input.request.objective,
+          context_blocks: [],
+          allowed_citation_ids: [],
+          images: [],
+        });
+        if (providerResult.kind === "question_set") {
+          throw new Error("Unscoped Chat cannot return an evidence question set.");
+        }
+        block = responseBlock(providerResult);
+        remoteStatus = "completed";
       }
-      block = responseBlock(providerResult);
-      remoteStatus = "completed";
     } catch {
       providerResult = null;
-      block = localFallbackBlock(input.request.objective, true);
+      agentProviderResult = null;
+      try {
+        providerResult = await input.provider.answer({
+          mode: "unscoped_conversation",
+          objective: input.request.objective,
+          context_blocks: [],
+          allowed_citation_ids: [],
+          images: [],
+        });
+        if (providerResult.kind === "question_set") {
+          throw new Error("Unscoped Chat cannot return an evidence question set.");
+        }
+        block = responseBlock(providerResult);
+      } catch {
+        providerResult = null;
+        block = localFallbackBlock(input.request.objective, true);
+      }
+      remoteStatus = "fallback";
     }
   } else {
     block = localFallbackBlock(input.request.objective, false);
@@ -103,11 +158,13 @@ export async function executeUnscopedChatTask(input: {
       task_id: randomUUID(),
       disposition: block.kind === "clarification" ? "clarify" : "answer",
       blocks: [block],
+      agent_event: agentEvent,
       external_effects: [],
       created_at: (input.createdAt ?? new Date()).toISOString(),
     },
     remoteStatus,
     providerResult,
+    agentProviderResult,
   };
 }
 
@@ -122,6 +179,8 @@ export async function createUnscopedChatTask(
       objective_hash: createHash("sha256")
         .update(request.objective)
         .digest("hex"),
+      // Preserve the original request fingerprint so an in-flight retry from
+      // an older iOS build can still replay safely across this server upgrade.
       context_scope: "none",
       external_effects: [],
     };
@@ -153,7 +212,12 @@ export async function createUnscopedChatTask(
       };
     }
 
-    const execution = await executeUnscopedChatTask({ request, provider });
+    const execution = await executeUnscopedChatTask({
+      request,
+      provider,
+      database: client,
+      auth,
+    });
     await appendAudit(
       client,
       { accountId: auth.accountId, actorUserId: auth.userId },
@@ -161,15 +225,24 @@ export async function createUnscopedChatTask(
       "unscoped_chat_task",
       execution.body.task_id,
       {
-        context_scope: "none",
+        context_scope: "agent_bounded_contact_lookup",
         evidence_count: 0,
         external_effect_count: 0,
         disposition: execution.body.disposition,
         remote_chat_status: execution.remoteStatus,
-        remote_chat_provider_id: execution.providerResult?.provider_id ?? null,
-        remote_chat_model: execution.providerResult?.model ?? null,
+        remote_chat_provider_id:
+          execution.agentProviderResult?.providerID
+            ?? execution.providerResult?.provider_id
+            ?? null,
+        remote_chat_model:
+          execution.agentProviderResult?.model
+            ?? execution.providerResult?.model
+            ?? null,
         remote_chat_provider_request_id:
-          execution.providerResult?.provider_request_id ?? null,
+          execution.agentProviderResult?.providerRequestID
+            ?? execution.providerResult?.provider_request_id
+            ?? null,
+        contact_agent_event_kind: execution.body.agent_event?.kind ?? null,
       },
     );
     await completeIdempotency(client, idempotency, 201, execution.body);

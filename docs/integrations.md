@@ -56,11 +56,14 @@ generation does not make that model, credential, or data path suitable for
 understanding private conversation evidence.
 
 Unscoped conversational Chat is admitted independently from relationship
-answering. Its provider request contains only the current submitted text and an
-explicit empty context and citation manifest. The response may answer or ask a
-clarifying question, but it cannot claim access to private relationship state or
-return an external effect. Relationship context is never added implicitly when
-no Person or relationship has been selected.
+answering. Its provider request starts with only the current submitted text and
+an explicit account boundary. The model may answer directly or use the single
+`contact_workspace` capability: a grounded search returns only minimal labels,
+and a read is admitted only for one uniquely resolved same-Run Person/context.
+The app then binds that scope and invokes the existing governed relationship
+answer contract; the unscoped model never receives conversation evidence. A
+create/update call yields only a review candidate. No operation can apply,
+merge, message, schedule, publish, or return an external effect.
 
 ### Public-web providers
 

@@ -145,9 +145,9 @@ struct RelationshipArchiveView: View {
                         get: { selectedPage },
                         set: selectPage
                     ),
-                    onOpenMenu: {
+                    onOpenAgentStudio: {
                         clearTransientRetrievalIntent()
-                        presentedSheet = .menu
+                        presentedSheet = .agentStudio
                     },
                     onOpenCalendar: {
                         clearTransientRetrievalIntent()
@@ -262,6 +262,32 @@ struct RelationshipArchiveView: View {
                     },
                     actorDisplayName: workspaceStore.snapshot?.currentUserName
                         ?? "Current recruiter"
+                )
+            case .agentStudio:
+                RelationshipAgentStudioView(
+                    isCanonical: workspaceStore.isCanonical,
+                    workspaceID: workspaceStore.snapshot?.workspaceID,
+                    workspaceLabel: workspaceLabel,
+                    accountName: workspaceStore.snapshot?.currentUserName,
+                    accountEmail: accountEmail,
+                    proposals: workspaceStore.snapshot?.openProposals ?? [],
+                    signOutNotice: sessionStore.persistenceNotice,
+                    onOpenProposal: { proposal in
+                        Task { @MainActor in
+                            await Task.yield()
+                            presentedSheet = .proposal(proposal)
+                        }
+                    },
+                    onSignOut: onSignOut.map { signOut in
+                        {
+                            guard workspaceStore.deleteSavedActionCompletions() else {
+                                return false
+                            }
+                            guard sessionStore.deleteAll() else { return false }
+                            await signOut()
+                            return true
+                        }
+                    }
                 )
             case .menu:
                 RelationshipMenuView(
@@ -910,7 +936,7 @@ private struct PursuitWorkspaceRefreshNotice: View {
 
 private struct RelationshipArchiveHeader: ToolbarContent {
     @Binding var selectedPage: RelationshipArchivePage
-    let onOpenMenu: () -> Void
+    let onOpenAgentStudio: () -> Void
     let onOpenCalendar: () -> Void
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -918,7 +944,7 @@ private struct RelationshipArchiveHeader: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button(action: onOpenMenu) {
+            Button(action: onOpenAgentStudio) {
                 ZStack {
                     Color.clear
                     RelationshipSignalOrb()
@@ -931,11 +957,11 @@ private struct RelationshipArchiveHeader: ToolbarContent {
             .frame(width: 44, height: 44)
             .accessibilityLabel(
                 appLanguage.text(
-                    "Open Talent Signal menu",
-                    zhHans: "打开 Talent Signal 菜单"
+                    "Open Agent Studio",
+                    zhHans: "打开 Agent Studio"
                 )
             )
-            .accessibilityIdentifier("relationship-menu")
+            .accessibilityIdentifier("relationship-agent-studio")
         }
 
         ToolbarItem(placement: .principal) {

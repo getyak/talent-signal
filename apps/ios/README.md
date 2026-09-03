@@ -55,14 +55,14 @@ open apps/ios/TalentSignal.xcodeproj
 ```
 
 Set `TALENT_SIGNAL_API_BASE_URL` in the ignored root `.env`, then select the
-`TalentSignal` scheme and an iOS 16+ simulator or device. A normal Debug launch
-opens the account-scoped login flow; it never falls back to synthetic people
-when the backend or session is missing. `ios:generate` parses
+`TalentSignal` scheme and an iOS 16+ simulator or device. The shared Debug
+scheme enables `--preview-workspace`, and a no-argument Debug relaunch from the
+Simulator or device icon keeps opening the synthetic relationship workspace.
+This local design default never applies to Release. `ios:generate` parses
 the value as data, validates it, and writes an ignored
 `apps/ios/Config/Environment.local.xcconfig`; it never sources `.env` as shell
 code. Re-run `pnpm ios:configure` after changing the URL without regenerating
-the Xcode project. Use `--preview-workspace` only when intentionally inspecting
-the synthetic relationship workspace; UI tests inject the same boundary through
+the Xcode project. UI tests can still inject the same preview boundary through
 a Debug-only launch environment. Explicit fixture and showcase routes remain
 available without authentication.
 
@@ -70,9 +70,10 @@ Release builds require an HTTPS `TALENT_SIGNAL_API_BASE_URL` and use
 Sign in with Apple before opening the workspace. Configure the App ID capability
 and set the backend's `APPLE_SIGN_IN_AUDIENCES` to the same client identifier.
 The backend verifies the Apple assertion and issues the application session;
-the app stores that session in the device Keychain. Debug builds can show the
-real login surface against localhost with `--show-login --auth-backend-url`,
-but deterministic simulated login remains a Debug-only fixture path.
+the app stores that session in the device Keychain. Debug builds can override
+the preview default and show the real login surface against localhost with
+`--show-login --auth-backend-url <loopback-url>`, but deterministic simulated
+login remains a Debug-only fixture path.
 
 ## Standalone onboarding showcase
 

@@ -58,6 +58,10 @@ struct ConversationContactDraft: Codable, Equatable, Sendable {
             name: "ios-agent-public-profile-review",
             version: "1.0.0"
         )
+        static let workspaceAgent = Self(
+            name: "workspace-conversation-agent",
+            version: "1.0.0"
+        )
     }
 
     init(

@@ -63,6 +63,12 @@ updated.
 - [Living contact page and relationship memory](research/living-contact-page-and-memory.md):
   separates stable person data, relationship-scoped memory, episodic history,
   and typed Agent tools for the Web People experience.
+- [Agent CRM competitive design and integration research](research/agent-crm-competitive-design-and-integrations.md):
+  compares Kin, Mesh, Ohai, and Paired, then records current platform import
+  boundaries, source-state semantics, and ranked UX risks.
+- [Agent-driven relationship CRM dossier](research/agent-crm-product-engineering-dossier.md):
+  defines the product decision, governed object model, mobile information
+  architecture, import pipeline, delivery sequence, and evaluation program.
 - [iOS relationship library design benchmark](research/ios-relationship-library-design-benchmark.md):
   compares the mobile relationship workspace with adjacent products and records
   the current row-swipe, long-press, dismissal, motion, and navigation-gesture

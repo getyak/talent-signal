@@ -905,14 +905,95 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
               response.externalEffects.isEmpty,
               response.blocks.count == 1,
               response.blocks.allSatisfy({ block in
-                  ["answer", "clarification"].contains(block.kind)
+                  ["answer", "clarification", "identity_review"].contains(block.kind)
                       && block.citationDependencyIDs.isEmpty
                       && block.targetRef == nil
                       && (block.publicSources ?? []).isEmpty
-              }) else {
+              }),
+              let responseBlock = response.blocks.first,
+              isValidWorkspaceConversationEvent(
+                  response.agentEvent,
+                  block: responseBlock
+              ) else {
             throw PursuitWorkspaceClientError.invalidResponse
         }
         return response
+    }
+
+    private func isValidWorkspaceConversationEvent(
+        _ event: UnscopedChatTaskResponse.AgentEvent?,
+        block: RelationshipAskResponse.Block
+    ) -> Bool {
+        guard let event else {
+            return ["answer", "clarification"].contains(block.kind)
+        }
+        switch event.kind {
+        case "resolved_contact_context":
+            return block.kind == "answer"
+                && !block.requiresUserDecision
+                && event.personID.flatMap(UUID.init(uuidString:)) != nil
+                && event.relationshipContextID.flatMap(UUID.init(uuidString:)) != nil
+                && event.personDisplayLabel?.isEmpty == false
+                && event.relationshipContextDisplayLabel?.isEmpty == false
+                && event.toolSummary?.isEmpty == false
+                && event.candidateFingerprint == nil
+        case "contact_candidates":
+            guard let candidates = event.candidates,
+                  block.kind == "clarification",
+                  block.requiresUserDecision,
+                  (1...6).contains(candidates.count),
+                  event.possibleDuplicate != nil,
+                  event.toolSummary?.isEmpty == false else { return false }
+            let validCandidates = candidates.allSatisfy {
+                UUID(uuidString: $0.personID) != nil
+                    && UUID(uuidString: $0.relationshipContextID) != nil
+                    && !$0.personDisplayLabel.isEmpty
+                    && !$0.relationshipContextDisplayLabel.isEmpty
+            }
+            let uniqueScopes = Set(candidates.map {
+                "\($0.personID):\($0.relationshipContextID)"
+            })
+            return validCandidates && uniqueScopes.count == candidates.count
+        case "contact_change_proposal":
+            let fingerprint = event.candidateFingerprint ?? ""
+            let commonFieldsAreValid = block.kind == "identity_review"
+                && block.requiresUserDecision
+                && ["create", "update"]
+                .contains(event.proposalKind ?? "")
+                && fingerprint.range(
+                    of: #"^[a-f0-9]{64}$"#,
+                    options: .regularExpression
+                ) != nil
+                && event.displayName?.isEmpty == false
+                && event.relationshipContext?.isEmpty == false
+                && event.sourceExcerpts?.isEmpty == false
+                && event.requiresUserConfirmation == true
+                && isValidContactIdentityClue(event.identityClue)
+            guard commonFieldsAreValid else { return false }
+            if event.proposalKind == "create" {
+                return event.targetPersonID == nil
+                    && event.targetRelationshipContextID == nil
+                    && event.baseRevision == nil
+            }
+            return event.targetPersonID.flatMap(UUID.init(uuidString:)) != nil
+                && (event.targetRelationshipContextID == nil
+                    || event.targetRelationshipContextID
+                        .flatMap(UUID.init(uuidString:)) != nil)
+                && (event.baseRevision ?? 0) >= 1
+        default:
+            return false
+        }
+    }
+
+    private func isValidContactIdentityClue(
+        _ clue: UnscopedChatTaskResponse.AgentEvent.IdentityClue?
+    ) -> Bool {
+        guard let clue else { return true }
+        return ["email", "phone", "linkedin_url", "public_profile_url"]
+            .contains(clue.type)
+            && !clue.value.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).isEmpty
     }
 
     func researchPerson(
@@ -1727,7 +1808,69 @@ struct UnscopedChatTaskResponse: Decodable, Equatable, Identifiable {
     let disposition: String
     let blocks: [RelationshipAskResponse.Block]
     let externalEffects: [String]
+    let agentEvent: AgentEvent?
     let createdAt: String
+
+    struct AgentEvent: Decodable, Equatable {
+        let kind: String
+        let personID: String?
+        let personDisplayLabel: String?
+        let relationshipContextID: String?
+        let relationshipContextDisplayLabel: String?
+        let toolSummary: String?
+        let candidates: [Candidate]?
+        let possibleDuplicate: Bool?
+        let proposalKind: String?
+        let candidateFingerprint: String?
+        let displayName: String?
+        let relationshipContext: String?
+        let identityClue: IdentityClue?
+        let sourceExcerpts: [String]?
+        let reason: String?
+        let targetPersonID: String?
+        let targetRelationshipContextID: String?
+        let baseRevision: Int?
+        let requiresUserConfirmation: Bool?
+
+        struct IdentityClue: Decodable, Equatable {
+            let type: String
+            let value: String
+        }
+
+        struct Candidate: Decodable, Equatable {
+            let personID: String
+            let personDisplayLabel: String
+            let relationshipContextID: String
+            let relationshipContextDisplayLabel: String
+
+            enum CodingKeys: String, CodingKey {
+                case personID = "person_id"
+                case personDisplayLabel = "person_display_label"
+                case relationshipContextID = "relationship_context_id"
+                case relationshipContextDisplayLabel = "relationship_context_display_label"
+            }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case kind, reason, candidates
+            case personID = "person_id"
+            case personDisplayLabel = "person_display_label"
+            case relationshipContextID = "relationship_context_id"
+            case relationshipContextDisplayLabel = "relationship_context_display_label"
+            case toolSummary = "tool_summary"
+            case possibleDuplicate = "possible_duplicate"
+            case proposalKind = "proposal_kind"
+            case candidateFingerprint = "candidate_fingerprint"
+            case displayName = "display_name"
+            case relationshipContext = "relationship_context"
+            case identityClue = "identity_clue"
+            case sourceExcerpts = "source_excerpts"
+            case targetPersonID = "target_person_id"
+            case targetRelationshipContextID = "target_relationship_context_id"
+            case baseRevision = "base_revision"
+            case requiresUserConfirmation = "requires_user_confirmation"
+        }
+    }
 
     var id: String { taskID }
 
@@ -1747,6 +1890,7 @@ struct UnscopedChatTaskResponse: Decodable, Equatable, Identifiable {
         case disposition, blocks
         case contractVersion = "contract_version"
         case taskID = "task_id"
+        case agentEvent = "agent_event"
         case externalEffects = "external_effects"
         case createdAt = "created_at"
     }

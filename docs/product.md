@@ -2,27 +2,27 @@
 
 ## Audience and job
 
-Talent Signal serves independent recruiters and boutique search teams handling
-high-value, relationship-led assignments.
+Talent Signal is an evidence-first relationship CRM for context, trust, and
+shared outcomes. Recruiting is the first wedge, not the permanent boundary.
 
-The recruiter is the initial product user. Candidates do not need a Talent
-Signal account or a reciprocal platform relationship for the recruiter to
-preserve governed context. Their absence from the account model does not remove
-their privacy rights or turn their conversations into unrestricted customer
-property.
+A person represented in the CRM does not need a Talent Signal account or a
+reciprocal platform relationship for an authorized user to preserve governed
+context. Their absence from the account model does not remove their privacy
+rights or turn their conversations into unrestricted customer property.
 
-For each active search, and especially after a meaningful conversation, it
-helps the recruiter answer:
+For each active relationship or Pursuit, and especially after a meaningful
+conversation, the product helps the user answer:
 
 > What outcome are we pursuing, what changed, what is blocking it now, and
 > what is the smallest safe action that keeps the relationship moving?
 
 ## Promise
 
-Never lose a strong candidate in the gaps between conversations.
+Never lose the context, commitment, or right moment that keeps a relationship
+moving.
 
-The product reduces context reconstruction and missed timing. It does not
-replace the recruiter's relationship judgment.
+The product reduces reconstruction and missed timing. It does not replace the
+user's relationship judgment.
 
 ## Product loop
 
@@ -42,6 +42,12 @@ The editable diagram is
 
 ## Canonical experience
 
+The Agent is one recognizable assistant that interprets authorized signals,
+maintains governed Memory, prepares proposals, and explains its work. Separate
+from Today, its first level contains only Memory, About you, Sources & imports,
+and Action permissions. Today is attention; Agent is the control plane for
+identity, context, source state, and authority—not unsupported autonomy.
+
 The product is organized around a `Pursuit`: a concrete outcome with a time
 horizon that requires people, organizations, evidence, criteria, and action.
 The first complete Pursuit is a recruiting or executive-search mandate.
@@ -54,8 +60,11 @@ graphs, Today, Pursuit rooms, and living person pages are views of the same
 governed state, not competing records.
 
 Today, Sessions, and People are the primary mobile retrieval surfaces. A
-Session groups recruiter-initiated Agent tasks around one explicit relationship
-context so a recent conversation can be resumed without reconstructing intent.
+Session groups recruiter-initiated Agent tasks around a continuing objective;
+it may begin without a relationship and bind one only when the Agent resolves
+an exact account-scoped Person and context or the recruiter chooses one.
+This lets a recent conversation resume without making contact selection a
+required field on every message.
 It is a projection, not a second record: Pursuit, evidence, Proposal, reviewed
 state, Action, and Receipt continue to own goals, provenance, decisions, and
 effects. Evidence remains one step from a consequential claim but does not
@@ -114,14 +123,16 @@ new Ask before source authority is claimed again. A submitted question remains
 recoverable until validated recording succeeds, and retry reuses the same task
 intent instead of creating duplicate work.
 
-When no relationship is selected, a message that does not explicitly ask about
-relationship work receives a direct conversational answer. That turn sends only
-the submitted text through a separate zero-context contract: it has no Person,
-relationship, Wiki, evidence, attachment, citation, Tool, or external-effect
-scope. A question that asks about relationship work still enters relationship
-recall; if recall cannot resolve a scope, the recruiter may explicitly continue
-without a relationship. A later scoped question must bind the Session before it
-can read relationship context.
+When no relationship is selected, the recruiter sends normally. The Agent may
+answer from the submitted text, search the authenticated contact index with one
+message-grounded clue, ask one clarification over minimal candidate labels, or
+resolve exactly one Person and relationship context. Search never returns
+messages or evidence. Private relationship evidence is read only after the
+Session is bound to that unique scope through the existing governed Ask path.
+If the message requests a contact create or update, the Agent may stage one
+review card; it cannot apply, merge, message, schedule, publish, or report the
+change as complete. The ordinary unscoped response still returns no external
+effect.
 
 Ask reconciles its answer with canonical work already owned in that exact
 Pursuit. When an open action or evidence-backed gap exists, the response shows
@@ -274,33 +285,35 @@ The default unit of attention is not a score. It is a current dependency:
 
 `no_action` is a valid and often valuable result.
 
-## Initial wedge
+## Initial wedge and expansion
 
 Begin with an independent recruiter managing several high-value searches. The
 first complete experience should take one recruiter-controlled post-call signal
 through recoverable capture, Pursuit and identity review, evidence-backed
 claims and an explicit gap, one safe action, and a verified internal result.
 
-A thin sales fixture may prove that the Pursuit contract is not hard-coded to
-recruiting, but it does not broaden V1 into a general CRM. Broader research,
-desktop workflows, channels, and external agents reuse the same truth and
-approval boundaries only after the recruiting loop is complete.
+The broader direction is a general relationship CRM. Expansion reuses Person
+identity, contextual relationships, Pursuits, Memory, provenance, Proposals,
+Actions, and Receipts rather than flattening work into recruiter fields or a
+sales table. Other contexts must earn their own evidence and interaction.
 
 ## Non-goals
 
 - a general autonomous recruiter;
 - a generic conversation summarizer;
 - automatic candidate ranking or rejection;
-- a full ATS or configurable CRM;
+- a full ATS or an ungoverned configurable field warehouse;
+- a stage-first sales pipeline that reduces relationships to deal movement;
 - ambient collection of private communication;
 - message volume as a success metric;
 - a generated wiki that becomes the system of record.
 
 ## Product success
 
-Success means the recruiter can act with less reconstruction and greater
-confidence while the candidate experiences more relevant, timely, and
-human communication.
+Success means a relationship owner can act with less reconstruction and greater
+confidence while the people involved experience more relevant, timely, and
+human communication. The initial recruiting wedge must continue to meet that
+bar for recruiters and candidates as the CRM broadens.
 
 See [Principles](principles.md), [Capture to action](capture-to-action.md), and
 [Design system](design-system.md).

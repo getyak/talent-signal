@@ -7,8 +7,7 @@ import {
   type PersonDirectoryResponse,
   type RelationshipScope,
 } from "@talent-signal/contracts";
-import type { Pool } from "pg";
-
+import type { DatabaseClient } from "../database/pool.js";
 import type { AuthContext } from "./auth.js";
 import { ApiError } from "../lib/apiError.js";
 import { sha256 } from "../lib/hash.js";
@@ -49,7 +48,7 @@ interface PersonDirectoryRow {
 }
 
 async function queryPeople(
-  pool: Pool,
+  pool: DatabaseClient,
   auth: AuthContext,
   query = "",
   includeConfirmedHandleMatch = false,
@@ -380,7 +379,7 @@ async function queryPeople(
 }
 
 export async function listPeople(
-  pool: Pool,
+  pool: DatabaseClient,
   auth: AuthContext,
   query = "",
 ): Promise<PersonDirectoryResponse> {
@@ -388,7 +387,7 @@ export async function listPeople(
 }
 
 export async function searchPeople(
-  pool: Pool,
+  pool: DatabaseClient,
   auth: AuthContext,
   query: string,
 ): Promise<PersonDirectoryResponse> {
@@ -396,7 +395,7 @@ export async function searchPeople(
 }
 
 export async function getRelationshipScope(
-  pool: Pool,
+  pool: DatabaseClient,
   auth: AuthContext,
   personId: string,
   relationshipContextId: string,

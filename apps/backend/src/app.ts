@@ -2174,7 +2174,7 @@ export async function buildApp(
         {
           unscoped_chat_task_id: result.body.task_id,
           chat_disposition: result.body.disposition,
-          context_scope: "none",
+          context_scope: "agent_bounded_contact_lookup",
           external_effect_count: 0,
         },
         "unscoped chat task completed",
