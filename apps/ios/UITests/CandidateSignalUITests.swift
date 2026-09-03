@@ -16,14 +16,14 @@ final class CandidateSignalUITests: XCTestCase {
         app.launchEnvironment[previewWorkspaceEnvironmentKey] = "true"
     }
 
-    func testBareLaunchRequiresAccountInsteadOfOpeningSyntheticPreview() {
+    func testBareDebugLaunchOpensTheDocumentedLocalPreviewFallback() {
         app.launchEnvironment.removeValue(forKey: previewWorkspaceEnvironmentKey)
         app.launch()
 
-        XCTAssertTrue(element("authentication-screen").waitForExistence(timeout: 8))
-        XCTAssertFalse(element("editorial-today").exists)
-        XCTAssertFalse(element("workspace-preview-boundary").exists)
-        preserveScreenshot("Bare Debug launch requires a workspace")
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        XCTAssertTrue(element("workspace-preview-boundary").exists)
+        XCTAssertFalse(element("authentication-screen").exists)
+        preserveScreenshot("Bare Debug launch uses the local preview fallback")
     }
 
     func testAgentStudioIsADedicatedSparseDestination() {
@@ -115,7 +115,19 @@ final class CandidateSignalUITests: XCTestCase {
         let actionButton = app.buttons["agent-open-action-button"]
         scrollToVisible(actionButton)
         XCTAssertGreaterThanOrEqual(actionButton.frame.height, 44)
+        XCTAssertFalse(actionButton.label.contains("已设置"))
         preserveScreenshot("Agent sources compact Chinese AX5")
+        actionButton.tap()
+
+        XCTAssertTrue(element("action-button-settings").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["创建两步快捷指令"].exists)
+        XCTAssertTrue(element("shortcut-local-boundary").exists)
+        let buildShortcut = element("build-screenshot-shortcut")
+        scrollToVisible(buildShortcut)
+        XCTAssertGreaterThanOrEqual(buildShortcut.frame.height, 44)
+        XCTAssertTrue(buildShortcut.isHittable)
+        XCTAssertEqual(buildShortcut.label, "打开快捷指令编辑器")
+        preserveScreenshot("Action Button setup Chinese AX5")
     }
 
     func testDisplaySettingsSeparateTextSizeFromCardDensity() {
@@ -662,6 +674,8 @@ final class CandidateSignalUITests: XCTestCase {
         app.launchArguments = [
             "-talent-signal.setup.action-button-complete",
             "NO",
+            "-talent-signal.setup.screenshot-shortcut-received-at",
+            "0",
         ]
         app.launch()
 
@@ -688,11 +702,133 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(actionButtonOnboarding.isHittable)
         actionButtonOnboarding.tap()
         XCTAssertTrue(element("action-button-settings").waitForExistence(timeout: 5))
-        XCTAssertTrue(element("open-app-shortcuts").exists)
+        XCTAssertTrue(app.staticTexts["Build the two-action Shortcut"].exists)
+        let systemStep = element("screenshot-shortcut-step-1")
+        let talentSignalStep = element("screenshot-shortcut-step-2")
+        XCTAssertEqual(systemStep.label, "1. Take Screenshot")
+        XCTAssertEqual(systemStep.value as? String, "System action")
+        XCTAssertEqual(talentSignalStep.label, "2. Review screenshot")
+        XCTAssertEqual(talentSignalStep.value as? String, "Talent Signal action")
+        XCTAssertTrue(element("shortcut-local-boundary").exists)
+        let buildShortcut = element("build-screenshot-shortcut")
+        XCTAssertTrue(buildShortcut.exists)
+        XCTAssertGreaterThanOrEqual(buildShortcut.frame.height, 44)
+        XCTAssertEqual(buildShortcut.label, "Open Shortcut editor")
         preserveScreenshot("Action Button setup")
         let setupConfirmation = app.buttons["confirm-action-button-setup"]
         scrollToVisible(setupConfirmation)
         XCTAssertTrue(setupConfirmation.exists)
+        XCTAssertEqual(setupConfirmation.label, "I've assigned the Shortcut")
+        let verification = element("screenshot-shortcut-verification")
+        scrollToVisible(verification)
+        XCTAssertEqual(verification.label, "Not set up")
+        XCTAssertTrue(
+            (verification.value as? String)?.contains("No screenshot") == true
+        )
+        let browseShortcuts = element("open-app-shortcuts")
+        scrollToVisible(browseShortcuts)
+        XCTAssertTrue(browseShortcuts.exists)
+        XCTAssertGreaterThanOrEqual(browseShortcuts.frame.height, 44)
+    }
+
+    func testActionButtonSetupSeparatesObservedShortcutReceiptFromAssignment() {
+        app.launchArguments = [
+            "-talent-signal.setup.action-button-complete",
+            "NO",
+            "-talent-signal.setup.screenshot-shortcut-received-at",
+            "1788480000",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        openRelationshipMenu()
+        let actionButtonSettings = app.buttons["open-action-button-settings"]
+        scrollToVisible(actionButtonSettings)
+        XCTAssertTrue(actionButtonSettings.label.contains("Local receipt"))
+        actionButtonSettings.tap()
+
+        XCTAssertTrue(element("action-button-settings").waitForExistence(timeout: 5))
+        let verification = element("screenshot-shortcut-verification")
+        scrollToVisible(verification)
+        XCTAssertEqual(verification.label, "Screenshot received via Shortcuts")
+        XCTAssertTrue(
+            (verification.value as? String)?.contains(
+                "local review queue"
+            ) == true
+        )
+        XCTAssertTrue(app.buttons["I've assigned the Shortcut"].exists)
+        XCTAssertFalse(app.staticTexts["Action Button Ready"].exists)
+        preserveScreenshot("Observed Shortcut receipt")
+    }
+
+    func testActionButtonAssignmentAndReceiptStatesRemainIndependent() {
+        app.launchArguments = [
+            "-talent-signal.setup.action-button-complete",
+            "YES",
+            "-talent-signal.setup.screenshot-shortcut-received-at",
+            "0",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        openRelationshipMenu()
+        var settings = app.buttons["open-action-button-settings"]
+        scrollToVisible(settings)
+        XCTAssertTrue(settings.label.contains("Assigned"))
+        settings.tap()
+        var verification = element("screenshot-shortcut-verification")
+        scrollToVisible(verification)
+        XCTAssertEqual(verification.label, "Ready for the first capture")
+        XCTAssertTrue(app.buttons["Show setup reminder again"].exists)
+
+        app.terminate()
+        app.launchArguments = [
+            "-talent-signal.setup.action-button-complete",
+            "YES",
+            "-talent-signal.setup.screenshot-shortcut-received-at",
+            "1788480000",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        openRelationshipMenu()
+        settings = app.buttons["open-action-button-settings"]
+        scrollToVisible(settings)
+        XCTAssertTrue(settings.label.contains("Local receipt"))
+        settings.tap()
+        verification = element("screenshot-shortcut-verification")
+        scrollToVisible(verification)
+        XCTAssertEqual(verification.label, "Screenshot received via Shortcuts")
+        XCTAssertTrue(app.buttons["Show setup reminder again"].exists)
+    }
+
+    func testPendingScreenshotReviewOffersKeepOrDiscardBeforeProcessing() {
+        app.launchArguments = [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+            "-talent-signal.interface-language", "en",
+            "--scenario", "relationship-capture-archive",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["close-capture-review"].exists)
+        app.buttons["close-capture-review"].tap()
+
+        XCTAssertTrue(app.buttons["Keep for later"].waitForExistence(timeout: 3))
+        let discard = app.buttons["Discard capture"]
+        XCTAssertTrue(discard.exists)
+        XCTAssertTrue(
+            app.staticTexts[
+                "Keeping it preserves the screenshot and reviewed draft for the next app launch."
+            ].exists
+        )
+        XCTAssertFalse(app.buttons["submit-reviewed-capture"].isHittable)
+        preserveScreenshot("Pending screenshot keep or discard")
+
+        discard.tap()
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        XCTAssertFalse(element("reviewed-ocr-text").exists)
     }
 
     func testWorkspaceMenuConfiguresOutboundOnlyCalendarSync() {

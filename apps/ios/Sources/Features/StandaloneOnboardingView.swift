@@ -766,7 +766,7 @@ struct StandaloneOnboardingView: View {
     private var actionButtonOffer: some View {
         VStack(alignment: .leading, spacing: 22) {
             pageTitle("Capture the next Signal without leaving the moment", eyebrow: "APP SHORTCUT")
-            Text(localized("Talent Signal exposes Capture Signal, Record Signal, and Review screenshot. Only you can map an App Shortcut to the Action Button in Settings."))
+            Text(localized("Capture Signal and Record Signal are App Shortcuts. Review screenshot is an action for a personal two-action Shortcut. Only you can map a Shortcut to the Action Button in Settings."))
                 .foregroundStyle(Color.tsMutedInk)
             ShortcutsLink()
                 .shortcutsLinkStyle(.automaticOutline)

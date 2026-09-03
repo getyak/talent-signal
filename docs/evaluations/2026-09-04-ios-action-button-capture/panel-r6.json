@@ -1,0 +1,217 @@
+{
+  "panel_id": "TS-2026-09-04-IOS-ACTION-BUTTON-R6",
+  "artifact": {
+    "id": "ios-action-button-capture-2026-09-04-r6",
+    "type": "ios-build-and-e2e-evidence",
+    "version": "r6"
+  },
+  "scenario": "A recruiter creates one personal two-action Shortcut, assigns it to a supported iPhone Action Button, captures an authorized conversation screenshot in place, and later reviews, discards, or explicitly advances the local evidence without silent Agent processing.",
+  "frozen_evidence": [
+    "artifact-r6.md with 14 matching SHA-256 source hashes",
+    "/tmp/talent-signal-action-button-r6.xcresult: 25 passed, 0 failed, 0 skipped",
+    "Release App Intents metadata in /tmp/talent-signal-action-button-final-derived",
+    "evidence/ui-test-attachments-r6/manifest.json and seven exported screenshots"
+  ],
+  "review_plan": [
+    {
+      "reviewer": "recruiter-workflow-reviewer",
+      "status": "selected",
+      "reason": "Evaluate first-time setup burden, interruption recovery, and whether the capture wedge helps a time-constrained independent recruiter."
+    },
+    {
+      "reviewer": "evidence-safety-reviewer",
+      "status": "selected",
+      "reason": "Evaluate screenshot provenance, local privacy, state promotion, identity boundaries, rejection ordering, and reversibility."
+    },
+    {
+      "reviewer": "mobile-ux-reviewer",
+      "status": "selected",
+      "reason": "Evaluate mobile hierarchy, touch targets, localization, Dynamic Type, status legibility, and recovery."
+    },
+    {
+      "reviewer": "candidate-experience-guardrail",
+      "status": "selected",
+      "reason": "Evaluate candidate-data trust, purpose limitation, human agency, and avoidance of overclaiming."
+    }
+  ],
+  "reviews": [
+    {
+      "reviewer": "recruiter-workflow-reviewer",
+      "lens": "boutique recruiter operational fit",
+      "verdict": "pass",
+      "score": 3,
+      "confidence": "direct",
+      "findings": [
+        {
+          "severity": "low",
+          "criterion": "Setup burden ceiling versus real-world fallback",
+          "observation": "The exact two-action setup, empty-editor disclosure, and separated generic App Shortcuts are clear enough to approve, but first-time completion is proven in Simulator rather than through recruiter field use on physical Action Button phones.",
+          "evidence": "artifact-r6.md; AppSettingsView.swift; screenshots B16C3951-5CAB-4789-8354-231BFCCAF8EB.png and 60E55713-0E06-4074-AE5E-B03DD3C4AE66.png; r6 xcresult with 25 passing tests.",
+          "user_impact": "A busy recruiter gets an honest, short recipe, while real-world abandonment and detours remain unmeasured.",
+          "recommendation": "Keep the current surface and measure fresh-install completion, detours, and time to first successful physical capture with first-time recruiters.",
+          "verification": "Run an uncoached physical-device study and record completion rate, detours, time to first success, and the recruiter's explanation of what Talent Signal verified."
+        },
+        {
+          "severity": "low",
+          "criterion": "Fast continuation from receipt to review",
+          "observation": "Local receipt is now safely distinct from Assigned and the next app launch resumes pending review, but the receipt card itself does not directly open the oldest queued screenshot.",
+          "evidence": "CandidateSignalUITests.swift; screenshots 94B14121-7794-4FCE-AACF-2B80239F277F.png and 301C4D0A-37F5-4630-8965-97921CF83C11.png; AppSettingsView.swift.",
+          "user_impact": "No false setup success is shown, though a recruiter visiting Settings can take an extra navigation step to reach the pending review.",
+          "recommendation": "When pending evidence exists, consider a direct Review pending screenshot action without changing assignment state.",
+          "verification": "Seed multiple pending items and prove the action opens the oldest item without duplication or assignment-state mutation."
+        }
+      ],
+      "strengths": [
+        "All 14 r6 hashes matched and the final result bundle passed 25 tests.",
+        "The wedge stays narrow: one authorized conversation, exact evidence, unresolved and no-action outcomes, and explicit human review before downstream work."
+      ],
+      "missing_evidence": [
+        "No connected physical iPhone proof of assignment and press.",
+        "No first-time recruiter field study of completion and abandonment.",
+        "No direct receipt-card jump to the oldest pending review item; safe next-launch recovery is proven instead."
+      ],
+      "vetoes": [],
+      "open_questions": [
+        "Do first-time recruiters interpret Local receipt as software-only evidence without opening the detail?",
+        "Does Other shortcuts aid discovery or cause setup detours on a physical device?"
+      ]
+    },
+    {
+      "reviewer": "evidence-safety-reviewer",
+      "lens": "evidence integrity, privacy, and safe action",
+      "verdict": "pass",
+      "score": 3,
+      "confidence": "direct",
+      "findings": [
+        {
+          "severity": "low",
+          "criterion": "typed assertion → versioned state → audit/deletion",
+          "observation": "r6 closes the receipt-ordering proof gap, while the broader post-save deletion and retraction inventory remains a separate lifecycle-governance follow-up.",
+          "evidence": "artifact-r6.md; RelationshipCaptureView.swift; RelationshipCaptureStore.swift; PendingCaptureInbox.swift; /tmp/talent-signal-action-button-r6.xcresult.",
+          "user_impact": "The Action Button import itself is safe, but later retraction of already-reviewed downstream evidence still needs a system-wide proof.",
+          "recommendation": "Create a separate lifecycle artifact covering reviewed captures, identity cases, compiled wiki blocks, and derived canonical state.",
+          "verification": "Start after Save and check identity and prove which records are deleted, superseded, or intentionally retained with visible audit history."
+        }
+      ],
+      "strengths": [
+        "All r6 hashes matched; the 25-test result includes corrupt, over-25-MiB, and over-80-megapixel rejection before both queueing and receipt.",
+        "The import validates first, stages second, and records a receipt only after successful local persistence; the local store has protection, backup exclusion, rollback, deduplication, FIFO, and per-item removal."
+      ],
+      "missing_evidence": [
+        "A dedicated post-save lifecycle deletion or supersession artifact.",
+        "A physical iPhone Action Button assignment and press demonstration."
+      ],
+      "vetoes": [],
+      "open_questions": [
+        "Which user-visible surface owns retraction after reviewed text is saved?",
+        "Will downstream lifecycle work preserve observed source, reviewer correction, derivation, and supersession as separate states?"
+      ]
+    },
+    {
+      "reviewer": "mobile-ux-reviewer",
+      "lens": "mobile task completion, visual hierarchy, accessibility, and recovery",
+      "verdict": "pass_with_changes",
+      "score": 4,
+      "confidence": "supported_inference",
+      "findings": [],
+      "strengths": [
+        "The frozen English and Chinese AX5 screens show one dominant task, an exact recipe, a truthful local boundary, a 44-point primary control, and no clipped or overlapping critical copy.",
+        "The assignment/receipt split and keep-or-discard recovery are visually clear and behaviorally covered by the r6 UI tests."
+      ],
+      "missing_evidence": [
+        "Evidence level 3 rather than direct live operation by this reviewer.",
+        "No physical-device assignment, press ergonomics, or hardware-failure proof.",
+        "No recorded VoiceOver focus-order and spoken-output pass on device."
+      ],
+      "vetoes": [],
+      "open_questions": []
+    },
+    {
+      "reviewer": "candidate-experience-guardrail",
+      "lens": "human connection, trust, agency, communication, collaboration",
+      "verdict": "pass",
+      "score": 4,
+      "confidence": "direct",
+      "findings": [],
+      "strengths": [
+        "The setup states authorized-use, local-until-review, and explicit Save and check identity boundaries before fast capture is enabled.",
+        "The receipt does not claim hardware assignment, and the review surface preserves inspect-original, keep, discard, Speaker unresolved, and Unresolved is a valid result."
+      ],
+      "missing_evidence": [
+        "No physical iPhone assignment and press proof.",
+        "The broader post-save deletion and retraction audit remains outside this frozen artifact."
+      ],
+      "vetoes": [],
+      "open_questions": [
+        "How will the later user-facing deletion or retraction path preserve the same candor after identity review and wiki derivation?"
+      ]
+    }
+  ],
+  "adjudication": {
+    "verdict": "pass",
+    "release_gate": "pass",
+    "top_findings": [
+      {
+        "reviewer": "recruiter-workflow-reviewer",
+        "criterion": "Physical first-time setup proof",
+        "severity": "low",
+        "reason": "The app-owned flow is proven, but a real Action Button assignment and uncoached recruiter setup remain unmeasured.",
+        "next_step": "Run a physical-device first-use study without changing the approved setup surface first.",
+        "verification": "A fresh user assigns, captures, and correctly explains the receipt boundary without coaching."
+      },
+      {
+        "reviewer": "evidence-safety-reviewer",
+        "criterion": "Post-save deletion lifecycle",
+        "severity": "low",
+        "reason": "The safe local import is complete, but system-wide retraction after explicit save is not part of this artifact.",
+        "next_step": "Create a separate downstream data inventory and deletion/supersession test.",
+        "verification": "The follow-up proves an authorized delete or supersession outcome for every derived record."
+      },
+      {
+        "reviewer": "recruiter-workflow-reviewer",
+        "criterion": "Receipt-to-review shortcut",
+        "severity": "low",
+        "reason": "Automatic next-launch recovery is proven, while the Settings receipt itself remains informational.",
+        "next_step": "Evaluate a direct oldest-pending-review action only if field observation shows this detour matters.",
+        "verification": "The optional action opens exactly one oldest item without mutating assignment state."
+      }
+    ],
+    "agreements": [
+      "The exact Take Screenshot → Review screenshot recipe is the lightest truthful setup because iOS keeps Action Button assignment user-owned.",
+      "The button press creates protected local pending evidence and performs no hidden network or Agent work.",
+      "Assigned and Local receipt are separate truths, and neither claims proof of a physical press.",
+      "Human review, identity uncertainty, keep, discard, retry, and no-action remain available before downstream promotion.",
+      "r6 resolves the prior medium safety evidence gap with one executable rejection-ordering test."
+    ],
+    "disagreements": [],
+    "veto_resolution": [
+      {
+        "reviewer": "mobile-ux-reviewer",
+        "veto": "A screenshot receipt promoted the user's manual Action Button assignment state in the first review round.",
+        "status": "resolved",
+        "evidence": "r6 writes only the receipt timestamp and CandidateSignalUITests/testActionButtonAssignmentAndReceiptStatesRemainIndependent() passes across all four states and relaunch."
+      }
+    ],
+    "rationale": "All four selected specialist packets validate against the frozen r6 artifact; scores are 3, 3, 4, and 4 without averaging, and no current veto, blocker, high, or medium finding remains. The app-owned capture path, privacy boundary, state truth, recovery, localization, and human authorization gate are directly evidenced. Physical hardware, field comprehension, live VoiceOver, and broader post-save lifecycle governance remain explicitly isolated follow-up evidence rather than false release claims."
+  },
+  "next_tests": [
+    {
+      "owner": "iOS product research",
+      "test": "Fresh-install Action Button setup and first capture on supported physical iPhones with first-time recruiters.",
+      "evidence_required": "Screen recording, task timing, detours, completion outcome, and participant explanation of Assigned versus Local receipt.",
+      "pass_condition": "Users complete the two-action setup and first capture without coaching and do not interpret the receipt as hardware verification."
+    },
+    {
+      "owner": "privacy and evidence architecture",
+      "test": "Post-save deletion and supersession audit beginning after Save and check identity.",
+      "evidence_required": "Inventory and executable trace for reviewed capture, identity case, resource, wiki block, and every derived canonical record.",
+      "pass_condition": "Each record has a visible owner, retention rule, and tested delete or supersession behavior without losing provenance."
+    },
+    {
+      "owner": "iOS accessibility",
+      "test": "VoiceOver focus order and spoken-output pass on the setup, receipt, and keep-or-discard surfaces.",
+      "evidence_required": "Recorded device session using a supported iPhone and current production localization.",
+      "pass_condition": "All controls are reachable in logical order, labels are unambiguous, and the user can complete or safely exit each task."
+    }
+  ]
+}

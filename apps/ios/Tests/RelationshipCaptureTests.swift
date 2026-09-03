@@ -4,6 +4,124 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipCaptureTests: XCTestCase {
+    func testShortcutScreenshotValidatorDecodesContentAndBoundsPayload() throws {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 32))
+        let image = renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
+        }
+        let imageData = try XCTUnwrap(image.pngData())
+
+        XCTAssertEqual(
+            try ConversationScreenshotInputValidator.detectedImageType(
+                for: imageData
+            ),
+            .png
+        )
+        XCTAssertThrowsError(
+            try ConversationScreenshotInputValidator.detectedImageType(
+                for: Data("not an image".utf8)
+            )
+        ) { error in
+            XCTAssertEqual(error as? CaptureAppIntentError, .notAnImage)
+        }
+        XCTAssertThrowsError(
+            try ConversationScreenshotInputValidator.detectedImageType(
+                for: Data(
+                    repeating: 0,
+                    count: ConversationScreenshotInputValidator.maximumByteCount + 1
+                )
+            )
+        ) { error in
+            XCTAssertEqual(error as? CaptureAppIntentError, .imageTooLarge)
+        }
+        XCTAssertThrowsError(
+            try ConversationScreenshotInputValidator.validatePixelDimensions(
+                width: 10_000,
+                height: 9_000
+            )
+        ) { error in
+            XCTAssertEqual(error as? CaptureAppIntentError, .imageTooLarge)
+        }
+    }
+
+    func testShortcutImporterRejectsBeforeQueueAndReceipt() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-importer-\(UUID().uuidString)")
+        let suiteName = "talent-signal-importer-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let corruptInput = ScreenshotInput(
+            data: Data("not an image".utf8),
+            fileName: "forged.png"
+        )
+        let oversizedInput = ScreenshotInput(
+            data: Data(
+                repeating: 0,
+                count: ConversationScreenshotInputValidator.maximumByteCount + 1
+            ),
+            fileName: "oversized.png"
+        )
+
+        for input in [corruptInput, oversizedInput] {
+            do {
+                _ = try await ConversationScreenshotImporter(
+                    inbox: inbox,
+                    defaults: defaults
+                ).stage(input)
+                XCTFail("Rejected input must not return a receipt")
+            } catch {
+                let captureError = error as? CaptureAppIntentError
+                XCTAssertTrue(
+                    captureError == .notAnImage || captureError == .imageTooLarge,
+                    "Unexpected rejection: \(error)"
+                )
+            }
+            let pendingCount = try await inbox.count()
+            XCTAssertEqual(pendingCount, 0)
+            XCTAssertEqual(
+                defaults.double(
+                    forKey: TalentSignalSetupPreference
+                        .screenshotShortcutReceivedAtKey
+                ),
+                0
+            )
+        }
+
+        let dimensionLimitedImporter = ConversationScreenshotImporter(
+            inbox: inbox,
+            defaults: defaults,
+            validate: { _ in
+                try ConversationScreenshotInputValidator.validatePixelDimensions(
+                    width: 10_000,
+                    height: 9_000
+                )
+                return .png
+            }
+        )
+        do {
+            _ = try await dimensionLimitedImporter.stage(
+                ScreenshotInput(data: Data([0x89]), fileName: "huge.png")
+            )
+            XCTFail("Pixel-limited input must not return a receipt")
+        } catch {
+            XCTAssertEqual(error as? CaptureAppIntentError, .imageTooLarge)
+        }
+        let pendingCount = try await inbox.count()
+        XCTAssertEqual(pendingCount, 0)
+        XCTAssertEqual(
+            defaults.double(
+                forKey: TalentSignalSetupPreference
+                    .screenshotShortcutReceivedAtKey
+            ),
+            0
+        )
+    }
+
     func testSelectedConversationImageAcceptsImageDataAndRejectsOtherPayloads() throws {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 32))
         let image = renderer.image { context in
@@ -119,7 +237,9 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertEqual(restored?.fileName, seed.fileName)
         let restoredDraft = try await inbox.loadDraft(for: seed.id)
         let protections = try await inbox.fileProtections(for: seed.id)
+        let isExcludedFromBackup = try await inbox.isExcludedFromBackup()
         XCTAssertEqual(restoredDraft, draft)
+        XCTAssertTrue(isExcludedFromBackup)
 #if targetEnvironment(simulator)
         XCTAssertTrue(
             protections.allSatisfy { $0 == nil || $0 == .complete },
@@ -378,6 +498,35 @@ final class RelationshipCaptureTests: XCTestCase {
         let countAfterLaterReview = try await inbox.count()
         XCTAssertNotEqual(laterReview.id, first.id)
         XCTAssertEqual(countAfterLaterReview, 2)
+    }
+
+    func testScreenshotShortcutReceiptRecordsObservedCaptureSeparately() throws {
+        let suiteName = "talent-signal-shortcut-receipt-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let receivedAt = Date(timeIntervalSince1970: 1_788_480_000)
+
+        TalentSignalSetupPreference.recordScreenshotShortcutReceived(
+            at: receivedAt,
+            defaults: defaults
+        )
+
+        XCTAssertFalse(
+            defaults.bool(
+                forKey: TalentSignalSetupPreference.actionButtonCompleteKey
+            )
+        )
+        XCTAssertEqual(
+            defaults.double(
+                forKey: TalentSignalSetupPreference
+                    .screenshotShortcutReceivedAtKey
+            ),
+            receivedAt.timeIntervalSince1970
+        )
+        XCTAssertEqual(
+            TalentSignalSetupPreference.shortcutEditorURL.absoluteString,
+            "shortcuts://create-shortcut"
+        )
     }
 
     func testPendingInboxKeepsDraftsIsolatedByCapture() async throws {

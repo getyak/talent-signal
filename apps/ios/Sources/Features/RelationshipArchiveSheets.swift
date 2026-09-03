@@ -580,6 +580,8 @@ struct RelationshipMenuView: View {
         AppLanguage.system.rawValue
     @AppStorage(TalentSignalSetupPreference.actionButtonCompleteKey)
     private var isActionButtonSetupComplete = false
+    @AppStorage(TalentSignalSetupPreference.screenshotShortcutReceivedAtKey)
+    private var screenshotShortcutReceivedAt = 0.0
     @State private var selectedDetent: PresentationDetent = .medium
 
     private var selectedLanguage: AppLanguage {
@@ -684,9 +686,11 @@ struct RelationshipMenuView: View {
                             detail: appLanguage.text(
                                 "Capture, record, or review from the system."
                             ),
-                            value: isActionButtonSetupComplete
-                                ? appLanguage.text("Set up")
-                                : nil
+                            value: screenshotShortcutReceivedAt > 0
+                                ? appLanguage.text("Local receipt")
+                                : isActionButtonSetupComplete
+                                    ? appLanguage.text("Assigned")
+                                    : nil
                         )
                     }
                     .accessibilityIdentifier("open-action-button-settings")
@@ -819,7 +823,7 @@ private struct RelationshipMenuSetupRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
                     Spacer(minLength: 8)
-                    Text(appLanguage.text("1 minute"))
+                    Text(appLanguage.text("One-time setup"))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.tsMutedInk)
                 }

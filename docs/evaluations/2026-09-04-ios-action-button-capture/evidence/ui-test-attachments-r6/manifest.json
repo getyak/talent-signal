@@ -1,0 +1,89 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "052BD39F-785C-4546-8F39-7117370D7726",
+        "deviceName" : "iPhone 17e",
+        "exportedFileName" : "94B14121-7794-4FCE-AACF-2B80239F277F.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Observed Shortcut receipt_0_30785FC4-1734-4681-BD21-A7728DF2AC42.png",
+        "timestamp" : 1788457806.722
+      }
+    ],
+    "testIdentifier" : "CandidateSignalUITests/testActionButtonSetupSeparatesObservedShortcutReceiptFromAssignment()",
+    "testIdentifierURL" : "test://com.apple.xcode/TalentSignal/TalentSignalUITests/CandidateSignalUITests/testActionButtonSetupSeparatesObservedShortcutReceiptFromAssignment"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "052BD39F-785C-4546-8F39-7117370D7726",
+        "deviceName" : "iPhone 17e",
+        "exportedFileName" : "5547C5B5-DFAB-4805-A837-3CBD3B7D03EF.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Action Button setup Chinese AX5_0_9095B6D6-72A2-498E-9B39-F4E18272E862.png",
+        "timestamp" : 1788457820.154
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "052BD39F-785C-4546-8F39-7117370D7726",
+        "deviceName" : "iPhone 17e",
+        "exportedFileName" : "B3003111-60B0-4A15-95B1-32C76F8E41FD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Agent sources compact Chinese AX5_0_549FFD9E-AB73-41AC-B6D0-3521A438CABC.png",
+        "timestamp" : 1788457817.72
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "052BD39F-785C-4546-8F39-7117370D7726",
+        "deviceName" : "iPhone 17e",
+        "exportedFileName" : "AA3A7CBC-CBF8-4592-8765-B4770A4C68FD.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Agent compact Chinese AX5_0_8D65978C-F786-466F-9F76-3ED96B468958.png",
+        "timestamp" : 1788457814.946
+      }
+    ],
+    "testIdentifier" : "CandidateSignalUITests/testAgentStudioRemainsReachableInChineseAtAX5()",
+    "testIdentifierURL" : "test://com.apple.xcode/TalentSignal/TalentSignalUITests/CandidateSignalUITests/testAgentStudioRemainsReachableInChineseAtAX5"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "052BD39F-785C-4546-8F39-7117370D7726",
+        "deviceName" : "iPhone 17e",
+        "exportedFileName" : "301C4D0A-37F5-4630-8965-97921CF83C11.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Pending screenshot keep or discard_0_51DDEABA-3E6B-49C4-86BD-69F382DBD55C.png",
+        "timestamp" : 1788457827.904
+      }
+    ],
+    "testIdentifier" : "CandidateSignalUITests/testPendingScreenshotReviewOffersKeepOrDiscardBeforeProcessing()",
+    "testIdentifierURL" : "test://com.apple.xcode/TalentSignal/TalentSignalUITests/CandidateSignalUITests/testPendingScreenshotReviewOffersKeepOrDiscardBeforeProcessing"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "052BD39F-785C-4546-8F39-7117370D7726",
+        "deviceName" : "iPhone 17e",
+        "exportedFileName" : "B16C3951-5CAB-4789-8354-231BFCCAF8EB.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Action Button setup_0_A5C80788-59A2-4666-B620-BE016B032EB4.png",
+        "timestamp" : 1788457845.667
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "052BD39F-785C-4546-8F39-7117370D7726",
+        "deviceName" : "iPhone 17e",
+        "exportedFileName" : "60E55713-0E06-4074-AE5E-B03DD3C4AE66.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Quiet workspace menu_0_19ACC529-DD17-40D2-95D4-7F6CF0C76CEA.png",
+        "timestamp" : 1788457842.705
+      }
+    ],
+    "testIdentifier" : "CandidateSignalUITests/testWorkspaceMenuLeadsWithAccountSetupAndRealUtilities()",
+    "testIdentifierURL" : "test://com.apple.xcode/TalentSignal/TalentSignalUITests/CandidateSignalUITests/testWorkspaceMenuLeadsWithAccountSetupAndRealUtilities"
+  }
+]

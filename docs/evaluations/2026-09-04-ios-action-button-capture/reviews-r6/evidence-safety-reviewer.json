@@ -1,0 +1,35 @@
+{
+  "reviewer": "evidence-safety-reviewer",
+  "lens": "evidence integrity, privacy, and safe action",
+  "verdict": "pass",
+  "score": 3,
+  "confidence": "direct",
+  "findings": [
+    {
+      "severity": "low",
+      "criterion": "typed assertion \u2192 versioned state \u2192 audit/deletion",
+      "observation": "r6 closes the prior receipt-ordering proof gap, but the frozen artifact still treats broader post-save deletion and retraction governance as a separate follow-up rather than a fully enumerated, executable lifecycle inventory.",
+      "evidence": "artifact-r6.md explicitly states that full post-save deletion/retraction inventory across capture, resource, and wiki records remains a broader lifecycle-governance follow-up. The local pre-save and review-stage chain is evidenced in apps/ios/Sources/Features/RelationshipCaptureView.swift:429-445 and 1063-1077, apps/ios/Sources/Features/RelationshipCaptureStore.swift:86-98 and 180-207, and apps/ios/Sources/Services/PendingCaptureInbox.swift:65-96 and 112-196. The frozen result bundle /tmp/talent-signal-action-button-r6.xcresult proves local discard, keep-for-later, retry, queue removal, and receipt separation, but it does not contain a post-save end-to-end retraction test covering derived reviewed-text records or compiled wiki output.",
+      "user_impact": "This does not create a silent-import or silent-write defect in the r6 Action Button capture path, but it leaves a narrower unanswered question about how a recruiter retracts or supersedes reviewed evidence after explicitly promoting it beyond the local inbox.",
+      "recommendation": "Keep the Action Button release gate open on r6, but schedule a separate lifecycle audit artifact that inventories post-save reviewed capture records, identity cases, compiled wiki blocks, and any derived canonical state, with explicit delete or supersession behavior for each.",
+      "verification": "Create a follow-up frozen artifact that begins after Save and check identity, then proves which downstream records remain, which can be deleted, and which are superseded with visible audit history."
+    }
+  ],
+  "strengths": [
+    "The r6 frozen surface is intact: all 14 listed source hashes in artifact-r6.md recomputed to exact matches before scoring.",
+    "The final result bundle /tmp/talent-signal-action-button-r6.xcresult succeeded with 25 passing leaf tests and 0 failures, including the new RelationshipCaptureTests/testShortcutImporterRejectsBeforeQueueAndReceipt() alongside the prior receipt-separation, queue, review, and UI-state tests.",
+    "r6 resolves the prior medium safety finding. In apps/ios/Sources/App/CaptureAppIntents.swift:189-203, ImportConversationScreenshotIntent now routes through ConversationScreenshotImporter.stage(), and in apps/ios/Sources/App/CaptureAppIntents.swift:381-392 that importer validates first, stages second, and records the receipt timestamp only after successful queue persistence.",
+    "The new negative-path evidence is executable and specific. apps/ios/Tests/RelationshipCaptureTests.swift:48-123 proves that corrupt input, payloads above 25 MiB, and over-80-megapixel input all fail before queue creation and before TalentSignalSetupPreference.screenshotShortcutReceivedAtKey changes from zero.",
+    "Release App Intents metadata in /tmp/talent-signal-action-button-final-derived/Build/Products/Release-iphonesimulator/TalentSignal.app/Metadata.appintents/extract.actionsdata confirms ImportConversationScreenshotIntent with title Review screenshot, required Screenshot parameter, background supportedModes, openAppWhenRun false, and no advertised one-step App Shortcut tile for that required-image action.",
+    "The local evidence store remains purpose-bounded and protected. apps/ios/Sources/Services/PendingCaptureInbox.swift:30-52, 112-196, and 225-240 implement FIFO loading, exact-retry deduplication, complete file protection, backup exclusion, atomic rollback on partial persistence, and explicit per-item removal."
+  ],
+  "missing_evidence": [
+    "A dedicated post-save lifecycle artifact proving deletion or supersession behavior for reviewed capture records, identity cases, compiled wiki output, and any derived canonical state after Save and check identity.",
+    "A physical iPhone demonstration of Action Button assignment and press. artifact-r6.md correctly keeps this as a platform-evidence boundary rather than claiming simulator proof."
+  ],
+  "vetoes": [],
+  "open_questions": [
+    "After reviewed text is explicitly saved, which exact user-visible surface owns later retraction if the conversation turns out to be unauthorized, stale, or identity-confused?",
+    "Will the planned broader lifecycle audit keep the same field-level separation between observed source, recruiter correction, downstream derivation, and later supersession that r6 now preserves in the import and review stages?"
+  ]
+}

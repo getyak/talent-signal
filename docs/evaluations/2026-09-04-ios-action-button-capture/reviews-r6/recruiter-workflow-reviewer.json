@@ -1,0 +1,44 @@
+{
+  "reviewer": "recruiter-workflow-reviewer",
+  "lens": "boutique recruiter operational fit",
+  "verdict": "pass",
+  "score": 3,
+  "confidence": "direct",
+  "findings": [
+    {
+      "severity": "low",
+      "criterion": "Setup burden ceiling versus real-world fallback",
+      "observation": "The r6 setup is now disciplined and honest enough to approve: it teaches the exact two-action personal Shortcut, labels the primary control as opening an empty editor, and keeps generic App Shortcuts separate. It still stops at a rubric 3 rather than 4 because the first-time setup burden is proven only in Simulator and not yet against real recruiter fallback behavior on physical Action Button phones.",
+      "evidence": "artifact-r6.md identifies the user-visible setup loop and cites /tmp/talent-signal-action-button-r6.xcresult with 25 succeeded. AppSettingsView.swift renders the exact recipe rows, the Local before you decide boundary, the Open Shortcut editor CTA, and the explicit Settings assignment disclosure. Screenshot B16C3951-5CAB-4789-8354-231BFCCAF8EB.png shows those same recruiter-visible steps; screenshot 60E55713-0E06-4074-AE5E-B03DD3C4AE66.png shows the neutral Set up quick capture entry with One-time setup instead of a time promise.",
+      "user_impact": "A busy independent recruiter can understand what to do without being sold a fake one-tap install, but the team still does not have direct field evidence that the one-time setup beats each recruiter's current manual workaround under live-search interruption.",
+      "recommendation": "Keep the current setup surface and treat the next step as field validation, not more conceptual redesign. Measure first-time completion, detours into the generic Shortcuts catalog, and abandonment on physical Action Button devices.",
+      "verification": "On a physical Action Button iPhone, ask first-time recruiters to go from fresh install to first successful screenshot capture with no coaching. Record completion rate, detours, time-to-first-success, and whether they can correctly explain what the app verified."
+    },
+    {
+      "severity": "low",
+      "criterion": "Fast continuation from receipt to review",
+      "observation": "The receipt state is materially safer than earlier rounds: Local receipt is distinct from Assigned, the detail says Screenshot received via Shortcuts, and the unchecked assignment control remains visible. The recruiter can safely resume on next launch, but the receipt row itself still acts as status rather than as a direct jump into the queued screenshot review.",
+      "evidence": "CandidateSignalUITests.swift asserts that when screenshotShortcutReceivedAt is set and action-button-complete is NO, the workspace settings row contains Local receipt, the detail label is Screenshot received via Shortcuts, and Action Button Ready is absent. Screenshot 94B14121-7794-4FCE-AACF-2B80239F277F.png shows the unchecked I've assigned the Shortcut control above the receipt card, and screenshot 301C4D0A-37F5-4630-8965-97921CF83C11.png shows the preserved keep-or-discard gate with next-launch recovery. AppSettingsView.swift renders screenshot-shortcut-verification as a combined status row rather than a review CTA.",
+      "user_impact": "A recruiter is no longer misled about assignment or hardware proof, and their work is preserved. They may still spend one extra navigation step getting from 'yes, it arrived' to the exact queued review item.",
+      "recommendation": "When at least one pending capture exists, let the Local receipt state offer one direct Review pending screenshot action while preserving the current Assigned versus receipt split.",
+      "verification": "Seed one or more pending captures, enter Action Button & Shortcuts from the Local receipt state, and confirm a direct review action opens the oldest queued screenshot without altering assignment state or duplicating queue items."
+    }
+  ],
+  "strengths": [
+    "The r6 artifact is genuinely frozen: all listed SHA-256 hashes matched when recomputed on 2026-09-04, so the screenshots, source, and review packet describe one stable state.",
+    "The final xcresult bundle directly reports 25 passed tests and succeeded, including 20 unit tests and 5 focused UI tests for setup, status separation, AX5 localization, review gating, and recovery.",
+    "The recruiter-visible language is now operationally truthful. Assigned comes only from self-confirmation, Local receipt means only app-owned local receipt, and the detail explicitly says that receipt does not prove the current Action Button assignment.",
+    "The import path protects recruiter trust: rejected corrupt or oversized input creates neither a queued capture nor a receipt, accepted screenshots are staged locally with protection and backup exclusion, exact retries deduplicate, and reviewed drafts survive to the next app launch.",
+    "The wedge remains narrow and useful. The flow captures one authorized conversation, preserves exact evidence, allows unresolved/no-action outcomes, and delays any consequential interpretation or external effect until explicit human review."
+  ],
+  "missing_evidence": [
+    "No connected physical iPhone was available, so current system mapping and physical Action Button presses remain an explicit boundary rather than proven hardware behavior.",
+    "No first-time recruiter field study yet shows one-pass setup completion, abandonment rate, or comparative time saved versus each recruiter's current fallback.",
+    "The receipt surface does not yet prove a one-tap jump from status to the oldest pending review item; the packet proves safe resume and keep/discard recovery instead."
+  ],
+  "vetoes": [],
+  "open_questions": [
+    "Do first-time recruiters immediately understand Local receipt as software-only evidence, or do some still infer broader Action Button verification before opening the detail?",
+    "After physical-device validation, is the Other shortcuts section helping discovery or creating avoidable detours during first-time setup?"
+  ]
+}

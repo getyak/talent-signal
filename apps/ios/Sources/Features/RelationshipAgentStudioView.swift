@@ -27,6 +27,8 @@ struct RelationshipAgentStudioView: View {
     private var legacyLinkedInURL = ""
     @AppStorage(TalentSignalSetupPreference.actionButtonCompleteKey)
     private var isActionButtonSetupComplete = false
+    @AppStorage(TalentSignalSetupPreference.screenshotShortcutReceivedAtKey)
+    private var screenshotShortcutReceivedAt = 0.0
     @AppStorage(CalendarSyncPreference.isEnabledKey)
     private var isCalendarSyncEnabled = true
     @State private var showsWorkspaceMenu = false
@@ -69,6 +71,15 @@ struct RelationshipAgentStudioView: View {
                     format: appLanguage.text("%lld profile references"),
                     locale: appLanguage.locale,
                     Int64(profileReferenceStore.references.count)
+                )
+            )
+        }
+        if screenshotShortcutReceivedAt > 0 || isActionButtonSetupComplete {
+            parts.append(
+                appLanguage.text(
+                    screenshotShortcutReceivedAt > 0
+                        ? "Shortcut received"
+                        : "Shortcut assigned"
                 )
             )
         }
@@ -226,6 +237,7 @@ struct RelationshipAgentStudioView: View {
                     workspaceStore: workspaceStore,
                     sessionStore: sessionStore,
                     isActionButtonSetupComplete: isActionButtonSetupComplete,
+                    screenshotShortcutReceivedAt: screenshotShortcutReceivedAt,
                     isCalendarSyncEnabled: isCalendarSyncEnabled
                 )
             } label: {

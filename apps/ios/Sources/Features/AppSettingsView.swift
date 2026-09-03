@@ -4,6 +4,19 @@ import SwiftUI
 enum TalentSignalSetupPreference {
     static let actionButtonCompleteKey =
         "talent-signal.setup.action-button-complete"
+    static let screenshotShortcutReceivedAtKey =
+        "talent-signal.setup.screenshot-shortcut-received-at"
+    static let shortcutEditorURL = URL(string: "shortcuts://create-shortcut")!
+
+    static func recordScreenshotShortcutReceived(
+        at date: Date = Date(),
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.set(
+            date.timeIntervalSince1970,
+            forKey: screenshotShortcutReceivedAtKey
+        )
+    }
 }
 
 enum WorkspaceTextSizePreference: String, CaseIterable, Identifiable {
@@ -347,7 +360,13 @@ private struct DisplayPreferencePreview: View {
 struct ActionButtonSetupView: View {
     @AppStorage(TalentSignalSetupPreference.actionButtonCompleteKey)
     private var isSetupComplete = false
+    @AppStorage(TalentSignalSetupPreference.screenshotShortcutReceivedAtKey)
+    private var screenshotShortcutReceivedAt = 0.0
     @Environment(\.appLanguage) private var appLanguage
+
+    private var hasReceivedScreenshotShortcut: Bool {
+        screenshotShortcutReceivedAt > 0
+    }
 
     var body: some View {
         List {
@@ -361,12 +380,12 @@ struct ActionButtonSetupView: View {
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(appLanguage.text("Fast capture, on your terms"))
+                        Text(appLanguage.text("Make the Next Capture Instant"))
                             .font(.headline)
                             .foregroundStyle(Color.tsInk)
                         Text(
                             appLanguage.text(
-                                "Talent Signal offers focused shortcuts for capture, review, and retrieval. Choosing one never confirms a fact or sends anything."
+                                "Build it once. Then press and hold without leaving the conversation."
                             )
                         )
                         .font(.subheadline)
@@ -375,6 +394,51 @@ struct ActionButtonSetupView: View {
                     }
                 }
                 .padding(.vertical, 6)
+            }
+
+            Section {
+                ScreenshotShortcutRecipeRow(
+                    number: 1,
+                    systemImage: "camera.viewfinder",
+                    title: appLanguage.text("Take Screenshot"),
+                    owner: appLanguage.text("System action")
+                )
+                ScreenshotShortcutRecipeRow(
+                    number: 2,
+                    systemImage: "text.viewfinder",
+                    title: appLanguage.text("Review screenshot"),
+                    owner: appLanguage.text("Talent Signal action")
+                )
+
+                SettingsExplanationRow(
+                    systemImage: "lock.shield",
+                    title: appLanguage.text("Local before you decide"),
+                    detail: appLanguage.text(
+                        "Capture only a conversation you are authorized to use. The screenshot stays local until you review it. Reviewed text is sent only after you tap Save and check identity."
+                    )
+                )
+                .accessibilityIdentifier("shortcut-local-boundary")
+
+                Link(destination: TalentSignalSetupPreference.shortcutEditorURL) {
+                    Label(
+                        appLanguage.text("Open Shortcut editor"),
+                        systemImage: "plus"
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(TSPrimaryButtonStyle())
+                .accessibilityIdentifier("build-screenshot-shortcut")
+                .accessibilityLabel(
+                    appLanguage.text("Open Shortcut editor")
+                )
+            } header: {
+                Text(appLanguage.text("Build the two-action Shortcut"))
+            } footer: {
+                Text(
+                    appLanguage.text(
+                        "Opens an empty Shortcut editor. Add the two actions above in order, then give it a short name."
+                    )
+                )
             }
 
             Section {
@@ -387,20 +451,9 @@ struct ActionButtonSetupView: View {
                 SettingsStepRow(
                     number: 2,
                     text: appLanguage.text(
-                        "Swipe to Shortcut, then choose a shortcut."
+                        "Swipe to Shortcut, then choose the personal Shortcut you just named."
                     )
                 )
-                SettingsStepRow(
-                    number: 3,
-                    text: appLanguage.text(
-                        "Choose Talent Signal, then select the capture or review shortcut you want."
-                    )
-                )
-
-                ShortcutsLink()
-                    .shortcutsLinkStyle(.automaticOutline)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .accessibilityIdentifier("open-app-shortcuts")
 
                 Button {
                     isSetupComplete.toggle()
@@ -409,7 +462,7 @@ struct ActionButtonSetupView: View {
                         appLanguage.text(
                             isSetupComplete
                                 ? "Show setup reminder again"
-                                : "I set up the Action Button"
+                                : "I've assigned the Shortcut"
                         ),
                         systemImage: isSetupComplete
                             ? "checkmark.circle.fill"
@@ -421,63 +474,27 @@ struct ActionButtonSetupView: View {
                 .foregroundStyle(Color.tsInk)
                 .accessibilityIdentifier("confirm-action-button-setup")
             } header: {
-                Text(appLanguage.text("Set up your iPhone"))
+                Text(appLanguage.text("Assign the Shortcut"))
             } footer: {
                 Text(
                     appLanguage.text(
-                        "Setup status is confirmed by you because iOS does not expose the current Action Button binding to this app."
+                        "Only you can assign it in Settings. Talent Signal cannot read or change the Action Button binding."
                     )
                 )
             }
 
             Section {
-                SettingsExplanationRow(
-                    systemImage: "sparkles",
-                    title: appLanguage.text("Agent processing stays visible"),
-                    detail: appLanguage.text(
-                        "A Live Activity can show the trusted phase while you are away. When Actions are ready, review returns to the App."
-                    )
+                ScreenshotShortcutVerificationRow(
+                    isVerified: hasReceivedScreenshotShortcut,
+                    isAssignmentConfirmed: isSetupComplete,
+                    appLanguage: appLanguage
                 )
-                SettingsExplanationRow(
-                    systemImage: "rectangle.stack.badge.person.crop",
-                    title: appLanguage.text("Actions stay reviewable"),
-                    detail: appLanguage.text(
-                        "Add contact, update contact, meetings, and follow-ups remain separate cards with evidence and an exact effect."
-                    )
-                )
-#if DEBUG
-                NavigationLink {
-                    ResearchShowcaseView()
-                } label: {
-                    SettingsExplanationRow(
-                        systemImage: "doc.text.magnifyingglass",
-                        title: appLanguage.text("Open Synthetic Research Showcase"),
-                        detail: appLanguage.text(
-                            "Run the deterministic approved-page ActivityKit handoff and exact review deep link."
-                        )
-                    )
-                }
-                .accessibilityIdentifier("open-research-showcase")
-
-                NavigationLink {
-                    AgentWorkShowcaseView()
-                } label: {
-                    SettingsExplanationRow(
-                        systemImage: "testtube.2",
-                        title: appLanguage.text("Open Agent lifecycle demo"),
-                        detail: appLanguage.text(
-                            "Run the synthetic ActivityKit handoff from processing to action review."
-                        )
-                    )
-                }
-                .accessibilityIdentifier("open-agent-work-showcase")
-#endif
             } header: {
-                Text(appLanguage.text("Agent handoff"))
+                Text(appLanguage.text("First capture"))
             } footer: {
                 Text(
                     appLanguage.text(
-                        "The Live Activity exposes phase and attention only. Candidate details and consequential controls stay inside Talent Signal."
+                        "A screenshot received through this Shortcut confirms only the local handoff. It does not prove the current Action Button assignment."
                     )
                 )
             }
@@ -501,30 +518,22 @@ struct ActionButtonSetupView: View {
                     systemImage: "text.viewfinder",
                     title: appLanguage.text("Review screenshot"),
                     detail: appLanguage.text(
-                        "Save one image locally for later text and identity review."
+                        "Save one image on this iPhone for later text and identity review."
                     )
                 )
-            } header: {
-                Text(appLanguage.text("Capture shortcuts"))
-            }
 
-            Section {
-                SettingsExplanationRow(
-                    systemImage: "checkmark.bubble",
-                    title: appLanguage.text("Review Signal"),
-                    detail: appLanguage.text(
-                        "Open the latest pending Proposal for a human decision."
-                    )
-                )
-                SettingsExplanationRow(
-                    systemImage: "scope",
-                    title: appLanguage.text("Open Pursuit"),
-                    detail: appLanguage.text(
-                        "Return to one stable Pursuit without recording a change."
-                    )
-                )
+                ShortcutsLink()
+                    .shortcutsLinkStyle(.automaticOutline)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .accessibilityIdentifier("open-app-shortcuts")
             } header: {
-                Text(appLanguage.text("Review and retrieve"))
+                Text(appLanguage.text("Other shortcuts"))
+            } footer: {
+                Text(
+                    appLanguage.text(
+                        "Shortcuts opens your existing shortcuts and Talent Signal app actions."
+                    )
+                )
             }
 
             Section {
@@ -532,7 +541,7 @@ struct ActionButtonSetupView: View {
                     systemImage: "lock.shield",
                     title: appLanguage.text("Safety boundary"),
                     detail: appLanguage.text(
-                        "These shortcuts open or stage review. They do not confirm candidate facts, send messages, create meetings, or write to an ATS or CRM."
+                        "The button saves locally. Reviewed text is sent only after you tap Save and check identity; no candidate fact or external action is confirmed automatically."
                     )
                 )
             }
@@ -543,6 +552,99 @@ struct ActionButtonSetupView: View {
         .navigationTitle(appLanguage.text("Action Button & Shortcuts"))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("action-button-settings")
+    }
+}
+
+private struct ScreenshotShortcutRecipeRow: View {
+    let number: Int
+    let systemImage: String
+    let title: String
+    let owner: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(verbatim: "\(number)")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.tsSurface)
+                .frame(width: 28, height: 28)
+                .background(Color.tsInk, in: Circle())
+                .accessibilityHidden(true)
+            Image(systemName: systemImage)
+                .font(.body.weight(.medium))
+                .foregroundStyle(Color.tsInk)
+                .frame(width: 28)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                Text(owner)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: 52)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(verbatim: "\(number). \(title)"))
+        .accessibilityValue(owner)
+        .accessibilityIdentifier("screenshot-shortcut-step-\(number)")
+    }
+}
+
+private struct ScreenshotShortcutVerificationRow: View {
+    let isVerified: Bool
+    let isAssignmentConfirmed: Bool
+    let appLanguage: AppLanguage
+
+    private var title: String {
+        if isVerified {
+            return appLanguage.text("Screenshot received via Shortcuts")
+        }
+        if isAssignmentConfirmed {
+            return appLanguage.text("Ready for the first capture")
+        }
+        return appLanguage.text("Not set up")
+    }
+
+    private var detail: String {
+        if isVerified {
+            return appLanguage.text(
+                "Talent Signal received a screenshot through Shortcuts. It stays in the local review queue until you review or delete it."
+            )
+        }
+        if isAssignmentConfirmed {
+            return appLanguage.text(
+                "Your assignment is noted. Talent Signal will verify its own capture path when the first screenshot arrives."
+            )
+        }
+        return appLanguage.text(
+            "No screenshot is captured or uploaded during setup."
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: isVerified ? "checkmark.circle.fill" : "circle.dashed")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(isVerified ? Color.tsConfirmed : Color.tsMutedInk)
+                .frame(width: 32, height: 32)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tsInk)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(detail)
+        .accessibilityIdentifier("screenshot-shortcut-verification")
     }
 }
 

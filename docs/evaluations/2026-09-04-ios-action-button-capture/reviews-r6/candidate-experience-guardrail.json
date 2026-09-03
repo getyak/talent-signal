@@ -1,0 +1,22 @@
+{
+  "reviewer": "candidate-experience-guardrail",
+  "lens": "human connection, trust, agency, communication, collaboration",
+  "verdict": "pass",
+  "score": 4,
+  "confidence": "direct",
+  "findings": [],
+  "strengths": [
+    "The setup still speaks plainly before any fast capture is enabled. artifact-r6.md, the hash-matched AppSettingsView.swift copy, and the r6 fresh English setup screenshot B16C3951-5CAB-4789-8354-231BFCCAF8EB.png say to capture only a conversation you are authorized to use, keep the screenshot local until review, and send reviewed text only after Save and check identity.",
+    "The receipt state is careful not to overclaim. The r6 observed receipt screenshot 94B14121-7794-4FCE-AACF-2B80239F277F.png and CandidateSignalUITests.swift keep the assignment checkbox unchecked, label the detail state Screenshot received via Shortcuts, and state that this confirms only the local handoff rather than the current Action Button assignment or a physical press.",
+    "Reversibility and identity uncertainty remain visible in the human path. The r6 review screenshot 301C4D0A-37F5-4630-8965-97921CF83C11.png and hash-matched RelationshipCaptureView.swift show Keep for later, Discard capture, inspect-original, Speaker unresolved, and the text Unresolved is a valid result before Save and check identity becomes the next step.",
+    "Candidate-data trust is backed by behavior, not just tone. CaptureAppIntents.swift still returns Saved on this iPhone. Nothing was uploaded or confirmed., and RelationshipCaptureTests.swift adds testShortcutImporterRejectsBeforeQueueAndReceipt so corrupt, oversized-byte, and oversized-pixel inputs create neither a queued capture nor a receipt. /tmp/talent-signal-action-button-r6.xcresult records 25 passed tests for the frozen artifact."
+  ],
+  "missing_evidence": [
+    "No physical iPhone was connected on 2026-09-04, so a real hardware Action Button assignment and press remain an explicit platform-evidence boundary rather than a proven behavior.",
+    "artifact-r6.md explicitly says full post-save deletion and retraction inventory across capture, resource, and wiki records remains a broader lifecycle-governance follow-up, so that system-wide reversibility audit is still outside this frozen artifact."
+  ],
+  "vetoes": [],
+  "open_questions": [
+    "When reviewed text has already been saved and identity has been checked, what user-facing deletion or retraction path will keep the same level of candor and reversibility across later resource and wiki records?"
+  ]
+}
