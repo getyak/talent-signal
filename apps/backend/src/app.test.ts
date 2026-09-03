@@ -56,9 +56,88 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("037_source_retention_derivative_lineage"),
+      expect.stringContaining("039_talent_signal_lab"),
     );
   }, 10_000);
+});
+
+describe("Talent Signal Lab capability policy", () => {
+  it("returns a disabled manifest and performs no Lab read in a non-internal build", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          account_id: "30000000-0000-4000-8000-000000000001",
+          account_slug: "fixture-alpha",
+          user_id: "40000000-0000-4000-8000-000000000001",
+          user_email: "recruiter@example.test",
+          user_kind: "simulated_human",
+          session_id: "50000000-0000-4000-8000-000000000001",
+        },
+      ],
+    });
+    const app = await buildApp({
+      config: { ...config, internalLabEnabled: false },
+      pool: { query } as unknown as Pool,
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/lab",
+      headers: { authorization: "Bearer synthetic-session" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      capability: {
+        enabled: false,
+        canonical_write_access: false,
+        external_effect_access: false,
+        production_data_access: false,
+      },
+      scenarios: [],
+      active_session: null,
+      latest_run: null,
+      eval_cases: [],
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("denies Lab mutation when the backend capability is disabled", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          account_id: "30000000-0000-4000-8000-000000000001",
+          account_slug: "personal-ava",
+          user_id: "40000000-0000-4000-8000-000000000001",
+          user_email: "recruiter@example.test",
+          user_kind: "password_human",
+          session_id: "50000000-0000-4000-8000-000000000001",
+        },
+      ],
+    });
+    const app = await buildApp({
+      config: { ...config, internalLabEnabled: false },
+      pool: { query } as unknown as Pool,
+    });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/lab/sessions",
+      headers: { authorization: "Bearer synthetic-session" },
+      payload: {
+        scenario_id: "ambiguous-identity",
+        idempotency_key: "internal-lab-disabled",
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: { code: "LAB_CAPABILITY_DENIED" },
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("voice transcription route", () => {

@@ -3,6 +3,35 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("authority schema", () => {
+  it("keeps Lab sessions, replay, receipts, and promoted cases isolated from product truth", async () => {
+    const sql = await readFile(
+      new URL("./039_talent_signal_lab.sql", import.meta.url),
+      "utf8",
+    );
+    for (const table of [
+      "lab_sessions",
+      "lab_runs",
+      "lab_comparisons",
+      "lab_reality_receipts",
+      "lab_eval_cases",
+    ]) {
+      expect(sql).toContain(`CREATE TABLE ${table}`);
+    }
+    expect(sql).toContain("canonical_isolation = true");
+    expect(sql).toContain("production_data_access = false");
+    expect(sql).toContain("canonical_mutation_count = 0");
+    expect(sql).toContain("external_effect_count = 0");
+    expect(sql).toContain("redaction_applied = true");
+    expect(sql).not.toContain("REFERENCES subjects");
+    expect(sql).not.toContain("REFERENCES pursuits");
+    expect(sql).not.toContain("REFERENCES captures");
+    expect(sql).not.toContain("REFERENCES confirmed_states");
+    expect(sql).not.toContain("REFERENCES action_proposals");
+    expect(sql).not.toContain("REFERENCES effect_attempts");
+    expect(sql).not.toContain("candidate_score");
+    expect(sql).not.toContain("acceptance_probability");
+  });
+
   it("adds a governed Task lifecycle without duplicating domain or effect authority", async () => {
     const sql = await readFile(
       new URL("./036_governed_agent_tasks.sql", import.meta.url),

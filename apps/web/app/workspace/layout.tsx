@@ -5,11 +5,13 @@ import type { ReactNode } from "react";
 import { auth } from "@/auth";
 import { signOutOfWorkspace } from "@/app/login/actions";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TalentSignalLabShell } from "@/components/talent-signal-lab/lab-shell";
 import {
   WorkspaceCaptureLink,
   WorkspaceShellNav,
 } from "@/components/workspace-shell-nav";
 import styles from "@/components/workspace-shell.module.css";
+import { loadLabManifest } from "@/lib/server/labBackend";
 
 function initials(value: string): string {
   return (
@@ -78,6 +80,13 @@ export default async function WorkspaceLayout({
   const accountTitle = fixtureWorkspace
     ? `${accountName} · ${backendAccount?.name ?? "Alpha 寻访测试"} · 合成测试工作台`
     : `${accountName} · ${backendAccount?.name ?? "账号专属工作台"}`;
+  let labManifest: Awaited<ReturnType<typeof loadLabManifest>> | null = null;
+  try {
+    labManifest = await loadLabManifest();
+  } catch {
+    // The product workspace stays available when the isolated Lab control
+    // plane is unavailable. No synthetic fallback is shown as real state.
+  }
 
   return (
     <div className={styles.shell}>
@@ -115,9 +124,11 @@ export default async function WorkspaceLayout({
         </div>
       </header>
 
-      <div className={styles.stage} id="workspace-content">
-        {children}
-      </div>
+      <TalentSignalLabShell initialManifest={labManifest}>
+        <div className={styles.stage} id="workspace-content">
+          {children}
+        </div>
+      </TalentSignalLabShell>
     </div>
   );
 }

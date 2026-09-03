@@ -76,10 +76,17 @@ import {
   PublicResearchRequestSchema,
   PublicResearchResponseSchema,
   KnowledgeSnapshotSchema,
+  LabComparisonResponseSchema,
+  LabEvalCaseResponseSchema,
+  LabManifestResponseSchema,
+  LabRunResponseSchema,
+  LabSessionResponseSchema,
   CurrentSessionResponseSchema,
   LogoutResponseSchema,
   PasswordLoginRequestSchema,
   PasswordRegistrationRequestSchema,
+  PromoteRealityReceiptRequestSchema,
+  RealityReceiptResponseSchema,
   ReviseActionRequestSchema,
   RevisePursuitRequestSchema,
   ReviewPursuitProposalRequestSchema,
@@ -90,6 +97,10 @@ import {
   SourceAuthorizationDecisionRequestSchema,
   SourceAuthorizationDecisionResponseSchema,
   StagePursuitProposalRequestSchema,
+  StartLabSessionRequestSchema,
+  RunLabScenarioRequestSchema,
+  CompareLabScenarioRequestSchema,
+  CreateRealityReceiptRequestSchema,
   SubmitAnalysisProposalRequestSchema,
   SyncResponseSchema,
   TemporalStateResponseSchema,
@@ -126,6 +137,7 @@ import {
   type PersonMergeReversalRequest,
   type PasswordLoginRequest,
   type PasswordRegistrationRequest,
+  type PromoteRealityReceiptRequest,
   type ReconcileEffectRequest,
   type PublicResearchRequest,
   type ResourceCaptureRequest,
@@ -138,6 +150,10 @@ import {
   type SimulatedLoginRequest,
   type SourceAuthorizationDecisionRequest,
   type StagePursuitProposalRequest,
+  type StartLabSessionRequest,
+  type RunLabScenarioRequest,
+  type CompareLabScenarioRequest,
+  type CreateRealityReceiptRequest,
   type SubmitAnalysisProposalRequest,
   type AppendTelemetryBatchRequest,
   type CompleteTelemetryTraceRequest,
@@ -285,6 +301,14 @@ import {
   getTelemetryTrace,
   listTelemetryTraces,
 } from "./modules/telemetry.js";
+import {
+  compareLabScenario,
+  createRealityReceipt,
+  getLabManifest,
+  promoteRealityReceipt,
+  runLabScenario,
+  startLabSession,
+} from "./modules/lab.js";
 import {
   EnvironmentDoubaoVoiceTranscriber,
   type VoiceTranscriptionServing,
@@ -567,7 +591,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '037_source_retention_derivative_lineage'`,
+           WHERE version = '039_talent_signal_lab'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -700,6 +724,198 @@ export async function buildApp(
 
   const authenticate = createAuthGuard(pool);
   const security = [{ bearerSession: [] }];
+
+  app.get(
+    "/v1/lab",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["lab", "evaluation"],
+        security,
+        response: {
+          200: LabManifestResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => getLabManifest(pool, config, request.auth),
+  );
+
+  app.post<{ Body: StartLabSessionRequest }>(
+    "/v1/lab/sessions",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["lab", "evaluation"],
+        security,
+        body: StartLabSessionRequestSchema,
+        response: {
+          201: LabSessionResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await startLabSession(pool, config, request.auth, request.body);
+      request.log.info(
+        {
+          lab_session_id: result.session.id,
+          scenario_id: result.session.scenario.id,
+          snapshot_hash: result.session.scenario.snapshot_hash,
+          canonical_isolation: true,
+        },
+        "lab session started",
+      );
+      return reply.status(201).send(result);
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: RunLabScenarioRequest }>(
+    "/v1/lab/sessions/:id/runs",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["lab", "evaluation"],
+        security,
+        params: IdParamsSchema,
+        body: RunLabScenarioRequestSchema,
+        response: {
+          201: LabRunResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await runLabScenario(
+        pool,
+        config,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      request.log.info(
+        {
+          lab_session_id: result.run.session_id,
+          lab_run_id: result.run.id,
+          trace_id: result.run.trace_id,
+          variant: result.run.variant,
+          canonical_mutation_count: 0,
+          external_effect_count: 0,
+        },
+        "lab scenario replayed",
+      );
+      return reply.status(201).send(result);
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: CompareLabScenarioRequest }>(
+    "/v1/lab/sessions/:id/comparisons",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["lab", "evaluation"],
+        security,
+        params: IdParamsSchema,
+        body: CompareLabScenarioRequestSchema,
+        response: {
+          201: LabComparisonResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await compareLabScenario(
+        pool,
+        config,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      request.log.info(
+        {
+          lab_session_id: result.comparison.session_id,
+          comparison_id: result.comparison.id,
+          identical_snapshot: result.comparison.identical_snapshot,
+          regressed_count: result.comparison.regressed_count,
+        },
+        "lab baseline compared",
+      );
+      return reply.status(201).send(result);
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: CreateRealityReceiptRequest }>(
+    "/v1/lab/sessions/:id/receipts",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["lab", "evaluation"],
+        security,
+        params: IdParamsSchema,
+        body: CreateRealityReceiptRequestSchema,
+        response: {
+          201: RealityReceiptResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await createRealityReceipt(
+        pool,
+        config,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      request.log.info(
+        {
+          lab_session_id: result.receipt.session_id,
+          reality_receipt_id: result.receipt.id,
+          trace_id: result.receipt.trace_id,
+          reproduced: result.receipt.reproduced,
+          redaction_applied: true,
+        },
+        "lab reality receipt recorded",
+      );
+      return reply.status(201).send(result);
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: PromoteRealityReceiptRequest }>(
+    "/v1/lab/receipts/:id/promotions",
+    {
+      preHandler: authenticate,
+      schema: {
+        tags: ["lab", "evaluation"],
+        security,
+        params: IdParamsSchema,
+        body: PromoteRealityReceiptRequestSchema,
+        response: {
+          201: LabEvalCaseResponseSchema,
+          "4xx": ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await promoteRealityReceipt(
+        pool,
+        config,
+        request.auth,
+        request.params.id,
+        request.body,
+      );
+      request.log.info(
+        {
+          eval_case_id: result.eval_case.id,
+          eval_case_ref: result.eval_case.case_ref,
+          source_receipt_id: result.eval_case.source_receipt_id,
+          release_gate: result.eval_case.release_gate,
+        },
+        "lab reality receipt promoted",
+      );
+      return reply.status(201).send(result);
+    },
+  );
 
   app.post<{ Body: CreateTelemetryTraceRequest }>(
     "/v1/telemetry/traces",

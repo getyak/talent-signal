@@ -92,6 +92,8 @@ The primary surfaces answer different questions:
 | Evidence review | What supports or contradicts this state? |
 | Relationship graph | Which connections matter to this question? |
 
+Internal Lab surfaces use named scenarios and progressive explanation rather than loose flags; Signal Lens preserves the same evidence-before-interpretation grammar described in [ADR 0011](decisions/0011-product-native-internal-lab.md).
+
 On mobile, Today is the default return surface when unread Agent work or an
 evidence-supported Pursuit dependency deserves judgment. Sessions preserves
 recent conversational intent, and People remains the stable cross-goal
@@ -99,8 +101,7 @@ retrieval destination. Pursuit rooms remain directly reachable without
 competing for primary navigation. Evidence opens from its claim or record;
 Today stays sparse with one lead dependency and a complete no-action state.
 
-The Agent is a contextual threshold; Sessions retrieves conversations without
-owning truth or execution authority. On mobile, familiar top navigation owns
+The Agent is a contextual threshold; Sessions retrieves conversations without owning truth or execution authority. On mobile, familiar top navigation owns
 retrieval and one bottom global composer owns intent; never combine them.
 Scope, capture, and record navigation follow intent. Text, one image, or voice
 becomes proposed structure before consequential review stays explicit. Mobile and Web composers treat multi-stage marked text as provisional: input methods own candidate selection, and Send remains unavailable until the text is committed. Draft recovery preserves committed whitespace and line breaks, coalesces persistence for responsive input, and flushes at true lifecycle boundaries. A system permission overlay is not itself a background cancellation; protected capture begins only after authorization and an active foreground, while real backgrounding or audio interruption stops capture with truthful recovery feedback. Diagnostics record only closed lifecycle states, never message, transcript, person, or relationship content.

@@ -23,6 +23,15 @@ explicitly classified active fixtures before recreating them. Product
 projections may bound evaluator noise, but must not relabel it as recruiter
 state or conceal its synthetic origin.
 
+The internal Talent Signal Lab currently provides five repository-owned,
+versioned scenarios for relationship formation, identity ambiguity, conflicting
+evidence, revoked authorization, and an action awaiting confirmation. It binds
+deterministic replay and baseline comparison to the same frozen evidence
+snapshot, produces account-scoped traces, and lets a human promote a redacted
+Reality Receipt into a candidate-blocking Eval Case. This is quality-control
+state only: it has zero authority over canonical relationship state or external
+effects.
+
 ## Delivery sequence
 
 ### 1. Pursuit contract and governed evidence
