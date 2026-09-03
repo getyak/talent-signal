@@ -1,6 +1,7 @@
 import AppIntents
 import Combine
 import Foundation
+import ImageIO
 import OSLog
 import UniformTypeIdentifiers
 
@@ -164,9 +165,9 @@ struct OpenPursuitIntent: AppIntent {
 }
 
 struct ImportConversationScreenshotIntent: AppIntent {
-    static let title: LocalizedStringResource = "Review conversation screenshot"
+    static let title: LocalizedStringResource = "Review screenshot"
     static let description = IntentDescription(
-        "Save a conversation screenshot on this device for later text and identity review."
+        "Receive one screenshot from a Shortcut and save it on this iPhone for editable text and identity review."
     )
 
     @available(iOS 26.0, *)
@@ -175,31 +176,30 @@ struct ImportConversationScreenshotIntent: AppIntent {
     // Compatibility for iOS 16–25. `supportedModes` replaces this on iOS 26.
     static let openAppWhenRun = false
 
-    @Parameter(title: "Screenshot")
+    @Parameter(
+        title: "Screenshot",
+        requestValueDialog: "Choose a screenshot to review."
+    )
     var screenshot: IntentFile
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Review \(\.$screenshot)")
+    }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let trace = CaptureIntentTrace()
         trace.mark("intent_received")
         let input = try loadInput()
-        trace.mark("asset_ready")
-
-        let type = input.mediaType
-        guard type?.conforms(to: .image) != false else {
-            throw CaptureAppIntentError.notAnImage
-        }
-
-        _ = try await PendingCaptureInbox.shared.stage(
-            imageData: input.data,
-            fileName: input.fileName,
-            mediaType: type?.preferredMIMEType ?? "image/*",
-            origin: .appShortcut
+        trace.mark("input_loaded")
+        _ = try await ConversationScreenshotImporter().stage(
+            input
         )
         trace.mark("persisted")
+        trace.mark("setup_receipt_recorded")
         trace.mark("review_enqueued")
         trace.mark("intent_returning")
         return .result(
-            dialog: "Captured quietly. Open Talent Signal when you are ready to review."
+            dialog: "Saved on this iPhone. Nothing was uploaded or confirmed."
         )
     }
 
@@ -212,19 +212,22 @@ struct ImportConversationScreenshotIntent: AppIntent {
                 }
             }
 
+            let values = try url.resourceValues(
+                forKeys: [.contentTypeKey, .fileSizeKey]
+            )
+            if let fileSize = values.fileSize,
+               fileSize > ConversationScreenshotInputValidator.maximumByteCount {
+                throw CaptureAppIntentError.imageTooLarge
+            }
             let data = try Data(contentsOf: url, options: .mappedIfSafe)
             guard !data.isEmpty else {
                 throw CaptureAppIntentError.fileUnavailable
             }
-            let urlType = try? url.resourceValues(
-                forKeys: [.contentTypeKey]
-            ).contentType
             return ScreenshotInput(
                 data: data,
                 fileName: url.lastPathComponent.isEmpty
                     ? screenshot.filename
-                    : url.lastPathComponent,
-                mediaType: urlType ?? screenshot.type
+                    : url.lastPathComponent
             )
         }
 
@@ -236,8 +239,7 @@ struct ImportConversationScreenshotIntent: AppIntent {
             data: data,
             fileName: screenshot.filename.isEmpty
                 ? "conversation-screenshot"
-                : screenshot.filename,
-            mediaType: screenshot.type
+                : screenshot.filename
         )
     }
 }
@@ -280,36 +282,120 @@ struct TalentSignalShortcuts: AppShortcutsProvider {
             shortTitle: "Record Signal",
             systemImageName: "mic"
         )
-        AppShortcut(
-            intent: ImportConversationScreenshotIntent(),
-            phrases: [
-                "Review screenshot in \(.applicationName)",
-                "Capture conversation with \(.applicationName)"
-            ],
-            shortTitle: "Review screenshot",
-            systemImageName: "text.viewfinder"
-        )
     }
 }
 
-enum CaptureAppIntentError: LocalizedError {
+enum CaptureAppIntentError: LocalizedError, Equatable {
     case fileUnavailable
+    case imageTooLarge
     case notAnImage
 
     var errorDescription: String? {
         switch self {
         case .fileUnavailable:
             return "The screenshot could not be read. Choose an image and try again."
+        case .imageTooLarge:
+            return "The screenshot is too large to review safely. Choose a smaller image."
         case .notAnImage:
             return "Choose an image file for conversation review."
         }
     }
 }
 
-private struct ScreenshotInput {
+struct ConversationScreenshotInputValidator {
+    static let maximumByteCount = 25 * 1_024 * 1_024
+    static let maximumPixelCount: Int64 = 80_000_000
+
+    static func detectedImageType(for data: Data) throws -> UTType {
+        guard !data.isEmpty else {
+            throw CaptureAppIntentError.fileUnavailable
+        }
+        guard data.count <= maximumByteCount else {
+            throw CaptureAppIntentError.imageTooLarge
+        }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) > 0,
+              let typeIdentifier = CGImageSourceGetType(source),
+              let imageType = UTType(typeIdentifier as String),
+              imageType.conforms(to: .image),
+              let properties = CGImageSourceCopyPropertiesAtIndex(
+                  source,
+                  0,
+                  nil
+              ) as NSDictionary?,
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.int64Value,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.int64Value,
+              width > 0,
+              height > 0 else {
+            throw CaptureAppIntentError.notAnImage
+        }
+
+        try validatePixelDimensions(width: width, height: height)
+
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 64,
+            kCGImageSourceShouldCacheImmediately: false,
+        ]
+        guard CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            thumbnailOptions as CFDictionary
+        ) != nil else {
+            throw CaptureAppIntentError.notAnImage
+        }
+        return imageType
+    }
+
+    static func validatePixelDimensions(
+        width: Int64,
+        height: Int64
+    ) throws {
+        guard width > 0, height > 0 else {
+            throw CaptureAppIntentError.notAnImage
+        }
+        let (pixelCount, overflowed) = width.multipliedReportingOverflow(by: height)
+        guard !overflowed, pixelCount <= maximumPixelCount else {
+            throw CaptureAppIntentError.imageTooLarge
+        }
+    }
+}
+
+struct ConversationScreenshotImporter {
+    let inbox: PendingCaptureInbox
+    let defaults: UserDefaults
+    let validate: (Data) throws -> UTType
+
+    init(
+        inbox: PendingCaptureInbox = .shared,
+        defaults: UserDefaults = .standard,
+        validate: @escaping (Data) throws -> UTType =
+            ConversationScreenshotInputValidator.detectedImageType
+    ) {
+        self.inbox = inbox
+        self.defaults = defaults
+        self.validate = validate
+    }
+
+    func stage(_ input: ScreenshotInput) async throws -> PendingCaptureSeed {
+        let type = try validate(input.data)
+        let seed = try await inbox.stage(
+            imageData: input.data,
+            fileName: input.fileName,
+            mediaType: type.preferredMIMEType ?? "image/*",
+            origin: .appShortcut
+        )
+        TalentSignalSetupPreference.recordScreenshotShortcutReceived(
+            defaults: defaults
+        )
+        return seed
+    }
+}
+
+struct ScreenshotInput {
     let data: Data
     let fileName: String
-    let mediaType: UTType?
 }
 
 private struct CaptureIntentTrace {

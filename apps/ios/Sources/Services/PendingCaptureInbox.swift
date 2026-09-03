@@ -119,6 +119,10 @@ actor PendingCaptureInbox {
             [.protectionKey: FileProtectionType.complete],
             ofItemAtPath: capturesDirectoryURL.path
         )
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        var protectedDirectoryURL = capturesDirectoryURL
+        try protectedDirectoryURL.setResourceValues(resourceValues)
         try migrateLegacyCaptureIfNeeded()
         for url in try FileManager.default.contentsOfDirectory(
             at: capturesDirectoryURL,
@@ -135,16 +139,27 @@ actor PendingCaptureInbox {
         _ seed: PendingCaptureSeed,
         contentFingerprint: String
     ) throws {
-        try writeProtected(seed.imageData, to: imageURL(for: seed.id))
-        try writeProtected(
-            JSONEncoder.captureEncoder.encode(
-                PendingMetadata(
-                    seed: seed,
-                    contentFingerprint: contentFingerprint
-                )
-            ),
-            to: metadataURL(for: seed.id)
-        )
+        let pendingImageURL = imageURL(for: seed.id)
+        let pendingMetadataURL = metadataURL(for: seed.id)
+        do {
+            try writeProtected(seed.imageData, to: pendingImageURL)
+            try writeProtected(
+                JSONEncoder.captureEncoder.encode(
+                    PendingMetadata(
+                        seed: seed,
+                        contentFingerprint: contentFingerprint
+                    )
+                ),
+                to: pendingMetadataURL
+            )
+        } catch {
+            for url in [pendingImageURL, pendingMetadataURL] {
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try? FileManager.default.removeItem(at: url)
+                }
+            }
+            throw error
+        }
     }
 
     func fileProtections(for id: UUID) throws -> [FileProtectionType?] {
@@ -161,12 +176,23 @@ actor PendingCaptureInbox {
             }
     }
 
+    func isExcludedFromBackup() throws -> Bool {
+        try prepareQueue()
+        return try capturesDirectoryURL.resourceValues(
+            forKeys: [.isExcludedFromBackupKey]
+        ).isExcludedFromBackup == true
+    }
+
     private func writeProtected(_ data: Data, to url: URL) throws {
         try data.write(to: url, options: [.atomic, .completeFileProtection])
         try FileManager.default.setAttributes(
             [.protectionKey: FileProtectionType.complete],
             ofItemAtPath: url.path
         )
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        var protectedURL = url
+        try protectedURL.setResourceValues(resourceValues)
     }
 
     private func load(id: UUID) throws -> PendingCaptureSeed? {

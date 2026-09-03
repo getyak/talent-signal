@@ -13,10 +13,16 @@ Use the device when privacy, platform ownership, or user presence is part of
 the trust boundary. Local processing may reduce exposure, while Contacts and
 Calendar effects remain visible to the user and platform.
 
-An iOS App Shortcut may accept one user-selected image, validate that it is an
-image, stage it in the device-owned pending-capture inbox, and open the app's
-ordinary review. The shortcut is an entry adapter: it has no identity,
-relationship, compilation, or external-write authority.
+An iOS Shortcuts action may accept one user-selected image, validate its actual
+decodable content plus byte and pixel bounds, stage it in the device-owned
+pending-capture inbox, and open the
+app's ordinary review. One-press screenshot capture requires a user-owned
+personal Shortcut that chains the system `Take Screenshot` action into that
+image action; a required-image App Shortcut alone would still ask the user for
+input. Only the user can assign the personal Shortcut to the Action Button in
+system Settings. Talent Signal cannot capture another app's screen or inspect
+or change that mapping. The shortcut is an entry adapter: it has no identity,
+relationship, compilation, model-processing, or external-write authority.
 
 A contacts CSV, LinkedIn `Connections.csv`, or vCard selected in the Agent's
 Sources page is another local intake adapter, not a connected account. The

@@ -23,14 +23,18 @@ transcription, Proposal, confirmed-state, or external-write authority.
 
 Intentional screenshot import still provides on-device text review, temporal
 identity comparison, explicit relationship attachment, and a compiled-Wiki
-receipt. Photos selection and the `Review screenshot in Talent Signal` App
-Shortcut enter the same resumable review. The shortcut runs quietly in the
-background: it atomically adds the selected image to the local FIFO review queue
-and returns without network work, an app launch, or a Live Activity. An exact
-retry reuses the still-pending queue item, while a later import after completion
-starts a new purpose-scoped review. The original image stays on-device in this
-slice; the local backend receives recruiter-reviewed text and governed source
-metadata.
+receipt. Photos selection and the `Review screenshot` Shortcuts action enter
+the same resumable review. For one-press capture, the user creates a personal
+Shortcut with `Take Screenshot` followed by `Review screenshot`, then assigns
+that personal Shortcut to the Action Button in system Settings. Talent Signal
+cannot capture another app's screen or inspect or change that assignment. The
+app action runs quietly in the background: it atomically adds the received
+image to the local FIFO review queue only after content decoding plus byte and
+pixel bounds succeed, then returns without network work, an app launch, or a
+Live Activity. An exact retry reuses the still-pending queue item,
+while a later import after completion starts a new purpose-scoped review. The
+original image stays on-device in this slice; the local backend receives
+recruiter-reviewed text and governed source metadata.
 
 The app also retains the synthetic candidate-momentum fixture loop for bounded
 review and action testing. It keeps provider keys out of the app bundle and
@@ -155,10 +159,12 @@ control writes a draft-scoped request through the App Group. The recorder and
 persisted Draft remain authoritative if Live Activities are disabled.
 
 The app exposes `Capture Signal`, `Review Signal`, and `Open Pursuit` first in
-App Shortcuts, followed by the foreground-recording and screenshot helpers.
-Only the user can map one in system Settings. The Simulator `Simulate Action
-Button` control is Debug-only, visible as `Simulated`, and is not
-physical-device proof.
+App Shortcuts, followed by the foreground-recording helper. `Review screenshot`
+remains available as a Shortcuts action with a required image input so it can
+receive the output of `Take Screenshot`; it is intentionally not advertised as
+a one-step App Shortcut. Only the user can map a resulting personal Shortcut in
+system Settings. The Simulator `Simulate Action Button` control is Debug-only,
+visible as `Simulated`, and is not physical-device proof.
 
 ## Agent lifecycle showcase
 

@@ -7845,7 +7845,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已设置"
+            "value": "去设置"
           }
         }
       }
@@ -11050,6 +11050,52 @@
         }
       }
     },
+    "A screenshot received through this Shortcut confirms only the local handoff. It does not prove the current Action Button assignment.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "通过这个快捷指令收到截图，只能确认本地交接链路正常；不能证明当前操作按钮仍绑定在这里。"}}}},
+    "Assign the Shortcut": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "绑定快捷指令"}}}},
+    "Assigned": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已绑定"}}}},
+    "Build Shortcut": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "创建快捷指令"}}}},
+    "Build Shortcut opens an empty editor. Shortcuts opens your existing shortcuts and app actions. Add these two actions in order, then give it a short name.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "“创建快捷指令”会打开一个空白编辑器；“快捷指令”会打开你现有的快捷指令和 App 操作。请按顺序加入这两个操作，再取一个简短名称。"}}}},
+    "Build it once. Then press and hold without leaving the conversation.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "只需设置一次。之后长按即可，不必离开当前对话。"}}}},
+    "Build the two-action Shortcut": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "创建两步快捷指令"}}}},
+    "Capture Signal and Record Signal are App Shortcuts. Review screenshot is an action for a personal two-action Shortcut. Only you can map a Shortcut to the Action Button in Settings.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "“记录信号”和“录制信号”是 App 快捷指令。“审阅截图”则是个人两步快捷指令中的一个操作。只有你能在系统设置中把快捷指令绑定到操作按钮。"}}}},
+    "Capture only a conversation you are authorized to use. The screenshot stays local until you review it. Reviewed text is sent only after you tap Save and check identity.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "只捕捉你有权使用的对话。截图会保留在本地，直到你审阅它。只有在你轻点“保存并核对身份”后，审阅后的文字才会发送出去。"}}}},
+    "Choose a screenshot to review.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "选择一张要审阅的截图。"}}}},
+    "First capture": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "第一次捕捉"}}}},
+    "Give the personal Shortcut a short name you can recognize in Settings.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "给这个个人快捷指令取一个简短名称，方便你在系统设置中识别。"}}}},
+    "I've assigned the Shortcut": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "我已绑定快捷指令"}}}},
+    "Local before you decide": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "由你决定前，只保留在本机"}}}},
+    "Local receipt": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "本地回执"}}}},
+    "No screenshot is captured or uploaded during setup.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "设置过程中不会截取或上传任何画面。"}}}},
+    "Not set up": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "尚未设置"}}}},
+    "One-time setup": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "一次设置"}}}},
+    "Only you can assign it in Settings. Talent Signal cannot read or change the Action Button binding.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "只有你能在系统设置中完成绑定。Talent Signal 无法读取或更改操作按钮的绑定。"}}}},
+    "Open Shortcut editor": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "打开快捷指令编辑器"}}}},
+    "Opens an empty Shortcut editor. Add the two actions above in order, then give it a short name.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "将打开空白的快捷指令编辑器。请按顺序加入上面的两个操作，再取一个简短名称。"}}}},
+    "Opens an empty Shortcut editor. Add the two actions above in order.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "将打开空白的快捷指令编辑器。请按顺序加入上面的两个操作。"}}}},
+    "Other shortcuts": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "其他快捷操作"}}}},
+    "Ready for the first capture": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "等待第一次捕捉"}}}},
+    "Receive one screenshot from a Shortcut and save it on this iPhone for editable text and identity review.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "从快捷指令接收一张截图并保存在这台 iPhone 上，用于可编辑的文字与身份审阅。"}}}},
+    "Save one image on this iPhone for later text and identity review.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "在这台 iPhone 上保存一张图片，稍后审阅文字与身份。"}}}},
+    "Saved locally in Talent Signal. Nothing was uploaded or confirmed.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已在 Talent Signal 本地保存；没有上传或确认任何内容。"}}}},
+    "Saved on this iPhone. Nothing was uploaded or confirmed.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已保存在这台 iPhone 上；没有上传或确认任何内容。"}}}},
+    "Screenshot received on this iPhone": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "这台 iPhone 已收到截图"}}}},
+    "Screenshot received via Shortcuts": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已通过快捷指令收到截图"}}}},
+    "Shortcut assigned": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "快捷指令已绑定"}}}},
+    "Shortcut received": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已收到快捷指令截图"}}}},
+    "Shortcut tested": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "快捷指令已测试"}}}},
+    "Shortcut tested on this iPhone": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已在这台 iPhone 上验证快捷指令"}}}},
+    "Shortcuts opens your existing shortcuts and Talent Signal app actions.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "“快捷指令”会打开你现有的快捷指令和 Talent Signal App 操作。"}}}},
+    "Swipe to Shortcut, then choose the personal Shortcut you just named.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "滑动到“快捷指令”，然后选择刚刚命名的个人快捷指令。"}}}},
+    "System action": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "系统操作"}}}},
+    "Take Screenshot": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "截屏"}}}},
+    "Talent Signal action": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Talent Signal 操作"}}}},
+    "Talent Signal received a screenshot through Shortcuts. It remains on this iPhone until you review or delete it.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Talent Signal 已通过快捷指令收到截图；在你审阅或删除前，它会保留在这台 iPhone 上。"}}}},
+    "Talent Signal received a screenshot through Shortcuts. It stays in the local review queue until you review or delete it.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Talent Signal 已通过快捷指令收到截图；在你审阅或删除前，它会留在本地审阅队列中。"}}}},
+    "The Shortcut editor opens empty. Add these two actions in order, then give it a short name. The first run stays local until you review and send.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "快捷指令编辑器会以空白状态打开。请按顺序加入这两个操作，再取一个简短名称。第一次运行只会保留在本机，直到你复核并发送。"}}}},
+    "The button saves locally. Reviewed text is sent only after you tap Save and check identity; no candidate fact or external action is confirmed automatically.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "按钮只会在本地保存。只有在你轻点“保存并核对身份”后，审阅后的文字才会发送；候选人事实与外部操作都不会被自动确认。"}}}},
+    "The first screenshot received through this action verifies the app-owned path automatically.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "通过此操作收到第一张截图后，App 会自动验证自己负责的接收链路。"}}}},
+    "You confirm the assignment because iOS does not expose the current Action Button binding to this app.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "需要由你确认绑定，因为 iOS 不会向此 App 公开当前的操作按钮绑定。"}}}},
+    "Your assignment is noted. Talent Signal will verify its own capture path when the first screenshot arrives.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已记录你的绑定确认。第一张截图到达后，Talent Signal 会验证自己负责的接收链路。"}}}},
     "Your decision": {
       "localizations": {
         "zh-Hans": {

@@ -91,6 +91,7 @@ struct AgentSourceSettingsView: View {
     @ObservedObject var workspaceStore: PursuitWorkspaceStore
     @ObservedObject var sessionStore: AgentSessionStore
     let isActionButtonSetupComplete: Bool
+    let screenshotShortcutReceivedAt: Double
     let isCalendarSyncEnabled: Bool
 
     @Environment(\.appLanguage) private var appLanguage
@@ -272,9 +273,11 @@ struct AgentSourceSettingsView: View {
                     systemImage: "button.programmable",
                     title: appLanguage.text("Action Button & Shortcuts"),
                     detail: appLanguage.text("Stages a selected screenshot for ordinary review."),
-                    status: isActionButtonSetupComplete
-                        ? appLanguage.text("Ready")
-                        : appLanguage.text("Set up")
+                    status: screenshotShortcutReceivedAt > 0
+                        ? appLanguage.text("Local receipt")
+                        : isActionButtonSetupComplete
+                            ? appLanguage.text("Assigned")
+                            : appLanguage.text("Set up")
                 )
             }
             .accessibilityIdentifier("agent-open-action-button")
