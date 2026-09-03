@@ -57,12 +57,12 @@ final class TalentSignalLabUITests: XCTestCase {
         lens.tap()
         XCTAssertTrue(app.buttons["signal-lens-done"].waitForExistence(timeout: 8))
         preserveScreenshot("Signal Lens evidence explanation")
+        let lensCompare = app.buttons["signal-lens-compare-baseline"]
+        scrollToVisible(lensCompare)
+        lensCompare.tap()
         app.buttons["signal-lens-done"].tap()
         XCTAssertTrue(app.buttons["signal-lens-done"].waitForNonExistence(timeout: 8))
 
-        let compare = app.buttons["lab-compare-baseline"]
-        scrollToVisible(compare, direction: .down)
-        compare.tap()
         let comparison = app.staticTexts["lab-comparison-heading"]
         scrollToVisible(comparison, maxSwipes: 30)
         preserveScreenshot("Lab baseline comparison")
@@ -183,12 +183,45 @@ final class TalentSignalLabUITests: XCTestCase {
     private enum ScrollDirection {
         case up
         case down
+
+        var opposite: Self {
+            switch self {
+            case .up: .down
+            case .down: .up
+            }
+        }
     }
 
     private func scrollToVisible(
         _ element: XCUIElement,
         direction: ScrollDirection = .up,
         maxSwipes: Int = 18
+    ) {
+        if element.waitForExistence(timeout: 1), isSafelyVisible(element) {
+            return
+        }
+        searchForVisible(element, direction: direction, maxSwipes: maxSwipes)
+        if !isSafelyVisible(element) {
+            searchForVisible(
+                element,
+                direction: direction.opposite,
+                maxSwipes: maxSwipes
+            )
+        }
+        let appeared = element.waitForExistence(timeout: 3)
+        XCTAssertTrue(appeared, "Expected \(element) after scrolling")
+        if appeared {
+            XCTAssertTrue(
+                isSafelyVisible(element),
+                "Expected \(element) to be safely visible"
+            )
+        }
+    }
+
+    private func searchForVisible(
+        _ element: XCUIElement,
+        direction: ScrollDirection,
+        maxSwipes: Int
     ) {
         var swipes = 0
         while !isSafelyVisible(element), swipes < maxSwipes {
@@ -200,8 +233,6 @@ final class TalentSignalLabUITests: XCTestCase {
             }
             swipes += 1
         }
-        XCTAssertTrue(element.exists, "Expected \(element) after scrolling")
-        XCTAssertTrue(isSafelyVisible(element), "Expected \(element) to be safely visible")
     }
 
     private func isSafelyVisible(_ element: XCUIElement) -> Bool {

@@ -1678,6 +1678,7 @@ private struct TalentSignalLensView: View {
                             }
                             .buttonStyle(LabSecondaryButtonStyle())
                             .disabled(store.pending != nil)
+                            .accessibilityIdentifier("signal-lens-compare-baseline")
 
                             Button {
                                 Task { await store.record() }
