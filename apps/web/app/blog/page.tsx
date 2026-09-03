@@ -74,7 +74,7 @@ export default function BlogPage() {
     <>
       <StructuredData value={blogSchema} />
       <SiteHeader />
-      <main id="main-content" className="blog-index">
+      <main id="main-content" className="blog-index" tabIndex={-1}>
         <header className="blog-index__hero shell">
           <div>
             <p className="eyebrow">研究与实践方法</p>

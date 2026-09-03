@@ -56,14 +56,28 @@ export function TalentSignalLabWorkspace() {
   } = useTalentSignalLab();
   if (!manifest) {
     return (
-      <main className={styles.page}>
+      <main className={styles.page} id="main-content" tabIndex={-1}>
         <section className={styles.unavailable}>
-          <SpinnerGap aria-hidden="true" className={styles.spin} size={26} />
+          {error ? (
+            <WarningCircle aria-hidden="true" size={26} />
+          ) : (
+            <SpinnerGap aria-hidden="true" className={styles.spin} size={26} />
+          )}
           <p className={styles.eyebrow}>Talent Signal Lab</p>
-          <h1>正在连接 Lab 控制面</h1>
+          <h1>{error ? "Lab 控制面暂时不可用" : "正在连接 Lab 控制面"}</h1>
           <p>
-            普通工作台仍然可用；在隔离能力被服务端确认前，不会展示场景或创建测试状态。
+            {error ??
+              "普通工作台仍然可用；在隔离能力被服务端确认前，不会展示场景或创建测试状态。"}
           </p>
+          {error ? (
+            <button
+              className={styles.retryLink}
+              onClick={() => window.location.reload()}
+              type="button"
+            >
+              重新连接
+            </button>
+          ) : null}
           <Link href="/workspace/today">返回今日</Link>
         </section>
       </main>
@@ -72,7 +86,7 @@ export function TalentSignalLabWorkspace() {
 
   if (!manifest.capability.enabled) {
     return (
-      <main className={styles.page}>
+      <main className={styles.page} id="main-content" tabIndex={-1}>
         <section className={styles.unavailable}>
           <LockKey aria-hidden="true" size={26} />
           <p className={styles.eyebrow}>Talent Signal Lab</p>
@@ -87,7 +101,7 @@ export function TalentSignalLabWorkspace() {
   }
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} id="main-content" tabIndex={-1}>
       <header className={styles.pageHeader}>
         <div>
           <p className={styles.eyebrow}>内部产品实验系统</p>

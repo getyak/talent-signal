@@ -60,6 +60,14 @@
   width: 7px;
 }
 
+.health[data-state="offline"]::before {
+  background: var(--danger);
+}
+
+.offlinePanel {
+  margin-top: 28px;
+}
+
 .grid {
   display: grid;
   gap: 24px;

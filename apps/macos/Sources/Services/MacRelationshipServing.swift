@@ -268,6 +268,22 @@ struct SyntheticRelationshipFixture: Sendable {
     let fixtureID: String
     let mode: WorkspaceMode
     let presentation: WorkspacePresentation
+    let pendingDecision: CanonicalProposalReview?
+    let receipt: CanonicalPursuitReceipt?
+
+    init(
+        fixtureID: String,
+        mode: WorkspaceMode,
+        presentation: WorkspacePresentation,
+        pendingDecision: CanonicalProposalReview? = nil,
+        receipt: CanonicalPursuitReceipt? = nil
+    ) {
+        self.fixtureID = fixtureID
+        self.mode = mode
+        self.presentation = presentation
+        self.pendingDecision = pendingDecision
+        self.receipt = receipt
+    }
 }
 
 enum RelationshipServiceError: LocalizedError {

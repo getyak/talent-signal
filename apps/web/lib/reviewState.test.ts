@@ -3,6 +3,8 @@ import { candidateMomentumFixtures } from "./candidateMomentum";
 import {
   canApproveAction,
   createCaseReview,
+  getReviewedContextLabel,
+  getReviewedIdentityLabel,
   hasUnresolvedIdentity,
   hasUnresolvedTime,
   isFactReviewComplete,
@@ -52,8 +54,14 @@ describe("candidate review state", () => {
     const review = createCaseReview(fixtureCase);
 
     expect(hasUnresolvedIdentity(fixtureCase, review)).toBe(true);
+    expect(getReviewedIdentityLabel(fixtureCase, review)).toBe("身份未解决");
+    expect(getReviewedContextLabel(fixtureCase, review)).toBe("项目未解决");
     review.identityResolution = "Alex Chen — Staff Product Designer";
     expect(hasUnresolvedIdentity(fixtureCase, review)).toBe(false);
+    expect(getReviewedIdentityLabel(fixtureCase, review)).toBe("Alex Chen");
+    expect(getReviewedContextLabel(fixtureCase, review)).toBe(
+      "Staff Product Designer",
+    );
   });
 
   it("never enables actions for no-action, clarify, or blocked cases", () => {

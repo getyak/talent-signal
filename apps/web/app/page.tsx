@@ -98,7 +98,7 @@ export default function HomePage() {
       <StructuredData value={faqSchema} />
       <SiteHeader />
 
-      <main id="main-content" className={styles.page}>
+      <main id="main-content" className={styles.page} tabIndex={-1}>
         <section
           id="product"
           className={styles.hero}

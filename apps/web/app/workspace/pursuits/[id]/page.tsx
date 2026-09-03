@@ -87,7 +87,7 @@ export default async function PursuitRoomPage({
 
   return (
     <div className={styles.page}>
-      <main className={styles.main} id="main-content">
+      <main className={styles.main} id="main-content" tabIndex={-1}>
         <section className={styles.hero}>
           <p className={styles.eyebrow}>{displayPursuitValue(pursuit.type)}寻访</p>
           <h1>{pursuit.title}</h1>

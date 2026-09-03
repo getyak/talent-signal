@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 
 import styles from "./people-directory-app.module.css";
+import { WorkspaceDisconnectedState } from "./workspace-disconnected-state";
 
 type Props = {
   error: string | null;
@@ -74,7 +75,7 @@ export function PeopleDirectoryApp({
 }: Props) {
   return (
     <div className={styles.shell}>
-      <main className={styles.main} id="main-content">
+      <main className={styles.main} id="main-content" tabIndex={-1}>
         <div className={styles.page}>
           <section className={styles.hero}>
             <div>
@@ -122,15 +123,24 @@ export function PeopleDirectoryApp({
             </header>
 
             {error ? (
-              <div className={styles.empty} role="status">
-                <span aria-hidden="true">!</span>
-                <div>
-                  <strong>目录暂时不可用</strong>
-                  <p>{error}</p>
-                </div>
-                {sessionRecoveryHref ? (
-                  <Link href={sessionRecoveryHref}>重新登录</Link>
-                ) : null}
+              <div className={styles.disconnectedState}>
+                <WorkspaceDisconnectedState
+                  description={error}
+                  hint={
+                    sessionRecoveryHref
+                      ? "重新登录后会回到同一目录视图；系统不会用陈旧联系人状态替代当前结果。"
+                      : "目录不会用旧缓存推断关系状态。排查本地后端后可重试；如果只是继续验证产品闭环，可以先进入冻结边界案例。"
+                  }
+                  primaryHref={
+                    sessionRecoveryHref
+                      ? sessionRecoveryHref
+                      : "/workspace/boundaries"
+                  }
+                  primaryLabel={sessionRecoveryHref ? "重新登录" : "打开冻结边界案例"}
+                  secondaryHref="/relationships"
+                  secondaryLabel="查看关系产品视图"
+                  title="联系人目录暂时不可用。"
+                />
               </div>
             ) : people.length === 0 ? (
               <div className={styles.empty}>

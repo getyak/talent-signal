@@ -336,22 +336,14 @@ struct TodayRelationshipCalendarPeek: View {
 
     var body: some View {
         Button(action: onOpen) {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 8) {
-                        timeMark
-                        momentCopy
-                        openMark
-                    }
-                } else {
-                    HStack(spacing: 14) {
-                        timeMark
-                        momentCopy
-                            .layoutPriority(1)
-                        Spacer(minLength: 8)
-                        openMark
-                    }
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 14) {
+                    timeMark
+                    Spacer(minLength: 8)
+                    openMark
                 }
+                momentCopy
+                    .layoutPriority(1)
             }
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
@@ -402,13 +394,13 @@ struct TodayRelationshipCalendarPeek: View {
                 )
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.tsInk)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 Text(
                     verbatim: "\(contextText(nextActivity)) · \(timeZoneText(nextActivity))"
                 )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
             } else {
                 Text(appLanguage.text("No activity"))
                     .font(.subheadline.weight(.semibold))
@@ -430,13 +422,14 @@ struct TodayRelationshipCalendarPeek: View {
         guard let nextActivity else {
             return appLanguage.text("Calendar. No linked moments.")
         }
-        return String(
+        let nextSummary = String(
             format: appLanguage.text("Calendar. Next: %@, %@, %@."),
             locale: appLanguage.locale,
             nextActivity.personDisplayLabel,
             nextActivity.displayTitle(in: appLanguage),
             dateTimeText(nextActivity.startDate)
         )
+        return "\(nextSummary) \(contextText(nextActivity)) · \(timeZoneText(nextActivity))"
     }
 
     private func timeText(

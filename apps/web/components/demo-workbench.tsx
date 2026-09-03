@@ -141,6 +141,43 @@ function ClarificationReview({ evidence }: { evidence: Evidence[] }) {
   );
 }
 
+function ReviewResolution({
+  confirmedCount,
+  hasAmbiguousEvidence,
+  nextAction,
+}: {
+  confirmedCount: number;
+  hasAmbiguousEvidence: boolean;
+  nextAction: string;
+}) {
+  const noReviewedChange = !hasAmbiguousEvidence && confirmedCount === 0;
+  return (
+    <section
+      className="demo-resolution"
+      data-state={hasAmbiguousEvidence || noReviewedChange ? "hold" : "ready"}
+      aria-labelledby="demo-resolution-title"
+    >
+      <p className="metadata">
+        {hasAmbiguousEvidence
+          ? "待澄清后再推进"
+          : "已完成本轮审阅"}
+      </p>
+      <h3 id="demo-resolution-title">
+        {hasAmbiguousEvidence || noReviewedChange
+          ? "当前不进入行动清单"
+          : "带走这一项最小下一步"}
+      </h3>
+      <p>
+        {hasAmbiguousEvidence
+          ? "在来源时间澄清前，不会生成会议、提醒或其他外部动作；当前页面只保留可审阅的拟议状态。"
+          : noReviewedChange
+            ? "本轮没有确认任何拟议状态，因此不会创建后续行动。"
+            : nextAction}
+      </p>
+    </section>
+  );
+}
+
 export function DemoWorkbench({
   aiEnabled,
   aiProvider,
@@ -196,7 +233,7 @@ export function DemoWorkbench({
     ).length;
     if (nextResult.actions.length > 0) {
       setAnnouncement(
-        `分析完成。${nextResult.actions.length} 项有依据的变更可供审阅。${
+        `分析完成。${nextResult.actions.length} 项拟议状态可供审阅。${
           unresolvedCount > 0
             ? `${unresolvedCount} 项未解决证据需要澄清。`
             : ""
@@ -306,7 +343,7 @@ export function DemoWorkbench({
             : status === "dismissed"
               ? "已驳回"
               : "已返回审阅"
-        }。已确认 ${confirmedCount}/${result.actions.length} 项有依据的变更。`,
+        }。已审阅 ${Object.values(nextStatuses).filter((nextStatus) => nextStatus !== "pending").length}/${result.actions.length} 项拟议状态，其中已确认 ${confirmedCount} 项。`,
       );
     }
   }
@@ -369,6 +406,16 @@ export function DemoWorkbench({
     : 0;
   const ambiguousEvidence =
     result?.evidence.filter((item) => item.ambiguities.length > 0) ?? [];
+  const reviewedActionCount = result
+    ? Object.values(statuses).filter((status) => status !== "pending").length
+    : 0;
+  const allActionsReviewed = Boolean(
+    result &&
+      result.actions.length > 0 &&
+      result.actions.every(
+        (action) => (statuses[action.id] ?? "pending") !== "pending",
+      ),
+  );
 
   return (
     <div className="demo-workbench">
@@ -481,13 +528,14 @@ export function DemoWorkbench({
       >
         <div className="demo-output__heading">
           <div>
-            <p className="metadata">变更前审阅</p>
-            <h2 id="demo-output-title">行动审阅</h2>
+            <p className="metadata">拟议状态</p>
+            <h2 id="demo-output-title">逐项审阅</h2>
           </div>
           {phase === "ready" && result && result.actions.length > 0 && (
             <div className="analysis-summary">
               <p className="confirmation-count">
-                已确认 {actionSummary}/{result.actions.length} 项有依据的变更
+                已审阅 {reviewedActionCount}/{result.actions.length} 项拟议状态，其中已确认{" "}
+                {actionSummary} 项
               </p>
               {analysisMeta && (
                 <p className="analysis-origin">
@@ -668,6 +716,14 @@ export function DemoWorkbench({
                   );
                 })}
               </div>
+
+              {(ambiguousEvidence.length > 0 || allActionsReviewed) && (
+                <ReviewResolution
+                  confirmedCount={actionSummary}
+                  hasAmbiguousEvidence={ambiguousEvidence.length > 0}
+                  nextAction={result.insight.nextAction}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>

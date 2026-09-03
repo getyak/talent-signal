@@ -560,11 +560,28 @@ final class AppModel: ObservableObject {
     }
 
     func submitCapsule() async {
+        await submitCapsule(sourceItemID: nil)
+    }
+
+    func submitCurrentInsight() async {
+        guard let sourceItemID = provisionalInsight?.sourceItemID else {
+            errorMessage = "Review one exact evidence source before creating a save proposal."
+            return
+        }
+        await submitCapsule(sourceItemID: sourceItemID)
+    }
+
+    private func submitCapsule(sourceItemID: UUID?) async {
         do {
             guard scopeReviewStatus == .confirmed else {
                 throw RelationshipServiceError.invalidResponse("Confirm the Pursuit, Person, and relationship context, or keep identity unresolved, before submission.")
             }
-            let manifest = try capsule.freeze(accountID: accountID, pursuitID: pursuitID, personID: personID)
+            let manifest = try capsule.freeze(
+                accountID: accountID,
+                pursuitID: pursuitID,
+                personID: personID,
+                sourceItemID: sourceItemID
+            )
             lastSubmittedManifest = manifest
             mode = .working
             errorMessage = nil
@@ -576,6 +593,23 @@ final class AppModel: ObservableObject {
 
     var canSubmitCapsule: Bool {
         scopeReviewStatus == .confirmed && capsule.canSubmit && mode != .working
+    }
+
+    var canSubmitCurrentInsight: Bool {
+        guard scopeReviewStatus == .confirmed,
+              mode != .working,
+              let sourceItemID = provisionalInsight?.sourceItemID else {
+            return false
+        }
+        return capsule.canSubmit(sourceItemID: sourceItemID)
+    }
+
+    var currentInsightHasSubmittedManifest: Bool {
+        guard let sourceItemID = provisionalInsight?.sourceItemID,
+              let lastSubmittedManifest else {
+            return false
+        }
+        return lastSubmittedManifest.selectedItems.map(\.sourceID) == [sourceItemID.uuidString]
     }
 
     func confirmRelationshipScope() async {
@@ -1607,8 +1641,8 @@ final class AppModel: ObservableObject {
             activeReminderRecovery = nil
             isReminderRecoveryUnreadable = false
             reminderRecoveryNotice = nil
-            pendingDecision = fixture.mode == .needsDecision ? FixtureRelationshipService.decisionReviewFixture() : nil
-            canonicalReceipt = fixture.mode == .receipt ? FixtureRelationshipService.receiptFixture() : nil
+            pendingDecision = fixture.pendingDecision
+            canonicalReceipt = fixture.receipt
             runAudit = nil
             identityReviewReceipt = fixture.mode == .identityReviewSaved
                 ? FixtureRelationshipService.identityReviewReceiptFixture()

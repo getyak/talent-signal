@@ -16,7 +16,7 @@ export default function PrivacyPage() {
   return (
     <>
       <SiteHeader />
-      <main id="main-content" className="prose-page">
+      <main id="main-content" className="prose-page" tabIndex={-1}>
         <article className="shell prose-page__inner">
           <header>
             <p className="eyebrow">隐私原则</p>

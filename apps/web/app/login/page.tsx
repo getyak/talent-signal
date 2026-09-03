@@ -79,7 +79,7 @@ export default async function LoginPage({
     availability.defaultAccount;
 
   return (
-    <main id="main-content" className="auth-page">
+    <main id="main-content" className="auth-page" tabIndex={-1}>
       <section className="auth-story" aria-label="Talent Signal 产品背景">
         <Image
           src="/images/recruiter-notes.webp"

@@ -34,6 +34,11 @@ describe("demo workbench accessibility contract", () => {
     expect(component).toContain("ref={editingInputRef}");
     expect(component).toContain("编辑字段已就绪。");
     expect(component).toContain("已返回审阅");
-    expect(component).toContain("项有依据的变更");
+    expect(component).toContain("项拟议状态");
+    expect(component).toContain("逐项审阅");
+    expect(component).toContain("当前不进入行动清单");
+    expect(component).toContain(
+      "不会生成会议、提醒或其他外部动作",
+    );
   });
 });

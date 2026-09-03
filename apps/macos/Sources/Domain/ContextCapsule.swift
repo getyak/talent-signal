@@ -136,6 +136,11 @@ struct ContextCapsuleDraft: Equatable, Codable, Sendable {
     }
     var canSubmit: Bool { !purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !sharedItems.isEmpty }
 
+    func canSubmit(sourceItemID: UUID) -> Bool {
+        !purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            sharedItems.contains(where: { $0.id == sourceItemID })
+    }
+
     mutating func addSelectedText(_ text: String, now: Date = Date()) {
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return }
@@ -299,8 +304,20 @@ struct ContextCapsuleDraft: Equatable, Codable, Sendable {
         return removed
     }
 
-    func freeze(accountID: String, pursuitID: String?, personID: String?, now: Date = Date()) throws -> SubmittedContextManifest {
-        guard canSubmit else { throw CapsuleValidationError.noReviewedSharedContext }
+    func freeze(
+        accountID: String,
+        pursuitID: String?,
+        personID: String?,
+        sourceItemID: UUID? = nil,
+        now: Date = Date()
+    ) throws -> SubmittedContextManifest {
+        let selectedSharedItems = sourceItemID.map { sourceID in
+            sharedItems.filter { $0.id == sourceID }
+        } ?? sharedItems
+        guard !purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !selectedSharedItems.isEmpty else {
+            throw CapsuleValidationError.noReviewedSharedContext
+        }
         return SubmittedContextManifest(
             capsuleID: id.uuidString,
             version: version,
@@ -309,8 +326,9 @@ struct ContextCapsuleDraft: Equatable, Codable, Sendable {
             personID: personID,
             purpose: purpose.trimmingCharacters(in: .whitespacesAndNewlines),
             submittedAt: now,
-            idempotencyKey: "mac-capsule-\(id.uuidString)-v\(version)",
-            selectedItems: sharedItems.map {
+            idempotencyKey: "mac-capsule-\(id.uuidString)-v\(version)" +
+                (sourceItemID.map { "-source-\($0.uuidString)" } ?? ""),
+            selectedItems: selectedSharedItems.map {
                 SubmittedContextItem(
                     sourceID: $0.id.uuidString,
                     kind: $0.kind,

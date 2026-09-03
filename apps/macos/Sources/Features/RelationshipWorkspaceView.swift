@@ -646,10 +646,11 @@ private struct TodayRelationshipDetailView: View {
 
 private struct RelationshipDetailView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
+            VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? 20 : 26) {
                 RelationshipHeader()
                 if model.scopeReviewStatus == .proposed {
                     RelationshipScopeReviewView()
@@ -664,13 +665,34 @@ private struct RelationshipDetailView: View {
                 }
             }
             .frame(maxWidth: 1_160, alignment: .leading)
-            .padding(.horizontal, 48)
-            .padding(.vertical, 36)
+            .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 24 : 48)
+            .padding(.top, dynamicTypeSize.isAccessibilitySize ? 24 : 36)
+            .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 220 : 36)
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .navigationTitle("Relationship Workspace")
         .background(TSBrand.canvas)
         .accessibilityIdentifier("workspace.relationship")
+    }
+}
+
+struct RelationshipHeaderIdentity: Equatable {
+    let primaryName: String
+    let descriptor: String?
+
+    init(displayLabel: String) {
+        let separators = [" — ", " – "]
+        guard let separator = separators.first(where: { displayLabel.contains($0) }),
+              let range = displayLabel.range(of: separator) else {
+            primaryName = displayLabel
+            descriptor = nil
+            return
+        }
+
+        let name = displayLabel[..<range.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = displayLabel[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        primaryName = name.isEmpty ? displayLabel : name
+        descriptor = detail.isEmpty ? nil : detail
     }
 }
 
@@ -716,13 +738,23 @@ private struct RunBoundaryView: View {
 
 private struct RelationshipHeader: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityHeader
+            } else {
+                standardHeader
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("workspace.title")
+    }
+
+    private var standardHeader: some View {
         HStack(alignment: .top, spacing: 22) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(TSBrand.seam)
-                .frame(width: 4, height: 76)
-                .accessibilityHidden(true)
+            headerSeam
 
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(text: model.presentation.pursuitTitle)
@@ -735,24 +767,75 @@ private struct RelationshipHeader: View {
                     .font(.subheadline)
                     .foregroundStyle(TSBrand.secondaryInk)
                     .fixedSize(horizontal: false, vertical: true)
-                if !model.identityTags.isEmpty {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 7) { identityTags }
-                        VStack(alignment: .leading, spacing: 6) { identityTags }
-                    }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("workspace.identityTags")
-                }
+                identityTagsBlock
             }
             Spacer(minLength: 16)
-            TSStatusBadge(
-                title: model.mode.title,
-                systemImage: model.mode.systemImage,
-                isAttention: model.mode == .needsDecision || model.mode == .failed || model.mode == .outcomeUnknown
-            )
+            statusBadge
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("workspace.title")
+    }
+
+    private var accessibilityHeader: some View {
+        HStack(alignment: .top, spacing: 18) {
+            headerSeam
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    SectionLabel(text: model.presentation.pursuitTitle)
+                    Spacer(minLength: 8)
+                    statusBadge
+                }
+
+                let identity = RelationshipHeaderIdentity(displayLabel: model.presentation.candidateName)
+                Text(identity.primaryName)
+                    .font(.title.weight(.semibold))
+                    .foregroundStyle(TSBrand.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(model.presentation.candidateName)
+                    .accessibilityIdentifier("workspace.candidateName")
+
+                if let descriptor = identity.descriptor {
+                    Text(descriptor)
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(TSBrand.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(true)
+                }
+
+                Text(model.presentation.relationshipContext)
+                    .font(.subheadline)
+                    .foregroundStyle(TSBrand.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                identityTagsBlock
+            }
+        }
+    }
+
+    private var headerSeam: some View {
+        RoundedRectangle(cornerRadius: 2, style: .continuous)
+            .fill(TSBrand.seam)
+            .frame(width: 4, height: 76)
+            .accessibilityHidden(true)
+    }
+
+    private var statusBadge: some View {
+        TSStatusBadge(
+            title: model.mode.title,
+            systemImage: model.mode.systemImage,
+            isAttention: model.mode == .needsDecision || model.mode == .failed || model.mode == .outcomeUnknown
+        )
+    }
+
+    @ViewBuilder
+    private var identityTagsBlock: some View {
+        if !model.identityTags.isEmpty {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 7) { identityTags }
+                VStack(alignment: .leading, spacing: 6) { identityTags }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("workspace.identityTags")
+        }
     }
 
     @ViewBuilder
@@ -1804,6 +1887,7 @@ private struct LocalDraftHandoffView: View {
 }
 
 private struct DecisionLayer<Actions: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let eyebrow: String
     let title: String
     let detail: String
@@ -1813,8 +1897,15 @@ private struct DecisionLayer<Actions: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel(text: eyebrow)
             Text(title).font(.headline).fixedSize(horizontal: false, vertical: true)
-            Text(detail).font(.callout).foregroundStyle(.secondary)
-            HStack { actions }
+            Text(detail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 10) { actions }
+            } else {
+                HStack { actions }
+            }
         }
         .padding(16)
         .background(Color.secondary.opacity(0.055), in: RoundedRectangle(cornerRadius: 9))

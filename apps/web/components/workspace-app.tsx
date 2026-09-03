@@ -26,6 +26,10 @@ import {
   getCaseIdentityLabel,
   getDispositionLabel,
   getFieldLabel,
+  getActionOwnerLabel,
+  getActionTypeLabel,
+  getSpeakerLabel,
+  localizeGeneratedCopy,
   type CandidateMomentumCase,
   type CandidateMomentumDataset,
   type WorkspaceDataSource,
@@ -34,6 +38,8 @@ import {
   canApproveAction,
   createCaseReview,
   getCaseProgress,
+  getReviewedContextLabel,
+  getReviewedIdentityLabel,
   hasUnresolvedIdentity,
   hasUnresolvedTime,
   isFactReviewComplete,
@@ -209,7 +215,7 @@ function CaseRailItem({
           <small>{getDispositionLabel(fixtureCase.expected.disposition)}</small>
         </span>
         <span className="review-case-rail__title">
-          {getCaseIdentityLabel(fixtureCase)}
+          {getReviewedIdentityLabel(fixtureCase, review)}
         </span>
         <span className="review-case-rail__progress">
           {progress.total > 0
@@ -443,10 +449,10 @@ export function WorkspaceApp({
                 <span>{getDispositionLabel(fixtureCase.expected.disposition)}</span>
               </p>
               <h1 ref={reviewHeadingRef} tabIndex={-1}>
-                {getCaseIdentityLabel(fixtureCase)}
+                {getReviewedIdentityLabel(fixtureCase, review)}
               </h1>
               <span>
-                {fixtureCase.context.assignment ?? "项目未解决"}
+                {getReviewedContextLabel(fixtureCase, review)}
               </span>
             </div>
             <div className="review-case-header__position">
@@ -502,7 +508,7 @@ export function WorkspaceApp({
                   {fixtureCase.messages.map((message) => (
                     <article key={message.id}>
                       <div>
-                        <strong>{message.speaker}</strong>
+                        <strong>{getSpeakerLabel(message.speaker)}</strong>
                         <small>{message.id}</small>
                       </div>
                       <blockquote>{message.text}</blockquote>
@@ -826,12 +832,17 @@ export function WorkspaceApp({
                                       ? "之后"
                                       : "值"}
                                   </span>
-                                  <strong>{factReview.value}</strong>
+                                  <strong>
+                                    {localizeGeneratedCopy(factReview.value)}
+                                  </strong>
                                 </p>
                               </div>
                               <div className="fact-review__evidence">
                                 <span>
-                                  准确依据，{evidence?.speaker}
+                                  准确依据，
+                                  {evidence
+                                    ? getSpeakerLabel(evidence.speaker)
+                                    : "未知说话人"}
                                 </span>
                                 <blockquote>
                                   “{assertion.evidence_quote}”
@@ -955,21 +966,39 @@ export function WorkspaceApp({
                     data-state={review.actionDecision}
                   >
                     <div className="action-proposal__title">
-                      <span>准备问题</span>
-                      <h3>{fixtureCase.expected.action.target}</h3>
+                      <span>
+                        {getActionTypeLabel(fixtureCase.expected.action.type)}
+                      </span>
+                      <h3>
+                        {localizeGeneratedCopy(
+                          fixtureCase.expected.action.target,
+                        )}
+                      </h3>
                     </div>
                     <dl>
                       <div>
                         <dt>为何现在</dt>
-                        <dd>{fixtureCase.expected.action.reason}</dd>
+                        <dd>
+                          {localizeGeneratedCopy(
+                            fixtureCase.expected.action.reason,
+                          )}
+                        </dd>
                       </div>
                       <div>
                         <dt>负责人</dt>
-                        <dd>{fixtureCase.expected.action.owner}</dd>
+                        <dd>
+                          {getActionOwnerLabel(
+                            fixtureCase.expected.action.owner,
+                          )}
+                        </dd>
                       </div>
                       <div>
                         <dt>截止时间</dt>
-                        <dd>{fixtureCase.expected.action.due}</dd>
+                        <dd>
+                          {localizeGeneratedCopy(
+                            fixtureCase.expected.action.due,
+                          )}
+                        </dd>
                       </div>
                       <div>
                         <dt>准确本地效果</dt>
@@ -1121,7 +1150,7 @@ export function WorkspaceApp({
                 <summary>案例边界已保留</summary>
                 <ul>
                   {fixtureCase.expected.must_not.map((boundary) => (
-                    <li key={boundary}>{boundary}</li>
+                    <li key={boundary}>{localizeGeneratedCopy(boundary)}</li>
                   ))}
                 </ul>
               </details>

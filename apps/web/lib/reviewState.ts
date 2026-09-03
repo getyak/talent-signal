@@ -72,6 +72,27 @@ export function hasUnresolvedIdentity(
   );
 }
 
+export function getReviewedIdentityLabel(
+  fixtureCase: CandidateMomentumCase,
+  review: CaseReview,
+) {
+  return (
+    review.identityResolution?.split(" — ")[0]?.trim() ||
+    fixtureCase.context.candidate ||
+    "身份未解决"
+  );
+}
+
+export function getReviewedContextLabel(
+  fixtureCase: CandidateMomentumCase,
+  review: CaseReview,
+) {
+  if (fixtureCase.context.assignment) return fixtureCase.context.assignment;
+  if (!review.identityResolution) return "项目未解决";
+  const [, ...contextParts] = review.identityResolution.split(" — ");
+  return contextParts.join(" — ").trim() || "背景已选择";
+}
+
 export function hasUnresolvedTime(
   fixtureCase: CandidateMomentumCase,
   review: CaseReview,

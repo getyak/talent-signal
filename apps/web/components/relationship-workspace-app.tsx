@@ -821,7 +821,7 @@ export function RelationshipWorkspaceApp({
 
   return (
     <>
-      <a className="skip-link" href="#context-main">
+      <a className="skip-link" href="#main-content">
         跳到联系人背景
       </a>
       <div
@@ -848,7 +848,7 @@ export function RelationshipWorkspaceApp({
           />
         ) : null}
 
-        <main className="context-main" id="context-main" tabIndex={-1}>
+        <main className="context-main" id="main-content" tabIndex={-1}>
           <header className="context-topbar">
             <div>
               <span className="context-secure-state">

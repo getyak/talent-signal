@@ -122,6 +122,7 @@ export function HeroSignalPreview() {
                 <Image
                   alt={source.alt}
                   fill
+                  loading="eager"
                   sizes="(max-width: 900px) 42vw, 250px"
                   src={source.image}
                 />
