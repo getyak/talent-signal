@@ -7,6 +7,16 @@ scheme_name="TalentSignal"
 ios_automation_lock_file="${IOS_AUTOMATION_LOCK_FILE:-/tmp/ios-automation.xcodebuild.lock}"
 ios_automation_lock_timeout="${IOS_AUTOMATION_LOCK_TIMEOUT_SECONDS:-7200}"
 ios_automation_lock_owned="false"
+ios_backend_url="${TS_IOS_BACKEND_URL:-}"
+ios_fixture_database_url=""
+
+if [ -n "$ios_backend_url" ]; then
+  ios_fixture_database_url="${DATABASE_URL:-}"
+  if [ -z "$ios_fixture_database_url" ]; then
+    echo "DATABASE_URL is required with TS_IOS_BACKEND_URL so canonical iOS fixtures cannot target an implicit database." >&2
+    exit 2
+  fi
+fi
 
 cd "$repository_root"
 
@@ -254,13 +264,13 @@ free_loopback_port() {
   '
 }
 
-ios_backend_url="${TS_IOS_BACKEND_URL:-}"
 if [ -z "$ios_backend_url" ]; then
   if command -v docker >/dev/null 2>&1; then
     POSTGRES_PORT="$(free_loopback_port)"
     BACKEND_PORT="$(free_loopback_port)"
     export POSTGRES_PORT BACKEND_PORT
     export BACKEND_IMAGE="talent-signal-backend-local:$ios_check_project"
+    ios_fixture_database_url="postgresql://${POSTGRES_USER:-talent_signal_local}:${POSTGRES_PASSWORD:-talent_signal_local_only}@127.0.0.1:$POSTGRES_PORT/${POSTGRES_DB:-talent_signal_local}"
     ios_backend_started="true"
     docker compose \
       --project-directory "$repository_root" \
@@ -282,14 +292,24 @@ export TS_IOS_TEXT_SIGNAL_PROXY_URL="http://127.0.0.1:$ios_text_signal_proxy_por
 export TS_IOS_PURSUIT_FIXTURE_URL="http://127.0.0.1:$ios_pursuit_fixture_port"
 
 if curl --fail --silent --show-error "$ios_backend_url/health/live" >/dev/null 2>&1; then
+  # The host-side fixture and proxy entry points import the contracts package
+  # through its published dist path. Build it here so a fresh checkout cannot
+  # depend on artifacts left behind by another repository check.
+  pnpm --silent --filter @talent-signal/contracts build
+
   if ! curl --fail --silent --show-error \
     "$TS_IOS_PURSUIT_FIXTURE_URL/health/live" >/dev/null 2>&1; then
-    API_BASE_URL="$ios_backend_url" \
-      IOS_PURSUIT_FIXTURE_PORT="$ios_pursuit_fixture_port" \
-      pnpm --silent --filter @talent-signal/backend \
-      fixture:ios-pursuit-proposal-server &
-    ios_fixture_server_pid="$!"
-    wait_for_url "$TS_IOS_PURSUIT_FIXTURE_URL/health/live"
+    if [ -n "$ios_fixture_database_url" ]; then
+      API_BASE_URL="$ios_backend_url" \
+        DATABASE_URL="$ios_fixture_database_url" \
+        IOS_PURSUIT_FIXTURE_PORT="$ios_pursuit_fixture_port" \
+        pnpm --silent --filter @talent-signal/backend \
+        fixture:ios-pursuit-proposal-server &
+      ios_fixture_server_pid="$!"
+      wait_for_url "$TS_IOS_PURSUIT_FIXTURE_URL/health/live"
+    else
+      echo "Canonical iOS fixtures are unavailable without an explicit fixture database." >&2
+    fi
   fi
   if ! curl --fail --silent --show-error \
     "$TS_IOS_RESPONSE_LOSS_PROXY_URL/__response_loss_proxy/state" >/dev/null 2>&1; then

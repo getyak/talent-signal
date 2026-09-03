@@ -51,7 +51,7 @@ function provider(
 }
 
 describe("Zhipu Chat answer provider", () => {
-  it("runs the bounded workspace contact Tool loop before its terminal reply", async () => {
+  it("keeps less explicit model-directed contact Tool calls serial and bounded", async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(
@@ -104,7 +104,88 @@ describe("Zhipu Chat answer provider", () => {
       ok: true,
       callID: "tool-call-1",
       name: "contact_workspace",
-      data: { result_count: 2 },
+      data: { operation: "search", result_count: 2, results: [] },
+    }));
+
+    const result = await new ZhipuChatAnswerProvider({
+      apiKey: "synthetic-zhipu-key",
+      model: "glm-5.3",
+      fetcher: fetcher as typeof fetch,
+    }).run(
+      {
+        runID: "run-model-directed-search",
+        objective: "Find Maya in my relationships",
+        systemPrompt: "Stay inside the authorized account.",
+        scopeSummary: {
+          kind: "workspace_conversation",
+          workspaceID: "11111111-1111-4111-8111-111111111111",
+          sessionID: null,
+          currentPersonID: null,
+          currentRelationshipContextID: null,
+        },
+        toolManifest: ["contact_workspace"],
+        budget: {
+          maxTurns: 4,
+          maxToolCalls: 4,
+          maxDurationMs: 10_000,
+          maxTaskTokens: 4_000,
+          maxEstimatedUsd: 1,
+        },
+      },
+      invokeTool,
+      new AbortController().signal,
+    );
+
+    expect(invokeTool).toHaveBeenCalledWith("contact_workspace", {
+      operation: "search",
+      query: "Maya",
+      maximum_results: 4,
+    });
+    expect(result).toMatchObject({
+      structuredOutput: { outcome: "clarification", title: "Which Maya?" },
+      inputTokens: 50,
+      outputTokens: 15,
+      turns: 2,
+    });
+    const firstRequest = JSON.parse(
+      String(fetcher.mock.calls[0]?.[1]?.body),
+    ) as {
+      messages: Array<{ role: string; content: string }>;
+      parallel_tool_calls: boolean;
+    };
+    expect(firstRequest.parallel_tool_calls).toBe(false);
+    expect(firstRequest.messages[0]?.content).toContain(
+      "A named Person or relationship question needs contact context",
+    );
+    expect(firstRequest.messages[0]?.content).toContain(
+      "even when immutable_scope has no current Person or relationship",
+    );
+  });
+
+  it("returns a reviewable clarification after a deterministic ambiguous lookup", async () => {
+    const fetcher = vi.fn();
+    const invokeTool = vi.fn(async () => ({
+      ok: true,
+      callID: "tool-call-1",
+      name: "contact_workspace",
+      data: {
+        operation: "search",
+        result_count: 2,
+        results: [
+          {
+            person_id: "22222222-2222-4222-8222-222222222222",
+            relationship_contexts: [{
+              id: "33333333-3333-4333-8333-333333333333",
+            }],
+          },
+          {
+            person_id: "44444444-4444-4444-8444-444444444444",
+            relationship_contexts: [{
+              id: "55555555-5555-4555-8555-555555555555",
+            }],
+          },
+        ],
+      },
     }));
     const result = await new ZhipuChatAnswerProvider({
       apiKey: "synthetic-zhipu-key",
@@ -143,16 +224,151 @@ describe("Zhipu Chat answer provider", () => {
     expect(result).toMatchObject({
       structuredOutput: {
         outcome: "clarification",
-        title: "Which Maya?",
+        title: "Which relationship do you mean?",
       },
-      inputTokens: 50,
-      outputTokens: 15,
-      turns: 2,
+      inputTokens: 0,
+      outputTokens: 0,
+      turns: 0,
     });
-    const secondRequest = JSON.parse(
-      String(fetcher.mock.calls[1]?.[1]?.body),
-    ) as Record<string, unknown>;
-    expect(secondRequest.tools).toBeDefined();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("finishes an explicit named lookup after one host-authorized contact read", async () => {
+    const personID = "22222222-2222-4222-8222-222222222222";
+    const relationshipContextID = "33333333-3333-4333-8333-333333333333";
+    const fetcher = vi.fn();
+    const invokeTool = vi.fn(async (_name: string, input: unknown) => {
+      const operation = (input as { operation?: string }).operation;
+      return operation === "search"
+        ? {
+            ok: true,
+            callID: "tool-search",
+            name: "contact_workspace",
+            data: {
+              operation: "search",
+              result_count: 1,
+              results: [{
+                person_id: personID,
+                relationship_contexts: [{ id: relationshipContextID }],
+              }],
+            },
+          }
+        : {
+            ok: true,
+            callID: "tool-read",
+            name: "contact_workspace",
+            data: {
+              operation: "read",
+              person: { id: personID, display_label: "Maya Chen" },
+              relationship_context: {
+                id: relationshipContextID,
+                display_label: "Executive search",
+              },
+            },
+          };
+    });
+
+    const result = await new ZhipuChatAnswerProvider({
+      apiKey: "synthetic-zhipu-key",
+      model: "glm-5.3",
+      fetcher: fetcher as typeof fetch,
+    }).run(
+      {
+        runID: "run-resolved-contact",
+        objective: "What changed with Maya?",
+        systemPrompt: "Stay inside the authorized account.",
+        scopeSummary: {
+          kind: "workspace_conversation",
+          workspaceID: "11111111-1111-4111-8111-111111111111",
+          sessionID: null,
+          currentPersonID: null,
+          currentRelationshipContextID: null,
+        },
+        toolManifest: ["contact_workspace"],
+        budget: {
+          maxTurns: 4,
+          maxToolCalls: 4,
+          maxDurationMs: 35_000,
+          maxTaskTokens: 4_000,
+          maxEstimatedUsd: 1,
+        },
+      },
+      invokeTool,
+      new AbortController().signal,
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(invokeTool).toHaveBeenCalledTimes(2);
+    expect(invokeTool).toHaveBeenNthCalledWith(1, "contact_workspace", {
+      operation: "search",
+      query: "Maya",
+      maximum_results: 4,
+    });
+    expect(invokeTool).toHaveBeenNthCalledWith(2, "contact_workspace", {
+      operation: "read",
+      person_id: personID,
+      relationship_context_id: relationshipContextID,
+    });
+    expect(result).toMatchObject({
+      structuredOutput: {
+        outcome: "use_contact",
+        person_id: personID,
+        relationship_context_id: relationshipContextID,
+      },
+      inputTokens: 0,
+      outputTokens: 0,
+      turns: 0,
+      terminalReason: "completed",
+    });
+  });
+
+  it("extracts a Chinese named relationship clue without broadening the search", async () => {
+    const fetcher = vi.fn();
+    const invokeTool = vi.fn(async () => ({
+      ok: true,
+      callID: "tool-search",
+      name: "contact_workspace",
+      data: { operation: "search", result_count: 0, results: [] },
+    }));
+
+    const result = await new ZhipuChatAnswerProvider({
+      apiKey: "synthetic-zhipu-key",
+      model: "glm-5.3",
+      fetcher: fetcher as typeof fetch,
+    }).run(
+      {
+        runID: "run-chinese-contact",
+        objective: "Leila 有什么变化？",
+        systemPrompt: "Stay inside the authorized account.",
+        scopeSummary: {
+          kind: "workspace_conversation",
+          workspaceID: "11111111-1111-4111-8111-111111111111",
+          sessionID: null,
+          currentPersonID: null,
+          currentRelationshipContextID: null,
+        },
+        toolManifest: ["contact_workspace"],
+        budget: {
+          maxTurns: 4,
+          maxToolCalls: 4,
+          maxDurationMs: 35_000,
+          maxTaskTokens: 4_000,
+          maxEstimatedUsd: 1,
+        },
+      },
+      invokeTool,
+      new AbortController().signal,
+    );
+
+    expect(invokeTool).toHaveBeenCalledWith("contact_workspace", {
+      operation: "search",
+      query: "Leila",
+      maximum_results: 4,
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      structuredOutput: { outcome: "clarification", title: "需要确认关系" },
+    });
   });
 
   it("does not start a workspace contact Run after cancellation", async () => {
@@ -190,6 +406,62 @@ describe("Zhipu Chat answer provider", () => {
         controller.signal,
       ),
     ).rejects.toThrow("user cancelled");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("does not read contact context when cancellation arrives during search", async () => {
+    const personID = "22222222-2222-4222-8222-222222222222";
+    const relationshipContextID = "33333333-3333-4333-8333-333333333333";
+    const fetcher = vi.fn();
+    const controller = new AbortController();
+    const invokeTool = vi.fn(async () => {
+      controller.abort(new Error("user cancelled during search"));
+      return {
+        ok: true,
+        callID: "tool-search",
+        name: "contact_workspace",
+        data: {
+          operation: "search",
+          result_count: 1,
+          results: [{
+            person_id: personID,
+            relationship_contexts: [{ id: relationshipContextID }],
+          }],
+        },
+      };
+    });
+
+    await expect(
+      new ZhipuChatAnswerProvider({
+        apiKey: "synthetic-zhipu-key",
+        model: "glm-5.3",
+        fetcher: fetcher as typeof fetch,
+      }).run(
+        {
+          runID: "cancelled-during-contact-search",
+          objective: "What changed with Maya?",
+          systemPrompt: "Stay inside the authorized account.",
+          scopeSummary: {
+            kind: "workspace_conversation",
+            workspaceID: "11111111-1111-4111-8111-111111111111",
+            sessionID: null,
+            currentPersonID: null,
+            currentRelationshipContextID: null,
+          },
+          toolManifest: ["contact_workspace"],
+          budget: {
+            maxTurns: 4,
+            maxToolCalls: 4,
+            maxDurationMs: 35_000,
+            maxTaskTokens: 4_000,
+            maxEstimatedUsd: 1,
+          },
+        },
+        invokeTool,
+        controller.signal,
+      ),
+    ).rejects.toThrow("user cancelled during search");
+    expect(invokeTool).toHaveBeenCalledOnce();
     expect(fetcher).not.toHaveBeenCalled();
   });
 
