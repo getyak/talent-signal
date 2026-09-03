@@ -4747,6 +4747,15 @@ final class CandidateSignalUITests: XCTestCase {
         for _ in 0..<4 {
             field.tap()
             if keyboard.waitForExistence(timeout: 1.5) {
+                if let currentValue = field.value as? String {
+                    if currentValue == text {
+                        return
+                    }
+                    if !currentValue.isEmpty,
+                       text.hasPrefix(currentValue) {
+                        remaining = String(text.dropFirst(currentValue.count))
+                    }
+                }
                 field.typeText(remaining)
 
                 let complete = XCTNSPredicateExpectation(
