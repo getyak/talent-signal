@@ -10,6 +10,7 @@ struct RelationshipArchiveView: View {
     @StateObject private var captureIntentRouter = CaptureIntentRouter.shared
     @StateObject private var workspaceStore: PursuitWorkspaceStore
     @StateObject private var sessionStore: AgentSessionStore
+    @StateObject private var labStore: TalentSignalLabStore
     @State private var selectedPage: RelationshipArchivePage = .today
     @State private var retrievalIntentGeneration = 0
     @State private var sessionScrollPosition: UUID?
@@ -26,6 +27,7 @@ struct RelationshipArchiveView: View {
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
     @State private var deferredAskPresentation: RelationshipAskPresentation?
     @State private var deferredCapturePresentation: RelationshipCapturePresentation?
+    @State private var isLabPresented = false
     private let reviewBaseURL: URL?
     private let authenticatedAccessToken: String?
     private let accountEmail: String?
@@ -35,6 +37,7 @@ struct RelationshipArchiveView: View {
     init(
         session: PursuitWorkspaceSession? = nil,
         service: PursuitWorkspaceServing? = nil,
+        labService: TalentSignalLabServing? = nil,
         onSignOut: (() async -> Void)? = nil
     ) {
 #if DEBUG
@@ -124,6 +127,17 @@ struct RelationshipArchiveView: View {
         }
 #endif
         _sessionStore = StateObject(wrappedValue: resolvedSessionStore)
+        let resolvedLabService = labService ?? session.map {
+            URLTalentSignalLabClient(
+                baseURL: $0.baseURL,
+                accountSlug: $0.accountSlug,
+                userEmail: $0.userEmail,
+                accessToken: $0.accessToken
+            )
+        }
+        _labStore = StateObject(
+            wrappedValue: TalentSignalLabStore(service: resolvedLabService)
+        )
         reviewBaseURL = session?.baseURL
         authenticatedAccessToken = session?.accessToken
         accountEmail = session?.userEmail
@@ -139,20 +153,34 @@ struct RelationshipArchiveView: View {
                     .id(retrievalIntentGeneration)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
-                RelationshipArchiveHeader(
-                    selectedPage: Binding(
-                        get: { selectedPage },
-                        set: selectPage
-                    ),
-                    onOpenAgentStudio: {
-                        clearTransientRetrievalIntent()
-                        presentedSheet = .agentStudio
-                    },
-                    onOpenCalendar: {
-                        clearTransientRetrievalIntent()
-                        isRelationshipCalendarPresented = true
+                VStack(spacing: 0) {
+                    RelationshipArchiveHeader(
+                        selectedPage: Binding(
+                            get: { selectedPage },
+                            set: selectPage
+                        ),
+                        onOpenAgentStudio: {
+                            clearTransientRetrievalIntent()
+                            presentedSheet = .agentStudio
+                        },
+                        onOpenCalendar: {
+                            clearTransientRetrievalIntent()
+                            isRelationshipCalendarPresented = true
+                        }
+                    )
+                    if labStore.isEnabled {
+                        HStack {
+                            Spacer(minLength: 0)
+                            TalentSignalLabCapsule(store: labStore) {
+                                clearTransientRetrievalIntent()
+                                isLabPresented = true
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 4)
+                        .background(Color.tsSurface)
                     }
-                )
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
         }
@@ -315,6 +343,9 @@ struct RelationshipArchiveView: View {
                 )
             }
         }
+        .sheet(isPresented: $isLabPresented) {
+            TalentSignalLabView(store: labStore)
+        }
         .sheet(item: $askPresentation, onDismiss: completeDeferredTransition) { presentation in
             if let snapshot = workspaceStore.snapshot {
                 RelationshipAskView(
@@ -444,6 +475,7 @@ struct RelationshipArchiveView: View {
                 sessionStore.pruneExpired()
                 reloadRelationshipCalendarActivities()
                 await revalidateSessionEvidence()
+                await labStore.load(force: true)
             }
         }
         .sheet(
@@ -500,6 +532,9 @@ struct RelationshipArchiveView: View {
             await workspaceStore.load()
             reloadRelationshipCalendarActivities()
             await revalidateSessionEvidence()
+        }
+        .task {
+            await labStore.load()
         }
         .tint(.tsVermilion)
     }

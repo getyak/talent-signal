@@ -30,7 +30,9 @@ deterministic replay and baseline comparison to the same frozen evidence
 snapshot, produces account-scoped traces, and lets a human promote a redacted
 Reality Receipt into a candidate-blocking Eval Case. This is quality-control
 state only: it has zero authority over canonical relationship state or external
-effects.
+effects. The authenticated Web workspace and native iOS workspace consume the
+same capability, scenario, Run, comparison, receipt, and promotion contracts;
+both hide the entry point unless the backend confirms the internal capability.
 
 ## Delivery sequence
 
