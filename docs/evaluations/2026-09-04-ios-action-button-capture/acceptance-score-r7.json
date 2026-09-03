@@ -1,5 +1,5 @@
 {
-  "artifact_id": "ios-action-button-capture-2026-09-04-r6",
+  "artifact_id": "ios-action-button-capture-2026-09-04-r7",
   "method": "Atomic 100-point acceptance gate; this score is not an average or conversion of the four specialist 0–4 scores.",
   "threshold": ">98",
   "score": 99,
@@ -16,7 +16,7 @@
       "name": "Executable local capture, deduplication, and recovery",
       "maximum": 25,
       "score": 25,
-      "evidence": "The r6 result bundle passes 20 unit tests and 5 UI tests, including local FIFO persistence, exact-retry deduplication, atomic rollback, keep/discard, relaunch recovery, and rejection before queue or receipt."
+      "evidence": "The r7 result bundle passes 20 unit tests and 6 UI tests, including local FIFO persistence, exact-retry deduplication, atomic rollback, keep/discard, relaunch recovery, rejection before queue or receipt, and the documented bare-Debug fallback."
     },
     {
       "name": "Truthful privacy, evidence, and Agent authority boundaries",

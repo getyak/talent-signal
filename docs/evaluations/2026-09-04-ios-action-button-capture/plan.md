@@ -114,11 +114,11 @@ point withheld for the unavailable hardware boundary with no false claim.
 
 ## Final outcome
 
-- Frozen implementation and proof: [`artifact-r6.md`](artifact-r6.md)
-- Independent panel: [`panel-r6.json`](panel-r6.json)
+- Frozen implementation and proof: [`artifact-r7.md`](artifact-r7.md)
+- Independent panel: [`panel-r7.json`](panel-r7.json)
 - Separate atomic acceptance gate:
-  [`acceptance-score-r6.json`](acceptance-score-r6.json) — 99/100
-- Final repository gate: Release build passed; 20 unit tests and 5 focused UI
+  [`acceptance-score-r7.json`](acceptance-score-r7.json) — 99/100
+- Final repository gate: Release build passed; 20 unit tests and 6 focused UI
   tests passed; localization, documentation, wiki, architecture diagrams, and
   whitespace checks passed.
 - Current specialist verdicts: recruiter workflow 3/4 pass, evidence safety
