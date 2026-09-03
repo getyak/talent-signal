@@ -7,6 +7,8 @@ enum TalentSignalAgentPreference {
 
 @MainActor
 struct RelationshipAgentStudioView: View {
+    @ObservedObject var workspaceStore: PursuitWorkspaceStore
+    @ObservedObject var sessionStore: AgentSessionStore
     let isCanonical: Bool
     let workspaceID: String?
     let workspaceLabel: String?
@@ -22,24 +24,55 @@ struct RelationshipAgentStudioView: View {
     @AppStorage(TalentSignalAgentPreference.aliasKey)
     private var storedAlias = "Signal"
     @AppStorage(TalentSignalAgentPreference.linkedInURLKey)
-    private var linkedInURL = ""
+    private var legacyLinkedInURL = ""
     @AppStorage(TalentSignalSetupPreference.actionButtonCompleteKey)
     private var isActionButtonSetupComplete = false
     @AppStorage(CalendarSyncPreference.isEnabledKey)
     private var isCalendarSyncEnabled = true
     @State private var showsWorkspaceMenu = false
+    @StateObject private var profileReferenceStore: AgentProfileReferenceStore
+
+    init(
+        workspaceStore: PursuitWorkspaceStore,
+        sessionStore: AgentSessionStore,
+        isCanonical: Bool,
+        workspaceID: String?,
+        workspaceLabel: String?,
+        accountName: String?,
+        accountEmail: String?,
+        proposals: [WorkspaceProposal],
+        signOutNotice: String?,
+        onOpenProposal: @escaping (WorkspaceProposal) -> Void,
+        onSignOut: (() async -> Bool)?
+    ) {
+        self.workspaceStore = workspaceStore
+        self.sessionStore = sessionStore
+        self.isCanonical = isCanonical
+        self.workspaceID = workspaceID
+        self.workspaceLabel = workspaceLabel
+        self.accountName = accountName
+        self.accountEmail = accountEmail
+        self.proposals = proposals
+        self.signOutNotice = signOutNotice
+        self.onOpenProposal = onOpenProposal
+        self.onSignOut = onSignOut
+        _profileReferenceStore = StateObject(
+            wrappedValue: AgentProfileReferenceStore(workspaceID: workspaceID)
+        )
+    }
 
     private var sourceSummary: String {
         var parts: [String] = []
-        if !linkedInURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            parts.append(appLanguage.text("LinkedIn reference added"))
+        if !profileReferenceStore.references.isEmpty {
+            parts.append(
+                String(
+                    format: appLanguage.text("%lld profile references"),
+                    locale: appLanguage.locale,
+                    Int64(profileReferenceStore.references.count)
+                )
+            )
         }
-        if isActionButtonSetupComplete {
-            parts.append(appLanguage.text("Shortcut ready"))
-        }
-        if parts.isEmpty {
-            return appLanguage.text("Choose one source to begin")
-        }
+        parts.append(appLanguage.text("File import ready"))
         return parts.joined(separator: " · ")
     }
 
@@ -101,6 +134,15 @@ struct RelationshipAgentStudioView: View {
         }
         .tint(.tsInk)
         .accessibilityIdentifier("agent-studio")
+        .task {
+            let legacy = legacyLinkedInURL.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard !legacy.isEmpty else { return }
+            if profileReferenceStore.migrateLegacyLinkedIn(legacy) {
+                legacyLinkedInURL = ""
+            }
+        }
     }
 
     private var identityHeader: some View {
@@ -180,7 +222,9 @@ struct RelationshipAgentStudioView: View {
 
             NavigationLink {
                 AgentSourceSettingsView(
-                    linkedInURL: $linkedInURL,
+                    profileReferenceStore: profileReferenceStore,
+                    workspaceStore: workspaceStore,
+                    sessionStore: sessionStore,
                     isActionButtonSetupComplete: isActionButtonSetupComplete,
                     isCalendarSyncEnabled: isCalendarSyncEnabled
                 )
@@ -288,134 +332,6 @@ private struct AgentMemoryOverviewView: View {
         .navigationTitle(appLanguage.text("Memory"))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("agent-memory")
-    }
-}
-
-private struct AgentSourceSettingsView: View {
-    @Binding var linkedInURL: String
-    let isActionButtonSetupComplete: Bool
-    let isCalendarSyncEnabled: Bool
-
-    @Environment(\.appLanguage) private var appLanguage
-
-    private var hasLinkedInReference: Bool {
-        !linkedInURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var body: some View {
-        List {
-            Section {
-                TextField(
-                    appLanguage.text("LinkedIn profile URL"),
-                    text: $linkedInURL
-                )
-                .textInputAutocapitalization(.never)
-                .keyboardType(.URL)
-                .autocorrectionDisabled()
-                .accessibilityIdentifier("agent-linkedin-url")
-
-                AgentCapabilityRow(
-                    title: appLanguage.text("Profile reference"),
-                    detail: appLanguage.text(
-                        "A link helps identify your profile. It does not grant account access or background sync."
-                    ),
-                    status: hasLinkedInReference
-                        ? appLanguage.text("Added")
-                        : appLanguage.text("Not added"),
-                    tone: hasLinkedInReference ? .active : .muted
-                )
-
-                if hasLinkedInReference {
-                    Button(role: .destructive) {
-                        linkedInURL = ""
-                    } label: {
-                        Label(
-                            appLanguage.text("Clear profile reference"),
-                            systemImage: "trash"
-                        )
-                    }
-                    .accessibilityIdentifier("agent-clear-linkedin-url")
-                }
-            } header: {
-                Text(appLanguage.text("LinkedIn"))
-            } footer: {
-                Text(
-                    appLanguage.text(
-                        "Kept as an app preference until you clear it. It is never account authorization."
-                    )
-                )
-            }
-
-            Section {
-                NavigationLink {
-                    ActionButtonSetupView()
-                } label: {
-                    AgentCapabilityRow(
-                        title: appLanguage.text("Action Button & Shortcuts"),
-                        detail: appLanguage.text(
-                            "Stages a selected screenshot for ordinary review."
-                        ),
-                        status: isActionButtonSetupComplete
-                            ? appLanguage.text("Ready")
-                            : appLanguage.text("Set up"),
-                        tone: isActionButtonSetupComplete ? .active : .review
-                    )
-                }
-                .accessibilityIdentifier("agent-open-action-button")
-
-                NavigationLink {
-                    CalendarSyncSettingsView()
-                } label: {
-                    AgentCapabilityRow(
-                        title: appLanguage.text("Apple Calendar"),
-                        detail: appLanguage.text(
-                            "One-way projection of confirmed events; each write stays reviewable."
-                        ),
-                        status: isCalendarSyncEnabled
-                            ? appLanguage.text("Projection on")
-                            : appLanguage.text("Projection off"),
-                        tone: isCalendarSyncEnabled ? .active : .muted
-                    )
-                }
-                .accessibilityIdentifier("agent-open-calendar")
-            } header: {
-                Text(appLanguage.text("Available now"))
-            }
-
-            Section {
-                AgentCapabilityRow(
-                    title: appLanguage.text("LinkedIn connections archive"),
-                    detail: appLanguage.text(
-                        "Planned as a one-time, member-exported file with duplicate review."
-                    ),
-                    status: appLanguage.text("Planned"),
-                    tone: .muted
-                )
-
-                AgentCapabilityRow(
-                    title: appLanguage.text("Contacts, vCard & CSV"),
-                    detail: appLanguage.text(
-                        "Planned with field mapping, identity review, partial retry, and an import receipt."
-                    ),
-                    status: appLanguage.text("Planned"),
-                    tone: .muted
-                )
-            } header: {
-                Text(appLanguage.text("Import support"))
-            } footer: {
-                Text(
-                    appLanguage.text(
-                        "Planned sources are shown for capability clarity. They cannot be opened or mistaken for live connections."
-                    )
-                )
-            }
-        }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(Color.tsSurface)
-        .navigationTitle(appLanguage.text("Sources & imports"))
-        .navigationBarTitleDisplayMode(.inline)
-        .accessibilityIdentifier("agent-sources")
     }
 }
 

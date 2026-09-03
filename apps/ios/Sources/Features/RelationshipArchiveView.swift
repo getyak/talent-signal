@@ -291,6 +291,8 @@ struct RelationshipArchiveView: View {
                 )
             case .agentStudio:
                 RelationshipAgentStudioView(
+                    workspaceStore: workspaceStore,
+                    sessionStore: sessionStore,
                     isCanonical: workspaceStore.isCanonical,
                     workspaceID: workspaceStore.snapshot?.workspaceID,
                     workspaceLabel: workspaceLabel,
@@ -306,6 +308,9 @@ struct RelationshipArchiveView: View {
                     },
                     onSignOut: onSignOut.map { signOut in
                         {
+                            guard AgentProfileReferenceStore.deleteAll(
+                                workspaceID: workspaceStore.snapshot?.workspaceID
+                            ) else { return false }
                             guard workspaceStore.deleteSavedActionCompletions() else {
                                 return false
                             }
@@ -332,6 +337,9 @@ struct RelationshipArchiveView: View {
                     },
                     onSignOut: onSignOut.map { signOut in
                         {
+                            guard AgentProfileReferenceStore.deleteAll(
+                                workspaceID: workspaceStore.snapshot?.workspaceID
+                            ) else { return false }
                             guard workspaceStore.deleteSavedActionCompletions() else {
                                 return false
                             }

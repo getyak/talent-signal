@@ -18,6 +18,25 @@ image, stage it in the device-owned pending-capture inbox, and open the app's
 ordinary review. The shortcut is an entry adapter: it has no identity,
 relationship, compilation, or external-write authority.
 
+A contacts CSV, LinkedIn `Connections.csv`, or vCard selected in the Agent's
+Sources page is another local intake adapter, not a connected account. The
+client limits size and row count, records a content hash, parses mapped contact
+fields on device, exposes invalid and duplicate rows, and discards the raw file
+after the review screen is gone. One reviewed row may reuse the governed
+resource-intake contract to propose a Person create, exact source attachment, or
+unresolved identity case. The client protects that decision and its stable
+idempotency key before sending. Imported organization and position remain
+source evidence; unreviewed notes and unmapped values receive no truth or Memory
+authority. Recognized aliases cover LinkedIn, Google Contacts, Outlook, common
+CRM export fields, and generic English or Simplified Chinese contact headers;
+unrecognized columns remain named for review instead of being guessed.
+
+The user's own multi-platform profile references are account-scoped local
+configuration only. They grant no authentication, contact access, sync,
+research, messaging, or publication capability. A future live adapter must
+replace the reference state with a server-owned capability that names scope,
+freshness, revocation, retention, and independently approved write behavior.
+
 Sign in with Apple is an account-entry adapter. The iOS client requests a
 nonce-bound identity assertion; the backend verifies it and owns account
 binding, session issuance, replay prevention, and revocation. Apple profile

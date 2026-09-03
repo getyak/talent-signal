@@ -46,7 +46,7 @@ The Agent is one recognizable assistant that interprets authorized signals,
 maintains governed Memory, prepares proposals, and explains its work. Separate
 from Today, its first level contains only Memory, About you, Sources & imports,
 and Action permissions. Today is attention; Agent is the control plane for
-identity, context, source state, and authority—not unsupported autonomy.
+identity, context, source state, and authority—not unsupported autonomy; its Sources page distinguishes profile references, file snapshots, scoped account reads, and independently approved projections rather than collapsing them into one “connected” badge.
 
 The product is organized around a `Pursuit`: a concrete outcome with a time
 horizon that requires people, organizations, evidence, criteria, and action.
@@ -164,7 +164,7 @@ the recruiter corrects on-device text, supplies only the identity and
 relationship clues they can support, compares temporal owners without a
 default selection, and explicitly attaches the governed source. Completion
 returns the actual compiled-Wiki quality and identifiers; it does not create a
-second contact merely because another source arrived.
+second contact merely because another source arrived. Selected contact files follow the same rule: on-device staging exposes malformed and duplicate rows, each valid row receives an exact protected identity decision and canonical receipt, raw bytes are discarded, and unreviewed notes or mapped context gain no fact or Memory authority.
 
 Relationship Ask also accepts a screenshot as a purpose-bound task attachment.
 After Send, an admitted Agent may autonomously choose bounded public-profile

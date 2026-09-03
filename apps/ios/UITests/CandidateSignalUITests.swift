@@ -52,20 +52,25 @@ final class CandidateSignalUITests: XCTestCase {
 
         app.buttons["agent-open-sources"].tap()
         XCTAssertTrue(element("agent-sources").waitForExistence(timeout: 5))
-        let linkedIn = app.textFields["agent-linkedin-url"]
-        XCTAssertTrue(linkedIn.exists)
-        let clearReference = app.buttons["agent-clear-linkedin-url"]
-        if clearReference.exists {
-            clearReference.tap()
+        XCTAssertTrue(app.buttons["agent-import-contacts-file"].exists)
+        XCTAssertTrue(app.buttons["agent-import-linkedin"].exists)
+        let existingLinkedIn = app.buttons["agent-reference-linkedin"]
+        if existingLinkedIn.exists {
+            existingLinkedIn.tap()
+            tapWhenVisible(app.buttons["Remove reference"])
         }
-        linkedIn.tap()
-        linkedIn.typeText("https://www.linkedin.com/in/example")
-        XCTAssertTrue(clearReference.waitForExistence(timeout: 3))
-        clearReference.tap()
-        XCTAssertTrue(app.staticTexts["Not added"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["LinkedIn connections archive"].exists)
-        XCTAssertTrue(app.staticTexts["Contacts, vCard & CSV"].exists)
-        preserveScreenshot("Agent sources distinguish available and planned")
+        app.buttons["agent-add-profile-reference"].tap()
+        let reference = app.textFields["agent-reference-value"]
+        XCTAssertTrue(reference.waitForExistence(timeout: 3))
+        reference.tap()
+        reference.typeText("example")
+        app.buttons["agent-save-profile-reference"].tap()
+        XCTAssertTrue(app.buttons["agent-reference-linkedin"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Reference"].exists)
+        app.buttons["agent-reference-linkedin"].tap()
+        tapWhenVisible(app.buttons["Remove reference"])
+        XCTAssertFalse(app.buttons["agent-reference-linkedin"].exists)
+        preserveScreenshot("Agent sources separate files references and connections")
 
         app.terminate()
         app.launch()
@@ -74,8 +79,8 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("agent-studio").waitForExistence(timeout: 5))
         app.buttons["agent-open-sources"].tap()
         XCTAssertTrue(element("agent-sources").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Not added"].exists)
-        XCTAssertFalse(app.buttons["agent-clear-linkedin-url"].exists)
+        XCTAssertFalse(app.buttons["agent-reference-linkedin"].exists)
+        XCTAssertTrue(app.buttons["agent-add-profile-reference"].exists)
     }
 
     func testAgentStudioRemainsReachableInChineseAtAX5() {
@@ -105,7 +110,8 @@ final class CandidateSignalUITests: XCTestCase {
         sources.tap()
 
         XCTAssertTrue(element("agent-sources").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.textFields["agent-linkedin-url"].exists)
+        XCTAssertTrue(app.buttons["agent-import-contacts-file"].exists)
+        XCTAssertTrue(app.buttons["agent-add-profile-reference"].exists)
         let actionButton = app.buttons["agent-open-action-button"]
         scrollToVisible(actionButton)
         XCTAssertGreaterThanOrEqual(actionButton.frame.height, 44)
