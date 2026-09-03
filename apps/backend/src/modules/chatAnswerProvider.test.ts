@@ -51,6 +51,148 @@ function provider(
 }
 
 describe("Zhipu Chat answer provider", () => {
+  it("runs the bounded workspace contact Tool loop before its terminal reply", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "provider-tool-1",
+            model: "glm-5.3",
+            choices: [{
+              message: {
+                content: null,
+                tool_calls: [{
+                  id: "call-1",
+                  type: "function",
+                  function: {
+                    name: "contact_workspace",
+                    arguments: JSON.stringify({
+                      operation: "search",
+                      query: "Maya",
+                      maximum_results: 4,
+                    }),
+                  },
+                }],
+              },
+            }],
+            usage: { prompt_tokens: 20, completion_tokens: 5 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "provider-tool-2",
+            model: "glm-5.3",
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  outcome: "clarification",
+                  title: "Which Maya?",
+                  body: "Choose one relationship.",
+                }),
+              },
+            }],
+            usage: { prompt_tokens: 30, completion_tokens: 10 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    const invokeTool = vi.fn(async () => ({
+      ok: true,
+      callID: "tool-call-1",
+      name: "contact_workspace",
+      data: { result_count: 2 },
+    }));
+    const result = await new ZhipuChatAnswerProvider({
+      apiKey: "synthetic-zhipu-key",
+      model: "glm-5.3",
+      fetcher: fetcher as typeof fetch,
+    }).run(
+      {
+        runID: "run-1",
+        objective: "What changed with Maya?",
+        systemPrompt: "Stay inside the authorized account.",
+        scopeSummary: {
+          kind: "workspace_conversation",
+          workspaceID: "11111111-1111-4111-8111-111111111111",
+          sessionID: null,
+          currentPersonID: null,
+          currentRelationshipContextID: null,
+        },
+        toolManifest: ["contact_workspace"],
+        budget: {
+          maxTurns: 4,
+          maxToolCalls: 4,
+          maxDurationMs: 10_000,
+          maxTaskTokens: 4_000,
+          maxEstimatedUsd: 1,
+        },
+      },
+      invokeTool,
+      new AbortController().signal,
+    );
+
+    expect(invokeTool).toHaveBeenCalledWith("contact_workspace", {
+      operation: "search",
+      query: "Maya",
+      maximum_results: 4,
+    });
+    expect(result).toMatchObject({
+      structuredOutput: {
+        outcome: "clarification",
+        title: "Which Maya?",
+      },
+      inputTokens: 50,
+      outputTokens: 15,
+      turns: 2,
+    });
+    const secondRequest = JSON.parse(
+      String(fetcher.mock.calls[1]?.[1]?.body),
+    ) as Record<string, unknown>;
+    expect(secondRequest.tools).toBeDefined();
+  });
+
+  it("does not start a workspace contact Run after cancellation", async () => {
+    const fetcher = vi.fn() as unknown as typeof fetch;
+    const controller = new AbortController();
+    controller.abort(new Error("user cancelled"));
+
+    await expect(
+      new ZhipuChatAnswerProvider({
+        apiKey: "synthetic-zhipu-key",
+        model: "glm-5.3",
+        fetcher,
+      }).run(
+        {
+          runID: "cancelled-run",
+          objective: "Find Maya",
+          systemPrompt: "Stay inside the authorized account.",
+          scopeSummary: {
+            kind: "workspace_conversation",
+            workspaceID: "11111111-1111-4111-8111-111111111111",
+            sessionID: null,
+            currentPersonID: null,
+            currentRelationshipContextID: null,
+          },
+          toolManifest: ["contact_workspace"],
+          budget: {
+            maxTurns: 4,
+            maxToolCalls: 4,
+            maxDurationMs: 10_000,
+            maxTaskTokens: 4_000,
+            maxEstimatedUsd: 1,
+          },
+        },
+        vi.fn(),
+        controller.signal,
+      ),
+    ).rejects.toThrow("user cancelled");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("returns one citation-bound question set without putting the key in the body", async () => {
     const result = await provider(
       {

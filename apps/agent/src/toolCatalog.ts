@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   CreateResearchArtifactInputSchema,
+  ContactWorkspaceToolInputSchema,
   CreatePersonResearchArtifactInputSchema,
   FetchWebInputSchema,
   ReadEvidenceInputSchema,
@@ -14,6 +15,7 @@ import type { AgentToolName } from "./types.js";
 
 export type AgentCapabilityClass =
   | "scoped_read"
+  | "contact_workspace"
   | "public_discovery"
   | "public_fetch"
   | "public_profile_discovery"
@@ -166,6 +168,18 @@ export const AGENT_TOOL_CATALOG: Readonly<
     reversibility: "discardable",
     idempotency: "content_fingerprint",
   },
+  contact_workspace: {
+    description:
+      "Search or read one authenticated-account contact, or stage a review-only contact create/update proposal. Search queries must be grounded in the user's message. This tool cannot apply, merge, message, schedule, or publish anything.",
+    schema: ContactWorkspaceToolInputSchema,
+    readOnly: false,
+    openWorld: false,
+    capabilityClass: "contact_workspace",
+    consequence: "durable_candidate",
+    approval: "human_review_before_apply",
+    reversibility: "discardable",
+    idempotency: "content_fingerprint",
+  },
 });
 
 export function agentToolJsonSchema(name: AgentToolName): Record<string, unknown> {
@@ -180,6 +194,9 @@ export function agentToolJsonSchema(name: AgentToolName): Record<string, unknown
 export function candidateToolNames(
   manifest: readonly AgentToolName[],
 ): readonly AgentToolName[] {
+  if (manifest.includes("contact_workspace")) {
+    return ["contact_workspace"];
+  }
   if (manifest.includes("create_person_research_artifact")) {
     return ["create_person_research_artifact"];
   }
@@ -190,7 +207,10 @@ export function candidateToolNames(
 
 export function candidateOutcome(
   manifest: readonly AgentToolName[],
-): "proposal" | "artifact" | "person_research_artifact" {
+): "proposal" | "artifact" | "person_research_artifact" | "contact_change_proposal" {
+  if (manifest.includes("contact_workspace")) {
+    return "contact_change_proposal";
+  }
   if (manifest.includes("create_person_research_artifact")) {
     return "person_research_artifact";
   }

@@ -850,6 +850,81 @@ describe("multichannel relationship-resource contracts", () => {
     ).toBe(false);
   });
 
+  it("validates bounded contact Agent events and mandatory proposal review", () => {
+    const baseResponse = {
+      contract_version: CONTRACT_VERSION,
+      task_id: taskId,
+      disposition: "clarify" as const,
+      blocks: [
+        {
+          id: blockId,
+          kind: "clarification",
+          title: "Which relationship?",
+          body: "Choose one relationship.",
+          status: "needs_review",
+          citation_dependency_ids: [],
+          requires_user_decision: true,
+        },
+      ],
+      external_effects: [],
+      created_at: "2026-09-03T00:00:00.000Z",
+    };
+    expect(
+      Value.Check(UnscopedChatTaskResponseSchema, {
+        ...baseResponse,
+        agent_event: {
+          kind: "contact_candidates",
+          candidates: [
+            {
+              person_id: personId,
+              person_display_label: "Maya Chen",
+              relationship_context_id: contextId,
+              relationship_context_display_label: "CPO search",
+            },
+          ],
+          possible_duplicate: false,
+          tool_summary: "Contact search · 1 possible relationship",
+        },
+      }),
+    ).toBe(true);
+
+    const proposal = {
+      ...baseResponse,
+      disposition: "answer" as const,
+      blocks: [
+        {
+          ...baseResponse.blocks[0],
+          kind: "identity_review",
+          title: "Contact change proposed",
+        },
+      ],
+      agent_event: {
+        kind: "contact_change_proposal",
+        proposal_kind: "create",
+        candidate_fingerprint: "a".repeat(64),
+        display_name: "Maya Chen",
+        relationship_context: "CPO search",
+        identity_clue: null,
+        source_excerpts: ["Maya Chen", "CPO search"],
+        reason: "The recruiter requested a draft.",
+        target_person_id: null,
+        target_relationship_context_id: null,
+        base_revision: null,
+        requires_user_confirmation: true,
+      },
+    };
+    expect(Value.Check(UnscopedChatTaskResponseSchema, proposal)).toBe(true);
+    expect(
+      Value.Check(UnscopedChatTaskResponseSchema, {
+        ...proposal,
+        agent_event: {
+          ...proposal.agent_event,
+          requires_user_confirmation: false,
+        },
+      }),
+    ).toBe(false);
+  });
+
   it("bounds scoped Chat media without granting evidence authority", () => {
     const media = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",

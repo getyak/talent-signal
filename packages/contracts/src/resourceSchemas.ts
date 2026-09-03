@@ -1674,6 +1674,86 @@ export const UnscopedChatTaskRequestSchema = Type.Object(
   { $id: "UnscopedChatTaskRequest", additionalProperties: false },
 );
 
+export const WorkspaceConversationAgentEventSchema = Type.Union([
+  Type.Object(
+    {
+      kind: Type.Literal("resolved_contact_context"),
+      person_id: Id,
+      person_display_label: Type.String({ minLength: 1, maxLength: 200 }),
+      relationship_context_id: Id,
+      relationship_context_display_label: Type.String({
+        minLength: 1,
+        maxLength: 200,
+      }),
+      tool_summary: Type.String({ minLength: 1, maxLength: 240 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("contact_candidates"),
+      candidates: Type.Array(
+        Type.Object(
+          {
+            person_id: Id,
+            person_display_label: Type.String({ minLength: 1, maxLength: 200 }),
+            relationship_context_id: Id,
+            relationship_context_display_label: Type.String({
+              minLength: 1,
+              maxLength: 200,
+            }),
+          },
+          { additionalProperties: false },
+        ),
+        { minItems: 1, maxItems: 6 },
+      ),
+      possible_duplicate: Type.Boolean(),
+      tool_summary: Type.String({ minLength: 1, maxLength: 240 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("contact_change_proposal"),
+      proposal_kind: Type.Union([
+        Type.Literal("create"),
+        Type.Literal("update"),
+      ]),
+      candidate_fingerprint: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+      display_name: Type.String({ minLength: 1, maxLength: 200 }),
+      relationship_context: Type.String({ minLength: 1, maxLength: 200 }),
+      identity_clue: Type.Union([
+        Type.Object(
+          {
+            type: Type.Union([
+              Type.Literal("email"),
+              Type.Literal("phone"),
+              Type.Literal("linkedin_url"),
+              Type.Literal("public_profile_url"),
+            ]),
+            value: Type.String({ minLength: 1, maxLength: 500 }),
+          },
+          { additionalProperties: false },
+        ),
+        Type.Null(),
+      ]),
+      source_excerpts: Type.Array(
+        Type.String({ minLength: 1, maxLength: 1_000 }),
+        { minItems: 1, maxItems: 5 },
+      ),
+      reason: Type.String({ minLength: 1, maxLength: 500 }),
+      target_person_id: Type.Union([Id, Type.Null()]),
+      target_relationship_context_id: Type.Union([Id, Type.Null()]),
+      base_revision: Type.Union([
+        Type.Integer({ minimum: 1 }),
+        Type.Null(),
+      ]),
+      requires_user_confirmation: Type.Literal(true),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
 export const UnscopedChatTaskResponseSchema = Type.Object(
   {
     contract_version: Type.Literal(CONTRACT_VERSION),
@@ -1686,6 +1766,9 @@ export const UnscopedChatTaskResponseSchema = Type.Object(
       minItems: 1,
       maxItems: 1,
     }),
+    agent_event: Type.Optional(
+      Type.Union([WorkspaceConversationAgentEventSchema, Type.Null()]),
+    ),
     external_effects: Type.Tuple([]),
     created_at: Timestamp,
   },
@@ -2154,6 +2237,9 @@ export type ChatTaskReadback = Static<typeof ChatTaskReadbackSchema>;
 export type ChatTaskRequest = Static<typeof ChatTaskRequestSchema>;
 export type UnscopedChatTaskRequest = Static<
   typeof UnscopedChatTaskRequestSchema
+>;
+export type WorkspaceConversationAgentEvent = Static<
+  typeof WorkspaceConversationAgentEventSchema
 >;
 export type UnscopedChatTaskResponse = Static<
   typeof UnscopedChatTaskResponseSchema

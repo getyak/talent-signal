@@ -133,6 +133,92 @@ export const StageProposalInputSchema = z.strictObject({
   summary: z.string().trim().min(1).max(1_000),
   items: z.array(ProposalItemSchema).min(1).max(50),
 });
+
+const ContactIdentityClueSchema = z.strictObject({
+  type: z.enum([
+    "email",
+    "phone",
+    "linkedin_url",
+    "public_profile_url",
+  ]),
+  value: z.string().trim().min(1).max(500),
+});
+
+const ContactSourceExcerptSchema = z.string().trim().min(1).max(1_000);
+
+export const ContactWorkspaceInputSchema = z.discriminatedUnion("operation", [
+  z.strictObject({
+    operation: z.literal("search"),
+    query: z.string().trim().min(2).max(200),
+    maximum_results: z.number().int().min(1).max(6).default(4),
+  }),
+  z.strictObject({
+    operation: z.literal("read"),
+    person_id: Id,
+    relationship_context_id: Id,
+  }),
+  z.strictObject({
+    operation: z.literal("propose_create"),
+    display_name: z.string().trim().min(1).max(200),
+    relationship_context: z.string().trim().min(1).max(200),
+    identity_clue: ContactIdentityClueSchema.nullable().default(null),
+    source_excerpts: z.array(ContactSourceExcerptSchema).min(1).max(5),
+    reason: z.string().trim().min(1).max(500),
+  }),
+  z.strictObject({
+    operation: z.literal("propose_update"),
+    person_id: Id,
+    relationship_context_id: Id.nullable().default(null),
+    base_revision: z.number().int().min(1),
+    display_name: z.string().trim().min(1).max(200),
+    relationship_context: z.string().trim().min(1).max(200),
+    identity_clue: ContactIdentityClueSchema.nullable().default(null),
+    source_excerpts: z.array(ContactSourceExcerptSchema).min(1).max(5),
+    reason: z.string().trim().min(1).max(500),
+  }),
+]);
+
+// Claude's in-process MCP helper consumes a Zod object shape. Keep this
+// model-facing superset object beside the discriminated boundary parser; the
+// executor always validates again with ContactWorkspaceInputSchema.
+export const ContactWorkspaceToolInputSchema = z.strictObject({
+  operation: z.enum(["search", "read", "propose_create", "propose_update"]),
+  query: z.string().trim().min(2).max(200).optional(),
+  maximum_results: z.number().int().min(1).max(6).optional(),
+  person_id: Id.optional(),
+  relationship_context_id: Id.nullable().optional(),
+  base_revision: z.number().int().min(1).optional(),
+  display_name: z.string().trim().min(1).max(200).optional(),
+  relationship_context: z.string().trim().min(1).max(200).optional(),
+  identity_clue: ContactIdentityClueSchema.nullable().optional(),
+  source_excerpts: z.array(ContactSourceExcerptSchema).min(1).max(5).optional(),
+  reason: z.string().trim().min(1).max(500).optional(),
+});
+
+export const WorkspaceConversationFinalOutputSchema = z.discriminatedUnion(
+  "outcome",
+  [
+    z.strictObject({
+      outcome: z.literal("reply"),
+      title: z.string().trim().min(1).max(160),
+      body: z.string().trim().min(1).max(4_000),
+    }),
+    z.strictObject({
+      outcome: z.literal("clarification"),
+      title: z.string().trim().min(1).max(160),
+      body: z.string().trim().min(1).max(1_000),
+    }),
+    z.strictObject({
+      outcome: z.literal("use_contact"),
+      person_id: Id,
+      relationship_context_id: Id,
+    }),
+    z.strictObject({
+      outcome: z.literal("contact_change_proposal"),
+      candidate_fingerprint: z.string().regex(/^[0-9a-f]{64}$/u),
+    }),
+  ],
+);
 export const PursuitNoActionReasonCodeSchema = z.enum([
   "NO_MATERIAL_CHANGE",
   "INSUFFICIENT_EVIDENCE",
@@ -214,6 +300,12 @@ export const AgentFinalOutputSchema = z.discriminatedUnion("outcome", [
 ]);
 
 export type StageProposalInput = z.infer<typeof StageProposalInputSchema>;
+export type ContactWorkspaceInput = z.infer<
+  typeof ContactWorkspaceInputSchema
+>;
+export type WorkspaceConversationFinalOutput = z.infer<
+  typeof WorkspaceConversationFinalOutputSchema
+>;
 export type NoActionOutput = z.infer<typeof NoActionOutputSchema>;
 export type PursuitNoActionOutput = z.infer<
   typeof PursuitNoActionOutputSchema

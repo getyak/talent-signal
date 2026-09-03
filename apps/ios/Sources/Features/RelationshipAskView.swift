@@ -367,10 +367,6 @@ struct RelationshipAskView: View {
     @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
     @State private var isSending = false
-    @State private var isInterpretingContact = false
-    @State private var contactInterpretationTask: Task<Void, Never>?
-    @State private var contactInterpretationSource: String?
-    @State private var contactInterpretationNotice: String?
     @State private var pendingObjective: String?
     @State private var pendingScopedSend: String?
     @State private var relationshipRecallPhase: RelationshipRecallPhase = .idle
@@ -437,7 +433,8 @@ struct RelationshipAskView: View {
                     composer
                     Text(
                         appLanguage.text(
-                            "I’ll find the relevant relationship after you send."
+                            "Send naturally. Agent uses contact context only when it helps.",
+                            zhHans: "直接发送即可。Agent 只会在有帮助时使用联系人上下文。"
                         )
                     )
                     .font(.caption)
@@ -641,9 +638,9 @@ struct RelationshipAskView: View {
                         originalDraft: recoverableObjective
                     )
                 } else {
-                    relationshipRecallPhase = .finding
-                    updateAskSubmissionPhase(.routingLocally)
-                    startRelationshipRecall(
+                    relationshipRecallPhase = .replyingWithoutRelationship
+                    updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+                    performUnscopedChat(
                         sessionID: sessionID,
                         effectiveObjective: recoverableObjective,
                         originalDraft: recoverableObjective
@@ -694,12 +691,6 @@ struct RelationshipAskView: View {
         }
         .onChange(of: draft) { value in
             guard !isSending else { return }
-            if contactInterpretationNotice != nil,
-               value.trimmingCharacters(in: .whitespacesAndNewlines)
-                != contactInterpretationSource {
-                contactInterpretationNotice = nil
-                contactInterpretationSource = nil
-            }
             if selectedScope == nil,
                value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 isRequestingScope = false
@@ -771,8 +762,6 @@ struct RelationshipAskView: View {
             flushDraftPersistence()
             askOperation?.cancel()
             askOperation = nil
-            contactInterpretationTask?.cancel()
-            contactInterpretationTask = nil
             voiceOperation?.cancel()
             voiceOperation = nil
             voiceInput.cancel()
@@ -897,16 +886,17 @@ struct RelationshipAskView: View {
             .accessibilityIdentifier("ask-scope-selector")
 
             if isChoosingScope {
-                if requiresPreferredScopeSelection {
+                if isResolvingPreferredPerson {
                     Text(
                         appLanguage.text(
-                            "Choose one relationship before sending. Agent will stay inside this person’s record."
+                            "Choosing a relationship is optional. Otherwise Agent will resolve it after Send.",
+                            zhHans: "选择关系是可选的；未选择时，Agent 会在发送后判断。"
                         )
                     )
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("ask-preferred-scope-required")
+                    .accessibilityIdentifier("ask-preferred-scope-optional")
                 }
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
@@ -1395,7 +1385,6 @@ struct RelationshipAskView: View {
         let controlSize = composerControlSize
 
         return VStack(spacing: 8) {
-            contactInterpretationStatus
             askSubmissionStatus
             voiceInputStatus
 
@@ -1583,7 +1572,6 @@ struct RelationshipAskView: View {
     private var composerInputDisabled: Bool {
         voiceInput.isBusy
             || isSending
-            || isInterpretingContact
             || hasBlockingContactProposal
             || pendingObjective != nil
     }
@@ -1804,7 +1792,6 @@ struct RelationshipAskView: View {
         .disabled(
             voiceInput.isBusy
                 || isSending
-                || isInterpretingContact
                 || hasBlockingContactProposal
                 || mediaDrafts.count >= 10
         )
@@ -1880,46 +1867,6 @@ struct RelationshipAskView: View {
                 )
             )
             .accessibilityIdentifier("ask-submission-requesting")
-        }
-    }
-
-    @ViewBuilder
-    private var contactInterpretationStatus: some View {
-        if isInterpretingContact {
-            HStack(spacing: 10) {
-                ProgressView()
-                    .tint(Color.tsInk)
-                Text(appLanguage.text("Understanding this message…"))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.tsInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("ask-contact-interpreting")
-                Spacer(minLength: 8)
-                Button(appLanguage.text("Cancel")) {
-                    cancelContactInterpretation()
-                }
-                .font(.caption.weight(.semibold))
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("ask-contact-interpretation-cancel")
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
-        } else if let contactInterpretationNotice {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "person.crop.circle.badge.questionmark")
-                    .foregroundStyle(Color.tsMutedInk)
-                    .accessibilityHidden(true)
-                Text(contactInterpretationNotice)
-                    .font(.caption)
-                    .foregroundStyle(Color.tsInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 16))
-            .accessibilityIdentifier("ask-contact-clarification")
         }
     }
 
@@ -2082,7 +2029,6 @@ struct RelationshipAskView: View {
     private var composerPrimaryDisabled: Bool {
         if isComposerComposing { return true }
         if hasBlockingContactProposal { return true }
-        if isInterpretingContact { return true }
         if pendingObjective != nil { return true }
         if hasComposerInput { return !canSendDraft }
         if voiceInput.phase == .transcribing
@@ -2099,19 +2045,8 @@ struct RelationshipAskView: View {
         if isSending {
             return appLanguage.text("Reading the record…")
         }
-        if isInterpretingContact {
-            return appLanguage.text("Understanding this message…")
-        }
         if hasComposerInput {
-            if requiresPreferredScopeSelection {
-                return appLanguage.text("Choose a relationship before sending")
-            }
-            return selectedScope == nil
-                ? appLanguage.text(
-                    "Send and let Agent link the relationship",
-                    zhHans: "发送并由 Agent 关联关系"
-                )
-                : appLanguage.text("Send", zhHans: "发送")
+            return appLanguage.text("Send", zhHans: "发送")
         }
         if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
         if voiceTranscriber == nil { return appLanguage.text("Record voice") }
@@ -2120,9 +2055,10 @@ struct RelationshipAskView: View {
 
     private var composerPrimaryAccessibilityHint: String {
         if hasComposerInput {
-            return requiresPreferredScopeSelection
+            return selectedScope == nil
                 ? appLanguage.text(
-                    "Select one of this person’s visible relationships first."
+                    "Agent may search your account contacts when this message needs relationship context.",
+                    zhHans: "如果这条消息需要关系上下文，Agent 可能会搜索你的账户联系人。"
                 )
                 : ""
         }
@@ -2244,7 +2180,6 @@ struct RelationshipAskView: View {
             && selectedScope == nil
             && !isChoosingScope
             && !isSending
-            && !isInterpretingContact
             && !isRequestingScope
             && errorMessage == nil
             && reviewPreparationError == nil
@@ -2526,24 +2461,14 @@ struct RelationshipAskView: View {
             && (selectedScope != nil || isRequestingScope || isChoosingScope)
     }
 
-    private var requiresPreferredScopeSelection: Bool {
-        !AgentPreferredPersonScopePolicy.canSubmit(
-            preferredPersonID: preferredPersonID,
-            selectedPersonID: selectedScope?.person.id
-        )
+    private var isResolvingPreferredPerson: Bool {
+        guard let preferredPersonID else { return false }
+        return selectedScope?.person.id != preferredPersonID
     }
 
     private var canSendDraft: Bool {
-        guard !requiresPreferredScopeSelection else { return false }
-        let isContactIntent = ConversationContactIntake.propose(trimmedDraft) != nil
-        if isContactIntent, mediaDrafts.isEmpty {
-            return !isSending
-                && !isInterpretingContact
-                && !isSavingContact
-        }
         return hasComposerInput
             && !isSending
-            && !isInterpretingContact
             && !isSavingContact
             && mediaDrafts.allSatisfy {
                 if case .failed = $0.phase { return false }
@@ -2886,8 +2811,7 @@ struct RelationshipAskView: View {
                 hasCommittedInput: !trimmed.isEmpty || !mediaDrafts.isEmpty,
                 isComposing: isComposerComposing
               ),
-              !isSending,
-              !isInterpretingContact else { return }
+              !isSending else { return }
         if mediaDrafts.isEmpty,
            let localIntent = AgentLocalWorkspacePolicy.intent(for: trimmed) {
             flushDraftPersistence()
@@ -2898,29 +2822,9 @@ struct RelationshipAskView: View {
             )
             return
         }
-        guard !requiresPreferredScopeSelection else {
-            isChoosingScope = true
-            presentationDetent = .large
-            composerFocused = false
-            errorMessage = appLanguage.text(
-                "Choose one relationship for this person before sending."
-            )
-            return
-        }
         sourceReviewNotice = nil
         errorRecovery = .retry
         flushDraftPersistence()
-        if mediaDrafts.isEmpty,
-           let deterministicProposal = ConversationContactIntake.propose(trimmed) {
-            // Keep even deterministic contact understanding cancellable. The
-            // async boundary preserves the review/cancel affordance without
-            // asking the adaptive model to re-classify an already exact draft.
-            beginContactInterpretation(
-                trimmed,
-                deterministicProposal: deterministicProposal
-            )
-            return
-        }
         let screenshotRoute = AskScreenshotResearchRoutingPolicy.route(
             hasSelectedRelationship: selectedScope != nil,
             mediaTypes: mediaDrafts.map(\.mediaType)
@@ -2942,12 +2846,6 @@ struct RelationshipAskView: View {
                     "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step."
                 )
             : trimmed
-        if mediaDrafts.isEmpty,
-           ConversationContactIntake.requiresContactClarification(trimmed) {
-            pendingScopedSend = effectiveObjective
-            beginContactInterpretation(trimmed)
-            return
-        }
         if (selectedScope != nil || isUnscopedPersonResearch), !isCanonical {
             errorMessage = appLanguage.text(
                 "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
@@ -3005,24 +2903,10 @@ struct RelationshipAskView: View {
             )
             return
         }
-        if mediaDrafts.isEmpty,
-           AgentUnscopedConversationPolicy.route(
-               objective: effectiveObjective
-           ) == .directConversation {
-            relationshipRecallPhase = .replyingWithoutRelationship
-            updateAskSubmissionPhase(.requestingWorkspaceAnswer)
-            presentationDetent = .large
-            performUnscopedChat(
-                sessionID: unscopedSessionID,
-                effectiveObjective: effectiveObjective,
-                originalDraft: trimmed
-            )
-            return
-        }
-        relationshipRecallPhase = .finding
-        updateAskSubmissionPhase(.routingLocally)
+        relationshipRecallPhase = .replyingWithoutRelationship
+        updateAskSubmissionPhase(.requestingWorkspaceAnswer)
         presentationDetent = .large
-        startRelationshipRecall(
+        performUnscopedChat(
             sessionID: unscopedSessionID,
             effectiveObjective: effectiveObjective,
             originalDraft: trimmed
@@ -3130,6 +3014,50 @@ struct RelationshipAskView: View {
         }
 
         if !isCanonical {
+#if DEBUG
+            if ProcessInfo.processInfo.arguments.contains(
+                "--fixture-agent-contact-proposal"
+            ), var proposal = ConversationContactIntake.propose(
+                effectiveObjective
+            ) {
+                proposal.interpreter = .workspaceAgent
+                let digest = SHA256.hash(data: Data(effectiveObjective.utf8))
+                    .map { String(format: "%02x", $0) }
+                    .joined()
+                let proposalOperationKey = "ios:fixture-agent-contact:\(digest)"
+                guard sessionStore.promoteUnscopedChatToContactProposal(
+                    sessionID: sessionID,
+                    objective: effectiveObjective,
+                    unscopedChatIdempotencyKey: idempotencyKey,
+                    draft: proposal,
+                    proposalIdempotencyKey: proposalOperationKey,
+                    clearingGlobalDraft: true
+                ) else {
+                    isSending = false
+                    pendingObjective = nil
+                    pendingScopedSend = nil
+                    relationshipRecallPhase = .idle
+                    updateAskSubmissionPhase(.idle)
+                    draft = originalDraft
+                    errorMessage = appLanguage.text(
+                        "The preview proposal could not be protected."
+                    )
+                    return
+                }
+                pendingObjective = nil
+                pendingScopedSend = nil
+                relationshipRecallPhase = .idle
+                updateAskSubmissionPhase(.idle)
+                sessionStore.saveGlobalDraft("")
+                isSending = false
+                stageContactProposal(
+                    proposal,
+                    operationKey: proposalOperationKey,
+                    proposalIsProtected: true
+                )
+                return
+            }
+#endif
             let response = previewUnscopedResponse(for: effectiveObjective)
             guard sessionStore.recordUnscopedChat(
                 sessionID: sessionID,
@@ -3158,6 +3086,7 @@ struct RelationshipAskView: View {
 
         askOperation?.cancel()
         askOperation = Task {
+            var continuationScope: AskScope?
             do {
                 let response = try await workspaceStore.chatUnscoped(
                     objective: effectiveObjective,
@@ -3166,18 +3095,105 @@ struct RelationshipAskView: View {
                 try Task.checkCancellation()
                 guard activeSessionID == sessionID,
                       pendingScopedSend == effectiveObjective else { return }
-                guard sessionStore.recordUnscopedChat(
-                    sessionID: sessionID,
-                    objective: effectiveObjective,
-                    response: response.relationshipAskProjection
-                ) else {
-                    throw PursuitWorkspaceClientError.invalidResponse
+                if [
+                    "contact_candidates",
+                    "resolved_contact_context",
+                    "contact_change_proposal",
+                ]
+                    .contains(response.agentEvent?.kind ?? "") {
+                    await workspaceStore.load()
+                    try Task.checkCancellation()
+                    guard activeSessionID == sessionID,
+                          pendingScopedSend == effectiveObjective else { return }
                 }
-                pendingObjective = nil
-                pendingScopedSend = nil
-                relationshipRecallPhase = .idle
-                updateAskSubmissionPhase(.idle)
-                sessionStore.saveGlobalDraft("")
+                if response.agentEvent?.kind == "contact_candidates" {
+                    guard let event = response.agentEvent,
+                          let eventCandidates = event.candidates else {
+                        throw PursuitWorkspaceClientError.invalidResponse
+                    }
+                    let candidates: [AgentRelationshipRecallCandidate] =
+                        eventCandidates.compactMap { item -> AgentRelationshipRecallCandidate? in
+                        guard let person = currentSnapshot.people.first(where: {
+                            $0.id == item.personID
+                        }),
+                        let context = person.contexts.first(where: {
+                            $0.id == item.relationshipContextID
+                        }) else { return nil }
+                        return AgentRelationshipRecallCandidate(
+                            person: person,
+                            context: context,
+                            matchScore: 0,
+                            matchedPersonName: true,
+                            matchedContextName: false,
+                            matchedRecentSession: false
+                        )
+                    }
+                    guard candidates.count == eventCandidates.count else {
+                        throw PursuitWorkspaceClientError.scopeReadbackMismatch
+                    }
+                    relationshipRecallPhase = .ambiguous(
+                        candidates: candidates,
+                        possibleDuplicate: event.possibleDuplicate ?? false
+                    )
+                    updateAskSubmissionPhase(.idle)
+                } else if response.agentEvent?.kind == "resolved_contact_context" {
+                    guard let event = response.agentEvent,
+                          let personID = event.personID,
+                          let contextID = event.relationshipContextID,
+                          let person = currentSnapshot.people.first(where: {
+                              $0.id == personID
+                          }),
+                          let context = person.contexts.first(where: {
+                              $0.id == contextID
+                          }),
+                          sessionStore.bindUnscopedSession(
+                              id: sessionID,
+                              person: person,
+                              context: context
+                          ) else {
+                        throw PursuitWorkspaceClientError.scopeReadbackMismatch
+                    }
+                    let candidate = AgentRelationshipRecallCandidate(
+                        person: person,
+                        context: context,
+                        matchScore: 0,
+                        matchedPersonName: true,
+                        matchedContextName: true,
+                        matchedRecentSession: false
+                    )
+                    let scope = AskScope(person: person, context: context)
+                    selectedScope = scope
+                    continuationScope = scope
+                    relationshipRecallPhase = .reading(candidate)
+                } else {
+                    if let event = response.agentEvent,
+                       event.kind == "contact_change_proposal" {
+                        guard stageAgentContactProposal(
+                            event,
+                            source: originalDraft.isEmpty
+                                ? effectiveObjective
+                                : originalDraft,
+                            sessionID: sessionID,
+                            objective: effectiveObjective,
+                            unscopedChatIdempotencyKey: idempotencyKey
+                        ) else {
+                            throw PursuitWorkspaceClientError.invalidResponse
+                        }
+                    } else {
+                        guard sessionStore.recordUnscopedChat(
+                            sessionID: sessionID,
+                            objective: effectiveObjective,
+                            response: response.relationshipAskProjection
+                        ) else {
+                            throw PursuitWorkspaceClientError.invalidResponse
+                        }
+                    }
+                    pendingObjective = nil
+                    pendingScopedSend = nil
+                    relationshipRecallPhase = .idle
+                    updateAskSubmissionPhase(.idle)
+                    sessionStore.saveGlobalDraft("")
+                }
             } catch {
                 if Task.isCancelled { return }
                 draft = originalDraft
@@ -3189,6 +3205,14 @@ struct RelationshipAskView: View {
             }
             isSending = false
             askOperation = nil
+            if let continuationScope {
+                isSending = true
+                performScopedAsk(
+                    effectiveObjective: effectiveObjective,
+                    originalDraft: originalDraft,
+                    scope: continuationScope
+                )
+            }
         }
     }
 
@@ -3332,91 +3356,6 @@ struct RelationshipAskView: View {
             effectiveObjective: effectiveObjective,
             originalDraft: effectiveObjective
         )
-    }
-
-    private func startRelationshipRecall(
-        sessionID: UUID,
-        effectiveObjective: String,
-        originalDraft: String
-    ) {
-        Task {
-            await Task.yield()
-            if !reduceMotion {
-                try? await Task.sleep(for: .milliseconds(180))
-            }
-            guard activeSessionID == sessionID,
-                  pendingScopedSend == effectiveObjective else { return }
-            let routingObjective = ([effectiveObjective] + mediaDrafts.map(\.routingText))
-                .filter { !$0.isEmpty }
-                .joined(separator: "\n")
-            var recallPeople = currentSnapshot.people
-            if isCanonical,
-               let identityClue = ConversationContactIntake.identityClue(
-                    in: routingObjective
-               ),
-               let authoritativeMatches = try? await workspaceStore
-                    .findContactMatches(identityClue: identityClue),
-               !authoritativeMatches.isEmpty {
-                recallPeople = authoritativeMatches
-            }
-            guard activeSessionID == sessionID,
-                  pendingScopedSend == effectiveObjective else { return }
-            let outcome = AgentRelationshipRecallPolicy.resolve(
-                objective: routingObjective,
-                people: recallPeople,
-                recentSessions: sessionStore.sessions.filter {
-                    $0.id != sessionID
-                }
-            )
-            handleRecallOutcome(
-                outcome,
-                sessionID: sessionID,
-                effectiveObjective: effectiveObjective,
-                originalDraft: originalDraft
-            )
-        }
-    }
-
-    private func handleRecallOutcome(
-        _ outcome: AgentRelationshipRecallOutcome,
-        sessionID: UUID,
-        effectiveObjective: String,
-        originalDraft: String
-    ) {
-        switch outcome {
-        case let .matched(candidate):
-            guard bindRecalledCandidate(candidate, to: sessionID) else {
-                isSending = false
-                pendingObjective = nil
-                draft = originalDraft
-                updateAskSubmissionPhase(.idle)
-                errorMessage = appLanguage.text(
-                    "The relationship was found, but the Session could not save that context. Nothing was sent."
-                )
-                return
-            }
-            relationshipRecallPhase = .reading(candidate)
-            isSending = true
-            performScopedAsk(
-                effectiveObjective: effectiveObjective,
-                originalDraft: originalDraft,
-                scope: AskScope(
-                    person: candidate.person,
-                    context: candidate.context
-                )
-            )
-        case let .ambiguous(candidates, possibleDuplicate):
-            updateAskSubmissionPhase(.idle)
-            relationshipRecallPhase = .ambiguous(
-                candidates: candidates,
-                possibleDuplicate: possibleDuplicate
-            )
-            isSending = false
-        case let .unresolved(recent):
-            updateAskSubmissionPhase(.idle)
-            relationshipRecallPhase = .unresolved(recent: recent)
-            isSending = false
-        }
     }
 
     private func chooseRecallCandidate(
@@ -3720,71 +3659,6 @@ struct RelationshipAskView: View {
         .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func beginContactInterpretation(
-        _ source: String,
-        deterministicProposal: ConversationContactDraft? = nil
-    ) {
-        contactInterpretationTask?.cancel()
-        contactInterpretationSource = source
-        contactInterpretationNotice = nil
-        errorMessage = nil
-        isInterpretingContact = true
-        composerFocused = false
-        contactInterpretationTask = Task {
-            do {
-                try await waitForFixtureContactInterpretationIfNeeded()
-            } catch {
-                return
-            }
-            let result: ConversationContactInterpretation
-            if let deterministicProposal {
-                await Task.yield()
-                result = .contact(deterministicProposal)
-            } else {
-                result = await AdaptiveConversationContactIntentInterpreter()
-                    .interpret(source)
-            }
-            guard !Task.isCancelled,
-                  contactInterpretationSource == source else { return }
-            isInterpretingContact = false
-            contactInterpretationTask = nil
-            switch result {
-            case let .contact(proposal):
-                contactInterpretationSource = nil
-                stageContactProposal(proposal)
-            case .notContact:
-                contactInterpretationSource = nil
-                requestRelationshipScope()
-            case .needsClarification:
-                pendingScopedSend = nil
-                contactInterpretationNotice = appLanguage.text(
-                    "I couldn't support a contact name from this message. Add the person's name, or choose a relationship to ask about it."
-                )
-                composerFocused = true
-            }
-        }
-    }
-
-    private func waitForFixtureContactInterpretationIfNeeded() async throws {
-#if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        guard let flagIndex = arguments.firstIndex(
-            of: "--fixture-contact-interpretation-delay-seconds"
-        ), arguments.indices.contains(flagIndex + 1),
-           let seconds = Double(arguments[flagIndex + 1]),
-           seconds > 0 else { return }
-        try await Task.sleep(for: .milliseconds(Int(seconds * 1_000)))
-#endif
-    }
-
-    private func cancelContactInterpretation() {
-        contactInterpretationTask?.cancel()
-        contactInterpretationTask = nil
-        contactInterpretationSource = nil
-        isInterpretingContact = false
-        composerFocused = true
-    }
-
     private func requestRelationshipScope() {
         errorMessage = nil
         isRequestingScope = true
@@ -3795,16 +3669,21 @@ struct RelationshipAskView: View {
         }
     }
 
-    private func stageContactProposal(_ proposedContact: ConversationContactDraft) {
+    private func stageContactProposal(
+        _ proposedContact: ConversationContactDraft,
+        operationKey: String? = nil,
+        suggestedPersonID: String? = nil,
+        suggestedContextID: String? = nil,
+        proposalIsProtected: Bool = false
+    ) {
         pendingScopedSend = nil
         errorMessage = nil
-        contactInterpretationNotice = nil
-        contactInterpretationSource = nil
         isChoosingScope = false
         isRequestingScope = false
         presentationDetent = .large
         contactDraft = proposedContact
-        contactOperationKey = "ios:contact:\(UUID().uuidString.lowercased())"
+        contactOperationKey = operationKey
+            ?? "ios:contact:\(UUID().uuidString.lowercased())"
         pendingContactTarget = nil
         pendingContactCapturedAt = nil
         pendingContactConfirmIdentityClue = nil
@@ -3815,8 +3694,19 @@ struct RelationshipAskView: View {
         confirmContactIdentityClue = proposedContact.identityClue != nil
         contactSaveMessage = nil
         contactSaveError = nil
-        startContactLookup(for: proposedContact)
-        if let contactOperationKey,
+        if let suggestedPersonID,
+           let suggestedPerson = currentSnapshot.people.first(where: {
+               $0.id == suggestedPersonID
+           }) {
+            contactCandidates = [suggestedPerson]
+            contactLookupPhase = .complete
+            selectedContactPersonID = suggestedPersonID
+            selectedContactContextID = suggestedContextID
+        } else {
+            startContactLookup(for: proposedContact)
+        }
+        if !proposalIsProtected,
+           let contactOperationKey,
            !sessionStore.saveContactProposal(
                 proposedContact,
                 idempotencyKey: contactOperationKey,
@@ -3828,6 +3718,77 @@ struct RelationshipAskView: View {
         }
         draft = ""
         composerFocused = false
+    }
+
+    private func stageAgentContactProposal(
+        _ event: UnscopedChatTaskResponse.AgentEvent,
+        source: String,
+        sessionID: UUID,
+        objective: String,
+        unscopedChatIdempotencyKey: String
+    ) -> Bool {
+        guard event.requiresUserConfirmation == true,
+              let fingerprint = event.candidateFingerprint,
+              let displayName = event.displayName,
+              let relationshipContext = event.relationshipContext else {
+            return false
+        }
+        if event.proposalKind == "update" {
+            guard let targetPersonID = event.targetPersonID,
+                  let baseRevision = event.baseRevision,
+                  let person = currentSnapshot.people.first(where: {
+                      $0.id == targetPersonID
+                  }),
+                  (person.profile?.revision ?? 1) == baseRevision,
+                  person.displayLabel.compare(
+                      displayName,
+                      options: [.caseInsensitive, .diacriticInsensitive]
+                  ) == .orderedSame else {
+                return false
+            }
+            if let targetContextID = event.targetRelationshipContextID {
+                guard let context = person.contexts.first(where: {
+                    $0.id == targetContextID
+                }), context.displayLabel.compare(
+                    relationshipContext,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                ) == .orderedSame else {
+                    return false
+                }
+            }
+        }
+        let clue = event.identityClue.map {
+            ConversationContactDraft.IdentityClue(
+                type: $0.type,
+                value: $0.value
+            )
+        }
+        let proposal = ConversationContactDraft(
+            name: displayName,
+            identityClue: clue,
+            relationshipContext: relationshipContext,
+            sourceNote: source,
+            interpreter: .workspaceAgent
+        )
+        let operationKey = "ios:agent-contact:\(fingerprint)"
+        guard sessionStore.promoteUnscopedChatToContactProposal(
+            sessionID: sessionID,
+            objective: objective,
+            unscopedChatIdempotencyKey: unscopedChatIdempotencyKey,
+            draft: proposal,
+            proposalIdempotencyKey: operationKey,
+            clearingGlobalDraft: true
+        ) else {
+            return false
+        }
+        stageContactProposal(
+            proposal,
+            operationKey: operationKey,
+            suggestedPersonID: event.targetPersonID,
+            suggestedContextID: event.targetRelationshipContextID,
+            proposalIsProtected: true
+        )
+        return true
     }
 
     private func stagePublicProfileReview(
@@ -5582,8 +5543,6 @@ private struct AskScope: Identifiable, Equatable {
 
 private enum RelationshipRecallPhase: Equatable {
     case idle
-    case finding
-    case matched(AgentRelationshipRecallCandidate)
     case reading(AgentRelationshipRecallCandidate?)
     case replyingWithoutRelationship
     case ambiguous(
@@ -5645,13 +5604,6 @@ private struct AskPendingTurnView: View {
         switch recallPhase {
         case .idle:
             EmptyView()
-        case .finding:
-            activityRow(
-                language.text("Finding the right relationship…")
-            )
-            .accessibilityIdentifier("ask-recall-finding")
-        case let .matched(candidate):
-            matchedReceipt(candidate, allowsChange: true)
         case let .reading(candidate):
             if let candidate { matchedReceipt(candidate, allowsChange: true) }
             activityRow(
@@ -5712,7 +5664,7 @@ private struct AskPendingTurnView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
                 Text(
-                    language.text("Matched from your relationship history")
+                    language.text("Matched by Agent from your contact workspace")
                 )
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)

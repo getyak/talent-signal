@@ -2,6 +2,11 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    func testAgentStudioSheetHasStableIdentifier() {
+        XCTAssertEqual(RelationshipArchiveSheet.agentStudio.id, "agent-studio")
+        XCTAssertEqual(RelationshipArchiveSheet.menu.id, "menu")
+    }
+
     func testReadingSizePreferenceNeverShrinksAccessibilitySizes() {
         XCTAssertEqual(
             WorkspaceTextSizePreference.compact.adjusted(.large),
@@ -48,34 +53,6 @@ final class RelationshipArchiveTests: XCTestCase {
         }
     }
 
-    func testUnscopedConversationRoutesGreetingsWithoutOpeningRelationshipEvidence() {
-        for greeting in [
-            "你好",
-            "您好呀",
-            "Hello",
-            "What can you do?",
-            "帮我整理一下今天的想法",
-        ] {
-            XCTAssertEqual(
-                AgentUnscopedConversationPolicy.route(objective: greeting),
-                .directConversation
-            )
-        }
-        for relationshipQuestion in [
-            "What changed in this relationship?",
-            "候选人最近有什么进展？",
-            "下一步应该怎么跟进？",
-            "Can you check Maya Chen, maya@example.com?",
-        ] {
-            XCTAssertEqual(
-                AgentUnscopedConversationPolicy.route(
-                    objective: relationshipQuestion
-                ),
-                .relationshipRecall
-            )
-        }
-    }
-
     func testSingleUnscopedScreenshotRoutesDirectlyWithoutRelationshipOrToolSelection() {
         XCTAssertEqual(
             AskScreenshotResearchRoutingPolicy.route(
@@ -97,6 +74,135 @@ final class RelationshipArchiveTests: XCTestCase {
                 mediaTypes: ["image/png"]
             ),
             .notApplicable
+        )
+    }
+
+    func testUnscopedResponseDecodesAgentResolvedContactContext() throws {
+        let payload = """
+        {
+          "contract_version": "2026-08-24.10",
+          "task_id": "11111111-1111-4111-8111-111111111111",
+          "disposition": "answer",
+          "blocks": [{
+            "id": "22222222-2222-4222-8222-222222222222",
+            "kind": "answer",
+            "title": "Contact found",
+            "body": "Using Maya's CPO search.",
+            "status": "informational",
+            "citation_dependency_ids": [],
+            "requires_user_decision": false
+          }],
+          "agent_event": {
+            "kind": "resolved_contact_context",
+            "person_id": "33333333-3333-4333-8333-333333333333",
+            "person_display_label": "Maya Chen",
+            "relationship_context_id": "44444444-4444-4444-8444-444444444444",
+            "relationship_context_display_label": "CPO search",
+            "tool_summary": "Contact search · Maya Chen · CPO search"
+          },
+          "external_effects": [],
+          "created_at": "2026-09-03T00:00:00.000Z"
+        }
+        """
+
+        let response = try JSONDecoder().decode(
+            UnscopedChatTaskResponse.self,
+            from: Data(payload.utf8)
+        )
+
+        XCTAssertEqual(response.agentEvent?.kind, "resolved_contact_context")
+        XCTAssertEqual(response.agentEvent?.personDisplayLabel, "Maya Chen")
+        XCTAssertEqual(
+            response.agentEvent?.relationshipContextDisplayLabel,
+            "CPO search"
+        )
+    }
+
+    func testUnscopedResponseDecodesReviewOnlyContactProposal() throws {
+        let payload = """
+        {
+          "contract_version": "2026-08-24.10",
+          "task_id": "11111111-1111-4111-8111-111111111111",
+          "disposition": "answer",
+          "blocks": [{
+            "id": "22222222-2222-4222-8222-222222222222",
+            "kind": "identity_review",
+            "title": "Contact change proposed",
+            "body": "Nothing changes until you confirm.",
+            "status": "needs_review",
+            "citation_dependency_ids": [],
+            "requires_user_decision": true
+          }],
+          "agent_event": {
+            "kind": "contact_change_proposal",
+            "proposal_kind": "create",
+            "candidate_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "display_name": "Maya Chen",
+            "relationship_context": "CPO search",
+            "identity_clue": null,
+            "source_excerpts": ["Maya Chen", "CPO search"],
+            "reason": "The user explicitly requested this draft.",
+            "target_person_id": null,
+            "target_relationship_context_id": null,
+            "base_revision": null,
+            "requires_user_confirmation": true
+          },
+          "external_effects": [],
+          "created_at": "2026-09-03T00:00:00.000Z"
+        }
+        """
+
+        let response = try JSONDecoder().decode(
+            UnscopedChatTaskResponse.self,
+            from: Data(payload.utf8)
+        )
+
+        XCTAssertEqual(response.agentEvent?.proposalKind, "create")
+        XCTAssertEqual(response.agentEvent?.displayName, "Maya Chen")
+        XCTAssertEqual(response.agentEvent?.requiresUserConfirmation, true)
+    }
+
+    func testUnscopedResponseDecodesMinimalContactCandidates() throws {
+        let payload = """
+        {
+          "contract_version": "2026-08-24.10",
+          "task_id": "11111111-1111-4111-8111-111111111111",
+          "disposition": "clarify",
+          "blocks": [{
+            "id": "22222222-2222-4222-8222-222222222222",
+            "kind": "clarification",
+            "title": "Which relationship?",
+            "body": "Choose one relationship.",
+            "status": "needs_review",
+            "citation_dependency_ids": [],
+            "requires_user_decision": true
+          }],
+          "agent_event": {
+            "kind": "contact_candidates",
+            "candidates": [{
+              "person_id": "33333333-3333-4333-8333-333333333333",
+              "person_display_label": "Maya Chen",
+              "relationship_context_id": "44444444-4444-4444-8444-444444444444",
+              "relationship_context_display_label": "CPO search"
+            }],
+            "possible_duplicate": false,
+            "tool_summary": "Contact search · 1 possible relationship"
+          },
+          "external_effects": [],
+          "created_at": "2026-09-03T00:00:00.000Z"
+        }
+        """
+
+        let response = try JSONDecoder().decode(
+            UnscopedChatTaskResponse.self,
+            from: Data(payload.utf8)
+        )
+
+        XCTAssertEqual(response.agentEvent?.kind, "contact_candidates")
+        XCTAssertEqual(response.agentEvent?.candidates?.count, 1)
+        XCTAssertEqual(
+            response.agentEvent?.candidates?.first?.relationshipContextDisplayLabel,
+            "CPO search"
         )
     }
 
@@ -626,7 +732,7 @@ final class RelationshipArchiveTests: XCTestCase {
         )
     }
 
-    func testPreferredPersonAskRequiresExplicitChoiceAcrossMultipleContexts() {
+    func testPreferredPersonEntryOnlySuggestsItsAvailableContexts() {
         XCTAssertEqual(
             AgentPreferredPersonScopePolicy.resolve(matchingScopeCount: 0),
             .unavailable
@@ -638,30 +744,6 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(
             AgentPreferredPersonScopePolicy.resolve(matchingScopeCount: 2),
             .requiresSelection
-        )
-        XCTAssertTrue(
-            AgentPreferredPersonScopePolicy.canSubmit(
-                preferredPersonID: nil,
-                selectedPersonID: nil
-            )
-        )
-        XCTAssertFalse(
-            AgentPreferredPersonScopePolicy.canSubmit(
-                preferredPersonID: "person-a",
-                selectedPersonID: nil
-            )
-        )
-        XCTAssertFalse(
-            AgentPreferredPersonScopePolicy.canSubmit(
-                preferredPersonID: "person-a",
-                selectedPersonID: "person-b"
-            )
-        )
-        XCTAssertTrue(
-            AgentPreferredPersonScopePolicy.canSubmit(
-                preferredPersonID: "person-a",
-                selectedPersonID: "person-a"
-            )
         )
     }
 
@@ -1562,6 +1644,66 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testUnscopedChatPromotionStoresOnlyTheContactProposalAtomically() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let message = "Add Amara Singh for the health search"
+        var proposal = try XCTUnwrap(ConversationContactIntake.propose(message))
+        proposal.interpreter = .workspaceAgent
+        store.saveGlobalDraft(message)
+        let sessionID = try XCTUnwrap(
+            store.beginUnscopedSession(objective: message)
+        )
+        let chatKey = try XCTUnwrap(
+            store.beginUnscopedChat(
+                sessionID: sessionID,
+                objective: message,
+                proposedIdempotencyKey: "ios:unscoped-chat:proposal"
+            )
+        )
+
+        persistence.failSave = true
+        XCTAssertFalse(
+            store.promoteUnscopedChatToContactProposal(
+                sessionID: sessionID,
+                objective: message,
+                unscopedChatIdempotencyKey: chatKey,
+                draft: proposal,
+                proposalIdempotencyKey: "ios:agent-contact:fingerprint",
+                clearingGlobalDraft: true
+            )
+        )
+        XCTAssertEqual(store.globalDraft(), message)
+        XCTAssertNil(store.contactProposalDraft)
+        XCTAssertTrue(
+            try XCTUnwrap(store.session(id: sessionID)).hasPendingUnscopedChat
+        )
+
+        persistence.failSave = false
+        XCTAssertTrue(
+            store.promoteUnscopedChatToContactProposal(
+                sessionID: sessionID,
+                objective: message,
+                unscopedChatIdempotencyKey: chatKey,
+                draft: proposal,
+                proposalIdempotencyKey: "ios:agent-contact:fingerprint",
+                clearingGlobalDraft: true
+            )
+        )
+        XCTAssertNil(store.session(id: sessionID))
+        XCTAssertTrue(store.globalDraft().isEmpty)
+        XCTAssertEqual(store.contactProposalDraft, proposal)
+        XCTAssertEqual(
+            store.contactProposalOperationKey,
+            "ios:agent-contact:fingerprint"
+        )
+
+        let restored = AgentSessionStore(persistence: persistence)
+        XCTAssertNil(restored.session(id: sessionID))
+        XCTAssertEqual(restored.contactProposalDraft, proposal)
+    }
+
+    @MainActor
     func testAgentRetentionPrunesAContinuingStoreAtExactCutoffs() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "live-agent-retention-\(UUID().uuidString)")
@@ -2344,86 +2486,6 @@ final class RelationshipArchiveTests: XCTestCase {
                 context: context
             )
         )
-    }
-
-    func testRelationshipRecallMatchesOneAuthorizedRelationshipWithoutASelector() throws {
-        let people = PursuitWorkspaceSnapshot.preview.people
-        let outcome = AgentRelationshipRecallPolicy.resolve(
-            objective: "What changed with Leila?",
-            people: people,
-            recentSessions: []
-        )
-
-        guard case let .matched(candidate) = outcome else {
-            return XCTFail("Expected one relationship to be recalled")
-        }
-        XCTAssertEqual(candidate.person.displayLabel, "Leila Hartmann")
-        XCTAssertEqual(candidate.context.displayLabel, "Chief Product Officer search")
-        XCTAssertTrue(candidate.matchedPersonName)
-    }
-
-    func testRelationshipRecallKeepsSameNameRecordsAmbiguousAndFlagsMergeReview() throws {
-        let original = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
-        let duplicate = WorkspacePerson(
-            id: "20000000-0000-4000-8000-000000000099",
-            displayLabel: original.displayLabel,
-            contextCount: 1,
-            captureCount: 1,
-            confirmedIdentityCount: 0,
-            lastActivityAt: "2026-08-22T18:00:00.000Z",
-            profile: nil,
-            contexts: [
-                .init(
-                    id: "21000000-0000-4000-8000-000000000099",
-                    displayLabel: "Product leadership network",
-                    lastActivityAt: "2026-08-22T18:00:00.000Z"
-                ),
-            ]
-        )
-
-        let outcome = AgentRelationshipRecallPolicy.resolve(
-            objective: "What changed with Leila Hartmann?",
-            people: [original, duplicate],
-            recentSessions: []
-        )
-
-        guard case let .ambiguous(candidates, possibleDuplicate) = outcome else {
-            return XCTFail("Same-name records must remain ambiguous")
-        }
-        XCTAssertTrue(possibleDuplicate)
-        XCTAssertEqual(Set(candidates.map { $0.person.id }).count, 2)
-    }
-
-    func testRelationshipRecallOffersRecentRelationshipsWhenNoIdentityIsSupported() throws {
-        let people = PursuitWorkspaceSnapshot.preview.people
-        let recentPerson = try XCTUnwrap(people.last)
-        let recentContext = try XCTUnwrap(recentPerson.contexts.first)
-        let recentSession = AgentSession(
-            id: UUID(),
-            scope: .relationship(
-                personID: recentPerson.id,
-                relationshipContextID: recentContext.id,
-                personDisplayLabel: recentPerson.displayLabel,
-                contextDisplayLabel: recentContext.displayLabel
-            ),
-            title: "Previous question",
-            turns: [],
-            contactReceipts: [],
-            updatedAt: Date(),
-            isUnread: false
-        )
-
-        let outcome = AgentRelationshipRecallPolicy.resolve(
-            objective: "What changed?",
-            people: people,
-            recentSessions: [recentSession]
-        )
-
-        guard case let .unresolved(recent) = outcome else {
-            return XCTFail("Unsupported identity must ask for one clarification")
-        }
-        XCTAssertEqual(recent.first?.person.id, recentPerson.id)
-        XCTAssertTrue(recent.first?.matchedRecentSession == true)
     }
 
     func testRelationshipRecallKeepsOlderAuthorizedRelationshipsSearchable() {

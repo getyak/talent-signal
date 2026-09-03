@@ -295,7 +295,10 @@ enum TalentSignalAuthenticationConfiguration {
             || StandaloneOnboardingConfiguration.isEnabled(arguments: arguments) {
             return false
         }
-        return true
+        // App-icon relaunches do not keep Xcode scheme arguments. Make the
+        // local Debug fallback the preview workspace; the explicit login and
+        // authenticated-backend arguments above still take precedence.
+        return false
 #else
         true
 #endif

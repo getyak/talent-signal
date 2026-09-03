@@ -18,12 +18,17 @@ export const PERSON_RESEARCH_AGENT_TOOL_NAMES = [
   "create_person_research_artifact",
 ] as const;
 
+export const WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES = [
+  "contact_workspace",
+] as const;
+
 export const ALL_AGENT_TOOL_NAMES = [
   ...PURSUIT_AGENT_TOOL_NAMES,
   "search_web",
   "fetch_web",
   "create_research_artifact",
   ...PERSON_RESEARCH_AGENT_TOOL_NAMES,
+  ...WORKSPACE_CONVERSATION_AGENT_TOOL_NAMES,
 ] as const;
 
 // Backwards-compatible name for the original bounded Pursuit definition.
@@ -378,6 +383,13 @@ export interface AgentProviderRequest {
         authorization: AgentPersonResearchAuthorization;
         providerID: string;
         inputArtifactIDs: string[];
+      }
+    | {
+        kind: "workspace_conversation";
+        workspaceID: string;
+        sessionID: string | null;
+        currentPersonID: string | null;
+        currentRelationshipContextID: string | null;
       };
   toolManifest: readonly AgentToolName[];
   budget: AgentBudget;
