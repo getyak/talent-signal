@@ -1371,6 +1371,198 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Global Agent compact new Chat ready to type")
     }
 
+    func testGlobalAgentNewChatCanRestAtItsSmallestDetent() {
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+
+        let sheet = element("relationship-ask-sheet")
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+
+        let dragStart = sheet.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)
+        )
+        let dragEnd = app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78)
+        )
+        dragStart.press(forDuration: 0.08, thenDragTo: dragEnd)
+
+        let photos = app.buttons["ask-minimized-photos"]
+        let files = app.buttons["ask-minimized-files"]
+        let voice = app.buttons["ask-minimized-voice"]
+        let text = app.buttons["ask-minimized-text"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 3))
+        XCTAssertTrue(files.exists)
+        XCTAssertTrue(voice.exists)
+        XCTAssertTrue(text.exists)
+        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1))
+        XCTAssertGreaterThanOrEqual(sheet.frame.height, 150)
+        XCTAssertLessThan(sheet.frame.height, 190)
+        for action in [photos, files, voice, text] {
+            XCTAssertGreaterThanOrEqual(action.frame.height, 44)
+            XCTAssertGreaterThanOrEqual(action.frame.width, 44)
+            XCTAssertTrue(action.isHittable)
+        }
+        let actionMidpoints = [photos, files, voice, text].map { $0.frame.midY }
+        XCTAssertLessThan(
+            (actionMidpoints.max() ?? 0) - (actionMidpoints.min() ?? 0),
+            2
+        )
+        XCTAssertFalse(element("ask-expanded-composer").exists)
+        XCTAssertFalse(element("ask-markdown-toolbar").exists)
+        preserveScreenshot("Global Agent new Chat smallest detent")
+
+        text.tap()
+        XCTAssertTrue(element("ask-expanded-composer").waitForExistence(timeout: 3))
+        XCTAssertTrue(element("ask-markdown-toolbar").exists)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+    }
+
+    func testGlobalAgentNewChatSmallestDetentPreservesChineseDraft() {
+        app.launchArguments = [
+            "--force-dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-AppleInterfaceStyle", "Dark",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        typeTextReliably("Maya follow-up", into: composer)
+
+        let sheet = element("relationship-ask-sheet")
+        let dragStart = sheet.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)
+        )
+        let dragEnd = app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78)
+        )
+        dragStart.press(forDuration: 0.08, thenDragTo: dragEnd)
+
+        let photos = app.buttons["ask-minimized-photos"]
+        let files = app.buttons["ask-minimized-files"]
+        let voice = app.buttons["ask-minimized-voice"]
+        let text = app.buttons["ask-minimized-text"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 3))
+        XCTAssertEqual(photos.label, "图片")
+        XCTAssertEqual(files.label, "文件")
+        XCTAssertEqual(voice.label, "语音")
+        XCTAssertEqual(text.label, "文字")
+        for action in [photos, files, voice, text] {
+            XCTAssertGreaterThanOrEqual(action.frame.height, 44)
+        }
+        preserveScreenshot("Global Agent Chinese draft smallest detent")
+
+        text.tap()
+        XCTAssertTrue(composer.waitForExistence(timeout: 3))
+        XCTAssertEqual(composer.value as? String, "Maya follow-up")
+    }
+
+    func testGlobalAgentNewChatAvoidsSmallestDetentAtAccessibilitySize() {
+        app.launchArguments = [
+            "--force-dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-AppleInterfaceStyle", "Dark",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+
+        let sheet = element("relationship-ask-sheet")
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-expanded-composer").exists)
+        XCTAssertFalse(app.buttons["ask-minimized-photos"].exists)
+        XCTAssertFalse(app.buttons["ask-minimized-files"].exists)
+        XCTAssertFalse(app.buttons["ask-minimized-voice"].exists)
+        XCTAssertFalse(app.buttons["ask-minimized-text"].exists)
+
+        let dragStart = sheet.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)
+        )
+        let dragEnd = sheet.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.24)
+        )
+        dragStart.press(forDuration: 0.08, thenDragTo: dragEnd)
+
+        XCTAssertTrue(sheet.waitForExistence(timeout: 2))
+        XCTAssertGreaterThan(
+            sheet.frame.height,
+            app.windows.firstMatch.frame.height * 0.5
+        )
+        XCTAssertFalse(app.buttons["ask-minimized-photos"].exists)
+        XCTAssertFalse(app.buttons["ask-minimized-files"].exists)
+        XCTAssertFalse(app.buttons["ask-minimized-voice"].exists)
+        XCTAssertFalse(app.buttons["ask-minimized-text"].exists)
+        preserveScreenshot("Global Agent new Chat AX5 avoids smallest detent")
+    }
+
+    func testGlobalAgentMinimizedVoiceKeepsAnExistingTextDraftEditable() {
+        app.launchArguments = [
+            "--deterministic-voice-input",
+            "-voice-input-cloud-disclosure-v1", "NO",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
+
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        typeTextReliably("Maya follow-up", into: composer)
+
+        let sheet = element("relationship-ask-sheet")
+        sheet.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)
+        ).press(
+            forDuration: 0.08,
+            thenDragTo: app.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78)
+            )
+        )
+
+        let minimizedVoice = app.buttons["ask-minimized-voice"]
+        XCTAssertTrue(minimizedVoice.waitForExistence(timeout: 3))
+        minimizedVoice.tap()
+
+        let start = app.buttons.matching(
+            identifier: "confirm-voice-input-disclosure"
+        ).firstMatch
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        XCTAssertEqual(composer.value as? String, "Maya follow-up")
+        XCTAssertFalse(element("ask-response-turn").exists)
+        start.tap()
+
+        XCTAssertTrue(element("ask-voice-recording").waitForExistence(timeout: 5))
+        let stop = app.buttons["ask-voice"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 3))
+        XCTAssertEqual(stop.label, "Stop and transcribe")
+        XCTAssertFalse(app.buttons["ask-send"].exists)
+        stop.tap()
+
+        XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            composer.value as? String,
+            "Maya follow-up What changed in this search?"
+        )
+        XCTAssertFalse(element("ask-response-turn").exists)
+    }
+
     func testNewChatMarkdownToolbarInsertsEditableSyntaxAndSwitchesVoiceToSend() {
         app.launch()
 

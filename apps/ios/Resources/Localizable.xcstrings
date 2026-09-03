@@ -3224,6 +3224,16 @@
         }
       }
     },
+    "Files": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
+          }
+        }
+      }
+    },
     "Find possible public profiles from visible identity clues in this screenshot and summarize public information. Do not identify from appearance alone.": {
       "localizations": {
         "zh-Hans": {
@@ -8419,7 +8429,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文本"
+            "value": "文字"
           }
         }
       }

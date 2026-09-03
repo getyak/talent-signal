@@ -279,6 +279,26 @@ private struct VoiceRecordButtonHalo: View {
     }
 }
 
+private struct MinimizedComposerActionStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                configuration.isPressed
+                    ? Color.tsCanvas.opacity(0.72)
+                    : Color.clear,
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+            .opacity(configuration.isPressed ? 0.72 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.12),
+                value: configuration.isPressed
+            )
+    }
+}
+
 enum RelationshipAskCaptureAction: Equatable, Sendable {
     case screenshotReview
     case foregroundAudio
@@ -411,8 +431,31 @@ struct RelationshipAskView: View {
     private var hasAcceptedVoiceDisclosure = false
     @FocusState private var composerFocused: Bool
 
+    private var minimizedPresentationDetent: PresentationDetent {
+        .height(134)
+    }
+
     private var compactPresentationDetent: PresentationDetent {
         .fraction(0.76)
+    }
+
+    private var compactEntryDetents: Set<PresentationDetent> {
+        canMinimizeCompactEntry
+            ? [minimizedPresentationDetent, compactPresentationDetent]
+            : [compactPresentationDetent]
+    }
+
+    private var canMinimizeCompactEntry: Bool {
+        !usesAccessibilityLayout
+            && !voiceOverEnabled
+            && !voiceInput.isBusy
+            && mediaDrafts.isEmpty
+            && mediaNotice == nil
+            && !isHomeAttachmentChooserPresented
+    }
+
+    private var isMinimizedEntry: Bool {
+        isCompactEntry && presentationDetent == minimizedPresentationDetent
     }
 
     private var preferredPersonName: String? {
@@ -424,7 +467,9 @@ struct RelationshipAskView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if isCompactEntry, isHomeAttachmentChooserPresented {
+                if isMinimizedEntry {
+                    minimizedComposerDock
+                } else if isCompactEntry, isHomeAttachmentChooserPresented {
                     homeAttachmentChooser
                 } else if isCompactEntry {
                     Spacer(minLength: 0)
@@ -466,12 +511,16 @@ struct RelationshipAskView: View {
                     : .spring(response: 0.42, dampingFraction: 0.88),
                 value: isCompactEntry
             )
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.18),
+                value: isMinimizedEntry
+            )
             .toolbar(.hidden, for: .navigationBar)
         }
         .tint(.tsInk)
         .presentationDetents(
             isCompactEntry
-                ? [.height(126), compactPresentationDetent]
+                ? compactEntryDetents
                 : [.large],
             selection: $presentationDetent
         )
@@ -705,6 +754,11 @@ struct RelationshipAskView: View {
         }
         .onChange(of: isSending) { sending in
             if sending { presentationDetent = .large }
+        }
+        .onChange(of: presentationDetent) { detent in
+            guard detent == minimizedPresentationDetent else { return }
+            composerFocused = false
+            flushDraftPersistence()
         }
         .onChange(of: isRequestingScope) { requesting in
             if requesting { presentationDetent = compactPresentationDetent }
@@ -1743,7 +1797,11 @@ struct RelationshipAskView: View {
         .disabled(composerPrimaryDisabled)
         .opacity(composerPrimaryDisabled ? 0.35 : 1)
         .accessibilityLabel(composerPrimaryAccessibilityLabel)
-        .accessibilityIdentifier(hasComposerInput ? "ask-send" : "ask-voice")
+        .accessibilityIdentifier(
+            voiceInput.isRecording
+                ? "ask-voice"
+                : (hasComposerInput ? "ask-send" : "ask-voice")
+        )
         .accessibilityHint(composerPrimaryAccessibilityHint)
     }
 
@@ -2018,18 +2076,18 @@ struct RelationshipAskView: View {
 
     private var composerPrimarySymbol: String {
         if isSending { return "arrow.up" }
-        if hasComposerInput { return "arrow.up" }
-        return voiceInput.isRecording ? "stop.fill" : "mic.fill"
+        if voiceInput.isRecording { return "stop.fill" }
+        return hasComposerInput ? "arrow.up" : "mic.fill"
     }
 
     private var composerPrimaryForeground: Color {
-        if hasComposerInput || voiceInput.isRecording { return .tsSurface }
+        if voiceInput.isRecording || hasComposerInput { return .tsSurface }
         return .tsInk
     }
 
     private var composerPrimaryBackground: Color {
-        if hasComposerInput { return .tsInk }
         if voiceInput.isRecording { return .tsVermilion }
+        if hasComposerInput { return .tsInk }
         return .tsSurfaceMuted
     }
 
@@ -2037,11 +2095,12 @@ struct RelationshipAskView: View {
         if isComposerComposing { return true }
         if hasBlockingContactProposal { return true }
         if pendingObjective != nil { return true }
-        if hasComposerInput { return !canSendDraft }
+        if voiceInput.isRecording { return false }
         if voiceInput.phase == .transcribing
             || voiceInput.phase == .requestingPermission {
             return true
         }
+        if hasComposerInput { return !canSendDraft }
         return isSending
     }
 
@@ -2052,15 +2111,20 @@ struct RelationshipAskView: View {
         if isSending {
             return appLanguage.text("Reading the record…")
         }
+        if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
         if hasComposerInput {
             return appLanguage.text("Send", zhHans: "发送")
         }
-        if voiceInput.isRecording { return appLanguage.text("Stop and transcribe") }
         if voiceTranscriber == nil { return appLanguage.text("Record voice") }
         return appLanguage.text("Start voice input")
     }
 
     private var composerPrimaryAccessibilityHint: String {
+        if voiceInput.isRecording {
+            return appLanguage.text(
+                "Stops recording and sends the temporary audio to Doubao for transcription."
+            )
+        }
         if hasComposerInput {
             return selectedScope == nil
                 ? appLanguage.text(
@@ -2070,11 +2134,6 @@ struct RelationshipAskView: View {
                 : ""
         }
         guard voiceTranscriber != nil else { return "" }
-        if voiceInput.isRecording {
-            return appLanguage.text(
-                "Stops recording and sends the temporary audio to Doubao for transcription."
-            )
-        }
         return appLanguage.text(
             "Records your voice in the foreground. The transcript remains editable before Send."
         )
@@ -2082,10 +2141,6 @@ struct RelationshipAskView: View {
 
     private func composerPrimaryAction() {
         guard !isComposerComposing else { return }
-        if hasComposerInput {
-            send(draft)
-            return
-        }
         if voiceInput.isRecording {
             voiceHaptic(.rigid)
             voiceOperation?.cancel()
@@ -2095,6 +2150,14 @@ struct RelationshipAskView: View {
             }
             return
         }
+        if hasComposerInput {
+            send(draft)
+            return
+        }
+        requestVoiceInput()
+    }
+
+    private func requestVoiceInput() {
         guard voiceTranscriber != nil else {
             voiceInput.reportUnavailable()
             return
@@ -2190,6 +2253,116 @@ struct RelationshipAskView: View {
             && !isRequestingScope
             && errorMessage == nil
             && reviewPreparationError == nil
+    }
+
+    private var minimizedComposerDock: some View {
+        HStack(alignment: .top, spacing: 10) {
+            minimizedComposerAction(
+                title: appLanguage.text("Image"),
+                symbol: "photo",
+                identifier: "ask-minimized-photos",
+                hint: appLanguage.text(
+                    "Choose images from your photo library.",
+                    zhHans: "从照片图库选择图片。"
+                ),
+                action: openMinimizedPhotos
+            )
+            minimizedComposerAction(
+                title: appLanguage.text("Files"),
+                symbol: "folder",
+                identifier: "ask-minimized-files",
+                hint: appLanguage.text(
+                    "Choose image files from Files.",
+                    zhHans: "从文件中选择图片。"
+                ),
+                action: openMinimizedFiles
+            )
+            minimizedComposerAction(
+                title: appLanguage.text("Voice"),
+                symbol: "waveform",
+                identifier: "ask-minimized-voice",
+                hint: appLanguage.text(
+                    "Expand the chat and start voice input.",
+                    zhHans: "展开对话并开始语音输入。"
+                ),
+                action: openMinimizedVoice
+            )
+            minimizedComposerAction(
+                title: appLanguage.text("Text"),
+                symbol: "pencil",
+                identifier: "ask-minimized-text",
+                hint: appLanguage.text(
+                    "Expand the chat and focus the text field.",
+                    zhHans: "展开对话并聚焦文字输入框。"
+                ),
+                action: openMinimizedText
+            )
+        }
+        .padding(.horizontal, 24)
+        .frame(maxHeight: .infinity, alignment: .center)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-minimized-actions")
+    }
+
+    private func minimizedComposerAction(
+        title: String,
+        symbol: String,
+        identifier: String,
+        hint: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 22, weight: .medium))
+                    .symbolRenderingMode(.monochrome)
+                    .frame(width: 48, height: 42)
+                Text(title)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(Color.tsInk)
+            .frame(maxWidth: .infinity, minHeight: 82)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(MinimizedComposerActionStyle())
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func openMinimizedPhotos() {
+        expandMinimizedComposer {
+            composerFocused = false
+            isPhotoLibraryPresented = true
+        }
+    }
+
+    private func openMinimizedFiles() {
+        expandMinimizedComposer {
+            composerFocused = false
+            isFileImporterPresented = true
+        }
+    }
+
+    private func openMinimizedVoice() {
+        expandMinimizedComposer {
+            requestVoiceInput()
+        }
+    }
+
+    private func openMinimizedText() {
+        expandMinimizedComposer {
+            composerFocused = true
+        }
+    }
+
+    private func expandMinimizedComposer(perform action: @escaping () -> Void) {
+        presentationDetent = compactPresentationDetent
+        Task { @MainActor in
+            await Task.yield()
+            action()
+        }
     }
 
     @ViewBuilder

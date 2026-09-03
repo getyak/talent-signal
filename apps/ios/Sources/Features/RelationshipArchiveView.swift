@@ -138,8 +138,7 @@ struct RelationshipArchiveView: View {
                 pageContent
                     .id(retrievalIntentGeneration)
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .safeAreaInset(edge: .top, spacing: 0) {
                 RelationshipArchiveHeader(
                     selectedPage: Binding(
                         get: { selectedPage },
@@ -155,8 +154,7 @@ struct RelationshipArchiveView: View {
                     }
                 )
             }
-            .toolbarBackground(.automatic, for: .navigationBar)
-            .relationshipNavigationMinimization()
+            .toolbar(.hidden, for: .navigationBar)
         }
         .overlay(alignment: .top) {
             if let notice = workspaceStore.refreshNotice {
@@ -934,7 +932,7 @@ private struct PursuitWorkspaceRefreshNotice: View {
     }
 }
 
-private struct RelationshipArchiveHeader: ToolbarContent {
+private struct RelationshipArchiveHeader: View {
     @Binding var selectedPage: RelationshipArchivePage
     let onOpenAgentStudio: () -> Void
     let onOpenCalendar: () -> Void
@@ -942,16 +940,13 @@ private struct RelationshipArchiveHeader: ToolbarContent {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var selectionNamespace
 
-    var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
+    var body: some View {
+        HStack(spacing: 6) {
             Button(action: onOpenAgentStudio) {
-                ZStack {
-                    Color.clear
-                    RelationshipSignalOrb()
-                        .frame(width: 36, height: 36)
-                }
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+                RelationshipSignalOrb()
+                    .frame(width: 30, height: 30)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .frame(width: 44, height: 44)
@@ -962,9 +957,7 @@ private struct RelationshipArchiveHeader: ToolbarContent {
                 )
             )
             .accessibilityIdentifier("relationship-agent-studio")
-        }
 
-        ToolbarItem(placement: .principal) {
             HStack(spacing: 0) {
                 ForEach(RelationshipArchivePage.allCases) { page in
                     Button {
@@ -976,28 +969,36 @@ private struct RelationshipArchiveHeader: ToolbarContent {
                             }
                         }
                     } label: {
-                        ZStack {
-                            if selectedPage == page {
-                                Capsule()
-                                    .fill(Color.tsInk.opacity(0.075))
-                                    .frame(height: 34)
-                                    .matchedGeometryEffect(
-                                        id: "archive-selection",
-                                        in: selectionNamespace
-                                    )
-                            }
+                        VStack(spacing: 2) {
                             Text(page.title(in: appLanguage))
                                 .font(.subheadline.weight(
                                     selectedPage == page ? .semibold : .regular
                                 ))
-                                .foregroundStyle(Color.tsInk)
+                                .foregroundStyle(
+                                    selectedPage == page
+                                        ? Color.tsInk
+                                        : Color.tsMutedInk
+                                )
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.72)
                                 .layoutPriority(1)
                                 .accessibilityHidden(true)
+                            Rectangle()
+                                .fill(
+                                    selectedPage == page
+                                        ? Color.tsInk
+                                        : Color.clear
+                                )
+                                .frame(width: 22, height: 1.5)
+                                .matchedGeometryEffect(
+                                    id: selectedPage == page
+                                        ? "archive-selection"
+                                        : "archive-idle-\(page.id)",
+                                    in: selectionNamespace
+                                )
                         }
                         .frame(
-                            minWidth: page == .sessions ? 72 : 60,
+                            minWidth: page == .sessions ? 70 : 58,
                             maxWidth: .infinity
                         )
                         .frame(minHeight: 44)
@@ -1013,24 +1014,19 @@ private struct RelationshipArchiveHeader: ToolbarContent {
                     )
                 }
             }
-            .frame(minWidth: 210)
+            .frame(maxWidth: .infinity)
             .animation(
                 reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.84),
                 value: selectedPage
             )
             .accessibilityElement(children: .contain)
-        }
 
-        ToolbarItem(placement: .topBarTrailing) {
             Button(action: onOpenCalendar) {
-                ZStack {
-                    Color.clear
-                    Image(systemName: "calendar")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.tsInk)
-                }
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+                Image(systemName: "calendar")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.tsInk)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .frame(width: 44, height: 44)
@@ -1041,6 +1037,15 @@ private struct RelationshipArchiveHeader: ToolbarContent {
                 )
             )
             .accessibilityIdentifier("today-calendar-peek")
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 52)
+        .background(Color.tsSurface)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.tsLine.opacity(0.65))
+                .frame(height: 0.5)
+                .accessibilityHidden(true)
         }
     }
 }
