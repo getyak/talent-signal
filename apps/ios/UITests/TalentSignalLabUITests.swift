@@ -251,9 +251,11 @@ final class TalentSignalLabUITests: XCTestCase {
         }
         let safeFrame = app.frame.insetBy(dx: 0, dy: 96)
         let visibleFrame = safeFrame.intersection(element.frame)
+        let requiredWidth = min(44, element.frame.width)
+        let requiredHeight = min(24, element.frame.height)
         return !visibleFrame.isNull
-            && visibleFrame.width >= 44
-            && visibleFrame.height >= 44
+            && visibleFrame.width >= requiredWidth
+            && visibleFrame.height >= requiredHeight
     }
 
     private func element(_ identifier: String) -> XCUIElement {

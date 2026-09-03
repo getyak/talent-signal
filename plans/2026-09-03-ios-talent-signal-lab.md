@@ -83,9 +83,15 @@ icon-plus-text status semantics are required.
    baseline comparison → receipt → Eval promotion journey on iPhone 17. The
    Chinese dark-mode, AX5 Dynamic Type, Reduce Motion, and Reduce Transparency
    surface also passed on iPhone SE (3rd generation).
-4. **In progress — completion review.** Release compilation, the repository
-   iOS gate, documentation checks, branch integration, and TestFlight
-   publication remain to be recorded after the final rebased revision passes.
+4. **Complete — local completion review.** The final rebased revision passes
+   Release compilation, the 280-test repository iOS gate, localization and
+   documentation checks, the real-backend Lab quality-evidence UI journey on
+   iPhone 17 Pro, and the Chinese dark-mode AX5 accessibility surface on
+   iPhone SE (3rd generation). The UI journey result bundle records one pass,
+   zero failures, and zero skips.
+5. **In progress — integration and distribution.** PR checks, merge readback,
+   and the processed TestFlight release receipt remain to be recorded from the
+   remote control plane.
 
 ## Re-plan triggers
 
