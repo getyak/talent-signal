@@ -89,9 +89,11 @@ icon-plus-text status semantics are required.
    iPhone 17 Pro, and the Chinese dark-mode AX5 accessibility surface on
    iPhone SE (3rd generation). The UI journey result bundle records one pass,
    zero failures, and zero skips.
-5. **In progress — integration and distribution.** PR checks, merge readback,
-   and the processed TestFlight release receipt remain to be recorded from the
-   remote control plane.
+5. **Complete — integration and distribution.** PR #111 passed every required
+   check and was squash-merged as `03527f62512912df4cfce5fb560fc3d066d258cd`.
+   The automatic release published TestFlight version `0.1.40`, build
+   `20260903174005`; its immutable receipt records `testflightState: processed`
+   at `2026-09-03T17:55:41Z` and is attached to GitHub prerelease `v0.1.40`.
 
 ## Re-plan triggers
 
