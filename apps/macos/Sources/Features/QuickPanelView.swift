@@ -1057,7 +1057,7 @@ private struct QuickConsequenceReview: View {
     }
 
     private var saveFlowActive: Bool {
-        intent == .save && (
+        intent == .save && model.currentInsightHasSubmittedManifest && (
             model.pendingDecision != nil ||
                 model.canonicalReceipt != nil ||
                 [.working, .noAction, .outcomeUnknown, .failed, .stale].contains(model.mode)
@@ -1243,7 +1243,9 @@ private struct QuickRelationshipSaveFlow: View {
 
     @ViewBuilder
     var body: some View {
-        if let decision = model.pendingDecision {
+        if !model.currentInsightHasSubmittedManifest {
+            initialSubmit
+        } else if let decision = model.pendingDecision {
             QuickRelationshipDecision(decision: decision)
         } else {
             switch model.mode {
@@ -1285,11 +1287,11 @@ private struct QuickRelationshipSaveFlow: View {
                 .foregroundStyle(TSBrand.secondaryInk)
             Spacer()
             Button("Review save proposal", systemImage: "arrow.right") {
-                Task { await model.submitCapsule() }
+                Task { await model.submitCurrentInsight() }
             }
             .buttonStyle(TSPrimaryButtonStyle())
             .keyboardShortcut(.return, modifiers: [.command, .shift])
-            .disabled(!model.canSubmitCapsule)
+            .disabled(!model.canSubmitCurrentInsight)
             .accessibilityHint("Submits only the reviewed, candidate-attributed text shown above; no relationship fact is confirmed automatically")
             .accessibilityIdentifier("capsule.submit")
         }

@@ -133,7 +133,7 @@ export default async function EvalTraceDetailPage({
     ? `解决“${criterionLabel(blockingEvaluations[0].evaluator_name)}”，然后重新运行同一个冻结案例。`
     : "比较其他运行前，先冻结新的案例或模型提供方版本。";
   return (
-    <main className={styles.page}>
+    <main className={styles.page} id="main-content" tabIndex={-1}>
       <Link className={styles.backLink} href="/workspace/evals">
         <ArrowLeft aria-hidden="true" size={16} /> 最近追踪
       </Link>

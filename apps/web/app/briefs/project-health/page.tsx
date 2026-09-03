@@ -182,7 +182,7 @@ export default function ProjectHealthBriefPage() {
         <p className={styles.railMeta}>内部评审 · {projectHealthBrief.snapshot.date}</p>
       </aside>
 
-      <main className={styles.main} id="main-content">
+      <main className={styles.main} id="main-content" tabIndex={-1}>
         <section className={styles.brief} id="brief">
           <div className={styles.eyebrowRow}>
             <p>工程决策简报</p>

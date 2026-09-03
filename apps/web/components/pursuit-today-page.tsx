@@ -31,6 +31,7 @@ import {
   workspaceSessionExpired,
   workspaceSessionFetch,
 } from "./workspace-session-request";
+import { WorkspaceDisconnectedState } from "./workspace-disconnected-state";
 import styles from "./pursuit-today-page.module.css";
 
 type Props = {
@@ -517,7 +518,7 @@ export function PursuitTodayPage({
 
   return (
     <div className={styles.pageShell}>
-      <main className={styles.main} id="main-content">
+      <main className={styles.main} id="main-content" tabIndex={-1}>
         <header className={styles.hero}>
           <div>
             <p className={styles.eyebrow}>受治理的注意力</p>
@@ -555,18 +556,29 @@ export function PursuitTodayPage({
         ) : null}
 
         {error ? (
-          <section className={styles.pageError} role="alert">
-            <WarningCircle aria-hidden="true" size={23} />
-            <div>
-              <h2>规范状态读取暂时不可用。</h2>
-              <p>{error}</p>
-              <Link href={activeSessionRecoveryHref ?? "/workspace/today"}>
-                {activeSessionRecoveryHref
-                  ? "重新登录"
-                  : "重试读取"}
-              </Link>
-            </div>
-          </section>
+          <div className={styles.errorStack}>
+            <section className={styles.pageError} role="alert">
+              <WarningCircle aria-hidden="true" size={23} />
+              <div>
+                <h2>规范状态读取暂时不可用。</h2>
+                <p>{error}</p>
+                <Link href={activeSessionRecoveryHref ?? "/workspace/today"}>
+                  {activeSessionRecoveryHref
+                    ? "重新登录"
+                    : "重试读取"}
+                </Link>
+              </div>
+            </section>
+            {!activeSessionRecoveryHref ? (
+              <WorkspaceDisconnectedState
+                description="当前页面不会把冻结示例或陈旧缓存冒充成你的今日状态，但你仍然可以继续验证证据审阅与行动边界。"
+                hint="先排查本地后端连接，再返回“今日”重试读取；如果只是想继续走产品闭环，可以先进入冻结边界案例。"
+                secondaryHref="/relationships"
+                secondaryLabel="查看关系产品视图"
+                title="当前无法读取账号范围内的今日注意力。"
+              />
+            ) : null}
+          </div>
         ) : focus ? (
           <div className={styles.todayGrid}>
             <section aria-labelledby="focus-heading">

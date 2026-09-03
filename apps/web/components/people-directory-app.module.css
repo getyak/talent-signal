@@ -383,6 +383,10 @@
   padding: 18px;
 }
 
+.disconnectedState {
+  margin-top: 8px;
+}
+
 .empty > span,
 .empty > svg {
   align-items: center;

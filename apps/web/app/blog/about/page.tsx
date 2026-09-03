@@ -42,7 +42,7 @@ export default function EditorialMethodPage() {
     <>
       <StructuredData value={editorialSchema} />
       <SiteHeader />
-      <main id="main-content" className="editorial-page">
+      <main id="main-content" className="editorial-page" tabIndex={-1}>
         <article className="shell editorial-page__inner">
           <header>
             <p className="eyebrow">编辑方法</p>

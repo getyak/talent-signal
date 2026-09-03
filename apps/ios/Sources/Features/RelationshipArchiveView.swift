@@ -3375,6 +3375,7 @@ private struct WorkspacePersonRow: View {
             }
             roleAndPursuit
         }
+        .layoutPriority(1)
     }
 
     @ViewBuilder
@@ -3385,8 +3386,9 @@ private struct WorkspacePersonRow: View {
             Text(values.joined(separator: " · "))
                 .font(.caption2)
                 .foregroundStyle(Color.tsMutedInk)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
                 .accessibilityIdentifier("workspace-person-context-\(person.id)")
         }
     }

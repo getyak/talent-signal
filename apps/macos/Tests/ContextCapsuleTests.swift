@@ -27,6 +27,41 @@ final class ContextCapsuleTests: XCTestCase {
         XCTAssertNotEqual(draft.version, manifest.version)
     }
 
+    func testSourceBoundFreezeCannotFallBackToAnEarlierReviewedItem() throws {
+        var draft = ContextCapsuleDraft()
+        draft.addSelectedText("Earlier evidence that was already reviewed.")
+        let earlierID = try XCTUnwrap(draft.items.first?.id)
+        draft.setActorKind(id: earlierID, value: .candidate)
+        draft.confirmAttribution(id: earlierID)
+
+        draft.addSelectedText("Current evidence still needs source review.")
+        let currentID = try XCTUnwrap(draft.items.last?.id)
+
+        XCTAssertTrue(draft.canSubmit, "The earlier reviewed item remains eligible for a general Capsule submission.")
+        XCTAssertFalse(draft.canSubmit(sourceItemID: currentID))
+        XCTAssertThrowsError(
+            try draft.freeze(
+                accountID: "account-1",
+                pursuitID: "pursuit-1",
+                personID: "person-1",
+                sourceItemID: currentID
+            )
+        )
+
+        draft.setActorKind(id: currentID, value: .candidate)
+        draft.confirmAttribution(id: currentID)
+        let manifest = try draft.freeze(
+            accountID: "account-1",
+            pursuitID: "pursuit-1",
+            personID: "person-1",
+            sourceItemID: currentID
+        )
+
+        XCTAssertEqual(manifest.selectedItems.map(\.sourceID), [currentID.uuidString])
+        XCTAssertEqual(manifest.selectedItems.map(\.reviewedContent), ["Current evidence still needs source review."])
+        XCTAssertTrue(manifest.idempotencyKey.contains(currentID.uuidString))
+    }
+
     func testLocalOnlyAndRetentionChangesCreateNewDraftVersions() {
         var draft = ContextCapsuleDraft()
         draft.addSelectedText("Explicit evidence")

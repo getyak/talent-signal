@@ -329,23 +329,46 @@ export function TalentSignalLabShell({
   useEffect(() => {
     if (manifest) return;
     let cancelled = false;
-    void fetch("/api/lab", { cache: "no-store" })
+    const controller = new AbortController();
+    const timeoutID = window.setTimeout(() => controller.abort(), 6_000);
+    void fetch("/api/lab", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as
           | LabManifestResponse
+          | { error?: { message?: string } }
           | null;
         if (!cancelled && response.ok && payload) {
-          setManifest(payload);
-          setSession(payload.active_session);
-          setRun(payload.latest_run);
+          const nextManifest = payload as LabManifestResponse;
+          setManifest(nextManifest);
+          setSession(nextManifest.active_session);
+          setRun(nextManifest.latest_run);
+          setError(null);
+        } else if (!cancelled) {
+          const failure = payload as { error?: { message?: string } } | null;
+          setError(
+            failure?.error?.message ??
+              "Lab 控制面当前不可用。没有创建测试状态。",
+          );
         }
       })
-      .catch(() => {
-        // The ordinary workspace remains available. A later navigation or
-        // reload may recover the optional Lab control-plane connection.
+      .catch((caught: unknown) => {
+        if (cancelled) return;
+        setError(
+          caught instanceof DOMException && caught.name === "AbortError"
+            ? "连接 Lab 控制面超时。没有创建测试状态。"
+            : "Lab 控制面当前不可用。没有创建测试状态。",
+        );
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutID);
       });
     return () => {
       cancelled = true;
+      controller.abort();
+      window.clearTimeout(timeoutID);
     };
   }, [manifest]);
 

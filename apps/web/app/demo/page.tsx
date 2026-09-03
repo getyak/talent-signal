@@ -21,7 +21,7 @@ export default function DemoPage() {
   return (
     <>
       <SiteHeader />
-      <main id="main-content" className="demo-page">
+      <main id="main-content" className="demo-page" tabIndex={-1}>
         <div className="shell">
           <p className="demo-page__intro">
             这是一个受控的产品预览。本地分析只在你的浏览器中运行；可选 AI 路径只有在你主动选择后才会启动。

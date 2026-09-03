@@ -1108,6 +1108,36 @@ p {
   margin-top: 7px;
 }
 
+.demo-resolution {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--card-radius);
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 20px;
+}
+
+.demo-resolution[data-state="hold"] {
+  background: color-mix(in srgb, var(--warning) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--warning) 24%, var(--line));
+}
+
+.demo-resolution[data-state="ready"] {
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+}
+
+.demo-resolution h3 {
+  font-size: 1rem;
+}
+
+.demo-resolution p:last-child {
+  color: var(--muted-strong);
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
 .analysis-result {
   margin-top: 34px;
 }
@@ -13686,7 +13716,9 @@ article[data-state="unresolved"]
   }
 
   .context-chat--standalone {
+    gap: 16px;
     margin-top: 58px;
+    margin-bottom: 24px;
   }
 
   .context-chat__scope,
@@ -13737,6 +13769,63 @@ article[data-state="unresolved"]
 
   .context-contact-header__identity h1 {
     font-size: 2.25rem;
+  }
+
+  .context-page {
+    padding: 24px 16px calc(132px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .context-agent-heading {
+    padding-block: 14px;
+  }
+
+  .context-agent-heading p {
+    font-size: 0.66rem;
+    line-height: 1.5;
+  }
+
+  .context-agent-thread {
+    padding: 12px 14px;
+  }
+
+  .context-chat__composer--start {
+    padding: 7px;
+  }
+
+  .context-chat__composer--start textarea {
+    min-height: 56px;
+    padding: 8px 10px;
+  }
+
+  .context-start {
+    gap: 16px;
+    padding: 14px;
+  }
+
+  .context-start__intro {
+    gap: 4px;
+  }
+
+  .context-start__intro > p:last-child {
+    font-size: 0.66rem;
+  }
+
+  .context-start__identity,
+  .context-start__source {
+    gap: 10px;
+    padding-top: 14px;
+  }
+
+  .context-start__source > [role="tablist"] {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .context-start__source > [role="tablist"] button {
+    justify-content: center;
+    min-height: 38px;
   }
 
   .context-effect-review {

@@ -65,6 +65,57 @@ final class AppModelSafetyTests: XCTestCase {
         XCTAssertEqual(model.mode, .ambiguousIdentity)
     }
 
+    func testSyntheticDecisionReviewPreservesTheExactSubmittedEvidence() async throws {
+        let model = AppModel(service: FixtureRelationshipService(initialMode: .ready))
+        let submittedEvidence = "I can decide Friday once the client confirms the exact remote policy."
+        model.addSelectedText(submittedEvidence)
+        let itemID = try XCTUnwrap(model.capsule.items.first?.id)
+        model.setAttribution(id: itemID, actorKind: .candidate)
+        model.confirmAttribution(id: itemID)
+        model.selectFirstRelationshipScopeFromKeyboard()
+        await model.confirmRelationshipScope()
+
+        await model.submitCurrentInsight()
+
+        let review = try XCTUnwrap(model.pendingDecision)
+        XCTAssertEqual(model.mode, .needsDecision)
+        XCTAssertEqual(review.evidence.map(\.text), [submittedEvidence])
+        XCTAssertTrue(review.evidence[0].source.contains("Recruiter-selected text"))
+        XCTAssertEqual(review.items[0].evidenceRefs, review.evidence.map(\.id))
+        let expiry = try XCTUnwrap(ISO8601DateFormatter().date(from: review.expiresAt))
+        XCTAssertGreaterThan(expiry, Date())
+    }
+
+    func testCurrentInsightSaveCannotReuseAnEarlierReviewedSource() async throws {
+        let model = AppModel(service: FixtureRelationshipService(initialMode: .ready))
+        model.addSelectedText("Earlier evidence that was already reviewed.")
+        let earlierID = try XCTUnwrap(model.capsule.items.first?.id)
+        model.setAttribution(id: earlierID, actorKind: .candidate)
+        model.confirmAttribution(id: earlierID)
+        model.selectFirstRelationshipScopeFromKeyboard()
+        await model.confirmRelationshipScope()
+        await model.submitCurrentInsight()
+        XCTAssertTrue(model.currentInsightHasSubmittedManifest)
+
+        let currentEvidence = "I can decide Friday once the client confirms the exact remote policy."
+        model.addSelectedText(currentEvidence)
+        let currentID = try XCTUnwrap(model.capsule.items.last?.id)
+
+        XCTAssertFalse(model.currentInsightHasSubmittedManifest)
+        XCTAssertFalse(model.canSubmitCurrentInsight)
+        XCTAssertTrue(model.canSubmitCapsule, "The general Capsule still contains an earlier reviewed item.")
+
+        model.setAttribution(id: currentID, actorKind: .candidate)
+        model.confirmAttribution(id: currentID)
+        XCTAssertTrue(model.canSubmitCurrentInsight)
+        await model.submitCurrentInsight()
+
+        XCTAssertEqual(model.lastSubmittedManifest?.selectedItems.map(\.sourceID), [currentID.uuidString])
+        XCTAssertEqual(model.lastSubmittedManifest?.selectedItems.map(\.reviewedContent), [currentEvidence])
+        XCTAssertEqual(model.pendingDecision?.evidence.map(\.text), [currentEvidence])
+        XCTAssertTrue(model.currentInsightHasSubmittedManifest)
+    }
+
     func testRemoteSignOutFailureStillClearsLocalAuthorityAndCapsule() async {
         let reminderService = StubFollowUpReminderService(executeFailure: nil)
         let reminderRecoveryStore = AccountFixtureReminderRecoveryStore()

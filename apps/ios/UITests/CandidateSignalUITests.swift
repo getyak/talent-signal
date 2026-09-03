@@ -172,7 +172,8 @@ final class CandidateSignalUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH %@", "workspace-person-")
         ).element(boundBy: 0)
         XCTAssertTrue(leila.waitForExistence(timeout: 5))
-        XCTAssertLessThan(leila.frame.height, 100)
+        XCTAssertLessThan(leila.frame.height, 132)
+        XCTAssertTrue(leila.label.contains("Chief Product Officer search"))
 
         let search = app.textFields["people-search-field"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
@@ -184,7 +185,11 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Compact People search")
 
         app.buttons["people-search-clear"].tap()
-        XCTAssertTrue(app.staticTexts["Nia Williams"].waitForExistence(timeout: 3))
+        let nia = app.buttons[
+            "workspace-person-20000000-0000-4000-8000-000000000002"
+        ]
+        XCTAssertTrue(nia.waitForExistence(timeout: 3))
+        XCTAssertTrue(nia.label.contains("Candidate · Independent board director search"))
     }
 
     func testPeopleSearchAndPursuitFilterNarrowWithoutRanking() {
@@ -325,7 +330,10 @@ final class CandidateSignalUITests: XCTestCase {
         )
         XCTAssertFalse(element("today-unread-session").exists)
         XCTAssertTrue(element("workspace-preview-boundary").exists)
-        XCTAssertTrue(element("today-calendar-reminder").exists)
+        let calendarReminder = element("today-calendar-reminder")
+        XCTAssertTrue(calendarReminder.exists)
+        XCTAssertTrue(calendarReminder.label.contains("Chief Product Officer search"))
+        XCTAssertGreaterThan(calendarReminder.frame.height, 80)
         XCTAssertTrue(element("today-focus").exists)
         for decisionID in ["preview-contact", "preview-calendar"] {
             let add = app.buttons["today-decision-add-\(decisionID)"]
@@ -411,7 +419,10 @@ final class CandidateSignalUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        XCTAssertTrue(element("today-calendar-reminder").exists)
+        let calendarReminder = element("today-calendar-reminder")
+        XCTAssertTrue(calendarReminder.exists)
+        XCTAssertTrue(calendarReminder.label.contains("首席产品官搜索"))
+        XCTAssertGreaterThan(calendarReminder.frame.height, 80)
 
         let addContact = app.buttons["today-decision-add-preview-contact"]
         tapWhenVisible(addContact)
@@ -2125,14 +2136,33 @@ final class CandidateSignalUITests: XCTestCase {
         send.tap()
 
         XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Agent · 预览"].exists)
+        let provenance = app.staticTexts["Agent · 预览"]
+        XCTAssertTrue(provenance.exists)
+        XCTAssertTrue(provenance.isHittable)
         XCTAssertFalse(element("ask-recall-unresolved").exists)
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertFalse(element("ask-scope-search").exists)
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
         XCTAssertLessThanOrEqual(composer.frame.maxY, app.frame.maxY)
-        preserveScreenshot("Ask Chinese dark AX5 Agent reply")
+        let header = element("ask-chat-header")
+        XCTAssertTrue(header.exists)
+        XCTAssertLessThanOrEqual(header.frame.height, 68)
+
+        let responseBody = app.staticTexts[
+            "你好，我在。你可以直接和我聊，或者告诉我想回顾哪段关系。"
+        ]
+        XCTAssertTrue(responseBody.waitForExistence(timeout: 3))
+        let conversation = element("ask-conversation")
+        var attempts = 0
+        while responseBody.frame.maxY > composer.frame.minY - 8, attempts < 8 {
+            conversation.swipeUp()
+            attempts += 1
+        }
+        XCTAssertGreaterThanOrEqual(responseBody.frame.minY, header.frame.maxY)
+        XCTAssertLessThanOrEqual(responseBody.frame.maxY, composer.frame.minY - 8)
+        XCTAssertTrue(responseBody.isHittable)
+        preserveScreenshot("Ask Chinese dark AX5 complete Agent reply")
     }
 
     func testSettingsSwitchesTheCoreWorkspaceBetweenChineseAndEnglish() {
@@ -3258,6 +3288,7 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(personRow.exists)
         XCTAssertGreaterThanOrEqual(personRow.frame.height, 44)
+        XCTAssertTrue(personRow.label.contains("Chief Product Officer search"))
         preserveScreenshot("Cross-Pursuit People retrieval")
     }
 
@@ -3296,6 +3327,14 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(personRow.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(personRow.frame.height, 44)
+        XCTAssertTrue(personRow.label.contains("Chief Product Officer search"))
+
+        let nia = app.buttons[
+            "workspace-person-20000000-0000-4000-8000-000000000002"
+        ]
+        scrollToVisible(nia)
+        XCTAssertTrue(nia.label.contains("Candidate · Independent board director search"))
+        XCTAssertGreaterThanOrEqual(nia.frame.height, 88)
         preserveScreenshot("People cards Chinese dark AX5 reduced motion")
     }
 

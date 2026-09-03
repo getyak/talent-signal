@@ -34,7 +34,7 @@ export default function RelationshipsPage() {
   return (
     <>
       <SiteHeader />
-      <main className={styles.page} id="main-content">
+      <main className={styles.page} id="main-content" tabIndex={-1}>
         <section className={styles.hero} aria-labelledby="relationships-title">
           <div className="shell">
             <p className={styles.eyebrow}>关系产品</p>

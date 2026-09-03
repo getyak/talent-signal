@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   candidateMomentumFixtures,
+  getActionOwnerLabel,
+  getActionTypeLabel,
+  getSpeakerLabel,
   isCandidateMomentumDataset,
+  localizeGeneratedCopy,
 } from "./candidateMomentum";
 
 describe("candidate momentum fixtures", () => {
@@ -65,5 +69,24 @@ describe("candidate momentum fixtures", () => {
         ),
       }),
     ).toBe(false);
+  });
+
+  it("localizes generated workflow copy while leaving evidence untouched", () => {
+    expect(getSpeakerLabel("candidate")).toBe("候选人");
+    expect(getActionTypeLabel("prepare_question")).toBe("准备问题");
+    expect(getActionOwnerLabel("recruiter")).toBe("招聘顾问");
+    expect(localizeGeneratedCopy("client remote-work policy")).toBe(
+      "客户的远程办公政策",
+    );
+    expect(
+      localizeGeneratedCopy(
+        "Resolve the work-mode dependency before the decision deadline.",
+      ),
+    ).toBe("在候选人作出决定前，先澄清远程办公这个关键依赖。");
+    expect(
+      localizeGeneratedCopy(
+        "I have another offer and need to decide Wednesday.",
+      ),
+    ).toBe("I have another offer and need to decide Wednesday.");
   });
 });

@@ -19,7 +19,7 @@ struct FixtureRelationshipService: MacRelationshipServing {
 
     func submit(manifest: SubmittedContextManifest) async throws -> MacRelationshipServiceResponse {
         guard !manifest.selectedItems.isEmpty else { throw CapsuleValidationError.noReviewedSharedContext }
-        return .syntheticFixture(Self.fixture(mode: .needsDecision))
+        return .syntheticFixture(Self.fixture(mode: .needsDecision, manifest: manifest))
     }
 
     func resolveDecision(_ request: CanonicalDecisionRequest) async throws -> MacRelationshipServiceResponse {
@@ -41,7 +41,10 @@ struct FixtureRelationshipService: MacRelationshipServing {
         .init(sessionID: "synthetic-session", revokedAt: ISO8601DateFormatter().string(from: Date()))
     }
 
-    static func fixture(mode: WorkspaceMode) -> SyntheticRelationshipFixture {
+    static func fixture(
+        mode: WorkspaceMode,
+        manifest: SubmittedContextManifest? = nil
+    ) -> SyntheticRelationshipFixture {
         let changedSummary = mode == .clarification
             ? "A relative meeting time was observed, but exact scheduling authority is incomplete."
             : mode == .noAction
@@ -122,32 +125,58 @@ struct FixtureRelationshipService: MacRelationshipServing {
                 dependency: dependency,
                 proposal: proposal,
                 actionProjections: actionProjections
-            )
+            ),
+            pendingDecision: mode == .needsDecision
+                ? decisionReviewFixture(manifest: manifest)
+                : nil,
+            receipt: mode == .receipt ? receiptFixture() : nil
         )
     }
 
-    static func decisionReviewFixture() -> CanonicalProposalReview {
-        CanonicalProposalReview(
+    static func decisionReviewFixture(
+        manifest: SubmittedContextManifest? = nil
+    ) -> CanonicalProposalReview {
+        let observedAt = manifest.map {
+            ISO8601DateFormatter().string(from: $0.submittedAt)
+        } ?? "2026-08-31T05:00:00Z"
+        let evidence: [CanonicalProposalReview.Evidence]
+        if let selectedItems = manifest?.selectedItems, !selectedItems.isEmpty {
+            evidence = selectedItems.enumerated().map { index, item in
+                .init(
+                    id: String(format: "20000000-0000-4000-8001-%012d", index + 1),
+                    text: item.reviewedContent,
+                    source: "\(item.displayName) · synthetic fixture",
+                    observedAt: observedAt,
+                    attributedActor: item.actorKind.rawValue,
+                    attributionStatus: "confirmed",
+                    reviewStatus: "reviewed"
+                )
+            }
+        } else {
+            evidence = [
+                .init(
+                    id: "20000000-0000-4000-8000-000000000004",
+                    text: "I need the exact remote-work policy before Wednesday because another process moved earlier.",
+                    source: "Synthetic selected conversation",
+                    observedAt: observedAt,
+                    attributedActor: "candidate",
+                    attributionStatus: "confirmed",
+                    reviewStatus: "reviewed"
+                )
+            ]
+        }
+
+        return CanonicalProposalReview(
             bundleID: "20000000-0000-4000-8000-000000000001",
             taskID: "20000000-0000-4000-8000-000000000002",
             taskRevision: 2,
             bundleRevision: 1,
             proposalID: "20000000-0000-4000-8000-000000000003",
             baseRevision: 7,
-            summary: "Remote-work policy still needs your judgment.",
-            dependency: "Decide whether the reviewed evidence should add one unresolved follow-up to this relationship.",
-            expiresAt: "2026-09-01T09:00:00Z",
-            evidence: [
-                .init(
-                    id: "20000000-0000-4000-8000-000000000004",
-                    text: "I need the exact remote-work policy before Wednesday because another process moved earlier.",
-                    source: "Synthetic selected conversation",
-                    observedAt: "2026-08-31T05:00:00Z",
-                    attributedActor: "candidate",
-                    attributionStatus: "confirmed",
-                    reviewStatus: "reviewed"
-                )
-            ],
+            summary: "The reviewed relationship signal needs your judgment.",
+            dependency: "Decide whether this exact reviewed evidence should add one unresolved follow-up to the synthetic relationship.",
+            expiresAt: "2099-01-01T00:00:00Z",
+            evidence: evidence,
             items: [
                 .init(
                     id: "20000000-0000-4000-8000-000000000005",
@@ -160,7 +189,7 @@ struct FixtureRelationshipService: MacRelationshipServing {
                     effectSummary: "Would add one operational gap for human review only.",
                     epistemicStatus: "inference",
                     evidenceAvailability: "available",
-                    evidenceRefs: ["20000000-0000-4000-8000-000000000004"]
+                    evidenceRefs: evidence.map(\.id)
                 )
             ]
         )

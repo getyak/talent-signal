@@ -75,6 +75,29 @@ describe("persistent workspace shell", () => {
     expect(workspace).toContain('location.searchParams.delete("intent")');
     expect(navigation).toContain("/workspace?surface=desk&intent=compose");
   });
+
+  it("routes disconnected workspace pages to explicit safe fallback surfaces", () => {
+    const today = read("components/pursuit-today-page.tsx");
+    const people = read("components/people-directory-app.tsx");
+    const evals = read("app/workspace/evals/page.tsx");
+    const disconnected = read("components/workspace-disconnected-state.tsx");
+
+    expect(disconnected).toContain("受治理工作区离线");
+    expect(today).toContain("<WorkspaceDisconnectedState");
+    expect(today).toContain("进入冻结边界案例");
+    expect(people).toContain("<WorkspaceDisconnectedState");
+    expect(people).toContain('secondaryHref="/relationships"');
+    expect(evals).toContain("<WorkspaceDisconnectedState");
+    expect(evals).toContain("不要把表单失败误当成评测结果");
+  });
+
+  it("does not let an unreachable backend block local sign-out", () => {
+    const actions = read("app/login/actions.ts");
+
+    expect(actions).toContain("BACKEND_LOGOUT_TIMEOUT_MS");
+    expect(actions).toContain("logoutBackendWithinDeadline");
+    expect(actions).toContain("await signOut({ redirectTo: \"/\" })");
+  });
 });
 
 describe("relationship workspace initial read", () => {

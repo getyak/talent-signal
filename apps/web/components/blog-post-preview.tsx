@@ -53,7 +53,7 @@ export function BlogPostPreview({
           alt={post.heroAlt}
           width={1672}
           height={941}
-          preload={priority}
+          loading={priority ? "eager" : "lazy"}
           fetchPriority={priority ? "high" : undefined}
           sizes={
             variant === "featured"

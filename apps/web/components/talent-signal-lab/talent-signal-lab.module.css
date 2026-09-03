@@ -1233,6 +1233,19 @@
   font-weight: 720;
 }
 
+.retryLink {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 720;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 .spin {
   animation: spin 800ms linear infinite;
 }

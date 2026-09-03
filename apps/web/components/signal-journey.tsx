@@ -245,10 +245,11 @@ export function SignalJourney() {
                     transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
                   >
                     <Image
-                      src={source.image}
                       alt={source.alt}
                       fill
+                      loading="eager"
                       sizes="(max-width: 760px) 70vw, 330px"
+                      src={source.image}
                     />
                   </motion.div>
                 </AnimatePresence>

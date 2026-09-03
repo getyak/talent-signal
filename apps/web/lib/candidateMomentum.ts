@@ -487,6 +487,91 @@ export function getDispositionLabel(
   return labels[disposition];
 }
 
+const speakerLabels = {
+  candidate: "候选人",
+  recruiter: "招聘顾问",
+} as const;
+
+const actionTypeLabels = {
+  prepare_question: "准备问题",
+} as const;
+
+const actionOwnerLabels = {
+  recruiter: "招聘顾问",
+} as const;
+
+const generatedCopy = {
+  "another offer": "另一份录用意向",
+  "2026-08-05": "2026-08-05",
+  "Tuesday afternoon": "周二下午",
+  "remote matters a lot": "远程办公非常重要",
+  "three office days, conditional on reporting to the COO":
+    "如果汇报给 COO，可以接受每周三天到岗",
+  "hiring manager says relocation would be required":
+    "用人经理表示这个岗位需要搬迁",
+  "client remote-work policy": "客户的远程办公政策",
+  "Resolve the work-mode dependency before the decision deadline.":
+    "在候选人作出决定前，先澄清远程办公这个关键依赖。",
+  "within one business day": "一个工作日内",
+  "role reporting line": "岗位汇报关系",
+  "Resolve the condition before treating the work-mode constraint as changed.":
+    "在把工作方式限制视为已变化之前，先确认这个条件是否成立。",
+  "before advancing the process": "推进流程前",
+  "candidate meeting confirmation": "候选人是否确认会议",
+  "Ask for an exact date and timezone before preparing a calendar change.":
+    "在准备任何日历变更前，先确认准确日期与时区。",
+  "before scheduling": "安排前",
+  "overwrite the prior state destructively": "破坏性覆盖此前状态",
+  "drop the reporting-line condition": "丢失“汇报给 COO”这个条件",
+  "present the new value as unconditionally confirmed":
+    "把新值显示成无条件已确认",
+  "bind the screenshot automatically": "自动把截图绑定到某位候选人",
+  "persist a candidate fact": "持久化任何候选人事实",
+  "create a deadline-dependent action": "创建依赖截止时间的行动",
+  "attribute relocation intent to the candidate": "把搬迁要求误记为候选人本人的意愿",
+  "infer candidate agreement from thanks": "从一句“谢谢”推断候选人已经同意",
+  "promote a third-party statement to candidate preference":
+    "把第三方陈述提升为候选人的偏好",
+  "create a calendar event": "创建日历事件",
+  "treat availability as consent": "把可用时间当成明确同意",
+  "invent a meeting duration": "凭空补出会议时长",
+  "produce a culture-fit score": "产出文化匹配分数",
+  "rank candidate quality": "给候选人质量排序",
+  "use tone or response speed as a selection proxy":
+    "把语气或回复速度当成选拔代理指标",
+  "manufacture urgency": "凭空制造紧迫感",
+  "infer sentiment or engagement": "推断情绪或投入度",
+  "create a follow-up task": "自动创建跟进任务",
+  "normalize a date without source time": "在缺少来源时间时直接归一化日期",
+  "assume a timezone": "擅自假定时区",
+  "create a meeting": "创建会议",
+  "predict acceptance": "预测是否会接受录用",
+  "convert availability into meeting consent": "把可用时间直接当成会议同意",
+  "present proposed assertions as confirmed": "把拟议事实显示成已确认",
+} as const;
+
+export function getSpeakerLabel(
+  speaker: CandidateMomentumCase["messages"][number]["speaker"],
+) {
+  return speakerLabels[speaker];
+}
+
+export function getActionTypeLabel(
+  type: CandidateMomentumAction["type"],
+) {
+  return actionTypeLabels[type];
+}
+
+export function getActionOwnerLabel(
+  owner: CandidateMomentumAction["owner"],
+) {
+  return actionOwnerLabels[owner];
+}
+
+export function localizeGeneratedCopy(value: string) {
+  return generatedCopy[value as keyof typeof generatedCopy] ?? value;
+}
+
 export function getFieldLabel(field: string) {
   const labels: Record<string, string> = {
     availability: "可用时间",

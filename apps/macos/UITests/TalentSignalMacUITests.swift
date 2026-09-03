@@ -6,7 +6,9 @@ final class TalentSignalMacUITests: XCTestCase {
         reducedMotion: Bool = false,
         identityTagCount: Int? = nil,
         todayPreview: Bool = false,
-        quickPanelPreview: Bool = false
+        quickPanelPreview: Bool = false,
+        accessibilityZoom: Bool = false,
+        darkAppearance: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--fixture-state", state]
@@ -21,6 +23,12 @@ final class TalentSignalMacUITests: XCTestCase {
         }
         if quickPanelPreview {
             app.launchArguments += ["--quick-panel-preview"]
+        }
+        if accessibilityZoom {
+            app.launchArguments += ["--accessibility-zoom-200"]
+        }
+        if darkAppearance {
+            app.launchArguments += ["--dark-appearance-preview"]
         }
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
@@ -218,6 +226,38 @@ final class TalentSignalMacUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "score")).firstMatch.exists)
         app.buttons["identity.saveUnresolved"].click()
         XCTAssertTrue(app.descendants(matching: .any)["identity.unresolvedReceipt"].waitForExistence(timeout: 3))
+    }
+
+    func testReceiptLocalHandoffRemainsReachableAt200PercentWithLongMixedIdentity() {
+        let app = launch(
+            state: "receipt",
+            reducedMotion: true,
+            identityTagCount: 3,
+            accessibilityZoom: true,
+            darkAppearance: true
+        )
+        let window = app.windows.firstMatch
+        let candidateName = app.descendants(matching: .any)["workspace.candidateName"]
+        let relationshipScroll = app.scrollViews["workspace.relationship"]
+        let prepareDraft = app.buttons["decision.prepareDraft"]
+
+        XCTAssertTrue(candidateName.waitForExistence(timeout: 3))
+        XCTAssertTrue(relationshipScroll.exists)
+        XCTAssertTrue(prepareDraft.exists)
+        XCTAssertLessThan(
+            candidateName.frame.height,
+            window.frame.height * 0.45,
+            "The long mixed-script identity must not consume most of the 200 percent viewport."
+        )
+
+        for _ in 0..<6 {
+            if prepareDraft.isHittable { break }
+            relationshipScroll.swipeUp()
+        }
+
+        XCTAssertTrue(prepareDraft.isHittable)
+        XCTAssertGreaterThanOrEqual(prepareDraft.frame.minY, window.frame.minY)
+        XCTAssertLessThanOrEqual(prepareDraft.frame.maxY, window.frame.maxY)
     }
 
     func testFailureUnknownNoActionAndDeletedAreTruthfulTerminalStates() {

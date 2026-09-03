@@ -165,7 +165,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
       <StructuredData value={articleSchema} />
       <StructuredData value={breadcrumbSchema} />
       <SiteHeader />
-      <main id="main-content" className="article-page">
+      <main id="main-content" className="article-page" tabIndex={-1}>
         <article>
           <header className="article-header shell">
             <nav aria-label="面包屑导航">
@@ -199,7 +199,7 @@ export default async function BlogArticlePage({ params }: BlogArticlePageProps) 
               alt={post.heroAlt}
               width={1672}
               height={941}
-              preload
+              loading="eager"
               fetchPriority="high"
               sizes="(max-width: 767px) 100vw, 92vw"
             />

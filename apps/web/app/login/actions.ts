@@ -13,6 +13,27 @@ export type SignInState = {
   error: string;
 };
 
+const BACKEND_LOGOUT_TIMEOUT_MS = 1_500;
+
+async function logoutBackendWithinDeadline(
+  logout: () => Promise<unknown>,
+) {
+  let timeoutID: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      logout(),
+      new Promise<never>((_, reject) => {
+        timeoutID = setTimeout(
+          () => reject(new Error("Backend logout timed out.")),
+          BACKEND_LOGOUT_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutID) clearTimeout(timeoutID);
+  }
+}
+
 function credentialsErrorMessage(error: AuthError, mode: "register" | "sign-in") {
   const code = "code" in error ? String(error.code) : "";
   if (code === "service_unavailable") {
@@ -137,7 +158,7 @@ export async function signOutOfWorkspace() {
   try {
     const backend = await authenticatedBackendClient();
     if (backend) {
-      await backend.logout();
+      await logoutBackendWithinDeadline(() => backend.logout());
     }
   } catch {
     // Local sign-out must still succeed if the backend session expired or the

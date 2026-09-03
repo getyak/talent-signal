@@ -1202,6 +1202,13 @@ struct RelationshipAskView: View {
                         .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 14))
                         .accessibilityIdentifier("ask-evidence-review-persistence-error")
                     }
+
+                    if !conversationItems.isEmpty {
+                        Color.clear
+                            .frame(height: usesAccessibilityLayout ? 88 : 24)
+                            .accessibilityHidden(true)
+                            .id("ask-conversation-reading-clearance")
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
@@ -2231,6 +2238,9 @@ struct RelationshipAskView: View {
         .padding(.horizontal, 12)
         .padding(.top, usesAccessibilityLayout ? 2 : 6)
         .padding(.bottom, 0)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-chat-header")
     }
 
     private var usesAccessibilityLayout: Bool {

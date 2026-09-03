@@ -9,6 +9,13 @@
   padding: var(--workspace-page-padding) var(--workspace-page-padding) 64px;
 }
 
+.errorStack {
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 1260px;
+}
+
 .hero {
   align-items: center;
   border-bottom: 1px solid var(--line);
@@ -655,6 +662,10 @@
 @media (max-width: 760px) {
   .main {
     padding: 22px 16px 64px;
+  }
+
+  .errorStack {
+    gap: 14px;
   }
 
   .hero {
