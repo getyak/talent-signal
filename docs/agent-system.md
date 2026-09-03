@@ -291,11 +291,11 @@ Evaluate layers independently:
 - open-ended trajectory, artifact quality, and budget;
 - relationship and workflow outcomes.
 
-Evaluate both trajectory and outcome. An agent saying it is finished is not
-evidence that the environment is correct.
+Evaluate both trajectory and outcome. An agent saying it is finished is not evidence that the environment is correct.
+
+Internal Lab evaluation binds comparison to one frozen synthetic snapshot and requires human promotion before a redacted issue becomes a versioned Eval Case; see [ADR 0011](decisions/0011-product-native-internal-lab.md).
 
 Release boundaries include:
-
 - every consequential write has specific approval and provenance;
 - ambiguous identity, speaker, date, or scope cannot trigger an automatic
   write;

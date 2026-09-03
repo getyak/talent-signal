@@ -5,7 +5,9 @@ import { auth } from "@/auth";
 import { EvalTraceCapture } from "@/components/eval-trace-capture";
 import { EvalAgentLab } from "@/components/eval-agent-lab";
 import { EvalTraceList } from "@/components/eval-trace-list";
+import { LabEvalCases } from "@/components/talent-signal-lab/lab-eval-cases";
 import styles from "@/components/eval-workbench.module.css";
+import { loadLabManifest } from "@/lib/server/labBackend";
 import { loadTelemetryTraces } from "@/lib/server/telemetryBackend";
 import { loadEvalAgentLab } from "@/lib/server/pursuitBackend";
 
@@ -21,6 +23,7 @@ export default async function EvalWorkbenchPage() {
   if (!(await auth())?.user) redirect("/login?callbackUrl=%2Fworkspace%2Fevals");
   let traces: Awaited<ReturnType<typeof loadTelemetryTraces>>["traces"] = [];
   let lab: Awaited<ReturnType<typeof loadEvalAgentLab>> | null = null;
+  let labCases: Awaited<ReturnType<typeof loadLabManifest>>["eval_cases"] = [];
   let error: string | null = null;
   try {
     const [traceResult, labResult] = await Promise.all([
@@ -31,6 +34,11 @@ export default async function EvalWorkbenchPage() {
     lab = labResult;
   } catch {
     error = "账号范围内的追踪存储不可用，未使用测试追踪替代。";
+  }
+  try {
+    labCases = (await loadLabManifest()).eval_cases;
+  } catch {
+    // Eval traces remain usable when the isolated Lab control plane is off.
   }
   return (
     <main className={styles.page}>
@@ -45,6 +53,7 @@ export default async function EvalWorkbenchPage() {
         <span className={styles.health}>{error ? "采集器不可用" : "采集器已连接"}</span>
       </header>
       {lab ? <EvalAgentLab provider={lab.provider} targets={[...lab.targets]} /> : null}
+      <LabEvalCases cases={labCases} />
       <section className={styles.grid}>
         <EvalTraceCapture />
         <div className={styles.tracePanel}>

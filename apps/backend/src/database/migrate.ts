@@ -44,6 +44,7 @@ const MIGRATIONS = [
   "036_governed_agent_tasks",
   "037_source_retention_derivative_lineage",
   "038_reviewed_person_public_profiles",
+  "039_talent_signal_lab",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

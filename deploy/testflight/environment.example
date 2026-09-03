@@ -46,6 +46,7 @@ POSTGRES_PASSWORD=replace-with-generated-hex-value
 
 # Release authentication policy. Compose always disables simulated login.
 APPLE_SIGN_IN_AUDIENCES=com.talentsignal.app
+TALENT_SIGNAL_INTERNAL_LAB_ENABLED=true
 ALLOWED_ORIGINS=https://your-mac.your-tailnet.ts.net
 SESSION_TTL_SECONDS=28800
 RETENTION_SWEEP_INTERVAL_MS=60000

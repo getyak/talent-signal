@@ -45,6 +45,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-talent_signal_local}:${POSTGRES_PASSWORD:-talent_signal_local_only}@postgres:5432/${POSTGRES_DB:-talent_signal_local}
       NODE_ENV: development
       SIMULATED_AUTH_ENABLED: "true"
+      TALENT_SIGNAL_INTERNAL_LAB_ENABLED: "true"
       APPLE_SIGN_IN_ENABLED: "true"
       APPLE_SIGN_IN_AUDIENCES: com.talentsignal.app
     command: ["node", "apps/backend/dist/database/migrate.js"]

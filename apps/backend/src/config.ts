@@ -10,6 +10,7 @@ export interface BackendConfig {
   retentionSweepIntervalMs: number;
   sessionTtlSeconds: number;
   simulatedAuthEnabled: boolean;
+  internalLabEnabled?: boolean;
   chatMediaStorage?:
     | { provider: "local"; directory: string }
     | {
@@ -40,6 +41,10 @@ export function loadConfig(): BackendConfig {
   const nodeEnvironment = process.env.NODE_ENV ?? "development";
   const simulatedAuthEnabled = parseBoolean(
     process.env.SIMULATED_AUTH_ENABLED,
+    nodeEnvironment !== "production",
+  );
+  const internalLabEnabled = parseBoolean(
+    process.env.TALENT_SIGNAL_INTERNAL_LAB_ENABLED,
     nodeEnvironment !== "production",
   );
 
@@ -124,6 +129,7 @@ export function loadConfig(): BackendConfig {
       10,
     ),
     simulatedAuthEnabled,
+    internalLabEnabled,
     chatMediaStorage,
   };
 }

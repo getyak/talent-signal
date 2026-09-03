@@ -47,9 +47,7 @@ semantic interface, but it cannot confirm its own claims or grant permission.
 
 ### Model and agent runtimes
 
-Models perform bounded extraction, comparison, synthesis, or open-ended research. They are replaceable compute and never own lifecycle or permission.
-Open-world capabilities run in a user-controlled local host that owns credentials, network policy, and working state. The backend may host product-scoped compute but remains the authority for canonical state and effects.
-Neither placement lets a runtime promote its own output.
+Models perform bounded extraction, comparison, synthesis, or open-ended research. They are replaceable compute and never own lifecycle or permission. Open-world capabilities run in a user-controlled local host that owns credentials, network policy, and working state. The backend may host product-scoped compute but remains the authority for canonical state and effects. Neither placement lets a runtime promote its own output.
 
 ### Effect boundary
 
@@ -89,6 +87,8 @@ Confidence changes review priority, not authority.
 Fact confirmation and action approval remain independent. Rejecting an action
 does not erase the evidence that motivated it. Confirming a fact does not grant
 permission to act.
+
+The internal Lab replays only versioned synthetic evidence and writes only quality-control state; its isolation and human-promotion decision are recorded in [ADR 0011](decisions/0011-product-native-internal-lab.md).
 
 ### Mobile capture boundary
 

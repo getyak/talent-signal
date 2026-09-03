@@ -103,6 +103,19 @@ import type {
   TelemetryTraceDetailResponse,
   TelemetryTraceListResponse,
 } from "./telemetrySchemas.js";
+import type {
+  CompareLabScenarioRequest,
+  CreateRealityReceiptRequest,
+  LabComparisonResponse,
+  LabEvalCaseResponse,
+  LabManifestResponse,
+  LabRunResponse,
+  LabSessionResponse,
+  PromoteRealityReceiptRequest,
+  RealityReceiptResponse,
+  RunLabScenarioRequest,
+  StartLabSessionRequest,
+} from "./labSchemas.js";
 
 export class TalentSignalHttpError extends Error {
   readonly status: number;
@@ -361,6 +374,56 @@ export class TalentSignalClient {
 
   getTelemetryTrace(traceId: string): Promise<TelemetryTraceDetailResponse> {
     return this.request(`/v1/eval/traces/${traceId}`, { method: "GET" });
+  }
+
+  getLabManifest(): Promise<LabManifestResponse> {
+    return this.request("/v1/lab", { method: "GET" });
+  }
+
+  startLabSession(
+    request: StartLabSessionRequest,
+  ): Promise<LabSessionResponse> {
+    return this.request("/v1/lab/sessions", { method: "POST", body: request });
+  }
+
+  runLabScenario(
+    sessionId: string,
+    request: RunLabScenarioRequest,
+  ): Promise<LabRunResponse> {
+    return this.request(`/v1/lab/sessions/${sessionId}/runs`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  compareLabScenario(
+    sessionId: string,
+    request: CompareLabScenarioRequest,
+  ): Promise<LabComparisonResponse> {
+    return this.request(`/v1/lab/sessions/${sessionId}/comparisons`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  createRealityReceipt(
+    sessionId: string,
+    request: CreateRealityReceiptRequest,
+  ): Promise<RealityReceiptResponse> {
+    return this.request(`/v1/lab/sessions/${sessionId}/receipts`, {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  promoteRealityReceipt(
+    receiptId: string,
+    request: PromoteRealityReceiptRequest,
+  ): Promise<LabEvalCaseResponse> {
+    return this.request(`/v1/lab/receipts/${receiptId}/promotions`, {
+      method: "POST",
+      body: request,
+    });
   }
 
   async getTelemetryArtifactContent(
