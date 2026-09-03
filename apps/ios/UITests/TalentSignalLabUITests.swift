@@ -64,14 +64,22 @@ final class TalentSignalLabUITests: XCTestCase {
         XCTAssertTrue(app.buttons["signal-lens-done"].waitForNonExistence(timeout: 8))
 
         let comparison = app.staticTexts["lab-comparison-heading"]
-        scrollToVisible(comparison, maxSwipes: 30)
+        scrollToVisible(
+            comparison,
+            maxSwipes: 30,
+            appearanceTimeout: 12
+        )
         preserveScreenshot("Lab baseline comparison")
 
         let record = app.buttons["lab-record-receipt"]
         scrollToVisible(record)
         record.tap()
         let receipt = app.staticTexts["lab-receipt-heading"]
-        scrollToVisible(receipt, maxSwipes: 30)
+        scrollToVisible(
+            receipt,
+            maxSwipes: 30,
+            appearanceTimeout: 12
+        )
         preserveScreenshot("Redacted Reality Receipt")
 
         let promote = app.buttons["lab-promote-receipt"]
@@ -82,7 +90,7 @@ final class TalentSignalLabUITests: XCTestCase {
         confirm.tap()
 
         let success = element("lab-eval-promotion-success")
-        scrollToVisible(success)
+        scrollToVisible(success, appearanceTimeout: 12)
         preserveScreenshot("Human promoted Eval release gate")
     }
 
@@ -195,9 +203,11 @@ final class TalentSignalLabUITests: XCTestCase {
     private func scrollToVisible(
         _ element: XCUIElement,
         direction: ScrollDirection = .up,
-        maxSwipes: Int = 18
+        maxSwipes: Int = 18,
+        appearanceTimeout: TimeInterval = 1
     ) {
-        if element.waitForExistence(timeout: 1), isSafelyVisible(element) {
+        if element.waitForExistence(timeout: appearanceTimeout),
+           isSafelyVisible(element) {
             return
         }
         searchForVisible(element, direction: direction, maxSwipes: maxSwipes)

@@ -162,7 +162,7 @@ struct TalentSignalLabView: View {
 
     private var labScrollContent: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 24) {
                 introduction
                 content
             }
