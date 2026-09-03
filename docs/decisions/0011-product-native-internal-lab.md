@@ -67,6 +67,7 @@ retention, deletion, and model-exposure behavior can be proven end to end.
 ## Verification owners
 
 Contracts and database constraints own object shape and zero-effect
-invariants. Scenario tests own deterministic replay behavior. The Web surface
-owns progressive explanation and explicit promotion. Deployment configuration
-owns the internal-on, production-off capability boundary.
+invariants. Scenario tests own deterministic replay behavior. The Web and iOS
+surfaces own progressive explanation and explicit promotion without inventing
+a second fixture or receipt model. Deployment configuration owns the
+internal-on, production-off capability boundary.

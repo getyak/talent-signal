@@ -38,6 +38,38 @@ never performs a candidate-facing or external-system write from screenshot
 capture. Deterministic launch routing and localhost sessions are compiled out
 of Release; a Release-specific test verifies those arguments are inert.
 
+## Talent Signal Lab
+
+On an authenticated deployment where the backend explicitly enables the
+internal Lab capability, the native workspace shows a restrained capsule above
+Today:
+
+```text
+LAB · FAT · Demo-Ava · Agent p23
+```
+
+Tap it to open the four product tasks: identify the current world, replay a
+named scenario, inspect why through Signal Lens, and record a Reality Receipt.
+The phone consumes the same five repository-owned scenarios, frozen evidence
+hashes, baseline/candidate envelopes, Runs, comparisons, receipts, and Eval
+promotions as Web. It does not create a mobile fixture model or accept
+client-authored issue narratives.
+
+The capsule is absent until the server capability read succeeds and reports
+`enabled`. Every run readback must match the session snapshot, keep its
+canonical revision unchanged, and report zero canonical mutations and zero
+external effects. Baseline comparison is shown only for identical snapshots.
+Signal Lens stays bound to that exact persisted Run and separates observation,
+interpretation, uncertainty, evidence state, and runtime provenance.
+
+Recording an issue stores only the server-derived redacted surface snapshot.
+Promotion requires a second explicit human decision and affects only the Eval
+control plane. Production deployments keep the capability disabled; Release
+adds no local override or simulated login. For Simulator verification against
+an internal local backend, use the existing Debug-only
+`--workspace-backend-url` route so both the workspace and Lab authenticate
+through the same loopback fixture account.
+
 ## Requirements
 
 - Xcode 26 or newer
