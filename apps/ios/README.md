@@ -198,6 +198,13 @@ text selection, then reopening the standalone Debug showcase.
 pnpm ios:check
 ```
 
+When `TS_IOS_BACKEND_URL` points the check at an existing backend, also set
+the backend's matching `DATABASE_URL` through its governed secret boundary.
+The check fails before building when this explicit pairing is absent, rather
+than allowing canonical fixture setup to fall back to the default local
+PostgreSQL port. Omit both variables to let `ios:check` create and clean up its
+own isolated backend and database.
+
 To prove the signed-in, canonical Ask journey reaches the admitted Zhipu
 provider and renders its answer in the current viewport, run:
 

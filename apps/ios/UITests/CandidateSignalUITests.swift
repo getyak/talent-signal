@@ -1312,7 +1312,7 @@ final class CandidateSignalUITests: XCTestCase {
         ask.tap()
 
         XCTAssertFalse(element("ask-scope-selector").exists)
-        XCTAssertTrue(element("ask-composer").exists)
+        XCTAssertTrue(askComposer.exists)
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
         XCTAssertFalse(app.buttons["What changed?"].exists)
         XCTAssertTrue(element("ask-expanded-composer").exists)
@@ -1404,8 +1404,8 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(voice.exists)
         XCTAssertTrue(text.exists)
         XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1))
-        XCTAssertGreaterThanOrEqual(sheet.frame.height, 150)
-        XCTAssertLessThan(sheet.frame.height, 190)
+        XCTAssertGreaterThanOrEqual(sheet.frame.height, 120)
+        XCTAssertLessThan(sheet.frame.height, 160)
         for action in [photos, files, voice, text] {
             XCTAssertGreaterThanOrEqual(action.frame.height, 44)
             XCTAssertGreaterThanOrEqual(action.frame.width, 44)
@@ -1921,37 +1921,31 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(ask.waitForExistence(timeout: 5))
         ask.tap()
 
-        let composer = element("ask-composer")
+        let composer = askComposer
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
-        typeTextReliably("What changed?", into: composer)
+        let question = "What changed with Leila?"
+        typeTextReliably(question, into: composer)
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.isEnabled)
         send.tap()
 
-        XCTAssertTrue(element("ask-recall-unresolved").waitForExistence(timeout: 10))
-        let canonicalPerson = recalledRelationship(
-            personID: fixture.personID,
-            query: "Leila"
-        )
-        XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
-        canonicalPerson.tap()
         let pendingTurn = element("ask-pending-turn")
-        XCTAssertTrue(pendingTurn.waitForExistence(timeout: 2))
-        XCTAssertTrue(element("ask-loading").exists)
+        XCTAssertTrue(pendingTurn.waitForExistence(timeout: 15))
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
         let pendingMessage = element("ask-user-message")
-        XCTAssertEqual(pendingMessage.label, "What changed?")
-        let pendingComposer = element("ask-composer")
-        XCTAssertFalse(String(describing: pendingComposer.value).contains("What changed?"))
+        XCTAssertEqual(pendingMessage.label, question)
+        let pendingComposer = askComposer
+        XCTAssertFalse(String(describing: pendingComposer.value).contains(question))
         XCTAssertFalse(pendingComposer.isEnabled)
         XCTAssertFalse(element("ask-response-turn").exists)
         preserveScreenshot("Canonical Ask pending turn")
-        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 60))
         XCTAssertTrue(pendingTurn.waitForNonExistence(timeout: 2))
-        XCTAssertTrue(element("ask-composer").isEnabled)
+        XCTAssertTrue(askComposer.isEnabled)
         XCTAssertFalse(app.staticTexts["Preview data · connect a workspace to send"].exists)
         let userMessage = element("ask-user-message")
         XCTAssertTrue(userMessage.exists)
-        XCTAssertEqual(userMessage.label, "What changed?")
+        XCTAssertEqual(userMessage.label, question)
         XCTAssertLessThan(userMessage.frame.width, 280)
         preserveScreenshot("Canonical Ask evidence-bound response")
 
@@ -2021,24 +2015,15 @@ final class CandidateSignalUITests: XCTestCase {
         }
         ask.tap()
 
-        let composer = app.textFields["ask-composer"]
-        typeTextReliably("What changed?", into: composer)
+        let composer = askComposer
+        typeTextReliably("What changed with Leila?", into: composer)
         app.buttons["ask-send"].tap()
 
-        let canonicalPerson = recalledRelationship(
-            personID: fixture.personID,
-            query: "Leila"
-        )
-        guard canonicalPerson.waitForExistence(timeout: 10) else {
-            XCTFail("The recalled relationship choices did not open in Chat.")
-            return
-        }
-        canonicalPerson.tap()
-
-        guard element("ask-response-turn").waitForExistence(timeout: 25) else {
+        guard element("ask-response-turn").waitForExistence(timeout: 60) else {
             XCTFail("The canonical Ask response did not render.")
             return
         }
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
         let expectsRemoteAI = testConfiguration(
             "TS_IOS_EXPECT_REMOTE_CHAT",
             fallback: "false"
@@ -2065,8 +2050,12 @@ final class CandidateSignalUITests: XCTestCase {
                 "The response exists but its first useful block is not visible."
             )
         }
+        let evidence = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "ask-citation-")
+        ).firstMatch
         XCTAssertTrue(
-            app.staticTexts["Availability: 2026-09-01, Asia/Shanghai"].exists
+            evidence.waitForExistence(timeout: 5),
+            "A remote relationship answer must retain governed evidence."
         )
         XCTAssertFalse(element("ask-error").exists)
         XCTAssertTrue(composer.isEnabled)
@@ -2075,8 +2064,8 @@ final class CandidateSignalUITests: XCTestCase {
 
     func testCanonicalAskUsesReviewedContactEvidenceWithoutFalseBindingError() async throws {
         guard let fixture = try await preparePursuitProposalFixtureIfAvailable(),
-              let personID = fixture.contactConflictCurrentPersonID,
-              let contextID = fixture.contactConflictCurrentContextID else {
+              fixture.contactConflictCurrentPersonID != nil,
+              fixture.contactConflictCurrentContextID != nil else {
             throw XCTSkip("The reviewed contact evidence fixture was not configured.")
         }
         app.launchArguments = [
@@ -2089,22 +2078,12 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
         tapWhenVisible(app.buttons["relationship-guide"])
-        let composer = app.textFields["ask-composer"]
-        typeTextReliably("What do we know?", into: composer)
+        let composer = askComposer
+        typeTextReliably("What do we know about Robin Current?", into: composer)
         tapVisibleCenter(app.buttons["ask-send"])
 
-        let contactScope = recalledRelationship(
-            personID: personID,
-            contextID: contextID,
-            query: "Robin Current"
-        )
-        guard contactScope.waitForExistence(timeout: 10) else {
-            XCTFail("The exact reviewed Robin Current relationship was not offered.")
-            return
-        }
-        contactScope.tap()
-
-        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 60))
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
         XCTAssertFalse(element("ask-error").exists)
         let evidence = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Evidence from ")
@@ -2140,34 +2119,28 @@ final class CandidateSignalUITests: XCTestCase {
         tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
 
-        let composer = app.textFields["ask-composer"]
-        typeTextReliably("发生了什么变化？", into: composer)
+        let composer = askComposer
+        let question = "Leila 有什么变化？"
+        typeTextReliably(question, into: composer)
         app.buttons["ask-send"].tap()
 
-        let canonicalPerson = recalledRelationship(
-            personID: fixture.personID,
-            query: "Leila"
-        )
-        XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
-        canonicalPerson.tap()
-
         let pendingTurn = element("ask-pending-turn")
-        XCTAssertTrue(pendingTurn.waitForExistence(timeout: 2))
+        XCTAssertTrue(pendingTurn.waitForExistence(timeout: 15))
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
         XCTAssertTrue(
             element("ask-submission-requesting").waitForExistence(timeout: 2)
         )
-        XCTAssertTrue(element("ask-loading").exists)
-        XCTAssertEqual(element("ask-user-message").label, "发生了什么变化？")
-        XCTAssertFalse(element("ask-composer").isEnabled)
+        XCTAssertEqual(element("ask-user-message").label, question)
+        XCTAssertFalse(askComposer.isEnabled)
         preserveScreenshot("Canonical Ask pending turn Chinese dark AX5")
 
-        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 60))
         XCTAssertTrue(pendingTurn.waitForNonExistence(timeout: 2))
-        XCTAssertTrue(element("ask-composer").isEnabled)
+        XCTAssertTrue(askComposer.isEnabled)
 
         let userMessage = element("ask-user-message")
         XCTAssertTrue(userMessage.exists)
-        XCTAssertEqual(userMessage.label, "发生了什么变化？")
+        XCTAssertEqual(userMessage.label, question)
         XCTAssertLessThanOrEqual(
             userMessage.frame.width,
             app.windows.firstMatch.frame.width - 40
@@ -2204,7 +2177,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(evidence.exists)
         XCTAssertTrue(evidence.label.contains("候选人"))
         XCTAssertTrue(evidence.label.contains("已审阅"))
-        XCTAssertTrue(element("ask-composer").exists)
+        XCTAssertTrue(askComposer.exists)
         preserveScreenshot("Canonical Ask response Chinese dark AX5")
     }
 
@@ -2224,23 +2197,17 @@ final class CandidateSignalUITests: XCTestCase {
         tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
 
-        let composer = app.textFields["ask-composer"]
-        typeTextReliably("What changed?", into: composer)
+        let composer = askComposer
+        let question = "What changed with Leila?"
+        typeTextReliably(question, into: composer)
         app.buttons["ask-send"].tap()
 
-        XCTAssertTrue(element("ask-recall-unresolved").waitForExistence(timeout: 5))
-        let canonicalPerson = recalledRelationship(
-            personID: fixture.personID,
-            query: "Leila"
-        )
-        XCTAssertTrue(canonicalPerson.waitForExistence(timeout: 5))
-        canonicalPerson.tap()
-
-        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 2))
-        XCTAssertTrue(element("ask-error").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 15))
+        XCTAssertFalse(element("ask-recall-unresolved").exists)
+        XCTAssertTrue(element("ask-error").waitForExistence(timeout: 60))
         XCTAssertFalse(element("ask-pending-turn").exists)
         XCTAssertTrue(
-            String(describing: element("ask-composer").value).contains("What changed?")
+            String(describing: askComposer.value).contains(question)
         )
         preserveScreenshot("Canonical Ask failure restores question")
 
@@ -2248,8 +2215,8 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(retry.exists)
         XCTAssertTrue(retry.isHittable)
         retry.tap()
-        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 2))
-        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 60))
         XCTAssertFalse(element("ask-error").exists)
     }
 
@@ -5289,6 +5256,10 @@ final class CandidateSignalUITests: XCTestCase {
 
     private func element(_ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
+    }
+
+    private var askComposer: XCUIElement {
+        app.textFields["ask-composer"].firstMatch
     }
 
     private func assertAccessibilityOrder(

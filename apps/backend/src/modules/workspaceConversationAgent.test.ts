@@ -1,4 +1,7 @@
-import { ScriptedAgentProvider } from "@talent-signal/agent";
+import {
+  ScriptedAgentProvider,
+  type AgentProvider,
+} from "@talent-signal/agent";
 import type { DatabaseClient } from "../database/pool.js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -89,6 +92,51 @@ describe("workspace conversation Agent", () => {
       body: "你好，我在。",
       requires_user_decision: false,
     });
+  });
+
+  it("passes the named-relationship lookup contract to the provider", async () => {
+    const query = vi.fn();
+    const provider = {
+      id: "routing-policy-test",
+      model: "routing-policy-test-v1",
+      sdkVersion: "routing-policy-test.v1",
+      inputCapabilities: {
+        text: true,
+        image: false,
+        imageUnderstanding: false,
+      },
+      run: vi.fn(async (request) => {
+        expect(request.systemPrompt).toContain(
+          "must search contact_workspace with the exact message-grounded clue",
+        );
+        expect(request.systemPrompt).toContain(
+          "is not, by itself, a reason to ask the user to select one",
+        );
+        expect(request.budget.maxDurationMs).toBe(35_000);
+        return {
+          structuredOutput: {
+            outcome: "clarification",
+            title: "Which relationship?",
+            body: "Share one more exact identity clue.",
+          },
+          inputTokens: 1,
+          outputTokens: 1,
+          estimatedUsd: 0,
+          turns: 1,
+          permissionDenials: [],
+        };
+      }),
+    } satisfies AgentProvider;
+
+    await executeWorkspaceConversationAgent({
+      database: { query } as unknown as DatabaseClient,
+      auth,
+      objective: "What changed with Leila?",
+      provider,
+    });
+
+    expect(provider.run).toHaveBeenCalledOnce();
+    expect(query).not.toHaveBeenCalled();
   });
 
   it("rejects wildcard enumeration without querying the account", async () => {
