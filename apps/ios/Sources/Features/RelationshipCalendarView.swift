@@ -246,6 +246,33 @@ enum RelationshipCalendarProjection {
         }
         guard let first = scopes.first else { return [] }
 
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TS_IOS_UI_TEST_CALENDAR_DENSITY"] == "true" {
+            let day = calendar.startOfDay(for: now)
+            let week = calendar.dateInterval(of: .weekOfYear, for: day)!.start
+            let samples: [(String, Int, Date, Int, Int)] = [
+                ("preview-calendar-primary", 0, day, 15 * 60, 45),
+                ("preview-calendar-secondary", min(1, scopes.count - 1), day, 11 * 60 + 30, 30),
+                ("preview-calendar-morning", 0, day, 9 * 60, 30),
+                ("preview-calendar-followup", 0, day, 16 * 60, 30),
+                ("preview-calendar-overlap", min(1, scopes.count - 1), day, 16 * 60 + 15, 30),
+                ("preview-calendar-week-start", 0, week, 10 * 60, 60),
+                ("preview-calendar-week-middle", min(1, scopes.count - 1), calendar.date(byAdding: .day, value: 3, to: week)!, 14 * 60, 60),
+            ]
+            return samples.map { id, index, date, minute, duration in
+                let scope = scopes[index]
+                let start = calendar.date(bySettingHour: minute / 60, minute: minute % 60, second: 0, of: date)!
+                return RelationshipCalendarActivity(
+                    id: id, kind: index == 0 ? .interview : .conversation, title: "Preview activity",
+                    personID: scope.0.id, relationshipContextID: scope.1.id,
+                    personDisplayLabel: scope.0.displayLabel, contextDisplayLabel: scope.1.displayLabel,
+                    startDate: start, endDate: start.addingTimeInterval(Double(duration * 60)),
+                    timeZoneIdentifier: calendar.timeZone.identifier, source: .preview
+                )
+            }.sorted { $0.startDate < $1.startDate }
+        }
+        #endif
+
         let today = calendar.startOfDay(for: now)
         let afternoon = calendar.date(
             bySettingHour: 15,
@@ -334,6 +361,9 @@ enum RelationshipCalendarAgenda {
     }
 
     static func interval(for date: Date, mode: Mode, calendar: Calendar) -> DateInterval {
+        if mode == .week, let week = calendar.dateInterval(of: .weekOfYear, for: date) {
+            return week
+        }
         let start = calendar.startOfDay(for: date)
         let end = calendar.date(byAdding: .day, value: mode == .day ? 1 : 7, to: start)!
         return DateInterval(start: start, end: end)
@@ -537,6 +567,7 @@ struct RelationshipCalendarView: View {
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(CalendarSyncPreference.isEnabledKey)
     private var isCalendarSyncEnabled = true
     @State private var activities: [RelationshipCalendarActivity]
@@ -595,12 +626,11 @@ struct RelationshipCalendarView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     calendarPicker
-                    agendaControls
-                        .padding(.top, 18)
+                    if selectedPersonID != nil { agendaControls.padding(.top, 4) }
                     agendaHeader
-                        .padding(.top, 22)
+                        .padding(.top, 12)
                     agenda
-                        .padding(.top, 14)
+                        .padding(.top, 12)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -637,6 +667,7 @@ struct RelationshipCalendarView: View {
             case let .detail(activity):
                 RelationshipCalendarActivityDetail(
                     activity: activity,
+                    hasOverlap: overlappingActivityIDs.contains(activity.id),
                     onOpenPerson: personDetail == nil ? nil : {
                         self.destination = .person(activity.personID)
                     },
@@ -791,8 +822,9 @@ struct RelationshipCalendarView: View {
                     }
                 } label: {
                     HStack(spacing: 7) {
-                        Text(monthTitle)
-                            .font(.title3.weight(.semibold))
+                        Text(selectedDate.formatted(.dateTime.month(.abbreviated).year().locale(appLanguage.locale)))
+                            .font(.headline)
+                            .lineLimit(1)
                             .foregroundStyle(Color.tsInk)
                         Image(systemName: "chevron.down")
                             .font(.caption.weight(.bold))
@@ -812,10 +844,7 @@ struct RelationshipCalendarView: View {
 
                 Spacer(minLength: 8)
 
-                Button(appLanguage.text("Today")) { select(Date()) }
-                    .font(.caption.weight(.semibold))
-                    .frame(minWidth: 44, minHeight: 44)
-                    .accessibilityIdentifier("calendar-return-today")
+                viewOptions
 
                 if isMonthExpanded {
                     HStack(spacing: 0) {
@@ -839,27 +868,67 @@ struct RelationshipCalendarView: View {
                     }
                 }
             }
-            .padding(.horizontal, 8)
-
-            calendarGrid
+            if agendaMode == .day || isMonthExpanded || usesWeekList { calendarGrid }
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .padding(7)
-        .background(
-            Color.tsCanvas,
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
+    }
+
+    private var viewOptions: some View {
+        Menu {
+            Section(appLanguage.text("View")) {
+                ForEach(RelationshipCalendarAgenda.Mode.allCases) { mode in
+                    Button {
+                        agendaMode = mode
+                    } label: {
+                        Label(appLanguage.text(mode == .day ? "Day agenda" : "Week view"),
+                              systemImage: agendaMode == mode ? "checkmark" : (mode == .day ? "list.bullet" : "calendar"))
+                    }
+                    .accessibilityIdentifier("calendar-view-\(mode.rawValue)")
+                }
+            }
+            Section(appLanguage.text("Go to")) {
+                Button(appLanguage.text("Today")) { select(Date()) }
+                    .accessibilityIdentifier("calendar-return-today")
+                Button(appLanguage.text("This week")) { select(Date()); agendaMode = .week }
+                    .accessibilityIdentifier("calendar-return-this-week")
+            }
+            Section(appLanguage.text("Filter")) {
+                Button { destination = .people } label: {
+                    Label(appLanguage.text("Filter by person"), systemImage: "person.crop.circle")
+                }
+                .accessibilityIdentifier("calendar-person-filter")
+                if selectedPersonID != nil {
+                    Button(appLanguage.text("Clear person filter")) { selectedPersonID = nil }
+                }
+            }
+            Section {
+                Text(calendar.timeZone.identifier)
+                Text(appLanguage.text("Only Talent Signal activities are shown."))
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text(appLanguage.text(agendaMode == .day ? "Day agenda" : "Week view"))
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+            }
+            .font(.subheadline.weight(.medium))
+            .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel(appLanguage.text("Calendar view and filters"))
+        .accessibilityValue(appLanguage.text(agendaMode == .day ? "Day agenda" : "Week view"))
+        .accessibilityIdentifier("calendar-view-options")
     }
 
     private var calendarGrid: some View {
         VStack(spacing: 6) {
-            LazyVGrid(columns: monthColumns, spacing: 4) {
-                ForEach(weekdayHeaderDates, id: \.self) { date in
-                    Text(weekdayText(for: date))
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color.tsMutedInk)
-                        .frame(maxWidth: .infinity, minHeight: 28)
-                        .accessibilityHidden(true)
+            if isMonthExpanded {
+                LazyVGrid(columns: monthColumns, spacing: 4) {
+                    ForEach(weekdayHeaderDates, id: \.self) { date in
+                        Text(weekdayText(for: date))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.tsMutedInk)
+                            .frame(maxWidth: .infinity, minHeight: 28)
+                            .accessibilityHidden(true)
+                    }
                 }
             }
 
@@ -896,26 +965,33 @@ struct RelationshipCalendarView: View {
     }
 
     private func monthDayLabel(_ date: Date) -> some View {
-        ZStack(alignment: .bottom) {
-            Text(verbatim: "\(calendar.component(.day, from: date))")
-                .font(.subheadline.weight(isSelected(date) ? .bold : .medium))
-                .foregroundStyle(isSelected(date) ? Color.tsSurface : Color.tsInk)
-                .frame(width: 36, height: 36)
-                .background(
-                    isSelected(date) ? Color.tsInk : Color.clear,
-                    in: Circle()
-                )
-                .overlay {
-                    if calendar.isDateInToday(date), !isSelected(date) {
-                        Circle().stroke(Color.tsLine, lineWidth: 1)
+        VStack(spacing: 0) {
+            if !isMonthExpanded {
+                Text(weekdayText(for: date))
+                    .font(.caption2)
+                    .foregroundStyle(Color.tsMutedInk)
+            }
+            ZStack(alignment: .bottom) {
+                Text(verbatim: "\(calendar.component(.day, from: date))")
+                    .font(.subheadline.weight(isSelected(date) ? .bold : .medium))
+                    .foregroundStyle(isSelected(date) ? Color.tsSurface : Color.tsInk)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        isSelected(date) ? Color.tsInk : Color.clear,
+                        in: Circle()
+                    )
+                    .overlay {
+                        if calendar.isDateInToday(date), !isSelected(date) {
+                            Circle().stroke(Color.tsLine, lineWidth: 1)
+                        }
                     }
-                }
 
-            if hasActivity(on: date) {
-                Circle()
-                    .fill(isSelected(date) ? Color.tsSurface : Color.tsInk)
-                    .frame(width: 4, height: 4)
-                    .offset(y: -2)
+                if hasActivity(on: date) {
+                    Circle()
+                        .fill(isSelected(date) ? Color.tsSurface : Color.tsInk)
+                        .frame(width: 4, height: 4)
+                        .offset(y: -2)
+                }
             }
         }
         .frame(maxWidth: .infinity, minHeight: 44)
@@ -925,24 +1001,6 @@ struct RelationshipCalendarView: View {
 
     private var agendaControls: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 4) {
-                ForEach(RelationshipCalendarAgenda.Mode.allCases) { mode in
-                    Button { agendaMode = mode } label: {
-                        Text(appLanguage.text(mode == .day ? "Day agenda" : "Week agenda"))
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .foregroundStyle(agendaMode == mode ? Color.tsSurface : Color.tsMutedInk)
-                            .background(agendaMode == mode ? Color.tsInk : Color.clear,
-                                        in: RoundedRectangle(cornerRadius: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(agendaMode == mode ? .isSelected : [])
-                    .accessibilityIdentifier("calendar-view-\(mode.rawValue)")
-                }
-            }
-            .padding(3)
-            .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 15))
-
             HStack(spacing: 8) {
                 Button { destination = .people } label: {
                     HStack(spacing: 8) {
@@ -959,7 +1017,7 @@ struct RelationshipCalendarView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(appLanguage.text("Filter by person"))
                 .accessibilityValue(selectedPerson?.displayLabel ?? appLanguage.text("All people"))
-                .accessibilityIdentifier("calendar-person-filter")
+                .accessibilityIdentifier("calendar-active-person-filter")
                 Spacer(minLength: 0)
                 if selectedPersonID != nil {
                     Button { selectedPersonID = nil } label: {
@@ -977,27 +1035,28 @@ struct RelationshipCalendarView: View {
 
     private var agendaHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(agendaTitle)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Color.tsInk)
-                .accessibilityAddTraits(.isHeader)
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline) {
-                    agendaSummary
-                    Spacer(minLength: 10)
-                    displayTimeZone
-                }
-                .fixedSize(horizontal: true, vertical: false)
-                VStack(alignment: .leading, spacing: 6) {
-                    agendaSummary
-                    displayTimeZone
-                }
+            HStack(alignment: .firstTextBaseline) {
+                Text(agendaTitle)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.tsInk)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                Text(String(selectedActivities.count))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Color.tsMutedInk)
+                    .accessibilityLabel(String(format: appLanguage.text("Activities: %d · People: %d"), selectedActivities.count, Set(selectedActivities.map(\.personID)).count))
+                    .accessibilityIdentifier("calendar-agenda-summary")
             }
             if isPreview {
                 Text(appLanguage.text("Preview · Calendar not read"))
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .accessibilityIdentifier("calendar-preview-boundary")
+            }
+            if agendaMode == .week && usesWeekList {
+                Text(appLanguage.text("Week shown as a list for readable times and text."))
+                    .font(.caption).foregroundStyle(Color.tsMutedInk)
+                    .accessibilityIdentifier("calendar-week-list-notice")
             }
             if let calendarNotice {
                 Label(calendarNotice, systemImage: "exclamationmark.shield")
@@ -1007,24 +1066,6 @@ struct RelationshipCalendarView: View {
                     .accessibilityIdentifier("calendar-reconciliation-notice")
             }
         }
-    }
-
-    private var agendaSummary: some View {
-        Text(String(format: appLanguage.text("Activities: %d · People: %d"),
-                    locale: appLanguage.locale,
-                    selectedActivities.count, Set(selectedActivities.map(\.personID)).count))
-            .font(.subheadline)
-            .foregroundStyle(Color.tsMutedInk)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier("calendar-agenda-summary")
-    }
-
-    private var displayTimeZone: some View {
-        Text(calendar.timeZone.identifier)
-            .font(.caption)
-            .foregroundStyle(Color.tsMutedInk)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel(appLanguage.text("Display time zone") + ": " + calendar.timeZone.identifier)
     }
 
     @ViewBuilder
@@ -1053,6 +1094,13 @@ struct RelationshipCalendarView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 18)
+        } else if agendaMode == .week && !usesWeekList {
+            RelationshipCalendarWeekGrid(
+                activities: selectedActivities, days: agendaDays, selectedDate: selectedDate,
+                calendar: calendar, overlappingIDs: overlappingActivityIDs,
+                onSelectDay: select,
+                onOpen: { destination = .detail($0) }
+            )
         } else {
             let overlappingIDs = overlappingActivityIDs
             VStack(alignment: .leading, spacing: 22) {
@@ -1062,7 +1110,7 @@ struct RelationshipCalendarView: View {
                         in: RelationshipCalendarAgenda.interval(for: day, mode: .day, calendar: calendar)
                     )
                     if !dayActivities.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 0) {
                             if agendaMode == .week {
                                 Text(day.formatted(.dateTime.weekday(.wide).month().day().locale(appLanguage.locale)))
                                     .font(.subheadline.weight(.semibold))
@@ -1089,6 +1137,12 @@ struct RelationshipCalendarView: View {
         snapshot.people.first { $0.id == selectedPersonID }
     }
 
+    private var usesWeekList: Bool {
+        dynamicTypeSize >= .xxLarge || agendaDays.contains {
+            RelationshipCalendarAgenda.interval(for: $0, mode: .day, calendar: calendar).duration != 86400
+        }
+    }
+
     private var agendaInterval: DateInterval {
         RelationshipCalendarAgenda.interval(for: selectedDate, mode: agendaMode, calendar: calendar)
     }
@@ -1102,7 +1156,7 @@ struct RelationshipCalendarView: View {
     private var agendaTitle: String {
         let start = selectedDate.formatted(.dateTime.month(.wide).day().weekday(.wide).locale(appLanguage.locale))
         guard agendaMode == .week, let last = agendaDays.last else { return start }
-        return selectedDate.formatted(.dateTime.month().day().locale(appLanguage.locale))
+        return agendaInterval.start.formatted(.dateTime.month().day().locale(appLanguage.locale))
             + " – " + last.formatted(.dateTime.month().day().locale(appLanguage.locale))
     }
 
@@ -1193,7 +1247,7 @@ struct RelationshipCalendarView: View {
     }
 
     private var visibleGridHeight: CGFloat {
-        isMonthExpanded ? expandedGridHeight : calendarRowHeight
+        isMonthExpanded ? expandedGridHeight : 54
     }
 
     private var monthTitle: String {
@@ -1370,18 +1424,24 @@ private struct RelationshipCalendarActivityRow: View {
         Button(action: action) {
             Group {
                 if dynamicTypeSize >= .xxLarge {
-                    VStack(alignment: .leading, spacing: 10) {
-                        timeColumn
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(timeRange).font(.subheadline.monospacedDigit())
                         activityCard
                     }
                 } else {
                     HStack(alignment: .top, spacing: 12) {
-                        timeColumn.frame(width: 76, alignment: .leading)
+                        timeColumn.frame(width: 54, alignment: .leading)
                         activityCard
+                    }
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(Color.tsLine).frame(width: 1)
+                            .padding(.leading, 62)
+                            .allowsHitTesting(false)
                     }
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1394,23 +1454,21 @@ private struct RelationshipCalendarActivityRow: View {
     }
 
     private var timeColumn: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(timeText(max(activity.startDate, Calendar.current.startOfDay(for: day))))
-                .font(.subheadline.weight(.semibold))
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color.tsInk)
-                .monospacedDigit()
-                .fixedSize(horizontal: false, vertical: true)
-            Text(continuesFromEarlier ? appLanguage.text("Continued") : durationText)
+            Text(continuesFromEarlier ? appLanguage.text("Continued") : timeText(activity.endDate))
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
         }
-        .padding(.top, 12)
+        .monospacedDigit()
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var activityCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 9) {
-                RelationshipPersonMark(displayName: activity.personDisplayLabel, size: 34)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(activity.personDisplayLabel)
                     .font(.headline)
                     .foregroundStyle(Color.tsInk)
@@ -1419,21 +1477,17 @@ private struct RelationshipCalendarActivityRow: View {
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.tsMutedInk)
-                    .padding(.top, 8)
             }
-            VStack(alignment: .leading, spacing: 5) {
-                Label(activity.displayTitle(in: appLanguage), systemImage: activity.kind.symbolName)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.tsInk)
-                Text(activity.contextDisplayLabel)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Text(timeRange + " · " + statusText)
-                .font(.caption)
+            Text(activity.displayTitle(in: appLanguage) + " · " + activity.contextDisplayLabel)
+                .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
                 .fixedSize(horizontal: false, vertical: true)
+            if !Calendar.current.isDate(activity.startDate, inSameDayAs: activity.endDate) {
+                Text(timeRange).font(.caption).foregroundStyle(Color.tsMutedInk)
+            }
+            if [.pending, .syncing, .failed, .unknown].contains(activity.calendarSyncState) {
+                Text(statusText).font(.caption).foregroundStyle(Color.tsVermilion)
+            }
             if hasOverlap {
                 Label(appLanguage.text("Overlaps another Talent Signal activity"), systemImage: "clock.badge.exclamationmark")
                     .font(.caption)
@@ -1441,10 +1495,13 @@ private struct RelationshipCalendarActivityRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
+        .padding(.leading, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tsCanvas, in: RoundedRectangle(cornerRadius: 18))
-        .overlay { RoundedRectangle(cornerRadius: 18).stroke(Color.tsLine, lineWidth: 1) }
+        .overlay(alignment: .leading) {
+            Capsule().fill(hasOverlap ? Color.tsVermilion : Color.tsInk.opacity(0.35))
+                .frame(width: 2, height: 18).frame(maxHeight: .infinity, alignment: .top)
+                .padding(.top, 2)
+        }
     }
 
     private var continuesFromEarlier: Bool {
@@ -1463,11 +1520,6 @@ private struct RelationshipCalendarActivityRow: View {
         }
     }
 
-    private var durationText: String {
-        String(format: appLanguage.text("%d min"), locale: appLanguage.locale,
-               max(1, Int(activity.endDate.timeIntervalSince(activity.startDate) / 60)))
-    }
-
     private var timeRange: String {
         let calendar = Calendar.current
         if calendar.isDate(activity.startDate, inSameDayAs: activity.endDate) {
@@ -1478,7 +1530,11 @@ private struct RelationshipCalendarActivityRow: View {
     }
 
     private func timeText(_ date: Date) -> String {
-        date.formatted(.dateTime.hour().minute().locale(appLanguage.locale))
+        let formatter = DateFormatter()
+        formatter.locale = appLanguage.locale
+        formatter.timeZone = .current
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 }
 
@@ -1558,6 +1614,7 @@ private struct RelationshipCalendarPersonFilter: View {
 
 private struct RelationshipCalendarActivityDetail: View {
     let activity: RelationshipCalendarActivity
+    let hasOverlap: Bool
     let onOpenPerson: (() -> Void)?
     let onRetryCalendarSync: (() -> Void)?
     let onPrepare: () -> Void
@@ -1569,14 +1626,10 @@ private struct RelationshipCalendarActivityDetail: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    RelationshipPersonMark(
-                        displayName: activity.personDisplayLabel,
-                        size: 60
-                    )
                     Text(activity.personDisplayLabel)
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
-                        .padding(.top, 18)
+                        .padding(.top, 4)
                     Label(
                         activity.displayTitle(in: appLanguage),
                         systemImage: activity.kind.symbolName
@@ -1600,36 +1653,23 @@ private struct RelationshipCalendarActivityDetail: View {
                         .accessibilityIdentifier("calendar-open-person")
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        detailLine(
-                            icon: "clock",
-                            label: appLanguage.text("When"),
-                            value: dateRange
-                        )
-                        detailLine(
-                            icon: "globe",
-                            label: appLanguage.text("Event time zone"),
-                            value: eventZoneTime
-                        )
-                        detailLine(
-                            icon: "link",
-                            label: appLanguage.text("Scope"),
-                            value: activity.contextDisplayLabel
-                        )
-                        detailLine(
-                            icon: "checkmark.shield",
-                            label: appLanguage.text("Source"),
-                            value: sourceText
-                        )
-                        if activity.source == .talentSignal {
-                            detailLine(
-                                icon: calendarSyncIcon,
-                                label: appLanguage.text("Apple Calendar"),
-                                value: calendarSyncText
-                            )
-                        }
+                    detailLine(icon: "clock", label: appLanguage.text("When"), value: dateRange)
+                        .padding(.top, 14)
+                    if hasOverlap {
+                        Label(appLanguage.text("Overlaps another Talent Signal activity"), systemImage: "clock.badge.exclamationmark")
+                            .font(.subheadline).foregroundStyle(Color.tsVermilion)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 12)
                     }
-                    .padding(.top, 28)
+                    if activity.source == .preview {
+                        Text(sourceText)
+                            .font(.caption).foregroundStyle(Color.tsMutedInk)
+                            .padding(.top, 12)
+                    }
+                    if showsSyncAttention {
+                        detailLine(icon: calendarSyncIcon, label: appLanguage.text("Apple Calendar"), value: calendarSyncText)
+                            .padding(.top, 12)
+                    }
 
                     if let onRetryCalendarSync {
                         Button {
@@ -1690,6 +1730,26 @@ private struct RelationshipCalendarActivityDetail: View {
                         .foregroundStyle(Color.tsMutedInk)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 12)
+
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 14) {
+                            detailLine(icon: "globe", label: appLanguage.text("Event time zone"), value: eventZoneTime)
+                            if activity.source != .preview {
+                                detailLine(icon: "checkmark.shield", label: appLanguage.text("Source"), value: sourceText)
+                            }
+                            if activity.source == .talentSignal && !showsSyncAttention {
+                                detailLine(icon: calendarSyncIcon, label: appLanguage.text("Apple Calendar"), value: calendarSyncText)
+                            }
+                        }
+                        .padding(.vertical, 12)
+                    } label: {
+                        Text(appLanguage.text("Calendar details"))
+                            .font(.subheadline.weight(.medium))
+                            .frame(minHeight: 44)
+                    }
+                    .padding(.top, 18)
+                    .accessibilityIdentifier("calendar-details-disclosure")
+
                 }
                 .padding(24)
             }
@@ -1708,6 +1768,10 @@ private struct RelationshipCalendarActivityDetail: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .accessibilityIdentifier("calendar-activity-detail")
+    }
+
+    private var showsSyncAttention: Bool {
+        activity.source == .talentSignal && [.pending, .syncing, .failed, .unknown].contains(activity.calendarSyncState)
     }
 
     private var dateRange: String {

@@ -48,6 +48,7 @@
 		4DB54D42842B76DA86C9B144 /* AgentWorkActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A23BD2192A87045AA609DC9 /* AgentWorkActivityController.swift */; };
 		4EBB98C5EBDCBD205612B067 /* StandaloneOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FA231C87096FBA3A535B8C /* StandaloneOnboarding.swift */; };
 		5163A916AB205784B98D6BEA /* TalentSignalLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB35C452EFE107B189275BF /* TalentSignalLiveActivity.swift */; };
+		520014E1A1A0A4D79DEA8717 /* RelationshipCalendarWeekGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = C163AFC6685072EC347E7902 /* RelationshipCalendarWeekGrid.swift */; };
 		5717CFDFE12342D1A36EAB8B /* TalentSignalLabClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE3ECC4EC4904ED2131A5BA2 /* TalentSignalLabClient.swift */; };
 		57FCED5019868487FC024668 /* TalentSignalLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8341A8939A8399FB5E3DB75E /* TalentSignalLabView.swift */; };
 		5821215496252904C39FE2A0 /* ResearchShowcaseStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F3D4894152DC18CD4F9D288 /* ResearchShowcaseStoreTests.swift */; };
@@ -256,6 +257,7 @@
 		BE7D8D288EC295CF8F91EE6B /* RelationshipAskMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAskMedia.swift; sourceTree = "<group>"; };
 		BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCapture.swift; sourceTree = "<group>"; };
 		C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewClient.swift; sourceTree = "<group>"; };
+		C163AFC6685072EC347E7902 /* RelationshipCalendarWeekGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCalendarWeekGrid.swift; sourceTree = "<group>"; };
 		C66F4083C1349A570FEBEC26 /* StandaloneCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneCalendarService.swift; sourceTree = "<group>"; };
 		C6709D57D3A6344F855B478F /* AppAuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAuthenticationView.swift; sourceTree = "<group>"; };
 		CA61B70184C18544D0719F83 /* StandaloneProposalEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneProposalEngine.swift; sourceTree = "<group>"; };
@@ -467,6 +469,7 @@
 				BE7D8D288EC295CF8F91EE6B /* RelationshipAskMedia.swift */,
 				7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */,
 				5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */,
+				C163AFC6685072EC347E7902 /* RelationshipCalendarWeekGrid.swift */,
 				91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */,
 				7FAEBC372E2477E425197A45 /* RelationshipCaptureView.swift */,
 				CCC263880F93DD93183A4721 /* ResearchShowcaseView.swift */,
@@ -799,6 +802,7 @@
 				ACC0E1060D9BE78F6F244141 /* RelationshipAskMedia.swift in Sources */,
 				FA2154B29466D7C1BF4C6347 /* RelationshipAskView.swift in Sources */,
 				82F626089258164A29855376 /* RelationshipCalendarView.swift in Sources */,
+				520014E1A1A0A4D79DEA8717 /* RelationshipCalendarWeekGrid.swift in Sources */,
 				78E69431CCB66C1BFA7EFDDF /* RelationshipCapture.swift in Sources */,
 				EC03818C4A0DC080E11CF0F2 /* RelationshipCaptureClient.swift in Sources */,
 				D4A62460F620C32CA5059986 /* RelationshipCaptureStore.swift in Sources */,

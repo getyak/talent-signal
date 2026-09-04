@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Week view": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "周视图"}}}},
+    "View": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "视图"}}}},
+    "Go to": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "跳转到"}}}},
+    "This week": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "本周"}}}},
+    "Filter": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "筛选"}}}},
+    "Calendar view and filters": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "日历视图与筛选"}}}},
+    "Calendar details": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "日历详情"}}}},
+    "Week shown as a list for readable times and text.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "本周以列表显示，方便阅读时间与内容。"}}}},
+    "Swipe across to see the week": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "左右滑动查看整周"}}}},
+    "Overlapping activities": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "日程重叠"}}}},
     "Day agenda": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "单日"}}}},
     "Week agenda": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "一周"}}}},
     "Filter by person": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "按人物查看"}}}},

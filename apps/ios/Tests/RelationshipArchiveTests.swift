@@ -3917,3 +3917,51 @@ final class RelationshipCalendarAgendaTests: XCTestCase {
         XCTAssertEqual(RelationshipCalendarAgenda.suggestedStart(on: date("2026-09-01T04:00:00Z"), now: now, calendar: calendar), date("2026-09-04T21:00:00Z"))
     }
 }
+
+final class RelationshipCalendarWeekLayoutTests: XCTestCase {
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.firstWeekday = 2
+        return calendar
+    }
+    private var day: Date { ISO8601DateFormatter().date(from: "2026-09-09T00:00:00Z")! }
+    private func activity(_ id: String, start: Double, end: Double) -> RelationshipCalendarActivity {
+        .init(id: id, kind: .meeting, title: "Synthetic meeting", personID: id,
+              relationshipContextID: "context", personDisplayLabel: "Alex Chen", contextDisplayLabel: "Search",
+              startDate: day.addingTimeInterval(start * 60), endDate: day.addingTimeInterval(end * 60),
+              timeZoneIdentifier: "UTC", source: .preview)
+    }
+    func testWeekAnchorsToConfiguredFirstWeekdayFromAnySelectedDay() {
+        let week = RelationshipCalendarAgenda.interval(for: day, mode: .week, calendar: calendar)
+        XCTAssertEqual(week.start, ISO8601DateFormatter().date(from: "2026-09-07T00:00:00Z"))
+        XCTAssertEqual(week.end, ISO8601DateFormatter().date(from: "2026-09-14T00:00:00Z"))
+        XCTAssertEqual(RelationshipCalendarAgenda.interval(for: day.addingTimeInterval(3 * 86400), mode: .week, calendar: calendar), week)
+    }
+    func testShortBackToBackEventsKeepSeparateTouchRectsWithoutFalseConflict() {
+        let events = [activity("a", start: 540, end: 545), activity("b", start: 545, end: 550), activity("c", start: 600, end: 660)]
+        let placements = RelationshipCalendarWeekLayout.placements(for: events, on: day, calendar: calendar)
+        XCTAssertTrue(RelationshipCalendarAgenda.overlappingIDs(in: events).isEmpty)
+        XCTAssertEqual(placements.map(\.lane), [0, 1, 0])
+        XCTAssertEqual(placements.map(\.laneCount), [2, 2, 1])
+        XCTAssertTrue(placements.allSatisfy { $0.height >= RelationshipCalendarWeekLayout.minimumEventHeight })
+    }
+    func testOverlapGroupsUseConsistentWidthsAndReuseEndedLanes() {
+        let events = [activity("a", start: 540, end: 660), activity("b", start: 555, end: 600), activity("c", start: 615, end: 650)]
+        let placements = RelationshipCalendarWeekLayout.placements(for: events.reversed(), on: day, calendar: calendar)
+        XCTAssertEqual(placements.map(\.lane), [0, 1, 1])
+        XCTAssertEqual(placements.map(\.laneCount), [2, 2, 2])
+        for a in placements {
+            for b in placements where a.id != b.id && a.lane == b.lane {
+                XCTAssertTrue(a.renderedEndMinute <= b.startMinute || b.renderedEndMinute <= a.startMinute)
+            }
+        }
+    }
+    func testOvernightClipsAtDayBoundaryAndLateEventsStayInRange() {
+        let events = [activity("overnight", start: -30, end: 60), activity("late", start: 1430, end: 1470)]
+        let placements = RelationshipCalendarWeekLayout.placements(for: events, on: day, calendar: calendar)
+        XCTAssertEqual(placements.map(\.startMinute), [0, 1430])
+        XCTAssertEqual(placements.map(\.endMinute), [60, 1440])
+        XCTAssertEqual(RelationshipCalendarWeekLayout.hourRange(for: placements), 0...24)
+    }
+}
