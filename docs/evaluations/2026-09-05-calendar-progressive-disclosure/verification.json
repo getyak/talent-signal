@@ -103,5 +103,21 @@
     "git diff --check passed"
   ],
   "rechecks": "The final batch had one superseded hour-selector failure. The fresh batch passed the complete week/filter/person round-trip with hour alignment and fixed-gutter assertions, plus visible conflict disclosure. A new isolated Simulator ensured the rebuilt test runner executed.",
-  "release_state": "Pending remote CI and automation-owned release receipt."
+  "release_state": "Pending remote CI and automation-owned release receipt.",
+  "remote": {
+    "pullRequest": "https://github.com/getyak/talent-signal/pull/122",
+    "sourceCommit": "ca8c6e2b32068bbb25eb0112df7b79d32cf6b8ac",
+    "mergeCommit": "28cf5dfeb6edbfecb32bf87926aece0e97d25167",
+    "passingCI": "https://github.com/getyak/talent-signal/actions/runs/33900564891"
+  },
+  "testFlightRelease": {
+    "version": "0.1.46",
+    "buildNumber": "20260904175747",
+    "commitSha": "28cf5dfeb6edbfecb32bf87926aece0e97d25167",
+    "processedAt": "2026-09-04T18:07:51Z",
+    "state": "processed",
+    "release": "https://github.com/getyak/talent-signal/releases/tag/v0.1.46",
+    "workflow": "https://github.com/getyak/talent-signal/actions/runs/33903245389",
+    "receiptSHA256": "fcf8af17eb19f09697a04413d419409c4cb5dd889d9a463e4f23d116cab0a65c"
+  }
 }

@@ -38,8 +38,9 @@ calendar v1 is already published as 0.1.45; its release proof remains historical
    scrolling/hour alignment, filter/person round trips and conflict disclosure.
    Native Chinese/English and dark AX5 captures, preview authority, localization,
    and documentation checks are recorded in the evaluation manifest.
-4. Active: durable density guidance and evidence recorded; commit/push/merge,
-   and publish the next version under the user's standing release authorization.
+4. Completed: durable guidance and evidence recorded; PR #122 merged as
+   `28cf5df`; TestFlight 0.1.46 build `20260904175747` processed and published
+   with an automation-owned receipt bound to that exact merge commit.
 
 ## Completion evidence
 
@@ -47,3 +48,13 @@ Native before/after captures, tests for true week boundaries and grid collision
 layout, filters/view changes/detail disclosure/preview authority, reviewed diff,
 required CI gates, and exact remote merge/release receipts. Do not infer Apple
 device installation from server processing.
+
+
+## Completion
+
+The compact calendar and actual week timeline are merged and released. The
+passing PR CI run verified the exact source tree merged to `main`; App Store
+Connect independently processed that signed build. Evidence does not establish
+that a tester installed it or measure recruiter productivity. The next change
+should reopen this plan only if real-device use contradicts the density,
+disclosure, or horizontal-week decisions recorded here.
