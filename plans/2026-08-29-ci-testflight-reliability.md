@@ -83,7 +83,7 @@ publishing local uncommitted iOS work.
 - [x] Diagnose the `0.1.43` Apple rejection, correct the App Intent metadata,
       and split archive, upload, processing, and finalization into recoverable
       stages with focused policy coverage.
-- [ ] Prove the branch CI duration and recover current `main` to TestFlight.
+- [x] Prove the branch CI duration and recover current `main` to TestFlight.
 
 ## Reconsideration signals
 
@@ -104,6 +104,15 @@ publishing local uncommitted iOS work.
   selection, transient lookup retry, terminal Apple rejection, device-neutral
   App Intent metadata, retained-IPA ordering, and tag/release retry behavior;
   `actionlint`, Ruby/Node syntax, documentation, and whitespace checks passed.
+- PR CI run `33831493658` passed the complete branch gate, including the iOS
+  release smoke in 16 minutes 4 seconds. Main CI run `33832521720` passed the
+  same iOS gate on merge commit `ae88dd1` in 27 minutes 49 seconds.
+- Release run `33834238182` archived, attested, and retained the exact IPA before
+  upload; App Store Connect then reported `0.1.43 (20260904034421)` as `VALID`
+  before the workflow created `v0.1.43`, its IPA, and the matching machine
+  receipt. Read-only access audit `33834991269` confirmed that exact build is
+  the latest valid build in the all-builds internal group with server access
+  ready and no repair or invitation resend.
 - The live GitHub release inventory selected no trusted baseline: `v0.1.17`
   and `v0.1.16` have no assets, while bot-owned `v0.1.15` has an IPA but no
   post-processing receipt. This is the intended conservative recovery state.
