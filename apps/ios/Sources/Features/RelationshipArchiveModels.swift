@@ -2610,11 +2610,19 @@ enum WorkspacePeopleRetrievalPolicy {
         )
     }
 
-    private static func parseDate(_ value: String) -> Date? {
+    private static let fractionalDateParser: ISO8601DateFormatter = {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional
+    }()
+
+    private static let standardDateParser: ISO8601DateFormatter = {
         let standard = ISO8601DateFormatter()
         standard.formatOptions = [.withInternetDateTime]
-        return fractional.date(from: value) ?? standard.date(from: value)
+        return standard
+    }()
+
+    private static func parseDate(_ value: String) -> Date? {
+        fractionalDateParser.date(from: value) ?? standardDateParser.date(from: value)
     }
 }
