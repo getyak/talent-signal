@@ -100,3 +100,26 @@ The earlier screenshot and verification ledger record the original shared
 checkout review; their hashes are not release provenance. Published version,
 build, commit and Apple processing are owned by the automated GitHub release
 receipt.
+
+## Published release
+
+[PR #120](https://github.com/getyak/talent-signal/pull/120) merged as
+`f55f80ad1c54e9311b23d5210639c9eb1e421f54`. Required PR checks and
+[main CI](https://github.com/getyak/talent-signal/actions/runs/33886643545) passed.
+PR CI recorded 296 passing unit tests and a passing bounded UI smoke gate.
+
+[TestFlight 0.1.45](https://github.com/getyak/talent-signal/releases/tag/v0.1.45),
+build `20260904151817`, completed Apple processing at `2026-09-04T15:26:14Z`.
+The automation-owned [release receipt](https://github.com/getyak/talent-signal/releases/download/v0.1.45/testflight-release-receipt.json)
+binds that exact merge commit and
+[successful release run](https://github.com/getyak/talent-signal/actions/runs/33888620803).
+The release tag resolves to the same commit, and the downloaded receipt matches
+the GitHub asset SHA-256
+`dba1b1008c8b36329449c6524e309689523c3dadd3e079ac9d1968ac89c32ff7`.
+
+A [read-only access audit](https://github.com/getyak/talent-signal/actions/runs/33889569442)
+returned exact version/build `0.1.45 / 20260904151817`, `BUILD_STATE=VALID`,
+`GROUP_MEMBER=true`, `GROUP_ALL_BUILDS=true`, and `SERVER_ACCESS_READY=true`.
+No membership, build access or invitation was changed. The tester-level
+`INSTALLED` state does not prove this exact build was installed on a phone.
+Physical-device verification and recruiter field validation remain separate.
