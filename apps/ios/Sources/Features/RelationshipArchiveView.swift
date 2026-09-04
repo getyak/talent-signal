@@ -468,6 +468,13 @@ struct RelationshipArchiveView: View {
                     snapshot: snapshot,
                     isPreview: !workspaceStore.isCanonical,
                     initialActivities: relationshipCalendarActivities,
+                    personDetail: { personID in
+                        guard let current = workspaceStore.snapshot,
+                              let person = current.person(id: personID) else { return nil }
+                        return AnyView(WorkspacePersonDetailView(
+                            person: person, roles: roles(for: person.id, in: current)
+                        ))
+                    },
                     onPrepare: stageCalendarPreparation
                 )
             } else {

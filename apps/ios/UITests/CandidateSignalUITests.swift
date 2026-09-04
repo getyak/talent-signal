@@ -609,7 +609,7 @@ final class CandidateSignalUITests: XCTestCase {
         confirm.tap()
 
         XCTAssertTrue(element("calendar-activity-detail").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Off · event stays in Talent Signal"].exists)
+        XCTAssertTrue(app.staticTexts["Synthetic preview · not in Apple Calendar"].exists)
         XCTAssertFalse(app.buttons["cancel-button"].exists)
         preserveScreenshot("Relationship activity confirmed in app")
     }
@@ -646,7 +646,7 @@ final class CandidateSignalUITests: XCTestCase {
         app.launchArguments = [
             "--force-dark",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "UICTContentSizeCategoryAccessibilityXXXL",
         ]
         app.launch()
 
@@ -662,11 +662,17 @@ final class CandidateSignalUITests: XCTestCase {
         let activity = app.buttons["calendar-activity-preview-calendar-primary"]
         XCTAssertTrue(activity.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(activity.frame.height, 44)
+        for _ in 0..<8 where !activity.isHittable { app.swipeUp() }
+        XCTAssertTrue(activity.isHittable)
+        preserveScreenshot("Relationship calendar agenda at actual AX5")
         activity.tap()
+        XCTAssertGreaterThan(app.staticTexts["Leila Hartmann"].firstMatch.frame.height, 50)
 
         let prepare = app.buttons["calendar-prepare-agent"]
         XCTAssertTrue(prepare.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(prepare.frame.height, 44)
+        for _ in 0..<8 where !prepare.isHittable { app.swipeUp() }
+        XCTAssertTrue(prepare.isHittable)
         preserveScreenshot("Relationship calendar dark AX5")
     }
 
@@ -5553,5 +5559,97 @@ private struct TextSignalProxyState: Decodable {
         case deletionPostCount = "deletion_post_count"
         case blockedRequestCount = "blocked_request_count"
         case offline
+    }
+}
+
+@MainActor
+final class RelationshipCalendarWorkflowUITests: XCTestCase {
+    private var app: XCUIApplication!
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchEnvironment["TS_IOS_UI_TEST_PREVIEW_WORKSPACE"] = "true"
+        app.launchArguments = ["-talent-signal.interface-language", "en", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    }
+
+    private func openCalendar() {
+        app.launch()
+        let open = app.buttons["today-calendar-peek"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        XCTAssertTrue(app.buttons["calendar-view-week"].waitForExistence(timeout: 5))
+    }
+
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testWeekPersonFilterClearAndPersonRecordHandoff() {
+        openCalendar()
+        app.buttons["calendar-view-week"].tap()
+        let primary = app.buttons["calendar-activity-preview-calendar-primary"]
+        let secondary = app.buttons["calendar-activity-preview-calendar-secondary"]
+        XCTAssertTrue(primary.exists)
+        XCTAssertTrue(secondary.exists)
+        capture("03-week-people")
+        app.buttons["calendar-person-filter"].tap()
+        let leila = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "calendar-filter-person-", "Leila")).firstMatch
+        XCTAssertTrue(leila.waitForExistence(timeout: 5))
+        leila.tap()
+        XCTAssertTrue(primary.waitForExistence(timeout: 5))
+        XCTAssertFalse(secondary.exists)
+        XCTAssertTrue(app.buttons["calendar-clear-person"].exists)
+        capture("04-filtered-person")
+        app.buttons["calendar-clear-person"].tap()
+        XCTAssertTrue(secondary.exists)
+        primary.tap()
+        let person = app.buttons["calendar-open-person"]
+        XCTAssertTrue(person.waitForExistence(timeout: 5))
+        person.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["workspace-person-detail"].firstMatch.waitForExistence(timeout: 8))
+        capture("05-person-record")
+        app.buttons["Close"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["calendar-view-week"].waitForExistence(timeout: 5))
+        XCTAssertTrue(secondary.exists)
+        capture("11-return-to-calendar")
+    }
+
+    func testPreviewCreationUsesFilterAndCannotWriteToCalendar() {
+        app.launchArguments += ["-talent-signal.calendar-sync.enabled", "YES"]
+        openCalendar()
+        app.buttons["calendar-view-week"].tap()
+        app.buttons["calendar-person-filter"].tap()
+        let person = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "calendar-filter-person-", "Leila")).firstMatch
+        XCTAssertTrue(person.waitForExistence(timeout: 5))
+        person.tap()
+        app.buttons["calendar-add-activity"].tap()
+        XCTAssertTrue(app.staticTexts["Preview only · nothing is added to Apple Calendar."].waitForExistence(timeout: 5))
+        let title = app.textFields["calendar-activity-title"]
+        XCTAssertTrue((title.value as? String)?.contains("Leila") == true)
+        capture("06-contextual-composer")
+        app.buttons["calendar-confirm-activity"].tap()
+        XCTAssertTrue(app.staticTexts["Synthetic preview · not in Apple Calendar"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["calendar-retry-sync"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+        capture("07-preview-created")
+    }
+
+    func testEmptyWeekReturnsToTodayAndChineseCalendarRemainsReadable() {
+        app.launchArguments += ["-talent-signal.interface-language", "zh-Hans"]
+        openCalendar()
+        app.buttons["calendar-view-week"].tap()
+        capture("08-chinese-week")
+        app.buttons["calendar-next-week"].tap()
+        XCTAssertTrue(app.staticTexts["这段时间没有日程"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["calendar-empty-add-activity"].exists)
+        capture("09-empty-week")
+        app.buttons["calendar-return-today"].tap()
+        XCTAssertTrue(app.buttons["calendar-activity-preview-calendar-primary"].exists)
+        app.buttons["calendar-toggle-month"].tap()
+        XCTAssertTrue(app.buttons["calendar-next-month"].exists)
+        capture("10-expanded-month")
     }
 }
