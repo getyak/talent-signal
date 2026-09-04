@@ -182,6 +182,9 @@ struct RelationshipArchiveView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                guideRail
+            }
             .toolbar(.hidden, for: .navigationBar)
         }
         .overlay(alignment: .top) {
@@ -218,40 +221,6 @@ struct RelationshipArchiveView: View {
             }
         }
 #endif
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            RelationshipGuideRail(
-                onGuide: {
-                    clearTransientRetrievalIntent()
-                    askPresentation = .init(
-                        sessionID: nil,
-                        seed: nil,
-                        preferredPersonID: nil,
-                        preferredPersonLabel: nil,
-                        entryMode: .text
-                    )
-                },
-                onAttach: {
-                    clearTransientRetrievalIntent()
-                    askPresentation = .init(
-                        sessionID: nil,
-                        seed: nil,
-                        preferredPersonID: nil,
-                        preferredPersonLabel: nil,
-                        entryMode: .attachment
-                    )
-                },
-                onVoice: {
-                    clearTransientRetrievalIntent()
-                    askPresentation = .init(
-                        sessionID: nil,
-                        seed: nil,
-                        preferredPersonID: nil,
-                        preferredPersonLabel: nil,
-                        entryMode: .voice
-                    )
-                }
-            )
-        }
         .sheet(item: $presentedSheet, onDismiss: reloadCanonicalWorkspace) { destination in
             switch destination {
             case let .review(person):
@@ -577,6 +546,41 @@ struct RelationshipArchiveView: View {
                 )
             }
         }
+    }
+
+    private var guideRail: some View {
+        RelationshipGuideRail(
+            onGuide: {
+                clearTransientRetrievalIntent()
+                askPresentation = .init(
+                    sessionID: nil,
+                    seed: nil,
+                    preferredPersonID: nil,
+                    preferredPersonLabel: nil,
+                    entryMode: .text
+                )
+            },
+            onAttach: {
+                clearTransientRetrievalIntent()
+                askPresentation = .init(
+                    sessionID: nil,
+                    seed: nil,
+                    preferredPersonID: nil,
+                    preferredPersonLabel: nil,
+                    entryMode: .attachment
+                )
+            },
+            onVoice: {
+                clearTransientRetrievalIntent()
+                askPresentation = .init(
+                    sessionID: nil,
+                    seed: nil,
+                    preferredPersonID: nil,
+                    preferredPersonLabel: nil,
+                    entryMode: .voice
+                )
+            }
+        )
     }
 
     @ViewBuilder
@@ -1153,6 +1157,7 @@ private struct PursuitTodayView: View {
             .padding(.bottom, 28)
         }
         .scrollIndicators(.hidden)
+        .relationshipContentBounce()
         .accessibilityIdentifier(
             isPreview ? "editorial-today" : "canonical-pursuit-today"
         )
@@ -2391,6 +2396,7 @@ private struct AgentSessionListView: View {
     @Environment(\.workspaceCardDensity) private var cardDensity
     @State private var presentedAlert: AgentSessionAlert?
     @State private var isRestoringScroll = false
+    @State private var scrollViewport: CGRect = .zero
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2514,18 +2520,11 @@ private struct AgentSessionListView: View {
                             )
                         }
                         .buttonStyle(RelationshipRetrievalButtonStyle())
-                        .background {
-                            GeometryReader { proxy in
-                                Color.clear.preference(
-                                    key: AgentSessionRowPositionKey.self,
-                                    value: [
-                                        session.id: proxy.frame(
-                                            in: .global
-                                        ).minY,
-                                    ]
-                                )
-                            }
-                        }
+                        .modifier(RelationshipRowAnchor(
+                            id: session.id,
+                            coordinateSpace: Self.scrollCoordinateSpace,
+                            viewport: scrollViewport
+                        ))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(
@@ -2617,27 +2616,23 @@ private struct AgentSessionListView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .background(Color.tsSurface)
-                .onPreferenceChange(AgentSessionRowPositionKey.self) {
-                    positions in
+                .relationshipContentBounce()
+                .coordinateSpace(name: Self.scrollCoordinateSpace)
+                .onGeometryChange(for: CGRect.self) { geometry in
+                    geometry.relationshipScrollViewport
+                } action: { scrollViewport = $0 }
+                .onPreferenceChange(RelationshipRowAnchorKey<UUID>.self) { candidates in
                     guard !isRestoringScroll else { return }
-                    if let anchor = closestTopAnchor(in: positions) {
+                    let anchor = sessions.first { candidates.fullyVisible.contains($0.id) }?.id
+                        ?? sessions.first { candidates.partiallyVisible.contains($0.id) }?.id
+                    if let anchor, anchor != scrollPosition {
                         scrollPosition = anchor
                     }
                 }
                 .accessibilityIdentifier("agent-session-list")
     }
 
-    private func closestTopAnchor(in positions: [UUID: CGFloat]) -> UUID? {
-        let fullyVisible = positions.filter {
-            $0.value >= Self.minimumInteractiveRowY
-        }
-        if let firstVisible = fullyVisible.min(by: { $0.value < $1.value }) {
-            return firstVisible.key
-        }
-        return positions.max(by: { $0.value < $1.value })?.key
-    }
-
-    private static let minimumInteractiveRowY: CGFloat = 120
+    private static let scrollCoordinateSpace = "relationship-session-viewport"
 
     private func toggleReadState(for session: AgentSession) {
         if session.isUnread {
@@ -2659,17 +2654,6 @@ private enum AgentSessionAlert: Identifiable {
         case .failure:
             return "failure"
         }
-    }
-}
-
-private struct AgentSessionRowPositionKey: PreferenceKey {
-    static var defaultValue: [UUID: CGFloat] { [:] }
-
-    static func reduce(
-        value: inout [UUID: CGFloat],
-        nextValue: () -> [UUID: CGFloat]
-    ) {
-        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
     }
 }
 
@@ -2993,6 +2977,7 @@ private struct WorkspacePeopleView: View {
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.workspaceCardDensity) private var cardDensity
     @State private var isRestoringScroll = false
+    @State private var scrollViewport: CGRect = .zero
     @State private var searchText = ""
     @State private var selectedScope: WorkspacePeopleScope = .all
     @FocusState private var isSearchFocused: Bool
@@ -3204,18 +3189,11 @@ private struct WorkspacePeopleView: View {
                         )
                     }
                     .buttonStyle(RelationshipRetrievalButtonStyle())
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: WorkspacePersonRowPositionKey.self,
-                                value: [
-                                    person.id: proxy.frame(
-                                        in: .global
-                                    ).minY,
-                                ]
-                            )
-                        }
-                    }
+                    .modifier(RelationshipRowAnchor(
+                        id: person.id,
+                        coordinateSpace: Self.scrollCoordinateSpace,
+                        viewport: scrollViewport
+                    ))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .listRowInsets(
@@ -3273,21 +3251,23 @@ private struct WorkspacePeopleView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.tsSurface)
-            .onPreferenceChange(WorkspacePersonRowPositionKey.self) {
-                positions in
+            .relationshipContentBounce()
+            .coordinateSpace(name: Self.scrollCoordinateSpace)
+            .onGeometryChange(for: CGRect.self) { geometry in
+                geometry.relationshipScrollViewport
+            } action: { scrollViewport = $0 }
+            .accessibilityIdentifier("workspace-people-list")
+            .onPreferenceChange(RelationshipRowAnchorKey<String>.self) { candidates in
                 guard !isRestoringScroll else { return }
-                let fullyVisible = positions.filter {
-                    $0.value >= Self.minimumInteractiveRowY
-                }
-                let anchor = fullyVisible.min(by: { $0.value < $1.value })?.key
-                    ?? positions.max(by: { $0.value < $1.value })?.key
-                if let anchor {
+                let anchor = filteredPeople.first { candidates.fullyVisible.contains($0.id) }?.id
+                    ?? filteredPeople.first { candidates.partiallyVisible.contains($0.id) }?.id
+                if let anchor, anchor != scrollPosition {
                     scrollPosition = anchor
                 }
             }
     }
 
-    private static let minimumInteractiveRowY: CGFloat = 120
+    private static let scrollCoordinateSpace = "relationship-people-viewport"
 
     private var noMatchesView: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -3320,17 +3300,6 @@ private struct WorkspacePeopleView: View {
             .accessibilityIdentifier("people-filter-reset")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct WorkspacePersonRowPositionKey: PreferenceKey {
-    static var defaultValue: [String: CGFloat] { [:] }
-
-    static func reduce(
-        value: inout [String: CGFloat],
-        nextValue: () -> [String: CGFloat]
-    ) {
-        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
     }
 }
 
@@ -3509,18 +3478,86 @@ private struct WorkspacePersonAvatar: View {
     }
 }
 
+private struct RelationshipRowAnchorCandidates<ID: Hashable>: Equatable {
+    var fullyVisible: Set<ID> = []
+    var partiallyVisible: Set<ID> = []
+}
+
+private struct RelationshipRowAnchorKey<ID: Hashable>: PreferenceKey {
+    static var defaultValue: RelationshipRowAnchorCandidates<ID> { .init() }
+
+    static func reduce(
+        value: inout RelationshipRowAnchorCandidates<ID>,
+        nextValue: () -> RelationshipRowAnchorCandidates<ID>
+    ) {
+        let next = nextValue()
+        value.fullyVisible.formUnion(next.fullyVisible)
+        value.partiallyVisible.formUnion(next.partiallyVisible)
+    }
+}
+
+private struct RelationshipRowAnchor<ID: Hashable>: ViewModifier {
+    let id: ID
+    let coordinateSpace: String
+    let viewport: CGRect
+    @State private var visibility = Visibility.hidden
+
+    private enum Visibility: Equatable {
+        case hidden, partial, full
+    }
+
+    func body(content: Content) -> some View {
+        content
+            // Transform continuous geometry into edge crossings before touching
+            // SwiftUI state. Pixel offsets never propagate through the shell.
+            .onGeometryChange(for: Visibility.self) { geometry in
+                let row = geometry.frame(in: .named(coordinateSpace))
+                guard viewport.height > 0,
+                      row.maxY > viewport.minY,
+                      row.minY < viewport.maxY else { return .hidden }
+                return row.minY >= viewport.minY && row.maxY <= viewport.maxY
+                    ? .full : .partial
+            } action: { visibility = $0 }
+            .preference(
+                key: RelationshipRowAnchorKey<ID>.self,
+                value: RelationshipRowAnchorCandidates(
+                    fullyVisible: visibility == .full ? [id] : [],
+                    partiallyVisible: visibility == .partial ? [id] : []
+                )
+            )
+    }
+}
+
+private extension GeometryProxy {
+    var relationshipScrollViewport: CGRect {
+        CGRect(
+            x: 0,
+            y: safeAreaInsets.top,
+            width: size.width,
+            height: max(0, size.height - safeAreaInsets.top - safeAreaInsets.bottom)
+        )
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func relationshipContentBounce() -> some View {
+        if #available(iOS 16.4, *) {
+            scrollBounceBehavior(.basedOnSize, axes: .vertical)
+        } else {
+            self
+        }
+    }
+}
+
 private struct RelationshipRetrievalButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .opacity(configuration.isPressed ? 0.82 : 1)
-            .scaleEffect(
-                configuration.isPressed && !reduceMotion ? 0.992 : 1,
-                anchor: .center
-            )
+            .opacity(configuration.isPressed ? 0.88 : 1)
             .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.14),
+                reduceMotion ? nil : .easeOut(duration: 0.1),
                 value: configuration.isPressed
             )
     }

@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 @MainActor
 final class CandidateSignalUITests: XCTestCase {
@@ -1291,7 +1292,7 @@ final class CandidateSignalUITests: XCTestCase {
         let peopleTab = app.buttons["archive-tab-people"]
         XCTAssertTrue(peopleTab.waitForExistence(timeout: 8))
         peopleTab.tap()
-        let list = element("relationship-people")
+        let list = element("workspace-people-list")
         XCTAssertTrue(list.waitForExistence(timeout: 5))
         for _ in 0..<3 { list.swipeUp() }
 
@@ -3606,7 +3607,7 @@ final class CandidateSignalUITests: XCTestCase {
             "-AppleLocale", "zh_CN",
             "-talent-signal.interface-language", "zh-Hans",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
         app.launch()
