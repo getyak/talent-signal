@@ -61,6 +61,15 @@ informs the separation of layout, filtering and secondary properties. This
 implementation follows native SwiftUI conventions; it does not claim parity
 with Notion's mobile calendar or measured user preference.
 
+## Release
+
+PR [#122](https://github.com/getyak/talent-signal/pull/122) merged as
+`28cf5dfeb6edbfecb32bf87926aece0e97d25167`. The automation-owned
+[TestFlight 0.1.46 release](https://github.com/getyak/talent-signal/releases/tag/v0.1.46)
+records build `20260904175747` as processed for that exact commit. Its receipt
+SHA-256 is `fcf8af17eb19f09697a04413d419409c4cb5dd889d9a463e4f23d116cab0a65c`.
+This proves App Store Connect processing, not installation on a tester device.
+
 The stable density decision lives in [the design system](../../design-system.md).
 Final checks also include [week scrolling](13-week-rail-scroll-proof.png),
 [visible conflict metadata](14-visible-conflict-detail.png), and
