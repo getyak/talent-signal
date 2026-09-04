@@ -105,6 +105,7 @@ jobs:
                   "scripts/ci/has-ios-changes.sh",
                   "scripts/ci/next-ios-version.sh",
                   "scripts/ci/testflight-release-receipt.cjs",
+                  "scripts/ci/wait-for-testflight-build.mjs",
                 ]);
                 const releasePrefixes = ["apps/ios/", "fastlane/", "scripts/ios/"];
                 shouldRelease =
@@ -121,8 +122,8 @@ jobs:
             core.setOutput("should_release", shouldRelease ? "true" : "false");
             core.info(`TestFlight release required: ${shouldRelease}`);
 
-  testflight:
-    name: Publish TestFlight
+  package:
+    name: Archive TestFlight IPA
     needs: prepare
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: macos-26
@@ -132,8 +133,12 @@ jobs:
       url: https://appstoreconnect.apple.com/apps
     permissions:
       attestations: write
-      contents: write
+      contents: read
       id-token: write
+    outputs:
+      build_number: ${{ steps.release_metadata.outputs.build_number }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      release_version: ${{ steps.version.outputs.release_version }}
     steps:
       - name: Check out verified revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -233,33 +238,6 @@ jobs:
           VERSION_OVERRIDE: ${{ inputs.version_override || '' }}
         run: ./scripts/ci/next-ios-version.sh "$VERSION_OVERRIDE"
 
-      - name: Prepare TestFlight release notes
-        id: release_notes
-        env:
-          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
-        run: |
-          notes="$RUNNER_TEMP/testflight-release-notes.txt"
-          previous_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
-
-          if [ -n "$previous_tag" ]; then
-            git log "$previous_tag..$RELEASE_SHA" --format='- %s' > "$notes"
-          else
-            git log -n 20 "$RELEASE_SHA" --format='- %s' > "$notes"
-          fi
-
-          if [ ! -s "$notes" ]; then
-            printf '%s\n' '- Internal TestFlight update' > "$notes"
-          fi
-
-          python3 - "$notes" <<'PY'
-          from pathlib import Path
-          import sys
-
-          path = Path(sys.argv[1])
-          path.write_text(path.read_text()[:3800])
-          PY
-          echo "path=$notes" >> "$GITHUB_OUTPUT"
-
       - name: Set up Ruby
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
         with:
@@ -285,27 +263,256 @@ jobs:
           GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
         run: git ls-remote --exit-code "$MATCH_GIT_URL" HEAD
 
-      - name: Archive and process TestFlight build
+      - name: Archive TestFlight build
         env:
           APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
           GIT_SSH_COMMAND: ssh -i ${{ runner.temp }}/match-ssh/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new
-          RELEASE_CHANGELOG_PATH: ${{ steps.release_notes.outputs.path }}
           RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
           FASTLANE_SKIP_UPDATE_CHECK: "1"
-        run: bundle exec fastlane ios beta
+        run: bundle exec fastlane ios archive_beta
 
       - name: Attest IPA provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: build/ios/TalentSignal.ipa
 
+      - name: Preserve IPA before Apple upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: TalentSignal-${{ steps.version.outputs.release_version }}-${{ steps.release_metadata.outputs.build_number }}
+          path: build/ios/TalentSignal.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Summarize archived IPA
+        env:
+          BUILD_NUMBER: ${{ steps.release_metadata.outputs.build_number }}
+          RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+        run: |
+          {
+            echo "### TestFlight IPA archived"
+            echo ""
+            echo "- Version: \`$RELEASE_VERSION\`"
+            echo "- Build: \`$BUILD_NUMBER\`"
+            echo "- The exact attested IPA will be uploaded by the next job."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/asc_key.p8"
+          rm -f "$RUNNER_TEMP/match-ssh/key"
+
+  testflight:
+    name: Upload exact TestFlight IPA
+    needs: [prepare, package]
+    runs-on: macos-26
+    timeout-minutes: 90
+    environment:
+      name: testflight
+      url: https://appstoreconnect.apple.com/apps
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.prepare.outputs.release_sha }}
+
+      - name: Require the release-scoped Infisical identity
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''
+        run: |
+          echo "::error::INFISICAL_TESTFLIGHT_IDENTITY_ID is required for TestFlight releases"
+          exit 1
+
+      - name: Load release secrets from Infisical
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
+        uses: Infisical/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1.0.17
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_TESTFLIGHT_IDENTITY_ID }}
+          oidc-audience: infisical://talent-signal/testflight
+          project-slug: talent-signal-8p1-x
+          env-slug: staging
+          secret-path: /release
+
+      - name: Validate upload secrets
+        run: |
+          missing=0
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Set up Node.js for App Store Connect processing
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Configure App Store Connect key
+        env:
+          API_KEY_CONTENT: ${{ env.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          printf '%s\n' "$API_KEY_CONTENT" > "$RUNNER_TEMP/asc_key.p8"
+          chmod 600 "$RUNNER_TEMP/asc_key.p8"
+
+      - name: Restore exact archived IPA
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: TalentSignal-${{ needs.package.outputs.release_version }}-${{ needs.package.outputs.build_number }}
+          path: build/ios
+
+      - name: Check for an existing exact upload
+        id: existing_upload
+        env:
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          BUILD_NUMBER: ${{ needs.package.outputs.build_number }}
+          RELEASE_VERSION: ${{ needs.package.outputs.release_version }}
+          TESTFLIGHT_LOOKUP_MODE: probe
+        run: |
+          set +e
+          node scripts/ci/wait-for-testflight-build.mjs
+          probe_status="$?"
+          set -e
+          case "$probe_status" in
+            0) echo "exists=true" >> "$GITHUB_OUTPUT" ;;
+            2) echo "exists=false" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$probe_status" ;;
+          esac
+
+      - name: Submit exact archived IPA
+        id: upload
+        if: steps.existing_upload.outputs.exists != 'true'
+        continue-on-error: true
+        env:
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          FASTLANE_SKIP_UPDATE_CHECK: "1"
+        run: bundle exec fastlane ios upload_beta
+
+      - name: Confirm exact TestFlight build is valid
+        env:
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          BUILD_NUMBER: ${{ needs.package.outputs.build_number }}
+          RELEASE_VERSION: ${{ needs.package.outputs.release_version }}
+          TESTFLIGHT_PROCESSING_TIMEOUT_MINUTES: "80"
+          TESTFLIGHT_POLL_SECONDS: "30"
+        run: node scripts/ci/wait-for-testflight-build.mjs
+
+      - name: Summarize accepted upload
+        env:
+          BUILD_NUMBER: ${{ needs.package.outputs.build_number }}
+          RELEASE_VERSION: ${{ needs.package.outputs.release_version }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome || 'skipped-existing' }}
+        run: |
+          {
+            echo "### TestFlight build valid"
+            echo ""
+            echo "- Version: \`$RELEASE_VERSION\`"
+            echo "- Build: \`$BUILD_NUMBER\`"
+            echo "- Transport submission step: \`$UPLOAD_OUTCOME\`"
+            echo "- App Store Connect independently confirmed the exact build as valid."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary App Store Connect key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc_key.p8"
+
+  finalize:
+    name: Finalize TestFlight release
+    needs: [prepare, package, testflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: testflight
+      url: https://appstoreconnect.apple.com/apps
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.release_sha }}
+
+      - name: Require the release-scoped Infisical identity
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID == ''
+        run: |
+          echo "::error::INFISICAL_TESTFLIGHT_IDENTITY_ID is required for TestFlight releases"
+          exit 1
+
+      - name: Load release secrets from Infisical
+        if: vars.INFISICAL_TESTFLIGHT_IDENTITY_ID != ''
+        uses: Infisical/secrets-action@6cd3f7c0e4cc0d2395ee4ef414eb6eeb5d3e73db # v1.0.17
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_TESTFLIGHT_IDENTITY_ID }}
+          oidc-audience: infisical://talent-signal/testflight
+          project-slug: talent-signal-8p1-x
+          env-slug: staging
+          secret-path: /release
+
+      - name: Validate processing secrets
+        run: |
+          missing=0
+          for name in \
+            APP_STORE_CONNECT_API_KEY_CONTENT \
+            APP_STORE_CONNECT_API_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Set up Node.js for App Store Connect processing
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: Configure App Store Connect key
+        env:
+          API_KEY_CONTENT: ${{ env.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          printf '%s\n' "$API_KEY_CONTENT" > "$RUNNER_TEMP/asc_key.p8"
+          chmod 600 "$RUNNER_TEMP/asc_key.p8"
+
+      - name: Restore exact uploaded IPA
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: TalentSignal-${{ needs.package.outputs.release_version }}-${{ needs.package.outputs.build_number }}
+          path: build/ios
+
+      - name: Wait for exact TestFlight build processing
+        env:
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          BUILD_NUMBER: ${{ needs.package.outputs.build_number }}
+          RELEASE_VERSION: ${{ needs.package.outputs.release_version }}
+          TESTFLIGHT_PROCESSING_TIMEOUT_MINUTES: "80"
+          TESTFLIGHT_POLL_SECONDS: "30"
+        run: node scripts/ci/wait-for-testflight-build.mjs
+
       - name: Create TestFlight release receipt
         id: receipt
         env:
-          BUILD_NUMBER: ${{ steps.release_metadata.outputs.build_number }}
+          BUILD_NUMBER: ${{ needs.package.outputs.build_number }}
           RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
-          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
-          RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+          RELEASE_TAG: ${{ needs.package.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.package.outputs.release_version }}
           WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           receipt="$RUNNER_TEMP/testflight-release-receipt.json"
@@ -315,46 +522,53 @@ jobs:
 
       - name: Tag successful TestFlight release
         env:
-          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.release_sha }}
+          RELEASE_TAG: ${{ needs.package.outputs.release_tag }}
         run: |
           git fetch --tags --force origin
-          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null 2>&1 ||
-            git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $RELEASE_TAG was created while this build was running"
-            exit 1
+          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            existing_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+            if [ "$existing_sha" != "$RELEASE_SHA" ]; then
+              echo "::error::Tag $RELEASE_TAG points to $existing_sha instead of $RELEASE_SHA"
+              exit 1
+            fi
+            echo "Tag $RELEASE_TAG already points to the verified release commit"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
+            git push origin "$RELEASE_TAG"
           fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$RELEASE_TAG" -m "Release $RELEASE_TAG"
-          git push origin "$RELEASE_TAG"
 
       - name: Create GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          RELEASE_TAG: ${{ needs.package.outputs.release_tag }}
         run: |
-          gh release create "$RELEASE_TAG" \
-            build/ios/TalentSignal.ipa \
-            "${{ steps.receipt.outputs.path }}" \
-            --generate-notes \
-            --prerelease \
-            --title "$RELEASE_TAG" \
-            --verify-tag
-
-      - name: Preserve IPA
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: TalentSignal-${{ steps.version.outputs.release_version }}
-          path: build/ios/TalentSignal.ipa
-          if-no-files-found: error
-          retention-days: 14
+          if owner="$(gh release view "$RELEASE_TAG" --json author --jq .author.login 2>/dev/null)"; then
+            if [ "$owner" != "github-actions[bot]" ]; then
+              echo "::error::Existing release $RELEASE_TAG is owned by $owner"
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" \
+              build/ios/TalentSignal.ipa \
+              "${{ steps.receipt.outputs.path }}" \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              build/ios/TalentSignal.ipa \
+              "${{ steps.receipt.outputs.path }}" \
+              --generate-notes \
+              --prerelease \
+              --title "$RELEASE_TAG" \
+              --verify-tag
+          fi
 
       - name: Summarize internal release
         env:
-          BUILD_NUMBER: ${{ steps.release_metadata.outputs.build_number }}
-          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
-          RELEASE_VERSION: ${{ steps.version.outputs.release_version }}
+          BUILD_NUMBER: ${{ needs.package.outputs.build_number }}
+          RELEASE_TAG: ${{ needs.package.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.package.outputs.release_version }}
         run: |
           {
             echo "### TestFlight release processed"
@@ -367,6 +581,4 @@ jobs:
 
       - name: Remove temporary signing material
         if: always()
-        run: |
-          rm -f "$RUNNER_TEMP/asc_key.p8"
-          rm -f "$RUNNER_TEMP/match-ssh/key"
+        run: rm -f "$RUNNER_TEMP/asc_key.p8"

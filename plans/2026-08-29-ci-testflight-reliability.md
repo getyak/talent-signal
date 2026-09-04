@@ -33,6 +33,11 @@ publishing local uncommitted iOS work.
 - A successful TestFlight run itself (`33179753593`) took about 9 minutes. The
   archive, upload, and Apple processing step took about 7 minutes, so TestFlight
   transport is not the dominant delay.
+- Release run `33820354814` uploaded two `0.1.43` binaries, but Fastlane's
+  processing watcher obscured the terminal reason behind a later DNS failure.
+  Direct read-only build-upload queries proved both exact builds failed with
+  Apple code `90626`: the App Intent description contained the prohibited
+  device name `iPhone`.
 - Recovery run `33229455837` reached the Mac by Tailscale ping but its first
   end-to-end authentication POST never reached the healthy API. Treat that
   local-host network path as intermittently available and retry only the
@@ -62,6 +67,10 @@ publishing local uncommitted iOS work.
 6. Admit a release as the cumulative baseline only when GitHub Actions owns it
    and it carries both the uploaded IPA and a machine-readable receipt created
    after Apple processing. Treat missing proof conservatively as unreleased.
+7. Archive, attest, and retain the exact IPA before upload. Upload from a
+   separate retryable job that first checks whether Apple already has that exact
+   version/build, then independently polls the build-upload API to `VALID`.
+   Keep receipt, tag, and prerelease creation in a final idempotent job.
 
 ## Milestones
 
@@ -71,6 +80,9 @@ publishing local uncommitted iOS work.
 - [x] Pass workflow, policy, documentation, and focused iOS checks.
 - [x] Replace semantic-tag inference with an automation-owned TestFlight
       receipt and prove the false-Release regression locally.
+- [x] Diagnose the `0.1.43` Apple rejection, correct the App Intent metadata,
+      and split archive, upload, processing, and finalization into recoverable
+      stages with focused policy coverage.
 - [ ] Prove the branch CI duration and recover current `main` to TestFlight.
 
 ## Reconsideration signals
@@ -88,6 +100,10 @@ publishing local uncommitted iOS work.
   manual-owner, missing-IPA, missing-receipt, and receipt-payload coverage.
 - `check-actions-pinned.sh`, `actionlint`, Bash syntax checks, and
   `pnpm docs:check`: passed on 2026-08-29.
+- Recovery policy on 2026-09-04: 18 focused tests passed, including exact-build
+  selection, transient lookup retry, terminal Apple rejection, device-neutral
+  App Intent metadata, retained-IPA ordering, and tag/release retry behavior;
+  `actionlint`, Ruby/Node syntax, documentation, and whitespace checks passed.
 - The live GitHub release inventory selected no trusted baseline: `v0.1.17`
   and `v0.1.16` have no assets, while bot-owned `v0.1.15` has an IPA but no
   post-processing receipt. This is the intended conservative recovery state.
