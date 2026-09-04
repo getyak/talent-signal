@@ -3855,3 +3855,65 @@ private final class FailingActionCompletions: PursuitActionCompletionPersisting 
         entryValue = nil
     }
 }
+
+final class RelationshipCalendarAgendaTests: XCTestCase {
+    private var calendar: Calendar {
+        var value = Calendar(identifier: .gregorian)
+        value.timeZone = TimeZone(identifier: "America/New_York")!
+        return value
+    }
+
+    private func date(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
+    }
+
+    private func activity(_ id: String, person: String = "person-a", start: String, end: String) -> RelationshipCalendarActivity {
+        RelationshipCalendarActivity(
+            id: id, kind: .meeting, title: "Review", personID: person,
+            relationshipContextID: "context-\(person)", personDisplayLabel: "Alex Chen",
+            contextDisplayLabel: "Search", startDate: date(start), endDate: date(end),
+            timeZoneIdentifier: "America/New_York", source: .talentSignal
+        )
+    }
+
+    func testDayProjectionIncludesOvernightButExcludesEventEndingAtMidnight() {
+        let interval = RelationshipCalendarAgenda.interval(
+            for: date("2026-09-05T16:00:00Z"), mode: .day, calendar: calendar
+        )
+        let overnight = activity("overnight", start: "2026-09-05T03:30:00Z", end: "2026-09-05T04:30:00Z")
+        let ended = activity("ended", start: "2026-09-05T03:00:00Z", end: "2026-09-05T04:00:00Z")
+        let tomorrow = activity("tomorrow", start: "2026-09-06T04:00:00Z", end: "2026-09-06T05:00:00Z")
+        XCTAssertEqual(RelationshipCalendarAgenda.activities([tomorrow, ended, overnight], in: interval).map(\.id), ["overnight"])
+    }
+
+    func testWeekUsesCalendarDaysAcrossDaylightSavingTime() {
+        let start = date("2026-03-08T05:00:00Z")
+        let interval = RelationshipCalendarAgenda.interval(for: start, mode: .week, calendar: calendar)
+        XCTAssertEqual(interval.start, start)
+        XCTAssertEqual(interval.end, date("2026-03-15T04:00:00Z"))
+        XCTAssertEqual(interval.duration, 167 * 3600)
+    }
+
+    func testSameNameDoesNotCombinePeopleOrLoseContext() {
+        let first = activity("a", start: "2026-09-05T13:00:00Z", end: "2026-09-05T14:00:00Z")
+        let second = activity("b", person: "person-b", start: "2026-09-05T15:00:00Z", end: "2026-09-05T16:00:00Z")
+        let interval = RelationshipCalendarAgenda.interval(for: first.startDate, mode: .week, calendar: calendar)
+        let filtered = RelationshipCalendarAgenda.activities([first, second], in: interval, personID: "person-b")
+        XCTAssertEqual(filtered.map(\.id), ["b"])
+        XCTAssertEqual(filtered.first?.relationshipContextID, "context-person-b")
+        XCTAssertTrue(RelationshipCalendarAgenda.activities([first, second], in: interval, personID: "missing").isEmpty)
+    }
+
+    func testOverlapUsesKnownActivitiesAndAllowsBackToBackMeetings() {
+        let a = activity("a", start: "2026-09-05T13:00:00Z", end: "2026-09-05T14:00:00Z")
+        let b = activity("b", person: "person-b", start: "2026-09-05T13:30:00Z", end: "2026-09-05T13:45:00Z")
+        let c = activity("c", start: "2026-09-05T14:00:00Z", end: "2026-09-05T15:00:00Z")
+        XCTAssertEqual(RelationshipCalendarAgenda.overlappingIDs(in: [c, b, a]), ["a", "b"])
+    }
+
+    func testComposerKeepsFutureSelectedDayAndNeverSeedsPastTime() {
+        let now = date("2026-09-04T20:30:00Z")
+        XCTAssertEqual(RelationshipCalendarAgenda.suggestedStart(on: date("2026-09-08T04:00:00Z"), now: now, calendar: calendar), date("2026-09-08T13:00:00Z"))
+        XCTAssertEqual(RelationshipCalendarAgenda.suggestedStart(on: date("2026-09-01T04:00:00Z"), now: now, calendar: calendar), date("2026-09-04T21:00:00Z"))
+    }
+}
