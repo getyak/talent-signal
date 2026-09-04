@@ -77,8 +77,7 @@ The corrected run passed actual AX5 Today footer clearance, Chinese dark AX5
 People/Sessions reachability, and Session trailing-swipe ownership. In total,
 eight distinct UI cases and one metadata/search unit case have valid passing
 evidence. The current shared working checkout then compiled successfully and passed both
-Today cases again: standard-size clearance and actual dark AX5 clearance. The
-Today screenshots below are exported from this final integration result.
+Today cases again: standard-size clearance and actual dark AX5 clearance. The integration run independently confirmed these Today cases.
 
 After the shared build finished, the simulator was restarted with the final
 app. The installed executable and debug library match the integrated build
@@ -95,6 +94,17 @@ byte-for-byte. A read-only runtime inspection confirmed the corrected layout:
 The additional 68 points match the guide's layout space. The UI tests' frame
 comparisons and final screenshots independently verify that the footer clears
 the guide. Documentation validation and the scoped whitespace check passed.
+
+### Isolated publication validation
+
+The publication branch is based on remote `main` (`56aff0d`), with only this
+scrolling change applied. It retains main's native accessibility environment
+key and excludes the concurrent Lab/calendar work. All eight focused UI cases
+and the metadata/search unit case passed again against production source
+commit `d6617b6` in `release-verified.xcresult`. The individual screenshots below
+come from that run; the before/after composite preserves the earlier shared
+working-snapshot comparison. The source is reviewed in
+[PR #119](https://github.com/getyak/talent-signal/pull/119).
 
 ### Test reliability correction
 

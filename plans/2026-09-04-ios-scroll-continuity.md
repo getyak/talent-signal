@@ -64,8 +64,9 @@ publishing a new version. The current trusted TestFlight release is `v0.1.43`.
    (`56aff0d`) in `/tmp/talent-signal-scroll-release`. Apply only the saved task
    delta, keeping the main branch's native accessibility environment key.
    Unrelated Lab/calendar work remains in the shared working checkout.
-2. [in progress] Re-run the focused eight UI cases and one unit case against
-   this isolated publication source, then commit and verify hosted PR gates.
-3. [pending] Merge the passing PR, follow main CI and automatic TestFlight
+2. [complete] Re-run the focused eight UI cases and one unit case against
+   isolated production source `d6617b6`: all nine passed. Commit the final
+   screenshots and keep hosted checks attached to PR #119.
+3. [in progress] Merge the passing PR, follow main CI and automatic TestFlight
    delivery, and verify the release receipt binds the new build to the merged
    commit. The published receipt is the authoritative delivery evidence.
