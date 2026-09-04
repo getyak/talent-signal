@@ -58,9 +58,14 @@ The release scope is this calendar slice, isolated from unrelated Lab and scroll
 The release worktree starts at `56aff0d` (`origin/main`).
 
 1. Complete: isolated diff reviewed; 10 native tests, localization and docs checks passed.
-2. Active: push a focused PR and satisfy required CI/security checks.
-3. Pending: merge normally into main and follow main CI and TestFlight processing.
-4. Pending: verify the automation-owned release receipt and report version/build.
+2. Complete: PR #120 pushed; required CI and security checks passed.
+3. Complete: latest main merged into the PR without conflicts, refreshed checks
+   passed, PR merged, and main CI plus automatic TestFlight release succeeded.
+4. Complete: automation receipt and tag bind the calendar merge commit; a
+   read-only audit confirms the exact build is available to the internal group.
 
-No public App Store submission or invitation is included. A processed release
-receipt proves Apple processing; physical-device installation remains separate.
+The [published-release evidence](../docs/evaluations/2026-09-04-relationship-calendar/README.md#published-release)
+owns version, build, processing, access and workflow links. The release worktree
+excluded unrelated uncommitted Lab changes and preserved the shared checkout.
+No public App Store submission or invitation was performed. Physical-device
+installation of the exact build remains unverified.
