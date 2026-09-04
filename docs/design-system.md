@@ -66,6 +66,14 @@ progressively stronger attention.
 The current state should be simple, while prior values, conflicts, corrections,
 and outcomes remain available through progressive disclosure.
 
+Calendar scanning leads with time, person, and activity. Keep secondary
+properties and inactive filters behind a named control; reveal an active filter
+where it affects the view. Avoid repeating time, normal sync status, and scope
+across stacked chrome and cards. Compactness removes repetition and framing,
+not readable type or touch targets. Calendar views change time layout; filters
+change which records appear. Preserve that distinction, and keep conflicts,
+uncertain writes, and recovery visible when metadata is collapsed.
+
 ### Space is part of the hierarchy
 
 Breathing room gives each mobile viewport one visual resting point and open
@@ -156,13 +164,9 @@ when the compact decision lacks enough governed distinguishing evidence.
 
 ## Attention hierarchy
 
-Within a page, prioritize:
-
-1. identity and current context;
-2. the meaningful change or dependency;
-3. exact supporting evidence;
-4. the smallest next action;
-5. history, alternatives, and deeper analysis.
+Prioritize identity and current context, then meaningful change or dependency,
+exact supporting evidence, and the smallest next action. History, alternatives,
+and deeper analysis follow.
 
 AI provenance should be visible but secondary. The interface should describe
 the work, not advertise that AI exists.
@@ -310,10 +314,6 @@ preference. For a consequential visual change, compare at least two rendered
 directions against product truth, logo-off ownability, five-second clarity, and
 accessibility risk before micro-detail.
 
-Approved mark geometry, controlled material variants, practical exports, and
-usage constraints live in the repository
-[brand system](../brand/README.md).
-
-External comparisons and borrowing boundaries live in the
+See the [brand system](../brand/README.md) for approved marks and usage, and the
 [Design reference catalog](research/design-reference-catalog.md) and
-[iOS relationship library benchmark](research/ios-relationship-library-design-benchmark.md).
+[iOS relationship library benchmark](research/ios-relationship-library-design-benchmark.md) for borrowing boundaries.
