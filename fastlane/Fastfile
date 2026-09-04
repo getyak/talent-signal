@@ -29,16 +29,6 @@ def configure_ios_environment(configuration)
   )
 end
 
-def release_changelog
-  path = ENV["RELEASE_CHANGELOG_PATH"]
-  return nil unless path && File.exist?(path)
-
-  changelog = File.read(path).strip
-  return nil if changelog.empty?
-
-  changelog.slice(0, 3_800)
-end
-
 def app_store_connect_key
   key_path = ENV["APP_STORE_CONNECT_API_KEY_PATH"]
 
@@ -64,6 +54,64 @@ def app_store_connect_key
     issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
     key_content: key_content,
     in_house: false
+  )
+end
+
+def archive_testflight_build(key)
+  team_id = ENV.fetch("DEVELOPMENT_TEAM", "6RG2F8YY59")
+  release_version = ENV.fetch("RELEASE_VERSION", "0.1.0")
+  build_number = ENV["BUILD_NUMBER"] || Time.now.utc.strftime("%Y%m%d%H%M")
+
+  match(
+    type: "appstore",
+    app_identifier: APP_IDENTIFIERS,
+    api_key: key,
+    git_url: ENV["MATCH_GIT_URL"] || DEFAULT_MATCH_GIT_URL,
+    git_branch: ENV["MATCH_GIT_BRANCH"] || DEFAULT_MATCH_GIT_BRANCH,
+    readonly: true
+  )
+
+  increment_version_number(
+    version_number: release_version,
+    xcodeproj: IOS_PROJECT
+  )
+  increment_build_number(
+    build_number: build_number,
+    xcodeproj: IOS_PROJECT
+  )
+
+  build_app(
+    project: IOS_PROJECT,
+    scheme: IOS_SCHEME,
+    configuration: "Release",
+    clean: true,
+    export_method: "app-store",
+    output_directory: IOS_OUTPUT,
+    output_name: "TalentSignal.ipa",
+    export_options: {
+      method: "app-store",
+      signingStyle: "manual",
+      teamID: team_id,
+      provisioningProfiles: {
+        APP_IDENTIFIER => "match AppStore #{APP_IDENTIFIER}",
+        SHARE_EXTENSION_IDENTIFIER => "match AppStore #{SHARE_EXTENSION_IDENTIFIER}",
+        LIVE_ACTIVITY_IDENTIFIER => "match AppStore #{LIVE_ACTIVITY_IDENTIFIER}"
+      }
+    }
+  )
+end
+
+def upload_testflight_build(key)
+  ipa_path = File.join(IOS_OUTPUT, "TalentSignal.ipa")
+  UI.user_error!("Archive the TestFlight IPA before uploading") unless File.file?(ipa_path)
+
+  upload_to_testflight(
+    api_key: key,
+    app_identifier: APP_IDENTIFIER,
+    ipa: ipa_path,
+    distribute_external: false,
+    skip_waiting_for_build_processing: true,
+    uses_non_exempt_encryption: false
   )
 end
 
@@ -95,63 +143,28 @@ platform :ios do
     )
   end
 
-  desc "Archive and upload an internal TestFlight build"
+  desc "Archive an internal TestFlight build without uploading it"
+  lane :archive_beta do
+    setup_ci if ENV["CI"]
+    configure_ios_environment("Release")
+    archive_testflight_build(app_store_connect_key)
+    UI.success("Talent Signal IPA archived for TestFlight")
+  end
+
+  desc "Upload the previously archived internal TestFlight build without polling"
+  lane :upload_beta do
+    setup_ci if ENV["CI"]
+    upload_testflight_build(app_store_connect_key)
+    UI.success("Talent Signal upload accepted by App Store Connect")
+  end
+
+  desc "Archive and upload an internal TestFlight build without polling"
   lane :beta do
     setup_ci if ENV["CI"]
     configure_ios_environment("Release")
-
     key = app_store_connect_key
-    team_id = ENV.fetch("DEVELOPMENT_TEAM", "6RG2F8YY59")
-    release_version = ENV.fetch("RELEASE_VERSION", "0.1.0")
-    build_number = ENV["BUILD_NUMBER"] || Time.now.utc.strftime("%Y%m%d%H%M")
-
-    match(
-      type: "appstore",
-      app_identifier: APP_IDENTIFIERS,
-      api_key: key,
-      git_url: ENV["MATCH_GIT_URL"] || DEFAULT_MATCH_GIT_URL,
-      git_branch: ENV["MATCH_GIT_BRANCH"] || DEFAULT_MATCH_GIT_BRANCH,
-      readonly: true
-    )
-
-    increment_version_number(
-      version_number: release_version,
-      xcodeproj: IOS_PROJECT
-    )
-    increment_build_number(
-      build_number: build_number,
-      xcodeproj: IOS_PROJECT
-    )
-
-    build_app(
-      project: IOS_PROJECT,
-      scheme: IOS_SCHEME,
-      configuration: "Release",
-      clean: true,
-      export_method: "app-store",
-      output_directory: IOS_OUTPUT,
-      output_name: "TalentSignal.ipa",
-      export_options: {
-        method: "app-store",
-        signingStyle: "manual",
-        teamID: team_id,
-        provisioningProfiles: {
-          APP_IDENTIFIER => "match AppStore #{APP_IDENTIFIER}",
-          SHARE_EXTENSION_IDENTIFIER => "match AppStore #{SHARE_EXTENSION_IDENTIFIER}",
-          LIVE_ACTIVITY_IDENTIFIER => "match AppStore #{LIVE_ACTIVITY_IDENTIFIER}"
-        }
-      }
-    )
-
-    upload_to_testflight(
-      api_key: key,
-      app_identifier: APP_IDENTIFIER,
-      changelog: release_changelog,
-      distribute_external: false,
-      skip_waiting_for_build_processing: false,
-      uses_non_exempt_encryption: false
-    )
-
-    UI.success("Talent Signal processed by TestFlight and ready for internal distribution")
+    archive_testflight_build(key)
+    upload_testflight_build(key)
+    UI.success("Talent Signal upload accepted by App Store Connect")
   end
 end

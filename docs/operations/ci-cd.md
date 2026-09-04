@@ -27,9 +27,9 @@ successful main CI + iOS product change
         |
         +--> main-only testflight environment
                 isolated match signing -> archive
-                TestFlight upload -> processing complete
+                provenance attestation + retained IPA -> TestFlight upload
+                exact build-upload polling -> processing complete
                 internal group automatic distribution
-                provenance attestation
                 receipt + version tag + GitHub prerelease + retained IPA
 ```
 
@@ -101,11 +101,15 @@ configuration, verifies tailnet reachability and a current Apple
 authentication challenge before signing, retries that end-to-end contract probe
 three times across a short bounded window to absorb transient tailnet path
 negotiation, writes signing material only under the runner temporary directory,
-verifies
-read access to the isolated private match repository, and removes those files
-even after failure. Fastlane waits for App Store Connect build processing. The
-receipt, tag, and GitHub prerelease with its IPA are created only after that
-stronger acceptance point, not merely after transport upload. Editing or
+verifies read access to the isolated private match repository, and removes
+those files even after failure. The workflow attests and retains the exact IPA
+before a separate job uploads it. That upload job polls Apple's build-upload
+resource for the exact marketing version and build number, tolerates transient
+lookup failures, and fails immediately on an Apple processing rejection. A
+retry restores the same archived IPA and skips transport when that exact upload
+already exists instead of generating or blindly uploading a new build. The
+receipt, tag, and GitHub prerelease with the retained IPA are created only after
+the linked build reaches `VALID`, not merely after transport upload. Editing or
 promoting that release later does not invalidate the receipt as long as its
 automation owner and both assets remain intact.
 
@@ -213,8 +217,11 @@ again. The hook never mutates a commit during push.
 - If an iOS regression requires the complete UI suite, dispatch `CI` with
   `ios_test_scope=full`. Do not enlarge the blocking smoke list as a substitute
   for an explicit full run.
-- A failed TestFlight upload creates no release tag. Rerun the failed workflow
-  after correcting credentials or signing state.
+- A failed TestFlight upload creates no release tag. The archive job preserves
+  and attests the exact IPA before upload, so rerunning only `Upload exact
+  TestFlight IPA` reuses the same version and build instead of generating a new
+  binary. Correct source or signing state and start a new workflow only when
+  App Store Connect conclusively rejects that binary.
 - A manually created semantic release or tag does not count as a TestFlight
   success. Leave it in place for auditability and dispatch `Release iOS` with
   `publish_testflight=true`; version selection skips occupied tags and the new
@@ -228,9 +235,13 @@ again. The hook never mutates a commit during push.
   Manager API key and maintenance key have live proof for regenerating the app
   and extension profiles. Do not remove a product capability to fit a stale
   profile.
-- If TestFlight accepts an upload but processing or later metadata fails,
-  verify the version and build number in App Store Connect before rerunning to
-  avoid duplicate uploads.
+- `Upload exact TestFlight IPA` treats the transport command as advisory and
+  independently requires the exact version/build to become valid. This handles
+  an ambiguous transport failure without promoting it to a release. Rerun that
+  job to reuse the retained IPA; it checks for the exact upload first and skips
+  resubmission when Apple already has it. If later tag, receipt, or GitHub
+  metadata fails, rerun only `Finalize TestFlight release`; it restores the
+  same IPA and never uploads another build.
 - If a release waits before receiving a runner, inspect environment protection
   rules and the global `release-ios` concurrency group. Cancel obsolete waiting
   runs before changing a gate so a stale build cannot begin unexpectedly.

@@ -253,8 +253,11 @@ bundle exec fastlane ios beta
 ```
 
 `prepare_signing` is an explicit provisioning or rotation step. CI runs Match
-in read-only mode, waits for App Store Connect to finish processing the build,
-and then creates the matching release tag and receipt. See the
+in read-only mode, archives, attests, and preserves the exact IPA before any
+Apple upload. A separate retryable job uploads that same IPA without coupling
+the runner to Fastlane's processing watcher, then verifies the exact App Store
+Connect build before the final job creates the matching release tag and
+receipt. See the
 [CI/CD operations guide](../../docs/operations/ci-cd.md#release-gates) for the
 authoritative release trust and recovery rules. Uploads require:
 

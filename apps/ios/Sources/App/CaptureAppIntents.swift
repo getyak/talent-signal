@@ -167,7 +167,7 @@ struct OpenPursuitIntent: AppIntent {
 struct ImportConversationScreenshotIntent: AppIntent {
     static let title: LocalizedStringResource = "Review screenshot"
     static let description = IntentDescription(
-        "Receive one screenshot from a Shortcut and save it on this iPhone for editable text and identity review."
+        "Receive one screenshot from a Shortcut and save it on this device for editable text and identity review."
     )
 
     @available(iOS 26.0, *)
@@ -199,7 +199,7 @@ struct ImportConversationScreenshotIntent: AppIntent {
         trace.mark("review_enqueued")
         trace.mark("intent_returning")
         return .result(
-            dialog: "Saved on this iPhone. Nothing was uploaded or confirmed."
+            dialog: "Saved on this device. Nothing was uploaded or confirmed."
         )
     }
 
