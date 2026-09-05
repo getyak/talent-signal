@@ -52,6 +52,8 @@
 	<string>Talent Signal opens Apple&apos;s contact editor only after you review the exact fields you want to add.</string>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
 	<string>Talent Signal adds an event to your default calendar only after you confirm its title and time in the app.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Talent Signal uses full Calendar access only to find and update the exact linked event after you review and confirm its changes.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Talent Signal transcribes only the foreground recording you explicitly start, using on-device speech when available.</string>
 	<key>NSSupportsLiveActivities</key>

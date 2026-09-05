@@ -57,10 +57,18 @@ account boundary so a prior workspace cannot remain visible.
 Calendar is an outbound device projection, not an intake source or a second
 record. Talent Signal persists the user-confirmed event and its projection
 state before requesting write-only access and adding one event to the system
-default calendar. It does not import, mirror, listen to, or reconcile Apple
-Calendar events. A denied or failed write leaves the Talent Signal event intact
-and retryable; an edit or deletion made later in Apple Calendar does not mutate
-Talent Signal truth.
+default calendar. It does not import, browse, mirror, or listen to Apple
+Calendar. After the user separately reviews an edit to an already linked event,
+the app may request full access, resolve only the saved EventKit identifier,
+update that exact event, and read it back to verify the result; it never scans
+the surrounding calendar or creates a replacement when the identifier is
+missing. Turning off default sync keeps new events local but does not override
+an explicit reviewed update to an already linked event. A denied or failed
+write leaves the Talent Signal event intact. Each reviewed edit retains an
+append-only operation receipt with its before/after values, intended projection,
+and observed EventKit outcome; an interrupted result remains unknown until the
+user reconciles it. An edit or deletion made directly in Apple Calendar does
+not mutate Talent Signal truth.
 
 ### Shared services
 

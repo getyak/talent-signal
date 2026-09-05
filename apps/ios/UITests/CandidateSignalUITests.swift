@@ -6003,6 +6003,119 @@ final class RelationshipCalendarWorkflowUITests: XCTestCase {
         add(attachment)
     }
 
+    private func openCalendarShortcuts() {
+        app.launch()
+        let open = app.buttons["today-calendar-peek"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        XCTAssertGreaterThanOrEqual(open.frame.height, 44)
+        open.press(forDuration: 0.8)
+        XCTAssertTrue(
+            app.buttons["calendar-shortcut-open"].waitForExistence(timeout: 5)
+        )
+    }
+
+    func testCalendarLongPressOpensWeekAndActivityShortcuts() {
+        openCalendarShortcuts()
+        XCTAssertTrue(app.buttons["calendar-shortcut-today"].exists)
+        XCTAssertTrue(app.buttons["calendar-shortcut-this-week"].exists)
+        XCTAssertTrue(app.buttons["calendar-shortcut-add-activity"].exists)
+
+        app.buttons["calendar-shortcut-this-week"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["calendar-week-grid"]
+                .firstMatch.waitForExistence(timeout: 5)
+        )
+
+        let activityID = "preview-calendar-morning"
+        let activity = app.buttons["calendar-activity-\(activityID)"]
+        XCTAssertTrue(activity.waitForExistence(timeout: 5))
+        XCTAssertTrue(activity.isHittable)
+        activity.press(forDuration: 0.8)
+        XCTAssertTrue(
+            app.buttons["calendar-context-open-\(activityID)"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["calendar-context-edit-\(activityID)"].exists)
+        XCTAssertTrue(app.buttons["calendar-context-person-\(activityID)"].exists)
+        XCTAssertTrue(app.buttons["calendar-context-prepare-\(activityID)"].exists)
+
+        app.buttons["calendar-context-prepare-\(activityID)"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["relationship-ask-sheet"]
+                .firstMatch.waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.textFields["ask-composer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            (app.textFields["ask-composer"].value as? String)?
+                .contains("Prepare for the") == true
+        )
+    }
+
+    func testCalendarLongPressEditReviewsChangesBeforeUpdating() {
+        openCalendar()
+        let activityID = "preview-calendar-morning"
+        let activity = app.buttons["calendar-activity-\(activityID)"]
+        XCTAssertTrue(activity.waitForExistence(timeout: 5))
+        activity.press(forDuration: 0.8)
+
+        let edit = app.buttons["calendar-context-edit-\(activityID)"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["relationship-calendar-composer"]
+                .firstMatch.waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["calendar-edit-locked-scope"].firstMatch.exists
+        )
+        let title = app.textFields["calendar-activity-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText(" updated")
+
+        let review = app.buttons["calendar-review-activity-edit"]
+        XCTAssertTrue(review.isEnabled)
+        review.tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["calendar-activity-edit-review"]
+                .firstMatch.waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["calendar-edit-change-title"].firstMatch.exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["calendar-edit-external-effect"].firstMatch.exists
+        )
+        XCTAssertTrue(app.buttons["calendar-confirm-activity-edit"].exists)
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+        capture("17-calendar-edit-review")
+
+        app.buttons["calendar-confirm-activity-edit"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["calendar-activity-detail"]
+                .firstMatch.waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.staticTexts["Preview activity updated"].exists)
+        XCTAssertFalse(app.buttons["calendar-retry-sync"].exists)
+    }
+
+    func testCalendarLongPressAddActivityOpensReviewBeforeAnyWrite() {
+        openCalendarShortcuts()
+        app.buttons["calendar-shortcut-add-activity"].tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["relationship-calendar-composer"]
+                .firstMatch.waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.staticTexts["Preview only · nothing is added to Apple Calendar."]
+                .exists
+        )
+        XCTAssertTrue(app.buttons["calendar-confirm-activity"].exists)
+    }
+
     func testWeekPersonFilterClearAndPersonRecordHandoff() {
         openCalendar()
         choose("calendar-view-week")

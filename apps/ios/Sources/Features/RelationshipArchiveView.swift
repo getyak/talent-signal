@@ -23,7 +23,8 @@ struct RelationshipArchiveView: View {
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
     @State private var isCaptureInboxPresented = false
-    @State private var isRelationshipCalendarPresented = false
+    @State private var relationshipCalendarPresentation:
+        RelationshipCalendarLaunchIntent?
     @State private var relationshipCalendarActivities: [RelationshipCalendarActivity] = []
     @State private var deferredIntakePresentation: AgentIntakePresentation?
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
@@ -178,10 +179,7 @@ struct RelationshipArchiveView: View {
                             clearTransientRetrievalIntent()
                             presentedSheet = .agentStudio
                         },
-                        onOpenCalendar: {
-                            clearTransientRetrievalIntent()
-                            isRelationshipCalendarPresented = true
-                        }
+                        onOpenCalendar: openRelationshipCalendar
                     )
                     if labStore.isEnabled || DeviceLabAvailability.enabled {
                         HStack {
@@ -439,17 +437,18 @@ struct RelationshipArchiveView: View {
             }
         }
         .fullScreenCover(
-            isPresented: $isRelationshipCalendarPresented,
+            item: $relationshipCalendarPresentation,
             onDismiss: {
                 reloadRelationshipCalendarActivities()
                 completeDeferredTransition()
             }
-        ) {
+        ) { launchIntent in
             if let snapshot = workspaceStore.snapshot {
                 RelationshipCalendarView(
                     snapshot: snapshot,
                     isPreview: !workspaceStore.isCanonical,
                     initialActivities: relationshipCalendarActivities,
+                    launchIntent: launchIntent,
                     personDetail: { personID in
                         guard let current = workspaceStore.snapshot,
                               let person = current.person(id: personID) else { return nil }
@@ -726,8 +725,7 @@ struct RelationshipArchiveView: View {
                 actionRecovery: workspaceStore.latestActionRecovery(in: snapshot),
                 onOpenSession: openSession,
                 onOpenCalendar: {
-                    clearTransientRetrievalIntent()
-                    isRelationshipCalendarPresented = true
+                    openRelationshipCalendar(.overview)
                 },
                 onOpenAttention: openAttention,
                 onOpenPursuit: { presentedSheet = .pursuit($0) },
@@ -1075,6 +1073,13 @@ struct RelationshipArchiveView: View {
         Task { await workspaceStore.load() }
     }
 
+    private func openRelationshipCalendar(
+        _ intent: RelationshipCalendarLaunchIntent
+    ) {
+        clearTransientRetrievalIntent()
+        relationshipCalendarPresentation = intent
+    }
+
     private var pageLayoutDirection: LayoutDirection {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(
@@ -1160,7 +1165,7 @@ private struct RelationshipArchiveHeader: View {
     @Binding var selectedPage: RelationshipArchivePage
     let pageProgress: CGFloat
     let onOpenAgentStudio: () -> Void
-    let onOpenCalendar: () -> Void
+    let onOpenCalendar: (RelationshipCalendarLaunchIntent) -> Void
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.layoutDirection) private var layoutDirection
@@ -1219,12 +1224,56 @@ private struct RelationshipArchiveHeader: View {
     }
 
     private var calendarButton: some View {
-        Button(action: onOpenCalendar) {
+        Menu {
+            Button {
+                onOpenCalendar(.overview)
+            } label: {
+                Label(
+                    appLanguage.text("Open calendar", zhHans: "打开日历"),
+                    systemImage: "calendar"
+                )
+            }
+            .accessibilityIdentifier("calendar-shortcut-open")
+
+            Section(appLanguage.text("Go to")) {
+                Button {
+                    onOpenCalendar(.today)
+                } label: {
+                    Label(
+                        appLanguage.text("Today"),
+                        systemImage: "calendar.badge.clock"
+                    )
+                }
+                .accessibilityIdentifier("calendar-shortcut-today")
+
+                Button {
+                    onOpenCalendar(.thisWeek)
+                } label: {
+                    Label(
+                        appLanguage.text("This week"),
+                        systemImage: "calendar"
+                    )
+                }
+                .accessibilityIdentifier("calendar-shortcut-this-week")
+            }
+
+            Button {
+                onOpenCalendar(.addActivity)
+            } label: {
+                Label(
+                    appLanguage.text("Add activity"),
+                    systemImage: "plus"
+                )
+            }
+            .accessibilityIdentifier("calendar-shortcut-add-activity")
+        } label: {
             Image(systemName: "calendar")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(Color.tsInk)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
+        } primaryAction: {
+            onOpenCalendar(.overview)
         }
         .buttonStyle(.plain)
         .frame(width: 44, height: 44)
@@ -1234,6 +1283,21 @@ private struct RelationshipArchiveHeader: View {
                 zhHans: "打开关系日历"
             )
         )
+        .accessibilityHint(
+            appLanguage.text(
+                "Opens the calendar. More actions jump to today, this week, or add an activity.",
+                zhHans: "打开日历；更多操作可前往今天、本周或添加日程。"
+            )
+        )
+        .accessibilityAction(named: Text(appLanguage.text("Today"))) {
+            onOpenCalendar(.today)
+        }
+        .accessibilityAction(named: Text(appLanguage.text("This week"))) {
+            onOpenCalendar(.thisWeek)
+        }
+        .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
+            onOpenCalendar(.addActivity)
+        }
         .accessibilityIdentifier("today-calendar-peek")
     }
 
