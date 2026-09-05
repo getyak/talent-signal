@@ -4355,7 +4355,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(
             app.buttons["relationship-guide"].waitForExistence(timeout: 8)
         )
-        app.buttons["relationship-guide"].tap()
+        tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(
             element("relationship-ask-sheet").waitForExistence(timeout: 5)
         )
@@ -4392,7 +4392,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(
             app.buttons["relationship-guide"].waitForExistence(timeout: 8)
         )
-        app.buttons["relationship-guide"].tap()
+        tapWhenVisible(app.buttons["relationship-guide"])
         let composer = app.textFields["ask-composer"]
         let message = "Can you check Maya Chen, maya@example.com?"
         typeTextReliably(message, into: composer)
