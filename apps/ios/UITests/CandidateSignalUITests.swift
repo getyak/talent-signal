@@ -369,6 +369,47 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Editorial Today default return surface")
     }
 
+    func testTodayCalendarEmptyStateFeelsIntentionalAndOpensCalendar() {
+        app.launchEnvironment["TS_IOS_UI_TEST_CALENDAR_EMPTY_STATE"] = "true"
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let emptyState = element("today-calendar-reminder")
+        XCTAssertTrue(emptyState.waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            emptyState.label,
+            "Calendar. Nothing scheduled today. Open Calendar to plan the next relationship moment."
+        )
+        XCTAssertFalse(emptyState.label.contains("No activity"))
+        XCTAssertGreaterThanOrEqual(emptyState.frame.height, 72)
+        preserveScreenshot("Today calendar intentional empty state")
+
+        emptyState.tap()
+        XCTAssertTrue(element("relationship-calendar").waitForExistence(timeout: 5))
+    }
+
+    func testTodayCalendarEmptyStateRemainsReadableInChineseDark() {
+        app.launchEnvironment["TS_IOS_UI_TEST_CALENDAR_EMPTY_STATE"] = "true"
+        app.launchArguments = [
+            "--force-dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let emptyState = element("today-calendar-reminder")
+        XCTAssertTrue(emptyState.waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            emptyState.label,
+            "日历。今天暂无日程。打开日历，安排下一次联系。"
+        )
+        XCTAssertGreaterThanOrEqual(emptyState.frame.height, 72)
+        preserveScreenshot("Today calendar empty state Chinese dark")
+    }
+
     func testTodayInlineDecisionsSupportEvidenceEditApprovalDismissAndUndo() {
         app.launch()
 

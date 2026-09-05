@@ -497,6 +497,36 @@ enum RelationshipCalendarProjection {
         guard let first = scopes.first else { return [] }
 
         #if DEBUG
+        if ProcessInfo.processInfo.environment[
+            "TS_IOS_UI_TEST_CALENDAR_EMPTY_STATE"
+        ] == "true" {
+            let yesterday = calendar.date(
+                byAdding: .day,
+                value: -1,
+                to: calendar.startOfDay(for: now)
+            ) ?? now.addingTimeInterval(-24 * 60 * 60)
+            let start = calendar.date(
+                bySettingHour: 15,
+                minute: 0,
+                second: 0,
+                of: yesterday
+            ) ?? yesterday
+            return [
+                RelationshipCalendarActivity(
+                    id: "preview-calendar-past",
+                    kind: .conversation,
+                    title: "Conversation",
+                    personID: first.0.id,
+                    relationshipContextID: first.1.id,
+                    personDisplayLabel: first.0.displayLabel,
+                    contextDisplayLabel: first.1.displayLabel,
+                    startDate: start,
+                    endDate: start.addingTimeInterval(30 * 60),
+                    timeZoneIdentifier: calendar.timeZone.identifier,
+                    source: .preview
+                ),
+            ]
+        }
         if ProcessInfo.processInfo.environment["TS_IOS_UI_TEST_CALENDAR_DENSITY"] == "true" {
             let day = calendar.startOfDay(for: now)
             let week = calendar.dateInterval(of: .weekOfYear, for: day)!.start
@@ -674,14 +704,20 @@ struct TodayRelationshipCalendarPeek: View {
 
     var body: some View {
         Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 14) {
-                    timeMark
-                    Spacer(minLength: 8)
-                    openMark
+            Group {
+                if nextActivity == nil {
+                    emptyStateContent
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 14) {
+                            timeMark
+                            Spacer(minLength: 8)
+                            openMark
+                        }
+                        momentCopy
+                            .layoutPriority(1)
+                    }
                 }
-                momentCopy
-                    .layoutPriority(1)
             }
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
@@ -724,6 +760,52 @@ struct TodayRelationshipCalendarPeek: View {
         .accessibilityHidden(true)
     }
 
+    @ViewBuilder
+    private var emptyStateContent: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    emptyMark
+                    Spacer(minLength: 8)
+                    openMark
+                }
+                emptyCopy
+            }
+        } else {
+            HStack(alignment: .center, spacing: 12) {
+                emptyMark
+                emptyCopy
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                openMark
+            }
+        }
+    }
+
+    private var emptyMark: some View {
+        Image(systemName: "calendar.badge.checkmark")
+            .font(.system(size: 17, weight: .medium))
+            .foregroundStyle(Color.tsMutedInk)
+            .frame(width: 40, height: 40)
+            .background(Color.tsSurfaceMuted, in: Circle())
+            .accessibilityHidden(true)
+    }
+
+    private var emptyCopy: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(appLanguage.text("Nothing scheduled today"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tsInk)
+            Text(
+                appLanguage.text(
+                    "Open Calendar to plan the next relationship moment."
+                )
+            )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     private var momentCopy: some View {
         VStack(alignment: .leading, spacing: 3) {
             if let nextActivity {
@@ -739,10 +821,6 @@ struct TodayRelationshipCalendarPeek: View {
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            } else {
-                Text(appLanguage.text("No activity"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.tsInk)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -758,7 +836,9 @@ struct TodayRelationshipCalendarPeek: View {
 
     private var accessibilityLabel: String {
         guard let nextActivity else {
-            return appLanguage.text("Calendar. No linked moments.")
+            return appLanguage.text(
+                "Calendar. Nothing scheduled today. Open Calendar to plan the next relationship moment."
+            )
         }
         let nextSummary = String(
             format: appLanguage.text("Calendar. Next: %@, %@, %@."),
