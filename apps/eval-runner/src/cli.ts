@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
@@ -306,8 +306,22 @@ async function labRegressionCommand() {
       regressionID: requiredArgument("--regression-id"), runID: requiredArgument("--run-id") });
   } else {
     async function readBounded(path: string) {
-      if ((await stat(path)).size > 512_000) throw new Error("LAB_INPUT_FILE_TOO_LARGE");
-      return JSON.parse(await readFile(path, "utf8")) as unknown;
+      const file = await open(path, "r");
+      const chunks: Buffer[] = [];
+      let size = 0;
+      try {
+        while (true) {
+          const chunk = Buffer.allocUnsafe(Math.min(64 * 1024, 512_001 - size));
+          const { bytesRead } = await file.read(chunk, 0, chunk.length, null);
+          if (bytesRead === 0) break;
+          size += bytesRead;
+          if (size > 512_000) throw new Error("LAB_INPUT_FILE_TOO_LARGE");
+          chunks.push(chunk.subarray(0, bytesRead));
+        }
+      } finally {
+        await file.close();
+      }
+      return JSON.parse(Buffer.concat(chunks, size).toString("utf8")) as unknown;
     }
     records = { bundle: await readBounded(requiredArgument("--bundle")), job: await readBounded(requiredArgument("--run")) };
   }

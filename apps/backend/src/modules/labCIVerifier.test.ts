@@ -34,7 +34,7 @@ function fixture() {
   const changes = { workflow, currentAttempt: 2, blobURL: "https://fixture.blob.core.windows.net/report?signature=fixture-only", expiredOnReadback: false };
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input); requests.push({ url, ...(init ? { init } : {}) });
-    if (url.includes("blob.core.windows.net")) return new Response(bytes);
+    if (new URL(url).hostname === "fixture.blob.core.windows.net") return new Response(bytes);
     if (url.endsWith("/actions/artifacts/789/zip")) return new Response(null, { status: 302, headers: { location: changes.blobURL } });
     if (url.endsWith("/actions/runs/123")) return Response.json({ ...run, run_attempt: requests.length > 1 ? changes.currentAttempt : run.run_attempt });
     if (url.includes("/contents/")) return Response.json({ encoding: "base64", content: Buffer.from(changes.workflow).toString("base64") });
@@ -52,7 +52,7 @@ describe("GitHub Lab CI evidence verification", () => {
   it("verifies the exact artifact and re-evaluates its bound product rerun without forwarding the credential", async () => {
     const f = fixture(); const proof = await f.verifier.verify(f.bundle, f.job, 123);
     expect(proof.integrity).toBe("pass"); expect(proof.runAttempt).toBe(2); expect(proof.reportDigest).toBe(f.report.contentDigest);
-    const download = f.requests.find((value) => value.url.includes("blob.core.windows.net"))!;
+    const download = f.requests.find((value) => new URL(value.url).hostname === "fixture.blob.core.windows.net")!;
     expect(download.init?.headers).toBeUndefined(); expect(download.init?.redirect).toBe("error");
     expect(f.requests.filter((value) => value.url.startsWith("https://api.github.com/")).every((value) =>
       (value.init?.headers as Record<string, string>).authorization === "Bearer fixture-token")).toBe(true);
