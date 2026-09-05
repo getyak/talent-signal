@@ -167,7 +167,7 @@ struct OpenPursuitIntent: AppIntent {
 struct ImportConversationScreenshotIntent: AppIntent {
     static let title: LocalizedStringResource = "Process screenshot"
     static let description = IntentDescription(
-        "Receive one screenshot, create a protected Agent Session, and ask only when processing needs a decision."
+        "Receive one screenshot, save it on this device, create a protected Agent Session, and ask only when processing needs a decision."
     )
 
     @available(iOS 26.0, *)
