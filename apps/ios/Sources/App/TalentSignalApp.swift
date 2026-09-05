@@ -230,7 +230,7 @@ struct TalentSignalApp: App {
                         }
                     }
                     await labRuntimeStore.workspaceStore.reconcile()
-                    let configured = CaptureHandoffStore.shared
+                    let configured = await CaptureHandoffStore.shared
                         .configureDeterministicLaunch(
                             arguments: ProcessInfo.processInfo.arguments
                         )
@@ -488,8 +488,8 @@ enum TalentSignalRootRoute {
 
     static func opensReviewWorkbench(arguments: [String]) -> Bool {
 #if DEBUG
-        if value(after: "--scenario", in: arguments)
-            == "relationship-capture-archive" {
+        if let scenario = value(after: "--scenario", in: arguments),
+           ["relationship-capture-archive", "capture-inbox"].contains(scenario) {
             return false
         }
         return !reviewArguments.isDisjoint(with: Set(arguments))

@@ -273,6 +273,17 @@ describe("authority schema", () => {
     );
   });
 
+  it("keeps automatic screenshot extraction explicitly proposed", async () => {
+    const sql = await readFile(
+      new URL("./047_proposed_extracted_text.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("'proposed_extracted_text'");
+    expect(sql).toContain(
+      "DROP CONSTRAINT source_retention_receipts_source_scope_check",
+    );
+  });
+
   it("adds multichannel resources, stable identity resolution, and compiled knowledge", async () => {
     const sql = await readFile(
       new URL("./004_relationship_resources.sql", import.meta.url),

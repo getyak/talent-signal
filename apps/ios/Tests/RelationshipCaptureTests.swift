@@ -214,6 +214,69 @@ final class RelationshipCaptureTests: XCTestCase {
         )
     }
 
+    func testCaptureSessionAutoBindingRequiresOneCurrentPersonAndContext() throws {
+        let current = Self.oneCurrentOwnerCase()
+        let automatic = try XCTUnwrap(
+            CaptureSessionDecisionPolicy.automaticBinding(for: current)
+        )
+        XCTAssertEqual(automatic.candidate.personID, Self.currentPersonID)
+        XCTAssertEqual(automatic.context.id, Self.currentContextID)
+
+        XCTAssertNil(
+            CaptureSessionDecisionPolicy.automaticBinding(
+                for: Self.twoOwnerCase()
+            )
+        )
+
+        let twoOwners = Self.twoOwnerCase()
+        let historical = IdentityResolutionCase(
+            id: twoOwners.id,
+            status: twoOwners.status,
+            version: twoOwners.version,
+            reason: twoOwners.reason,
+            displayNameHint: twoOwners.displayNameHint,
+            source: twoOwners.source,
+            candidates: [twoOwners.candidates[1]],
+            resolvedPersonID: nil,
+            resolvedRelationshipContextID: nil
+        )
+        XCTAssertNil(
+            CaptureSessionDecisionPolicy.automaticBinding(for: historical)
+        )
+
+        let candidate = current.candidates[0]
+        let multipleContexts = IdentityResolutionCase(
+            id: current.id,
+            status: current.status,
+            version: current.version,
+            reason: current.reason,
+            displayNameHint: current.displayNameHint,
+            source: current.source,
+            candidates: [
+                IdentityResolutionCandidate(
+                    personID: candidate.personID,
+                    displayLabel: candidate.displayLabel,
+                    contextCount: 2,
+                    captureCount: candidate.captureCount,
+                    relationshipContexts: candidate.relationshipContexts + [
+                        .init(
+                            id: Self.historicalContextID,
+                            displayLabel: "Second relationship"
+                        ),
+                    ],
+                    matchReasons: candidate.matchReasons
+                ),
+            ],
+            resolvedPersonID: nil,
+            resolvedRelationshipContextID: nil
+        )
+        XCTAssertNil(
+            CaptureSessionDecisionPolicy.automaticBinding(
+                for: multipleContexts
+            )
+        )
+    }
+
     func testPendingInboxRestoresReviewedDraft() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "talent-signal-inbox-\(UUID().uuidString)")
@@ -498,6 +561,291 @@ final class RelationshipCaptureTests: XCTestCase {
         let countAfterLaterReview = try await inbox.count()
         XCTAssertNotEqual(laterReview.id, first.id)
         XCTAssertEqual(countAfterLaterReview, 2)
+    }
+
+    func testPendingInboxSummariesPreserveOrderAndRuntimeScope() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-inbox-summaries-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+
+        let first = try await inbox.stage(
+            imageData: Data([1]),
+            fileName: "first.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+        try await inbox.claim(id: first.id, scope: "scope-a")
+        let second = try await inbox.stage(
+            imageData: Data([2]),
+            fileName: "second.png",
+            mediaType: "image/png",
+            origin: .photosPicker
+        )
+        try await inbox.claim(id: second.id, scope: "scope-b")
+        let unclaimed = try await inbox.stage(
+            imageData: Data([3]),
+            fileName: "unclaimed.png",
+            mediaType: "image/png",
+            origin: .photosPicker
+        )
+
+        let scopeA = try await inbox.summaries(scope: "scope-a")
+        let scopeB = try await inbox.summaries(scope: "scope-b")
+        let unscoped = try await inbox.summaries()
+
+        XCTAssertEqual(scopeA.map(\.id), [first.id, unclaimed.id])
+        XCTAssertEqual(scopeB.map(\.id), [second.id, unclaimed.id])
+        XCTAssertEqual(unscoped.map(\.id), [unclaimed.id])
+        XCTAssertTrue(scopeA.allSatisfy(\.originalAvailable))
+        XCTAssertTrue(scopeA.allSatisfy { !$0.hasSavedProgress })
+        let outOfScope = try await inbox.load(id: first.id, scope: "scope-b")
+        let inScope = try await inbox.load(id: second.id, scope: "scope-b")
+        XCTAssertNil(outOfScope)
+        XCTAssertEqual(inScope?.fileName, "second.png")
+    }
+
+    @MainActor
+    func testCaptureHandoffResumesAndDeletesChosenInboxItem() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-handoff-inbox-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let first = try await inbox.stage(
+            imageData: Data([1]),
+            fileName: "first.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+        let second = try await inbox.stage(
+            imageData: Data([2]),
+            fileName: "second.png",
+            mediaType: "image/png",
+            origin: .photosPicker
+        )
+        let store = CaptureHandoffStore(inbox: inbox)
+
+        await store.restorePendingCapture()
+        XCTAssertEqual(store.inboxItems.map(\.id), [first.id, second.id])
+        XCTAssertNil(store.pendingSeed)
+        XCTAssertEqual(store.savedSeed?.id, first.id)
+
+        store.keepForLater()
+        await store.resume(id: second.id)
+        XCTAssertEqual(store.pendingSeed?.id, second.id)
+
+        store.keepForLater()
+        try await store.removeFromInbox(id: second.id)
+        XCTAssertEqual(store.inboxItems.map(\.id), [first.id])
+        XCTAssertEqual(store.savedSeed?.id, first.id)
+        XCTAssertNil(store.pendingSeed)
+    }
+
+    @MainActor
+    func testCaptureProcessingCreatesOneStableSessionAndKeepsResolvedProposalQuiet() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-capture-session-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([1, 2, 3]),
+            fileName: "one-match.png",
+            mediaType: "image/png",
+            origin: .photosPicker
+        )
+        let stagedSummaries = try await inbox.summaries()
+        let summary = try XCTUnwrap(stagedSummaries.first)
+        let sessionID = try XCTUnwrap(summary.sessionID)
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.oneCurrentOwnerCase(),
+            decisionResult: IdentityDecisionResult(
+                decision: "bind_existing",
+                identityStatus: "bound",
+                personID: Self.currentPersonID,
+                relationshipContextID: Self.currentContextID,
+                resourceProcessingState: "needs_fact_review"
+            ),
+            wiki: Self.goldWiki(),
+            captureCandidatePersonIDs: [Self.currentPersonID]
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.restorePendingCapture()
+        await handoff.processPendingCaptures(
+            sessionStore: sessions,
+            service: service,
+            recognizer: CaptureSessionRecognizerStub(
+                text: "Alex Chen\nWeChat: alexchen\nAvailable next Tuesday"
+            )
+        )
+
+        XCTAssertTrue(handoff.inboxItems.isEmpty)
+        let removedSeed = try await inbox.load(id: seed.id, scope: nil)
+        XCTAssertNil(removedSeed)
+        let session = try XCTUnwrap(sessions.session(id: sessionID))
+        XCTAssertEqual(session.turns.count, 1)
+        XCTAssertEqual(
+            session.turns.first?.response.taskID,
+            "capture-\(seed.id.uuidString.lowercased())"
+        )
+        XCTAssertFalse(session.isUnread)
+        let firstCreateCount = await service.createCount
+        XCTAssertEqual(firstCreateCount, 1)
+        let decisions = await service.decisions
+        guard case let .bindFromAgent(candidate, context) = try XCTUnwrap(
+            decisions.first
+        ) else {
+            return XCTFail("Expected the Agent Session to bind the unique current match.")
+        }
+        XCTAssertEqual(candidate.personID, Self.currentPersonID)
+        XCTAssertEqual(context.id, Self.currentContextID)
+
+        await handoff.processPendingCaptures(
+            sessionStore: sessions,
+            service: service,
+            recognizer: CaptureSessionRecognizerStub(text: "unused")
+        )
+        XCTAssertEqual(sessions.session(id: sessionID)?.turns.count, 1)
+        let finalCreateCount = await service.createCount
+        XCTAssertEqual(finalCreateCount, 1)
+    }
+
+    @MainActor
+    func testCaptureProcessingSurfacesOnlyAConcreteIdentityDecision() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "talent-signal-capture-decision-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(
+            imageData: Data([4, 5, 6]),
+            fileName: "ambiguous.png",
+            mediaType: "image/png",
+            origin: .appShortcut
+        )
+        let service = RelationshipCaptureServiceStub(
+            identityCase: Self.twoOwnerCase(),
+            decisionResult: IdentityDecisionResult(
+                decision: "leave_unresolved",
+                identityStatus: "unresolved",
+                personID: nil,
+                relationshipContextID: nil,
+                resourceProcessingState: "needs_identity_review"
+            ),
+            wiki: Self.goldWiki()
+        )
+        let handoff = CaptureHandoffStore(inbox: inbox)
+        let sessions = AgentSessionStore()
+
+        await handoff.restorePendingCapture()
+        await handoff.processPendingCaptures(
+            sessionStore: sessions,
+            service: service,
+            recognizer: CaptureSessionRecognizerStub(text: "Shared phone number")
+        )
+
+        let item = try XCTUnwrap(handoff.inboxItems.first)
+        XCTAssertEqual(item.id, seed.id)
+        XCTAssertEqual(item.processingState, .needsDecision)
+        XCTAssertEqual(handoff.attentionCount, 1)
+        let session = try XCTUnwrap(sessions.session(id: item.sessionID))
+        XCTAssertTrue(session.isUnread)
+        XCTAssertEqual(session.turns.count, 1)
+        XCTAssertTrue(
+            session.turns[0].response.blocks.contains(where: \.requiresUserDecision)
+        )
+
+        try await handoff.removeFromInbox(id: seed.id)
+
+        let resolvedSession = try XCTUnwrap(sessions.session(id: item.sessionID))
+        XCTAssertFalse(resolvedSession.isUnread)
+        XCTAssertEqual(resolvedSession.turns.count, 2)
+        XCTAssertEqual(
+            resolvedSession.turns.last?.response.taskID,
+            "capture-\(seed.id.uuidString.lowercased())-resolved"
+        )
+        XCTAssertTrue(handoff.inboxItems.isEmpty)
+    }
+
+    func testURLCaptureClientKeepsAutomaticOCRAndAttributionProposed() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RelationshipCaptureURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        defer {
+            network.invalidateAndCancel()
+            RelationshipCaptureURLProtocol.handler = nil
+        }
+        RelationshipCaptureURLProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/v1/resource-captures")
+            XCTAssertEqual(
+                request.value(forHTTPHeaderField: "authorization"),
+                "Bearer access-token"
+            )
+            let body = try XCTUnwrap(RelationshipCaptureURLProtocol.bodyData(request))
+            let json = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            let resource = try XCTUnwrap(json["resource"] as? [String: Any])
+            let retention = try XCTUnwrap(
+                resource["retention"] as? [String: Any]
+            )
+            XCTAssertEqual(
+                retention["source_scope"] as? String,
+                "proposed_extracted_text"
+            )
+            let fragments = try XCTUnwrap(json["fragments"] as? [[String: Any]])
+            let fragment = try XCTUnwrap(fragments.first)
+            XCTAssertEqual(fragment["review_status"] as? String, "proposed")
+            let attribution = try XCTUnwrap(
+                fragment["attribution"] as? [String: Any]
+            )
+            XCTAssertEqual(attribution["status"] as? String, "proposed")
+            let locator = try XCTUnwrap(fragment["locator"] as? [String: Any])
+            XCTAssertEqual(
+                locator["source_message_id"] as? String,
+                "ocr-proposed-1"
+            )
+            let response: [String: Any] = [
+                "capture_id": "99999999-9999-4999-8999-999999999999",
+                "identity": [
+                    "status": "needs_review",
+                    "person_id": NSNull(),
+                    "relationship_context_id": NSNull(),
+                    "resolution_case_id": "11111111-1111-4111-8111-111111111111",
+                    "candidate_person_ids": [Self.currentPersonID],
+                ],
+                "resource": [
+                    "id": "22222222-2222-4222-8222-222222222222",
+                    "processing_state": "needs_identity_review",
+                    "duplicate_of_resource_id": NSNull(),
+                    "fragment_count": 1,
+                ],
+            ]
+            return (201, try JSONSerialization.data(withJSONObject: response))
+        }
+        let client = URLRelationshipCaptureClient(
+            baseURL: URL(string: "https://capture.test")!,
+            session: network,
+            accessToken: "access-token"
+        )
+        let seed = PendingCaptureSeed(
+            imageData: Data([1, 2, 3]),
+            fileName: "conversation.png",
+            mediaType: "image/png",
+            origin: .photosPicker
+        )
+        var draft = CaptureDraftBuilder.makeDraft(
+            from: "Alex Chen\nWeChat: alexchen\nAvailable next Tuesday"
+        )
+        draft.speaker = .candidate
+
+        let result = try await client.createProposedCapture(
+            seed: seed,
+            draft: draft
+        )
+
+        XCTAssertEqual(result.captureID, "99999999-9999-4999-8999-999999999999")
     }
 
     func testScreenshotShortcutReceiptRecordsObservedCaptureSeparately() throws {
@@ -968,6 +1316,21 @@ final class RelationshipCaptureTests: XCTestCase {
         )
     }
 
+    private static func oneCurrentOwnerCase() -> IdentityResolutionCase {
+        let identityCase = twoOwnerCase()
+        return IdentityResolutionCase(
+            id: identityCase.id,
+            status: identityCase.status,
+            version: identityCase.version,
+            reason: identityCase.reason,
+            displayNameHint: identityCase.displayNameHint,
+            source: identityCase.source,
+            candidates: [identityCase.candidates[0]],
+            resolvedPersonID: nil,
+            resolvedRelationshipContextID: nil
+        )
+    }
+
     private static func goldWiki() -> WikiCompilationReceipt {
         WikiCompilationReceipt(
             id: "77777777-7777-4777-8777-777777777777",
@@ -998,6 +1361,60 @@ private struct LegacyPendingMetadata: Encodable {
     let origin: CaptureOrigin
 }
 
+private struct CaptureSessionRecognizerStub: ConversationTextRecognizing {
+    let text: String
+
+    func recognizeText(in imageData: Data) async throws -> String {
+        text
+    }
+}
+
+private final class RelationshipCaptureURLProtocol: URLProtocol, @unchecked Sendable {
+    static var handler: ((URLRequest) throws -> (Int, Data))?
+
+    static func bodyData(_ request: URLRequest) -> Data? {
+        if let body = request.httpBody { return body }
+        guard let stream = request.httpBodyStream else { return nil }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            if count < 0 { return nil }
+            if count == 0 { break }
+            data.append(buffer, count: count)
+        }
+        return data
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        do {
+            let result = try XCTUnwrap(Self.handler)(request)
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: result.0,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            client?.urlProtocol(
+                self,
+                didReceive: response,
+                cacheStoragePolicy: .notAllowed
+            )
+            client?.urlProtocol(self, didLoad: result.1)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+
 private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
     private let identityCase: IdentityResolutionCase
     private let decisionResult: IdentityDecisionResult
@@ -1008,6 +1425,7 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
     private var bound = false
     private var claims: [CaptureChangeReview.Claim]
     private let loseFirstClaimResponse: Bool
+    private let captureCandidatePersonIDs: [String]?
     private(set) var createCount = 0
     private(set) var claimDecisions: [CaptureClaimDecision] = []
     private(set) var reviewFingerprints: [String] = []
@@ -1046,7 +1464,9 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
         decisionResult: IdentityDecisionResult,
         wiki: WikiCompilationReceipt,
         compileFailuresBeforeSuccess: Int = 0,
-        claims: [CaptureChangeReview.Claim] = [], loseFirstClaimResponse: Bool = false
+        claims: [CaptureChangeReview.Claim] = [],
+        loseFirstClaimResponse: Bool = false,
+        captureCandidatePersonIDs: [String]? = nil
     ) {
         self.identityCase = identityCase
         self.decisionResult = decisionResult
@@ -1054,6 +1474,7 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
         self.compileFailuresBeforeSuccess = compileFailuresBeforeSuccess
         self.claims = claims
         self.loseFirstClaimResponse = loseFirstClaimResponse
+        self.captureCandidatePersonIDs = captureCandidatePersonIDs
     }
 
     func createCapture(
@@ -1068,7 +1489,8 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
                 personID: nil,
                 relationshipContextID: nil,
                 resolutionCaseID: identityCase.id,
-                candidatePersonIDs: identityCase.candidates.map(\.personID)
+                candidatePersonIDs: captureCandidatePersonIDs
+                    ?? identityCase.candidates.map(\.personID)
             ),
             resource: .init(
                 id: identityCase.source.resourceID,

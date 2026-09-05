@@ -986,11 +986,12 @@ final class AgentSessionStore: ObservableObject {
     @discardableResult
     func beginUnscopedSession(
         objective: String,
+        id: UUID = UUID(),
         createdAt: Date? = nil
     ) -> UUID? {
         _ = pruneExpiredState()
         let session = AgentSession(
-            id: UUID(),
+            id: id,
             scope: .unresolvedIntent,
             title: Self.sessionTitle(from: objective),
             turns: [],

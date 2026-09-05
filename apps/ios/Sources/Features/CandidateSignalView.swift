@@ -270,7 +270,7 @@ struct CandidateSignalView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text(
                 appLanguage.text(
-                    "Review on-device text, compare identity evidence, then attach it to one relationship Wiki."
+                    "Selection starts an Agent Session. It processes the screenshot in the background and asks only when a decision is required."
                 )
             )
             .font(.body)
@@ -283,34 +283,6 @@ struct CandidateSignalView: View {
 
     private var conversationImageIdleContent: some View {
         VStack(alignment: .leading, spacing: 22) {
-            if let savedSeed = captureHandoff.savedSeed,
-               captureHandoff.pendingSeed == nil {
-                VStack(alignment: .leading, spacing: 14) {
-                    SectionLabel(text: appLanguage.text("Pending review"))
-                    Text(
-                        appLanguage.text("Continue") + " \(savedSeed.fileName)"
-                    )
-                    .font(.headline)
-                    .foregroundStyle(Color.tsInk)
-                    Text(
-                        appLanguage.text(
-                            "The screenshot and your reviewed draft remain on this device. No person was changed."
-                        )
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                    Button {
-                        captureHandoff.resume()
-                    } label: {
-                        Text(appLanguage.text("Resume capture review"))
-                    }
-                    .buttonStyle(TSPrimaryButtonStyle())
-                    .accessibilityIdentifier("resume-capture-review")
-                }
-                .tsCard()
-            }
-
             Button {
                 showingPhotoPicker = true
             } label: {
@@ -340,7 +312,7 @@ struct CandidateSignalView: View {
             .accessibilityIdentifier("choose-image")
             .accessibilityHint(
                 appLanguage.text(
-                    "Opens the system photo picker, then starts text and identity review."
+                    "Opens the system photo picker, then starts an Agent Session."
                 )
             )
 
@@ -722,7 +694,15 @@ struct CandidateSignalView: View {
                 if let runtimeScope { try await PendingCaptureInbox.shared.claim(id: seed.id, scope: runtimeScope) }
                 try Task.checkCancellation()
                 store.reset()
-                captureHandoff.present(seed, expectedScope: runtimeScope)
+                if entryMode == .conversationImage {
+                    captureHandoff.enqueueForAgentProcessing(
+                        seed,
+                        expectedScope: runtimeScope
+                    )
+                    onClose?()
+                } else {
+                    captureHandoff.present(seed, expectedScope: runtimeScope)
+                }
             } catch is CancellationError {
                 return
             } catch {

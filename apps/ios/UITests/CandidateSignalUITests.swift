@@ -838,6 +838,138 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertFalse(element("reviewed-ocr-text").exists)
     }
 
+    func testCaptureSessionsOpenAndDeleteTheExactDecision() {
+        app.launchArguments += [
+            "--scenario", "capture-inbox",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let todayInbox = app.buttons["today-capture-inbox"]
+        XCTAssertTrue(todayInbox.waitForExistence(timeout: 8))
+        let threeDecisions = NSPredicate(format: "label CONTAINS %@", "3 need your input")
+        expectation(for: threeDecisions, evaluatedWith: todayInbox)
+        waitForExpectations(timeout: 8)
+        XCTAssertGreaterThanOrEqual(todayInbox.frame.height, 44)
+        preserveScreenshot("Capture Session decisions on Today")
+
+        todayInbox.tap()
+        XCTAssertTrue(element("capture-inbox-header").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("capture-inbox-header").label.contains("3 need your input"))
+        for fileName in [
+            "conversation-1.png",
+            "conversation-with-priya-about-the-singapore-search.png",
+            "conversation-3.png",
+        ] {
+            XCTAssertTrue(app.staticTexts[fileName].exists)
+        }
+        preserveScreenshot("Capture Sessions with three decisions")
+
+        let chosenFileName = "conversation-with-priya-about-the-singapore-search.png"
+        let chosenResume = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+                "capture-session-decision-",
+                chosenFileName
+            )
+        ).firstMatch
+        scrollToVisible(chosenResume)
+        chosenResume.tap()
+
+        XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 10))
+        XCTAssertEqual(
+            app.buttons["inspect-capture-source"].value as? String,
+            chosenFileName
+        )
+        app.buttons["close-capture-review"].tap()
+        XCTAssertTrue(app.buttons["Keep for later"].waitForExistence(timeout: 3))
+        app.buttons["Keep for later"].tap()
+        XCTAssertTrue(element("capture-inbox-header").waitForExistence(timeout: 5))
+
+        let chosenDelete = app.buttons.matching(
+            NSPredicate(
+                format: "label BEGINSWITH %@ AND label CONTAINS %@",
+                "Remove local capture",
+                chosenFileName
+            )
+        ).firstMatch
+        scrollToVisible(chosenDelete)
+        chosenDelete.tap()
+        XCTAssertTrue(app.buttons["Remove local capture"].waitForExistence(timeout: 3))
+        app.buttons["Remove local capture"].tap()
+
+        let twoCaptures = NSPredicate(format: "label CONTAINS %@", "2 need your input")
+        expectation(for: twoCaptures, evaluatedWith: element("capture-inbox-header"))
+        waitForExpectations(timeout: 5)
+        XCTAssertFalse(app.staticTexts[chosenFileName].exists)
+        XCTAssertTrue(app.staticTexts["conversation-1.png"].exists)
+        XCTAssertTrue(app.staticTexts["conversation-3.png"].exists)
+        preserveScreenshot("Capture Sessions after exact local deletion")
+
+        app.buttons["close-capture-inbox"].tap()
+        XCTAssertTrue(todayInbox.waitForExistence(timeout: 5))
+        XCTAssertTrue(todayInbox.label.contains("2 need your input"))
+    }
+
+    func testCaptureHubSharesTheSessionDecisionCount() {
+        app.launchArguments += [
+            "--scenario", "capture-inbox",
+            "--capture-inbox-open-hub",
+        ]
+        app.launch()
+
+        let captureHubInbox = app.buttons.matching(
+            NSPredicate(
+                format: "label BEGINSWITH %@ AND label CONTAINS %@",
+                "Capture Sessions",
+                "3 need your input"
+            )
+        ).firstMatch
+        XCTAssertTrue(captureHubInbox.waitForExistence(timeout: 8))
+        XCTAssertGreaterThanOrEqual(captureHubInbox.frame.height, 44)
+        preserveScreenshot("Capture hub shares the Session decision count")
+        captureHubInbox.tap()
+        XCTAssertTrue(element("capture-inbox-header").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("capture-inbox-header").label.contains("3 need your input"))
+    }
+
+    func testCaptureSessionDecisionRemainsReachableInChineseDarkAX5() {
+        app.launchArguments = [
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "--scenario", "capture-inbox",
+            "--force-dark",
+            "-AppleInterfaceStyle", "Dark",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let todayInbox = app.buttons["today-capture-inbox"]
+        XCTAssertTrue(todayInbox.waitForExistence(timeout: 8))
+        XCTAssertGreaterThanOrEqual(todayInbox.frame.height, 44)
+        XCTAssertTrue(todayInbox.isHittable)
+        preserveScreenshot("Capture Session decision Today entry Chinese dark AX5")
+
+        todayInbox.tap()
+        XCTAssertTrue(element("capture-inbox-header").waitForExistence(timeout: 5))
+        let firstResume = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+                "capture-session-decision-",
+                "conversation-1.png"
+            )
+        ).firstMatch
+        scrollToVisible(firstResume)
+        XCTAssertGreaterThanOrEqual(firstResume.frame.height, 43.5)
+        XCTAssertTrue(firstResume.isHittable)
+        preserveScreenshot("Capture Session decision Chinese dark AX5")
+    }
+
     func testWorkspaceMenuConfiguresOutboundOnlyCalendarSync() {
         app.launch()
 

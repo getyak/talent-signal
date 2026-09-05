@@ -99,6 +99,26 @@ export function validateResourceRequest(request: ResourceCaptureRequest): void {
       "This intake stores governed evidence fragments, not an unverified raw-source pointer.",
     );
   }
+  if (resource.retention.source_scope === "proposed_extracted_text") {
+    if (resource.kind !== "conversation_screenshot") {
+      invalidResource(
+        "PROPOSED_EXTRACTION_SOURCE_INVALID",
+        "Proposed extracted text is limited to an intentional conversation screenshot.",
+      );
+    }
+    if (
+      fragments.some(
+        (fragment) =>
+          fragment.review_status !== "proposed" ||
+          fragment.attribution.status === "confirmed",
+      )
+    ) {
+      invalidResource(
+        "PROPOSED_EXTRACTION_AUTHORITY_INVALID",
+        "Machine-extracted screenshot text must remain proposed until a recruiter reviews it.",
+      );
+    }
+  }
   if (
     resource.discovered_from_client_resource_id &&
     !resource.discovered_from_resource_id

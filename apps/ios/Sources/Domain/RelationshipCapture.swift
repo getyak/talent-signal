@@ -43,6 +43,36 @@ struct PendingCaptureSeed: Identifiable, Codable, Equatable {
     }
 }
 
+struct PendingCaptureSummary: Identifiable, Equatable {
+    let id: UUID
+    let fileName: String
+    let mediaType: String
+    let createdAt: Date
+    let origin: CaptureOrigin
+    let originalAvailable: Bool
+    let hasSavedProgress: Bool
+    let sessionID: UUID?
+    let processingState: CaptureSessionProcessingState
+    let processingDetail: String?
+
+    var needsAttention: Bool {
+        processingState == .needsDecision || processingState == .failed
+    }
+}
+
+enum CaptureSessionProcessingState: String, Codable, Equatable {
+    case queued
+    case processing
+    case needsDecision = "needs_decision"
+    case completed
+    case failed
+}
+
+enum CaptureSessionResolution: Equatable {
+    case completed
+    case dismissed
+}
+
 enum IdentityHandleType: String, CaseIterable, Codable, Identifiable {
     case phone
     case email
@@ -249,6 +279,10 @@ struct ResourceCaptureResult: Codable, Equatable {
 
 enum IdentityDecision: Equatable {
     case bind(candidate: IdentityResolutionCandidate, context: RelationshipContextChoice?)
+    case bindFromAgent(
+        candidate: IdentityResolutionCandidate,
+        context: RelationshipContextChoice
+    )
     case createNew
     case leaveUnresolved
 }
@@ -448,6 +482,7 @@ struct CaptureReviewRecovery: Codable, Equatable {
     var pendingSpeaker: CaptureSpeakerDecision?
     var selectedClaimID: String?
     var claimEdits: [String: String] = [:]
+    var submittedByAgent: Bool? = nil
 }
 
 struct CaptureSpeakerDecision: Codable, Equatable {
