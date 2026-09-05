@@ -8,7 +8,7 @@ struct TalentSignalLabCapsule: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        if store.isEnabled {
+        if store.isEnabled || DeviceLabAvailability.enabled {
             Button(action: action) {
                 HStack(spacing: 7) {
                     Image(systemName: "flask.fill")
@@ -38,9 +38,7 @@ struct TalentSignalLabCapsule: View {
 
     private var shortLabel: String {
         guard let session = store.session else {
-            return dynamicTypeSize.isAccessibilitySize
-                ? "LAB · FAT"
-                : appLanguage.text("LAB · FAT · Choose scenario")
+            return appLanguage.text("LAB · Experiments & tools")
         }
         if dynamicTypeSize.isAccessibilitySize {
             return "LAB · \(session.environment)"
@@ -50,7 +48,7 @@ struct TalentSignalLabCapsule: View {
 }
 
 private struct TalentSignalLabCapsuleMaterial: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.talentSignalReduceTransparency) private var reduceTransparency
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -280,7 +278,7 @@ private struct LabRevealOnChangeModifier: ViewModifier {
     let identifier: String?
     let target: String
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content

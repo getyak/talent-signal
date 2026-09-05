@@ -18,7 +18,7 @@ actor URLAgentTaskClient: AgentTaskServing {
     private let session: TalentSignalSession
     private let urlSession: URLSession
 
-    init(session: TalentSignalSession, urlSession: URLSession = .shared) {
+    init(session: TalentSignalSession, urlSession: URLSession = TalentSignalNetworking.session) {
         self.session = session
         self.urlSession = urlSession
     }

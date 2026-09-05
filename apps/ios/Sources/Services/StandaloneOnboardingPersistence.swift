@@ -10,11 +10,16 @@ final class FileStandaloneOnboardingStore: StandaloneOnboardingPersisting {
     private let fileURL: URL
 
     init(fileURL: URL? = nil) {
+        var directory = "StandaloneOnboarding"
+#if DEBUG
+        if let value = ProcessInfo.processInfo.environment["TS_IOS_UI_TEST_ONBOARDING_NAMESPACE"],
+           let namespace = UUID(uuidString: value) { directory += "/UITest-" + namespace.uuidString }
+#endif
         self.fileURL = fileURL ?? FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         )[0]
-        .appending(path: "StandaloneOnboarding", directoryHint: .isDirectory)
+        .appending(path: directory, directoryHint: .isDirectory)
         .appending(path: "session-v1.json")
     }
 
@@ -48,11 +53,8 @@ final class FileStandaloneOnboardingStore: StandaloneOnboardingPersisting {
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)
         }
-        let recordingsDirectory = fileURL.deletingLastPathComponent()
-            .appending(path: "Recordings", directoryHint: .isDirectory)
-        if FileManager.default.fileExists(atPath: recordingsDirectory.path) {
-            try FileManager.default.removeItem(at: recordingsDirectory)
-        }
+        // Recording ownership cannot be inferred from this session file.
+        // Resetting onboarding must never delete the shared media directory.
     }
 
     private static let encoder: JSONEncoder = {

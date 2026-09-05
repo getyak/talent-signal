@@ -20,6 +20,7 @@ struct TextSignalCaptureView: View {
         backendURL: URL,
         accessToken: String? = nil,
         workspaceID: String? = nil,
+        runtimeScope: String? = nil,
         recordID: UUID = UUID(),
         initialRecord: TextSignalOutboxRecord? = nil,
         onDismiss: @escaping () -> Void = {}
@@ -28,6 +29,7 @@ struct TextSignalCaptureView: View {
             wrappedValue: TextSignalCaptureStore(
                 recordID: recordID,
                 initialRecord: initialRecord,
+                outbox: TextSignalOutbox.scoped(runtimeScope, backendURL: backendURL, workspaceID: workspaceID),
                 service: URLTextSignalSyncClient(
                     baseURL: backendURL,
                     accessToken: accessToken,

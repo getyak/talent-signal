@@ -1,6 +1,11 @@
 import Foundation
 
 protocol RelationshipCaptureServing {
+    var runtimeScope: String? { get }
+    func loadCapture(id: String) async throws -> ResourceCaptureResult
+    func prepareChanges(captureID: String) async throws -> CaptureChangeReview
+    func decideClaim(_ decision: CaptureClaimDecision) async throws -> String
+    func confirmSpeaker(_ decision: CaptureSpeakerDecision) async throws -> String
     func createCapture(
         seed: PendingCaptureSeed,
         draft: RecognizedCaptureDraft
@@ -18,11 +23,17 @@ protocol RelationshipCaptureServing {
     func compileWiki(
         personID: String,
         relationshipContextID: String,
-        seedID: UUID
+        seedID: UUID,
+        reviewFingerprint: String
     ) async throws -> WikiCompilationReceipt
 }
 
+extension RelationshipCaptureServing {
+    var runtimeScope: String? { nil }
+}
+
 actor URLRelationshipCaptureClient: RelationshipCaptureServing {
+    nonisolated let runtimeScope: String?
     private let baseURL: URL
     private let session: URLSession
     private let usesAuthenticatedSession: Bool
@@ -30,13 +41,15 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
 
     init(
         baseURL: URL = URL(string: "http://127.0.0.1:4317")!,
-        session: URLSession = .shared,
-        accessToken: String? = nil
+        session: URLSession = TalentSignalNetworking.session,
+        accessToken: String? = nil,
+        runtimeScope: String? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
         usesAuthenticatedSession = accessToken != nil
         self.accessToken = accessToken
+        self.runtimeScope = runtimeScope
     }
 
     func createCapture(
@@ -51,7 +64,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
             channel: "ios_share",
             purpose: "Preserve recruiter-reviewed conversation evidence for a purpose-scoped relationship",
             capturedAt: Self.timestamp(seed.createdAt),
-            sourceTimezone: TimeZone.current.identifier,
+            sourceTimezone: draft.sourceTimezone ?? TimeZone.current.identifier,
             personScope: .init(
                 status: "unresolved",
                 displayNameHint: draft.displayNameHint.nonEmpty,
@@ -64,7 +77,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                         )
                     ]
                 } ?? [],
-                relationshipContext: .proposed(draft: draft),
+                relationshipContext: draft.relationshipLabel.nonEmpty == nil ? nil : .proposed(draft: draft),
                 reason: "A recruiter reviewed the extracted text and must explicitly resolve the person."
             ),
             resource: .init(
@@ -73,8 +86,8 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                 displayName: seed.fileName,
                 mediaType: seed.mediaType,
                 observedAt: Self.timestamp(seed.createdAt),
-                sourceTimezone: TimeZone.current.identifier,
-                byteSize: seed.imageData.count,
+                sourceTimezone: draft.sourceTimezone ?? TimeZone.current.identifier,
+                byteSize: draft.sourceByteCount ?? seed.imageData.count,
                 sourceLocator: "ios-share:\(seed.origin.rawValue)",
                 retention: .init(
                     requestedMode: "ephemeral",
@@ -91,7 +104,8 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                         kind: "message",
                         sourceMessageID: "ocr-reviewed-1",
                         sequence: 0,
-                        speakerSide: "unknown"
+                        speakerSide: "unknown",
+                        messageTimestamp: draft.messageTimestamp.map(Self.timestamp)
                     ),
                     attribution: .init(
                         actorKind: reviewedSpeaker.rawValue,
@@ -122,6 +136,36 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         )
     }
 
+    func loadCapture(id: String) async throws -> ResourceCaptureResult {
+        try await request(path: "v1/resource-captures/\(id)", method: "GET", body: Optional<EmptyBody>.none)
+    }
+
+    func prepareChanges(captureID: String) async throws -> CaptureChangeReview {
+        try await request(path: "v1/resource-captures/\(captureID)/review-preparations", method: "POST", body: Optional<EmptyBody>.none)
+    }
+
+    func decideClaim(_ decision: CaptureClaimDecision) async throws -> String {
+        let receipt: ClaimDecisionReceipt = try await request(
+            path: "v1/assertions/\(decision.assertionID)/decisions", method: "POST",
+            body: ClaimDecisionBody(idempotency_key: decision.idempotencyKey,
+                expected_assertion_version: decision.version,
+                expected_review_token: decision.reviewToken, decision: decision.decision,
+                corrected_value: decision.correctedValue)
+        )
+        return receipt.decision_id
+    }
+
+    func confirmSpeaker(_ decision: CaptureSpeakerDecision) async throws -> String {
+        let receipt: SpeakerReviewReceipt = try await request(
+            path: "v1/evidence-fragments/\(decision.fragmentID)/reviews", method: "POST",
+            body: SpeakerReviewBody(idempotency_key: decision.idempotencyKey,
+                expected_review_status: decision.expectedStatus, expected_last_review_id: decision.expectedReviewID,
+                decision: "reviewed", confirmed_speaker: decision.speaker.rawValue,
+                reason: "The recruiter inspected the source and explicitly confirmed the author of this excerpt.")
+        )
+        return receipt.review_id
+    }
+
     func decideIdentity(
         identityCase: IdentityResolutionCase,
         decision: IdentityDecision,
@@ -132,6 +176,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
             idempotencyKey: [
                 "ios",
                 seed.id.uuidString.lowercased(),
+                String(identityCase.version),
                 decision.idempotencySuffix
             ].joined(separator: ":"),
             expectedCaseVersion: identityCase.version,
@@ -148,13 +193,14 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
     func compileWiki(
         personID: String,
         relationshipContextID: String,
-        seedID: UUID
+        seedID: UUID,
+        reviewFingerprint: String
     ) async throws -> WikiCompilationReceipt {
         try await request(
             path: "v1/people/\(personID)/contexts/\(relationshipContextID)/wiki-compilations",
             method: "POST",
             body: CompileWikiBody(
-                idempotencyKey: "ios:\(seedID.uuidString.lowercased()):wiki",
+                idempotencyKey: "ios:\(seedID.uuidString.lowercased()):wiki:\(reviewFingerprint.prefix(24))",
                 objective: "Prepare a source-linked pre-contact relationship brief for the recruiter."
             )
         )
@@ -177,7 +223,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
             urlRequest.setValue("application/json", forHTTPHeaderField: "content-type")
             urlRequest.httpBody = try JSONEncoder().encode(body)
         }
-        let (data, response) = try await session.data(for: urlRequest)
+        let (data, response) = try await TalentSignalNetworking.data(for: urlRequest, using: session)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw RelationshipCaptureClientError.invalidResponse
         }
@@ -214,7 +260,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                 clientLabel: "ios-relationship-capture"
             )
         )
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode),
               let login = try? JSONDecoder().decode(LoginResponse.self, from: data) else {
@@ -225,7 +271,9 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
     }
 
     private static func timestamp(_ date: Date) -> String {
-        ISO8601DateFormatter.captureFormatter.string(from: date)
+        // Inbox dates use ISO-8601 seconds. Keep the first wire request identical
+        // to a retry after decoding the protected recovery record.
+        ISO8601DateFormatter.captureFormatter.string(from: Date(timeIntervalSince1970: floor(date.timeIntervalSince1970)))
     }
 }
 
@@ -253,6 +301,36 @@ enum RelationshipCaptureClientError: LocalizedError, Equatable {
 }
 
 private struct EmptyBody: Encodable {}
+
+private struct ClaimDecisionBody: Encodable {
+    let idempotency_key: String
+    let expected_assertion_version: Int
+    let expected_review_token: String
+    let decision: String
+    let corrected_value: String?
+}
+private struct ClaimDecisionReceipt: Decodable { let decision_id: String }
+private struct SpeakerReviewReceipt: Decodable { let review_id: String }
+private struct SpeakerReviewBody: Encodable {
+    let idempotency_key: String
+    let expected_review_status: String
+    let expected_last_review_id: String?
+    let decision: String
+    let confirmed_speaker: String
+    let reason: String
+    enum CodingKeys: String, CodingKey {
+        case idempotency_key, expected_review_status, expected_last_review_id, decision, confirmed_speaker, reason
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(idempotency_key, forKey: .idempotency_key)
+        try c.encode(expected_review_status, forKey: .expected_review_status)
+        try c.encode(expected_last_review_id, forKey: .expected_last_review_id)
+        try c.encode(decision, forKey: .decision)
+        try c.encode(confirmed_speaker, forKey: .confirmed_speaker)
+        try c.encode(reason, forKey: .reason)
+    }
+}
 
 private struct LoginBody: Encodable {
     let accountSlug: String
@@ -310,7 +388,7 @@ private struct ResourceCaptureBody: Encodable {
         let status: String
         let displayNameHint: String?
         let handles: [Handle]
-        let relationshipContext: RelationshipContext
+        let relationshipContext: RelationshipContext?
         let reason: String
 
         enum CodingKeys: String, CodingKey {
@@ -343,8 +421,8 @@ private struct ResourceCaptureBody: Encodable {
         static func proposed(draft: RecognizedCaptureDraft) -> RelationshipContext {
             RelationshipContext(
                 status: "proposed",
-                label: draft.relationshipLabel,
-                purpose: draft.relationshipPurpose,
+                label: draft.relationshipLabel.nonEmpty ?? "Candidate relationship",
+                purpose: draft.relationshipPurpose.nonEmpty ?? "Preserve reviewed conversation evidence",
                 role: draft.relationshipRole.nonEmpty
             )
         }
@@ -411,12 +489,14 @@ private struct ResourceCaptureBody: Encodable {
         let sourceMessageID: String
         let sequence: Int
         let speakerSide: String
+        let messageTimestamp: String?
 
         enum CodingKeys: String, CodingKey {
             case kind
             case sourceMessageID = "source_message_id"
             case sequence
             case speakerSide = "speaker_side"
+            case messageTimestamp = "message_timestamp"
         }
     }
 
@@ -538,8 +618,8 @@ private extension String {
 private extension IdentityDecision {
     var idempotencySuffix: String {
         switch self {
-        case let .bind(candidate, _):
-            return "bind:\(candidate.personID)"
+        case let .bind(candidate, context):
+            return "bind:\(candidate.personID):\(context?.id ?? "new")"
         case .createNew:
             return "create"
         case .leaveUnresolved:

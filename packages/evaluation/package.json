@@ -15,13 +15,17 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc6 -p tsconfig.build.json",
-    "typecheck": "tsc6 -p tsconfig.json --noEmit",
+    "build": "pnpm --filter @talent-signal/contracts build && tsc6 -p tsconfig.build.json",
+    "typecheck": "pnpm --filter @talent-signal/contracts build && tsc6 -p tsconfig.json --noEmit",
     "test": "vitest run src"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.41",
+    "@talent-signal/contracts": "workspace:*"
   }
 }

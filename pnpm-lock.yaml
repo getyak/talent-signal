@@ -72,6 +72,9 @@ importers:
       '@talent-signal/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@talent-signal/evaluation':
+        specifier: workspace:*
+        version: link:../../packages/evaluation
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
@@ -103,6 +106,12 @@ importers:
 
   apps/eval-runner:
     dependencies:
+      '@sinclair/typebox':
+        specifier: ^0.34.41
+        version: 0.34.52
+      '@talent-signal/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@talent-signal/evaluation':
         specifier: workspace:*
         version: link:../../packages/evaluation
@@ -210,6 +219,13 @@ importers:
         version: '@typescript/typescript6@6.0.2'
 
   packages/evaluation:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: ^0.34.41
+        version: 0.34.52
+      '@talent-signal/contracts':
+        specifier: workspace:*
+        version: link:../contracts
     devDependencies:
       '@types/node':
         specifier: ^24.3.0

@@ -81,6 +81,25 @@ The user should be able to:
 
 Fast confirmation is useful only when ambiguity remains visible.
 
+Review has two independent decisions: attach the evidence to a person and
+relationship, then decide each proposed fact. Attachment never confirms facts.
+Mobile comparisons stack the prior value, proposed value, exact quote, and
+editable reviewed value. A supported fact can be confirmed while another item
+remains unresolved; ambiguous speakers and relative dates block only their
+dependent facts. Import time does not establish message time.
+
+Resuming a review restores the source, pending edits, and review position, then
+checks current identity, authorization, and evidence authority. An unknown
+network result preserves the original operation for reconciliation. A changed
+source or later decision requires renewed review; retrying cannot resurrect
+superseded authority. Local-original expiry must not hide retained reviewed text
+or make the interface claim that the original is still available.
+
+Completion reports actual confirmed, dismissed, and unresolved decisions.
+Pending identity or evidence remains in the inbox. A reviewed source with no
+supported change can finish without inventing a fact or an action. Compilation
+quality is distinct from review completion and effect authorization.
+
 ## Current relationship state
 
 Confirmed state is temporal and scoped. A later source may reinforce, contest,
@@ -148,7 +167,7 @@ Fast intentional capture, lightweight correction, time-sensitive attention,
 and device-owned effects. Image capture should converge on one resumable
 evidence review: local text extraction, explicit unknown-speaker state,
 identity-clue review, temporal-owner comparison, explicit relationship
-attachment, and a truthful compilation receipt. A system shortcut may shorten
+attachment, independent fact review, and a truthful review receipt. A system shortcut may shorten
 entry, but it must not shorten the human decision sequence.
 
 ### Web

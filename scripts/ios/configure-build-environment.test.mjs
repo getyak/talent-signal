@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   encodeAPIBaseURL,
+  encodeEnvironmentProfiles,
   readEnvironmentValue,
   validateAPIBaseURL,
   writeBuildEnvironment,
@@ -111,4 +112,17 @@ test("allow-missing removes stale generated configuration", () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test("approved runtime profiles pin identity and cannot carry credentials or duplicate targets", () => {
+  const profile = { id: "staging", name: "Staging", endpoint: "https://staging.example.test/", expectedDeploymentID: "deploy-17" };
+  const encode = (items, configuration = "Release") => encodeEnvironmentProfiles(JSON.stringify(items), configuration);
+  const decoded = JSON.parse(Buffer.from(encode([profile]), "base64url").toString("utf8"));
+  assert.equal(decoded[0].endpoint, "https://staging.example.test");
+  assert.throws(() => encode([{ ...profile, accessToken: "must-not-embed" }]), /extra fields/u);
+  assert.throws(() => encode([{ ...profile, expectedDeploymentID: "" }]), /expectedDeploymentID/u);
+  assert.throws(() => encode([profile, { ...profile, id: "duplicate" }]), /unique/u);
+  assert.throws(() => encode([{ ...profile, endpoint: "http://127.0.0.1:4317" }]), /HTTPS/u);
+  assert.ok(encode([{ ...profile, endpoint: "http://127.0.0.1:4317" }], "Debug"));
 });

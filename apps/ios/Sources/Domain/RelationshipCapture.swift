@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum CaptureOrigin: String, Codable, Equatable {
@@ -70,6 +71,11 @@ struct RecognizedCaptureDraft: Codable, Equatable {
     var relationshipLabel: String
     var relationshipPurpose: String
     var relationshipRole: String
+    var messageTimestamp: Date? = nil
+    var messageTimestampInput: String? = nil
+    var keepOriginalForReview: Bool? = nil
+    var sourceByteCount: Int? = nil
+    var sourceTimezone: String? = nil
 
     static let empty = RecognizedCaptureDraft(
         reviewedText: "",
@@ -84,8 +90,8 @@ struct RecognizedCaptureDraft: Codable, Equatable {
 
     var canSubmit: Bool {
         !reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !relationshipLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !relationshipPurpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && reviewedText.count <= 20_000
+            && (messageTimestampInput == nil || messageTimestamp != nil)
     }
 }
 
@@ -196,7 +202,7 @@ struct IdentityResolutionCase: Decodable, Equatable {
     }
 }
 
-struct ResourceCaptureResult: Decodable, Equatable {
+struct ResourceCaptureResult: Codable, Equatable {
     let captureID: String
     let identity: Identity
     let resource: Resource
@@ -207,12 +213,14 @@ struct ResourceCaptureResult: Decodable, Equatable {
         case resource
     }
 
-    struct Identity: Decodable, Equatable {
+    struct Identity: Codable, Equatable {
         let status: String
         let personID: String?
         let relationshipContextID: String?
         let resolutionCaseID: String?
         let candidatePersonIDs: [String]
+        var personDisplayLabel: String? = nil
+        var relationshipDisplayLabel: String? = nil
 
         enum CodingKeys: String, CodingKey {
             case status
@@ -220,10 +228,11 @@ struct ResourceCaptureResult: Decodable, Equatable {
             case relationshipContextID = "relationship_context_id"
             case resolutionCaseID = "resolution_case_id"
             case candidatePersonIDs = "candidate_person_ids"
+            case personDisplayLabel = "person_display_label", relationshipDisplayLabel = "relationship_display_label"
         }
     }
 
-    struct Resource: Decodable, Equatable {
+    struct Resource: Codable, Equatable {
         let id: String
         let processingState: String
         let duplicateOfResourceID: String?
@@ -306,6 +315,12 @@ struct RelationshipCaptureCompletion: Equatable {
     let resourceID: String
     let decision: String
     let wiki: WikiCompilationReceipt?
+    var confirmedCount: Int = 0
+    var unresolvedCount: Int = 0
+    var dismissedCount: Int = 0
+    var needsEvidenceReview: Bool = false
+
+    var needsReview: Bool { isUnresolved || unresolvedCount > 0 || needsEvidenceReview }
 
     var isUnresolved: Bool {
         personID == nil || relationshipContextID == nil
@@ -318,6 +333,9 @@ enum RelationshipCaptureStage: Equatable {
     case submitting
     case resolvingIdentity
     case decidingIdentity
+    case loadingChanges
+    case reviewingChanges
+    case savingChange
     case compilingWiki
     case completed(RelationshipCaptureCompletion)
     case failed(RelationshipCaptureFailure)
@@ -333,5 +351,109 @@ struct RelationshipCaptureFailure: Equatable {
         case submission
         case identity
         case compilation
+        case changes
     }
+}
+
+struct CaptureChangeReview: Codable, Equatable {
+    let resource: Resource
+    let fragments: [Fragment]
+    let claims: [Claim]
+    enum CodingKeys: String, CodingKey { case resource, fragments; case claims = "claim_proposals" }
+
+    struct Resource: Codable, Equatable {
+        let id: String
+        let captureID: String
+        let authorization: String
+        let processingState: String
+        var captureVersion: Int = 1
+        enum CodingKeys: String, CodingKey {
+            case id; case captureID = "capture_id"
+            case authorization = "source_authorization_state"
+            case processingState = "processing_state"
+            case captureVersion = "capture_version"
+        }
+    }
+    struct Fragment: Codable, Equatable, Identifiable {
+        let id: String
+        let text: String?
+        let attribution: Attribution
+        let reviewStatus: String
+        var lastReviewID: String? = nil
+        enum CodingKeys: String, CodingKey { case id, text, attribution; case reviewStatus = "review_status"; case lastReviewID = "last_review_id" }
+        struct Attribution: Codable, Equatable {
+            let actor: String
+            let status: String
+            enum CodingKeys: String, CodingKey { case actor = "actor_kind"; case status }
+        }
+    }
+    struct Claim: Codable, Equatable, Identifiable {
+        let id: String
+        let field: String
+        let proposedValue: String?
+        let priorValue: String?
+        let quote: String?
+        let reviewStatus: String
+        let proposalStatus: String
+        let version: Int
+        let reviewToken: String?
+        let blockers: [String]?
+        var reviewedValue: String? = nil
+        var lastDecisionID: String? = nil
+        enum CodingKeys: String, CodingKey {
+            case id, field, version
+            case proposedValue = "proposed_value", priorValue = "prior_confirmed_value"
+            case quote = "evidence_quote", reviewStatus = "review_status", proposalStatus = "proposal_status"
+            case reviewToken = "review_token", blockers = "review_blockers"
+            case reviewedValue = "reviewed_value", lastDecisionID = "last_decision_id"
+        }
+        var needsReview: Bool { ["pending", "unresolved"].contains(reviewStatus) }
+        var requiresDate: Bool { field == "decision_deadline" || blockers?.contains("calendar_date_required") == true }
+        var hasBlockingEvidence: Bool { blockers?.contains(where: { $0 != "calendar_date_required" }) == true }
+    }
+    var pendingCount: Int { claims.filter(\.needsReview).count }
+    var confirmedCount: Int { claims.filter { $0.reviewStatus == "confirmed" }.count }
+    var dismissedCount: Int { claims.filter { $0.reviewStatus == "dismissed" }.count }
+    var needsEvidenceReview: Bool {
+        resource.authorization != "authorized" || fragments.contains {
+            $0.reviewStatus != "reviewed" || $0.attribution.status != "confirmed"
+        }
+    }
+    var reviewFingerprint: String {
+        var parts: [String] = ["capture:\(resource.captureVersion)", "authorization:\(resource.authorization)"]
+        parts.append(contentsOf: fragments.map {
+            "fragment:\($0.id):\($0.reviewStatus):\($0.lastReviewID ?? "none"):\($0.attribution.actor):\($0.attribution.status)"
+        })
+        parts.append(contentsOf: claims.map { "claim:\($0.id):\($0.version):\($0.reviewStatus)" })
+        let basis = parts.sorted().joined(separator: "|")
+        return SHA256.hash(data: Data(basis.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+struct CaptureClaimDecision: Codable, Equatable {
+    let assertionID: String
+    let idempotencyKey: String
+    let version: Int
+    let reviewToken: String
+    let decision: String
+    let correctedValue: String?
+}
+
+struct CaptureReviewRecovery: Codable, Equatable {
+    var selectedCandidateID: String?
+    var selectedContextID: String?
+    var submittedDraft: RecognizedCaptureDraft?
+    var capture: ResourceCaptureResult?
+    var pendingClaim: CaptureClaimDecision?
+    var pendingSpeaker: CaptureSpeakerDecision?
+    var selectedClaimID: String?
+    var claimEdits: [String: String] = [:]
+}
+
+struct CaptureSpeakerDecision: Codable, Equatable {
+    let fragmentID: String
+    let idempotencyKey: String
+    let expectedStatus: String
+    let expectedReviewID: String?
+    let speaker: TextSignalSpeaker
 }

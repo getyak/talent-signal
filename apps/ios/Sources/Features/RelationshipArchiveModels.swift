@@ -585,8 +585,9 @@ protocol AgentSessionPersisting {
 final class FileAgentSessionPersistence: AgentSessionPersisting {
     private let fileURL: URL
     private let deletionTombstoneURL: URL
+    private let migrationError: Error?
 
-    init(accountID: String, rootURL: URL? = nil) {
+    init(accountID: String, rootURL: URL? = nil, legacyAccountID: String? = nil) {
         let digest = SHA256.hash(data: Data(accountID.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
@@ -598,9 +599,15 @@ final class FileAgentSessionPersistence: AgentSessionPersisting {
             .appending(path: "TalentSignal/AgentSessions", directoryHint: .isDirectory)
             .appending(path: "\(digest).json")
         deletionTombstoneURL = fileURL.appendingPathExtension("deletion-pending")
+        do {
+            try RuntimeLegacyBindings.migrateFile(legacyAccountID: legacyAccountID, scope: accountID,
+                directory: fileURL.deletingLastPathComponent(), destination: fileURL)
+            migrationError = nil
+        } catch { migrationError = error }
     }
 
     func load() throws -> Data? {
+        if let migrationError { throw migrationError }
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return nil
         }
@@ -608,18 +615,22 @@ final class FileAgentSessionPersistence: AgentSessionPersisting {
     }
 
     func save(_ data: Data) throws {
+        if let migrationError { throw migrationError }
         try writeProtected(data, to: fileURL)
     }
 
     func deletionPending() throws -> Bool {
-        FileManager.default.fileExists(atPath: deletionTombstoneURL.path)
+        if let migrationError { throw migrationError }
+        return FileManager.default.fileExists(atPath: deletionTombstoneURL.path)
     }
 
     func beginDeletion() throws {
+        if let migrationError { throw migrationError }
         try writeProtected(Data("pending".utf8), to: deletionTombstoneURL)
     }
 
     func completeDeletion() throws {
+        if let migrationError { throw migrationError }
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)
         }
@@ -826,6 +837,7 @@ private struct PersistedRelationshipAskResponse: Codable {
     let unboundConversationBlocks: [RelationshipAskResponse.Block]?
     let media: [ChatMediaAsset]?
     let createdAt: String
+    let labFeatureReceipt: LabFeatureAdoptionReceipt?
 
     init(_ value: RelationshipAskResponse) {
         contractVersion = value.contractVersion
@@ -843,6 +855,7 @@ private struct PersistedRelationshipAskResponse: Codable {
             : nil
         media = value.media
         createdAt = value.createdAt
+        labFeatureReceipt = value.labFeatureReceipt
     }
 
     var value: RelationshipAskResponse {
@@ -865,7 +878,8 @@ private struct PersistedRelationshipAskResponse: Codable {
             ],
             media: media ?? [],
             createdAt: createdAt,
-            citations: []
+            citations: [],
+            labFeatureReceipt: labFeatureReceipt
         )
     }
 }

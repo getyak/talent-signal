@@ -23,16 +23,60 @@ explicitly classified active fixtures before recreating them. Product
 projections may bound evaluator noise, but must not relabel it as recruiter
 state or conceal its synthetic origin.
 
-The internal Talent Signal Lab currently provides five repository-owned,
-versioned scenarios for relationship formation, identity ambiguity, conflicting
-evidence, revoked authorization, and an action awaiting confirmation. It binds
-deterministic replay and baseline comparison to the same frozen evidence
-snapshot, produces account-scoped traces, and lets a human promote a redacted
-Reality Receipt into a candidate-blocking Eval Case. This is quality-control
-state only: it has zero authority over canonical relationship state or external
-effects. The authenticated Web workspace and native iOS workspace consume the
-same capability, scenario, Run, comparison, receipt, and promotion contracts;
-both hide the entry point unless the backend confirms the internal capability.
+Internal iOS Lab now joins device inspection and recovery tools with a real
+model experiment loop. Testers compare two server-approved configurations on
+the same registered synthetic input, inspect actual output and execution
+evidence, and save a review. Successful execution carries no quality verdict
+and reviews do not change the product model or release gates. Device tools are
+available offline in internal builds; remote experiments still require the
+authenticated backend capability. The build gate and current scope are recorded
+in [ADR 0012](decisions/0012-useful-device-lab-and-real-experiments.md).
+The runtime extension adds approved backend selection, deployment preflight,
+separate environment/account/user recovery, active-work blockers, and native
+switch/relaunch/return evidence. Session model trials now apply an admitted
+configuration to ordinary product tasks, preserve governed tools, distinguish
+provider execution from product adoption, and expire or roll back explicitly.
+Durable text batches now freeze case sets and repeated A/B attempts, enforce
+call reservations, recover after relaunch, and preserve results through
+cancellation or worker loss. Selected failures now become immutable regression
+cases with frozen-input reruns, scoped recovery, reviewed exports and derivative
+deletion. The shared evaluation runner checks recorded rerun integrity without
+turning preferences into quality verdicts. CI exercises this lifecycle with a
+synthetic provider. Case-specific consumption now has a configured workflow
+and backend verification path, with native readback and explicit quality and
+release-enforcement boundaries. Actual hosted execution remains required;
+see the [operator workflow](operations/lab-ci-verification.md).
+Device appearance now adds a compiled page-state catalog, named local presets,
+and expiring app-wide display trials with an explicit restore action. System
+accessibility protections remain authoritative. Native apply/navigation/restore,
+relaunch and AX5 evidence lives in the
+[appearance evaluation](evaluations/2026-09-04-lab-appearance/README.md).
+Guided diagnostics now records an explicit task session with typed request
+phases, bounded device samples, manual observations, background/context stop,
+interrupted checkpoints, reviewed export and verified local deletion. Real
+loopback timing, redirect rejection and native record/relaunch/file-export
+evidence are recorded in the
+[diagnostics evaluation](evaluations/2026-09-04-lab-diagnostics/README.md).
+Isolated fault presets now exercise real workspace reads and product pages,
+with retry, cancellation, expiry and background recovery. The unavailable-source
+fixture exposed and corrected Today hiding lost evidence authority behind a
+freshness label; see the [fault evaluation](evaluations/2026-09-04-lab-faults/README.md).
+Automatic client operations now correlate with typed, request-local backend
+stages. Reports preserve separate clocks, partial outcomes and synthetic origin;
+see the [stage evaluation](evaluations/2026-09-04-lab-stages/README.md).
+MetricKit history adds explicit reception, bounded typed summaries, reviewed
+exports and deletion-aware recovery. Simulator UI and lifecycle checks are
+separate from the outstanding physical-device callback proof; see the
+[MetricKit evaluation](evaluations/2026-09-04-lab-metrickit/README.md).
+The broader Lab roadmap remains in the
+[complete implementation plan](../plans/2026-09-04-lab-complete-runtime.md).
+
+The earlier five-scenario deterministic Lab remains a named secondary task on
+iOS and the existing Web experience. It binds replay and baseline comparison
+to frozen synthetic evidence, records a redacted Reality Receipt, and permits
+explicit promotion into an Eval Case. Both quality paths have zero authority
+over canonical relationship state or external effects. Real-model experiment
+UI is currently native iOS only.
 
 ## Delivery sequence
 

@@ -1,3 +1,13 @@
+import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
+import { LabTaskTrialService } from "./modules/labTaskTrials.js";
+import { registerLabTaskTrialRoutes } from "./modules/labTaskTrialRoutes.js";
+import { LabFeatureOverrideService } from "./modules/labFeatureOverrides.js";
+import { registerLabFeatureOverrideRoutes } from "./modules/labFeatureOverrideRoutes.js";
+import { LabWorkspaceService } from "./modules/labWorkspaces.js";
+import { registerLabWorkspaceRoutes } from "./modules/labWorkspaceRoutes.js";
+import { LabExperimentJobService } from "./modules/labExperimentJobs.js";
+import { registerLabJobRoutes } from "./modules/labJobRoutes.js";
+import { environmentLabCIVerifier, type LabCIVerifying } from "./modules/labCIVerifier.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -165,6 +175,9 @@ import swagger from "@fastify/swagger";
 import Fastify, { type FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { Pool } from "pg";
+import { LabExperimentService, labModelProviders } from "./modules/labExperiments.js";
+import { registerLabExperimentRoutes } from "./modules/labExperimentRoutes.js";
+import { registerRuntimeManifest } from "./modules/runtimeManifest.js";
 
 import type { BackendConfig } from "./config.js";
 import { ApiError } from "./lib/apiError.js";
@@ -272,7 +285,8 @@ import {
   stagePursuitProposal,
   type ProposalReviewConflict,
 } from "./modules/pursuitProposals.js";
-import { createResourceCapture } from "./modules/resourceIntake.js";
+import { createResourceCapture, loadResourceCapture } from "./modules/resourceIntake.js";
+import { prepareCaptureReview } from "./modules/captureReview.js";
 import {
   getLatestPublicResearchTask,
   runPublicResearch,
@@ -437,6 +451,9 @@ export interface AppDependencies {
   voiceTranscriber?: VoiceTranscriptionServing;
   chatMediaStorage?: ChatMediaStorage;
   remoteChatProvider?: RemoteChatAnswerProviding | null;
+  labProviders?: Map<string, RemoteChatAnswerProviding>;
+  labJobWorkerEnabled?: boolean;
+  labCIVerifier?: LabCIVerifying | null;
   personResearchProvider?: PersonResearchAgentProviding | null;
 }
 
@@ -462,16 +479,22 @@ export async function buildApp(
         paths: [
           "req.headers.authorization",
           "req.body.password",
+          "req.body.access_token",
           "req.body.audio_base64",
           "req.body.content_parts[*].content_text",
           "req.body.content_parts[*].content_base64",
           "req.body.image.data_base64",
+          "req.body.expected_behavior",
+          "req.body.review_note",
           "headers.authorization",
           "body.password",
+          "body.access_token",
           "body.audio_base64",
           "body.content_parts[*].content_text",
           "body.content_parts[*].content_base64",
           "body.image.data_base64",
+          "body.expected_behavior",
+          "body.review_note",
           "access_token",
           "password_scrypt",
         ],
@@ -483,6 +506,8 @@ export async function buildApp(
     bodyLimit: 2 * 1024 * 1024,
   });
 
+  registerLabDiagnostics(app, config.internalLabEnabled === true);
+
   app.addContentTypeParser(
     /^image\//,
     { parseAs: "buffer", bodyLimit: CHAT_MEDIA_MAX_BYTES },
@@ -491,6 +516,7 @@ export async function buildApp(
 
   app.decorateRequest("auth", null as unknown as AuthContext);
   await app.register(cors, {
+    exposedHeaders: ["x-talent-signal-lab-trace"],
     credentials: false,
     origin(origin, callback) {
       if (!origin || config.allowedOrigins.includes(origin)) {
@@ -526,6 +552,10 @@ export async function buildApp(
   });
 
   app.setErrorHandler((error, request, reply) => {
+    if ((error as {code?:string;message?:string}).code === "P0001" && (error as {message?:string}).message === "LAB_TEST_WORKSPACE_CLOSED") {
+      void reply.status(410).send({error:{code:"LAB_TEST_WORKSPACE_CLOSED",message:"This test workspace no longer accepts changes.",request_id:request.id}});
+      return;
+    }
     if (error instanceof ApiError) {
       void reply.status(error.statusCode).send({
         error: {
@@ -591,7 +621,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '039_talent_signal_lab'`,
+           WHERE version = '046_lab_feature_overrides'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -724,6 +754,25 @@ export async function buildApp(
 
   const authenticate = createAuthGuard(pool);
   const security = [{ bearerSession: [] }];
+  registerRuntimeManifest(app, config);
+  registerLabWorkspaceRoutes(app,new LabWorkspaceService(pool,chatMediaStorage,config.sessionTtlSeconds),authenticate,config.internalLabEnabled===true);
+
+  const labProviders = dependencies.labProviders ?? labModelProviders(remoteChatProvider);
+  const labTrials = new LabTaskTrialService(pool, labProviders, remoteChatProvider,
+    process.env.TALENT_SIGNAL_BACKEND_REVISION?.trim() || null);
+  registerLabTaskTrialRoutes(app, labTrials, authenticate, config.internalLabEnabled === true);
+  const labFeatures = new LabFeatureOverrideService(pool,
+    process.env.TALENT_SIGNAL_BACKEND_REVISION?.trim() || null);
+  registerLabFeatureOverrideRoutes(app, labFeatures, authenticate, config.internalLabEnabled === true);
+  registerLabJobRoutes(app, new LabExperimentJobService(pool, labProviders,
+    process.env.TALENT_SIGNAL_BACKEND_REVISION?.trim() || null,
+    Number(process.env.TALENT_SIGNAL_LAB_DAILY_CALL_LIMIT ?? "240")), authenticate,
+    config.internalLabEnabled === true, dependencies.labJobWorkerEnabled !== false,
+    config.internalLabEnabled ? dependencies.labCIVerifier === undefined ? environmentLabCIVerifier() : dependencies.labCIVerifier : null);
+  registerLabExperimentRoutes(app, new LabExperimentService(pool,
+    labProviders,
+    process.env.TALENT_SIGNAL_BACKEND_REVISION?.trim() || null), authenticate,
+    config.internalLabEnabled === true);
 
   app.get(
     "/v1/lab",
@@ -1670,6 +1719,26 @@ export async function buildApp(
     },
   );
 
+  app.get<{ Params: { id: string } }>(
+    "/v1/resource-captures/:id",
+    {
+      preHandler: authenticate,
+      schema: { tags: ["resources"], security, params: IdParamsSchema,
+        response: { 200: ResourceCaptureResponseSchema, "4xx": ErrorResponseSchema } },
+    },
+    async (request) => loadResourceCapture(pool, request.auth.accountId, request.params.id),
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/v1/resource-captures/:id/review-preparations",
+    {
+      preHandler: authenticate,
+      schema: { tags: ["resources"], security, params: IdParamsSchema,
+        response: { 200: RelationshipResourceDetailSchema, "4xx": ErrorResponseSchema } },
+    },
+    async (request) => prepareCaptureReview(pool, request.auth, request.params.id),
+  );
+
   app.post<{ Body: ResourceCaptureRequest }>(
     "/v1/resource-captures",
     {
@@ -2380,12 +2449,14 @@ export async function buildApp(
       },
     },
     async (request, reply) => {
+      const trial = config.internalLabEnabled ? labTrials.taskContext(request.auth, "unscoped_chat", request.body.idempotency_key) : null;
+      let productOutcome: "accepted" | "fallback" | "product_failed" | "unverified" = "product_failed";
       const result = await createUnscopedChatTask(
-        pool,
-        request.auth,
-        request.body,
-        remoteChatProvider,
-      );
+        pool, request.auth, request.body, remoteChatProvider, trial?.select,
+      ).then((result) => { productOutcome = result.labProductOutcome ?? "unverified"; return result; }).finally(async () => {
+        const persisted = await trial?.finish(productOutcome);
+        if (persisted != null) reply.header("lab-observation-persisted", String(persisted));
+      });
       request.log.info(
         {
           unscoped_chat_task_id: result.body.task_id,
@@ -2417,14 +2488,16 @@ export async function buildApp(
       },
     },
     async (request, reply) => {
+      const trial = config.internalLabEnabled ? labTrials.taskContext(request.auth,
+        request.body.media_ids?.length ? "relationship_image" : "relationship_text", request.body.idempotency_key) : null;
+      let productOutcome: "accepted" | "fallback" | "product_failed" | "unverified" = "product_failed";
       const result = await createChatTask(
-        pool,
-        request.auth,
-        request.body,
-        remoteChatProvider,
-        chatMediaStorage,
-        personResearchProvider,
-      );
+        pool, request.auth, request.body, remoteChatProvider, chatMediaStorage, personResearchProvider, trial?.select,
+        config.internalLabEnabled ? (client) => labFeatures.adoptionReceipt(client, request.auth) : undefined,
+      ).then((result) => { productOutcome = result.labProductOutcome ?? "unverified"; return result; }).finally(async () => {
+        const persisted = await trial?.finish(productOutcome);
+        if (persisted != null) reply.header("lab-observation-persisted", String(persisted));
+      });
       request.log.info(
         {
           trace_id: result.body.telemetry?.trace_id ?? null,

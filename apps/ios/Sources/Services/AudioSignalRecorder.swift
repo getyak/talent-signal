@@ -7,6 +7,7 @@ final class AudioSignalRecorder: NSObject, AudioSignalRecordingServing {
     private let recordsDirectoryURL: URL
     private let audioSession: AVAudioSession
     private var recorder: AVAudioRecorder?
+    private var runtimeLease: RuntimeWorkLease?
     private var activeRecordID: UUID?
     private var activePurpose: String?
     private var activeAuthorization: AudioSignalLocalReceipt.Authorization?
@@ -70,6 +71,7 @@ final class AudioSignalRecorder: NSObject, AudioSignalRecordingServing {
         guard audioSession.isInputAvailable else {
             throw AudioSignalRecorderError.inputUnavailable
         }
+        let lease = try RuntimeWorkLease(.recording)
         try prepareDirectory()
         let audioURL = self.audioURL(for: recordID)
         if FileManager.default.fileExists(atPath: audioURL.path) {
@@ -92,6 +94,7 @@ final class AudioSignalRecorder: NSObject, AudioSignalRecordingServing {
             }
             try protect(audioURL)
             recorder = candidate
+            runtimeLease = lease
             activeRecordID = recordID
             activePurpose = purpose
             activeAuthorization = authorization
@@ -99,6 +102,7 @@ final class AudioSignalRecorder: NSObject, AudioSignalRecordingServing {
             try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
             try? removeIfPresent(audioURL)
             recorder = nil
+            runtimeLease = nil
             activeRecordID = nil
             activePurpose = nil
             activeAuthorization = nil
@@ -116,6 +120,7 @@ final class AudioSignalRecorder: NSObject, AudioSignalRecordingServing {
         let duration = recorder.currentTime
         recorder.stop()
         self.recorder = nil
+        runtimeLease = nil
         activeRecordID = nil
         activePurpose = nil
         activeAuthorization = nil
@@ -154,6 +159,7 @@ final class AudioSignalRecorder: NSObject, AudioSignalRecordingServing {
         let recordID = activeRecordID
         if recorder.isRecording { recorder.stop() }
         self.recorder = nil
+        runtimeLease = nil
         activeRecordID = nil
         activePurpose = nil
         activeAuthorization = nil
@@ -391,6 +397,7 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
     private let recordsDirectoryURL: URL
     private let audioSession: AVAudioSession
     private var recorder: AVAudioRecorder?
+    private var runtimeLease: RuntimeWorkLease?
     private var activeRecordID: UUID?
 
     init(
@@ -446,6 +453,7 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
         guard audioSession.isInputAvailable else {
             throw VoiceDictationRecorderError.inputUnavailable
         }
+        let lease = try RuntimeWorkLease(.recording)
         try prepareDirectory()
         let url = audioURL(for: recordID)
         try removeIfPresent(url)
@@ -469,6 +477,7 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
             }
             try protect(url)
             recorder = candidate
+            runtimeLease = lease
             activeRecordID = recordID
         } catch {
             try? audioSession.setActive(
@@ -477,6 +486,7 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
             )
             try? removeIfPresent(url)
             recorder = nil
+            runtimeLease = nil
             activeRecordID = nil
             throw error
         }
@@ -489,6 +499,7 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
         let duration = recorder.currentTime
         recorder.stop()
         self.recorder = nil
+        runtimeLease = nil
         self.activeRecordID = nil
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
 
@@ -515,6 +526,7 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
         let recordID = activeRecordID
         if recorder?.isRecording == true { recorder?.stop() }
         recorder = nil
+        runtimeLease = nil
         activeRecordID = nil
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
         if let recordID { try removeIfPresent(audioURL(for: recordID)) }
@@ -592,7 +604,7 @@ actor URLVoiceTranscriptionClient: VoiceTranscriptionServing {
     init(
         baseURL: URL,
         accessToken: String,
-        session: URLSession = .shared
+        session: URLSession = TalentSignalNetworking.session
     ) {
         self.baseURL = baseURL
         self.accessToken = accessToken
@@ -629,7 +641,7 @@ actor URLVoiceTranscriptionClient: VoiceTranscriptionServing {
         request.httpBody = try JSONEncoder().encode(body)
         request.timeoutInterval = 50
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw VoiceTranscriptionClientError.invalidResponse
         }
@@ -671,7 +683,7 @@ actor URLSimulatedVoiceTranscriptionClient: VoiceTranscriptionServing {
         baseURL: URL,
         accountSlug: String,
         userEmail: String,
-        session: URLSession = .shared
+        session: URLSession = TalentSignalNetworking.session
     ) {
         self.baseURL = baseURL
         self.accountSlug = accountSlug
@@ -707,7 +719,7 @@ actor URLSimulatedVoiceTranscriptionClient: VoiceTranscriptionServing {
                 clientLabel: "ios-voice-dictation"
             )
         )
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode),
               let login = try? JSONDecoder().decode(

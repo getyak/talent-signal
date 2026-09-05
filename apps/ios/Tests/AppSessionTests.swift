@@ -10,7 +10,8 @@ final class AppSessionTests: XCTestCase {
         let store = AppSessionStore(
             baseURL: .fixtureBackend,
             persistence: persistence,
-            client: authentication
+            client: authentication,
+            endings: MemoryAppSessionEndings()
         )
 
         await store.restore()
@@ -33,7 +34,8 @@ final class AppSessionTests: XCTestCase {
         let store = AppSessionStore(
             baseURL: .fixtureBackend,
             persistence: persistence,
-            client: authentication
+            client: authentication,
+            endings: MemoryAppSessionEndings()
         )
 
         await store.restore()
@@ -51,13 +53,14 @@ final class AppSessionTests: XCTestCase {
         let store = AppSessionStore(
             baseURL: .fixtureBackend,
             persistence: persistence,
-            client: authentication
+            client: authentication,
+            endings: MemoryAppSessionEndings()
         )
 
         await store.restore()
         await store.signOut()
 
-        XCTAssertEqual(store.phase, .signedIn(.fixture))
+        XCTAssertEqual(store.phase, .signedOut, "A persisted ending intent closes content even when both cleanup steps need retry")
         XCTAssertNotNil(persistence.session)
         XCTAssertTrue(store.notice?.contains("Sign out is incomplete") == true)
     }
@@ -68,14 +71,16 @@ final class AppSessionTests: XCTestCase {
         let store = AppSessionStore(
             baseURL: .fixtureBackend,
             persistence: persistence,
-            client: StubAuthentication()
+            client: StubAuthentication(),
+            endings: MemoryAppSessionEndings()
         )
 
         await store.restore()
         await store.signOut()
 
         XCTAssertEqual(store.phase, .signedOut)
-        XCTAssertTrue(store.notice?.contains("server revoked this session") == true)
+        XCTAssertEqual(store.endingReceipts.first?.remote, .revoked)
+        XCTAssertEqual(store.endingReceipts.first?.local, .failed)
     }
 }
 

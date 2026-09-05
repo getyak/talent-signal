@@ -52,6 +52,8 @@ interface CaptureIdentityRow {
   assignment_id: string | null;
   identity_status: "bound" | "ambiguous" | "unbound";
   created_at: Date;
+  person_display_label: string | null;
+  relationship_display_label: string | null;
 }
 
 export interface ResourceIntakeMutationResult {
@@ -632,14 +634,16 @@ function enrichLocator(
   return fragment.locator;
 }
 
-async function loadResourceCapture(
+export async function loadResourceCapture(
   client: Pool | PoolClient,
   accountId: string,
   captureId: string,
 ): Promise<ResourceCaptureResponse> {
   const captureResult = await client.query<CaptureIdentityRow>(
     `SELECT
-       id, status, subject_id, assignment_id, identity_status, created_at
+       id, status, subject_id, assignment_id, identity_status, created_at,
+       (SELECT display_label FROM subjects WHERE account_id = captures.account_id AND id = captures.subject_id) AS person_display_label,
+       (SELECT display_label FROM assignments WHERE account_id = captures.account_id AND id = captures.assignment_id) AS relationship_display_label
      FROM captures
      WHERE account_id = $1 AND id = $2`,
     [accountId, captureId],
@@ -724,6 +728,8 @@ async function loadResourceCapture(
       relationship_context_id: capture.assignment_id,
       resolution_case_id: resolutionCaseId,
       candidate_person_ids: candidates,
+      person_display_label: capture.person_display_label,
+      relationship_display_label: capture.relationship_display_label,
     },
     resource: {
       id: resource.id,

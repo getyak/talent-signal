@@ -5,7 +5,7 @@ import SwiftUI
 struct RelationshipArchiveView: View {
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
     @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @StateObject private var captureIntentRouter = CaptureIntentRouter.shared
     @StateObject private var workspaceStore: PursuitWorkspaceStore
@@ -32,13 +32,16 @@ struct RelationshipArchiveView: View {
     private let authenticatedAccessToken: String?
     private let accountEmail: String?
     private let workspaceLabel: String?
-    private let onSignOut: (() async -> Void)?
+    private let onSignOut: (() async -> Bool)?
+    private let runtimeScope: String?
+    private let legacyAccountID: String?
+    private let labExperimentService: (any LabExperimentServing)?
 
     init(
         session: PursuitWorkspaceSession? = nil,
         service: PursuitWorkspaceServing? = nil,
         labService: TalentSignalLabServing? = nil,
-        onSignOut: (() async -> Void)? = nil
+        onSignOut: (() async -> Bool)? = nil
     ) {
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
@@ -71,8 +74,8 @@ struct RelationshipArchiveView: View {
         _workspaceStore = StateObject(
             wrappedValue: PursuitWorkspaceStore(
                 service: resolvedService,
-                actionCompletions: session?.accountID.map {
-                    FilePursuitActionCompletionStore(accountID: $0)
+                actionCompletions: session.map {
+                    FilePursuitActionCompletionStore(accountID: $0.persistenceScope, legacyAccountID: $0.accountID)
                 } ?? UserDefaultsPursuitActionCompletionStore(),
                 previewSnapshot: previewSnapshot
             )
@@ -101,8 +104,8 @@ struct RelationshipArchiveView: View {
             )
         } else {
             let canonicalStore = AgentSessionStore(
-                persistence: session?.accountID.map {
-                    FileAgentSessionPersistence(accountID: $0)
+                persistence: session.map {
+                    FileAgentSessionPersistence(accountID: $0.persistenceScope, legacyAccountID: $0.accountID)
                 }
             )
             if ProcessInfo.processInfo.arguments.contains(
@@ -120,8 +123,8 @@ struct RelationshipArchiveView: View {
             )
         } else {
             resolvedSessionStore = AgentSessionStore(
-                persistence: session?.accountID.map {
-                    FileAgentSessionPersistence(accountID: $0)
+                persistence: session.map {
+                    FileAgentSessionPersistence(accountID: $0.persistenceScope, legacyAccountID: $0.accountID)
                 }
             )
         }
@@ -138,6 +141,9 @@ struct RelationshipArchiveView: View {
         _labStore = StateObject(
             wrappedValue: TalentSignalLabStore(service: resolvedLabService)
         )
+        labExperimentService = resolvedLabService as? any LabExperimentServing
+        runtimeScope = session?.persistenceScope
+        legacyAccountID = session?.accountID
         reviewBaseURL = session?.baseURL
         authenticatedAccessToken = session?.accessToken
         accountEmail = session?.userEmail
@@ -168,7 +174,7 @@ struct RelationshipArchiveView: View {
                             isRelationshipCalendarPresented = true
                         }
                     )
-                    if labStore.isEnabled {
+                    if labStore.isEnabled || DeviceLabAvailability.enabled {
                         HStack {
                             Spacer(minLength: 0)
                             TalentSignalLabCapsule(store: labStore) {
@@ -264,6 +270,7 @@ struct RelationshipArchiveView: View {
                     sessionStore: sessionStore,
                     isCanonical: workspaceStore.isCanonical,
                     workspaceID: workspaceStore.snapshot?.workspaceID,
+                    runtimeScope: runtimeScope,
                     workspaceLabel: workspaceLabel,
                     accountName: workspaceStore.snapshot?.currentUserName,
                     accountEmail: accountEmail,
@@ -275,19 +282,9 @@ struct RelationshipArchiveView: View {
                             presentedSheet = .proposal(proposal)
                         }
                     },
-                    onSignOut: onSignOut.map { signOut in
-                        {
-                            guard AgentProfileReferenceStore.deleteAll(
-                                workspaceID: workspaceStore.snapshot?.workspaceID
-                            ) else { return false }
-                            guard workspaceStore.deleteSavedActionCompletions() else {
-                                return false
-                            }
-                            guard sessionStore.deleteAll() else { return false }
-                            await signOut()
-                            return true
-                        }
-                    }
+                    // Protected drafts and operation IDs remain owned by this
+                    // account. Closing a session is not a request to delete them.
+                    onSignOut: onSignOut
                 )
             case .menu:
                 RelationshipMenuView(
@@ -304,24 +301,29 @@ struct RelationshipArchiveView: View {
                             presentedSheet = .proposal(proposal)
                         }
                     },
-                    onSignOut: onSignOut.map { signOut in
-                        {
-                            guard AgentProfileReferenceStore.deleteAll(
-                                workspaceID: workspaceStore.snapshot?.workspaceID
-                            ) else { return false }
-                            guard workspaceStore.deleteSavedActionCompletions() else {
-                                return false
-                            }
-                            guard sessionStore.deleteAll() else { return false }
-                            await signOut()
-                            return true
-                        }
-                    }
+                    // Protected drafts and operation IDs remain owned by this
+                    // account. Closing a session is not a request to delete them.
+                    onSignOut: onSignOut
                 )
             }
         }
+        .onChange(of: workspaceStore.snapshot?.workspaceID) { workspaceID in
+            if let workspaceID, let runtimeScope, let legacyAccountID,
+               RuntimeLegacyBindings.authorizes(accountID: legacyAccountID, scope: runtimeScope) {
+                RuntimeLegacyBindings.bindAlias(workspaceID, scope: runtimeScope)
+            }
+        }
+        .task(id: workspaceStore.snapshot?.workspaceID) {
+            if let workspaceID = workspaceStore.snapshot?.workspaceID, let runtimeScope, let legacyAccountID,
+               RuntimeLegacyBindings.authorizes(accountID: legacyAccountID, scope: runtimeScope) {
+                RuntimeLegacyBindings.bindAlias(workspaceID, scope: runtimeScope)
+            }
+        }
         .sheet(isPresented: $isLabPresented) {
-            TalentSignalLabView(store: labStore)
+            ProductLabView(deterministic: labStore, service: labExperimentService,
+                baseURL: reviewBaseURL, workspace: workspaceLabel, userScope: accountEmail, runtimeScope: runtimeScope,
+                onSignOut: onSignOut,
+                refreshWorkspace: workspaceStore.isCanonical ? { await workspaceStore.refreshForLab() } : nil)
         }
         .sheet(item: $askPresentation, onDismiss: completeDeferredTransition) { presentation in
             if let snapshot = workspaceStore.snapshot {
@@ -419,6 +421,7 @@ struct RelationshipArchiveView: View {
                     backendURL: reviewBaseURL,
                     accessToken: authenticatedAccessToken,
                     workspaceID: workspaceStore.snapshot?.workspaceID,
+                    runtimeScope: runtimeScope,
                     entryMode: .conversationImage,
                     onClose: { capturePresentation = nil },
                     onContinueInAgent: continueCaptureInAgent
@@ -470,6 +473,7 @@ struct RelationshipArchiveView: View {
                 backendURL: reviewBaseURL,
                 accessToken: authenticatedAccessToken,
                 workspaceID: workspaceStore.snapshot?.workspaceID,
+                    runtimeScope: runtimeScope,
                 initialDestination: presentation.initialDestination,
                 onDismiss: { intakePresentation = nil },
                 onContinueInAgent: continueCaptureInAgent
@@ -960,7 +964,7 @@ private struct AgentIntakePresentation: Identifiable {
     let initialDestination: CaptureIntentDestination?
 }
 
-private struct PursuitWorkspaceRefreshNotice: View {
+struct PursuitWorkspaceRefreshNotice: View {
     let message: String
 
     var body: some View {
@@ -991,7 +995,7 @@ private struct RelationshipArchiveHeader: View {
     let onOpenAgentStudio: () -> Void
     let onOpenCalendar: () -> Void
     @Environment(\.appLanguage) private var appLanguage
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
     @Namespace private var selectionNamespace
 
     var body: some View {
@@ -1104,7 +1108,7 @@ private struct RelationshipArchiveHeader: View {
     }
 }
 
-private struct PursuitTodayView: View {
+struct PursuitTodayView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
     let calendarActivities: [RelationshipCalendarActivity]
@@ -1552,6 +1556,7 @@ private struct TodayInlineDecisionCard: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.tsLine, lineWidth: 1)
         }
+        .modifier(LabLayoutOutline())
         .accessibilityElement(children: .contain)
     }
 
@@ -2121,6 +2126,9 @@ private struct TodayFocusCard: View {
     }
 
     private var localizedEvidenceSummary: String? {
+        if let state = item.evidenceState, state.availability != "available" {
+            return appLanguage.evidenceAttentionLabel(state)
+        }
         if let observedAt = item.evidenceObservedAt {
             return shortEvidence(
                 appLanguage.evidenceFreshness(
@@ -2332,6 +2340,9 @@ private struct PursuitAttentionRow: View {
     }
 
     private var localizedEvidenceSummary: String? {
+        if let state = item.evidenceState, state.availability != "available" {
+            return appLanguage.evidenceAttentionLabel(state)
+        }
         if let observedAt = item.evidenceObservedAt {
             return appLanguage.evidenceFreshness(
                 observedAt: observedAt,
@@ -2381,7 +2392,7 @@ private struct TodayDecisionContextLine: View {
     }
 }
 
-private struct AgentSessionListView: View {
+struct AgentSessionListView: View {
     let sessions: [AgentSession]
     let people: [String: WorkspacePerson]
     let isPreview: Bool
@@ -2694,6 +2705,7 @@ private struct AgentSessionRow: View {
                 style: .continuous
             )
         )
+        .modifier(LabLayoutOutline())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(sessionAccessibilityLabel)
         .accessibilityIdentifier("agent-session-\(session.id.uuidString)")
@@ -2967,7 +2979,7 @@ private struct PursuitListRow: View {
     }
 }
 
-private struct WorkspacePeopleView: View {
+struct WorkspacePeopleView: View {
     let snapshot: PursuitWorkspaceSnapshot
     let isPreview: Bool
     let restorationPosition: String?
@@ -3340,6 +3352,7 @@ private struct WorkspacePersonRow: View {
                 style: .continuous
             )
         )
+        .modifier(LabLayoutOutline())
         .accessibilityElement(children: .combine)
     }
 
@@ -3551,7 +3564,7 @@ private extension View {
 }
 
 private struct RelationshipRetrievalButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -3631,13 +3644,14 @@ private struct PursuitNoActionView: View {
     }
 }
 
-private struct PursuitWorkspaceLoadingView: View {
+struct PursuitWorkspaceLoadingView: View {
+    var isSynthetic = false
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
         VStack(spacing: 14) {
             ProgressView()
-            Text(
+            Text(isSynthetic ? appLanguage.text("Reading the synthetic workspace…") :
                 appLanguage.text(
                     "Reading canonical Pursuits…",
                     zhHans: "正在读取权威目标…"
@@ -3645,7 +3659,7 @@ private struct PursuitWorkspaceLoadingView: View {
             )
                 .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
-            Text(
+            Text(isSynthetic ? appLanguage.text("Only the isolated fixture transport is used for this read.") :
                 appLanguage.text(
                     "No preview facts are shown while this read is unresolved.",
                     zhHans: "读取尚未完成时，不会展示任何预览事实。"
@@ -3659,10 +3673,11 @@ private struct PursuitWorkspaceLoadingView: View {
     }
 }
 
-private struct PursuitWorkspaceFailureView: View {
+struct PursuitWorkspaceFailureView: View {
     let message: String
     let isRetrying: Bool
     let completedReadCount: Int
+    var isSynthetic = false
     let retry: () -> Void
     @Environment(\.appLanguage) private var appLanguage
 
@@ -3671,7 +3686,7 @@ private struct PursuitWorkspaceFailureView: View {
             RelationshipEyebrow(
                 appLanguage.text("Read failed", zhHans: "读取失败")
             )
-            Text(
+            Text(isSynthetic ? appLanguage.text("Synthetic workspace unavailable") :
                 appLanguage.text(
                     "Canonical workspace unavailable",
                     zhHans: "权威工作区不可用"
@@ -3683,7 +3698,7 @@ private struct PursuitWorkspaceFailureView: View {
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
-            Text(
+            Text(isSynthetic ? appLanguage.text("No partial fixture response is substituted for a verified read.") :
                 appLanguage.text(
                     "No cached or synthetic candidate facts are being substituted.",
                     zhHans: "不会用缓存或合成的候选人事实替代当前状态。"
@@ -3691,7 +3706,7 @@ private struct PursuitWorkspaceFailureView: View {
             )
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
-            Text(
+            Text(isSynthetic ? appLanguage.text("Inspect the synthetic error, then retry this fixture.") :
                 completedReadCount > 1
                     ? appLanguage.text(
                         "Last retry finished · canonical state is still unavailable.",
@@ -3710,7 +3725,7 @@ private struct PursuitWorkspaceFailureView: View {
             if isRetrying {
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text(
+                    Text(isSynthetic ? appLanguage.text("Retrying the synthetic read…") :
                         appLanguage.text(
                             "Retrying canonical read…",
                             zhHans: "正在重试权威读取…"
@@ -3722,13 +3737,12 @@ private struct PursuitWorkspaceFailureView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("workspace-retrying")
             } else {
-                Button(
-                    appLanguage.text("Retry read", zhHans: "重新读取"),
-                    action: retry
-                )
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("retry-workspace-read")
+                Button(action: retry) {
+                    Text(appLanguage.text("Retry read", zhHans: "重新读取"))
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }.accessibilityIdentifier("retry-workspace-read")
             }
         }
         .padding(24)
@@ -3736,7 +3750,7 @@ private struct PursuitWorkspaceFailureView: View {
     }
 }
 
-private struct PursuitWorkspaceEmptyView: View {
+struct PursuitWorkspaceEmptyView: View {
     let selectedPage: RelationshipArchivePage
     @Environment(\.appLanguage) private var appLanguage
 
@@ -4503,7 +4517,7 @@ private struct RelationshipGuideRail: View {
 }
 
 private struct RelationshipGuideGlassModifier: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.talentSignalReduceTransparency) private var reduceTransparency
 
     private var usesOpaqueSurface: Bool {
 #if DEBUG

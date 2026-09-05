@@ -4,6 +4,9 @@ import {
   TalentSignalClient,
   type CompareLabScenarioRequest,
   type CreateRealityReceiptRequest,
+  type LabJobRequest,
+  type LabJobReview,
+  type LabRegressionRequest,
   type PromoteRealityReceiptRequest,
   type RunLabScenarioRequest,
   type StartLabSessionRequest,
@@ -92,6 +95,45 @@ export async function promoteLabRealityReceipt(
 ) {
   return (await authenticatedLabClient("web-lab-promotion")).promoteRealityReceipt(
     receiptId,
+    request,
+  );
+}
+
+export async function loadLabJobCatalog() {
+  return (await authenticatedLabClient("web-lab-job-catalog")).getLabJobCatalog();
+}
+
+export async function createLabJob(request: LabJobRequest) {
+  return (await authenticatedLabClient("web-lab-job-create")).startLabJob(request);
+}
+
+export async function loadLabJob(jobId: string) {
+  return (await authenticatedLabClient("web-lab-job-read")).getLabJob(jobId);
+}
+
+export async function cancelLabJob(jobId: string) {
+  return (await authenticatedLabClient("web-lab-job-cancel")).cancelLabJob(jobId);
+}
+
+export async function reviewLabJob(jobId: string, review: LabJobReview) {
+  return (await authenticatedLabClient("web-lab-job-review")).reviewLabJob(
+    jobId,
+    review,
+  );
+}
+
+export async function loadLabRegressions() {
+  return (await authenticatedLabClient("web-lab-regression-list")).listLabRegressions();
+}
+
+export async function loadLabRegression(regressionId: string) {
+  return (await authenticatedLabClient("web-lab-regression-read")).getLabRegression(
+    regressionId,
+  );
+}
+
+export async function createLabRegression(request: LabRegressionRequest) {
+  return (await authenticatedLabClient("web-lab-regression-create")).saveLabRegression(
     request,
   );
 }

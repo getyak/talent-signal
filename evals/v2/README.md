@@ -42,6 +42,43 @@ unreviewed proposals until that adjudication creates a human-gold record.
 The repository scenario and the local deterministic gate remain authoritative.
 An external experiment system may receive only a policy-approved projection.
 
+## Consume a Lab regression
+
+The `lab-regression` command checks an existing product rerun. Start that rerun
+from Lab first; this command makes no model calls. It binds the exact saved
+snapshot, input, reference time, configurations and attempt matrix, then uses
+the shared atomic gate evaluator. A preference or expected-behavior note never
+adjudicates new output. A reviewed failure is development evidence, including
+when its original source was held out; it is not silently added to a held-out
+or release suite.
+
+For an authenticated backend readback, supply the scoped session token through
+`TS_LAB_EVALUATION_TOKEN` in the process environment, never a command argument:
+
+```sh
+pnpm --filter @talent-signal/eval-runner exec tsx src/cli.ts lab-regression \
+  --backend https://your-approved-backend.example \
+  --regression-id SAVED_CASE_UUID --run-id RERUN_UUID \
+  --output /tmp/lab-regression-report.json
+```
+
+The selected origin must use HTTPS or loopback HTTP. Requests do not follow
+redirects; source lifetime is checked again after run readback. Alternatively,
+use `--bundle /path/to/reviewed-export.json --run /path/to/rerun-record.json`
+without `--backend`. Local files are caller-reviewed records, not authenticated
+current-state or CI proof. The output path must not already exist.
+
+Reports contain identifiers, hashes, timing, usage and atomic checks. They
+exclude input, answer and review content; their consumer source fingerprint is
+distinct from the backend's reported revision. Failed or unknown integrity
+checks return a nonzero exit code. Semantic quality remains `needs_review` and
+the report grants no release authority. The CI backend job exercises a newly
+saved synthetic case and uploads only its metadata report. An optional manual
+dispatch can consume a particular existing case and rerun. The backend verifies
+that independent artifact before iOS can display verified CI consumption;
+quality and release enforcement remain separate. See the
+[operator workflow](../../docs/operations/lab-ci-verification.md).
+
 ## Digests
 
 Every reference uses a repository-relative path and `sha256:<hex>` content

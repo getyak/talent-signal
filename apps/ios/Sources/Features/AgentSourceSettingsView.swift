@@ -10,22 +10,36 @@ final class AgentProfileReferenceStore: ObservableObject {
 
     private let defaults: UserDefaults
     private let key: String
+    private let allowsLegacyMigration: Bool
 
-    init(workspaceID: String?, defaults: UserDefaults = .standard) {
+    init(workspaceID: String?, runtimeScope: String? = nil, defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        key = Self.storageKey(workspaceID: workspaceID)
+        key = Self.storageKey(workspaceID: runtimeScope ?? workspaceID)
+        allowsLegacyMigration = runtimeScope == nil || workspaceID.map {
+            RuntimeLegacyBindings.authorizes(accountID: $0, scope: runtimeScope!, defaults: defaults)
+        } == true
+        if runtimeScope != nil, let workspaceID, allowsLegacyMigration {
+            let oldKey = Self.storageKey(workspaceID: workspaceID)
+            if defaults.data(forKey: key) == nil, let old = defaults.data(forKey: oldKey) {
+                defaults.set(old, forKey: key)
+                if defaults.data(forKey: key) == old { defaults.removeObject(forKey: oldKey) }
+            }
+        }
         references = AgentProfileReferenceCodec.decode(defaults.data(forKey: key))
     }
 
     static func deleteAll(
         workspaceID: String?,
+        runtimeScope: String? = nil,
         defaults: UserDefaults = .standard
     ) -> Bool {
-        let key = storageKey(workspaceID: workspaceID)
+        let key = storageKey(workspaceID: runtimeScope ?? workspaceID)
         defaults.removeObject(forKey: key)
-        defaults.removeObject(forKey: TalentSignalAgentPreference.linkedInURLKey)
+        if runtimeScope == nil || workspaceID.map({ RuntimeLegacyBindings.authorizes(
+            accountID: $0, scope: runtimeScope!, defaults: defaults) }) == true {
+            defaults.removeObject(forKey: TalentSignalAgentPreference.linkedInURLKey)
+        }
         return defaults.data(forKey: key) == nil
-            && defaults.string(forKey: TalentSignalAgentPreference.linkedInURLKey) == nil
     }
 
     @discardableResult
@@ -65,6 +79,7 @@ final class AgentProfileReferenceStore: ObservableObject {
 
     @discardableResult
     func migrateLegacyLinkedIn(_ value: String) -> Bool {
+        guard allowsLegacyMigration else { return false }
         guard !references.contains(where: { $0.platform == .linkedIn }) else {
             return true
         }
@@ -94,6 +109,7 @@ struct AgentSourceSettingsView: View {
     let screenshotShortcutReceivedAt: Double
     let isCalendarSyncEnabled: Bool
 
+    @Environment(\.talentSignalReduceTransparency) private var reduceTransparency
     @Environment(\.appLanguage) private var appLanguage
     @State private var editorRoute: ProfileReferenceEditorRoute?
     @State private var selectedImportKind: ContactImportSourceKind?
@@ -126,7 +142,7 @@ struct AgentSourceSettingsView: View {
             if isReadingFile {
                 ProgressView(appLanguage.text("Reading contacts on this device…"))
                     .padding(20)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+                    .background(reduceTransparency ? AnyShapeStyle(Color.tsSurface) : AnyShapeStyle(.regularMaterial), in: RoundedRectangle(cornerRadius: 18))
                     .accessibilityIdentifier("agent-import-reading")
             }
         }

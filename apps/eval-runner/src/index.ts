@@ -18,3 +18,4 @@ export * from "./repository.js";
 export * from "./report.js";
 export * from "./runSuite.js";
 export * from "./safeExportPolicy.js";
+export * from "./labRegression.js";

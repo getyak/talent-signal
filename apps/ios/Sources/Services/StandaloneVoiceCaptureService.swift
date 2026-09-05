@@ -13,7 +13,15 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        didSet {
+            switch phase {
+            case .idle, .ready, .failed: runtimeLease = nil
+            case .requestingPermission, .recording, .transcribing: break
+            }
+        }
+    }
+    private var runtimeLease: RuntimeWorkLease?
     @Published private(set) var transcript = ""
     @Published private(set) var elapsedSeconds = 0
 
@@ -74,13 +82,31 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
     }
 
     func start(draftID: UUID, authorizationConfirmed: Bool) async {
-        guard !isRecording else { return }
+        switch phase {
+        case .requestingPermission, .recording, .transcribing: return
+        default: break
+        }
         guard authorizationConfirmed else {
             phase = .failed("Confirm that this purpose-bound capture is authorized before recording.")
             return
         }
+        let lease: RuntimeWorkLease
+        do { lease = try RuntimeWorkLease(.recording) }
+        catch { phase = .failed(RuntimeEnvironmentError.busy.localizedDescription); return }
+        runtimeLease = lease
+        defer {
+            if runtimeLease === lease, Task.isCancelled { cancel() }
+            if runtimeLease === lease {
+                switch phase {
+                case .requestingPermission: phase = .idle
+                case .idle, .ready, .failed: runtimeLease = nil
+                case .recording, .transcribing: break
+                }
+            }
+        }
         phase = .requestingPermission
         let granted = await requestMicrophonePermission()
+        guard runtimeLease === lease, !Task.isCancelled else { return }
         guard granted else {
             phase = .failed("Microphone permission was not granted. Your draft remains available for typed input.")
             return
@@ -109,6 +135,7 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
                         Task { @MainActor in self?.transcript = text }
                     }
                 ) {
+                    guard runtimeLease === lease, !Task.isCancelled else { await liveRecorder.cancel(); return }
                     liveSpeechRecorder = liveRecorder
                     self.temporaryURL = liveTemporaryURL
                     self.finalURL = liveFinalURL
@@ -122,6 +149,7 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
                 try? removeIfPresent(liveTemporaryURL)
                 try? removeIfPresent(liveFinalURL)
             }
+            guard runtimeLease === lease, !Task.isCancelled else { return }
             let recorder = try AVAudioRecorder(
                 url: temporaryURL,
                 settings: [
@@ -149,6 +177,13 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
     }
 
     func stopAndTranscribe(locale: Locale = .current) async -> String? {
+        guard let lease = runtimeLease else { return nil }
+        // A cancelled UI may clear its lease reference while the speech engine
+        // is still finishing. Keep maintenance blocked until this work returns.
+        defer {
+            if runtimeLease === lease, Task.isCancelled { cancel() }
+            withExtendedLifetime(lease) {}
+        }
         if #available(iOS 26.0, *),
            let liveRecorder = liveSpeechRecorder as? StandaloneLiveSpeechRecorder {
             timer?.invalidate()
@@ -156,14 +191,18 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
             liveSpeechRecorder = nil
             phase = .transcribing
             await activityCoordinator.markOrganizing()
+            guard runtimeLease === lease, !Task.isCancelled else { await liveRecorder.cancel(); return nil }
             try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
             do {
                 let result = try await liveRecorder.stop()
+                guard runtimeLease === lease, !Task.isCancelled else { return nil }
                 transcript = result.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-                phase = .ready(fileName: result.fileName)
                 await activityCoordinator.markReadyToReview()
+                guard runtimeLease === lease, !Task.isCancelled else { return nil }
+                phase = .ready(fileName: result.fileName)
                 return transcript.isEmpty ? nil : transcript
             } catch {
+                guard runtimeLease === lease, !Task.isCancelled else { return nil }
                 phase = .failed("The live transcript could not be finalized. The typed Draft remains available.")
                 await activityCoordinator.end(dismissImmediately: true)
                 return nil
@@ -188,16 +227,21 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
         }
         phase = .transcribing
         await activityCoordinator.markOrganizing()
+        guard runtimeLease === lease, !Task.isCancelled else { return nil }
         do {
             let text = try await transcribe(fileURL: sealedURL, locale: locale)
+            guard runtimeLease === lease, !Task.isCancelled else { return nil }
             transcript = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            phase = .ready(fileName: sealedURL.lastPathComponent)
             await activityCoordinator.markReadyToReview()
+            guard runtimeLease === lease, !Task.isCancelled else { return nil }
+            phase = .ready(fileName: sealedURL.lastPathComponent)
             return transcript.isEmpty ? nil : transcript
         } catch {
-            phase = .ready(fileName: sealedURL.lastPathComponent)
+            guard runtimeLease === lease, !Task.isCancelled else { return nil }
             transcript = ""
             await activityCoordinator.markReadyToReview()
+            guard runtimeLease === lease, !Task.isCancelled else { return nil }
+            phase = .ready(fileName: sealedURL.lastPathComponent)
             return nil
         }
     }
@@ -231,7 +275,8 @@ final class StandaloneVoiceCaptureService: NSObject, ObservableObject {
         if #available(iOS 26.0, *),
            let liveRecorder = liveSpeechRecorder as? StandaloneLiveSpeechRecorder {
             liveSpeechRecorder = nil
-            Task { await liveRecorder.cancel() }
+            let closingLease = runtimeLease
+            Task { await liveRecorder.cancel(); withExtendedLifetime(closingLease) {} }
         }
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
         if let temporaryURL { try? removeIfPresent(temporaryURL) }

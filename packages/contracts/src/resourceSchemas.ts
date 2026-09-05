@@ -12,6 +12,7 @@ import {
 } from "./constants.js";
 import { SourceRetentionRequestSchema } from "./schemas.js";
 import { TelemetryContextSchema } from "./telemetrySchemas.js";
+import { LabFeatureAdoptionReceiptSchema } from "./labFeatureSchemas.js";
 
 const Id = Type.String({ format: "uuid" });
 const Timestamp = Type.String({ format: "date-time" });
@@ -198,6 +199,7 @@ const SharedEvidenceLocatorSchemas = [
     {
       kind: Type.Literal("message"),
       source_message_id: Type.String({ minLength: 1, maxLength: 128 }),
+      message_timestamp: Type.Optional(Timestamp),
       sequence: Type.Integer({ minimum: 0 }),
       speaker_side: Type.Union([
         Type.Literal("left"),
@@ -328,6 +330,7 @@ export const EvidenceFragmentInputSchema = Type.Object(
 
 export const EvidenceFragmentSchema = Type.Object(
   {
+    last_review_id: Type.Optional(Type.Union([Id, Type.Null()])),
     id: Id,
     account_id: Id,
     capture_id: Id,
@@ -429,6 +432,8 @@ export const ResourceCaptureResponseSchema = Type.Object(
           maxItems: 20,
           uniqueItems: true,
         }),
+        person_display_label: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+        relationship_display_label: Type.Optional(Type.Union([Type.String(), Type.Null()])),
       },
       { additionalProperties: false },
     ),
@@ -1074,6 +1079,8 @@ export const RelationshipResourceListResponseSchema = Type.Object(
 export const ResourceClaimProposalSchema = Type.Object(
   {
     id: Id,
+    review_token: Type.Optional(Type.String()),
+    review_blockers: Type.Optional(Type.Array(Type.String())),
     field: Type.String({
       minLength: 1,
       maxLength: 160,
@@ -1114,6 +1121,8 @@ export const ResourceClaimProposalSchema = Type.Object(
       Type.String({ minLength: 1, maxLength: 2_000 }),
       Type.Null(),
     ]),
+    reviewed_value: Type.Optional(Type.Union([Type.String({ maxLength: 2_000 }), Type.Null()])),
+    last_decision_id: Type.Optional(Type.Union([Id, Type.Null()])),
     version: Type.Integer({ minimum: 1 }),
     producer: Type.Object(
       {
@@ -1146,6 +1155,7 @@ export const RelationshipResourceDetailSchema = Type.Object(
 
 export const EvidenceFragmentReviewRequestSchema = Type.Object(
   {
+    confirmed_speaker: Type.Optional(Type.Union([Type.Literal("candidate"), Type.Literal("recruiter"), Type.Literal("client")])),
     idempotency_key: IdempotencyKey,
     expected_review_status: Type.Union([
       Type.Literal("proposed"),
@@ -1646,6 +1656,7 @@ export const ChatTaskReadbackSchema = Type.Object(
       maxItems: 500,
       uniqueItems: true,
     }),
+    lab_feature_receipt: Type.Optional(LabFeatureAdoptionReceiptSchema),
     media: Type.Optional(Type.Array(ChatMediaAssetSchema, { maxItems: 10 })),
     created_at: Timestamp,
   },
