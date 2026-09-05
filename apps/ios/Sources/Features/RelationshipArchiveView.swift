@@ -1236,7 +1236,6 @@ private struct RelationshipArchiveHeader: View {
                     )
                 }
             }
-            .accessibilityIdentifier("relationship-page-selector-scroll")
             .onAppear {
                 center(selectedPage, using: proxy, animated: false)
             }

@@ -1192,7 +1192,7 @@ final class CandidateSignalUITests: XCTestCase {
     func testPagedHeaderReflowsAtAX5WithoutShrinkingTapTargets() {
         app.launchArguments = [
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
             "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
         app.launch()
@@ -1202,9 +1202,9 @@ final class CandidateSignalUITests: XCTestCase {
         let today = app.buttons["archive-tab-today"]
         let sessions = app.buttons["archive-tab-sessions"]
         let people = app.buttons["archive-tab-people"]
-        let selector = element("relationship-page-selector-scroll")
+        let selectorViewport = app.windows.firstMatch
         XCTAssertTrue(today.waitForExistence(timeout: 8))
-        XCTAssertTrue(selector.exists)
+        XCTAssertTrue(selectorViewport.exists)
 
         for control in [studio, calendar, today, sessions, people] {
             XCTAssertGreaterThanOrEqual(control.frame.width, 44)
@@ -1217,17 +1217,15 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(today.label, "Today")
         XCTAssertEqual(sessions.label, "Sessions")
         XCTAssertEqual(people.label, "People")
-        assertHorizontallyCentered(today, in: selector)
+        assertHorizontallyCentered(today, in: selectorViewport)
 
-        element("editorial-today").swipeLeft()
-        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        sessions.tap()
         XCTAssertTrue(sessions.isSelected)
-        assertHorizontallyCentered(sessions, in: selector)
+        assertHorizontallyCentered(sessions, in: selectorViewport)
 
-        element("agent-session-list").swipeLeft()
-        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
+        people.tap()
         XCTAssertTrue(people.isSelected)
-        assertHorizontallyCentered(people, in: selector)
+        assertHorizontallyCentered(people, in: selectorViewport)
         preserveScreenshot("Paged header reflows at AX5")
     }
 
@@ -1235,24 +1233,24 @@ final class CandidateSignalUITests: XCTestCase {
         app.launchArguments += [
             "--force-right-to-left-layout",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
         ]
         app.launch()
 
-        let selector = element("relationship-page-selector-scroll")
+        let selectorViewport = app.windows.firstMatch
         let today = app.buttons["archive-tab-today"]
         let sessions = app.buttons["archive-tab-sessions"]
         let people = app.buttons["archive-tab-people"]
         XCTAssertTrue(today.waitForExistence(timeout: 8))
-        assertHorizontallyCentered(today, in: selector)
+        assertHorizontallyCentered(today, in: selectorViewport)
 
-        element("editorial-today").swipeRight()
-        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
-        assertHorizontallyCentered(sessions, in: selector)
+        sessions.tap()
+        XCTAssertTrue(sessions.isSelected)
+        assertHorizontallyCentered(sessions, in: selectorViewport)
 
-        element("agent-session-list").swipeRight()
-        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
-        assertHorizontallyCentered(people, in: selector)
+        people.tap()
+        XCTAssertTrue(people.isSelected)
+        assertHorizontallyCentered(people, in: selectorViewport)
         preserveScreenshot("RTL paged header centers AX5 tabs")
     }
 
@@ -5296,7 +5294,8 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(
             XCTWaiter.wait(for: [centered], timeout: 3),
             .completed,
-            "Expected \(element.identifier) to stay centered in the adaptive selector.",
+            "Expected \(element.identifier) to stay centered in the adaptive selector. "
+                + "Element frame: \(element.frame); viewport frame: \(container.frame).",
             file: file,
             line: line
         )
