@@ -2,12 +2,21 @@ import "server-only";
 
 import {
   TalentSignalClient,
+  type AgentTaskProjection,
   type CancelAgentTaskRequest,
   type CreatePursuitAgentTaskRequest,
   type CreatePursuitAgentRunRequest,
   type ReviewPursuitProposalRequest,
   type ResolveAgentDecisionBundleRequest,
 } from "@talent-signal/contracts";
+
+import {
+  semanticBlocksForTask,
+  semanticTextChunks,
+  sseFrame,
+  type AgentTaskContentFrame,
+  type AgentTaskStreamFrame,
+} from "../agentTaskStream";
 
 import {
   buildPursuitTodayProjection,
@@ -170,6 +179,150 @@ export async function createPursuitAgentTask(
 export async function getPursuitAgentTask(taskId: string) {
   const client = await authenticatedClient("web-pursuit-agent-task-readback");
   return client.getAgentTask(taskId);
+}
+
+const STREAM_TERMINAL_STATUSES = new Set<AgentTaskProjection["status"]>([
+  "waiting_for_clarification",
+  "waiting_for_domain_decision",
+  "waiting_for_external",
+  "needs_rebase",
+  "completed",
+  "no_action",
+  "abstained",
+  "failed",
+  "cancelled",
+  "expired",
+]);
+
+function streamDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, milliseconds);
+    signal.addEventListener("abort", finish, { once: true });
+  });
+}
+
+export async function createPursuitAgentTaskEventStream(
+  taskId: string,
+  afterSequence: number,
+  signal: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+  const client = await authenticatedClient("web-pursuit-agent-task-stream");
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      let closed = false;
+      const send = (event: string, frame: AgentTaskStreamFrame, id?: string) => {
+        if (!closed && !signal.aborted) {
+          controller.enqueue(encoder.encode(sseFrame(event, frame, id)));
+        }
+      };
+      const close = () => {
+        if (!closed) {
+          closed = true;
+          controller.close();
+        }
+      };
+      const streamSemanticBlocks = async (task: AgentTaskProjection) => {
+        for (const item of semanticBlocksForTask(task)) {
+          if (signal.aborted) return;
+          const block = {
+            citationIds: item.citationIds,
+            id: item.id,
+            kind: item.kind,
+            title: item.title,
+          };
+          send("content-block", {
+            block,
+            operation: "start",
+            type: "content_block",
+          });
+          for (const delta of semanticTextChunks(item.text)) {
+            send("content-block", {
+              block,
+              delta,
+              operation: "delta",
+              type: "content_block",
+            } satisfies AgentTaskContentFrame);
+            await streamDelay(18, signal);
+          }
+          send("content-block", {
+            block,
+            operation: "commit",
+            type: "content_block",
+          });
+        }
+      };
+
+      void (async () => {
+        let cursor = Math.max(0, afterSequence);
+        let needsInitialSnapshot = true;
+        let lastHeartbeat = Date.now();
+        const openedAt = Date.now();
+        try {
+          const initial = await client.getAgentTask(taskId);
+          if (initial.task.id !== taskId) {
+            throw new Error("The streamed Agent Task readback did not match its route.");
+          }
+          send("stream-open", { taskId, type: "stream_open" });
+
+          while (!signal.aborted && Date.now() - openedAt < 25_000) {
+            const batch = await client.getAgentTaskEvents(taskId, cursor);
+            let needsSnapshot = needsInitialSnapshot;
+            needsInitialSnapshot = false;
+            for (const event of batch.events) {
+              if (event.task_sequence <= cursor) continue;
+              if (event.name === "artifact.ready") {
+                const readback = await client.getAgentTask(taskId);
+                await streamSemanticBlocks(readback.task);
+              }
+              send(
+                "task-event",
+                { event, type: "task_event" },
+                String(event.task_sequence),
+              );
+              cursor = event.task_sequence;
+              needsSnapshot = true;
+            }
+
+            if (needsSnapshot) {
+              const readback = await client.getAgentTask(taskId);
+              send("task-snapshot", {
+                task: readback.task,
+                type: "snapshot",
+              });
+              if (STREAM_TERMINAL_STATUSES.has(readback.task.status)) {
+                close();
+                return;
+              }
+            }
+            if (Date.now() - lastHeartbeat >= 10_000) {
+              controller.enqueue(encoder.encode(": keep-alive\n\n"));
+              lastHeartbeat = Date.now();
+            }
+            await streamDelay(450, signal);
+          }
+          close();
+        } catch {
+          send("stream-error", {
+            code: "AGENT_TASK_STREAM_UNAVAILABLE",
+            message: "任务事件流暂时中断；正在从规范任务状态恢复。",
+            type: "stream_error",
+          });
+          close();
+        }
+      })();
+    },
+  });
 }
 
 export async function cancelPursuitAgentTask(
