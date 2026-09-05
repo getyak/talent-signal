@@ -5245,13 +5245,15 @@ final class CandidateSignalUITests: XCTestCase {
                     ? scrollView.frame.maxY
                     : window.maxY
                 let statusBottom = statusBar.frame.maxY
-                // The audit crop is unreliable when only the edge of a text
-                // line is inside the scroll viewport. Ignore that clipped
-                // line, while keeping contrast findings for fully visible
-                // content active.
-                let edgeTolerance = max(1, min(frame.height, 44))
-                return frame.minY <= statusBottom + edgeTolerance
-                    || frame.maxY >= viewportBottom - edgeTolerance
+                // SwiftUI reports the edge-to-edge window as the ScrollView
+                // frame even though the bottom 34 points sit behind the home
+                // indicator safe area. Xcode then audits only the antialiased
+                // edge of a clipped line and reports false low contrast.
+                // Ignore nodes that cross a system-occluded edge while keeping
+                // every fully visible contrast finding active.
+                let visibleViewportBottom = min(viewportBottom, window.maxY - 34)
+                return frame.minY < statusBottom
+                    || frame.maxY > visibleViewportBottom
             }
 
             do {
