@@ -26646,12 +26646,32 @@
         }
       }
     },
-    "Voice straight to Agent?": {
+    "Create a voice draft?": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "语音直接交给 Agent？"
+            "value": "创建语音草稿？"
+          }
+        }
+      }
+    },
+    "Keep holding for voice…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续按住以开始语音…"
+          }
+        }
+      }
+    },
+    "Double tap to type. Touch and hold to start voice input.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击输入文字；触摸并按住可开始语音输入。"
           }
         }
       }
@@ -26666,12 +26686,22 @@
         }
       }
     },
-    "When available, live words appear on device while you speak. When you release, the temporary recording goes to Doubao for transcription and the text is sent directly to Agent. Talent Signal deletes its temporary audio after transcription; provider handling follows your service agreement.": {
+    "Start dictating": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "设备支持时，说话过程中会在本机显示实时文字。松开后，临时录音交给豆包转写，文字直接发送给 Agent；转写完成后 Talent Signal 会删除临时音频。服务商按你的服务协议处理。"
+            "value": "开始听写"
+          }
+        }
+      }
+    },
+    "When available, provisional words appear on device while you speak. After you stop, the temporary recording goes to Doubao to create an editable draft. Nothing is sent to Agent until you tap Send. Talent Signal deletes its temporary audio after transcription; provider handling follows your service agreement.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备支持时，说话过程中会在本机显示临时文字。停止后，临时录音会交给豆包生成可编辑草稿；点击发送前，不会向 Agent 提交任何文字。转写完成后 Talent Signal 会删除临时音频，服务商按你的服务协议处理。"
           }
         }
       }
@@ -26686,22 +26716,22 @@
         }
       }
     },
-    "Double tap for hands-free voice, or hold the composer and release to send.": {
+    "Double tap for hands-free voice, or hold and release to create an editable draft.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "双击开始免手持语音，或按住输入框说话，松开发送。"
+            "value": "双击开始免手持语音，或按住说话并松开以创建可编辑草稿。"
           }
         }
       }
     },
-    "Send voice to Agent": {
+    "Stop and review transcript": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "发送语音给 Agent"
+            "value": "停止并检查转写"
           }
         }
       }
@@ -26716,32 +26746,32 @@
         }
       }
     },
-    "One moment": {
+    "Finalizing transcript…": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "稍等一下"
+            "value": "正在完成转写…"
           }
         }
       }
     },
-    "Release to send · up to lock · left to cancel": {
+    "Release to review · up to lock · left to cancel": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "松开发送 · 上滑锁定 · 左滑取消"
+            "value": "松开后检查 · 上滑锁定 · 左滑取消"
           }
         }
       }
     },
-    "Hands-free": {
+    "Hands-free · tap stop to review": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "免手持"
+            "value": "免手持 · 点击停止后检查"
           }
         }
       }
@@ -26756,12 +26786,12 @@
         }
       }
     },
-    "Release to send": {
+    "Release to review": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "松开发送"
+            "value": "松开后检查"
           }
         }
       }
@@ -26856,22 +26886,22 @@
         }
       }
     },
-    "Stops recording, transcribes the temporary audio, and sends the words directly to Agent.": {
+    "Stops recording and creates an editable transcript. Nothing is sent until you tap Send.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "停止录音、转写临时音频，并将文字直接发送给 Agent。"
+            "value": "停止录音并创建可编辑转写；点击发送前，不会提交任何文字。"
           }
         }
       }
     },
-    "Starts foreground voice input. Release to send, slide up to continue hands-free, or slide left to cancel.": {
+    "Starts foreground voice input. Release to review, slide up to continue hands-free, or slide left to cancel.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "开始前台语音输入。松开发送，上滑继续免手持，左滑取消。"
+            "value": "开始前台语音输入。松开后检查，上滑继续免手持，左滑取消。"
           }
         }
       }

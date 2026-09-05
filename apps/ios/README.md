@@ -457,12 +457,14 @@ route. Candidate details and every consequential decision remain in the app.
 No demo card writes to Contacts, Calendar, ATS, CRM, or a messaging service;
 the final state is a local review handoff rather than a claimed external result.
 
-Relationship Ask uses the global composer as a direct voice ribbon. Hold an
-empty composer to speak, release to transcribe and send, slide up to continue
+Relationship Ask uses the global composer as a direct voice ribbon. Tap the
+home text surface to type or touch and hold it to enter voice immediately. Hold
+an empty Session composer to speak, release to create an editable transcript,
+and tap Send only after reviewing the provider-final words. Slide up to continue
 hands-free, or slide left to cancel. A tap on the connection mark starts the
 same hands-free path for accessibility. When the device supports on-device
 Speech recognition, partial words stay inside the ribbon while recording;
-Doubao still produces the submitted transcript under the first-use disclosure.
+Doubao produces the provider-final editable draft under the first-use disclosure.
 Temporary audio is deleted after transcription or cancellation.
 
 An admitted remote Ask starts a separate private Live Activity. Its payload is

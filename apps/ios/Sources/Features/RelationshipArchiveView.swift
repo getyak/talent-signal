@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 @MainActor
 struct RelationshipArchiveView: View {
@@ -5003,6 +5004,10 @@ private struct RelationshipGuideRail: View {
     let onAttach: () -> Void
     let onVoice: () -> Void
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
+    @State private var isHoldingForVoice = false
+    @State private var voiceLongPressTriggered = false
+    @State private var voiceHoldTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -5023,11 +5028,22 @@ private struct RelationshipGuideRail: View {
             )
             .accessibilityIdentifier("open-agent-attachments")
 
-            Button(action: onGuide) {
+            Button {
+                guard !voiceLongPressTriggered else { return }
+                onGuide()
+            } label: {
                 HStack(spacing: 10) {
-                    Text(appLanguage.text("Ask anything", zhHans: "问点什么"))
-                        .font(.subheadline)
-                        .foregroundStyle(Color.tsMutedInk)
+                    Text(
+                        isHoldingForVoice
+                            ? appLanguage.text(
+                                "Keep holding for voice…"
+                            )
+                            : appLanguage.text("Ask anything", zhHans: "问点什么")
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(
+                        isHoldingForVoice ? Color.tsInk : Color.tsMutedInk
+                    )
                     Spacer(minLength: 6)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -5035,9 +5051,35 @@ private struct RelationshipGuideRail: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .background(
+                isHoldingForVoice ? Color.tsSurfaceMuted.opacity(0.72) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .scaleEffect(isHoldingForVoice && !reduceMotion ? 0.985 : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.12),
+                value: isHoldingForVoice
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                    .onChanged { _ in beginVoiceHoldIfNeeded() }
+                    .onEnded { _ in endVoiceHold() }
+            )
             .accessibilityLabel(
                 appLanguage.text("Open a new Agent session", zhHans: "打开新的 Agent 会话")
             )
+            .accessibilityHint(
+                appLanguage.text(
+                    "Double tap to type. Touch and hold to start voice input."
+                )
+            )
+            .accessibilityAction(
+                named: Text(
+                    appLanguage.text(
+                        "Start voice input"
+                    )
+                )
+            ) { onVoice() }
             .accessibilityIdentifier("relationship-guide")
 
             Button(action: onVoice) {
@@ -5065,6 +5107,40 @@ private struct RelationshipGuideRail: View {
         .modifier(RelationshipGuideGlassModifier())
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+    }
+
+    private func beginVoice() {
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred()
+        onVoice()
+    }
+
+    private func beginVoiceHoldIfNeeded() {
+        guard voiceHoldTask == nil, !voiceLongPressTriggered else { return }
+        isHoldingForVoice = true
+        voiceHoldTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(550))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            voiceHoldTask = nil
+            voiceLongPressTriggered = true
+            beginVoice()
+        }
+    }
+
+    private func endVoiceHold() {
+        voiceHoldTask?.cancel()
+        voiceHoldTask = nil
+        isHoldingForVoice = false
+        guard voiceLongPressTriggered else { return }
+        Task { @MainActor in
+            await Task.yield()
+            voiceLongPressTriggered = false
+        }
     }
 }
 

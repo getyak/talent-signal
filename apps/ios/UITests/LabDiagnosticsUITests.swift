@@ -28,7 +28,7 @@ final class LabDiagnosticsUITests: XCTestCase {
         let disclosure = app.buttons["confirm-voice-input-disclosure"].firstMatch
         XCTAssertTrue(disclosure.waitForExistence(timeout: 5)); disclosure.tap()
         XCTAssertTrue(app.otherElements["ask-active-voice-ribbon"].waitForExistence(timeout: 5))
-        let stopVoice = app.buttons["ask-voice-send"]
+        let stopVoice = app.buttons["ask-voice-stop"]
         XCTAssertTrue(stopVoice.waitForExistence(timeout: 3)); stopVoice.tap()
         XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 5))
         let stopRecording = app.buttons["lab-diagnostics-quick-stop"]

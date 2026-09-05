@@ -174,6 +174,45 @@ final class AudioSignalCaptureTests: XCTestCase {
         XCTAssertEqual(transcriptionCalls, 1)
     }
 
+    func testVoiceDictationOneMinuteContractFitsBackendLimit() {
+        XCTAssertEqual(
+            VoiceDictationAudioContract.estimatedPCMByteCount(
+                durationSeconds: VoiceDictationAudioContract.maximumDurationSeconds
+            ),
+            1_920_044
+        )
+        XCTAssertLessThan(
+            VoiceDictationAudioContract.estimatedPCMByteCount(
+                durationSeconds: VoiceDictationAudioContract.maximumDurationSeconds
+            ),
+            VoiceDictationAudioContract.maximumPayloadBytes
+        )
+    }
+
+    func testVoiceTranscriptionRejectsOversizedPayloadBeforeReadingAudio() async {
+        let payload = VoiceDictationPayload(
+            id: UUID(),
+            fileURL: URL(fileURLWithPath: "/missing/oversized-voice.wav"),
+            byteCount: VoiceDictationAudioContract.maximumPayloadBytes + 1,
+            durationSeconds: VoiceDictationAudioContract.maximumDurationSeconds,
+            mimeType: "audio/wav"
+        )
+        let client = URLVoiceTranscriptionClient(
+            baseURL: URL(string: "https://example.invalid")!,
+            accessToken: "test-token"
+        )
+
+        do {
+            _ = try await client.transcribe(payload)
+            XCTFail("Expected an oversized payload to be rejected locally.")
+        } catch {
+            XCTAssertEqual(
+                error as? VoiceTranscriptionClientError,
+                .payloadTooLarge
+            )
+        }
+    }
+
     func testVoiceInputPublishesBestEffortLiveWordsInsideComposer() async {
         let recorder = VoiceDictationRecordingSpy(permission: .granted)
         recorder.liveTranscript = "Help me organize last week's meeting"
