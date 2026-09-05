@@ -5,7 +5,7 @@ import { ZhipuContactAgentModel } from "@talent-signal/agent";
 import { buildApp } from "../app.js";
 import { LocalContactResearchClient } from "../modules/contactResearchClient.js";
 
-const database=process.env.CONTACT_AGENT_TEST_DATABASE_URL;
+const database=process.env.DATABASE_URL;
 assert(database && new URL(database).pathname==="/contact_proof" && new URL(database).hostname==="127.0.0.1","Use the task-owned disposable proof database.");
 const pool=new Pool({connectionString:database,max:8});
 const app=await buildApp({pool,config:{databaseUrl:database,host:"127.0.0.1",port:4337,allowedOrigins:[],appleSignInAudiences:[],appleSignInEnabled:false,
