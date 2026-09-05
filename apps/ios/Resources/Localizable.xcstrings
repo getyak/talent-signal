@@ -5931,6 +5931,26 @@
         }
       }
     },
+    "More person actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多人物操作"
+          }
+        }
+      }
+    },
+    "More session actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多会话操作"
+          }
+        }
+      }
+    },
     "Name": {
       "localizations": {
         "zh-Hans": {
