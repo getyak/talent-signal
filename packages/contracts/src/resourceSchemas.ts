@@ -432,8 +432,12 @@ export const ResourceCaptureResponseSchema = Type.Object(
           maxItems: 20,
           uniqueItems: true,
         }),
-        person_display_label: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-        relationship_display_label: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+        person_display_label: Type.Optional(
+          Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
+        ),
+        relationship_display_label: Type.Optional(
+          Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
+        ),
       },
       { additionalProperties: false },
     ),
@@ -1079,8 +1083,15 @@ export const RelationshipResourceListResponseSchema = Type.Object(
 export const ResourceClaimProposalSchema = Type.Object(
   {
     id: Id,
-    review_token: Type.Optional(Type.String()),
-    review_blockers: Type.Optional(Type.Array(Type.String())),
+    review_token: Type.Optional(
+      Type.String({ minLength: 64, maxLength: 64, pattern: "^[a-f0-9]{64}$" }),
+    ),
+    review_blockers: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 120 }), {
+        maxItems: 10,
+        uniqueItems: true,
+      }),
+    ),
     field: Type.String({
       minLength: 1,
       maxLength: 160,
