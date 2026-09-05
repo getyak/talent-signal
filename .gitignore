@@ -13,6 +13,7 @@ xcuserdata/
 apps/ios/Config/Environment.local.xcconfig
 node_modules/
 .next/
+.next-*/
 .playwright-cli/
 output/
 tmp/

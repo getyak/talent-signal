@@ -236,6 +236,15 @@ jobs:
           pnpm --filter @talent-signal/eval-runner typecheck
           pnpm --filter @talent-signal/eval-runner exec vitest run src/labRegression.test.ts
 
+      - name: Verify screenshot contact authority with PostgreSQL
+        env:
+          DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+          CONTACT_AGENT_TEST_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+        run: |
+          pnpm --filter @talent-signal/backend migrate
+          pnpm --filter @talent-signal/backend seed
+          pnpm --filter @talent-signal/backend exec vitest run src/modules/screenshotContactTasks.integration.test.ts
+
       - name: Exercise saved regression lifecycle with a synthetic provider
         env:
           DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci

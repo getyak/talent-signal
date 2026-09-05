@@ -768,8 +768,16 @@ export async function createResourceCapture(
   auth: AuthContext,
   request: ResourceCaptureRequest,
 ): Promise<ResourceIntakeMutationResult> {
+  return inTransaction(pool, (client) => createResourceCaptureInTransaction(client, auth, request));
+}
+
+// Allows a governed task checkpoint and its exact evidence write to commit together.
+export async function createResourceCaptureInTransaction(
+  client: PoolClient,
+  auth: AuthContext,
+  request: ResourceCaptureRequest,
+): Promise<ResourceIntakeMutationResult> {
   validateResourceRequest(request);
-  return inTransaction(pool, async (client) => {
     const idempotency = await claimIdempotency(
       client,
       { accountId: auth.accountId, actorUserId: auth.userId },
@@ -1196,5 +1204,4 @@ export async function createResourceCapture(
       capture_id: captureId,
     });
     return { body, replayed: false, status: 201 };
-  });
 }

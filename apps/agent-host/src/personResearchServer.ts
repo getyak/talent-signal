@@ -5,6 +5,8 @@ import { dirname, isAbsolute, resolve } from "node:path";
 
 import {
   fingerprint,
+  ContactResearchToolRequestSchema,
+  type ContactResearchToolResponse,
   PersonResearchServiceRequestSchema,
   type PersonResearchServiceResponse,
 } from "@talent-signal/agent";
@@ -13,6 +15,7 @@ import {
   runPersonResearchServiceRequest,
   type PersonResearchServiceDependencies,
 } from "./personResearchService.js";
+import { runContactResearchTool, type ContactResearchDependencies } from "./contactResearchService.js";
 
 const MAX_BODY_BYTES = 13_500_000;
 const MAX_ACTIVE_RUNS = 2;
@@ -65,9 +68,9 @@ function json(
   response.end(body);
 }
 
-async function body(request: IncomingMessage): Promise<unknown> {
+async function body(request: IncomingMessage, maximumBytes = MAX_BODY_BYTES): Promise<unknown> {
   const declared = Number(request.headers["content-length"] ?? 0);
-  if (declared > MAX_BODY_BYTES) {
+  if (declared > maximumBytes) {
     throw new Error("PERSON_RESEARCH_REQUEST_TOO_LARGE");
   }
   const chunks: Buffer[] = [];
@@ -75,7 +78,7 @@ async function body(request: IncomingMessage): Promise<unknown> {
   for await (const chunk of request) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += bytes.byteLength;
-    if (size > MAX_BODY_BYTES) {
+    if (size > maximumBytes) {
       throw new Error("PERSON_RESEARCH_REQUEST_TOO_LARGE");
     }
     chunks.push(bytes);
@@ -87,6 +90,7 @@ export interface PersonResearchServerOptions
   extends PersonResearchServiceDependencies {
   socketPath: string;
   environment?: NodeJS.ProcessEnv;
+  contactResearch?: ContactResearchDependencies;
 }
 
 export async function startPersonResearchServer(
@@ -102,7 +106,37 @@ export async function startPersonResearchServer(
     string,
     { identity: string; promise: Promise<PersonResearchServiceResponse> }
   >();
+  const researchCalls = new Map<string, { identity: string; promise: Promise<ContactResearchToolResponse> }>();
   const server = createServer(async (request, response) => {
+    if (request.method === "POST" && request.url === "/v1/contact-research/tools") {
+      if (request.headers["content-type"]?.split(";", 1)[0] !== "application/json") {
+        json(response, 415, { error: "CONTACT_RESEARCH_JSON_REQUIRED" });
+        return;
+      }
+      try {
+        const parsed = ContactResearchToolRequestSchema.parse(await body(request, 100_000));
+        const key = `${parsed.task_id}:${parsed.call_id}`;
+        const identity = fingerprint(parsed);
+        const existing = researchCalls.get(key);
+        if (existing && existing.identity !== identity) {
+          json(response, 409, { error: "CONTACT_RESEARCH_CALL_ID_CONFLICT" });
+          return;
+        }
+        if (!existing && researchCalls.size + active.size >= MAX_ACTIVE_RUNS) {
+          json(response, 503, { error: "CONTACT_RESEARCH_CAPACITY_EXHAUSTED" });
+          return;
+        }
+        const promise = existing?.promise ?? runContactResearchTool(parsed, options.environment, options.contactResearch);
+        if (!existing) researchCalls.set(key, { identity, promise });
+        try { json(response, 200, await promise); }
+        finally { if (!existing) researchCalls.delete(key); }
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
+          ? error.code : "CONTACT_RESEARCH_UNAVAILABLE";
+        json(response, 502, { error: code });
+      }
+      return;
+    }
     if (request.method !== "POST" || request.url !== "/v1/person-research") {
       json(response, 404, { error: "PERSON_RESEARCH_ROUTE_NOT_FOUND" });
       return;
@@ -128,7 +162,7 @@ export async function startPersonResearchServer(
         json(response, 409, { error: "PERSON_RESEARCH_RUN_ID_CONFLICT" });
         return;
       }
-      if (!existing && active.size >= MAX_ACTIVE_RUNS) {
+      if (!existing && active.size + researchCalls.size >= MAX_ACTIVE_RUNS) {
         json(response, 503, { error: "PERSON_RESEARCH_CAPACITY_EXHAUSTED" });
         return;
       }

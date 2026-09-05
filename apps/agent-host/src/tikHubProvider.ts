@@ -139,9 +139,12 @@ function candidateRecords(payload: JsonRecord, platform: TikHubProfilePlatform) 
   const data = record(payload.data) ?? payload;
   const lists =
     platform === "threads"
-      ? [data.users, record(data.data)?.users]
+      ? [data.users, record(data.data)?.users,
+          array(record(data.xdt_api__v1__users__search_connection)?.edges)
+            .map((edge) => record(edge)?.node)]
       : platform === "weibo"
-        ? [data.users, data.user_list, data.list, record(data.data)?.users]
+        ? [data.users, data.user_list, data.list, record(data.data)?.users,
+            record(data.parsed_data)?.users]
         : [data.user_list, data.users, data.items, record(data.data)?.user_list];
   const candidates = lists.flatMap(array).map((item) => {
     const wrapper = record(item);
@@ -169,6 +172,7 @@ function normalizeProfile(
   ]);
   const displayName = firstString(source, [
     "nickname",
+    "nick_name",
     "full_name",
     "display_name",
     "name",
@@ -197,7 +201,7 @@ function normalizeProfile(
   return {
     ...observedContent,
     contentHash: createHash("sha256")
-      .update(JSON.stringify(observedContent))
+      .update(JSON.stringify({ ...observedContent, providerRequestID: null }))
       .digest("hex"),
     retrievedAt,
   };
@@ -308,14 +312,26 @@ export class TikHubProvider {
         "TikHub response exceeded the local Agent limit.",
       );
     }
-    const text = await response.text();
-    if (Buffer.byteLength(text, "utf8") > MAX_RESPONSE_BYTES) {
-      throw new TikHubProviderError(
-        "TIKHUB_RESPONSE_TOO_LARGE",
-        "TikHub response exceeded the local Agent limit.",
-      );
+    const reader = response.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    if (reader) {
+      try {
+        while (true) {
+          const next = await reader.read();
+          if (next.done) break;
+          size += next.value.byteLength;
+          if (size > MAX_RESPONSE_BYTES) {
+            await reader.cancel();
+            throw new TikHubProviderError("TIKHUB_RESPONSE_TOO_LARGE", "TikHub response exceeded the local Agent limit.");
+          }
+          chunks.push(next.value);
+        }
+      } finally { reader.releaseLock(); }
     }
-    const payload = record(JSON.parse(text));
+    let payload: JsonRecord | null = null;
+    try { payload = record(JSON.parse(Buffer.concat(chunks).toString("utf8"))); }
+    catch { /* Provider content must not appear in parse errors. */ }
     if (!payload) {
       throw new TikHubProviderError(
         "TIKHUB_RESPONSE_INVALID",
@@ -386,15 +402,12 @@ export class TikHubProvider {
     const request =
       input.platform === "douyin"
         ? {
-            path: "/api/v1/douyin/search/fetch_user_search",
+            path: "/api/v1/douyin/search/fetch_user_search_v2",
             init: {
               method: "POST",
               body: JSON.stringify({
                 keyword: query,
                 cursor: 0,
-                douyin_user_fans: "",
-                douyin_user_type: "",
-                search_id: "",
               }),
             },
           }

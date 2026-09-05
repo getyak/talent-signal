@@ -259,7 +259,7 @@ struct RelationshipArchiveView: View {
                     }
                 )
             case let .workspacePerson(person, roles):
-                WorkspacePersonDetailView(person: person, roles: roles)
+                WorkspacePersonDetailView(person: person, roles: roles, workspaceStore: workspaceStore)
             case let .proposal(proposal):
                 RelationshipChangeReviewView(
                     person: previewPerson(for: proposal),
@@ -457,7 +457,7 @@ struct RelationshipArchiveView: View {
                         guard let current = workspaceStore.snapshot,
                               let person = current.person(id: personID) else { return nil }
                         return AnyView(WorkspacePersonDetailView(
-                            person: person, roles: roles(for: person.id, in: current)
+                            person: person, roles: roles(for: person.id, in: current), workspaceStore: workspaceStore
                         ))
                     },
                     onPrepare: stageCalendarPreparation
@@ -4878,6 +4878,9 @@ private struct PursuitDefinitionSection: View {
 private struct WorkspacePersonDetailView: View {
     let person: WorkspacePerson
     let roles: [WorkspacePersonRole]
+    @ObservedObject var workspaceStore: PursuitWorkspaceStore
+    @State private var sourceTasks: [ScreenshotContactTask] = []
+    @State private var sourceError: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var appLanguage
 
@@ -4945,6 +4948,15 @@ private struct WorkspacePersonDetailView: View {
                         }
                     }
 
+                    if !sourceTasks.isEmpty {
+                        RelationshipEyebrow(appLanguage.text("Conversation and sourced context"))
+                            .padding(.top, 30)
+                        ForEach(sourceTasks) { task in
+                            ScreenshotContactCard(task: task, language: appLanguage).padding(.top, 16)
+                        }
+                    }
+                    if let sourceError { Text(sourceError).font(.caption).foregroundStyle(Color.tsMutedInk).padding(.top, 16) }
+
                     RelationshipEyebrow(appLanguage.text("Pursuit roles"))
                         .padding(.top, 30)
                     if roles.isEmpty {
@@ -4996,6 +5008,17 @@ private struct WorkspacePersonDetailView: View {
             }
         }
         .accessibilityIdentifier("workspace-person-detail")
+        .task(id: person.id) {
+            guard workspaceStore.isCanonical else { return }
+            do {
+                var results: [ScreenshotContactTask] = []
+                for context in person.contexts {
+                    let envelope = try await workspaceStore.loadContactIntelligence(personID: person.id, contextID: context.id)
+                    results.append(contentsOf: envelope.tasks)
+                }
+                sourceTasks = Array(results.prefix(20))
+            } catch { sourceError = appLanguage.text("Source context could not be refreshed.") }
+        }
     }
 }
 

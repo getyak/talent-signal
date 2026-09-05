@@ -143,6 +143,9 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.41
         version: 0.34.52
+      '@talent-signal/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@talent-signal/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
