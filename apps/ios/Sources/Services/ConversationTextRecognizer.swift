@@ -141,3 +141,62 @@ struct CaptureDraftBuilder {
         return String(text[swiftRange])
     }
 }
+
+enum CaptureSessionDecisionPolicy {
+    static func automaticBinding(
+        for identityCase: IdentityResolutionCase
+    ) -> (candidate: IdentityResolutionCandidate, context: RelationshipContextChoice)? {
+        guard identityCase.status == "pending",
+              identityCase.candidates.count == 1,
+              let candidate = identityCase.candidates.first,
+              candidate.temporalRole == .current,
+              candidate.relationshipContexts.count == 1,
+              let context = candidate.relationshipContexts.first else {
+            return nil
+        }
+        return (candidate, context)
+    }
+
+    static func blockers(for draft: RecognizedCaptureDraft) -> [String] {
+        var blockers: [String] = []
+        if draft.handleValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           draft.displayNameHint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            blockers.append(
+                "The Agent could not find a reliable identity clue. Choose the person and relationship for this source."
+            )
+        } else {
+            blockers.append(
+                "The Agent found an identity clue but could not resolve it with the available tools. Choose the person and relationship for this source."
+            )
+        }
+        return blockers
+    }
+
+    static func blockers(
+        for capture: ResourceCaptureResult,
+        identityCase: IdentityResolutionCase? = nil
+    ) -> [String] {
+        var blockers: [String] = []
+        if capture.identity.status != "bound" {
+            if capture.identity.candidatePersonIDs.count > 1 {
+                blockers.append(
+                    "The Agent found multiple possible people. Choose who owns this conversation."
+                )
+            } else if capture.identity.candidatePersonIDs.isEmpty {
+                blockers.append(
+                    "The Agent could not resolve a person safely. Choose the person and relationship for this source."
+                )
+            } else if let candidate = identityCase?.candidates.first,
+                      candidate.temporalRole != .current {
+                blockers.append(
+                    "The only identity clue is historical or expired. Confirm the person and relationship before attaching this source."
+                )
+            } else {
+                blockers.append(
+                    "The Agent found one person but could not choose one relationship context safely. Choose the relationship for this source."
+                )
+            }
+        }
+        return blockers
+    }
+}

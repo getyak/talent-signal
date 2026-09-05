@@ -92,11 +92,11 @@ The internal Lab replays only versioned synthetic evidence and writes only quali
 
 ### Mobile capture boundary
 
-The iOS image remains device-owned while local recognition produces an editable draft. Only recruiter-reviewed text, source metadata, and explicitly entered identity and relationship clues cross into the shared backend.
-The reviewed text is a governed source fragment with unknown speaker attribution, not a lossless replacement for an image that the backend never retained.
+The iOS image remains device-owned while local recognition produces a draft. Intentional selection authorizes purpose-bound processing and proposed-source retention; it does not confirm the extracted text, speaker, identity, facts, or an external effect. Machine-extracted text may cross into the shared backend only with `proposed_extracted_text` scope, proposed review status, and unconfirmed attribution.
 
-Photos selection and App Shortcuts converge on one durable pending-capture inbox and the same review state machine. Interruption preserves the on-device draft; retry reuses stable intent keys.
-Neither path can bypass evidence review, identity review, or relationship selection. Binding compiles a derived Wiki projection only after the backend returns a person and purpose-scoped relationship. Leaving identity unresolved is a valid terminal state.
+Photos selection and App Shortcuts converge on a durable capture queue. Staging allocates a stable Agent Session identifier immediately; foreground processing creates or resumes that protected Session, runs on-device recognition, and may use bounded internal tools or save reversible proposals. Interruption preserves the local image, draft, response recovery, and identifiers so retry does not duplicate the Session or request.
+
+The capture surface appears while processing is active or blocked. Zero or multiple plausible identities, historical identity clues, zero or multiple relationship contexts, tool failure, and consequential external writes return to the recruiter. One current confirmed clue that resolves to one person and one existing relationship context may attach the source without another tap. Extracted text, speaker attribution, and facts remain proposed, and unresolved identity cannot feed confirmed relationship state.
 
 Relationship Ask screenshots are a separate task-input boundary. A screenshot inside an existing relationship uses the ordinary bound media lifecycle.
 A single PNG/JPEG/WebP sent without a selected relationship instead uses an account-scoped `person-research` task: the authenticated API verifies its byte count and content hash, keeps the bytes process-only, and forwards one read-only Run to the credential-isolated Agent Host without creating or selecting a Person, relationship, Wiki snapshot, or evidence record.

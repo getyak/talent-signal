@@ -165,3 +165,61 @@ describe("reviewed public profile intake boundary", () => {
     expect(() => validateResourceRequest(value)).not.toThrow();
   });
 });
+
+describe("proposed screenshot extraction boundary", () => {
+  function screenshotRequest(): ResourceCaptureRequest {
+    const value = request();
+    value.idempotency_key = "proposed-screenshot-extraction";
+    value.purpose = "Process one recruiter-selected screenshot";
+    value.person_scope = {
+      status: "unresolved",
+      display_name_hint: "Zhou Yu",
+      handles: [],
+      reason: "The Agent has not confirmed who owns this screenshot.",
+    };
+    value.resource = {
+      client_resource_id: "ios-screenshot-1",
+      kind: "conversation_screenshot",
+      display_name: "conversation.png",
+      media_type: "image/png",
+      observed_at: "2026-09-02T07:58:00.000Z",
+      source_timezone: "Asia/Shanghai",
+      retention: {
+        requested_mode: "ephemeral",
+        source_scope: "proposed_extracted_text",
+      },
+    };
+    delete value.reviewed_public_profile;
+    value.fragments = [
+      {
+        client_resource_id: "ios-screenshot-1",
+        kind: "message",
+        sequence: 0,
+        text: "Machine extracted conversation text.",
+        locator: {
+          kind: "message",
+          source_message_id: "ocr-proposed-1",
+          sequence: 0,
+          speaker_side: "unknown",
+        },
+        attribution: { actor_kind: "unknown", status: "proposed" },
+        review_status: "proposed",
+        parser: { name: "ios-vision-text-recognition", version: "1.0.0" },
+      },
+    ];
+    return value;
+  }
+
+  it("accepts proposed text from an intentional screenshot", () => {
+    expect(() => validateResourceRequest(screenshotRequest())).not.toThrow();
+  });
+
+  it("rejects proposed extraction that claims human review authority", () => {
+    const value = screenshotRequest();
+    value.fragments[0]!.review_status = "reviewed";
+
+    expect(() => validateResourceRequest(value)).toThrowError(
+      /must remain proposed/,
+    );
+  });
+});

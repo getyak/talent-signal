@@ -160,7 +160,18 @@ final class RelationshipCaptureStore: ObservableObject {
             }
             // Persist immutable intent before transmission; response loss reuses it.
             try await self.saveRecovery()
-            let result = try await self.service.createCapture(seed: self.seed, draft: self.recovery.submittedDraft!)
+            let result: ResourceCaptureResult
+            if self.recovery.submittedByAgent == true {
+                result = try await self.service.createProposedCapture(
+                    seed: self.seed,
+                    draft: self.recovery.submittedDraft!
+                )
+            } else {
+                result = try await self.service.createCapture(
+                    seed: self.seed,
+                    draft: self.recovery.submittedDraft!
+                )
+            }
             try Task.checkCancellation()
             self.recovery.capture = result
             try await self.saveRecovery()
@@ -429,11 +440,13 @@ final class RelationshipCaptureStore: ObservableObject {
     private var resolvedPersonDisplayLabel: String? {
         if let canonical = recovery.capture?.identity.personDisplayLabel { return canonical }
         if case let .bind(candidate, _) = pendingDecision { return candidate.displayLabel }
+        if case let .bindFromAgent(candidate, _) = pendingDecision { return candidate.displayLabel }
         return draft.displayNameHint.nonEmpty
     }
     private var resolvedRelationshipDisplayLabel: String? {
         if let canonical = recovery.capture?.identity.relationshipDisplayLabel { return canonical }
         if case let .bind(_, context) = pendingDecision, let context { return context.displayLabel }
+        if case let .bindFromAgent(_, context) = pendingDecision { return context.displayLabel }
         return draft.relationshipLabel.nonEmpty
     }
 }

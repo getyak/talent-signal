@@ -21,6 +21,7 @@ struct RelationshipArchiveView: View {
     @State private var askPresentation: RelationshipAskPresentation?
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
+    @State private var isCaptureInboxPresented = false
     @State private var isRelationshipCalendarPresented = false
     @State private var relationshipCalendarActivities: [RelationshipCalendarActivity] = []
     @State private var deferredIntakePresentation: AgentIntakePresentation?
@@ -149,6 +150,13 @@ struct RelationshipArchiveView: View {
         accountEmail = session?.userEmail
         workspaceLabel = session?.accountSlug
         self.onSignOut = onSignOut
+#if DEBUG
+        if arguments.contains("--capture-inbox-open-hub") {
+            _intakePresentation = State(
+                initialValue: AgentIntakePresentation(initialDestination: .hub)
+            )
+        }
+#endif
     }
 
     var body: some View {
@@ -463,6 +471,21 @@ struct RelationshipArchiveView: View {
                 reloadRelationshipCalendarActivities()
                 await revalidateSessionEvidence()
                 await labStore.load(force: true)
+                await captureHandoff.processPendingCaptures(
+                    sessionStore: sessionStore,
+                    service: captureProcessingService
+                )
+            }
+        }
+        .onChange(of: captureHandoff.inboxItems) { items in
+            guard items.contains(where: {
+                $0.processingState == .queued || $0.processingState == .processing
+            }) else { return }
+            Task {
+                await captureHandoff.processPendingCaptures(
+                    sessionStore: sessionStore,
+                    service: captureProcessingService
+                )
             }
         }
         .sheet(
@@ -479,8 +502,22 @@ struct RelationshipArchiveView: View {
                 onContinueInAgent: continueCaptureInAgent
             )
         }
+        .sheet(
+            isPresented: $isCaptureInboxPresented,
+            onDismiss: completeDeferredTransition
+        ) {
+            CaptureInboxView(
+                backendURL: reviewBaseURL,
+                accessToken: authenticatedAccessToken,
+                workspaceID: workspaceStore.snapshot?.workspaceID,
+                runtimeScope: runtimeScope,
+                onDismiss: { isCaptureInboxPresented = false },
+                onContinueInAgent: continueCaptureInAgent
+            )
+        }
         .onReceive(captureHandoff.$pendingSeed) { seed in
             guard let seed else { return }
+            guard !isCaptureInboxPresented else { return }
             if intakePresentation != nil {
                 if seed.origin == .appShortcut {
                     deferredCapturePresentation = .screenshot
@@ -520,6 +557,10 @@ struct RelationshipArchiveView: View {
             await workspaceStore.load()
             reloadRelationshipCalendarActivities()
             await revalidateSessionEvidence()
+            await captureHandoff.processPendingCaptures(
+                sessionStore: sessionStore,
+                service: captureProcessingService
+            )
         }
         .task {
             await labStore.load()
@@ -549,6 +590,16 @@ struct RelationshipArchiveView: View {
                     accessToken: accessToken
                 )
             }
+        }
+    }
+
+    private var captureProcessingService: (any RelationshipCaptureServing)? {
+        reviewBaseURL.map {
+            URLRelationshipCaptureClient(
+                baseURL: $0,
+                accessToken: authenticatedAccessToken,
+                runtimeScope: runtimeScope
+            )
         }
     }
 
@@ -601,7 +652,14 @@ struct RelationshipArchiveView: View {
                 Task { await workspaceStore.load() }
             }
         case .empty:
-            PursuitWorkspaceEmptyView(selectedPage: selectedPage)
+            PursuitWorkspaceEmptyView(
+                selectedPage: selectedPage,
+                pendingCaptureCount: captureHandoff.attentionCount,
+                onOpenCaptureInbox: {
+                    clearTransientRetrievalIntent()
+                    isCaptureInboxPresented = true
+                }
+            )
         case let .preview(snapshot), let .loaded(snapshot):
             ZStack {
                 if selectedPage == .today {
@@ -626,6 +684,11 @@ struct RelationshipArchiveView: View {
                                     return
                                 }
                                 presentedSheet = .pursuit(pursuit)
+                            },
+                            pendingCaptureCount: captureHandoff.attentionCount,
+                            onOpenCaptureInbox: {
+                                clearTransientRetrievalIntent()
+                                isCaptureInboxPresented = true
                             }
                         )
                     }
@@ -878,6 +941,7 @@ struct RelationshipArchiveView: View {
             )
             capturePresentation = nil
             intakePresentation = nil
+            isCaptureInboxPresented = false
         }
     }
 
@@ -1119,12 +1183,42 @@ struct PursuitTodayView: View {
     let onOpenAttention: (PursuitAttentionItem) -> Void
     let onOpenPursuit: (WorkspacePursuit) -> Void
     let onOpenActionRecovery: (String) -> Void
+    let pendingCaptureCount: Int
+    let onOpenCaptureInbox: () -> Void
     @State private var showsAllAttention = false
     @State private var decisionStates: [String: TodayInlineDecisionStatus] = [:]
     @State private var decisionOverrides: [String: TodayInlineDecision] = [:]
     @State private var expandedEvidenceDecisionID: String?
     @State private var editingDecision: TodayInlineDecision?
     @Environment(\.appLanguage) private var appLanguage
+
+    init(
+        snapshot: PursuitWorkspaceSnapshot,
+        isPreview: Bool,
+        calendarActivities: [RelationshipCalendarActivity],
+        unreadSessions: [AgentSession],
+        actionRecovery: PursuitActionRecoveryItem?,
+        onOpenSession: @escaping (AgentSession) -> Void,
+        onOpenCalendar: @escaping () -> Void,
+        onOpenAttention: @escaping (PursuitAttentionItem) -> Void,
+        onOpenPursuit: @escaping (WorkspacePursuit) -> Void,
+        onOpenActionRecovery: @escaping (String) -> Void,
+        pendingCaptureCount: Int = 0,
+        onOpenCaptureInbox: @escaping () -> Void = {}
+    ) {
+        self.snapshot = snapshot
+        self.isPreview = isPreview
+        self.calendarActivities = calendarActivities
+        self.unreadSessions = unreadSessions
+        self.actionRecovery = actionRecovery
+        self.onOpenSession = onOpenSession
+        self.onOpenCalendar = onOpenCalendar
+        self.onOpenAttention = onOpenAttention
+        self.onOpenPursuit = onOpenPursuit
+        self.onOpenActionRecovery = onOpenActionRecovery
+        self.pendingCaptureCount = pendingCaptureCount
+        self.onOpenCaptureInbox = onOpenCaptureInbox
+    }
 
     var body: some View {
         ScrollView {
@@ -1146,6 +1240,14 @@ struct PursuitTodayView: View {
                     TodayRelationshipCalendarPeek(
                         activities: calendarActivities,
                         onOpen: onOpenCalendar
+                    )
+                    .padding(.top, 14)
+                }
+
+                if pendingCaptureCount > 0 {
+                    TodayCaptureInboxRow(
+                        count: pendingCaptureCount,
+                        action: onOpenCaptureInbox
                     )
                     .padding(.top, 14)
                 }
@@ -1306,7 +1408,7 @@ struct PursuitTodayView: View {
         }
 
         if attentionItems.isEmpty {
-            if attentionRecovery == nil {
+            if attentionRecovery == nil, pendingCaptureCount == 0 {
                 PursuitNoActionView()
                     .padding(.top, topWorkSpacing)
             }
@@ -1457,6 +1559,63 @@ struct PursuitTodayView: View {
         }
     }
 
+}
+
+private struct TodayCaptureInboxRow: View {
+    let count: Int
+    let action: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: "rectangle.stack")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.tsVermilion)
+                    .frame(width: 44, height: 44)
+                    .background(Color.tsSurfaceMuted, in: Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(appLanguage.text("Capture Sessions"))
+                        .font(.headline)
+                        .foregroundStyle(Color.tsInk)
+                    Text(countLabel)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tsMutedInk)
+                }
+                Spacer(minLength: 8)
+                Text(verbatim: "\(count)")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.tsVermilion)
+                    .monospacedDigit()
+                    .frame(minWidth: 30, minHeight: 30)
+                    .background(Color.tsVermilion.opacity(0.1), in: Capsule())
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.tsMutedInk)
+            }
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .tsCard()
+        .accessibilityLabel(
+            appLanguage.text("Capture Sessions") + ", " + countLabel
+        )
+        .accessibilityHint(
+            appLanguage.text(
+                "Opens capture decisions that need your input"
+            )
+        )
+        .accessibilityIdentifier("today-capture-inbox")
+    }
+
+    private var countLabel: String {
+        String(
+            format: appLanguage.text("%lld need your input"),
+            locale: appLanguage.locale,
+            Int64(count)
+        )
+    }
 }
 
 private enum TodayInlineDecisionStatus: Equatable {
@@ -3752,7 +3911,19 @@ struct PursuitWorkspaceFailureView: View {
 
 struct PursuitWorkspaceEmptyView: View {
     let selectedPage: RelationshipArchivePage
+    let pendingCaptureCount: Int
+    let onOpenCaptureInbox: () -> Void
     @Environment(\.appLanguage) private var appLanguage
+
+    init(
+        selectedPage: RelationshipArchivePage,
+        pendingCaptureCount: Int = 0,
+        onOpenCaptureInbox: @escaping () -> Void = {}
+    ) {
+        self.selectedPage = selectedPage
+        self.pendingCaptureCount = pendingCaptureCount
+        self.onOpenCaptureInbox = onOpenCaptureInbox
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -3775,6 +3946,13 @@ struct PursuitWorkspaceEmptyView: View {
             )
                 .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
+            if selectedPage == .today, pendingCaptureCount > 0 {
+                TodayCaptureInboxRow(
+                    count: pendingCaptureCount,
+                    action: onOpenCaptureInbox
+                )
+                .padding(.top, 8)
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -3784,7 +3962,11 @@ struct PursuitWorkspaceEmptyView: View {
     private var emptyTitle: String {
         switch selectedPage {
         case .today:
-            return appLanguage.text("Nothing needs attention", zhHans: "暂无待处理事项")
+            return pendingCaptureCount > 0
+                ? appLanguage.text(
+                    "A capture decision is waiting"
+                )
+                : appLanguage.text("Nothing needs attention", zhHans: "暂无待处理事项")
         case .sessions:
             return appLanguage.text("No sessions yet", zhHans: "还没有会话")
         case .people:

@@ -52,6 +52,7 @@ const MIGRATIONS = [
   "044_lab_ci_verifications",
   "045_lab_test_workspaces",
   "046_lab_feature_overrides",
+  "047_proposed_extracted_text",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

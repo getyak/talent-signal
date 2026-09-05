@@ -158,13 +158,11 @@ original request is in flight, recovery is visible but cannot start a competing
 reconciliation. A no-action result carries one evidence-state condition for
 revisiting the decision without manufacturing urgency.
 
-Mobile capture is the complementary intent surface. A screenshot selected from
-Photos or handed in through a system shortcut enters one recoverable review:
-the recruiter corrects on-device text, supplies only the identity and
-relationship clues they can support, compares temporal owners without a
-default selection, and explicitly attaches the governed source. Completion
-returns the actual compiled-Wiki quality and identifiers; it does not create a
-second contact merely because another source arrived. Selected contact files follow the same rule: on-device staging exposes malformed and duplicate rows, each valid row receives an exact protected identity decision and canonical receipt, raw bytes are discarded, and unreviewed notes or mapped context gain no fact or Memory authority.
+Mobile capture is the complementary intent surface. Selecting a screenshot in Photos or handing one in through a system shortcut immediately creates a recoverable Agent Session and authorizes purpose-bound processing.
+On-device text recognition and bounded tools may run without another tap; extracted text crosses into shared storage only as a proposed, attributable source.
+A sole match may be attached automatically only when a current confirmed identity clue resolves to one person and one existing relationship context. The product returns to the foreground when tools fail, identity or relationship context remains materially ambiguous, or an external effect needs approval.
+Screenshot intent authorizes that bounded source attachment. Extracted text, speaker attribution, facts, and actions remain proposed until they receive their own authority.
+Selected contact files follow the same rule: on-device staging exposes malformed and duplicate rows, each valid row receives an exact protected identity decision and canonical receipt, raw bytes are discarded, and unreviewed notes or mapped context gain no fact or Memory authority.
 
 Relationship Ask also accepts a screenshot as a purpose-bound task attachment.
 After Send, an admitted Agent may autonomously choose bounded public-profile

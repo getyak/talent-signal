@@ -75,6 +75,8 @@ export function sourceKindLabel(kind: string) {
 
 export function sourceScopeLabel(scope: string) {
   switch (scope) {
+    case "proposed_extracted_text":
+      return "机器识别文本（待确认）";
     case "reviewed_extracted_text":
       return "仅保留已审阅文本";
     case "reviewed_selected_text":
