@@ -411,10 +411,16 @@ is_retryable_simulator_failure() {
       bootstrap_failure = result.fetch("passedTests", 0).zero? &&
         result.fetch("skippedTests", 0).zero? &&
         only_failure.fetch("testName", "").include?("UITests-Runner encountered an error") &&
-        only_failure.fetch("failureText", "").include?("before establishing connection")
+        (
+          only_failure.fetch("failureText", "").include?("before establishing connection") ||
+          only_failure.fetch("failureText", "").include?("Timed out waiting for AX loaded notification")
+        )
       query_timeout = failures.length == 1 &&
         only_failure.fetch("failureText", "").include?("Timed out while evaluating UI query")
-      exit((bootstrap_failure || query_timeout) ? 0 : 1)
+      accessibility_audit_timeout = failures.length == 1 &&
+        only_failure.fetch("failureText", "").include?("com.apple.xcode.xctest.accessibilityAudit") &&
+        only_failure.fetch("failureText", "").include?("Audit failed to complete in time")
+      exit((bootstrap_failure || query_timeout || accessibility_audit_timeout) ? 0 : 1)
     '; then
     return 0
   fi
@@ -422,13 +428,14 @@ is_retryable_simulator_failure() {
   attachment_dir="$(mktemp -d "${TMPDIR:-/tmp}/talent-signal-ios-infra.XXXXXX")"
   if xcrun xcresulttool export attachments \
       --path "$result_path" \
-      --output-path "$attachment_dir" >/dev/null 2>&1 &&
-    rg --files-with-matches \
-      --glob '*.ips' \
-      '"app_name":"backboardd"' \
-      "$attachment_dir" >/dev/null; then
-    rm -rf -- "$attachment_dir"
-    return 0
+      --output-path "$attachment_dir" >/dev/null 2>&1; then
+    local attachment_path=""
+    while IFS= read -r attachment_path; do
+      if grep -q '"app_name":"backboardd"' "$attachment_path"; then
+        rm -rf -- "$attachment_dir"
+        return 0
+      fi
+    done < <(find "$attachment_dir" -type f -name '*.ips' -print)
   fi
   rm -rf -- "$attachment_dir"
   return 1

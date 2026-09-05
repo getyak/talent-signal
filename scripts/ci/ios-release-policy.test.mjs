@@ -205,13 +205,21 @@ test("iOS CI blocks on a bounded smoke suite and keeps full coverage explicit", 
 
   assert.ok(iosJob, "expected the iOS CI job");
   assert.match(iosJob[1], /name: iOS release smoke/);
-  assert.match(iosJob[1], /timeout-minutes: 30/);
+  assert.match(iosJob[1], /timeout-minutes: 45/);
   assert.match(
     iosJob[1],
     /IOS_UI_TEST_SCOPE: \$\{\{ inputs\.ios_test_scope \|\| 'smoke' \}\}/,
   );
   assert.match(ciWorkflow, /ios_test_scope:/);
   assert.match(ciWorkflow, /- smoke\n\s+- full/);
+
+  const iosCheck = readFileSync(
+    join(repositoryRoot, "scripts/ios/check.sh"),
+    "utf8",
+  );
+  assert.match(iosCheck, /Timed out waiting for AX loaded notification/);
+  assert.match(iosCheck, /Audit failed to complete in time/);
+  assert.doesNotMatch(iosCheck, /rg --files-with-matches/);
 
   const smokeTests = readFileSync(
     join(repositoryRoot, "scripts/ios/ci-smoke-tests.txt"),

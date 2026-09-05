@@ -79,6 +79,15 @@ have no submission authority.
    commit, push, remote integration, and ancestry verification are recorded in
    Git history.
 
+The first remote iOS smoke run completed the build and tests but exceeded the
+30-minute job budget during runner cleanup. The iOS smoke budget is now 45
+minutes so successful coverage is not reported as a timeout.
+
+Remote smoke recovery also treats Xcode AX daemon startup and accessibility
+audit timeouts as retryable infrastructure failures, reboots the Simulator once,
+and still fails closed on a repeated timeout or any product assertion. The
+classifier uses only tools available on the macOS runner.
+
 ## Remaining proof boundary
 
 Simulator and deterministic transcription can verify interaction and state
