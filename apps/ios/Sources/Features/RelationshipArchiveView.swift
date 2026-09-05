@@ -333,7 +333,10 @@ struct RelationshipArchiveView: View {
                 onSignOut: onSignOut,
                 refreshWorkspace: workspaceStore.isCanonical ? { await workspaceStore.refreshForLab() } : nil)
         }
-        .sheet(item: $askPresentation, onDismiss: completeDeferredTransition) { presentation in
+        .fullScreenCover(
+            item: $askPresentation,
+            onDismiss: completeDeferredTransition
+        ) { presentation in
             if let snapshot = workspaceStore.snapshot {
                 RelationshipAskView(
                     snapshot: snapshot,

@@ -447,7 +447,6 @@ struct RelationshipAskView: View {
     @State private var reinstatementReason = ""
     @State private var reviewPreparationError: String?
     @State private var isVoiceDisclosurePresented = false
-    @State private var presentationDetent: PresentationDetent = .large
     @State private var voiceOperation: Task<Void, Never>?
     @State private var draftPersistenceTask: Task<Void, Never>?
     @State private var isComposerComposing = false
@@ -463,10 +462,6 @@ struct RelationshipAskView: View {
     private var hasAcceptedVoiceDisclosure = false
     @FocusState private var composerFocused: Bool
 
-    private var compactPresentationDetent: PresentationDetent {
-        .fraction(0.76)
-    }
-
     private var preferredPersonName: String? {
         guard let preferredPersonID else { return preferredPersonLabel }
         return currentSnapshot.people.first(where: { $0.id == preferredPersonID })?.displayLabel
@@ -476,29 +471,31 @@ struct RelationshipAskView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if isCompactEntry, isHomeAttachmentChooserPresented {
-                    homeAttachmentChooser
-                } else if isCompactEntry {
-                    Spacer(minLength: 0)
-                    compactNewChatHeader
-                    compactComposerContext
-                    composer
-                    Text(
-                        appLanguage.text(
-                            "Send naturally. Agent uses contact context only when it helps.",
-                            zhHans: "直接发送即可。Agent 只会在有帮助时使用联系人上下文。"
+                if isNewSessionEntry {
+                    newSessionHeader
+                    if isHomeAttachmentChooserPresented {
+                        homeAttachmentChooser
+                    } else {
+                        Spacer(minLength: 0)
+                        compactComposerContext
+                        composer
+                        Text(
+                            appLanguage.text(
+                                "Send naturally. Agent uses contact context only when it helps.",
+                                zhHans: "直接发送即可。Agent 只会在有帮助时使用联系人上下文。"
+                            )
                         )
-                    )
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 28)
-                    .accessibilityIdentifier("ask-recall-disclosure")
-                    if !isCanonical {
-                        starterGrid
-                            .padding(.horizontal, 28)
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 28)
+                        .accessibilityIdentifier("ask-recall-disclosure")
+                        if !isCanonical {
+                            starterGrid
+                                .padding(.horizontal, 28)
+                        }
+                        Spacer(minLength: 14)
                     }
-                    Spacer(minLength: 14)
                 } else {
                     chatHeader
                     if shouldShowScopeBar,
@@ -516,18 +513,11 @@ struct RelationshipAskView: View {
                 reduceMotion
                     ? nil
                     : .spring(response: 0.42, dampingFraction: 0.88),
-                value: isCompactEntry
+                value: isNewSessionEntry
             )
             .toolbar(.hidden, for: .navigationBar)
         }
         .tint(.tsInk)
-        .presentationDetents(
-            isCompactEntry
-                ? [compactPresentationDetent]
-                : [.large],
-            selection: $presentationDetent
-        )
-        .presentationDragIndicator(.visible)
         .photosPicker(
             isPresented: $isPhotoLibraryPresented,
             selection: $selectedPhotoItems,
@@ -664,7 +654,6 @@ struct RelationshipAskView: View {
                 case .requiresSelection:
                     scopeQuery = preferredPersonName ?? ""
                     isChoosingScope = true
-                    presentationDetent = .large
                 }
             }
             restoreContactProposal()
@@ -699,12 +688,6 @@ struct RelationshipAskView: View {
                     )
                 }
             }
-            if sessionID != nil
-                || initialSeed != nil
-                || contactDraft != nil
-                || preferredPersonID != nil {
-                presentationDetent = .large
-            }
             if sessionID == nil,
                initialSeed == nil,
                contactDraft == nil,
@@ -712,14 +695,12 @@ struct RelationshipAskView: View {
                 await Task.yield()
                 switch initialEntryMode {
                 case .text:
-                    presentationDetent = compactPresentationDetent
                     if !voiceOverEnabled,
                        !dynamicTypeSize.isAccessibilitySize,
                        !sizeCategory.isAccessibilityCategory {
                         composerFocused = true
                     }
                 case .attachment:
-                    presentationDetent = compactPresentationDetent
                     isHomeAttachmentChooserPresented = true
                 case .voice:
                     if !voiceOverEnabled,
@@ -760,12 +741,6 @@ struct RelationshipAskView: View {
             guard !items.isEmpty else { return }
             importSelectedPhotos(items)
         }
-        .onChange(of: isSending) { sending in
-            if sending { presentationDetent = .large }
-        }
-        .onChange(of: isRequestingScope) { requesting in
-            if requesting { presentationDetent = compactPresentationDetent }
-        }
         .onChange(of: voiceInput.phase) { phase in
             switch phase {
             case .idle:
@@ -775,23 +750,19 @@ struct RelationshipAskView: View {
                 break
             case .requestingPermission:
                 AskInputDiagnostics.voiceTransition(.requestingPermission)
-                if isCompactEntry { presentationDetent = compactPresentationDetent }
             case .recording:
                 AskInputDiagnostics.voiceTransition(.recording)
-                if isCompactEntry { presentationDetent = compactPresentationDetent }
                 if voiceReleasePending {
                     voiceReleasePending = false
                     finishVoiceInputDirectly()
                 }
             case .transcribing:
                 AskInputDiagnostics.voiceTransition(.transcribing)
-                if isCompactEntry { presentationDetent = compactPresentationDetent }
             case .failed:
                 AskInputDiagnostics.voiceTransition(.failed)
                 voiceReleasePending = false
                 voiceShouldAutoSend = false
                 voiceRibbonMode = .idle
-                if isCompactEntry { presentationDetent = compactPresentationDetent }
             }
         }
         .onChange(of: selectedScope?.id) { _ in
@@ -865,7 +836,7 @@ struct RelationshipAskView: View {
                 )
             )
         }
-        .accessibilityIdentifier("relationship-ask-sheet")
+        .accessibilityIdentifier("relationship-ask-screen")
         .labDiagnosticPresentation()
 #if DEBUG
         .overlay(alignment: .topTrailing) {
@@ -1496,7 +1467,7 @@ struct RelationshipAskView: View {
 
             if voiceInput.isRecording || voiceInput.phase == .transcribing {
                 activeVoiceRibbon
-            } else if isCompactEntry {
+            } else if isNewSessionEntry {
                 compactMarkdownComposer
             } else {
                 voiceRibbonComposer(controlSize: controlSize)
@@ -2462,7 +2433,7 @@ struct RelationshipAskView: View {
         }
     }
 
-    private var isCompactEntry: Bool {
+    private var isNewSessionEntry: Bool {
         sessionID == nil
             && activeSessionID == nil
             && initialSeed == nil
@@ -2476,20 +2447,38 @@ struct RelationshipAskView: View {
             && reviewPreparationError == nil
     }
 
-    @ViewBuilder
-    private var compactNewChatHeader: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(appLanguage.text("NEW CHAT"))
-                .font(.caption2.weight(.bold))
-                .tracking(1.1)
-                .foregroundStyle(Color.tsVermilion)
-            Spacer(minLength: 8)
+    private var newSessionHeader: some View {
+        HStack(spacing: 10) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.medium))
+                    .frame(width: 48, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(appLanguage.text("Close", zhHans: "关闭"))
+            .accessibilityIdentifier("ask-close")
+
+            Spacer(minLength: 0)
+
+            Text(appLanguage.text("New Session", zhHans: "新会话"))
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            Color.clear
+                .frame(width: 48, height: 48)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 28)
-        .padding(.top, usesAccessibilityLayout ? 18 : 22)
-        .padding(.bottom, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("ask-new-chat-header")
+        .padding(.horizontal, 12)
+        .padding(.top, usesAccessibilityLayout ? 2 : 6)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-new-session-header")
     }
 
     private var chatHeader: some View {
@@ -2508,7 +2497,7 @@ struct RelationshipAskView: View {
 
             Spacer(minLength: 0)
 
-            Text(appLanguage.text("Agent"))
+            Text(appLanguage.text("Session", zhHans: "会话"))
                 .font(.headline)
                 .foregroundStyle(Color.tsInk)
                 .lineLimit(1)
@@ -2563,7 +2552,6 @@ struct RelationshipAskView: View {
                     ) {
                         composerFocused = false
                         isHomeAttachmentChooserPresented = false
-                        presentationDetent = .large
                         isPhotoLibraryPresented = true
                     }
                     homeAttachmentChoice(
@@ -2576,7 +2564,6 @@ struct RelationshipAskView: View {
                     ) {
                         composerFocused = false
                         isHomeAttachmentChooserPresented = false
-                        presentationDetent = .large
                         isFileImporterPresented = true
                     }
                     homeAttachmentChoice(
@@ -2595,7 +2582,6 @@ struct RelationshipAskView: View {
 
                 Button {
                     isHomeAttachmentChooserPresented = false
-                    presentationDetent = .large
                     Task { @MainActor in
                         await Task.yield()
                         composerFocused = true
@@ -2740,7 +2726,7 @@ struct RelationshipAskView: View {
         if contactSaveMessage != nil, selectedScope == nil {
             return appLanguage.text("Add another contact…")
         }
-        if isCompactEntry {
+        if isNewSessionEntry {
             return appLanguage.text("Ask about anyone or anything…")
         }
         return appLanguage.text("Reply…")
@@ -2970,7 +2956,6 @@ struct RelationshipAskView: View {
         if let selectedScope {
             uploadMediaDraft(id, scope: selectedScope)
         }
-        if isCompactEntry { presentationDetent = compactPresentationDetent }
     }
 
     nonisolated private static func routingText(in data: Data) -> String {
@@ -3195,7 +3180,6 @@ struct RelationshipAskView: View {
         if isUnscopedPersonResearch, let mediaDraft = mediaDrafts.first {
             relationshipRecallPhase = .reading(nil)
             updateAskSubmissionPhase(.requestingWorkspaceAnswer)
-            presentationDetent = .large
             performUnscopedPersonResearch(
                 sessionID: unscopedSessionID,
                 effectiveObjective: effectiveObjective,
@@ -3206,7 +3190,6 @@ struct RelationshipAskView: View {
         }
         relationshipRecallPhase = .replyingWithoutRelationship
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
-        presentationDetent = .large
         performUnscopedChat(
             sessionID: unscopedSessionID,
             effectiveObjective: effectiveObjective,
@@ -3585,7 +3568,6 @@ struct RelationshipAskView: View {
         sourceReviewNotice = nil
         draft = ""
         composerFocused = false
-        presentationDetent = .large
         if let selectedScope {
             activeSessionID = sessionStore.record(
                 sessionID: activeSessionID,
@@ -4070,7 +4052,6 @@ struct RelationshipAskView: View {
         errorMessage = nil
         isChoosingScope = false
         isRequestingScope = false
-        presentationDetent = .large
         contactDraft = proposedContact
         contactOperationKey = operationKey
             ?? "ios:contact:\(UUID().uuidString.lowercased())"
