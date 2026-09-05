@@ -1674,8 +1674,9 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(askComposer.exists)
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
         XCTAssertFalse(app.buttons["What changed?"].exists)
-        XCTAssertTrue(element("ask-voice-ribbon").exists)
-        XCTAssertTrue(app.buttons["ask-attachment-menu"].isEnabled)
+        XCTAssertTrue(element("ask-expanded-composer").exists)
+        XCTAssertTrue(element("ask-markdown-toolbar").exists)
+        XCTAssertTrue(app.buttons["ask-markdown-photo"].isEnabled)
         XCTAssertFalse(app.buttons["ask-review-screenshot"].exists)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
         XCTAssertFalse(element("ask-remote-ai-disclosure").exists)
@@ -1685,7 +1686,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Conversation-first Ask with embedded tools")
     }
 
-    func testGlobalAgentInputOpensCompactNewChatComposer() {
+    func testGlobalAgentInputOpensRichNewChatComposer() {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -1701,16 +1702,18 @@ final class CandidateSignalUITests: XCTestCase {
             "The home entry should open as a lightweight new Chat composer."
         )
         XCTAssertTrue(element("ask-recall-disclosure").exists)
-        XCTAssertTrue(element("ask-voice-ribbon").exists)
-        XCTAssertTrue(app.buttons["ask-attachment-menu"].exists)
+        let expandedComposer = element("ask-expanded-composer")
+        XCTAssertTrue(expandedComposer.exists)
+        XCTAssertGreaterThanOrEqual(expandedComposer.frame.height, 210)
+        XCTAssertTrue(element("ask-markdown-toolbar").exists)
+        XCTAssertTrue(app.buttons["ask-markdown-photo"].exists)
+        XCTAssertTrue(app.buttons["ask-markdown-heading"].exists)
+        XCTAssertTrue(app.buttons["ask-markdown-bold"].exists)
+        XCTAssertTrue(app.buttons["ask-markdown-list"].exists)
+        XCTAssertTrue(app.buttons["ask-markdown-more"].exists)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
         XCTAssertFalse(app.buttons["ask-send"].exists)
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        XCTAssertGreaterThan(
-            element("relationship-ask-sheet").frame.minY,
-            app.windows.firstMatch.frame.height * 0.05,
-            "The focused composer should still leave the workspace visibly present above it."
-        )
 
         typeTextReliably("x", into: composer)
         app.keys["delete"].tap()
@@ -1724,190 +1727,11 @@ final class CandidateSignalUITests: XCTestCase {
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.exists)
         XCTAssertTrue(send.isEnabled)
-        XCTAssertTrue(app.buttons["ask-voice"].exists)
-        XCTAssertFalse(app.buttons["ask-voice"].isEnabled)
-        preserveScreenshot("Global Agent compact new Chat ready to type")
+        XCTAssertFalse(app.buttons["ask-voice"].exists)
+        preserveScreenshot("Global Agent rich new Chat ready to type")
     }
 
-    func testGlobalAgentNewChatCanRestAtItsSmallestDetent() {
-        app.launch()
-
-        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-guide"].tap()
-
-        let sheet = element("relationship-ask-sheet")
-        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-
-        let dragStart = sheet.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)
-        )
-        let dragEnd = app.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78)
-        )
-        dragStart.press(forDuration: 0.08, thenDragTo: dragEnd)
-
-        let photos = app.buttons["ask-minimized-photos"]
-        let files = app.buttons["ask-minimized-files"]
-        let voice = app.buttons["ask-minimized-voice"]
-        let text = app.buttons["ask-minimized-text"]
-        XCTAssertTrue(photos.waitForExistence(timeout: 3))
-        XCTAssertTrue(files.exists)
-        XCTAssertTrue(voice.exists)
-        XCTAssertTrue(text.exists)
-        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1))
-        XCTAssertGreaterThanOrEqual(sheet.frame.height, 120)
-        XCTAssertLessThan(sheet.frame.height, 170)
-        for action in [photos, files, voice, text] {
-            XCTAssertGreaterThanOrEqual(action.frame.height, 44)
-            XCTAssertGreaterThanOrEqual(action.frame.width, 44)
-            XCTAssertTrue(action.isHittable)
-        }
-        let actionMidpoints = [photos, files, voice, text].map { $0.frame.midY }
-        XCTAssertLessThan(
-            (actionMidpoints.max() ?? 0) - (actionMidpoints.min() ?? 0),
-            2
-        )
-        XCTAssertFalse(element("ask-voice-ribbon").exists)
-        preserveScreenshot("Global Agent new Chat smallest detent")
-
-        text.tap()
-        XCTAssertTrue(element("ask-voice-ribbon").waitForExistence(timeout: 3))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
-    }
-
-    func testGlobalAgentNewChatSmallestDetentPreservesChineseDraft() {
-        app.launchArguments = [
-            "--force-dark",
-            "-AppleLanguages", "(zh-Hans)",
-            "-AppleLocale", "zh_CN",
-            "-talent-signal.interface-language", "zh-Hans",
-            "-AppleInterfaceStyle", "Dark",
-            "-UIAccessibilityReduceMotionEnabled", "YES",
-        ]
-        app.launch()
-
-        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-guide"].tap()
-
-        let composer = app.textFields["ask-composer"]
-        XCTAssertTrue(composer.waitForExistence(timeout: 5))
-        typeTextReliably("Maya follow-up", into: composer)
-
-        let sheet = element("relationship-ask-sheet")
-        let dragStart = sheet.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)
-        )
-        let dragEnd = app.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78)
-        )
-        dragStart.press(forDuration: 0.08, thenDragTo: dragEnd)
-
-        let photos = app.buttons["ask-minimized-photos"]
-        let files = app.buttons["ask-minimized-files"]
-        let voice = app.buttons["ask-minimized-voice"]
-        let text = app.buttons["ask-minimized-text"]
-        XCTAssertTrue(photos.waitForExistence(timeout: 3))
-        XCTAssertEqual(photos.label, "图片")
-        XCTAssertEqual(files.label, "文件")
-        XCTAssertEqual(voice.label, "语音")
-        XCTAssertEqual(text.label, "文字")
-        for action in [photos, files, voice, text] {
-            XCTAssertGreaterThanOrEqual(action.frame.height, 44)
-        }
-        preserveScreenshot("Global Agent Chinese draft smallest detent")
-
-        text.tap()
-        XCTAssertTrue(composer.waitForExistence(timeout: 3))
-        XCTAssertEqual(composer.value as? String, "Maya follow-up")
-    }
-
-    func testGlobalAgentNewChatAvoidsSmallestDetentAtAccessibilitySize() {
-        app.launchArguments = [
-            "--force-dark",
-            "-AppleLanguages", "(zh-Hans)",
-            "-AppleLocale", "zh_CN",
-            "-talent-signal.interface-language", "zh-Hans",
-            "-AppleInterfaceStyle", "Dark",
-            "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
-            "-UIAccessibilityReduceMotionEnabled", "YES",
-        ]
-        app.launch()
-
-        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-guide"].tap()
-
-        let sheet = element("relationship-ask-sheet")
-        XCTAssertTrue(sheet.waitForExistence(timeout: 5))
-        XCTAssertTrue(element("ask-voice-ribbon").exists)
-        XCTAssertFalse(app.buttons["ask-minimized-photos"].exists)
-        XCTAssertFalse(app.buttons["ask-minimized-files"].exists)
-        XCTAssertFalse(app.buttons["ask-minimized-voice"].exists)
-        XCTAssertFalse(app.buttons["ask-minimized-text"].exists)
-
-        let dragStart = sheet.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)
-        )
-        let dragEnd = sheet.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.24)
-        )
-        dragStart.press(forDuration: 0.08, thenDragTo: dragEnd)
-
-        XCTAssertTrue(sheet.waitForExistence(timeout: 2))
-        XCTAssertGreaterThan(
-            sheet.frame.height,
-            app.windows.firstMatch.frame.height * 0.5
-        )
-        XCTAssertFalse(app.buttons["ask-minimized-photos"].exists)
-        XCTAssertFalse(app.buttons["ask-minimized-files"].exists)
-        XCTAssertFalse(app.buttons["ask-minimized-voice"].exists)
-        XCTAssertFalse(app.buttons["ask-minimized-text"].exists)
-        preserveScreenshot("Global Agent new Chat AX5 avoids smallest detent")
-    }
-
-    func testGlobalAgentMinimizedVoicePreservesAnExistingTextDraft() {
-        app.launchArguments = [
-            "--deterministic-voice-input",
-            "-voice-input-cloud-disclosure-v1", "NO",
-            "-AppleLanguages", "(en)",
-            "-AppleLocale", "en_US",
-        ]
-        app.launch()
-
-        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-guide"].tap()
-
-        let composer = app.textFields["ask-composer"]
-        XCTAssertTrue(composer.waitForExistence(timeout: 5))
-        typeTextReliably("Maya follow-up", into: composer)
-
-        let sheet = element("relationship-ask-sheet")
-        sheet.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)
-        ).press(
-            forDuration: 0.08,
-            thenDragTo: app.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78)
-            )
-        )
-
-        let minimizedVoice = app.buttons["ask-minimized-voice"]
-        XCTAssertTrue(minimizedVoice.waitForExistence(timeout: 3))
-        minimizedVoice.tap()
-
-        let start = app.buttons.matching(
-            identifier: "confirm-voice-input-disclosure"
-        ).firstMatch
-        XCTAssertFalse(start.waitForExistence(timeout: 1))
-        XCTAssertEqual(composer.value as? String, "Maya follow-up")
-        XCTAssertFalse(element("ask-response-turn").exists)
-        XCTAssertTrue(element("ask-voice-ribbon").exists)
-        XCTAssertTrue(app.buttons["ask-send"].isEnabled)
-        XCTAssertFalse(element("ask-response-turn").exists)
-    }
-
-    func testNewChatRibbonKeepsTypedFormattingAndSwitchesToSend() {
+    func testNewChatRichToolbarInsertsEditableFormattingAndSwitchesToSend() {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -1917,15 +1741,27 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
-        XCTAssertTrue(app.buttons["ask-attachment-menu"].isEnabled)
+        XCTAssertTrue(app.buttons["ask-markdown-photo"].isEnabled)
+        let heading = app.buttons["ask-markdown-heading"]
+        let bold = app.buttons["ask-markdown-bold"]
+        let list = app.buttons["ask-markdown-list"]
+        XCTAssertTrue(heading.isEnabled)
+        XCTAssertTrue(bold.isEnabled)
+        XCTAssertTrue(list.isEnabled)
+        XCTAssertTrue(app.buttons["ask-markdown-more"].isEnabled)
 
-        let message = "# Search note\n\n- Add Maya Chen"
-        typeTextReliably(message, into: composer)
-        XCTAssertEqual(composer.value as? String, message)
+        heading.tap()
+        XCTAssertEqual(composer.value as? String, "# ")
         XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.buttons["ask-voice"].isEnabled)
+        XCTAssertFalse(app.buttons["ask-voice"].exists)
+
+        bold.tap()
+        XCTAssertEqual(composer.value as? String, "# **bold text**")
+
+        list.tap()
+        XCTAssertEqual(composer.value as? String, "# **bold text**\n- ")
         XCTAssertTrue(app.keyboards.firstMatch.exists)
-        preserveScreenshot("New Chat voice ribbon and adaptive send")
+        preserveScreenshot("New Chat rich toolbar and adaptive send")
     }
 
     func testHomePlusShowsAttachmentSourcesBeforeOpeningAPicker() {
@@ -1955,17 +1791,11 @@ final class CandidateSignalUITests: XCTestCase {
 
         let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
-        let message = "Compare this screenshot with what changed"
-        typeTextReliably(message, into: composer)
-
-        let attachments = app.buttons["ask-attachment-menu"]
-        XCTAssertTrue(attachments.waitForExistence(timeout: 5))
-        XCTAssertTrue(attachments.isEnabled)
-        XCTAssertGreaterThanOrEqual(attachments.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(attachments.frame.height, 44)
-        attachments.tap()
-        let photos = app.buttons["Photos"]
+        let photos = app.buttons["ask-markdown-photo"]
         XCTAssertTrue(photos.waitForExistence(timeout: 3))
+        XCTAssertTrue(photos.isEnabled)
+        XCTAssertGreaterThanOrEqual(photos.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(photos.frame.height, 44)
         photos.tap()
 
         let photoPicker = waitForPhotoPicker()
@@ -2658,8 +2488,9 @@ final class CandidateSignalUITests: XCTestCase {
         ]
         app.launch()
 
-        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
-        app.buttons["relationship-guide"].tap()
+        let globalInput = app.buttons["relationship-guide"]
+        XCTAssertTrue(globalInput.waitForExistence(timeout: 8))
+        globalInput.tap()
         let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
@@ -2671,17 +2502,20 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
         XCTAssertFalse(app.buttons["What changed?"].exists)
 
-        let ribbon = element("ask-voice-ribbon")
-        let attachments = app.buttons["ask-attachment-menu"]
+        let expandedComposer = element("ask-expanded-composer")
+        let photos = app.buttons["ask-markdown-photo"]
         let voice = app.buttons["ask-voice"]
-        XCTAssertTrue(ribbon.exists)
-        XCTAssertTrue(attachments.exists)
-        XCTAssertTrue(attachments.isEnabled)
+        XCTAssertTrue(expandedComposer.exists)
+        XCTAssertTrue(element("ask-markdown-toolbar").exists)
+        XCTAssertTrue(photos.exists)
+        XCTAssertTrue(photos.isEnabled)
+        XCTAssertTrue(app.buttons["ask-markdown-more"].exists)
         XCTAssertTrue(voice.exists)
-        XCTAssertGreaterThanOrEqual(attachments.frame.height, 44)
-        XCTAssertLessThanOrEqual(attachments.frame.width, 60)
+        XCTAssertGreaterThanOrEqual(photos.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(photos.frame.width, 44)
         XCTAssertGreaterThanOrEqual(voice.frame.height, 44)
         XCTAssertLessThanOrEqual(voice.frame.width, 60)
+        XCTAssertLessThanOrEqual(expandedComposer.frame.maxX, app.frame.maxX)
         XCTAssertLessThanOrEqual(composer.frame.maxX, app.frame.maxX)
         XCTAssertLessThanOrEqual(composer.frame.maxY, app.frame.maxY)
         XCTAssertTrue(element("ask-preview-send-boundary").exists)

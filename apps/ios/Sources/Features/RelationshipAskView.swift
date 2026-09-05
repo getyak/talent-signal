@@ -317,26 +317,6 @@ private struct VoiceRecordButtonHalo: View {
     }
 }
 
-private struct MinimizedComposerActionStyle: ButtonStyle {
-    @Environment(\.talentSignalReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                configuration.isPressed
-                    ? Color.tsCanvas.opacity(0.72)
-                    : Color.clear,
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-            )
-            .opacity(configuration.isPressed ? 0.72 : 1)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
-            .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.12),
-                value: configuration.isPressed
-            )
-    }
-}
-
 enum RelationshipAskCaptureAction: Equatable, Sendable {
     case screenshotReview
     case foregroundAudio
@@ -483,31 +463,8 @@ struct RelationshipAskView: View {
     private var hasAcceptedVoiceDisclosure = false
     @FocusState private var composerFocused: Bool
 
-    private var minimizedPresentationDetent: PresentationDetent {
-        .height(134)
-    }
-
     private var compactPresentationDetent: PresentationDetent {
         .fraction(0.76)
-    }
-
-    private var compactEntryDetents: Set<PresentationDetent> {
-        canMinimizeCompactEntry
-            ? [minimizedPresentationDetent, compactPresentationDetent]
-            : [compactPresentationDetent]
-    }
-
-    private var canMinimizeCompactEntry: Bool {
-        !usesAccessibilityLayout
-            && !voiceOverEnabled
-            && !voiceInput.isBusy
-            && mediaDrafts.isEmpty
-            && mediaNotice == nil
-            && !isHomeAttachmentChooserPresented
-    }
-
-    private var isMinimizedEntry: Bool {
-        isCompactEntry && presentationDetent == minimizedPresentationDetent
     }
 
     private var preferredPersonName: String? {
@@ -519,9 +476,7 @@ struct RelationshipAskView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if isMinimizedEntry {
-                    minimizedComposerDock
-                } else if isCompactEntry, isHomeAttachmentChooserPresented {
+                if isCompactEntry, isHomeAttachmentChooserPresented {
                     homeAttachmentChooser
                 } else if isCompactEntry {
                     Spacer(minLength: 0)
@@ -563,16 +518,12 @@ struct RelationshipAskView: View {
                     : .spring(response: 0.42, dampingFraction: 0.88),
                 value: isCompactEntry
             )
-            .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.18),
-                value: isMinimizedEntry
-            )
             .toolbar(.hidden, for: .navigationBar)
         }
         .tint(.tsInk)
         .presentationDetents(
             isCompactEntry
-                ? compactEntryDetents
+                ? [compactPresentationDetent]
                 : [.large],
             selection: $presentationDetent
         )
@@ -812,11 +763,6 @@ struct RelationshipAskView: View {
         .onChange(of: isSending) { sending in
             if sending { presentationDetent = .large }
         }
-        .onChange(of: presentationDetent) { detent in
-            guard detent == minimizedPresentationDetent else { return }
-            composerFocused = false
-            flushDraftPersistence()
-        }
         .onChange(of: isRequestingScope) { requesting in
             if requesting { presentationDetent = compactPresentationDetent }
         }
@@ -919,8 +865,8 @@ struct RelationshipAskView: View {
                 )
             )
         }
-        .labDiagnosticPresentation()
         .accessibilityIdentifier("relationship-ask-sheet")
+        .labDiagnosticPresentation()
 #if DEBUG
         .overlay(alignment: .topTrailing) {
             if ProcessInfo.processInfo.arguments.contains(
@@ -1550,6 +1496,8 @@ struct RelationshipAskView: View {
 
             if voiceInput.isRecording || voiceInput.phase == .transcribing {
                 activeVoiceRibbon
+            } else if isCompactEntry {
+                compactMarkdownComposer
             } else {
                 voiceRibbonComposer(controlSize: controlSize)
             }
@@ -1568,6 +1516,85 @@ struct RelationshipAskView: View {
             }
         }
         .simultaneousGesture(voiceHoldGesture)
+    }
+
+    private var compactMarkdownComposer: some View {
+        VStack(spacing: 0) {
+            composerTextInput(
+                lineLimit: usesAccessibilityLayout ? 3...7 : 5...9,
+                minimumHeight: usesAccessibilityLayout ? 174 : 148,
+                horizontalPadding: 16,
+                verticalPadding: 14
+            )
+
+            Divider()
+                .overlay(Color.tsLine.opacity(0.72))
+                .padding(.horizontal, 12)
+
+            HStack(spacing: 2) {
+                compactPhotoControl
+
+                Divider()
+                    .frame(height: 26)
+                    .padding(.horizontal, 2)
+
+                markdownButton(
+                    symbol: "number",
+                    label: appLanguage.text("Heading"),
+                    identifier: "ask-markdown-heading"
+                ) {
+                    insertMarkdownBlock("# ")
+                }
+
+                markdownTextButton(
+                    text: "B",
+                    label: appLanguage.text("Bold"),
+                    identifier: "ask-markdown-bold"
+                ) {
+                    insertMarkdownInline(
+                        prefix: "**",
+                        suffix: "**",
+                        placeholder: appLanguage.text("bold text")
+                    )
+                }
+
+                markdownButton(
+                    symbol: "list.bullet",
+                    label: appLanguage.text("Bulleted list"),
+                    identifier: "ask-markdown-list"
+                ) {
+                    insertMarkdownBlock("- ")
+                }
+
+                markdownMoreMenu
+
+                Spacer(minLength: 2)
+
+                if hasComposerInput {
+                    composerPrimaryControl
+                } else {
+                    voiceQuickControl
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("ask-markdown-toolbar")
+        }
+        .frame(
+            minHeight: usesAccessibilityLayout ? 246 : 218,
+            alignment: .topLeading
+        )
+        .background(
+            Color.tsCanvas,
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.tsLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-expanded-composer")
     }
 
     private func voiceRibbonComposer(controlSize: CGFloat) -> some View {
@@ -1822,6 +1849,154 @@ struct RelationshipAskView: View {
             || pendingObjective != nil
     }
 
+    private var compactPhotoControl: some View {
+        Button {
+            composerFocused = false
+            isPhotoLibraryPresented = true
+        } label: {
+            Image(systemName: "photo")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: markdownControlSize, height: markdownControlSize)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: markdownControlSize, height: markdownControlSize)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerInputDisabled || mediaDrafts.count >= 10)
+        .accessibilityLabel(appLanguage.text("Add photo"))
+        .accessibilityIdentifier("ask-markdown-photo")
+    }
+
+    private func markdownButton(
+        symbol: String,
+        label: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: markdownControlSize, height: markdownControlSize)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: markdownControlSize, height: markdownControlSize)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerInputDisabled)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func markdownTextButton(
+        text: String,
+        label: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(text)
+                .font(.title3.weight(.bold))
+                .frame(width: markdownControlSize, height: markdownControlSize)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: markdownControlSize, height: markdownControlSize)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerInputDisabled)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private var markdownMoreMenu: some View {
+        Menu {
+            Button {
+                insertMarkdownBlock("> ")
+            } label: {
+                Label(appLanguage.text("Quote"), systemImage: "text.quote")
+            }
+            Button {
+                insertMarkdownBlock("- [ ] ")
+            } label: {
+                Label(appLanguage.text("Task list"), systemImage: "checklist")
+            }
+            Button {
+                insertMarkdownInline(
+                    prefix: "`",
+                    suffix: "`",
+                    placeholder: appLanguage.text("code")
+                )
+            } label: {
+                Label(
+                    appLanguage.text("Inline code"),
+                    systemImage: "chevron.left.forwardslash.chevron.right"
+                )
+            }
+            Button {
+                insertMarkdownInline(
+                    prefix: "[",
+                    suffix: "](https://)",
+                    placeholder: appLanguage.text("link label")
+                )
+            } label: {
+                Label(appLanguage.text("Link"), systemImage: "link")
+            }
+            Button {
+                insertMarkdownBlock("---")
+            } label: {
+                Label(appLanguage.text("Divider"), systemImage: "minus")
+            }
+            Divider()
+            Button {
+                composerFocused = false
+                isFileImporterPresented = true
+            } label: {
+                Label(appLanguage.text("Image from Files"), systemImage: "folder")
+            }
+            Button {
+                requestRelationshipScope()
+            } label: {
+                Label(
+                    appLanguage.text("Link a relationship", zhHans: "关联关系"),
+                    systemImage: "person.crop.circle.badge.plus"
+                )
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: markdownControlSize, height: markdownControlSize)
+                .fixedSize()
+                .contentShape(Rectangle())
+        }
+        .frame(width: markdownControlSize, height: markdownControlSize)
+        .fixedSize()
+        .layoutPriority(1)
+        .disabled(composerInputDisabled)
+        .accessibilityLabel(appLanguage.text("More Markdown and attachment options"))
+        .accessibilityIdentifier("ask-markdown-more")
+    }
+
+    private func insertMarkdownBlock(_ marker: String) {
+        let separator = draft.isEmpty || draft.hasSuffix("\n") ? "" : "\n"
+        draft += "\(separator)\(marker)"
+        composerFocused = true
+    }
+
+    private func insertMarkdownInline(
+        prefix: String,
+        suffix: String,
+        placeholder: String
+    ) {
+        let separator = draft.isEmpty || draft.last?.isWhitespace == true ? "" : " "
+        draft += "\(separator)\(prefix)\(placeholder)\(suffix)"
+        composerFocused = true
+    }
+
     private var composerPrimaryControl: some View {
         Button(action: composerPrimaryAction) {
             Group {
@@ -1966,6 +2141,10 @@ struct RelationshipAskView: View {
 
     private var composerPrimaryControlSize: CGFloat {
         max(52, composerControlSize)
+    }
+
+    private var markdownControlSize: CGFloat {
+        48
     }
 
     @ViewBuilder
@@ -2295,116 +2474,6 @@ struct RelationshipAskView: View {
             && !isRequestingScope
             && errorMessage == nil
             && reviewPreparationError == nil
-    }
-
-    private var minimizedComposerDock: some View {
-        HStack(alignment: .top, spacing: 10) {
-            minimizedComposerAction(
-                title: appLanguage.text("Image"),
-                symbol: "photo",
-                identifier: "ask-minimized-photos",
-                hint: appLanguage.text(
-                    "Choose images from your photo library.",
-                    zhHans: "从照片图库选择图片。"
-                ),
-                action: openMinimizedPhotos
-            )
-            minimizedComposerAction(
-                title: appLanguage.text("Files"),
-                symbol: "folder",
-                identifier: "ask-minimized-files",
-                hint: appLanguage.text(
-                    "Choose image files from Files.",
-                    zhHans: "从文件中选择图片。"
-                ),
-                action: openMinimizedFiles
-            )
-            minimizedComposerAction(
-                title: appLanguage.text("Voice"),
-                symbol: "waveform",
-                identifier: "ask-minimized-voice",
-                hint: appLanguage.text(
-                    "Expand the chat and start voice input.",
-                    zhHans: "展开对话并开始语音输入。"
-                ),
-                action: openMinimizedVoice
-            )
-            minimizedComposerAction(
-                title: appLanguage.text("Text"),
-                symbol: "pencil",
-                identifier: "ask-minimized-text",
-                hint: appLanguage.text(
-                    "Expand the chat and focus the text field.",
-                    zhHans: "展开对话并聚焦文字输入框。"
-                ),
-                action: openMinimizedText
-            )
-        }
-        .padding(.horizontal, 24)
-        .frame(maxHeight: .infinity, alignment: .center)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("ask-minimized-actions")
-    }
-
-    private func minimizedComposerAction(
-        title: String,
-        symbol: String,
-        identifier: String,
-        hint: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 22, weight: .medium))
-                    .symbolRenderingMode(.monochrome)
-                    .frame(width: 48, height: 42)
-                Text(title)
-                    .font(.callout.weight(.medium))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(Color.tsInk)
-            .frame(maxWidth: .infinity, minHeight: 82)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(MinimizedComposerActionStyle())
-        .accessibilityLabel(title)
-        .accessibilityHint(hint)
-        .accessibilityIdentifier(identifier)
-    }
-
-    private func openMinimizedPhotos() {
-        expandMinimizedComposer {
-            composerFocused = false
-            isPhotoLibraryPresented = true
-        }
-    }
-
-    private func openMinimizedFiles() {
-        expandMinimizedComposer {
-            composerFocused = false
-            isFileImporterPresented = true
-        }
-    }
-
-    private func openMinimizedVoice() {
-        expandMinimizedComposer {
-            requestVoiceInput()
-        }
-    }
-
-    private func openMinimizedText() {
-        expandMinimizedComposer {
-            composerFocused = true
-        }
-    }
-
-    private func expandMinimizedComposer(perform action: @escaping () -> Void) {
-        presentationDetent = compactPresentationDetent
-        Task { @MainActor in
-            await Task.yield()
-            action()
-        }
     }
 
     @ViewBuilder
