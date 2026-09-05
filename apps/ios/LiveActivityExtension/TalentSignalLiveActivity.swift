@@ -14,102 +14,153 @@ struct TalentSignalLiveActivityBundle: WidgetBundle {
 struct SignalRecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SignalRecordingActivityAttributes.self) { context in
-            HStack(spacing: 14) {
-                Image(systemName: icon(for: context.state.phase))
-                    .font(.title2)
-                    .foregroundStyle(.red)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title(for: context.state.phase)).font(.headline)
-                    if context.state.phase == .recording {
-                        Text(timerInterval: context.state.startedAt ... Date.distantFuture, countsDown: false)
-                            .font(.body.monospacedDigit())
-                    } else {
-                        Text(subtitle(for: context.state.phase)).font(.caption).foregroundStyle(.secondary)
-                    }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    mark(context)
+                    Text("Talent Signal")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.72))
+                    Spacer(minLength: 8)
+                    if isRecording(context) { timer(context).font(.subheadline) }
                 }
-                Spacer()
-                if context.state.phase == .recording {
-                    Button(intent: StopStandaloneSignalRecordingIntent(draftID: context.state.draftID)) {
-                        Label("Stop", systemImage: "stop.fill").labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                    .accessibilityLabel("Stop and save Signal recording")
-                }
+                recordingBody(context)
             }
-            .padding()
-            .activityBackgroundTint(Color.black.opacity(0.88))
+            .padding(16)
+            .activityBackgroundTint(Color.signalActivityBackground)
             .activitySystemActionForegroundColor(.white)
             .widgetURL(reviewURL(draftID: context.state.draftID))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: icon(for: context.state.phase)).foregroundStyle(.red)
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    Text(title(for: context.state.phase)).font(.headline)
+                    mark(context)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if context.state.phase == .recording {
-                        Text(timerInterval: context.state.startedAt ... Date.distantFuture, countsDown: false)
-                            .font(.caption.monospacedDigit())
+                    if isRecording(context) {
+                        timer(context).font(.subheadline)
+                            .padding(.trailing, 10)
+                    } else {
+                        Text(context.isStale ? String(localized: "Delayed") : status(context.state.phase))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(.trailing, 10)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if context.state.phase == .recording {
-                        Button(intent: StopStandaloneSignalRecordingIntent(draftID: context.state.draftID)) {
-                            Label("Stop and save", systemImage: "stop.fill")
-                        }
-                        .tint(.red)
-                    } else {
-                        Text(subtitle(for: context.state.phase)).font(.caption)
-                    }
+                    recordingBody(context)
                 }
             } compactLeading: {
-                Image(systemName: icon(for: context.state.phase)).foregroundStyle(.red)
+                mark(context)
+                    .accessibilityLabel(title(context))
             } compactTrailing: {
-                if context.state.phase == .recording {
-                    Text(timerInterval: context.state.startedAt ... Date.distantFuture, countsDown: false)
-                        .monospacedDigit()
-                        .frame(width: 42)
+                if isRecording(context) {
+                    timer(context)
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 58)
                 } else {
-                    Image(systemName: context.state.phase == .readyToReview ? "checkmark" : "sparkles")
+                    Text(context.isStale ? String(localized: "Delayed") : status(context.state.phase))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             } minimal: {
-                Image(systemName: icon(for: context.state.phase)).foregroundStyle(.red)
+                mark(context)
+                    .accessibilityLabel(title(context))
             }
             .widgetURL(reviewURL(draftID: context.state.draftID))
-            .keylineTint(.red)
+            .keylineTint(Color.signalActivityAccent)
         }
     }
 
-    private func title(
-        for phase: SignalRecordingActivityAttributes.ContentState.Phase
-    ) -> String {
-        switch phase {
-        case .recording: return "Recording Signal"
-        case .organizing: return "Saved · Organizing"
-        case .readyToReview: return "Ready to Review"
+    private func recordingBody(
+        _ context: ActivityViewContext<SignalRecordingActivityAttributes>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title(context))
+                .font(.headline)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 12) {
+                Text(context.isStale
+                     ? String(localized: "Open the app for current status")
+                     : subtitle(for: context.state.phase))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if isRecording(context) {
+                    Button(intent: StopStandaloneSignalRecordingIntent(draftID: context.state.draftID)) {
+                        Label("Stop and save", systemImage: "stop.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .foregroundStyle(.black)
+                            .background(.white, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Stop and save Signal recording")
+                } else if let url = reviewURL(draftID: context.state.draftID) {
+                    Link(destination: url) {
+                        Text(context.isStale ? String(localized: "Check status") : String(localized: "Open review"))
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .foregroundStyle(.black)
+                            .background(.white, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.top, 2)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func isRecording(_ context: ActivityViewContext<SignalRecordingActivityAttributes>) -> Bool {
+        context.state.phase == .recording && !context.isStale
+    }
+
+    private func timer(_ context: ActivityViewContext<SignalRecordingActivityAttributes>) -> some View {
+        Text(timerInterval: context.state.startedAt ... Date.distantFuture, countsDown: false)
+            .monospacedDigit()
+            .foregroundStyle(.white)
+    }
+
+    private func mark(_ context: ActivityViewContext<SignalRecordingActivityAttributes>) -> some View {
+        Image(systemName: context.isStale ? "clock.badge.exclamationmark" : icon(for: context.state.phase))
+            .font(.system(size: 17, weight: .medium))
+            .foregroundStyle(context.isStale ? .white.opacity(0.8) : Color.signalActivityAccent)
+            .frame(width: 22, height: 22)
+    }
+
+    private func title(_ context: ActivityViewContext<SignalRecordingActivityAttributes>) -> String {
+        if context.isStale { return String(localized: "Update delayed") }
+        switch context.state.phase {
+        case .recording: return String(localized: "Recording Signal")
+        case .organizing: return String(localized: "Saved · Organizing")
+        case .readyToReview: return String(localized: "Ready to Review")
         }
     }
 
-    private func subtitle(
-        for phase: SignalRecordingActivityAttributes.ContentState.Phase
-    ) -> String {
+    private func status(_ phase: SignalRecordingActivityAttributes.ContentState.Phase) -> String {
         switch phase {
-        case .recording: return "Foreground, local capture"
-        case .organizing: return "The local recording is saved"
-        case .readyToReview: return "Open Talent Signal to review"
+        case .recording: return String(localized: "Recording")
+        case .organizing: return String(localized: "Working")
+        case .readyToReview: return String(localized: "To review")
         }
     }
 
-    private func icon(
-        for phase: SignalRecordingActivityAttributes.ContentState.Phase
-    ) -> String {
+    private func subtitle(for phase: SignalRecordingActivityAttributes.ContentState.Phase) -> String {
         switch phase {
-        case .recording: return "waveform.circle.fill"
-        case .organizing: return "sparkles"
-        case .readyToReview: return "checkmark.circle.fill"
+        case .recording: return String(localized: "On-device recording")
+        case .organizing, .readyToReview: return String(localized: "The local recording is saved")
+        }
+    }
+
+    private func icon(for phase: SignalRecordingActivityAttributes.ContentState.Phase) -> String {
+        switch phase {
+        case .recording: return "waveform"
+        case .organizing: return "text.magnifyingglass"
+        case .readyToReview: return "doc.text"
         }
     }
 

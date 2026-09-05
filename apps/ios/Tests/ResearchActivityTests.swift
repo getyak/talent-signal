@@ -48,6 +48,58 @@ final class ResearchActivityTests: XCTestCase {
         )
     }
 
+    func testCompactAndMinimalDistinguishWorkReviewAndEnded() throws {
+        let states: [(ResearchActivityExecution, ResearchActivityStage, LiveActivityDisplayStatus)] = [
+            (.running, .readingApprovedPages, .working),
+            (.completed, .pagesReadyForReview, .review),
+            (.cancelled, .ended, .ended),
+        ]
+        var symbols = Set<String>()
+        for (execution, stage, expected) in states {
+            let view = try ResearchActivityProjector.project(
+                makeState(execution: execution, stage: stage, revision: 1)
+            )
+            XCTAssertEqual(view.displayStatus, expected)
+            symbols.insert(view.displayStatus.systemImageName)
+            if execution == .cancelled {
+                XCTAssertNil(view.action)
+                let ended = ResearchActivityProjector.presentation(
+                    makeState(execution: execution, stage: stage, revision: 1),
+                    isSystemStale: true
+                )
+                XCTAssertEqual(ended.displayStatus, .ended)
+            }
+        }
+        XCTAssertEqual(symbols.count, states.count)
+    }
+
+    func testSystemStalenessReplacesReassuranceWithoutChangingTaskOrRoute() {
+        for (execution, stage) in [
+            (ResearchActivityExecution.running, ResearchActivityStage.readingApprovedPages),
+            (.completed, .pagesReadyForReview),
+        ] {
+            let state = makeState(execution: execution, stage: stage, revision: 2)
+            let fresh = ResearchActivityProjector.presentation(state, isSystemStale: false)
+            let stale = ResearchActivityProjector.presentation(state, isSystemStale: true)
+            XCTAssertEqual(stale.displayStatus, .delayed)
+            XCTAssertEqual(stale.title, "Update delayed")
+            XCTAssertFalse(stale.accessibilityLabel.contains("You can leave"))
+            XCTAssertEqual(stale.action, fresh.action)
+            XCTAssertEqual(stale.isTerminal, fresh.isTerminal)
+        }
+    }
+
+    func testInvalidPresentationNeverInvitesLeavingOrRoutesAnUnsupportedState() {
+        let view = ResearchActivityProjector.presentation(
+            makeState(execution: .completed, stage: .readingApprovedPages, revision: 2),
+            isSystemStale: false
+        )
+        XCTAssertEqual(view.displayStatus, .attention)
+        XCTAssertNil(view.action)
+        XCTAssertFalse(view.isTerminal)
+        XCTAssertFalse(view.accessibilityLabel.contains("You can leave"))
+    }
+
     func testPayloadIsOpaqueAndBelowActivityKitLimit() throws {
         let state = makeState(
             execution: .completed,

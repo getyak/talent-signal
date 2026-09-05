@@ -61,7 +61,7 @@ final class AgentWorkShowcaseUITests: XCTestCase {
         tapWhenVisible(app.buttons["agent-work-close-live-activity"])
     }
 
-    func testRealDynamicIslandMovesFromAwayToReview() {
+    func testRealDynamicIslandMovesFromWorkingToReview() {
         launchShowcase()
         preserveScreenshot("TS-LA-01 showcase before start")
 
@@ -111,12 +111,23 @@ final class AgentWorkShowcaseUITests: XCTestCase {
             XCUIDevice.shared.press(.home)
             waitForSystemSurface()
             preserveSystemScreenshot("Agent boundary atlas \(fixture)")
-
-            app.activate()
+            let titles = [
+                "partial": "Some actions need review",
+                "failed": "Processing needs attention",
+                "unknown": "Result needs confirmation",
+                "stale": "Update delayed",
+            ]
+            expandDynamicIsland(expectedTitle: titles[fixture]!)
+            preserveSystemScreenshot("Agent boundary expanded \(fixture)")
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            let action = springboard.buttons[fixture == "stale" ? "Check status" : "Review issue"]
+            XCTAssertTrue(action.waitForExistence(timeout: 3))
+            action.tap()
             XCTAssertTrue(
                 element("agent-work-atlas-\(fixture)")
                     .waitForExistence(timeout: 8)
             )
+            XCTAssertTrue(element("agent-work-status").label.contains("The exact synthetic issue is open"))
             tapWhenVisible(app.buttons["agent-work-atlas-end"])
             app.terminate()
         }
@@ -166,7 +177,8 @@ final class AgentWorkShowcaseUITests: XCTestCase {
         ).press(forDuration: 1)
         waitForSystemSurface()
         XCTAssertTrue(
-            springboard.staticTexts[expectedTitle].waitForExistence(timeout: 3),
+            springboard.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", expectedTitle))
+                .firstMatch.waitForExistence(timeout: 3),
             "Expected the expanded Live Activity to use the English development language"
         )
     }
