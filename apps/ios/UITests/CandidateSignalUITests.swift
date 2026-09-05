@@ -529,7 +529,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Open route"].exists)
         prepare.tap()
 
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-response-turn").exists)
         let scope = element("ask-scope-selector")
         XCTAssertTrue(scope.waitForExistence(timeout: 5))
@@ -1151,7 +1151,7 @@ final class CandidateSignalUITests: XCTestCase {
         openPersonActions(leila)
         app.buttons["Ask about this person"].tap()
 
-        let askSheet = element("relationship-ask-sheet")
+        let askSheet = element("relationship-ask-screen")
         XCTAssertTrue(askSheet.waitForExistence(timeout: 5))
         app.buttons["ask-close"].tap()
         XCTAssertTrue(askSheet.waitForNonExistence(timeout: 5))
@@ -1353,12 +1353,12 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.buttons["archive-tab-people"].isSelected)
         ask.tap()
 
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
         let scope = element("ask-scope-selector")
         XCTAssertTrue(scope.waitForExistence(timeout: 5))
         XCTAssertTrue((scope.value as? String)?.contains("Leila Hartmann") == true)
         XCTAssertFalse(element("ask-response-turn").exists)
-        let askSheet = element("relationship-ask-sheet")
+        let askSheet = element("relationship-ask-screen")
         let closeAsk = app.buttons["ask-close"]
         XCTAssertTrue(closeAsk.waitForExistence(timeout: 5))
         closeAsk.tap()
@@ -1391,7 +1391,7 @@ final class CandidateSignalUITests: XCTestCase {
         openPersonActions(person)
         app.buttons["Ask about this person"].tap()
 
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
         XCTAssertTrue(
             element("ask-preferred-scope-optional").waitForExistence(timeout: 5)
         )
@@ -1484,7 +1484,7 @@ final class CandidateSignalUITests: XCTestCase {
         assertVisibleAnchor(target, near: baselineMidY, tolerance: tolerance)
 
         target.tap()
-        let askSheet = element("relationship-ask-sheet")
+        let askSheet = element("relationship-ask-screen")
         XCTAssertTrue(askSheet.waitForExistence(timeout: 5))
         let close = app.buttons["ask-close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
@@ -1569,7 +1569,7 @@ final class CandidateSignalUITests: XCTestCase {
             app.buttons["Delete session history from this device"].exists
         )
         app.buttons["Open session"].tap()
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
     }
 
     func testRetrievalInteractionLatencyBudgets() throws {
@@ -1615,14 +1615,14 @@ final class CandidateSignalUITests: XCTestCase {
             )
             let start = ProcessInfo.processInfo.systemUptime
             sessionTap.tap()
-            XCTAssertTrue(element("relationship-ask-sheet").exists)
+            XCTAssertTrue(element("relationship-ask-screen").exists)
             let elapsed = (ProcessInfo.processInfo.systemUptime - start) * 1_000
             if trial >= 3 {
                 sessionOpenSamples.append(elapsed)
             }
             app.buttons["Close"].firstMatch.tap()
             XCTAssertTrue(
-                element("relationship-ask-sheet").waitForNonExistence(timeout: 3)
+                element("relationship-ask-screen").waitForNonExistence(timeout: 3)
             )
             XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 3))
         }
@@ -1686,7 +1686,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Conversation-first Ask with embedded tools")
     }
 
-    func testGlobalAgentInputOpensRichNewChatComposer() {
+    func testGlobalAgentInputOpensRichNewSessionComposer() {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -1694,13 +1694,20 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(globalInput.waitForExistence(timeout: 5))
         globalInput.tap()
 
+        let askScreen = element("relationship-ask-screen")
+        XCTAssertTrue(askScreen.waitForExistence(timeout: 5))
+        assertFillsAppWindow(askScreen)
+        let close = app.buttons["ask-close"]
+        XCTAssertTrue(close.exists)
+        XCTAssertGreaterThanOrEqual(close.frame.height, 44)
         let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertTrue(
-            element("ask-new-chat-header").exists,
-            "The home entry should open as a lightweight new Chat composer."
+            element("ask-new-session-header").exists,
+            "The home entry should open as a full-screen new Session."
         )
+        XCTAssertTrue(app.staticTexts["New Session"].exists)
         XCTAssertTrue(element("ask-recall-disclosure").exists)
         let expandedComposer = element("ask-expanded-composer")
         XCTAssertTrue(expandedComposer.exists)
@@ -1719,7 +1726,7 @@ final class CandidateSignalUITests: XCTestCase {
         app.keys["delete"].tap()
         XCTAssertTrue(app.buttons["ask-voice"].waitForExistence(timeout: 2))
         XCTAssertFalse(app.buttons["ask-send"].exists)
-        preserveScreenshot("New Chat focused empty and voice ready")
+        preserveScreenshot("New Session focused empty and voice ready")
 
         let message = "# Search note\n\n- Add Maya Chen for the product search"
         typeTextReliably(message, into: composer)
@@ -1728,10 +1735,10 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(send.exists)
         XCTAssertTrue(send.isEnabled)
         XCTAssertFalse(app.buttons["ask-voice"].exists)
-        preserveScreenshot("Global Agent rich new Chat ready to type")
+        preserveScreenshot("Global Agent rich new Session ready to type")
     }
 
-    func testNewChatRichToolbarInsertsEditableFormattingAndSwitchesToSend() {
+    func testNewSessionRichToolbarInsertsEditableFormattingAndSwitchesToSend() {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -1761,7 +1768,7 @@ final class CandidateSignalUITests: XCTestCase {
         list.tap()
         XCTAssertEqual(composer.value as? String, "# **bold text**\n- ")
         XCTAssertTrue(app.keyboards.firstMatch.exists)
-        preserveScreenshot("New Chat rich toolbar and adaptive send")
+        preserveScreenshot("New Session rich toolbar and adaptive send")
     }
 
     func testHomePlusShowsAttachmentSourcesBeforeOpeningAPicker() {
@@ -1786,7 +1793,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         app.buttons["relationship-guide"].tap()
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
         XCTAssertFalse(element("ask-scope-selector").exists)
 
         let composer = app.textFields["ask-composer"]
@@ -1860,6 +1867,10 @@ final class CandidateSignalUITests: XCTestCase {
 
         send.tap()
 
+        XCTAssertTrue(element("ask-chat-header").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("ask-new-session-header").exists)
+        XCTAssertTrue(app.staticTexts["Session"].exists)
+        assertFillsAppWindow(element("relationship-ask-screen"))
         XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Agent · Preview"].exists)
         XCTAssertFalse(element("ask-recall-unresolved").exists)
@@ -2321,7 +2332,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
         tapWhenVisible(app.buttons["relationship-guide"])
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
 
         let composer = askComposer
         let question = "Leila 有什么变化？"
@@ -2404,7 +2415,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
         tapWhenVisible(app.buttons["relationship-guide"])
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
 
         let composer = askComposer
         let question = "What changed with Leila?"
@@ -3805,7 +3816,7 @@ final class CandidateSignalUITests: XCTestCase {
         }
 
         XCTAssertTrue(element("ask-media-draft-tray").waitForExistence(timeout: 15))
-        XCTAssertTrue(element("relationship-ask-sheet").exists)
+        XCTAssertTrue(element("relationship-ask-screen").exists)
         XCTAssertFalse(app.navigationBars["Photos"].exists)
         XCTAssertFalse(app.staticTexts["Unrelated image selected"].exists)
         XCTAssertFalse(element("inspect-capture-source").exists)
@@ -4168,7 +4179,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Contact handoff cancelled without write")
 
         tapWhenVisible(app.buttons["continue-capture-in-agent"])
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 30))
         let scopeSelector = element("ask-scope-selector")
         XCTAssertTrue(scopeSelector.waitForExistence(timeout: 5))
         let expectedScopeValue =
@@ -4316,10 +4327,9 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.buttons["home-attachment-files"].exists)
         XCTAssertTrue(app.buttons["home-attachment-relationship"].exists)
         XCTAssertTrue(app.buttons["home-attachment-write"].exists)
-        XCTAssertLessThan(
-            element("home-attachment-chooser").frame.height,
-            app.windows.firstMatch.frame.height * 0.8
-        )
+        assertFillsAppWindow(element("relationship-ask-screen"))
+        XCTAssertTrue(element("ask-new-session-header").exists)
+        XCTAssertTrue(app.buttons["ask-close"].exists)
         XCTAssertFalse(app.keyboards.firstMatch.exists)
         XCTAssertFalse(element("inspect-capture-source").exists)
         preserveScreenshot("Home attachment purpose-bound chooser")
@@ -4338,7 +4348,7 @@ final class CandidateSignalUITests: XCTestCase {
         )
         tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(
-            element("relationship-ask-sheet").waitForExistence(timeout: 5)
+            element("relationship-ask-screen").waitForExistence(timeout: 5)
         )
         if app.buttons["contact-dismiss-proposal"].exists {
             app.buttons["contact-dismiss-proposal"].tap()
@@ -4441,7 +4451,7 @@ final class CandidateSignalUITests: XCTestCase {
         )
         tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(
-            element("relationship-ask-sheet").waitForExistence(timeout: 5)
+            element("relationship-ask-screen").waitForExistence(timeout: 5)
         )
 
         let composer = app.textFields["ask-composer"]
@@ -4535,7 +4545,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("canonical-pursuit-today").waitForExistence(timeout: 15))
         tapWhenVisible(app.buttons["relationship-guide"])
-        XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("relationship-ask-screen").waitForExistence(timeout: 5))
         if app.buttons["contact-dismiss-proposal"].exists {
             app.buttons["contact-dismiss-proposal"].tap()
         }
@@ -5614,13 +5624,26 @@ final class CandidateSignalUITests: XCTestCase {
     private func element(_ identifier: String) -> XCUIElement {
         let matches = app.descendants(matching: .any)
             .matching(identifier: identifier)
-        if identifier == "relationship-ask-sheet",
+        if identifier == "relationship-ask-screen",
            let visible = matches.allElementsBoundByIndex.max(by: {
                $0.frame.height < $1.frame.height
            }) {
             return visible
         }
         return app.descendants(matching: .any)[identifier]
+    }
+
+    private func assertFillsAppWindow(
+        _ screen: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.exists, file: file, line: line)
+        XCTAssertEqual(screen.frame.minX, window.frame.minX, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(screen.frame.minY, window.frame.minY, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(screen.frame.maxX, window.frame.maxX, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(screen.frame.maxY, window.frame.maxY, accuracy: 1, file: file, line: line)
     }
 
     private func hittableButton(
@@ -5875,7 +5898,7 @@ final class RelationshipCalendarWorkflowUITests: XCTestCase {
 
         app.buttons["calendar-context-prepare-\(activityID)"].tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["relationship-ask-sheet"]
+            app.descendants(matching: .any)["relationship-ask-screen"]
                 .firstMatch.waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.textFields["ask-composer"].waitForExistence(timeout: 5))
