@@ -234,6 +234,12 @@ import {
   type PersonResearchAgentProviding,
 } from "./modules/personResearchAgentClient.js";
 import { createPersonResearchTask } from "./modules/personResearchTasks.js";
+import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask,
+  cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks,
+  environmentScreenshotContactDependencies, ScreenshotContactTaskRunner,
+  type ScreenshotContactDependencies } from "./modules/screenshotContactTasks.js";
+import { ScreenshotContactTaskRequestSchema, type ScreenshotContactTaskRequest } from "@talent-signal/agent";
+import { executeGrantedContactArchive, restoreContactArchive } from "./modules/contactArchive.js";
 import {
   createEnvironmentChatAnswerProvider,
   type RemoteChatAnswerProviding,
@@ -455,12 +461,16 @@ export interface AppDependencies {
   labJobWorkerEnabled?: boolean;
   labCIVerifier?: LabCIVerifying | null;
   personResearchProvider?: PersonResearchAgentProviding | null;
+  screenshotContact?: ScreenshotContactDependencies | null;
 }
 
 export async function buildApp(
   dependencies: AppDependencies,
 ): Promise<FastifyInstance> {
   const { appleTokenVerifier, config, pool } = dependencies;
+  const screenshotContact = dependencies.screenshotContact === undefined
+    ? environmentScreenshotContactDependencies() : dependencies.screenshotContact;
+  const screenshotRunner = screenshotContact ? new ScreenshotContactTaskRunner(pool,screenshotContact) : null;
   const remoteChatProvider = dependencies.remoteChatProvider === undefined
     ? createEnvironmentChatAnswerProvider()
     : dependencies.remoteChatProvider;
@@ -621,7 +631,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '047_proposed_extracted_text'`,
+           WHERE version = '048_contact_task_invalidation'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -2514,6 +2524,44 @@ export async function buildApp(
     },
   );
 
+  app.post<{ Body: unknown }>("/v1/contact-agent/tasks", {
+    preHandler: authenticate, bodyLimit: 14_000_000,
+    schema: {tags:["contact-agent"],security},
+  }, async(request,reply)=>{
+    if(!screenshotRunner)throw new ApiError(503,"CONTACT_AGENT_UNAVAILABLE","Screenshot contact Agent is not configured.");
+    const result=await createScreenshotContactTask(pool,request.auth,request.body);
+    const image=ScreenshotContactTaskRequestSchema.parse(request.body).image;
+    void screenshotRunner.start(request.auth,result.body.task_id,image).catch(()=>request.log.error({task_id:result.body.task_id},"Contact task could not start"));
+    return reply.header("idempotent-replayed",result.replayed).status(result.replayed?200:201).send(result.body);
+  });
+  app.get("/v1/contact-agent/tasks",{preHandler:authenticate,schema:{security}},async request=>listScreenshotContactTasks(pool,request.auth));
+  app.get<{Params:{id:string}}>("/v1/contact-agent/tasks/:id",{preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},async request=>{
+    const result=await loadScreenshotContactTask(pool,request.auth,request.params.id);
+    if(result.status==="running")void screenshotRunner?.start(request.auth,result.task_id).catch(()=>{});
+    return result;
+  });
+  app.post<{Params:{id:string};Body:{expected_revision:number;selected_person_id?:string;selected_relationship_context_id?:string;new_contact_name?:string;image?:ScreenshotContactTaskRequest["image"]}}>(
+    "/v1/contact-agent/tasks/:id/resume",{preHandler:authenticate,bodyLimit:14_000_000,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),
+      body:Type.Object({expected_revision:Type.Integer({minimum:1}),selected_person_id:Type.Optional(Type.String({format:"uuid"})),
+        selected_relationship_context_id:Type.Optional(Type.String({format:"uuid"})),new_contact_name:Type.Optional(Type.String({minLength:1,maxLength:200})),
+        image:Type.Optional(Type.Object({media_type:Type.Union([Type.Literal("image/png"),Type.Literal("image/jpeg"),Type.Literal("image/webp")]),
+          byte_size:Type.Integer({minimum:1,maximum:10_000_000}),content_hash:Type.String({pattern:"^[a-f0-9]{64}$"}),data_base64:Type.String({maxLength:13_400_000})},{additionalProperties:false}))},{additionalProperties:false})}},async request=>{
+      if(!screenshotRunner)throw new ApiError(503,"CONTACT_AGENT_UNAVAILABLE","Screenshot contact Agent is not configured.");
+      const result=await resumeScreenshotContactTask(pool,request.auth,request.params.id,request.body);
+      void screenshotRunner.start(request.auth,result.task_id,request.body.image).catch(()=>{});return result;
+    });
+  app.post<{Params:{id:string};Body:{expected_revision:number}}>("/v1/contact-agent/tasks/:id/cancel",{preHandler:authenticate,
+    schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1})},{additionalProperties:false})}},
+    async request=>cancelScreenshotContactTask(pool,request.auth,request.params.id,request.body.expected_revision));
+  app.get<{Params:{id:string};Querystring:{relationship_context_id:string}}>("/v1/people/:id/contact-intelligence",{preHandler:authenticate,
+    schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),querystring:Type.Object({relationship_context_id:Type.String({format:"uuid"})},{additionalProperties:false})}},
+    async request=>loadContactIntelligence(pool,request.auth,request.params.id,request.query.relationship_context_id));
+  app.post<{Params:{id:string};Body:{expected_revision:number;idempotency_key:string;decision:"archive"}}>("/v1/people/:id/archive",{preHandler:authenticate,
+    schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1}),idempotency_key:Type.String({minLength:1,maxLength:128}),decision:Type.Literal("archive")},{additionalProperties:false})}},
+    async request=>executeGrantedContactArchive(pool,request.auth,{person_id:request.params.id,...request.body}));
+  app.post<{Params:{id:string}}>("/v1/contact-archives/:id/restore",{preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},
+    async request=>restoreContactArchive(pool,request.auth,request.params.id));
+
   app.post<{ Body: PersonResearchTaskRequest }>(
     "/v1/person-research/tasks",
     {
@@ -3067,6 +3115,7 @@ export async function buildApp(
   );
 
   const retentionSweep = setInterval(() => {
+    void expireScreenshotContactTasks(pool).catch(()=>app.log.error("Contact task retention sweep failed"));
     void runSourceLifecycleSweep(pool).catch((error: unknown) => {
       app.log.error(
         { err: error },
@@ -3077,6 +3126,7 @@ export async function buildApp(
   retentionSweep.unref();
   app.addHook("onClose", async () => {
     clearInterval(retentionSweep);
+    await screenshotRunner?.close();
   });
 
   return app;

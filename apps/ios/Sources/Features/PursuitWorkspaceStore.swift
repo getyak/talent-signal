@@ -415,6 +415,31 @@ final class PursuitWorkspaceStore: ObservableObject {
         }
     }
 
+    func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.createScreenshotContactTask(body)
+    }
+    func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.loadScreenshotContactTask(id: id)
+    }
+    func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.listScreenshotContactTasks()
+    }
+    func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.loadContactIntelligence(personID: personID, contextID: contextID)
+    }
+    func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.resumeScreenshotContactTask(id: id, body: body)
+    }
+    func cancelScreenshotContactTask(id: String, revision: Int) async throws -> ScreenshotContactTask {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.cancelScreenshotContactTask(id: id, revision: revision)
+    }
+
     func saveContactDraft(
         _ draft: ConversationContactDraft,
         target: ConversationContactTarget,

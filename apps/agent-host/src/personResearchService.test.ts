@@ -104,7 +104,7 @@ describe("person research local service", () => {
       .update(JSON.stringify({
         platform: "douyin",
         providerID: "tikhub",
-        providerRequestID: "provider-request-1",
+        providerRequestID: null,
         profileID: "42",
         displayName: "周宇",
         handle: "zhouyu",

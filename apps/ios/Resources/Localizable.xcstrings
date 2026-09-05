@@ -27355,6 +27355,462 @@
           }
         }
       }
+    },
+    "Chat evidence": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聊天原文"
+          }
+        }
+      }
+    },
+    "Chat screenshot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聊天截图"
+          }
+        }
+      }
+    },
+    "Choose a screenshot under 10 MB.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a screenshot under 10 MB."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择小于 10 MB 的截图。"
+          }
+        }
+      }
+    },
+    "Company": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Company"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公司"
+          }
+        }
+      }
+    },
+    "Confirm and continue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认并继续"
+          }
+        }
+      }
+    },
+    "Contact name for filing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本次归档的联系人姓名"
+          }
+        }
+      }
+    },
+    "Content read": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已读取正文"
+          }
+        }
+      }
+    },
+    "Continue this task": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续这个任务"
+          }
+        }
+      }
+    },
+    "Conversation and sourced context": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话与来源资料"
+          }
+        }
+      }
+    },
+    "Existing contact reused": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复用联系人"
+          }
+        }
+      }
+    },
+    "File this chat screenshot to the correct internal contact, save its messages, and explain supported changes and the next step. Research public professional context when useful.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把聊天截图归档到正确联系人，保存消息，整理有依据的变化与下一步；在有帮助时查找公开职业资料。"
+          }
+        }
+      }
+    },
+    "Interpretation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分析判断"
+          }
+        }
+      }
+    },
+    "Left side": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面左侧"
+          }
+        }
+      }
+    },
+    "Location": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地点"
+          }
+        }
+      }
+    },
+    "Messages and sourced context are retained for 30 days; the original image is not retained.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消息和来源资料保留 30 天，原图不保留。"
+          }
+        }
+      }
+    },
+    "Needs your clarification": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要你确认"
+          }
+        }
+      }
+    },
+    "Not completed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未完成"
+          }
+        }
+      }
+    },
+    "Open contact": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开联系人"
+          }
+        }
+      }
+    },
+    "Organized": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已整理"
+          }
+        }
+      }
+    },
+    "Organizing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在整理"
+          }
+        }
+      }
+    },
+    "Possible match": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待核对匹配"
+          }
+        }
+      }
+    },
+    "Professional background": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Professional background"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "职业背景"
+          }
+        }
+      }
+    },
+    "Professional headline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Professional headline"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一句话职业背景"
+          }
+        }
+      }
+    },
+    "Professional topics": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Professional topics"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "职业议题"
+          }
+        }
+      }
+    },
+    "Public profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Public profile"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公开主页"
+          }
+        }
+      }
+    },
+    "Public sources explored": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检索过的公开来源"
+          }
+        }
+      }
+    },
+    "Reading the conversation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取对话"
+          }
+        }
+      }
+    },
+    "Reattach the same screenshot": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reattach the same screenshot"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新附上同一张截图"
+          }
+        }
+      }
+    },
+    "Right side": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面右侧"
+          }
+        }
+      }
+    },
+    "Saved, with unfinished work": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存，部分未完成"
+          }
+        }
+      }
+    },
+    "Screenshot tasks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图整理记录"
+          }
+        }
+      }
+    },
+    "Send to file messages and sourced contact context. Identity ambiguity pauses for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送后会自动归档消息和来源资料，遇到身份歧义会请你确认。"
+          }
+        }
+      }
+    },
+    "Source context could not be refreshed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法刷新来源资料。"
+          }
+        }
+      }
+    },
+    "Source statement": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源陈述"
+          }
+        }
+      }
+    },
+    "Sourced professional context": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有来源的职业资料"
+          }
+        }
+      }
+    },
+    "Speaker unknown": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话人未知"
+          }
+        }
+      }
+    },
+    "Stopped": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已停止"
+          }
+        }
+      }
+    },
+    "Uncertainty and limitations": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仍需核对"
+          }
+        }
+      }
+    },
+    "Your screenshot tasks appear here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的截图整理任务会保留在这里。"
+          }
+        }
+      }
+    },
+    "messages saved": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "条消息已保存"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

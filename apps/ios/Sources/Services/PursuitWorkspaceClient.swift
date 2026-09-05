@@ -333,6 +333,12 @@ protocol PursuitWorkspaceServing {
         objective: String,
         idempotencyKey: String
     ) async throws -> UnscopedChatTaskResponse
+    func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask
+    func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask
+    func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList
+    func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope
+    func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask
+    func cancelScreenshotContactTask(id: String, revision: Int) async throws -> ScreenshotContactTask
     func researchPerson(
         objective: String,
         imageData: Data,
@@ -432,6 +438,12 @@ extension PursuitWorkspaceServing {
         throw PursuitWorkspaceClientError.askUnavailable
     }
 
+    func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
+    func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
+    func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList { throw PursuitWorkspaceClientError.askUnavailable }
+    func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope { throw PursuitWorkspaceClientError.askUnavailable }
+    func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
+    func cancelScreenshotContactTask(id: String, revision: Int) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
     func researchPerson(
         objective: String,
         imageData: Data,
@@ -998,6 +1010,46 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             && !clue.value.trimmingCharacters(
                 in: .whitespacesAndNewlines
             ).isEmpty
+    }
+
+    func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask {
+        let login = try await contactAgentLogin()
+        return try await post(path: "v1/contact-agent/tasks", token: login.accessToken, body: body)
+    }
+    func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask {
+        guard UUID(uuidString: id) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        let response: ScreenshotContactTask = try await request(path: "v1/contact-agent/tasks/\(id)", token: login.accessToken)
+        guard response.taskID == id else { throw PursuitWorkspaceClientError.scopeReadbackMismatch }
+        return response
+    }
+    func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList {
+        let login = try await contactAgentLogin()
+        return try await request(path: "v1/contact-agent/tasks", token: login.accessToken)
+    }
+    func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope {
+        guard UUID(uuidString: personID) != nil, UUID(uuidString: contextID) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        var components = URLComponents(url: baseURL.appending(path: "v1/people/\(personID)/contact-intelligence"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "relationship_context_id", value: contextID)]
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        return try await decodedResponse(request, rejectionMessage: "Contact sources could not be read.")
+    }
+    func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask {
+        guard UUID(uuidString: id) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        return try await post(path: "v1/contact-agent/tasks/\(id)/resume", token: login.accessToken, body: body)
+    }
+    func cancelScreenshotContactTask(id: String, revision: Int) async throws -> ScreenshotContactTask {
+        guard UUID(uuidString: id) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        return try await post(path: "v1/contact-agent/tasks/\(id)/cancel", token: login.accessToken, body: ScreenshotContactResumeBody(expectedRevision: revision))
+    }
+
+    private func contactAgentLogin() async throws -> WorkspaceLoginResponse {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else { throw PursuitWorkspaceClientError.loopbackOnly }
+        return try await loginIfNeeded()
     }
 
     func researchPerson(

@@ -412,6 +412,9 @@ struct RelationshipAskView: View {
     @State private var isFileImporterPresented = false
     @State private var isHomeAttachmentChooserPresented = false
     @State private var mediaDrafts: [AskMediaDraft] = []
+    @State private var screenshotContactTask: ScreenshotContactTask?
+    @State private var screenshotContactRequest: ScreenshotContactTaskBody?
+    @State private var showScreenshotHistory = false
     @State private var mediaNotice: String?
     @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
@@ -523,6 +526,9 @@ struct RelationshipAskView: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .tint(.tsInk)
+        .sheet(isPresented: $showScreenshotHistory) {
+            ScreenshotContactHistoryView(workspaceStore: workspaceStore, onOpenPerson: onOpenPerson)
+        }
         .photosPicker(
             isPresented: $isPhotoLibraryPresented,
             selection: $selectedPhotoItems,
@@ -1086,6 +1092,11 @@ struct RelationshipAskView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
+                    if let screenshotContactTask {
+                        ScreenshotContactCard(task: screenshotContactTask, language: appLanguage, onOpenPerson: onOpenPerson,
+                            onResume: { body in resumeScreenshotContact(body) },
+                            onCancel: { cancelScreenshotContact() })
+                    }
                     if shouldShowScopeBar,
                        contactDraft == nil || contactSaveMessage != nil,
                        usesScrollableScopeBar {
@@ -1099,7 +1110,7 @@ struct RelationshipAskView: View {
                             .id("ask-scope-choices")
                     }
 
-                    if conversationItems.isEmpty, contactDraft == nil {
+                    if conversationItems.isEmpty, contactDraft == nil, screenshotContactTask == nil {
                         starterGrid
                             .padding(.top, 24)
                     }
@@ -1436,6 +1447,17 @@ struct RelationshipAskView: View {
         let controlSize = composerControlSize
 
         return VStack(spacing: 8) {
+            if isCanonical {
+                HStack {
+                    if !mediaDrafts.isEmpty {
+                        Text(appLanguage.text("Send to file messages and sourced contact context. Identity ambiguity pauses for you."))
+                            .font(.caption2).foregroundStyle(Color.tsMutedInk)
+                    }
+                    Spacer(minLength: 8)
+                    Button(appLanguage.text("Screenshot tasks")) { showScreenshotHistory = true }
+                        .font(.caption2).accessibilityIdentifier("screenshot-contact-history")
+                }
+            }
             askSubmissionStatus
             if !voiceInput.isRecording && voiceInput.phase != .transcribing {
                 voiceInputStatus
@@ -2452,6 +2474,7 @@ struct RelationshipAskView: View {
             && activeSessionID == nil
             && initialSeed == nil
             && contactDraft == nil
+            && screenshotContactTask == nil
             && preferredPersonID == nil
             && selectedScope == nil
             && !isChoosingScope
@@ -3132,9 +3155,7 @@ struct RelationshipAskView: View {
         }
         let effectiveObjective = trimmed.isEmpty
             ? isUnscopedPersonResearch
-                ? appLanguage.text(
-                    "Find possible public profiles from visible identity clues in this screenshot and summarize public information. Do not identify from appearance alone."
-                )
+                ? appLanguage.text("File this chat screenshot to the correct internal contact, save its messages, and explain supported changes and the next step. Research public professional context when useful.")
                 : appLanguage.text(
                     "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step."
                 )
@@ -3151,6 +3172,12 @@ struct RelationshipAskView: View {
         isSending = true
         draft = ""
         composerFocused = false
+
+        if mediaDrafts.count == 1, let media = mediaDrafts.first,
+           ["image/png", "image/jpeg", "image/webp"].contains(media.mediaType) {
+            performScreenshotContact(media: media, objective: effectiveObjective, originalDraft: trimmed)
+            return
+        }
 
         if let selectedScope {
             if activeSessionID.flatMap({ sessionStore.session(id: $0) })?.scope.matches(
@@ -3209,6 +3236,84 @@ struct RelationshipAskView: View {
             effectiveObjective: effectiveObjective,
             originalDraft: trimmed
         )
+    }
+
+    private func performScreenshotContact(media: AskMediaDraft, objective: String, originalDraft: String) {
+        let proposed = ScreenshotContactTaskBody(idempotencyKey: "ios:contact-agent:\(UUID().uuidString.lowercased())", objective: objective,
+            data: media.data, mediaType: media.mediaType, personID: selectedScope?.person.id, contextID: selectedScope?.context.id)
+        if screenshotContactRequest?.image.contentHash != proposed.image.contentHash
+            || screenshotContactRequest?.objective != objective
+            || screenshotContactRequest?.selectedPersonID != proposed.selectedPersonID
+            || screenshotContactRequest?.selectedRelationshipContextID != proposed.selectedRelationshipContextID {
+            screenshotContactRequest = proposed
+            screenshotContactTask = nil
+        }
+        guard let request = screenshotContactRequest else { return }
+        updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+        askOperation?.cancel()
+        askOperation = Task {
+            do {
+                var response = try await workspaceStore.createScreenshotContactTask(request)
+                try Task.checkCancellation()
+                screenshotContactTask = response
+                screenshotContactRequest = nil
+                mediaDrafts = []
+                mediaNotice = appLanguage.text("Messages and sourced context are retained for 30 days; the original image is not retained.")
+                while response.status == "running" {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    response = try await workspaceStore.loadScreenshotContactTask(id: response.taskID)
+                    try Task.checkCancellation()
+                    screenshotContactTask = response
+                }
+                await workspaceStore.load()
+                pendingObjective = nil
+                pendingScopedSend = nil
+                updateAskSubmissionPhase(.idle)
+                isSending = false
+                askOperation = nil
+            } catch {
+                if Task.isCancelled { return }
+                draft = screenshotContactTask == nil ? originalDraft : ""
+                pendingObjective = nil
+                updateAskSubmissionPhase(.idle)
+                isSending = false
+                presentAskFailure(error)
+                askOperation = nil
+            }
+        }
+    }
+
+    private func resumeScreenshotContact(_ body: ScreenshotContactResumeBody) {
+        guard let current = screenshotContactTask else { return }
+        isSending = true
+        askOperation?.cancel()
+        askOperation = Task {
+            do {
+                var response = try await workspaceStore.resumeScreenshotContactTask(id: current.taskID, body: body)
+                screenshotContactTask = response
+                while response.status == "running" {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    response = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
+                    try Task.checkCancellation()
+                    screenshotContactTask = response
+                }
+                await workspaceStore.load()
+            } catch { if !Task.isCancelled { presentAskFailure(error) } }
+            isSending = false
+            askOperation = nil
+        }
+    }
+
+    private func cancelScreenshotContact() {
+        guard let current = screenshotContactTask else { return }
+        Task {
+            do {
+                let latest = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
+                screenshotContactTask = try await workspaceStore.cancelScreenshotContactTask(id: current.taskID, revision: latest.revision)
+                askOperation?.cancel(); askOperation = nil; isSending = false
+                pendingObjective = nil; updateAskSubmissionPhase(.idle)
+            } catch { presentAskFailure(error) }
+        }
     }
 
     private func performUnscopedPersonResearch(

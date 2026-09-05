@@ -173,6 +173,13 @@ current confirmed identity clue resolves to one person and one existing
 relationship context. Extracted text, speaker attribution, facts, and effects
 keep their own authority. A shortcut and Photos selection follow the same rule.
 
+The separately enabled screenshot contact-filing mode lets intentional
+single-image Send grant automatic internal filing and sourced analysis. It
+searches or reuses a contact, preserves extracted messages as proposed evidence,
+and stops for identity ambiguity. This grant does not confirm actors, dates,
+facts, or external effects. The task and citation boundary are defined in
+[Agent system](agent-system.md#authorized-screenshot-contact-filing).
+
 ### Web
 
 Identity resolution, evidence inspection, conflict handling, longitudinal

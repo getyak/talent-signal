@@ -86,6 +86,7 @@
 		51D67F57B05649EB7A86C282 /* LabFeatureOverrideTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2510365385378D04B3C2FF06 /* LabFeatureOverrideTests.swift */; };
 		520014E1A1A0A4D79DEA8717 /* RelationshipCalendarWeekGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = C163AFC6685072EC347E7902 /* RelationshipCalendarWeekGrid.swift */; };
 		54382CF52C643FC1746E25A5 /* LabExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5059110E994D6B1B1834B9F9 /* LabExperimentView.swift */; };
+		54C1228F6FA21FD84789FBEB /* ScreenshotContactCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DE1D23A8F15392A25620C0 /* ScreenshotContactCard.swift */; };
 		5717CFDFE12342D1A36EAB8B /* TalentSignalLabClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE3ECC4EC4904ED2131A5BA2 /* TalentSignalLabClient.swift */; };
 		573ED597CFD82C5975A3F5FE /* LabFaultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010505F6B7DAC40086A07828 /* LabFaultTests.swift */; };
 		57FCED5019868487FC024668 /* TalentSignalLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8341A8939A8399FB5E3DB75E /* TalentSignalLabView.swift */; };
@@ -188,6 +189,7 @@
 		C4F842118E9C6C983BD8F36C /* RelationshipArchiveSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */; };
 		C7F39D935675177C4BF11759 /* AgentWorkShowcaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E61BE45D1DCE5E4FCBD98AB /* AgentWorkShowcaseView.swift */; };
 		C8D79CCADC370EF59FC0F395 /* TalentSignalLabUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0D17A850F270F01F6334DB /* TalentSignalLabUITests.swift */; };
+		C9B59D40851B5E1256BF88C8 /* ScreenshotContactTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD364EDBF5A4336B3493CAB7 /* ScreenshotContactTask.swift */; };
 		CA175C232670CAEE11B52CC8 /* ConversationTextRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63953A0F31800DC886749C51 /* ConversationTextRecognizer.swift */; };
 		CD87311F58291D17500329BA /* ConversationContactIntentInterpreter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0595635496A42C62406F044 /* ConversationContactIntentInterpreter.swift */; };
 		CE35A34564136E92390F588E /* AgentWorkActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF4110EBF1C86CED7EFCED7 /* AgentWorkActivity.swift */; };
@@ -466,6 +468,7 @@
 		DC6D8F6894923DD54E359F8E /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
 		E0AB9B7264527674C941D66E /* RelationshipAgentStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAgentStudioView.swift; sourceTree = "<group>"; };
 		E1896F084E637271B19415C0 /* LabTaskTrialUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabTaskTrialUITests.swift; sourceTree = "<group>"; };
+		E2DE1D23A8F15392A25620C0 /* ScreenshotContactCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotContactCard.swift; sourceTree = "<group>"; };
 		E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalTests.swift; sourceTree = "<group>"; };
 		E43E2D32DD9913AC4F6E097A /* PendingCaptureInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingCaptureInbox.swift; sourceTree = "<group>"; };
 		E4A87D8AD9EB892B7AA6D836 /* AskInputReliability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskInputReliability.swift; sourceTree = "<group>"; };
@@ -490,6 +493,7 @@
 		FA4DE25B40A661065D2904DC /* LabMetricKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabMetricKitView.swift; sourceTree = "<group>"; };
 		FBC1A0D411E14B92F259BD21 /* AgentWorkShowcaseStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkShowcaseStoreTests.swift; sourceTree = "<group>"; };
 		FD09035FB0CA0D56BB937CAA /* ConversationContactIntake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationContactIntake.swift; sourceTree = "<group>"; };
+		FD364EDBF5A4336B3493CAB7 /* ScreenshotContactTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotContactTask.swift; sourceTree = "<group>"; };
 		FE3ECC4EC4904ED2131A5BA2 /* TalentSignalLabClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalLabClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -758,6 +762,7 @@
 				91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */,
 				7FAEBC372E2477E425197A45 /* RelationshipCaptureView.swift */,
 				CCC263880F93DD93183A4721 /* ResearchShowcaseView.swift */,
+				E2DE1D23A8F15392A25620C0 /* ScreenshotContactCard.swift */,
 				E68ADCA955185ACDD422B618 /* SignalCaptureHubView.swift */,
 				CC6A81331A906C3C93033158 /* StandaloneOnboardingStore.swift */,
 				AB438577F715989A67A3C389 /* StandaloneOnboardingView.swift */,
@@ -796,6 +801,7 @@
 				47F40DA10468A0E4EF2DE9C6 /* LabWorkspace.swift */,
 				20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */,
 				BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */,
+				FD364EDBF5A4336B3493CAB7 /* ScreenshotContactTask.swift */,
 				69FA231C87096FBA3A535B8C /* StandaloneOnboarding.swift */,
 				9CB1094A0E966F6F4FD0ECEA /* TalentSignalLab.swift */,
 				CFF3826B0FFB3CF750AA89BC /* TextSignalCapture.swift */,
@@ -1213,6 +1219,8 @@
 				F832FB87F57A51896C97714E /* RuntimeEnvironment.swift in Sources */,
 				88AEAC8791B0D27F6DD0205C /* RuntimeScopedPersistence.swift in Sources */,
 				5BE94986368D550DCFBEF16D /* RuntimeWorkRegistry.swift in Sources */,
+				54C1228F6FA21FD84789FBEB /* ScreenshotContactCard.swift in Sources */,
+				C9B59D40851B5E1256BF88C8 /* ScreenshotContactTask.swift in Sources */,
 				0314D8056DFF292BFD22CB4E /* SharedCaptureEnvelope.swift in Sources */,
 				3DE4CA95E9E9CF0B692A19B0 /* SignalCaptureHubView.swift in Sources */,
 				795D834D75384A22249627F7 /* SignalRecordingActivity.swift in Sources */,
