@@ -1,6 +1,106 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Apple Calendar add": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加到 Apple 日历"
+          }
+        }
+      }
+    },
+    "Apple Calendar update": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新 Apple 日历"
+          }
+        }
+      }
+    },
+    "Failed · safe to retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败 · 可以安全重试"
+          }
+        }
+      }
+    },
+    "Latest reviewed change": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近审阅的修改"
+          }
+        }
+      }
+    },
+    "Linked event missing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到已关联日程"
+          }
+        }
+      }
+    },
+    "Result unknown · check Apple Calendar": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果不确定 · 请检查 Apple 日历"
+          }
+        }
+      }
+    },
+    "Reviewed %@ · operation %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审阅于 %@ · 操作 %@"
+          }
+        }
+      }
+    },
+    "Reviewed · waiting": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已审阅 · 等待执行"
+          }
+        }
+      }
+    },
+    "Updating": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在更新"
+          }
+        }
+      }
+    },
+    "Verified": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已验证"
+          }
+        }
+      }
+    },
     "Week view": {
       "localizations": {
         "zh-Hans": {
@@ -26782,6 +26882,446 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法为重试安全保存这次提问。你的消息没有发送。"
+          }
+        }
+      }
+    },
+    "The changes are saved in Talent Signal, but the linked Apple Calendar event could not be found. Nothing new was created.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改已保存到 Talent Signal，但找不到已关联的 Apple 日历日程；没有新建任何日程。"
+          }
+        }
+      }
+    },
+    "The event is saved in Talent Signal. Choose a default calendar in Apple Calendar, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日程已保存到 Talent Signal。请先在 Apple 日历中选择默认日历，然后重试。"
+          }
+        }
+      }
+    },
+    "The changes are saved in Talent Signal. This Apple Calendar operation requires iOS 17 or later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改已保存到 Talent Signal。此 Apple 日历操作需要 iOS 17 或更高版本。"
+          }
+        }
+      }
+    },
+    "Prepare": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "准备"
+          }
+        }
+      }
+    },
+    "Prepare for %@ with Agent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Agent 为 %@ 做准备"
+          }
+        }
+      }
+    },
+    "Opens an editable Session draft. Nothing is sent yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开可编辑的 Session 草稿；尚未发送任何内容。"
+          }
+        }
+      }
+    },
+    "Week": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一周"
+          }
+        }
+      }
+    },
+    "Tomorrow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明天"
+          }
+        }
+      }
+    },
+    "Open activity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开日程"
+          }
+        }
+      }
+    },
+    "Edit activity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改日程"
+          }
+        }
+      }
+    },
+    "Activity actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日程操作"
+          }
+        }
+      }
+    },
+    "Calendar access required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要日历访问权限"
+          }
+        }
+      }
+    },
+    "Default calendar required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要设置默认日历"
+          }
+        }
+      }
+    },
+    "Requires iOS 17 or later": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 iOS 17 或更高版本"
+          }
+        }
+      }
+    },
+    "Linked Calendar event missing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到已关联的日历日程"
+          }
+        }
+      }
+    },
+    "Calendar access required · allow it in Settings, then retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要日历访问权限 · 请在“设置”中允许后重试"
+          }
+        }
+      }
+    },
+    "Default calendar required · choose one, then retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要默认日历 · 选择后再重试"
+          }
+        }
+      }
+    },
+    "Requires iOS 17 or later · event kept in Talent Signal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 iOS 17 或更高版本 · 日程保留在 Talent Signal"
+          }
+        }
+      }
+    },
+    "Linked event missing · no replacement created": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到已关联日程 · 未新建替代日程"
+          }
+        }
+      }
+    },
+    "Relationship stays unchanged when editing from Calendar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从日历修改时，关联人物与关系上下文保持不变。"
+          }
+        }
+      }
+    },
+    "Changes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改内容"
+          }
+        }
+      }
+    },
+    "Update activity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新日程"
+          }
+        }
+      }
+    },
+    "Review the differences before updating the linked Apple Calendar event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先审阅修改内容，再更新已关联的 Apple 日历日程。"
+          }
+        }
+      }
+    },
+    "Review the differences before retrying Apple Calendar with the edited details.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先审阅修改内容，再用修改后的信息重试 Apple 日历同步。"
+          }
+        }
+      }
+    },
+    "This activity has no linked Apple Calendar event; editing changes Talent Signal only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此日程没有关联的 Apple 日历日程；修改只会保存到 Talent Signal。"
+          }
+        }
+      }
+    },
+    "Shows every changed field and the exact Apple Calendar effect, if any, before updating.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新前显示每项修改，以及对 Apple 日历的确切影响（如有）。"
+          }
+        }
+      }
+    },
+    "Type": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "类型"
+          }
+        }
+      }
+    },
+    "Ends": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束"
+          }
+        }
+      }
+    },
+    "Preview only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅供预览"
+          }
+        }
+      }
+    },
+    "Updates the linked Apple Calendar event": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已关联的 Apple 日历日程"
+          }
+        }
+      }
+    },
+    "Retries one Apple Calendar event": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试写入一条 Apple 日历日程"
+          }
+        }
+      }
+    },
+    "Talent Signal only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅 Talent Signal"
+          }
+        }
+      }
+    },
+    "The preview changes in this session. No Calendar permission is requested and nothing is written externally.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改只保留在本次预览中，不会请求日历权限，也不会写入外部系统。"
+          }
+        }
+      }
+    },
+    "Talent Signal first records this reviewed change, then finds the existing event by its saved identifier and updates that event only. It never creates a replacement.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal 会先记录这次已审阅的修改，再通过已保存的标识符查找现有日程，并只更新这一条；不会新建替代日程。"
+          }
+        }
+      }
+    },
+    "The earlier add did not complete. Confirming saves these changes, then retries one Calendar add without changing the relationship.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之前的添加没有完成。确认后会先保存修改，再重试添加一条日历日程，人物关系保持不变。"
+          }
+        }
+      }
+    },
+    "No linked Apple Calendar event exists, so this edit changes the Talent Signal activity only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前没有关联的 Apple 日历日程，因此此次修改只会更新 Talent Signal 日程。"
+          }
+        }
+      }
+    },
+    "Saves the reviewed changes in Talent Signal without updating an existing Apple Calendar event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存已审阅的修改，不会更新现有 Apple 日历日程。"
+          }
+        }
+      }
+    },
+    "Saves the reviewed changes, then retries adding one Apple Calendar event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存已审阅的修改，然后重试添加一条 Apple 日历日程。"
+          }
+        }
+      }
+    },
+    "Saves the reviewed changes in Talent Signal without changing Apple Calendar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存已审阅的修改，不会更改 Apple 日历。"
+          }
+        }
+      }
+    },
+    "Saves the reviewed changes, then updates only the linked Apple Calendar event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存已审阅的修改，然后只更新已关联的 Apple 日历日程。"
+          }
+        }
+      }
+    },
+    "Sync new confirmed events": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步新确认的日程"
+          }
+        }
+      }
+    },
+    "New events sync outbound after confirmation. Talent Signal never imports or browses Apple Calendar; after you review an edit to a linked event, it reads only that saved identifier to update and verify that event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新日程会在确认后单向同步。Talent Signal 不会导入或浏览 Apple 日历；修改已关联日程时，只会在你审阅后通过已保存的标识符读取、更新并验证那一条日程。"
+          }
+        }
+      }
+    },
+    "Turning sync off keeps new events in Talent Signal. A reviewed edit to an already linked event still updates that event only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭同步后，新日程只保留在 Talent Signal；已关联日程经你审阅确认的修改，仍只会更新对应的那一条日程。"
+          }
+        }
+      }
+    },
+    "The linked Apple Calendar event could not be found. Nothing new was created.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到已关联的 Apple 日历日程，且没有新建任何日程。"
           }
         }
       }

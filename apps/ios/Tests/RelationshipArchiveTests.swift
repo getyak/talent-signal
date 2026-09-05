@@ -530,6 +530,283 @@ final class RelationshipArchiveTests: XCTestCase {
         )
     }
 
+    func testCalendarEditPreservesIdentityAndTargetsTheLinkedEvent() {
+        let original = RelationshipCalendarActivity(
+            id: "calendar-operation-edit",
+            kind: .interview,
+            title: "Interview · Leila",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            personDisplayLabel: "Leila",
+            contextDisplayLabel: "Chief Product Officer search",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: "event-linked-1",
+            calendarSyncState: .synced,
+            lastCalendarSyncAttempt: Date(timeIntervalSince1970: 1_800_000_100)
+        )
+        let revised = original.revised(
+            kind: .meeting,
+            title: "Decision meeting · Leila",
+            startDate: Date(timeIntervalSince1970: 1_800_003_600),
+            endDate: Date(timeIntervalSince1970: 1_800_007_200)
+        )
+
+        XCTAssertEqual(revised.id, original.id)
+        XCTAssertEqual(revised.personID, original.personID)
+        XCTAssertEqual(
+            revised.relationshipContextID,
+            original.relationshipContextID
+        )
+        XCTAssertEqual(revised.eventIdentifier, "event-linked-1")
+        XCTAssertEqual(revised.timeZoneIdentifier, "Asia/Shanghai")
+        XCTAssertEqual(revised.calendarSyncState, .pending)
+        XCTAssertNil(revised.lastCalendarSyncAttempt)
+        XCTAssertEqual(
+            revised.deviceWriteTarget,
+            .update(eventIdentifier: "event-linked-1")
+        )
+        XCTAssertEqual(
+            Set(revised.changedEditableFields(from: original)),
+            Set(RelationshipCalendarActivity.EditableField.allCases)
+        )
+
+        let reviewedAt = Date(timeIntervalSince1970: 1_800_000_200)
+        let reviewed = revised.recordingReviewedEdit(
+            from: original,
+            reviewedByAccountID: "account-1",
+            operationID: "calendar-edit-operation-1",
+            reviewedAt: reviewedAt
+        )
+        let succeeded = reviewed
+            .updatingLatestEditAudit(.writing, updatedAt: reviewedAt)
+            .updatingLatestEditAudit(
+                .succeeded,
+                observedEventIdentifier: "event-linked-1",
+                updatedAt: reviewedAt
+            )
+
+        XCTAssertEqual(succeeded.editHistory.count, 1)
+        XCTAssertEqual(succeeded.editHistory[0].id, "calendar-edit-operation-1")
+        XCTAssertEqual(succeeded.editHistory[0].reviewedByAccountID, "account-1")
+        XCTAssertEqual(succeeded.editHistory[0].effect, .update)
+        XCTAssertEqual(succeeded.editHistory[0].before.title, original.title)
+        XCTAssertEqual(succeeded.editHistory[0].after.title, revised.title)
+        XCTAssertEqual(succeeded.editHistory[0].status, .succeeded)
+        XCTAssertEqual(
+            succeeded.editHistory[0].observedEventIdentifier,
+            "event-linked-1"
+        )
+    }
+
+    func testCalendarEditNeverTurnsPreviewOrLocalOnlyActivityIntoDeviceWrite() {
+        let preview = RelationshipCalendarActivity(
+            id: "preview-calendar-edit",
+            kind: .interview,
+            title: "Interview",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            personDisplayLabel: "Leila",
+            contextDisplayLabel: "Chief Product Officer search",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .preview,
+            eventIdentifier: nil,
+            calendarSyncState: .disabled
+        )
+        let local = RelationshipCalendarActivity(
+            id: "calendar-local-edit",
+            kind: .meeting,
+            title: "Meeting",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            personDisplayLabel: "Leila",
+            contextDisplayLabel: "Chief Product Officer search",
+            startDate: preview.startDate,
+            endDate: preview.endDate,
+            timeZoneIdentifier: preview.timeZoneIdentifier,
+            source: .talentSignal,
+            eventIdentifier: nil,
+            calendarSyncState: .disabled
+        )
+
+        XCTAssertEqual(
+            preview.revised(
+                kind: .meeting,
+                title: "Preview changed",
+                startDate: preview.startDate,
+                endDate: preview.endDate
+            ).calendarSyncState,
+            .disabled
+        )
+        XCTAssertEqual(
+            local.revised(
+                kind: .conversation,
+                title: "Local changed",
+                startDate: local.startDate,
+                endDate: local.endDate
+            ).calendarSyncState,
+            .disabled
+        )
+        XCTAssertFalse(preview.canAttemptDeviceWrite(calendarSyncEnabled: true))
+        XCTAssertFalse(local.canAttemptDeviceWrite(calendarSyncEnabled: false))
+        XCTAssertTrue(local.canAttemptDeviceWrite(calendarSyncEnabled: true))
+    }
+
+    func testCalendarLinkedUpdateKeepsExplicitWriteIntentWhenDefaultSyncIsOff() {
+        let linked = RelationshipCalendarActivity(
+            id: "calendar-linked-sync-off",
+            kind: .meeting,
+            title: "Decision meeting",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            personDisplayLabel: "Leila",
+            contextDisplayLabel: "Chief Product Officer search",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "America/Los_Angeles",
+            source: .talentSignal,
+            eventIdentifier: "event-linked-1",
+            calendarSyncState: .pending
+        )
+
+        XCTAssertTrue(linked.canAttemptDeviceWrite(calendarSyncEnabled: false))
+        XCTAssertEqual(
+            linked.deviceWriteTarget,
+            .update(eventIdentifier: "event-linked-1")
+        )
+    }
+
+    func testCalendarFailedUnlinkedEditRespectsDefaultSyncPreference() {
+        let failed = RelationshipCalendarActivity(
+            id: "calendar-failed-unlinked",
+            kind: .meeting,
+            title: "Decision meeting",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            personDisplayLabel: "Leila",
+            contextDisplayLabel: "Chief Product Officer search",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: nil,
+            calendarSyncState: .failed,
+            calendarSyncFailureReason: .permissionDenied
+        )
+
+        let localOnly = failed.revised(
+            kind: .conversation,
+            title: "Local change",
+            startDate: failed.startDate,
+            endDate: failed.endDate,
+            calendarSyncEnabled: false
+        )
+        let retrying = failed.revised(
+            kind: .conversation,
+            title: "Retry change",
+            startDate: failed.startDate,
+            endDate: failed.endDate,
+            calendarSyncEnabled: true
+        )
+
+        XCTAssertEqual(localOnly.calendarSyncState, .disabled)
+        XCTAssertNil(localOnly.calendarSyncFailureReason)
+        XCTAssertFalse(localOnly.canAttemptDeviceWrite(calendarSyncEnabled: false))
+        XCTAssertEqual(retrying.calendarSyncState, .pending)
+        XCTAssertNil(retrying.calendarSyncFailureReason)
+    }
+
+    func testCalendarEditingBlocksUncertainAndGovernedState() {
+        let base = RelationshipCalendarActivity(
+            id: "calendar-edit-boundary",
+            kind: .meeting,
+            title: "Meeting",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            personDisplayLabel: "Leila",
+            contextDisplayLabel: "Chief Product Officer search",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: "event-linked-1",
+            calendarSyncState: .synced
+        )
+
+        XCTAssertTrue(base.canEditFromCalendar)
+        XCTAssertFalse(base.updatingCalendarSync(.pending).canEditFromCalendar)
+        XCTAssertFalse(base.updatingCalendarSync(.syncing).canEditFromCalendar)
+        XCTAssertFalse(base.updatingCalendarSync(.missing).canEditFromCalendar)
+        XCTAssertFalse(base.updatingCalendarSync(.unknown).canEditFromCalendar)
+
+        var governed = base
+        governed = RelationshipCalendarActivity(
+            id: governed.id,
+            kind: governed.kind,
+            title: governed.title,
+            personID: governed.personID,
+            relationshipContextID: governed.relationshipContextID,
+            personDisplayLabel: governed.personDisplayLabel,
+            contextDisplayLabel: governed.contextDisplayLabel,
+            startDate: governed.startDate,
+            endDate: governed.endDate,
+            timeZoneIdentifier: governed.timeZoneIdentifier,
+            source: .governed,
+            eventIdentifier: governed.eventIdentifier,
+            calendarSyncState: governed.calendarSyncState
+        )
+        XCTAssertFalse(governed.canEditFromCalendar)
+    }
+
+    @MainActor
+    func testCalendarDeviceWriterUpdatesLinkedEventWithoutCreatingDuplicate() async {
+        let activity = RelationshipCalendarActivity(
+            id: "calendar-linked-write",
+            kind: .meeting,
+            title: "Decision meeting · Leila",
+            personID: "person-1",
+            relationshipContextID: "context-1",
+            personDisplayLabel: "Leila",
+            contextDisplayLabel: "Chief Product Officer search",
+            startDate: Date(timeIntervalSince1970: 1_800_003_600),
+            endDate: Date(timeIntervalSince1970: 1_800_007_200),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: "event-linked-1",
+            calendarSyncState: .pending
+        )
+        let proposal = DeviceCalendarProposal(
+            sourceID: activity.id,
+            personDisplayName: activity.personDisplayLabel,
+            title: activity.title,
+            startDate: activity.startDate,
+            endDate: activity.endDate,
+            timeZoneIdentifier: activity.timeZoneIdentifier,
+            evidenceQuote: "User-confirmed Talent Signal calendar event",
+            detectedDateText: activity.startDate.ISO8601Format(),
+            durationWasExplicit: true
+        )
+        let sync = RecordingDeviceCalendarSyncService()
+
+        let result = await RelationshipCalendarDeviceWriter.execute(
+            activity: activity,
+            proposal: proposal,
+            using: sync
+        )
+
+        XCTAssertEqual(sync.createdProposals.count, 0)
+        XCTAssertEqual(sync.updatedEventIdentifiers, ["event-linked-1"])
+        XCTAssertEqual(sync.updatedProposals, [proposal])
+        XCTAssertEqual(
+            try? result.get().identifier,
+            "event-linked-1"
+        )
+    }
+
     func testInterruptedCalendarWriteRestoresAsUnknownWithoutAutomaticRetry() throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "calendar-activity-unknown-\(UUID().uuidString)")
@@ -566,6 +843,110 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(restored.calendarSyncState, .unknown)
         XCTAssertNil(restored.eventIdentifier)
         XCTAssertEqual(restored.lastCalendarSyncAttempt, attempt)
+    }
+
+    func testCalendarFailureReasonSurvivesRelaunchForRecoveryGuidance() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "calendar-failure-reason-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshot = PursuitWorkspaceSnapshot.preview
+        let person = try XCTUnwrap(snapshot.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let activity = RelationshipCalendarActivity(
+            id: "calendar-permission-failure",
+            kind: .meeting,
+            title: "Meeting",
+            personID: person.id,
+            relationshipContextID: context.id,
+            personDisplayLabel: person.displayLabel,
+            contextDisplayLabel: context.displayLabel,
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: "event-linked-1",
+            calendarSyncState: .failed,
+            calendarSyncFailureReason: .permissionDenied,
+            lastCalendarSyncAttempt: Date(timeIntervalSince1970: 1_800_000_100)
+        )
+        let store = FileRelationshipCalendarActivityStore(
+            accountID: snapshot.workspaceID,
+            rootURL: root
+        )
+
+        try store.save(activity)
+        let restored = try XCTUnwrap(store.activities(in: snapshot).first)
+
+        XCTAssertEqual(restored.calendarSyncFailureReason, .permissionDenied)
+        XCTAssertTrue(restored.canRetryCalendarSync)
+        XCTAssertFalse(
+            restored
+                .updatingCalendarSync(.failed, failureReason: .unsupportedOS)
+                .canRetryCalendarSync
+        )
+    }
+
+    func testInterruptedCalendarEditRestoresAuditAsUnknown() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "calendar-edit-audit-unknown-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let snapshot = PursuitWorkspaceSnapshot.preview
+        let person = try XCTUnwrap(snapshot.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let original = RelationshipCalendarActivity(
+            id: "calendar-edit-interrupted",
+            kind: .meeting,
+            title: "Original meeting",
+            personID: person.id,
+            relationshipContextID: context.id,
+            personDisplayLabel: person.displayLabel,
+            contextDisplayLabel: context.displayLabel,
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_001_800),
+            timeZoneIdentifier: "Asia/Shanghai",
+            source: .talentSignal,
+            eventIdentifier: "event-linked-1",
+            calendarSyncState: .synced
+        )
+        let attemptedAt = Date(timeIntervalSince1970: 1_800_000_300)
+        let writing = original.revised(
+            kind: .meeting,
+            title: "Revised meeting",
+            startDate: original.startDate,
+            endDate: original.endDate
+        )
+        .recordingReviewedEdit(
+            from: original,
+            reviewedByAccountID: snapshot.workspaceID,
+            operationID: "calendar-edit-operation-unknown",
+            reviewedAt: Date(timeIntervalSince1970: 1_800_000_200)
+        )
+        .updatingCalendarSync(.syncing, attemptedAt: attemptedAt)
+        .updatingLatestEditAudit(.writing, updatedAt: attemptedAt)
+        let store = FileRelationshipCalendarActivityStore(
+            accountID: snapshot.workspaceID,
+            rootURL: root
+        )
+
+        try store.save(writing)
+        let restored = try XCTUnwrap(store.activities(in: snapshot).first)
+
+        XCTAssertEqual(restored.calendarSyncState, .unknown)
+        XCTAssertEqual(restored.editHistory.count, 1)
+        XCTAssertEqual(restored.editHistory[0].status, .unknown)
+        XCTAssertEqual(
+            restored.editHistory[0].before.title,
+            "Original meeting"
+        )
+        XCTAssertEqual(
+            restored.editHistory[0].after.title,
+            "Revised meeting"
+        )
+        XCTAssertEqual(
+            restored.editHistory[0].id,
+            "calendar-edit-operation-unknown"
+        )
+        XCTAssertEqual(restored.editHistory[0].updatedAt, attemptedAt)
     }
 
     func testStoredLanguageFallsBackToSystemForUnknownValues() {
@@ -4021,5 +4402,41 @@ final class RelationshipCalendarWeekLayoutTests: XCTestCase {
         XCTAssertEqual(placements.map(\.startMinute), [0, 1430])
         XCTAssertEqual(placements.map(\.endMinute), [60, 1440])
         XCTAssertEqual(RelationshipCalendarWeekLayout.hourRange(for: placements), 0...24)
+    }
+}
+
+@MainActor
+private final class RecordingDeviceCalendarSyncService: DeviceCalendarSyncing {
+    private(set) var createdProposals: [DeviceCalendarProposal] = []
+    private(set) var updatedEventIdentifiers: [String] = []
+    private(set) var updatedProposals: [DeviceCalendarProposal] = []
+
+    func createEvent(
+        from proposal: DeviceCalendarProposal
+    ) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure> {
+        createdProposals.append(proposal)
+        return .success(savedEvent(identifier: "created-event", proposal: proposal))
+    }
+
+    func updateEvent(
+        eventIdentifier: String,
+        from proposal: DeviceCalendarProposal
+    ) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure> {
+        updatedEventIdentifiers.append(eventIdentifier)
+        updatedProposals.append(proposal)
+        return .success(savedEvent(identifier: eventIdentifier, proposal: proposal))
+    }
+
+    private func savedEvent(
+        identifier: String,
+        proposal: DeviceCalendarProposal
+    ) -> DeviceCalendarSavedEvent {
+        DeviceCalendarSavedEvent(
+            identifier: identifier,
+            title: proposal.title,
+            startDate: proposal.startDate,
+            endDate: proposal.endDate,
+            timeZoneIdentifier: proposal.timeZoneIdentifier
+        )
     }
 }

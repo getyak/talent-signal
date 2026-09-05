@@ -63,8 +63,11 @@ struct RelationshipCalendarWeekGrid: View {
     let selectedDate: Date
     let calendar: Calendar
     let overlappingIDs: Set<String>
+    let calendarSyncEnabled: Bool
     let onSelectDay: (Date) -> Void
     let onOpen: (RelationshipCalendarActivity) -> Void
+    let onEdit: (RelationshipCalendarActivity) -> Void
+    let onRetryCalendarSync: (RelationshipCalendarActivity) -> Void
     let onOpenPerson: (RelationshipCalendarActivity) -> Void
     let onPrepare: (RelationshipCalendarActivity) -> Void
     @Environment(\.appLanguage) private var appLanguage
@@ -166,7 +169,7 @@ struct RelationshipCalendarWeekGrid: View {
 
     private func event(_ placement: RelationshipCalendarWeekLayout.Placement) -> some View {
         let activity = placement.activity
-        let needsAttention = overlappingIDs.contains(activity.id) || [.failed, .unknown].contains(activity.calendarSyncState)
+        let needsAttention = overlappingIDs.contains(activity.id) || [.failed, .missing, .unknown].contains(activity.calendarSyncState)
         return Button { onOpen(activity) } label: {
             VStack(alignment: .leading, spacing: 3) {
                 Text(activity.personDisplayLabel)
@@ -200,12 +203,20 @@ struct RelationshipCalendarWeekGrid: View {
             + activity.contextDisplayLabel + ", " + timeRange(activity)
             + (overlappingIDs.contains(activity.id) ? ", " + appLanguage.text("Overlaps another Talent Signal activity") : "")
             + (activity.calendarSyncState == .failed ? ", " + appLanguage.text("Calendar sync failed") : "")
+            + (activity.calendarSyncState == .missing ? ", " + appLanguage.text("Linked Calendar event missing") : "")
             + (activity.calendarSyncState == .unknown ? ", " + appLanguage.text("Calendar sync unverified") : ""))
         .accessibilityHint(appLanguage.text("Opens activity details."))
         .accessibilityIdentifier("calendar-activity-\(activity.id)")
         .modifier(
             RelationshipCalendarActivityShortcuts(
                 activityID: activity.id,
+                onEdit: activity.canEditFromCalendar ? { onEdit(activity) } : nil,
+                onRetryCalendarSync: activity.canRetryCalendarSync
+                    && activity.canAttemptDeviceWrite(
+                        calendarSyncEnabled: calendarSyncEnabled
+                    )
+                    ? { onRetryCalendarSync(activity) }
+                    : nil,
                 onOpen: { onOpen(activity) },
                 onOpenPerson: { onOpenPerson(activity) },
                 onPrepare: { onPrepare(activity) }
