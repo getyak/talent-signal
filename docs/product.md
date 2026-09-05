@@ -119,7 +119,9 @@ The source name is visible in the conversation and opens an inspectable evidence
 readback; a generic person page or an opaque evidence count is not a citation.
 Successful mobile Sessions and unsent drafts resume within the same signed-in account. Restored answers are visibly stale, hide their citations, and require a new Ask before source authority is claimed again. A submitted question remains recoverable until validated recording succeeds, and retry reuses the same task intent instead of creating duplicate work.
 
-On mobile, voice is a direct Agent input. An empty composer accepts an explicit hold, shows best-effort on-device live words inside the same ribbon, and sends the transcribed text on release; sliding up keeps capture hands-free and sliding left cancels. First use explains the temporary audio processor and deletion boundary, and existing typed text is never replaced by a voice gesture.
+On mobile, voice is a direct path to an editable Agent-input draft. The global composer accepts a normal tap for text and touch-and-hold for voice; the Session composer shows best-effort on-device provisional words inside the same ribbon.
+Releasing stops capture and requests one provider-final transcript, but never submits it: the exact final words remain editable until the recruiter taps `Send`. Sliding up keeps capture hands-free and sliding left cancels.
+First use explains the temporary audio processor and deletion boundary, and existing typed text is never replaced by a voice gesture. Voice input does not make a recruiter recollection source evidence or grant downstream confirmation or action authority.
 After an admitted Ask starts, a content-free Live Activity may carry only opaque workspace, Session, and activity identifiers plus lifecycle state. It opens the exact protected Session for `Review` or retry and never exposes the question, transcript, person, relationship, answer, or evidence.
 
 When no relationship is selected, the recruiter sends normally. The Agent may

@@ -1938,7 +1938,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Named relationship stays with the Agent")
     }
 
-    func testVoiceRibbonShowsLiveWordsAndSendsDirectlyToAgent() {
+    func testVoiceRibbonShowsLiveWordsBeforeCreatingEditableDraft() {
         app.launchArguments = [
             "--deterministic-voice-input",
             "-voice-input-cloud-disclosure-v1", "NO",
@@ -1962,8 +1962,8 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(start.waitForExistence(timeout: 5))
         start.tap()
-        let sendVoice = app.buttons["ask-voice-send"]
-        XCTAssertTrue(sendVoice.waitForExistence(timeout: 5))
+        let stopVoice = app.buttons["ask-voice-stop"]
+        XCTAssertTrue(stopVoice.waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-voice-live-transcript").exists)
         XCTAssertTrue(app.staticTexts["What changed in this search?"].exists)
         preserveScreenshot("Voice ribbon live words")
@@ -1971,14 +1971,21 @@ final class CandidateSignalUITests: XCTestCase {
             app.buttons["ask-voice-cancel"].waitForExistence(timeout: 5)
         )
 
-        sendVoice.tap()
+        stopVoice.tap()
 
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 8))
+        XCTAssertEqual(composer.value as? String, "What changed in this search?")
+        XCTAssertTrue(app.buttons["ask-send"].isEnabled)
+        XCTAssertFalse(element("ask-response-turn").exists)
+        XCTAssertFalse(stopVoice.exists)
+        preserveScreenshot("Voice created editable Agent draft")
+
+        app.buttons["ask-send"].tap()
         XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 8))
-        XCTAssertFalse(sendVoice.exists)
-        preserveScreenshot("Voice sent directly to Agent")
     }
 
-    func testHoldingEmptyComposerReleasesStraightToAgent() {
+    func testHoldingEmptyComposerReleasesToEditableDraft() {
         app.launchArguments = [
             "--deterministic-voice-input",
             "-voice-input-cloud-disclosure-v1", "YES",
@@ -1998,10 +2005,76 @@ final class CandidateSignalUITests: XCTestCase {
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         ).press(forDuration: 0.65)
 
-        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["What changed in this search?"].exists)
+        XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 8))
+        XCTAssertEqual(composer.value as? String, "What changed in this search?")
+        XCTAssertFalse(element("ask-response-turn").exists)
         XCTAssertFalse(element("ask-active-voice-ribbon").exists)
-        preserveScreenshot("Hold and release sends voice to Agent")
+        preserveScreenshot("Hold and release creates voice draft")
+    }
+
+    func testHoldingGlobalComposerStartsVoiceAndStopsForReview() {
+        app.launchArguments = [
+            "--deterministic-voice-input",
+            "-voice-input-cloud-disclosure-v1", "YES",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let globalInput = app.buttons["relationship-guide"]
+        XCTAssertTrue(globalInput.waitForExistence(timeout: 5))
+        globalInput.press(forDuration: 0.8)
+
+        let activeVoice = element("ask-active-voice-ribbon")
+        XCTAssertTrue(activeVoice.waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-voice-live-transcript").exists)
+        XCTAssertTrue(app.staticTexts["What changed in this search?"].exists)
+
+        let stop = app.buttons["ask-voice-stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 3))
+        XCTAssertEqual(stop.label, "Stop and review transcript")
+        stop.tap()
+
+        let composer = app.textFields["ask-composer"]
+        XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 8))
+        XCTAssertEqual(composer.value as? String, "What changed in this search?")
+        XCTAssertTrue(app.buttons["ask-send"].isEnabled)
+        XCTAssertFalse(element("ask-response-turn").exists)
+        preserveScreenshot("Global composer hold creates voice draft")
+    }
+
+    func testGlobalVoiceHoldRemainsReachableInChineseDarkAX5ReducedMotion() {
+        app.launchArguments = [
+            "--deterministic-voice-input",
+            "-voice-input-cloud-disclosure-v1", "YES",
+            "--force-dark",
+            "-AppleInterfaceStyle", "Dark",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
+            "-talent-signal.interface-language", "zh-Hans",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let globalInput = app.buttons["relationship-guide"]
+        XCTAssertTrue(globalInput.waitForExistence(timeout: 5))
+        globalInput.press(forDuration: 0.8)
+
+        XCTAssertTrue(
+            element("ask-active-voice-ribbon").waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(element("ask-voice-live-transcript").exists)
+        let stop = app.buttons["ask-voice-stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        preserveScreenshot("Global voice hold Chinese dark AX5 reduced motion")
+
+        tapWhenVisible(stop)
+        XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 8))
+        XCTAssertFalse(element("ask-response-turn").exists)
     }
 
     func testCanonicalLoopbackOffersAuthenticatedVoiceInput() async throws {

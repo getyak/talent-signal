@@ -142,7 +142,11 @@ final class VoiceInputStore: ObservableObject {
                 self.limitTask?.cancel()
                 self.limitTask = Task { [weak self] in
                     do {
-                        try await Task.sleep(for: .seconds(60))
+                        try await Task.sleep(
+                            for: .seconds(
+                                VoiceDictationAudioContract.maximumDurationSeconds
+                            )
+                        )
                     } catch {
                         return
                     }
@@ -345,7 +349,7 @@ private enum AskFailureRecovery: Equatable {
 
 private enum VoiceRibbonMode: Equatable {
     case idle
-    case pressToSend
+    case pressToDraft
     case locked
     case cancelling
 }
@@ -456,7 +460,8 @@ struct RelationshipAskView: View {
     @State private var voiceGestureStartedInControl = false
     @State private var voiceQuickControlFrame = CGRect.zero
     @State private var voiceReleasePending = false
-    @State private var voiceShouldAutoSend = false
+    @State private var voiceTapSuppressed = false
+    @State private var voiceStopRequested = false
     @StateObject private var voiceInput = VoiceInputStore()
     @AppStorage("voice-input-cloud-disclosure-v1")
     private var hasAcceptedVoiceDisclosure = false
@@ -703,11 +708,7 @@ struct RelationshipAskView: View {
                 case .attachment:
                     isHomeAttachmentChooserPresented = true
                 case .voice:
-                    if !voiceOverEnabled,
-                       !dynamicTypeSize.isAccessibilitySize,
-                       !sizeCategory.isAccessibilityCategory {
-                        composerPrimaryAction()
-                    }
+                    composerPrimaryAction()
                 }
             }
             while !Task.isCancelled {
@@ -746,22 +747,24 @@ struct RelationshipAskView: View {
             case .idle:
                 AskInputDiagnostics.voiceTransition(.idle)
                 voiceReleasePending = false
+                voiceStopRequested = false
                 voiceRibbonMode = .idle
                 break
             case .requestingPermission:
                 AskInputDiagnostics.voiceTransition(.requestingPermission)
             case .recording:
                 AskInputDiagnostics.voiceTransition(.recording)
+                voiceQuickControlFrame = .zero
                 if voiceReleasePending {
                     voiceReleasePending = false
-                    finishVoiceInputDirectly()
+                    finishVoiceInputForReview()
                 }
             case .transcribing:
                 AskInputDiagnostics.voiceTransition(.transcribing)
             case .failed:
                 AskInputDiagnostics.voiceTransition(.failed)
                 voiceReleasePending = false
-                voiceShouldAutoSend = false
+                voiceStopRequested = false
                 voiceRibbonMode = .idle
             }
         }
@@ -772,13 +775,7 @@ struct RelationshipAskView: View {
         .onChange(of: voiceInput.transcript) { transcript in
             guard let transcript, !transcript.isEmpty else { return }
             voiceInput.consumeTranscript()
-            if voiceShouldAutoSend {
-                voiceShouldAutoSend = false
-                draft = transcript
-                send(transcript)
-            } else {
-                insertVoiceTranscript(transcript)
-            }
+            insertVoiceTranscript(transcript)
         }
         .onChange(of: scenePhase) { phase in
             voiceInput.updateSceneIsActive(phase == .active)
@@ -817,11 +814,11 @@ struct RelationshipAskView: View {
             discardMediaDrafts()
         }
         .confirmationDialog(
-            appLanguage.text("Voice straight to Agent?"),
+            appLanguage.text("Create a voice draft?"),
             isPresented: $isVoiceDisclosurePresented,
             titleVisibility: .visible
         ) {
-            Button(appLanguage.text("Start")) {
+            Button(appLanguage.text("Start dictating")) {
                 hasAcceptedVoiceDisclosure = true
                 voiceHaptic(.soft)
                 voiceRibbonMode = .locked
@@ -832,7 +829,7 @@ struct RelationshipAskView: View {
         } message: {
             Text(
                 appLanguage.text(
-                    "When available, live words appear on device while you speak. When you release, the temporary recording goes to Doubao for transcription and the text is sent directly to Agent. Talent Signal deletes its temporary audio after transcription; provider handling follows your service agreement."
+                    "When available, provisional words appear on device while you speak. After you stop, the temporary recording goes to Doubao to create an editable draft. Nothing is sent to Agent until you tap Send. Talent Signal deletes its temporary audio after transcription; provider handling follows your service agreement."
                 )
             )
         }
@@ -1601,18 +1598,27 @@ struct RelationshipAskView: View {
     }
 
     private var voiceQuickControl: some View {
-        ZStack {
-            Label(
-                appLanguage.text("Hold to talk"),
-                systemImage: "waveform"
+        Button {
+            guard !voiceHoldActivated, !voiceTapSuppressed else { return }
+            requestVoiceInput(mode: .locked)
+        } label: {
+            ZStack {
+                Label(
+                    appLanguage.text("Hold to talk"),
+                    systemImage: "waveform"
+                )
+                .labelStyle(.iconOnly)
+                .opacity(0.001)
+                TalentSignalBrandMark()
+                    .frame(width: 24, height: 24)
+            }
+            .frame(
+                width: composerPrimaryControlSize,
+                height: composerPrimaryControlSize
             )
-            .labelStyle(.iconOnly)
-            .opacity(0.001)
-            TalentSignalBrandMark()
-                .frame(width: 24, height: 24)
+            .contentShape(Circle())
         }
-        .frame(width: composerPrimaryControlSize, height: composerPrimaryControlSize)
-        .contentShape(Circle())
+        .buttonStyle(.plain)
         .background {
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -1623,18 +1629,13 @@ struct RelationshipAskView: View {
         }
         .disabled(composerInputDisabled || hasComposerInput)
         .opacity(composerInputDisabled || hasComposerInput ? 0.28 : 1)
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isButton)
         .accessibilityLabel(appLanguage.text("Hold to talk"))
         .accessibilityHint(
             appLanguage.text(
-                "Double tap for hands-free voice, or hold the composer and release to send."
+                "Double tap for hands-free voice, or hold and release to create an editable draft."
             )
         )
         .accessibilityIdentifier("ask-voice")
-        .accessibilityAction {
-            requestVoiceInput(mode: .locked)
-        }
     }
 
     private var activeVoiceRibbon: some View {
@@ -1708,9 +1709,9 @@ struct RelationshipAskView: View {
                 .accessibilityIdentifier("ask-voice-cancel")
 
                 Button {
-                    finishVoiceInputDirectly()
+                    finishVoiceInputForReview()
                 } label: {
-                    Image(systemName: voiceInput.isRecording ? "arrow.up" : "stop.fill")
+                    Image(systemName: "stop.fill")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color.tsSurface)
                         .frame(width: 44, height: 44)
@@ -1719,8 +1720,12 @@ struct RelationshipAskView: View {
                 .buttonStyle(.plain)
                 .disabled(!voiceInput.isRecording)
                 .opacity(voiceInput.isRecording ? 1 : 0.42)
-                .accessibilityLabel(appLanguage.text("Send voice to Agent"))
-                .accessibilityIdentifier("ask-voice-send")
+                .accessibilityLabel(
+                    appLanguage.text(
+                        "Stop and review transcript"
+                    )
+                )
+                .accessibilityIdentifier("ask-voice-stop")
             }
             .padding(.leading, 16)
             .padding(.trailing, 8)
@@ -1744,11 +1749,12 @@ struct RelationshipAskView: View {
     }
 
     private var voiceRibbonTranscript: String {
+        if voiceInput.phase == .transcribing {
+            return appLanguage.text("Finalizing transcript…")
+        }
         let live = voiceInput.liveTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         if !live.isEmpty { return live }
-        return voiceInput.isRecording
-            ? appLanguage.text("Listening…")
-            : appLanguage.text("One moment")
+        return appLanguage.text("Listening…")
     }
 
     private var voiceRibbonHint: String {
@@ -1756,16 +1762,18 @@ struct RelationshipAskView: View {
             return ""
         }
         switch voiceRibbonMode {
-        case .pressToSend:
+        case .pressToDraft:
             return appLanguage.text(
-                "Release to send · up to lock · left to cancel"
+                "Release to review · up to lock · left to cancel"
             )
         case .locked:
-            return appLanguage.text("Hands-free")
+            return appLanguage.text(
+                "Hands-free · tap stop to review"
+            )
         case .cancelling:
             return appLanguage.text("Release to cancel")
         case .idle:
-            return appLanguage.text("Release to send")
+            return appLanguage.text("Release to review")
         }
     }
 
@@ -2212,7 +2220,11 @@ struct RelationshipAskView: View {
         if isSending {
             return appLanguage.text("Reading the record…")
         }
-        if voiceInput.isRecording { return appLanguage.text("Send voice to Agent") }
+        if voiceInput.isRecording {
+            return appLanguage.text(
+                "Stop and review transcript"
+            )
+        }
         if hasComposerInput {
             return appLanguage.text("Send", zhHans: "发送")
         }
@@ -2223,7 +2235,7 @@ struct RelationshipAskView: View {
     private var composerPrimaryAccessibilityHint: String {
         if voiceInput.isRecording {
             return appLanguage.text(
-                "Stops recording, transcribes the temporary audio, and sends the words directly to Agent."
+                "Stops recording and creates an editable transcript. Nothing is sent until you tap Send."
             )
         }
         if hasComposerInput {
@@ -2236,7 +2248,7 @@ struct RelationshipAskView: View {
         }
         guard voiceTranscriber != nil else { return "" }
         return appLanguage.text(
-            "Starts foreground voice input. Release to send, slide up to continue hands-free, or slide left to cancel."
+            "Starts foreground voice input. Release to review, slide up to continue hands-free, or slide left to cancel."
         )
     }
 
@@ -2250,7 +2262,7 @@ struct RelationshipAskView: View {
             return
         }
         if voiceInput.isRecording {
-            finishVoiceInputDirectly()
+            finishVoiceInputForReview()
             return
         }
         if hasComposerInput {
@@ -2267,7 +2279,6 @@ struct RelationshipAskView: View {
         }
         guard !hasComposerInput, !isSending else { return }
         voiceRibbonMode = mode
-        voiceShouldAutoSend = true
         guard hasAcceptedVoiceDisclosure else {
             voiceRibbonMode = .locked
             isVoiceDisclosurePresented = true
@@ -2280,7 +2291,7 @@ struct RelationshipAskView: View {
     private func startVoiceInput(mode: VoiceRibbonMode = .locked) {
         guard let voiceTranscriber else { return }
         voiceRibbonMode = mode
-        voiceShouldAutoSend = true
+        voiceStopRequested = false
         composerFocused = false
         voiceInput.dismissFailure()
         voiceOperation?.cancel()
@@ -2297,7 +2308,7 @@ struct RelationshipAskView: View {
     private func cancelVoiceInput() {
         voiceHaptic(.light)
         voiceReleasePending = false
-        voiceShouldAutoSend = false
+        voiceStopRequested = false
         voiceRibbonMode = .idle
         voiceHoldActivated = false
         voiceOperation?.cancel()
@@ -2305,17 +2316,18 @@ struct RelationshipAskView: View {
         voiceInput.cancel()
     }
 
-    private func finishVoiceInputDirectly() {
-        guard voiceInput.isRecording else { return }
+    private func finishVoiceInputForReview() {
+        guard voiceInput.isRecording, !voiceStopRequested else { return }
+        voiceStopRequested = true
         voiceHaptic(.rigid)
         voiceReleasePending = false
-        voiceShouldAutoSend = true
         voiceRibbonMode = .idle
         voiceHoldActivated = false
         voiceOperation?.cancel()
         voiceOperation = Task {
             await voiceInput.stopAndTranscribe()
             voiceOperation = nil
+            voiceStopRequested = false
         }
     }
 
@@ -2335,8 +2347,9 @@ struct RelationshipAskView: View {
                         || voiceInput.isRecording else { return }
                 if value.first == true, !voiceHoldActivated {
                     voiceHoldActivated = true
-                    voiceRibbonMode = .pressToSend
-                    requestVoiceInput(mode: .pressToSend)
+                    voiceTapSuppressed = true
+                    voiceRibbonMode = .pressToDraft
+                    requestVoiceInput(mode: .pressToDraft)
                 }
                 if voiceHoldActivated, let drag = value.second {
                     let translation = drag.translation
@@ -2345,7 +2358,7 @@ struct RelationshipAskView: View {
                     } else if translation.height <= -56 {
                         voiceRibbonMode = .locked
                     } else {
-                        voiceRibbonMode = .pressToSend
+                        voiceRibbonMode = .pressToDraft
                     }
                 }
             }
@@ -2353,22 +2366,23 @@ struct RelationshipAskView: View {
                 guard voiceGestureStartedInControl else { return }
                 voiceGestureStartedInControl = false
                 guard voiceHoldActivated else {
-                    if let translation = value.second?.translation,
-                       abs(translation.width) < 12,
-                       abs(translation.height) < 12 {
-                        requestVoiceInput(mode: .locked)
-                    }
                     return
                 }
                 voiceHoldActivated = false
+                defer {
+                    Task { @MainActor in
+                        await Task.yield()
+                        voiceTapSuppressed = false
+                    }
+                }
                 switch voiceRibbonMode {
                 case .cancelling:
                     cancelVoiceInput()
                 case .locked:
                     voiceHaptic(.soft)
-                case .pressToSend, .idle:
+                case .pressToDraft, .idle:
                     if voiceInput.isRecording {
-                        finishVoiceInputDirectly()
+                        finishVoiceInputForReview()
                     } else if voiceInput.phase == .requestingPermission {
                         // A quick release can beat audio-engine startup. Finish
                         // as soon as capture becomes ready instead of turning a

@@ -1,12 +1,15 @@
 # Voice-to-Agent ribbon and Ask Live Activity
 
+> Superseded on 2026-09-06 by
+> [`2026-09-06-ios-voice-composer-design.md`](2026-09-06-ios-voice-composer-design.md):
+> release now creates an editable transcript draft and requires a separate Send.
+
 ## Outcome
 
-Make voice a direct Agent input and make a submitted Ask visible as one calm,
-privacy-safe Live Activity until the response is ready or the request needs
-recovery. Completion is observable when a user can hold the composer, see live
-words inside it, release to send, leave the app, and reopen the exact Session
-from `Review` in Dynamic Island.
+This historical plan made voice a direct Agent input and a submitted Ask visible
+as one calm, privacy-safe Live Activity. Its original release-to-send behavior is
+no longer current: the superseding plan keeps live words provisional, creates an
+editable transcript on release, and starts the Ask only after explicit `Send`.
 
 ## Boundary
 
