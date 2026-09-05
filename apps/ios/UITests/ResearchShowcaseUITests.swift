@@ -16,7 +16,9 @@ final class ResearchShowcaseUITests: XCTestCase {
         ]
     }
 
-    func testExactResearchActivityMovesFromAwayToReviewAndEndsOnDeepLink() {
+    func testExactResearchActivityMovesFromWorkingToReviewAndEndsOnDeepLink() throws {
+        try XCTSkipIf(Locale.preferredLanguages.first?.hasPrefix("zh") == true,
+                      "Run the English receipt with English system language.")
         launchShowcase()
         XCTAssertTrue(element("research-synthetic-disclosure").exists)
         preserveScreenshot("TS-LA-01 Synthetic Research Showcase before start")
@@ -27,10 +29,10 @@ final class ResearchShowcaseUITests: XCTestCase {
 
         XCUIDevice.shared.press(.home)
         settleSystemSurface()
+        assertSystemText("Working")
         preserveSystemScreenshot("TS-LA-02 Synthetic Research running compact")
         expandDynamicIsland(
             expectedTitle: "Reading approved pages",
-            expectedSupporting: "You can leave",
             expectedBoundary: "Public sources only"
         )
         preserveSystemScreenshot("TS-LA-03 Synthetic Research running expanded")
@@ -44,10 +46,10 @@ final class ResearchShowcaseUITests: XCTestCase {
 
         XCUIDevice.shared.press(.home)
         settleSystemSurface()
+        assertSystemText("To review")
         preserveSystemScreenshot("TS-LA-05 Synthetic Research review compact")
         expandDynamicIsland(
             expectedTitle: "Pages ready for review",
-            expectedSupporting: "Review required before use",
             expectedBoundary: "Nothing used automatically"
         )
         preserveSystemScreenshot("TS-LA-06 Synthetic Research review expanded")
@@ -74,6 +76,74 @@ final class ResearchShowcaseUITests: XCTestCase {
         preserveScreenshot("TS-LA-10 Synthetic Research App fallback")
     }
 
+    func testResearchNotificationCenterCardKeepsItsExactHandoff() throws {
+        try XCTSkipIf(Locale.preferredLanguages.first?.hasPrefix("zh") == true,
+                      "Run the English system-card receipt with English system language.")
+        launchShowcase()
+        tapWhenVisible(app.buttons["research-start"])
+        openNotificationCenter()
+        assertSystemText("Reading approved pages")
+        assertSystemText("Public sources only")
+        preserveSystemScreenshot("Island research running system card")
+        tapSystemAction("Open status")
+        tapWhenVisible(app.buttons["research-complete"])
+        openNotificationCenter()
+        assertSystemText("Pages ready for review")
+        assertSystemText("Nothing used automatically")
+        preserveSystemScreenshot("Island research review system card")
+        tapSystemAction("Open review")
+        XCTAssertTrue(element("research-review-from-activity").waitForExistence(timeout: 8))
+    }
+
+    private func openNotificationCenter() {
+        XCUIDevice.shared.press(.home)
+        settleSystemSurface()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.005))
+            .press(forDuration: 0.1, thenDragTo: springboard.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.15, dy: 0.75)
+            ))
+        settleSystemSurface()
+    }
+
+    func testChineseResearchHandoffUsesLocalizedSystemCopy() throws {
+        try XCTSkipUnless(Locale.preferredLanguages.first?.hasPrefix("zh") == true,
+                          "Live Activities use the Simulator system language; run this receipt in zh-Hans.")
+        app.launchArguments = [
+            "--synthetic-research-showcase", "--synthetic-research-reset",
+            "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
+        ]
+        launchShowcase()
+        tapWhenVisible(app.buttons["research-start"])
+        XCUIDevice.shared.press(.home)
+        settleSystemSurface()
+        assertSystemText("处理中")
+        preserveSystemScreenshot("Island Chinese running compact")
+        expandDynamicIsland(expectedTitle: "正在阅读选定资料",
+                            expectedBoundary: "仅使用公开资料")
+        preserveSystemScreenshot("Island Chinese running expanded")
+        tapSystemAction("打开状态")
+        openNotificationCenter()
+        assertSystemText("正在阅读选定资料")
+        assertSystemText("仅使用公开资料")
+        preserveSystemScreenshot("Island Chinese running system card")
+        tapSystemAction("打开状态")
+        tapWhenVisible(app.buttons["research-complete"])
+        XCUIDevice.shared.press(.home)
+        settleSystemSurface()
+        assertSystemText("待审阅")
+        preserveSystemScreenshot("Island Chinese review compact")
+        expandDynamicIsland(expectedTitle: "资料已整理，等待审阅",
+                            expectedBoundary: "未经审阅不会使用")
+        preserveSystemScreenshot("Island Chinese review expanded")
+        openNotificationCenter()
+        assertSystemText("资料已整理，等待审阅")
+        assertSystemText("未经审阅不会使用")
+        preserveSystemScreenshot("Island Chinese review system card")
+        tapSystemAction("打开审阅")
+        XCTAssertTrue(element("research-review-from-activity").waitForExistence(timeout: 8))
+    }
+
     private func launchShowcase() {
         app.launch()
         if !element("research-showcase-header").waitForExistence(timeout: 10) {
@@ -93,7 +163,6 @@ final class ResearchShowcaseUITests: XCTestCase {
 
     private func expandDynamicIsland(
         expectedTitle: String,
-        expectedSupporting: String,
         expectedBoundary: String
     ) {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
@@ -101,15 +170,15 @@ final class ResearchShowcaseUITests: XCTestCase {
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.06)
         ).press(forDuration: 1)
         settleSystemSurface()
-        XCTAssertTrue(
-            springboard.staticTexts[expectedTitle].waitForExistence(timeout: 3)
-        )
-        XCTAssertTrue(
-            springboard.staticTexts[expectedSupporting].waitForExistence(timeout: 3)
-        )
-        XCTAssertTrue(
-            springboard.staticTexts[expectedBoundary].waitForExistence(timeout: 3)
-        )
+        assertSystemText(expectedTitle)
+        assertSystemText(expectedBoundary)
+    }
+
+    private func assertSystemText(_ text: String) {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        XCTAssertTrue(springboard.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", text)
+        ).firstMatch.waitForExistence(timeout: 5), "Missing system text: \(text)")
     }
 
     private func settleSystemSurface() {

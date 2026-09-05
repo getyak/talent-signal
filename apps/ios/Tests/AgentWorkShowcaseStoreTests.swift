@@ -104,6 +104,43 @@ final class AgentWorkShowcaseStoreTests: XCTestCase {
         XCTAssertTrue(store.statusMessage.contains("continues safely"))
     }
 
+    func testPartialResultOpensIssueWithoutPromotingItToCompleteReview() async {
+        let identity = makeIdentity()
+        let fake = FakeAgentWorkActivityController(snapshot: .init(
+            identity: identity,
+            state: makeState(execution: .partial, attention: .review,
+                             stage: .readyForReview, actionCount: 1, revision: 5)
+        ))
+        let store = AgentWorkShowcaseStore(controller: fake)
+        await store.open(.init(identity: identity, destination: .resolve))
+        XCTAssertEqual(store.phase, .routeRejected)
+        XCTAssertTrue(store.statusMessage.contains("fresh run"))
+        XCTAssertNil(store.session)
+        XCTAssertEqual(fake.endedIdentities, [])
+    }
+
+    func testBoundaryLinksRestoreOnlyTheExactFixtureAndNeverAFullReview() async {
+        for fixture in AgentWorkBoundaryAtlasFixture.allCases {
+            let identity = AgentWorkActivityIdentity(
+                scopeID: "debug.local",
+                taskID: "task.agent-atlas.\(fixture.rawValue)",
+                activityInstanceID: "instance.0001"
+            )
+            let fake = FakeAgentWorkActivityController(snapshot: .init(identity: identity, state: fixture.state))
+            let store = AgentWorkShowcaseStore(controller: fake)
+            await store.open(.init(identity: identity, destination: fixture == .stale ? .status : .resolve))
+            XCTAssertEqual(store.phase, .boundaryAtlas(fixture))
+            XCTAssertEqual(store.identity, identity)
+            XCTAssertNil(store.session)
+            XCTAssertEqual(fake.endedIdentities, [])
+
+            await store.open(.init(identity: identity, destination: .actions))
+            XCTAssertEqual(store.phase, .routeRejected)
+            XCTAssertNil(store.session)
+            XCTAssertEqual(fake.endedIdentities, [])
+        }
+    }
+
     func testRejectedOlderUpdateDoesNotAdvanceLocalPhaseOrRevision() async {
         let identity = makeIdentity()
         let fake = FakeAgentWorkActivityController(startIdentity: identity)

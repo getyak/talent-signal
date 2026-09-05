@@ -71,6 +71,7 @@ enum AgentWorkGlyph: String, Codable, Hashable {
     case failed
     case unknown
     case ended
+    case noAction
 
     var systemImageName: String {
         switch self {
@@ -82,7 +83,8 @@ enum AgentWorkGlyph: String, Codable, Hashable {
         case .partial: return "doc.badge.ellipsis"
         case .failed: return "exclamationmark.triangle"
         case .unknown: return "questionmark.diamond"
-        case .ended: return "minus.circle"
+        case .ended: return "xmark.circle"
+        case .noAction: return "minus.circle"
         }
     }
 }
@@ -111,6 +113,51 @@ struct AgentWorkActivityViewState: Equatable, Hashable {
     let accessibilityLabel: String
     let isTerminal: Bool
     let isStale: Bool
+
+    var displayStatus: LiveActivityDisplayStatus {
+        if isStale { return .delayed }
+        switch glyph {
+        case .received, .evidence, .identity, .actions: return .working
+        case .review: return .review
+        case .partial: return .partial
+        case .failed, .unknown: return .attention
+        case .ended: return .ended
+        case .noAction: return .noAction
+        }
+    }
+}
+
+/// Presentation only. A status never authorizes an action or changes domain state.
+enum LiveActivityDisplayStatus: Equatable, Hashable {
+    case working, review, partial, attention, delayed, ended, noAction
+
+    var title: String {
+        switch self {
+        case .working: return agentWorkLocalized("Working")
+        case .review: return agentWorkLocalized("To review")
+        case .partial: return agentWorkLocalized("Partial")
+        case .attention: return agentWorkLocalized("Check")
+        case .delayed: return agentWorkLocalized("Delayed")
+        case .ended: return agentWorkLocalized("Ended")
+        case .noAction: return agentWorkLocalized("No action")
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .working: return "text.magnifyingglass"
+        case .review: return "doc.text"
+        case .partial: return "doc.badge.ellipsis"
+        case .attention: return "exclamationmark.triangle"
+        case .delayed: return "clock.badge.exclamationmark"
+        case .ended: return "xmark.circle"
+        case .noAction: return "minus.circle"
+        }
+    }
+
+    var needsAttention: Bool {
+        self == .review || self == .partial || self == .attention
+    }
 }
 
 enum AgentWorkActivityProjectionError: Error, Equatable {
@@ -123,6 +170,43 @@ enum AgentWorkActivityProjectionError: Error, Equatable {
 }
 
 enum AgentWorkActivityProjector {
+    static func presentation(
+        _ state: AgentWorkActivityAttributes.ContentState,
+        isSystemStale: Bool
+    ) -> AgentWorkActivityViewState {
+        guard let view = try? project(state) else {
+            return AgentWorkActivityViewState(
+                eyebrow: agentWorkLocalized("CHECK STATUS"),
+                title: agentWorkLocalized("Open Talent Signal"),
+                supportingText: agentWorkLocalized("This update needs review"),
+                boundaryText: agentWorkLocalized("No outcome assumed"),
+                glyph: .unknown,
+                action: nil,
+                accessibilityLabel: agentWorkLocalized(
+                    "This update needs review. No outcome assumed. Open Talent Signal."
+                ),
+                isTerminal: false,
+                isStale: false
+            )
+        }
+        guard view.action != nil, isSystemStale || view.isStale else { return view }
+        return AgentWorkActivityViewState(
+            eyebrow: view.eyebrow,
+            title: agentWorkLocalized("Update delayed"),
+            supportingText: agentWorkLocalized("Open the app for current status"),
+            boundaryText: view.boundaryText,
+            glyph: view.glyph,
+            action: view.action,
+            accessibilityLabel: [
+                agentWorkLocalized("Update delayed"),
+                agentWorkLocalized("Open the app for current status"),
+                view.boundaryText,
+            ].joined(separator: ". "),
+            isTerminal: view.isTerminal,
+            isStale: true
+        )
+    }
+
     static func project(
         _ state: AgentWorkActivityAttributes.ContentState
     ) throws -> AgentWorkActivityViewState {
@@ -203,7 +287,7 @@ enum AgentWorkActivityProjector {
                 title: agentWorkLocalized("No action needed"),
                 supportingText: agentWorkLocalized("The signal remains in history"),
                 boundaryText: agentWorkLocalized("Nothing was changed"),
-                glyph: .ended,
+                glyph: .noAction,
                 action: nil,
                 isTerminal: true,
                 isStale: isStale
@@ -218,7 +302,7 @@ enum AgentWorkActivityProjector {
                 supportingText: actionCountText(state.reviewActionCount),
                 boundaryText: agentWorkLocalized("Incomplete evidence is marked"),
                 glyph: .partial,
-                action: .openActions,
+                action: .resolve,
                 isTerminal: true,
                 isStale: isStale
             )

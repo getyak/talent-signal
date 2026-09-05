@@ -11139,7 +11139,31 @@
           }
         }
       }
-    }
+    },
+    "Check": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "待处理"}}}},
+    "Check status": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "查看状态"}}}},
+    "Ended": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已结束"}}}},
+    "No action": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "无需操作"}}}},
+    "Nothing used automatically": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "未经审阅不会使用"}}}},
+    "On-device recording": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "录音保存在本机"}}}},
+    "Open review": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "打开审阅"}}}},
+    "Open the app for current status": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "打开 App 查看当前状态"}}}},
+    "Pages ready for review": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "资料已整理，等待审阅"}}}},
+    "Partial": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "部分完成"}}}},
+    "Public sources only": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "仅使用公开资料"}}}},
+    "Reading approved pages": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "正在阅读选定资料"}}}},
+    "Ready to Review": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "录音已就绪，等待审阅"}}}},
+    "Recording Signal": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "正在录音"}}}},
+    "Research showcase ended": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "研究演示已结束"}}}},
+    "Review required before use": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "使用前需要你审阅"}}}},
+    "Saved · Organizing": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "已保存，正在整理"}}}},
+    "Stop and save": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "停止并保存"}}}},
+    "Stop and save Signal recording": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "停止并保存本次录音"}}}},
+    "Talent Signal Research": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "Talent Signal 研究"}}}},
+    "The local recording is saved": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "录音已保存在本机"}}}},
+    "This update needs review. No outcome assumed. Open Talent Signal.": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "本次更新需要检查，尚未确认结果。请打开 Talent Signal。"}}}},
+    "To review": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "待审阅"}}}},
+    "Working": {"localizations": {"zh-Hans": {"stringUnit": {"state": "translated", "value": "处理中"}}}}
   },
   "version": "1.0"
 }
