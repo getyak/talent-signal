@@ -13,6 +13,10 @@ enum RelationshipArchivePage: String, CaseIterable, Identifiable {
         rawValue.lowercased()
     }
 
+    var pageIndex: Int {
+        Self.allCases.firstIndex(of: self) ?? 0
+    }
+
     func title(in language: AppLanguage) -> String {
         switch self {
         case .today:

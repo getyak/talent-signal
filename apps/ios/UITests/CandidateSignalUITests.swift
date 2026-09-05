@@ -1039,7 +1039,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Workspace menu dark AX5")
     }
 
-    func testSessionRowSwipeRevealsActionWithoutChangingDestination() {
+    func testPagedRetrievalSwipeAndVisibleSessionMenu() {
         app.launch()
 
         let todayTab = app.buttons["archive-tab-today"]
@@ -1048,24 +1048,20 @@ final class CandidateSignalUITests: XCTestCase {
         let today = element("editorial-today")
         XCTAssertTrue(today.waitForExistence(timeout: 5))
         today.swipeLeft()
-        XCTAssertTrue(today.exists)
-        XCTAssertTrue(todayTab.isSelected)
-
-        app.buttons["archive-tab-sessions"].tap()
         XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
         let session = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "agent-session-")
         ).firstMatch
         XCTAssertTrue(session.waitForExistence(timeout: 5))
-        session.swipeLeft()
+        openSessionActions(session)
 
         XCTAssertTrue(
             app.buttons["delete-session-history"].waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
         XCTAssertFalse(app.buttons["archive-tab-people"].isSelected)
-        preserveScreenshot("Session row owns trailing swipe")
+        preserveScreenshot("Paged Sessions with explicit row menu")
     }
 
     func testSessionUnreadAndJudgmentMetadataRemainCompact() {
@@ -1084,8 +1080,8 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(session.label.contains("Needs judgment"))
         XCTAssertTrue(session.label.contains("Chief Product Officer search"))
 
-        session.swipeRight()
-        let markUnread = app.buttons["Unread"]
+        openSessionActions(session)
+        let markUnread = app.buttons["Mark as unread"]
         XCTAssertTrue(markUnread.waitForExistence(timeout: 5))
         markUnread.tap()
         let unread = NSPredicate(format: "label CONTAINS %@", "Unread")
@@ -1100,7 +1096,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Session unread participant and judgment metadata")
     }
 
-    func testTopControlsAreTheOnlyDestinationNavigation() {
+    func testSwipeAndTopControlsNavigateTheSamePagedSpace() {
         app.launch()
 
         let todayTab = app.buttons["archive-tab-today"]
@@ -1109,25 +1105,114 @@ final class CandidateSignalUITests: XCTestCase {
         let today = element("editorial-today")
         XCTAssertTrue(today.waitForExistence(timeout: 5))
         today.swipeLeft()
-        XCTAssertTrue(today.exists)
-        XCTAssertTrue(todayTab.isSelected)
-        XCTAssertFalse(element("agent-session-list").exists)
-        XCTAssertFalse(element("relationship-people").exists)
-
-        app.buttons["archive-tab-sessions"].tap()
         XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
-        XCTAssertFalse(today.exists)
-        XCTAssertFalse(element("relationship-people").exists)
 
-        app.buttons["archive-tab-people"].tap()
+        element("agent-session-list").swipeLeft()
         XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-people"].isSelected)
-        XCTAssertFalse(element("agent-session-list").exists)
+
+        element("workspace-people-list").swipeRight()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
 
         todayTab.tap()
         XCTAssertTrue(today.waitForExistence(timeout: 5))
         XCTAssertTrue(todayTab.isSelected)
+    }
+
+    func testPeopleSearchAndFilterSurviveAskAndPaging() {
+        app.launch()
+
+        let peopleTab = app.buttons["archive-tab-people"]
+        XCTAssertTrue(peopleTab.waitForExistence(timeout: 8))
+        peopleTab.tap()
+        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
+
+        let filter = element("people-filter-menu")
+        XCTAssertTrue(filter.waitForExistence(timeout: 5))
+        filter.tap()
+        let pursuitFilter = element(
+            "people-filter-pursuit-30000000-0000-4000-8000-000000000001"
+        )
+        XCTAssertTrue(pursuitFilter.waitForExistence(timeout: 5))
+        pursuitFilter.tap()
+        let selectedFilterLabel = filter.label
+
+        let search = app.textFields["people-search-field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Leila")
+        if app.keyboards.buttons["Search"].exists {
+            app.keyboards.buttons["Search"].tap()
+        }
+        let leila = app.buttons[
+            "workspace-person-20000000-0000-4000-8000-000000000001"
+        ]
+        XCTAssertTrue(leila.waitForExistence(timeout: 5))
+        openPersonActions(leila)
+        app.buttons["Ask about this person"].tap()
+
+        let askSheet = element("relationship-ask-sheet")
+        XCTAssertTrue(askSheet.waitForExistence(timeout: 5))
+        app.buttons["ask-close"].tap()
+        XCTAssertTrue(askSheet.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(search.value as? String, "Leila")
+        XCTAssertEqual(filter.label, selectedFilterLabel)
+
+        element("workspace-people-list").swipeRight()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        element("agent-session-list").swipeLeft()
+        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
+        XCTAssertEqual(search.value as? String, "Leila")
+        XCTAssertEqual(filter.label, selectedFilterLabel)
+        XCTAssertTrue(leila.exists)
+    }
+
+    func testPagedRetrievalMirrorsDirectionInRTL() {
+        app.launchArguments += ["--force-right-to-left-layout"]
+        app.launch()
+
+        let today = element("editorial-today")
+        XCTAssertTrue(today.waitForExistence(timeout: 8))
+        today.swipeRight()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
+
+        element("agent-session-list").swipeRight()
+        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["archive-tab-people"].isSelected)
+
+        element("workspace-people-list").swipeLeft()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
+        preserveScreenshot("RTL paged retrieval and measured tab indicator")
+    }
+
+    func testPagedHeaderReflowsAtAX5WithoutShrinkingTapTargets() {
+        app.launchArguments = [
+            "-UICTContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
+        app.launch()
+
+        let studio = app.buttons["relationship-agent-studio"]
+        let calendar = app.buttons["today-calendar-peek"]
+        let today = app.buttons["archive-tab-today"]
+        let sessions = app.buttons["archive-tab-sessions"]
+        let people = app.buttons["archive-tab-people"]
+        XCTAssertTrue(today.waitForExistence(timeout: 8))
+
+        for control in [studio, calendar, today, sessions, people] {
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+            XCTAssertTrue(control.isHittable)
+        }
+        XCTAssertGreaterThan(today.frame.minY, studio.frame.minY)
+        XCTAssertEqual(today.label, "Today")
+        XCTAssertEqual(sessions.label, "Sessions")
+        XCTAssertEqual(people.label, "People")
+        preserveScreenshot("Paged header reflows at AX5")
     }
 
     func testReducedMotionKeepsSessionNavigationReachable() {
@@ -1145,68 +1230,30 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Reduced motion session navigation")
     }
 
-    func testSessionRevealReturnsToRestForNewIntentAndInterruption() {
+    func testSessionVisibleAndLongPressMenusExposeTheSameCommands() {
         app.launch()
 
         let sessionsTab = app.buttons["archive-tab-sessions"]
         XCTAssertTrue(sessionsTab.waitForExistence(timeout: 8))
         sessionsTab.tap()
-        let list = element("agent-session-list")
-        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
         let rows = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "agent-session-")
         )
-        XCTAssertGreaterThanOrEqual(rows.count, 2)
+        XCTAssertGreaterThanOrEqual(rows.count, 1)
         let first = rows.element(boundBy: 0)
-        let second = rows.element(boundBy: 1)
 
-        revealSessionDeletion(first)
-        sessionsTab.tap()
-        XCTAssertTrue(
-            app.buttons["delete-session-history"].waitForNonExistence(timeout: 3)
-        )
-
-        revealSessionDeletion(first)
-        second.swipeLeft()
-        XCTAssertEqual(
-            app.buttons.matching(
-                NSPredicate(format: "identifier == %@", "delete-session-history")
-            ).count,
-            1
-        )
+        openSessionActions(first)
+        XCTAssertTrue(app.buttons["Open session"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Mark as unread"].exists)
+        XCTAssertTrue(app.buttons["delete-session-history"].exists)
         sessionsTab.tap()
 
-        revealSessionDeletion(first)
-        app.buttons["archive-tab-people"].tap()
-        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
-        sessionsTab.tap()
-        XCTAssertTrue(list.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["delete-session-history"].exists)
-
-        revealSessionDeletion(first)
-        list.swipeUp()
-        XCTAssertTrue(
-            app.buttons["delete-session-history"].waitForNonExistence(timeout: 3)
-        )
-
-        revealSessionDeletion(first)
-        app.buttons["relationship-guide"].tap()
-        let askSheet = element("relationship-ask-sheet")
-        XCTAssertTrue(askSheet.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["delete-session-history"].exists)
-        askSheet.swipeDown()
-        if askSheet.exists {
-            askSheet.swipeDown()
-        }
-        XCTAssertTrue(askSheet.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(list.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["delete-session-history"].exists)
-
-        revealSessionDeletion(first)
-        XCUIDevice.shared.press(.home)
-        app.activate()
-        XCTAssertTrue(list.waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["delete-session-history"].exists)
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        first.press(forDuration: 0.8)
+        XCTAssertTrue(app.buttons["Open session"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Mark as unread"].exists)
+        XCTAssertTrue(app.buttons["delete-session-history"].exists)
     }
 
     func testSessionDeletionRequiresExactConfirmationAndPreservesPeople() {
@@ -1221,7 +1268,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(initialSessionCount, 2)
         let first = sessionRows.element(boundBy: 0)
 
-        revealSessionDeletion(first)
+        openSessionActions(first)
         app.buttons["delete-session-history"].tap()
         XCTAssertTrue(
             app.staticTexts["Delete this session history from this device?"]
@@ -1238,7 +1285,7 @@ final class CandidateSignalUITests: XCTestCase {
         app.buttons["Cancel"].tap()
         XCTAssertEqual(sessionRows.count, initialSessionCount)
 
-        revealSessionDeletion(first)
+        openSessionActions(first)
         app.buttons["delete-session-history"].tap()
         app.buttons["Delete session history from this device"].firstMatch.tap()
         XCTAssertEqual(sessionRows.count, initialSessionCount - 1)
@@ -1253,7 +1300,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Nia Williams"].exists)
     }
 
-    func testPeopleSwipeAndLongPressKeepAskInsideVisibleScope() {
+    func testPeopleVisibleAndLongPressMenusKeepAskInsideVisibleScope() {
         app.launch()
 
         app.buttons["archive-tab-people"].tap()
@@ -1262,7 +1309,7 @@ final class CandidateSignalUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH %@", "workspace-person-")
         ).firstMatch
         XCTAssertTrue(person.waitForExistence(timeout: 5))
-        person.swipeLeft()
+        openPersonActions(person)
 
         let ask = app.buttons["Ask about this person"]
         XCTAssertTrue(ask.waitForExistence(timeout: 5))
@@ -1304,7 +1351,7 @@ final class CandidateSignalUITests: XCTestCase {
             "workspace-person-20000000-0000-4000-8000-000000000001"
         ]
         XCTAssertTrue(person.waitForExistence(timeout: 5))
-        person.swipeLeft()
+        openPersonActions(person)
         app.buttons["Ask about this person"].tap()
 
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
@@ -5502,13 +5549,28 @@ final class CandidateSignalUITests: XCTestCase {
         window.coordinate(withNormalizedOffset: target).tap()
     }
 
-    private func revealSessionDeletion(_ row: XCUIElement) {
+    private func openSessionActions(_ row: XCUIElement) {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        row.swipeLeft()
-        XCTAssertTrue(
-            app.buttons["delete-session-history"].waitForExistence(timeout: 5)
+        let sessionID = row.identifier.replacingOccurrences(
+            of: "agent-session-",
+            with: ""
         )
+        let menu = app.buttons["session-actions-\(sessionID)"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
         XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
+    }
+
+    private func openPersonActions(_ row: XCUIElement) {
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let personID = row.identifier.replacingOccurrences(
+            of: "workspace-person-",
+            with: ""
+        )
+        let menu = app.buttons["person-actions-\(personID)"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        XCTAssertTrue(app.buttons["archive-tab-people"].isSelected)
     }
 
     private func percentile(_ samples: [Double], _ fraction: Double) -> Double {

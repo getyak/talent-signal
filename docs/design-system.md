@@ -261,11 +261,11 @@ or turn weak associations into authoritative relationships.
 
 Optimize for capture, one-thumb review, Today, interruption, and device-owned action.
 
-When rows reveal horizontal swipe actions, Today, Sessions, and People change only through explicit accessible controls. Reveals are transient, close on new
-intent rather than a timer, and expose no hidden higher-consequence command;
-see the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#fifth-iteration-row-gesture-ownership).
-
-Row swipe reveals are transient, close on new intent, never change Today, Sessions, or People, and hide no higher-consequence command; see the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#fifth-iteration-row-gesture-ownership).
+Today, Sessions, and People form one horizontal pager. Pages follow the finger
+while the measured top indicator tracks real label positions in LTR and RTL;
+navigation preserves each page's search, filter, and scroll state. Rows reserve
+horizontal movement for paging: tap opens, while a 44-point menu, native context
+menu, and accessibility actions expose the same secondary commands. See the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#sixth-iteration-pages-own-the-horizontal-axis).
 Treat screenshot intake as one progressive decision, not a miniature contact
 form or a success toast:
 
