@@ -1202,7 +1202,7 @@ final class CandidateSignalUITests: XCTestCase {
         let today = app.buttons["archive-tab-today"]
         let sessions = app.buttons["archive-tab-sessions"]
         let people = app.buttons["archive-tab-people"]
-        let selector = app.scrollViews["relationship-page-selector-scroll"]
+        let selector = element("relationship-page-selector-scroll")
         XCTAssertTrue(today.waitForExistence(timeout: 8))
         XCTAssertTrue(selector.exists)
 
@@ -1239,7 +1239,7 @@ final class CandidateSignalUITests: XCTestCase {
         ]
         app.launch()
 
-        let selector = app.scrollViews["relationship-page-selector-scroll"]
+        let selector = element("relationship-page-selector-scroll")
         let today = app.buttons["archive-tab-today"]
         let sessions = app.buttons["archive-tab-sessions"]
         let people = app.buttons["archive-tab-people"]
