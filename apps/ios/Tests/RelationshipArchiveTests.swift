@@ -2289,6 +2289,36 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
+    func testPendingAskDoesNotStartWhenRetryIdentityCannotBeProtected() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        store.saveDraft(
+            "What changed?",
+            personID: person.id,
+            relationshipContextID: context.id
+        )
+        persistence.failSave = true
+
+        let key = store.beginAsk(
+            "What changed?",
+            personID: person.id,
+            relationshipContextID: context.id,
+            proposedIdempotencyKey: "ios:ask:not-protected"
+        )
+
+        XCTAssertNil(key)
+        XCTAssertEqual(
+            store.draft(
+                personID: person.id,
+                relationshipContextID: context.id
+            ),
+            "What changed?"
+        )
+    }
+
+    @MainActor
     func testFirstSendCreatesRecoverableSessionBeforeRelationshipRecall() throws {
         let persistence = ToggleSaveAgentSessionPersistence()
         let store = AgentSessionStore(persistence: persistence)
@@ -2326,6 +2356,34 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertFalse(recorded.isUnresolvedIntent)
         XCTAssertNil(recorded.pendingObjective)
         XCTAssertEqual(recorded.turns.count, 1)
+    }
+
+    @MainActor
+    func testFirstScopedResponseAdoptsProtectedActivitySessionID() throws {
+        let persistence = ToggleSaveAgentSessionPersistence()
+        let store = AgentSessionStore(persistence: persistence)
+        let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
+        let context = try XCTUnwrap(person.contexts.first)
+        let protectedID = UUID()
+
+        let recordedID = store.record(
+            sessionID: protectedID,
+            objective: "What changed?",
+            response: relationshipAskResponseFixture(),
+            person: person,
+            context: context
+        )
+
+        XCTAssertEqual(recordedID, protectedID)
+        XCTAssertNotNil(store.session(id: protectedID))
+        XCTAssertNotNil(AgentAskDeepLink.url(
+            identity: .init(
+                workspaceID: "workspace-123",
+                sessionID: protectedID.uuidString.lowercased(),
+                activityInstanceID: UUID().uuidString.lowercased()
+            ),
+            destination: .review
+        ))
     }
 
     @MainActor

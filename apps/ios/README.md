@@ -457,6 +457,24 @@ route. Candidate details and every consequential decision remain in the app.
 No demo card writes to Contacts, Calendar, ATS, CRM, or a messaging service;
 the final state is a local review handoff rather than a claimed external result.
 
+Relationship Ask uses the global composer as a direct voice ribbon. Hold an
+empty composer to speak, release to transcribe and send, slide up to continue
+hands-free, or slide left to cancel. A tap on the connection mark starts the
+same hands-free path for accessibility. When the device supports on-device
+Speech recognition, partial words stay inside the ribbon while recording;
+Doubao still produces the submitted transcript under the first-use disclosure.
+Temporary audio is deleted after transcription or cancellation.
+
+An admitted remote Ask starts a separate private Live Activity. Its payload is
+limited to opaque workspace, Session, and activity-instance identifiers plus
+phase and revision. Waiting is shown by the animated connection mark; completion
+shows `Review`; failure or timeout shows one concise retry entry. The Activity
+never carries the question, transcript, person, relationship, answer, or
+evidence, and its deep link returns to the exact protected Session. For
+Simulator visual inspection, launch Debug with
+`--fixture-agent-ask-activity --fixture-agent-ask-phase thinking`; phases also
+accept `review`, `failed`, and `timedOut`.
+
 The controls advance only when tapped, so this route proves UI projection and
 state ordering, not background delivery, APNs, elapsed time, or an ETA. Starting
 a new synthetic run closes an older run for the same task and assigns a new

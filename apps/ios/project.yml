@@ -87,8 +87,11 @@ targets:
       - path: Shared/SharedCaptureEnvelope.swift
       - path: Shared/SignalRecordingActivity.swift
       - path: Shared/AgentWorkActivity.swift
+      - path: Shared/AgentAskActivity.swift
       - path: Shared/ResearchActivity.swift
+      - path: Shared/LivingConnectionMark.swift
       - path: Sources/App/AgentWorkDeepLink.swift
+      - path: Sources/App/AgentAskDeepLink.swift
       - path: Sources/App/ResearchDeepLink.swift
       - path: Resources/Localizable.xcstrings
         buildPhase: resources
