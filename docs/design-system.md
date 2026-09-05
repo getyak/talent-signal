@@ -265,7 +265,7 @@ Today, Sessions, and People form one horizontal pager. Pages follow the finger
 while the measured top indicator tracks real label positions in LTR and RTL;
 navigation preserves each page's search, filter, and scroll state. Rows reserve
 horizontal movement for paging: tap opens, while a 44-point menu, native context
-menu, and accessibility actions expose the same secondary commands. See the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#sixth-iteration-pages-own-the-horizontal-axis).
+menu, and accessibility actions expose the same secondary commands. See the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#sixth-iteration-pages-own-the-horizontal-axis). Calendar applies the same rule: tap opens, while long press accelerates its visible time, creation-review, detail, governed-person, and editable Agent-draft routes without writing externally or sending an action.
 Treat screenshot intake as one progressive decision, not a miniature contact
 form or a success toast:
 

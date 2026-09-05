@@ -406,6 +406,15 @@ enum RelationshipCalendarAgenda {
     }
 }
 
+enum RelationshipCalendarLaunchIntent: String, Identifiable {
+    case overview
+    case today
+    case thisWeek
+    case addActivity
+
+    var id: String { rawValue }
+}
+
 struct TodayRelationshipCalendarPeek: View {
     let activities: [RelationshipCalendarActivity]
     let onOpen: () -> Void
@@ -586,6 +595,7 @@ struct RelationshipCalendarView: View {
         snapshot: PursuitWorkspaceSnapshot,
         isPreview: Bool,
         initialActivities: [RelationshipCalendarActivity],
+        launchIntent: RelationshipCalendarLaunchIntent = .overview,
         activityStore: (any RelationshipCalendarActivityPersisting)? = nil,
         calendarSync: (any DeviceCalendarSyncing)? = nil,
         personDetail: ((String) -> AnyView?)? = nil,
@@ -614,10 +624,17 @@ struct RelationshipCalendarView: View {
         self.initialActivities = combined
         _activities = State(initialValue: combined)
         let next = RelationshipCalendarProjection.next(in: combined)
+        let startsAtToday = launchIntent != .overview
         _selectedDate = State(
             initialValue: Calendar.current.startOfDay(
-                for: next?.startDate ?? Date()
+                for: startsAtToday ? Date() : (next?.startDate ?? Date())
             )
+        )
+        _agendaMode = State(
+            initialValue: launchIntent == .thisWeek ? .week : .day
+        )
+        _destination = State(
+            initialValue: launchIntent == .addActivity ? .composer : nil
         )
     }
 
@@ -678,9 +695,7 @@ struct RelationshipCalendarView: View {
                         ? { syncToCalendar(activityID: activity.id) }
                         : nil,
                     onPrepare: {
-                        self.destination = nil
-                        onPrepare(activity)
-                        dismiss()
+                        prepare(activity)
                     }
                 )
             case .composer:
@@ -712,6 +727,12 @@ struct RelationshipCalendarView: View {
         }
         .accessibilityIdentifier("relationship-calendar")
         .task { resumePendingCalendarSync() }
+    }
+
+    private func prepare(_ activity: RelationshipCalendarActivity) {
+        destination = nil
+        onPrepare(activity)
+        dismiss()
     }
 
     private func confirm(_ activity: RelationshipCalendarActivity) {
@@ -1099,7 +1120,9 @@ struct RelationshipCalendarView: View {
                 activities: selectedActivities, days: agendaDays, selectedDate: selectedDate,
                 calendar: calendar, overlappingIDs: overlappingActivityIDs,
                 onSelectDay: select,
-                onOpen: { destination = .detail($0) }
+                onOpen: { destination = .detail($0) },
+                onOpenPerson: { destination = .person($0.personID) },
+                onPrepare: prepare
             )
         } else {
             let overlappingIDs = overlappingActivityIDs
@@ -1121,10 +1144,13 @@ struct RelationshipCalendarView: View {
                                 RelationshipCalendarActivityRow(
                                     activity: activity,
                                     day: day,
-                                    hasOverlap: overlappingIDs.contains(activity.id)
-                                ) {
-                                    destination = .detail(activity)
-                                }
+                                    hasOverlap: overlappingIDs.contains(activity.id),
+                                    onOpen: { destination = .detail(activity) },
+                                    onOpenPerson: {
+                                        destination = .person(activity.personID)
+                                    },
+                                    onPrepare: { prepare(activity) }
+                                )
                             }
                         }
                     }
@@ -1411,17 +1437,79 @@ private enum CalendarSheetDestination: Identifiable {
     }
 }
 
+struct RelationshipCalendarActivityShortcuts: ViewModifier {
+    let activityID: String
+    let onOpen: () -> Void
+    let onOpenPerson: () -> Void
+    let onPrepare: () -> Void
+
+    @Environment(\.appLanguage) private var appLanguage
+
+    func body(content: Content) -> some View {
+        content
+            .contextMenu {
+                shortcutActions
+            }
+            .accessibilityAction(
+                named: Text(
+                    appLanguage.text("Open activity", zhHans: "打开日程")
+                )
+            ) {
+                onOpen()
+            }
+            .accessibilityAction(
+                named: Text(appLanguage.text("View person record"))
+            ) {
+                onOpenPerson()
+            }
+            .accessibilityAction(
+                named: Text(appLanguage.text("Prepare with Agent"))
+            ) {
+                onPrepare()
+            }
+    }
+
+    @ViewBuilder
+    private var shortcutActions: some View {
+        Button(action: onOpen) {
+            Label(
+                appLanguage.text("Open activity", zhHans: "打开日程"),
+                systemImage: "arrow.up.right.square"
+            )
+        }
+        .accessibilityIdentifier("calendar-context-open-\(activityID)")
+
+        Button(action: onOpenPerson) {
+            Label(
+                appLanguage.text("View person record"),
+                systemImage: "person.crop.rectangle"
+            )
+        }
+        .accessibilityIdentifier("calendar-context-person-\(activityID)")
+
+        Button(action: onPrepare) {
+            Label(
+                appLanguage.text("Prepare with Agent"),
+                systemImage: "sparkles"
+            )
+        }
+        .accessibilityIdentifier("calendar-context-prepare-\(activityID)")
+    }
+}
+
 private struct RelationshipCalendarActivityRow: View {
     let activity: RelationshipCalendarActivity
     let day: Date
     let hasOverlap: Bool
-    let action: () -> Void
+    let onOpen: () -> Void
+    let onOpenPerson: () -> Void
+    let onPrepare: () -> Void
 
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Button(action: action) {
+        Button(action: onOpen) {
             Group {
                 if dynamicTypeSize >= .xxLarge {
                     VStack(alignment: .leading, spacing: 8) {
@@ -1451,6 +1539,14 @@ private struct RelationshipCalendarActivityRow: View {
         ))
         .accessibilityHint(appLanguage.text("Opens activity details."))
         .accessibilityIdentifier("calendar-activity-\(activity.id)")
+        .modifier(
+            RelationshipCalendarActivityShortcuts(
+                activityID: activity.id,
+                onOpen: onOpen,
+                onOpenPerson: onOpenPerson,
+                onPrepare: onPrepare
+            )
+        )
     }
 
     private var timeColumn: some View {

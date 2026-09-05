@@ -65,6 +65,8 @@ struct RelationshipCalendarWeekGrid: View {
     let overlappingIDs: Set<String>
     let onSelectDay: (Date) -> Void
     let onOpen: (RelationshipCalendarActivity) -> Void
+    let onOpenPerson: (RelationshipCalendarActivity) -> Void
+    let onPrepare: (RelationshipCalendarActivity) -> Void
     @Environment(\.appLanguage) private var appLanguage
 
     private var layouts: [[RelationshipCalendarWeekLayout.Placement]] {
@@ -201,6 +203,14 @@ struct RelationshipCalendarWeekGrid: View {
             + (activity.calendarSyncState == .unknown ? ", " + appLanguage.text("Calendar sync unverified") : ""))
         .accessibilityHint(appLanguage.text("Opens activity details."))
         .accessibilityIdentifier("calendar-activity-\(activity.id)")
+        .modifier(
+            RelationshipCalendarActivityShortcuts(
+                activityID: activity.id,
+                onOpen: { onOpen(activity) },
+                onOpenPerson: { onOpenPerson(activity) },
+                onPrepare: { onPrepare(activity) }
+            )
+        )
     }
 
     private func timeRange(_ activity: RelationshipCalendarActivity) -> String {
