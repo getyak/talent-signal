@@ -19,13 +19,14 @@ import type { Pool, PoolClient } from "pg";
 import type { BackendConfig } from "../config.js";
 import { ApiError } from "../lib/apiError.js";
 import { sha256 } from "../lib/hash.js";
+import { labWorkspaceSessionActiveSQL } from "./labWorkspaceAccess.js";
 import {
   consumeDummyPasswordWork,
   encodePasswordCredential,
   verifyPasswordCredential,
 } from "./passwordCredential.js";
 
-type UserKind = "simulated_human" | "apple_human" | "password_human";
+type UserKind = "simulated_human" | "apple_human" | "password_human" | "lab_human";
 type UserRole = "admin" | "member";
 
 export interface AuthContext {
@@ -714,7 +715,9 @@ export async function currentSession(
        AND sessions.account_id = $2
        AND sessions.user_id = $3
        AND sessions.revoked_at IS NULL
-       AND sessions.expires_at > now()`,
+       AND sessions.expires_at > now()
+       AND users.status = 'active'
+       AND ${labWorkspaceSessionActiveSQL}`,
     [auth.sessionId, auth.accountId, auth.userId],
   );
   const session = result.rows[0];
@@ -745,10 +748,16 @@ export async function revokeCurrentSession(
   auth: AuthContext,
 ): Promise<LogoutResponse> {
   const result = await pool.query<{ revoked_at: Date }>(
-    `UPDATE sessions
-     SET revoked_at = now()
-     WHERE id = $1 AND account_id = $2 AND user_id = $3 AND revoked_at IS NULL
-     RETURNING revoked_at`,
+    `WITH revoked AS (
+       UPDATE sessions SET revoked_at = now()
+       WHERE id = $1 AND account_id = $2 AND user_id = $3 AND revoked_at IS NULL
+       RETURNING revoked_at
+     ), recorded AS (
+       UPDATE lab_test_workspace_entries SET revoked_at = revoked.revoked_at
+       FROM revoked WHERE session_id = $1 AND lab_test_workspace_entries.revoked_at IS NULL
+       RETURNING lab_test_workspace_entries.id
+     )
+     SELECT revoked_at FROM revoked`,
     [auth.sessionId, auth.accountId, auth.userId],
   );
   const revokedAt = result.rows[0]?.revoked_at;
@@ -796,7 +805,8 @@ export function createAuthGuard(pool: Pool): preHandlerHookHandler {
        WHERE sessions.token_hash = $1
          AND sessions.revoked_at IS NULL
          AND sessions.expires_at > now()
-         AND users.status = 'active'`,
+         AND users.status = 'active'
+         AND ${labWorkspaceSessionActiveSQL}`,
       [sha256(accessToken)],
     );
     const auth = result.rows[0];

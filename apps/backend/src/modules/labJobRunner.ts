@@ -1,0 +1,124 @@
+import type { AgentProvider } from "@talent-signal/agent";
+import type { LabJobAttempt, LabJobCase, LabJobDefinition } from "@talent-signal/contracts";
+import { randomUUID } from "node:crypto";
+import type { RemoteChatAnswerProviding, RemoteChatAnswerRequest } from "./chatAnswerProvider.js";
+import { labImageFixture } from "./labJobImageFixtures.js";
+import type { LabAgentJobInput, LabImageJobInput } from "./labJobCases.js";
+import { labHash } from "./labJobCases.js";
+import { taskModelCatalog, taskPromptRevision, trialProvider, type TrialRunMeasurement } from "./labTaskConfiguration.js";
+import { executeWorkspaceConversationAgentCore, type WorkspaceContactLookup } from "./workspaceConversationAgent.js";
+
+export const LAB_JOB_INSTRUMENT_REVISION = "lab-ai-job/2";
+
+export function createJobAttempts(definition: LabJobDefinition): LabJobAttempt[] {
+  const attempts: LabJobAttempt[] = [];
+  for (const [caseIndex, sample] of definition.cases.entries()) {
+    for (let repetition = 1; repetition <= definition.repetitions; repetition++) {
+      const order = (caseIndex + repetition) % 2 ? [0, 1] : [1, 0];
+      for (const configurationIndex of order) {
+        const configuration = definition.configurations[configurationIndex]!;
+        attempts.push({ id: randomUUID(), ordinal: attempts.length, case_id: sample.id, configuration_index: configurationIndex,
+          repetition, status: "pending", started_at: null, finished_at: null, requested_model: configuration.model,
+          prompt_revision: configuration.prompt_revision, actual_model: null, actual_prompt_revision: null,
+          execution: "unknown", remote_requests_started: null, provider_request_id: null, duration_ms: null,
+          input_tokens: null, output_tokens: null, title: null, answer: null, citation_ids: [], error_code: null, checks: [] });
+      }
+    }
+  }
+  return attempts;
+}
+
+function isAgentProvider(provider: RemoteChatAnswerProviding): provider is RemoteChatAnswerProviding & AgentProvider {
+  return "run" in provider && typeof (provider as RemoteChatAnswerProviding & Partial<AgentProvider>).run === "function";
+}
+
+function baseChecks(validShape: boolean, validCitations: boolean): LabJobAttempt["checks"] {
+  return [
+    { id: "output_contract", verdict: validShape ? "pass" : "fail", summary: "The returned answer must satisfy the bounded product answer contract." },
+    { id: "citation_authority", verdict: validCitations ? "pass" : "fail", summary: "Every returned citation must be in this case's authorized citation set." },
+    { id: "business_tools", verdict: "pass", summary: "The batch executor permits no durable business-system write." },
+    { id: "semantic_review", verdict: "unknown", summary: "Evidence fidelity and expected behavior require content review; valid structure does not establish correctness." },
+  ];
+}
+
+function materializeChatInput(value: unknown, task: LabJobDefinition["task"]): RemoteChatAnswerRequest {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid frozen input");
+  if (task !== "relationship_image") return value as RemoteChatAnswerRequest;
+  const input = value as LabImageJobInput;
+  const fixture = labImageFixture(input.image_fixture?.id ?? "");
+  if (!fixture || fixture.sha256 !== input.image_fixture.sha256) throw new Error("Frozen image fixture changed");
+  const { image_fixture: _fixture, ...request } = input;
+  return { ...request, images: [{ file_name: fixture.fileName, media_type: fixture.mediaType, data: fixture.bytes }] };
+}
+
+function fixtureContacts(input: LabAgentJobInput): WorkspaceContactLookup {
+  const normalized = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
+  return {
+    search: async (query) => {
+      const needle = normalized(query);
+      return input.contact_fixture.filter((person) => normalized(person.display_label).includes(needle)
+        || person.relationships.some((relationship) => normalized(relationship.display_label).includes(needle)))
+        .map((person) => ({ personID: person.person_id, displayLabel: person.display_label,
+          directoryRevision: person.directory_revision,
+          contexts: person.relationships.map((relationship) => ({ id: relationship.id, displayLabel: relationship.display_label })) }));
+    },
+    read: async (personID, contextID) => {
+      const person = input.contact_fixture.find((value) => value.person_id === personID);
+      const relationship = person?.relationships.find((value) => value.id === contextID);
+      if (!person || !relationship) throw new Error("Synthetic contact scope unavailable");
+      return { person: { id: person.person_id, displayLabel: person.display_label, directoryRevision: person.directory_revision },
+        relationship: { id: relationship.id, displayLabel: relationship.display_label } };
+    },
+  };
+}
+
+export async function executeJobAttempt(attempt: LabJobAttempt, sample: LabJobCase,
+  definition: LabJobDefinition, provider: RemoteChatAnswerProviding | undefined): Promise<LabJobAttempt> {
+  const configuration = definition.configurations[attempt.configuration_index]!;
+  let measurement: TrialRunMeasurement | undefined;
+  const start = performance.now();
+  try {
+    const frozen = JSON.parse(sample.input_json) as unknown;
+    if (labHash(frozen) !== sample.input_hash || definition.instrument_revision !== LAB_JOB_INSTRUMENT_REVISION
+      || (sample.task ?? "relationship_text") !== definition.task || !provider) throw new Error("Frozen input or instrument changed");
+    const entry = taskModelCatalog([provider]).find((value) => value.task === definition.task && value.model === configuration.model);
+    if (!entry || taskPromptRevision(entry, configuration.prompt_preset) !== configuration.prompt_revision) throw new Error("Frozen configuration unavailable");
+    const configured = trialProvider(entry, configuration.prompt_preset, (value) => { measurement = value; });
+    let title: string, answer: string, citationIDs: string[], validCitations: boolean;
+    if (definition.task === "unscoped_chat") {
+      if (!isAgentProvider(configured)) throw new Error("Workspace Agent capability unavailable");
+      const input = frozen as LabAgentJobInput;
+      if (!Array.isArray(input.contact_fixture) || input.context_blocks.length !== 0 || input.allowed_citation_ids.length !== 0) throw new Error("Invalid Agent fixture");
+      const result = await executeWorkspaceConversationAgentCore({ objective: input.objective, provider: configured,
+        workspaceID: "registered-synthetic-lab", sessionID: null, contacts: fixtureContacts(input) });
+      title = result.block.title; answer = result.block.body; citationIDs = result.block.citation_dependency_ids;
+      validCitations = citationIDs.length === 0;
+    } else {
+      const input = materializeChatInput(frozen, definition.task);
+      const result = await configured.answer(input);
+      title = result.title; answer = result.body; citationIDs = result.citation_ids;
+      validCitations = citationIDs.every((id) => input.allowed_citation_ids.includes(id));
+    }
+    const validShape = title.trim().length > 0 && title.length <= 1000 && answer.trim().length > 0 && answer.length <= 16000;
+    const checks = baseChecks(validShape, validCitations);
+    if (definition.task === "relationship_image") checks.splice(2, 0,
+      { id: "image_capability", verdict: "pass", summary: "The registered image bytes were verified and dispatched only through the admitted image model." });
+    if (definition.task === "unscoped_chat") checks.splice(2, 0,
+      { id: "agent_tool_contract", verdict: "pass", summary: "The product Workspace Agent executor validated the terminal schema and every synthetic contact Tool call." });
+    return { ...attempt, status: "completed", finished_at: new Date().toISOString(),
+      actual_model: measurement?.actual_model ?? null, actual_prompt_revision: measurement?.actual_prompt_revision ?? null,
+      execution: measurement?.execution ?? "unknown", remote_requests_started: measurement?.remote_requests_started ?? null,
+      provider_request_id: measurement?.provider_request_id ?? null, duration_ms: Math.round(performance.now() - start),
+      input_tokens: measurement?.input_tokens ?? null, output_tokens: measurement?.output_tokens ?? null,
+      title: validShape ? title : null, answer: validShape ? answer : null, citation_ids: citationIDs,
+      checks, error_code: validShape && validCitations ? null : "OUTPUT_HARD_CHECK_FAILED" };
+  } catch {
+    return { ...attempt, status: "failed", finished_at: new Date().toISOString(),
+      actual_model: measurement?.actual_model ?? null, actual_prompt_revision: measurement?.actual_prompt_revision ?? null,
+      execution: measurement?.execution ?? "unknown", remote_requests_started: measurement?.remote_requests_started ?? null,
+      provider_request_id: measurement?.provider_request_id ?? null, duration_ms: Math.round(performance.now() - start),
+      input_tokens: measurement?.input_tokens ?? null, output_tokens: measurement?.output_tokens ?? null,
+      error_code: "PROVIDER_FAILED_OR_CONFIGURATION_UNVERIFIED",
+      checks: [{ id: "provider_execution", verdict: "fail", summary: "The configured provider result could not be verified. No alternate prompt or automatic retry was used." }] };
+  }
+}

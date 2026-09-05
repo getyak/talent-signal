@@ -3875,8 +3875,61 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     @MainActor
-    func testRelationshipCaptureRequiresExplicitOwnerAndCompilesGoldWiki() async throws {
+    func testRelationshipCaptureRequiresExplicitOwnerAndIndependentReview() async throws {
         try await runRelationshipCaptureJourney(auditsAccessibility: false)
+    }
+
+    @MainActor
+    func testCapturePartialConfirmationResumesSameSource() async throws {
+        let backendURL = testConfiguration("TS_IOS_BACKEND_URL", fallback: "http://127.0.0.1:4329")
+        let seed = UUID().uuidString
+        let arguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-talent-signal.interface-language", "en",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL",
+            "--scenario", "relationship-capture-archive", "--backend-url", backendURL,
+            "--workspace-backend-url", backendURL, "--capture-seed", seed,
+            "--capture-handle", "+658\(String(format: "%07u", UInt32.random(in: 0...9_999_999)))",
+            "--capture-name", "Review \(seed.prefix(8))", "--capture-text-base64",
+            Data("Work mode: Hybrid\nDeadline: next Friday".utf8).base64EncodedString()]
+        app.launchArguments = arguments
+        app.launch()
+        XCTAssertTrue(element("reviewed-ocr-text").waitForExistence(timeout: 10))
+        tapWhenVisible(app.buttons["submit-reviewed-capture"])
+        XCTAssertTrue(app.buttons["create-new-person-from-capture"].waitForExistence(timeout: 30))
+        tapWhenVisible(app.buttons["create-new-person-from-capture"])
+        XCTAssertTrue(element("capture-change-review").waitForExistence(timeout: 30))
+        tapWhenVisible(app.buttons["capture-review-speaker-choice"])
+        tapWhenVisible(app.buttons["Candidate"])
+        tapWhenVisible(app.buttons["capture-confirm-speaker"])
+        XCTAssertTrue(app.buttons["capture-confirm-work_mode_preference"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["capture-confirm-decision_deadline"].isEnabled)
+        preserveScreenshot("Capture date dependency remains blocked")
+        tapWhenVisible(app.buttons["capture-confirm-work_mode_preference"])
+        XCTAssertTrue(app.buttons["capture-finish-review"].waitForExistence(timeout: 30))
+        tapWhenVisible(app.buttons["capture-finish-review"])
+        app.swipeDown()
+        app.swipeDown()
+        XCTAssertTrue(element("capture-confirmed-count").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("capture-confirmed-count").label.contains("1 changes confirmed"))
+        XCTAssertTrue(element("capture-confirmed-count").label.contains("1 still to review"))
+        XCTAssertFalse(app.buttons["continue-capture-in-agent"].isEnabled)
+        preserveScreenshot("Capture partial receipt with one confirmed and one unresolved")
+        tapWhenVisible(app.buttons["Keep for later"])
+        app.terminate()
+        app.launchArguments = arguments
+        app.launch()
+        XCTAssertTrue(app.textFields["capture-claim-value-decision_deadline"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["create-new-person-from-capture"].exists)
+        preserveScreenshot("Capture restarts at the same pending review")
+        let value = app.textFields["capture-claim-value-decision_deadline"]
+        tapWhenVisible(value)
+        value.typeText("2026-09-11")
+        tapWhenVisible(app.buttons["capture-confirm-decision_deadline"])
+        XCTAssertTrue(app.buttons["capture-finish-review"].waitForExistence(timeout: 30))
+        tapWhenVisible(app.buttons["capture-finish-review"])
+        XCTAssertTrue(element("capture-confirmed-count").waitForExistence(timeout: 30))
+        XCTAssertTrue(element("capture-confirmed-count").label.contains("2 changes confirmed"))
+        XCTAssertTrue(element("capture-confirmed-count").label.contains("0 still to review"))
+        preserveScreenshot("Capture all reviewed with truthful completion")
     }
 
     @MainActor
@@ -3906,6 +3959,7 @@ final class CandidateSignalUITests: XCTestCase {
         )
 
         app.launchArguments = [
+            "-AppleLanguages", "(en)", "-AppleLocale", "en_US", "-talent-signal.interface-language", "en",
             "--scenario", "relationship-capture-archive",
             "--backend-url", backendURL,
             "--workspace-backend-url", backendURL,
@@ -3920,6 +3974,8 @@ final class CandidateSignalUITests: XCTestCase {
                 "-UIPreferredContentSizeCategoryName",
                 "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
             ]
+        } else {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
         }
         app.launch()
 
@@ -3965,7 +4021,16 @@ final class CandidateSignalUITests: XCTestCase {
 
         tapWhenVisible(createPerson)
 
-        let verdict = element("wiki-quality-verdict")
+        XCTAssertTrue(element("capture-change-review").waitForExistence(timeout: 30))
+        XCTAssertFalse(element("capture-completion-receipt").exists)
+        let speakerChoice = app.buttons["capture-review-speaker-choice"]
+        tapWhenVisible(speakerChoice)
+        tapWhenVisible(app.buttons["Candidate"])
+        tapWhenVisible(app.buttons["capture-confirm-speaker"])
+        XCTAssertTrue(app.buttons["capture-finish-review"].waitForExistence(timeout: 30))
+        preserveScreenshot("Independent change review before completion")
+        tapWhenVisible(app.buttons["capture-finish-review"])
+        let verdict = element("capture-completion-receipt")
         if !verdict.waitForExistence(timeout: 30) {
             let retry = app.buttons["retry-capture-step"]
             XCTAssertTrue(
@@ -3975,7 +4040,6 @@ final class CandidateSignalUITests: XCTestCase {
             retry.tap()
         }
         XCTAssertTrue(verdict.waitForExistence(timeout: 30))
-        XCTAssertEqual(verdict.label, "WIKI · GOLD")
         XCTAssertTrue(app.buttons["return-to-person"].exists)
         XCTAssertTrue(app.buttons["continue-capture-in-agent"].exists)
         XCTAssertTrue(element("device-contact-handoff").exists)
@@ -3983,13 +4047,13 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("capture-completion-receipt").exists)
         if auditsAccessibility {
             assertAccessibilityOrder([
-                "wiki-quality-verdict",
+                "capture-review-outcome",
                 "continue-capture-in-agent",
                 "device-contact-handoff",
                 "capture-completion-receipt",
             ])
         }
-        preserveScreenshot("iOS explicit-owner Wiki Gold receipt")
+        preserveScreenshot("iOS truthful completed review receipt")
 
         tapWhenVisible(app.buttons["review-device-contact"])
         let cancelContact = app.buttons["Cancel"]

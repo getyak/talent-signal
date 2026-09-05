@@ -41,18 +41,6 @@ struct DeterministicStandaloneProposalEngine: StandaloneProposalGenerating {
     }
 }
 
-protocol StandaloneDemoDataResetting {
-    func resetAncillaryDemoData() throws
-}
-
-struct LocalStandaloneDemoDataResetter: StandaloneDemoDataResetting {
-    func resetAncillaryDemoData() throws {
-#if DEBUG
-        try LiveActivityStopRequestBridge.reset()
-#endif
-    }
-}
-
 enum StandaloneShortcutCaptureBridge {
     static func stage(
         _ seed: PendingCaptureSeed,
@@ -79,17 +67,14 @@ final class StandaloneOnboardingStore: ObservableObject {
 
     private let persistence: StandaloneOnboardingPersisting
     private let accountClient: StandaloneAccountClient
-    private let demoDataResetter: StandaloneDemoDataResetting
 
     init(
         persistence: StandaloneOnboardingPersisting = FileStandaloneOnboardingStore(),
         accountClient: StandaloneAccountClient = LocalStandaloneAccountClient(),
-        demoDataResetter: StandaloneDemoDataResetting = LocalStandaloneDemoDataResetter(),
         reset: Bool = false
     ) {
         self.persistence = persistence
         self.accountClient = accountClient
-        self.demoDataResetter = demoDataResetter
         if reset {
             do {
                 try persistence.reset()
@@ -324,33 +309,16 @@ final class StandaloneOnboardingStore: ObservableObject {
         mutate { $0.replayOnboarding() }
     }
 
-    func resetDemoData() {
-        var resetErrors: [String] = []
+    var resetPersistence: any StandaloneOnboardingPersisting { persistence }
 
+    func reloadAfterMaintenance() {
         do {
-            try persistence.reset()
-        } catch {
-            resetErrors.append("local session: \(error.localizedDescription)")
-        }
-
-        do {
-            try demoDataResetter.resetAncillaryDemoData()
-        } catch {
-            resetErrors.append("Live Activity requests: \(error.localizedDescription)")
-        }
-
-        guard resetErrors.isEmpty else {
-            persistenceNotice = "Demo data could not be fully reset (\(resetErrors.joined(separator: "; "))). Retry before leaving this device."
-            return
-        }
-
-        do {
-            let freshState = StandaloneOnboardingState.fresh()
-            try persistence.save(freshState)
-            state = freshState
+            guard let restored = try persistence.load(),
+                  restored.version == StandaloneOnboardingState.flowVersion else { return }
+            state = restored
             persistenceNotice = nil
         } catch {
-            persistenceNotice = "Demo data could not be fully reset: \(error.localizedDescription)"
+            persistenceNotice = "The saved onboarding state could not be read. Existing sources were preserved."
         }
     }
 

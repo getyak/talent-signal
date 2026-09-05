@@ -16,6 +16,7 @@ import {
 import type { AuthContext } from "./auth.js";
 import type { MutationResult } from "./captures.js";
 import { invalidateKnowledgeForFragment } from "./resources.js";
+import { isCompleteReviewDate, loadClaimReviewAuthority, requiresCalendarDate } from "./claimReviewAuthority.js";
 
 interface AssertionContext {
   id: string;
@@ -53,14 +54,10 @@ export async function decideAssertion(
       request.idempotency_key,
       request,
     );
-    if (idempotency.replay) {
-      return {
-        body: idempotency.replay.body as AssertionDecisionResponse,
-        replayed: true,
-        status: idempotency.replay.status,
-      };
-    }
-
+    // Match evidence review/deletion lock order: capture before its children.
+    await client.query(`SELECT id FROM captures WHERE account_id = $1 AND id = (
+      SELECT capture_id FROM proposed_assertions WHERE account_id = $1 AND id = $2
+    ) FOR UPDATE`, [auth.accountId, assertionId]);
     const result = await client.query<AssertionContext>(
       `SELECT
          assertions.id,
@@ -91,7 +88,7 @@ export async function decideAssertion(
          ON receipts.account_id = captures.account_id
         AND receipts.capture_id = captures.id
        WHERE assertions.account_id = $1 AND assertions.id = $2
-       FOR UPDATE OF assertions`,
+       FOR UPDATE OF assertions, captures, receipts`,
       [auth.accountId, assertionId],
     );
     const assertion = result.rows[0];
@@ -118,6 +115,32 @@ export async function decideAssertion(
         "ASSERTION_SOURCE_AUTHORIZATION_UNAVAILABLE",
         "Restore or renew and then review the source before deciding this claim.",
       );
+    }
+    if (assertion.evidence_fragment_id) {
+      await client.query(
+        `SELECT id FROM evidence_fragments WHERE account_id = $1 AND id = $2 FOR UPDATE`,
+        [auth.accountId, assertion.evidence_fragment_id],
+      );
+    }
+    const authority = await loadClaimReviewAuthority(client, auth.accountId, assertionId);
+    const screenshotClaim = authority.row.resource_kind === "conversation_screenshot" && Boolean(assertion.evidence_fragment_id);
+    if ((screenshotClaim || request.expected_review_token) && request.expected_review_token !== authority.token) {
+      throw new ApiError(409, "CLAIM_REVIEW_STALE", "The source, identity, or review changed. Reload the current claim before deciding.");
+    }
+    const blocked = authority.blockers.filter((reason) => reason !== "calendar_date_required");
+    if (blocked.length > 0) {
+      throw new ApiError(409, "CLAIM_EVIDENCE_UNAVAILABLE", "Resolve the source, identity, and speaker before deciding this claim.", { blockers: blocked });
+    }
+    if (idempotency.replay) {
+      const replay = idempotency.replay.body as AssertionDecisionResponse;
+      const latest = await client.query<{ id: string }>(
+        `SELECT id FROM fact_decisions WHERE account_id = $1 AND assertion_id = $2 ORDER BY decided_at DESC, id DESC LIMIT 1`,
+        [auth.accountId, assertionId],
+      );
+      if (latest.rows[0]?.id !== replay.decision_id) {
+        throw new ApiError(409, "CLAIM_DECISION_SUPERSEDED", "A later decision replaced this result. Review the current claim.");
+      }
+      return { body: replay, replayed: true, status: idempotency.replay.status };
     }
     if (assertion.version !== request.expected_assertion_version) {
       throw new ApiError(
@@ -160,6 +183,11 @@ export async function decideAssertion(
     }
 
     const chosenValue = request.corrected_value ?? assertion.proposed_value;
+    if (request.decision === "confirm" &&
+        (requiresCalendarDate(assertion.field, assertion.proposed_value ?? "") || requiresCalendarDate(assertion.field, chosenValue ?? "")) &&
+        !isCompleteReviewDate(chosenValue ?? "")) {
+      throw new ApiError(422, "CALENDAR_DATE_REQUIRED", "Review a complete calendar date (YYYY-MM-DD). Import time does not establish message time.");
+    }
     if (request.decision === "confirm" && !chosenValue) {
       throw new ApiError(
         422,

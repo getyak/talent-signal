@@ -12,15 +12,33 @@ protocol TextSignalOutboxPersisting: AnyObject {
 actor TextSignalOutbox: TextSignalOutboxPersisting {
     static let shared = TextSignalOutbox()
 
-    private let rootDirectoryURL: URL
+    static func scoped(_ scope: String?, backendURL: URL, workspaceID: String?) -> TextSignalOutbox {
+        let key = scope ?? RuntimeEndpoint.scope(backendURL, accountID: workspaceID)
+        let directory = RuntimeScopedDirectories.directory("TextSignalOutbox", scope: key)
+        var failure: Error?
+        if let workspaceID, RuntimeLegacyBindings.authorizes(accountID: workspaceID, scope: key) {
+            let original = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appending(path: "TextSignalOutbox/workspaces", directoryHint: .isDirectory)
+                .appending(path: SHA256.hex(workspaceID), directoryHint: .isDirectory)
+            let destination = directory.appending(path: "workspaces", directoryHint: .isDirectory)
+                .appending(path: SHA256.hex(workspaceID), directoryHint: .isDirectory)
+            do { try RuntimeLegacyBindings.migrateDirectory(source: original, destination: destination) }
+            catch { failure = error }
+        }
+        return TextSignalOutbox(directoryURL: directory, startupError: failure)
+    }
 
-    init(directoryURL: URL? = nil) {
+    private let rootDirectoryURL: URL
+    private let startupError: Error?
+
+    init(directoryURL: URL? = nil, startupError: Error? = nil) {
         let root = directoryURL
             ?? FileManager.default.urls(
                 for: .applicationSupportDirectory,
                 in: .userDomainMask
             )[0].appending(path: "TextSignalOutbox", directoryHint: .isDirectory)
         rootDirectoryURL = root
+        self.startupError = startupError
     }
 
     func save(_ record: TextSignalOutboxRecord) throws {
@@ -99,6 +117,7 @@ actor TextSignalOutbox: TextSignalOutboxPersisting {
     }
 
     private func prepareDirectory(workspaceID: String) throws -> URL {
+        if let startupError { throw startupError }
         let recordsDirectoryURL = rootDirectoryURL
             .appending(path: "workspaces", directoryHint: .isDirectory)
             .appending(path: safeWorkspaceComponent(workspaceID), directoryHint: .isDirectory)

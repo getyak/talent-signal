@@ -88,11 +88,13 @@ final class FilePursuitActionCompletionStore: PursuitActionCompletionPersisting 
     private let fileURL: URL
     private let deletionTombstoneURL: URL
     private let now: () -> Date
+    private let migrationError: Error?
 
     init(
         accountID: String,
         rootURL: URL? = nil,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        legacyAccountID: String? = nil
     ) {
         let digest = SHA256.hash(data: Data(accountID.utf8))
             .map { String(format: "%02x", $0) }
@@ -106,6 +108,11 @@ final class FilePursuitActionCompletionStore: PursuitActionCompletionPersisting 
             .appending(path: "\(digest).json")
         deletionTombstoneURL = fileURL.appendingPathExtension("deletion-pending")
         self.now = now
+        do {
+            try RuntimeLegacyBindings.migrateFile(legacyAccountID: legacyAccountID, scope: accountID,
+                directory: fileURL.deletingLastPathComponent(), destination: fileURL)
+            migrationError = nil
+        } catch { migrationError = error }
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(
             "--reset-pursuit-action-completions"
@@ -149,6 +156,7 @@ final class FilePursuitActionCompletionStore: PursuitActionCompletionPersisting 
     }
 
     func deleteAll() throws {
+        if let migrationError { throw migrationError }
         try writeProtected(Data("pending".utf8), to: deletionTombstoneURL)
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)
@@ -162,6 +170,7 @@ final class FilePursuitActionCompletionStore: PursuitActionCompletionPersisting 
     }
 
     private func entries() throws -> [String: PersistedPursuitActionCompletion] {
+        if let migrationError { throw migrationError }
         if FileManager.default.fileExists(atPath: deletionTombstoneURL.path) {
             try deleteAll()
             return [:]
@@ -273,8 +282,20 @@ final class PursuitWorkspaceStore: ObservableObject {
     }
 
     func load() async {
-        guard let service else { return }
-        guard !isReadInFlight else { return }
+        guard service != nil, !isReadInFlight else { return }
+        await LabClientDiagnostics.observe(.workspaceRead) { await loadRecorded() }
+    }
+    func refreshForLab() async -> Bool {
+        guard isCanonical, !isReadInFlight else { return false }
+        var verified = false
+        await LabClientDiagnostics.observe(.workspaceRead) {
+            let outcome = await loadRecorded(); verified = outcome == .completed; return outcome
+        }
+        return verified
+    }
+
+    private func loadRecorded() async -> LabClientSpan.Outcome {
+        guard let service, !isReadInFlight else { return .skipped }
         isReadInFlight = true
         defer {
             isReadInFlight = false
@@ -316,11 +337,14 @@ final class PursuitWorkspaceStore: ObservableObject {
                         : "\(changedCount) Pursuits changed in the canonical workspace. This view was refreshed."
                 }
             }
-            lastCanonicalRevisionByPursuit = nextRevisions
-            phase = snapshot.pursuits.isEmpty && snapshot.people.isEmpty
-                ? .empty(snapshot)
-                : .loaded(snapshot)
+            LabClientDiagnostics.measureSync(.statePublished) {
+                lastCanonicalRevisionByPursuit = nextRevisions
+                phase = snapshot.pursuits.isEmpty && snapshot.people.isEmpty
+                    ? .empty(snapshot)
+                    : .loaded(snapshot)
+            }
             await restoreSavedActionCompletions(in: snapshot)
+            return .completed
         } catch {
             let message = (error as? LocalizedError)?.errorDescription
                 ?? "The canonical workspace could not be loaded."
@@ -332,6 +356,7 @@ final class PursuitWorkspaceStore: ObservableObject {
             } else {
                 phase = .failed(message)
             }
+            return LabClientDiagnostics.failure(error)
         }
     }
 
@@ -345,13 +370,15 @@ final class PursuitWorkspaceStore: ObservableObject {
         guard let service else {
             throw PursuitWorkspaceClientError.askUnavailable
         }
-        return try await service.ask(
-            objective: objective,
-            personID: personID,
-            relationshipContextID: relationshipContextID,
-            idempotencyKey: idempotencyKey,
-            mediaIDs: mediaIDs
-        )
+        return try await LabClientDiagnostics.measure(.relationshipTask) {
+            try await service.ask(
+                objective: objective,
+                personID: personID,
+                relationshipContextID: relationshipContextID,
+                idempotencyKey: idempotencyKey,
+                mediaIDs: mediaIDs
+            )
+        }
     }
 
     func chatUnscoped(
@@ -361,10 +388,12 @@ final class PursuitWorkspaceStore: ObservableObject {
         guard let service else {
             throw PursuitWorkspaceClientError.askUnavailable
         }
-        return try await service.chatUnscoped(
-            objective: objective,
-            idempotencyKey: idempotencyKey
-        )
+        return try await LabClientDiagnostics.measure(.conversationTask) {
+            try await service.chatUnscoped(
+                objective: objective,
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     func researchPerson(
@@ -376,12 +405,14 @@ final class PursuitWorkspaceStore: ObservableObject {
         guard let service else {
             throw PursuitWorkspaceClientError.askUnavailable
         }
-        return try await service.researchPerson(
-            objective: objective,
-            imageData: imageData,
-            mediaType: mediaType,
-            idempotencyKey: idempotencyKey
-        )
+        return try await LabClientDiagnostics.measure(.imageResearch) {
+            try await service.researchPerson(
+                objective: objective,
+                imageData: imageData,
+                mediaType: mediaType,
+                idempotencyKey: idempotencyKey
+            )
+        }
     }
 
     func saveContactDraft(
@@ -439,7 +470,9 @@ final class PursuitWorkspaceStore: ObservableObject {
 
     func uploadChatMedia(id: String, data: Data, mediaType: String) async throws -> ChatMediaAsset {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
-        return try await service.uploadChatMedia(id: id, data: data, mediaType: mediaType)
+        return try await LabClientDiagnostics.measure(.mediaUpload) {
+            try await service.uploadChatMedia(id: id, data: data, mediaType: mediaType)
+        }
     }
 
     func deleteChatMedia(id: String) async throws {

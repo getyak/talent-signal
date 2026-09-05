@@ -1,5 +1,18 @@
 import Foundation
 
+extension URLTalentSignalLabClient: LabCIVerificationServing {
+    func verifyCI(regressionID: String, request body: LabCIRequest) async throws -> LabCIReceipt {
+        let result: LabCIEnvelope = try await request(path: "v1/lab/regressions/\(regressionID)/ci-verifications", method: "POST", body: body)
+        try validateContract(result.contract_version)
+        return result.verification
+    }
+    func ciVerification(regressionID: String, id: String) async throws -> LabCIReceipt {
+        let result: LabCIEnvelope = try await request(path: "v1/lab/regressions/\(regressionID)/ci-verifications/\(id)", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result.verification
+    }
+}
+
 protocol TalentSignalLabServing {
     func loadManifest() async throws -> LabManifest
     func startSession(
@@ -26,7 +39,7 @@ protocol TalentSignalLabServing {
     ) async throws -> LabEvalCase
 }
 
-actor URLTalentSignalLabClient: TalentSignalLabServing {
+actor URLTalentSignalLabClient: TalentSignalLabServing, LabExperimentServing {
     private let baseURL: URL
     private let accountSlug: String
     private let userEmail: String
@@ -38,7 +51,7 @@ actor URLTalentSignalLabClient: TalentSignalLabServing {
         accountSlug: String,
         userEmail: String,
         accessToken: String?,
-        session: URLSession = .shared
+        session: URLSession = TalentSignalNetworking.session
     ) {
         self.baseURL = baseURL
         self.accountSlug = accountSlug
@@ -146,11 +159,19 @@ actor URLTalentSignalLabClient: TalentSignalLabServing {
         method: String,
         body: Body?
     ) async throws -> Response {
+        let data = try await requestData(path: path, method: method, body: body)
+        do { return try JSONDecoder().decode(Response.self, from: data) }
+        catch { throw TalentSignalLabClientError.invalidResponse }
+    }
+
+    private func requestData<Body: Encodable>(path: String, method: String, body: Body?) async throws -> Data {
         guard accessToken != nil || URLFixtureLoader.isLoopback(baseURL) else {
             throw TalentSignalLabClientError.authenticationRequired
         }
         let token = try await authenticatedToken()
         var request = URLRequest(url: baseURL.appending(path: path))
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "accept")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
@@ -158,7 +179,7 @@ actor URLTalentSignalLabClient: TalentSignalLabServing {
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.httpBody = try JSONEncoder().encode(body)
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw TalentSignalLabClientError.invalidResponse
         }
@@ -170,11 +191,7 @@ actor URLTalentSignalLabClient: TalentSignalLabServing {
                 message: envelope?.error.message ?? "The Lab request was rejected."
             )
         }
-        do {
-            return try JSONDecoder().decode(Response.self, from: data)
-        } catch {
-            throw TalentSignalLabClientError.invalidResponse
-        }
+        return data
     }
 
     private func authenticatedToken() async throws -> String {
@@ -193,7 +210,7 @@ actor URLTalentSignalLabClient: TalentSignalLabServing {
                 clientLabel: "ios-talent-signal-lab"
             )
         )
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               let login = try? JSONDecoder().decode(
@@ -213,6 +230,32 @@ actor URLTalentSignalLabClient: TalentSignalLabServing {
         guard version == TalentSignalAPIContract.version else {
             throw TalentSignalLabClientError.contractMismatch
         }
+    }
+
+    func loadExperiments() async throws -> LabExperimentCatalog {
+        let result: LabExperimentCatalog = try await request(path: "v1/lab/experiments", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result
+    }
+
+    func startExperiment(_ body: LabExperimentRequest) async throws -> LabExperimentRecord {
+        let result: LabExperimentEnvelope = try await request(path: "v1/lab/experiments", method: "POST", body: body)
+        try validateContract(result.contract_version)
+        return result.experiment
+    }
+
+    func experiment(id: String) async throws -> LabExperimentRecord {
+        guard UUID(uuidString: id) != nil else { throw TalentSignalLabClientError.invalidResponse }
+        let result: LabExperimentEnvelope = try await request(path: "v1/lab/experiments/\(id)", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result.experiment
+    }
+
+    func reviewExperiment(id: String, review: String) async throws -> LabExperimentRecord {
+        guard UUID(uuidString: id) != nil else { throw TalentSignalLabClientError.invalidResponse }
+        let result: LabExperimentEnvelope = try await request(path: "v1/lab/experiments/\(id)/review", method: "POST", body: ["review": review])
+        try validateContract(result.contract_version)
+        return result.experiment
     }
 }
 
@@ -246,6 +289,63 @@ enum TalentSignalLabClientError: LocalizedError, Equatable {
 }
 
 private struct LabEmptyBody: Encodable {}
+
+extension URLTalentSignalLabClient: LabJobServing {
+    func loadExperimentJobs() async throws -> LabJobCatalog {
+        let result: LabJobCatalog = try await request(path: "v1/lab/experiment-jobs", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version); return result
+    }
+    func startExperimentJob(_ body: LabJobRequest) async throws -> LabJobRecord {
+        let result: LabJobEnvelope = try await request(path: "v1/lab/experiment-jobs", method: "POST", body: body)
+        try validateContract(result.contract_version); return result.job
+    }
+    func experimentJob(id: String) async throws -> LabJobRecord {
+        guard UUID(uuidString: id) != nil else { throw TalentSignalLabClientError.invalidResponse }
+        let result: LabJobEnvelope = try await request(path: "v1/lab/experiment-jobs/\(id)", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version); return result.job
+    }
+    func cancelExperimentJob(id: String) async throws -> LabJobRecord {
+        guard UUID(uuidString: id) != nil else { throw TalentSignalLabClientError.invalidResponse }
+        let result: LabJobEnvelope = try await request(path: "v1/lab/experiment-jobs/\(id)/cancel", method: "POST", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version); return result.job
+    }
+    func reviewExperimentJob(id: String, value: LabJobReview) async throws -> LabJobRecord {
+        guard UUID(uuidString: id) != nil else { throw TalentSignalLabClientError.invalidResponse }
+        let result: LabJobEnvelope = try await request(path: "v1/lab/experiment-jobs/\(id)/review", method: "POST", body: value)
+        try validateContract(result.contract_version); return result.job
+    }
+}
+
+extension URLTalentSignalLabClient: LabRegressionServing {
+    func loadRegressions() async throws -> LabRegressionList {
+        let result: LabRegressionList = try await request(path: "v1/lab/regressions", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version); return result
+    }
+    func saveRegression(_ body: LabRegressionRequest) async throws -> LabRegressionRecord {
+        let result: LabRegressionEnvelope = try await request(path: "v1/lab/regressions", method: "POST", body: body)
+        try validateContract(result.contract_version); return result.regression
+    }
+    func regression(id: String) async throws -> LabRegressionRecord {
+        guard UUID(uuidString: id) != nil else { throw TalentSignalLabClientError.invalidResponse }
+        let result: LabRegressionEnvelope = try await request(path: "v1/lab/regressions/\(id)", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version); return result.regression
+    }
+    func deleteRegression(id: String) async throws -> LabRegressionDeletion {
+        guard UUID(uuidString: id) != nil else { throw TalentSignalLabClientError.invalidResponse }
+        let result: LabRegressionDeletion = try await request(path: "v1/lab/regressions/\(id)", method: "DELETE", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version); return result
+    }
+    func exportRegression(id: String) async throws -> Data {
+        guard UUID(uuidString: id) != nil else { throw TalentSignalLabClientError.invalidResponse }
+        let data = try await requestData(path: "v1/lab/regressions/\(id)/export", method: "GET", body: Optional<LabEmptyBody>.none)
+        guard data.count <= 512_000 else { throw TalentSignalLabClientError.invalidResponse }
+        let result = try JSONDecoder().decode(LabRegressionExport.self, from: data)
+        guard result.schema_version == "lab-regression-bundle.v1", result.execution_authority == "none", result.id == id else {
+            throw TalentSignalLabClientError.invalidResponse
+        }
+        return data // Preserve explicit nulls and the exact content-addressed snapshot.
+    }
+}
 
 private struct LabStartSessionBody: Encodable {
     let scenarioID: String
@@ -363,3 +463,49 @@ private struct LabSimulatedLoginEnvelope: Decodable {
     enum CodingKeys: String, CodingKey { case accessToken = "access_token" }
 }
 #endif
+
+extension URLTalentSignalLabClient: LabTaskTrialServing {
+    func loadTaskConfiguration() async throws -> LabTaskConfiguration {
+        let result: LabTaskConfiguration = try await request(path: "v1/lab/task-configuration", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result
+    }
+    func startTaskTrial(_ body: LabTaskTrialRequest) async throws -> LabTaskTrial {
+        let result: LabTaskTrialEnvelope = try await request(path: "v1/lab/task-trials", method: "POST", body: body)
+        try validateContract(result.contract_version)
+        return result.trial
+    }
+    func taskTrial(id: String) async throws -> LabTaskTrial {
+        let result: LabTaskTrialEnvelope = try await request(path: "v1/lab/task-trials/\(id)", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result.trial
+    }
+    func stopTaskTrial(id: String) async throws -> LabTaskTrial {
+        let result: LabTaskTrialEnvelope = try await request(path: "v1/lab/task-trials/\(id)/stop", method: "POST", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result.trial
+    }
+}
+
+extension URLTalentSignalLabClient: LabFeatureOverrideServing {
+    func loadFeatureConfiguration() async throws -> LabFeatureConfiguration {
+        let result: LabFeatureConfiguration = try await request(path: "v1/lab/feature-configuration", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result
+    }
+    func startFeatureOverride(_ body: LabFeatureOverrideRequest) async throws -> LabFeatureOverride {
+        let result: LabFeatureOverrideEnvelope = try await request(path: "v1/lab/feature-overrides", method: "POST", body: body)
+        try validateContract(result.contract_version)
+        return result.override
+    }
+    func featureOverride(id: String) async throws -> LabFeatureOverride {
+        let result: LabFeatureOverrideEnvelope = try await request(path: "v1/lab/feature-overrides/\(id)", method: "GET", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result.override
+    }
+    func stopFeatureOverride(id: String) async throws -> LabFeatureOverride {
+        let result: LabFeatureOverrideEnvelope = try await request(path: "v1/lab/feature-overrides/\(id)/stop", method: "POST", body: Optional<LabEmptyBody>.none)
+        try validateContract(result.contract_version)
+        return result.override
+    }
+}

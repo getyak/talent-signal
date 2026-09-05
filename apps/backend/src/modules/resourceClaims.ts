@@ -6,6 +6,7 @@ import type { PoolClient } from "pg";
 import { appendAudit } from "../lib/audit.js";
 import { sha256 } from "../lib/hash.js";
 import type { AuthContext } from "./auth.js";
+import { isCompleteReviewDate, requiresCalendarDate } from "./claimReviewAuthority.js";
 
 const PRODUCER_NAME = "conservative-resource-claim-compiler";
 const PRODUCER_VERSION = "1.0.0";
@@ -54,7 +55,7 @@ export function resourceFragmentClaimAuthority(
     "resource_kind" | "attributed_actor" | "attribution_status"
   >,
 ): { allowed: boolean; subjectKind: "candidate" | "unknown" } {
-  if (context.resource_kind === "conversation_transcript") {
+  if (["conversation_transcript", "conversation_screenshot"].includes(context.resource_kind)) {
     const candidateConfirmed =
       context.attributed_actor === "candidate" &&
       context.attribution_status === "confirmed";
@@ -197,7 +198,8 @@ export function extractConservativeResourceClaims(
           field: rule.field,
           value,
           evidenceQuote: line,
-          certainty: "proposed",
+          certainty: requiresCalendarDate(rule.field, value) && !isCompleteReviewDate(value)
+            ? "ambiguous" : "proposed",
         });
       }
       break;

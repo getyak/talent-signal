@@ -433,7 +433,7 @@ export function RelationshipResourceComposer({
         Object.fromEntries(
           payload.claim_proposals.map((claim) => [
             claim.id,
-            claim.proposed_value ?? "",
+            claim.reviewed_value ?? claim.proposed_value ?? "",
           ]),
         ),
       );
@@ -659,6 +659,7 @@ export function RelationshipResourceComposer({
           body: JSON.stringify({
             idempotency_key: crypto.randomUUID(),
             expected_assertion_version: claim.version,
+            ...(claim.review_token ? { expected_review_token: claim.review_token } : {}),
             decision,
             ...(decision === "confirm"
               ? { corrected_value: correctedValue }
@@ -1921,6 +1922,12 @@ export function RelationshipResourceComposer({
                   const conflicting =
                     claim.proposal_status === "ambiguous" ||
                     claim.temporal_relation === "supersedes";
+                  const dateRequired = claim.review_blockers?.includes("calendar_date_required");
+                  const evidenceBlocked = claim.review_blockers?.some((item) => item !== "calendar_date_required");
+                  const dateValue = claimEdits[claim.id]?.trim() ?? "";
+                  const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(dateValue) &&
+                    Number.isFinite(Date.parse(`${dateValue}T00:00:00Z`)) &&
+                    new Date(`${dateValue}T00:00:00Z`).toISOString().slice(0, 10) === dateValue;
                   return (
                     <article
                       data-conflict={conflicting}
@@ -1981,6 +1988,8 @@ export function RelationshipResourceComposer({
                             "没有可用的准确来源引文。"}
                         </span>
                       </blockquote>
+                      {dateRequired ? <p>需要完整日期 YYYY-MM-DD。导入时间不能替代消息时间。</p> : null}
+                      {evidenceBlocked ? <p role="status">来源或身份已变化，请重新审阅当前证据。</p> : null}
                       <p>
                         {claim.producer.name} {claim.producer.version} ·
                         来源片段 {claim.evidence_fragment_id.slice(0, 8)}
@@ -2014,6 +2023,7 @@ export function RelationshipResourceComposer({
                             className="context-primary-button"
                             disabled={
                               busy ||
+                              evidenceBlocked || (dateRequired && !dateValid) ||
                               !(claimEdits[claim.id] ?? "").trim()
                             }
                             onClick={() =>

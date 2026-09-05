@@ -57,6 +57,7 @@ struct AskMediaDraftTray: View {
     let drafts: [AskMediaDraft]
     let onRetry: (UUID) -> Void
     let onRemove: (UUID) -> Void
+    @Environment(\.talentSignalReduceTransparency) private var reduceTransparency
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
@@ -113,7 +114,7 @@ struct AskMediaDraftTray: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
                 .padding(8)
-                .background(.ultraThinMaterial, in: Circle())
+                .background(reduceTransparency ? AnyShapeStyle(Color.tsSurface) : AnyShapeStyle(.ultraThinMaterial), in: Circle())
                 .accessibilityLabel(
                     appLanguage.text("Ready for Agent context")
                 )

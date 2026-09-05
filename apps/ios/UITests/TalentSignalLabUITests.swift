@@ -39,6 +39,9 @@ final class TalentSignalLabUITests: XCTestCase {
         preserveScreenshot("Native Lab entry capsule")
         capsule.tap()
 
+        XCTAssertTrue(app.buttons["product-lab-deterministic"].waitForExistence(timeout: 8))
+        app.buttons["product-lab-deterministic"].tap()
+
         guard element("lab-isolation-seal").waitForExistence(timeout: 8) else {
             XCTFail("The Lab sheet did not expose its isolation boundary.")
             return
@@ -113,7 +116,7 @@ final class TalentSignalLabUITests: XCTestCase {
             "-AppleLocale", "zh_CN",
             "-talent-signal.interface-language", "zh-Hans",
             "-UIPreferredContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "UICTContentSizeCategoryAccessibilityXXXL",
             "-UIAccessibilityReduceMotionEnabled", "YES",
             "-UIAccessibilityReduceTransparencyEnabled", "YES",
         ]
@@ -124,6 +127,10 @@ final class TalentSignalLabUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(capsule.frame.height, 44)
         XCTAssertTrue(capsule.isHittable)
         capsule.tap()
+
+        XCTAssertTrue(app.buttons["product-lab-deterministic"].waitForExistence(timeout: 8))
+        scrollToVisible(app.buttons["product-lab-deterministic"])
+        app.buttons["product-lab-deterministic"].tap()
 
         XCTAssertTrue(element("lab-isolation-seal").waitForExistence(timeout: 8))
         let scenario = app.buttons["一段新关系正在形成"]

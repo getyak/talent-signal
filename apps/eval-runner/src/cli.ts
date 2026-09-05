@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
@@ -49,6 +49,8 @@ import {
 } from "./repository.js";
 import { renderEvaluationMarkdown, summarizeEvaluationResults } from "./report.js";
 import { runEvaluationCase, type RunEvaluationCaseOutputV1 } from "./runSuite.js";
+import { consumeLabRegression } from "./labRegression.js";
+import { readLabRegressionFromBackend } from "./labRegressionReadback.js";
 
 const execFileAsync = promisify(execFile);
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -152,6 +154,7 @@ async function evaluationRuntimeFingerprint(): Promise<ContentIdentityV1> {
   const roots = [
     resolve(workspaceRoot, "packages/evaluation/src"),
     resolve(workspaceRoot, "apps/eval-runner/src"),
+    resolve(workspaceRoot, "packages/contracts/src"),
   ];
   const sourceFiles = (
     await Promise.all(
@@ -292,6 +295,47 @@ async function reportCommand(): Promise<string | unknown> {
   const values = Array.isArray(parsed) ? parsed : [parsed];
   const summary = summarizeEvaluationResults(values as RunEvaluationCaseOutputV1[]);
   return process.argv.includes("--markdown") ? renderEvaluationMarkdown(summary) : summary;
+}
+
+async function labRegressionCommand() {
+  const backend = argument("--backend");
+  let records: { bundle: unknown; job: unknown };
+  if (backend) {
+    if (argument("--bundle") || argument("--run")) throw new Error("Choose backend readback or reviewed files, not both.");
+    records = await readLabRegressionFromBackend({ baseURL: backend, token: process.env.TS_LAB_EVALUATION_TOKEN ?? "",
+      regressionID: requiredArgument("--regression-id"), runID: requiredArgument("--run-id") });
+  } else {
+    async function readBounded(path: string) {
+      const file = await open(path, "r");
+      const chunks: Buffer[] = [];
+      let size = 0;
+      try {
+        while (true) {
+          const chunk = Buffer.allocUnsafe(Math.min(64 * 1024, 512_001 - size));
+          const { bytesRead } = await file.read(chunk, 0, chunk.length, null);
+          if (bytesRead === 0) break;
+          size += bytesRead;
+          if (size > 512_000) throw new Error("LAB_INPUT_FILE_TOO_LARGE");
+          chunks.push(chunk.subarray(0, bytesRead));
+        }
+      } finally {
+        await file.close();
+      }
+      return JSON.parse(Buffer.concat(chunks, size).toString("utf8")) as unknown;
+    }
+    records = { bundle: await readBounded(requiredArgument("--bundle")), job: await readBounded(requiredArgument("--run")) };
+  }
+  const outputPath = resolve(requiredArgument("--output"));
+  const report = consumeLabRegression({ ...records, now: new Date().toISOString(),
+    runner: { git_sha: await gitSha(), source_digest: (await evaluationRuntimeFingerprint()).contentDigest },
+    transport: backend ? "authenticated_backend_readback" : "reviewed_local_files" });
+  await mkdir(dirname(outputPath), { recursive: true, mode: 0o700 });
+  await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+  // Reports have no execution or CI authority. Any unknown, missing or failed integrity check fails this command.
+  if (report.results.some((value) => value.gate.capabilities.some((gate) => gate.capability === "integrity" && gate.status !== "pass"))) process.exitCode = 1;
+  return { output: outputPath, regression_id: report.regression_id, job_id: report.job_id, new_model_calls: 0,
+    integrity: report.results.map((value) => value.gate.capabilities.find((gate) => gate.capability === "integrity")?.status),
+    quality: "needs_review", release_authority: "none", ci_verification: "not_verified" };
 }
 
 async function p0Command(): Promise<unknown> {
@@ -481,6 +525,7 @@ async function main(): Promise<void> {
   else if (command === "replay") output = await replayCommand();
   else if (command === "p0") output = await p0Command();
   else if (command === "report") output = await reportCommand();
+  else if (command === "lab-regression") output = await labRegressionCommand();
   else if (command === "opik-check") {
     output = await checkOpikConfiguration(new SdkOpikTransport(opikOptions()));
   } else if (command === "opik-sync") output = await opikSyncCommand();

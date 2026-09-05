@@ -59,6 +59,8 @@ export async function POST(
         body.decision ?? "",
       ) ||
       !Number.isInteger(body.expected_assertion_version) ||
+      (body.expected_review_token !== undefined &&
+        (typeof body.expected_review_token !== "string" || !/^[a-f0-9]{64}$/.test(body.expected_review_token))) ||
       (body.corrected_value !== undefined &&
         (typeof body.corrected_value !== "string" ||
           body.corrected_value.trim().length === 0 ||
@@ -71,6 +73,7 @@ export async function POST(
         idempotency_key: body.idempotency_key!,
         decision: body.decision!,
         expected_assertion_version: body.expected_assertion_version!,
+        ...(body.expected_review_token ? { expected_review_token: body.expected_review_token } : {}),
         ...(body.corrected_value
           ? { corrected_value: body.corrected_value.trim() }
           : {}),

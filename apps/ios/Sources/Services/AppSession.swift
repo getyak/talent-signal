@@ -41,60 +41,137 @@ protocol TalentSignalSessionPersisting {
     func load() throws -> TalentSignalSession?
     func save(_ session: TalentSignalSession) throws
     func delete() throws
+    func removeMatching(_ expected: TalentSignalSession) throws -> Bool
+    func removeEndingCredential(_ ending: AppSessionEnding) throws -> Bool
+}
+
+extension TalentSignalSessionPersisting {
+    func removeMatching(_ expected: TalentSignalSession) throws -> Bool {
+        try removeEndingCredential(AppSessionEnding(session: expected))
+    }
+    func removeEndingCredential(_ ending: AppSessionEnding) throws -> Bool {
+        if let saved = try load(), AppSessionEnding.fingerprint(saved) == ending.credentialFingerprint { try delete() }
+        return try load().map { AppSessionEnding.fingerprint($0) != ending.credentialFingerprint } ?? true
+    }
 }
 
 final class KeychainTalentSignalSessionStore: TalentSignalSessionPersisting {
-    private let service = "com.talentsignal.app.session"
-    private let account = "current"
+    private let service: String
+    private let baseURL: URL?
+    private let prefix: String
+    private var pointerKey: String { prefix + ".current" }
+
+    init(baseURL: URL? = nil, service: String = "com.talentsignal.app.session") {
+        self.service = service
+        self.baseURL = baseURL
+        prefix = baseURL.map { "environment." + RuntimeEndpoint.scope($0) } ?? "legacy"
+    }
 
     func load() throws -> TalentSignalSession? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
-        ]
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else {
-            throw AppSessionError.keychain(status)
+        guard let baseURL else { return try readLegacy() }
+        guard let pointer = try data(for: pointerKey) else {
+            // Migrate only after verifying the legacy session belongs to this endpoint.
+            guard let legacy = try readLegacy(), RuntimeEndpoint.same(legacy.baseURL, baseURL) else { return nil }
+            if service == "com.talentsignal.app.session" { RuntimeLegacyBindings.bind(legacy) }
+            try save(legacy)
+            try remove("current")
+            return legacy
         }
-        do {
-            return try JSONDecoder.appSession.decode(TalentSignalSession.self, from: data)
-        } catch {
-            try? delete()
+        guard let key = try? JSONDecoder().decode(String.self, from: pointer),
+              key.hasPrefix(prefix + ".identity."), let data = try data(for: key),
+              let session = try? JSONDecoder.appSession.decode(TalentSignalSession.self, from: data),
+              RuntimeEndpoint.same(session.baseURL, baseURL), key == identityKey(session) else {
             throw AppSessionError.invalidStoredSession
         }
+        return session
     }
 
     func save(_ session: TalentSignalSession) throws {
-        let data = try JSONEncoder.appSession.encode(session)
-        try delete()
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            kSecValueData as String: data,
-        ]
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw AppSessionError.keychain(status)
+        guard let baseURL else {
+            try upsert(try JSONEncoder.appSession.encode(session), key: "current")
+            return
         }
+        guard RuntimeEndpoint.same(session.baseURL, baseURL) else { throw AppSessionError.scopeMismatch }
+        let previous = try data(for: pointerKey).flatMap { try? JSONDecoder().decode(String.self, from: $0) }
+        let key = identityKey(session)
+        // Write a scoped credential before atomically changing the environment's active pointer.
+        try upsert(try JSONEncoder.appSession.encode(session), key: key)
+        try upsert(try JSONEncoder().encode(key), key: pointerKey)
+        if let previous, previous != key, previous.hasPrefix(prefix + ".identity.") { try remove(previous) }
     }
 
     func delete() throws {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw AppSessionError.keychain(status)
+        guard baseURL != nil else { try remove("current"); return }
+        if let pointer = try data(for: pointerKey), let key = try? JSONDecoder().decode(String.self, from: pointer),
+           key.hasPrefix(prefix + ".identity.") { try remove(key) }
+        try remove(pointerKey)
+        if let legacy = try readLegacy(), let baseURL, RuntimeEndpoint.same(legacy.baseURL, baseURL) { try remove("current") }
+    }
+
+    func removeMatching(_ expected: TalentSignalSession) throws -> Bool {
+        try removeEndingCredential(AppSessionEnding(session: expected))
+    }
+
+    func removeEndingCredential(_ ending: AppSessionEnding) throws -> Bool {
+        guard let baseURL else {
+            if let current = try readLegacy(), AppSessionEnding.fingerprint(current) == ending.credentialFingerprint { try remove("current") }
+            return try readLegacy().map { AppSessionEnding.fingerprint($0) != ending.credentialFingerprint } ?? true
         }
+        guard ending.endpointScope == RuntimeEndpoint.scope(baseURL),
+              ending.identityFingerprint.count == 64 else { throw AppSessionError.scopeMismatch }
+        let key = prefix + ".identity." + ending.identityFingerprint, fingerprint = ending.credentialFingerprint
+        func matches(_ key: String) throws -> Bool {
+            guard let data = try data(for: key) else { return false }
+            let value = try JSONDecoder.appSession.decode(TalentSignalSession.self, from: data)
+            return AppSessionEnding.fingerprint(value) == fingerprint
+        }
+        if try matches(key) {
+            try remove(key)
+            if let pointer = try data(for: pointerKey), (try? JSONDecoder().decode(String.self, from: pointer)) == key { try remove(pointerKey) }
+        } else if try data(for: key) == nil,
+                  let pointer = try data(for: pointerKey), (try? JSONDecoder().decode(String.self, from: pointer)) == key {
+            try remove(pointerKey)
+        }
+        if try matches("current") { try remove("current") }
+        return try !matches(key) && !matches("current")
+    }
+
+    private func identityKey(_ session: TalentSignalSession) -> String {
+        prefix + ".identity." + SHA256.hex(session.account.id + "|" + session.user.id)
+    }
+    private func readLegacy() throws -> TalentSignalSession? {
+        guard let data = try data(for: "current") else { return nil }
+        guard let value = try? JSONDecoder.appSession.decode(TalentSignalSession.self, from: data) else {
+            throw AppSessionError.invalidStoredSession
+        }
+        return value
+    }
+    private func query(_ key: String) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+         kSecAttrAccount as String: key]
+    }
+    private func data(for key: String) throws -> Data? {
+        var request = query(key)
+        request[kSecMatchLimit as String] = kSecMatchLimitOne
+        request[kSecReturnData as String] = true
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(request as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data else { throw AppSessionError.keychain(status) }
+        return data
+    }
+    private func upsert(_ data: Data, key: String) throws {
+        let attributes: [String: Any] = [kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
+        let status = SecItemUpdate(query(key) as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            let added = SecItemAdd(query(key).merging(attributes) { _, new in new } as CFDictionary, nil)
+            guard added == errSecSuccess else { throw AppSessionError.keychain(added) }
+        } else if status != errSecSuccess { throw AppSessionError.keychain(status) }
+    }
+    private func remove(_ key: String) throws {
+        let status = SecItemDelete(query(key) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw AppSessionError.keychain(status) }
     }
 }
 
@@ -114,7 +191,7 @@ actor AppAuthenticationClient: AppAuthenticationServing {
     private let baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL, session: URLSession = .shared) {
+    init(baseURL: URL, session: URLSession = TalentSignalNetworking.session) {
         self.baseURL = baseURL
         self.session = session
     }
@@ -168,6 +245,7 @@ actor AppAuthenticationClient: AppAuthenticationServing {
     }
 
     func validate(_ stored: TalentSignalSession) async throws -> TalentSignalSession {
+        guard RuntimeEndpoint.same(stored.baseURL, baseURL) else { throw AppSessionError.scopeMismatch }
         let response: CurrentSessionEnvelope = try await request(
             path: "v1/auth/session",
             method: "GET",
@@ -198,6 +276,7 @@ actor AppAuthenticationClient: AppAuthenticationServing {
     }
 
     func logout(_ stored: TalentSignalSession) async throws {
+        guard RuntimeEndpoint.same(stored.baseURL, baseURL) else { throw AppSessionError.scopeMismatch }
         let response: LogoutEnvelope = try await request(
             path: "v1/auth/logout",
             method: "POST",
@@ -225,7 +304,7 @@ actor AppAuthenticationClient: AppAuthenticationServing {
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.httpBody = try JSONEncoder.appSession.encode(body)
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw AppSessionError.invalidResponse
         }

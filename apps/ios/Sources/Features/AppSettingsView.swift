@@ -209,6 +209,7 @@ struct AppSettingsView: View {
 }
 
 struct DisplaySettingsView: View {
+    @AppStorage(LabDisplayStore.themeKey) private var theme = LabDisplayConfiguration.Theme.system.rawValue
     @AppStorage(WorkspaceTextSizePreference.storageKey)
     private var storedTextSize = WorkspaceTextSizePreference.system.rawValue
     @AppStorage(WorkspaceCardDensityPreference.storageKey)
@@ -225,6 +226,11 @@ struct DisplaySettingsView: View {
 
     var body: some View {
         List {
+            Section(appLanguage.text("Appearance")) {
+                Picker(appLanguage.text("Appearance"), selection: $theme) {
+                    ForEach(LabDisplayConfiguration.Theme.allCases, id: \.self) { Text(appLanguage.text($0.title)).tag($0.rawValue) }
+                }.accessibilityIdentifier("display-saved-theme")
+            }
             Section {
                 DisplayPreferencePreview()
                     .environment(\.workspaceCardDensity, cardDensity)
@@ -659,6 +665,7 @@ struct AccountSettingsView: View {
 
     @Environment(\.appLanguage) private var appLanguage
     @State private var isSigningOut = false
+    @State private var signOutFailed = false
 
     var body: some View {
         List {
@@ -726,11 +733,15 @@ struct AccountSettingsView: View {
 
             if let onSignOut {
                 Section {
+                    if signOutFailed {
+                        Text(appLanguage.text("Sign-out did not complete. Review the account state and try again."))
+                            .font(.caption).foregroundStyle(Color.tsVermilion)
+                    }
                     Button(role: .destructive) {
                         guard !isSigningOut else { return }
                         isSigningOut = true
                         Task {
-                            _ = await onSignOut()
+                            signOutFailed = !(await onSignOut())
                             isSigningOut = false
                         }
                     } label: {

@@ -20,6 +20,7 @@ import {
   LabInspectable,
   useTalentSignalLab,
 } from "./lab-shell";
+import { LabBatchWorkspace } from "./lab-batch-workspace";
 import styles from "./talent-signal-lab.module.css";
 
 const categoryLabels = {
@@ -115,6 +116,8 @@ export function TalentSignalLabWorkspace() {
           <span><strong>Production isolated</strong><small>0 canonical writes · 0 external effects</small></span>
         </div>
       </header>
+
+      <LabBatchWorkspace />
 
       <section aria-labelledby="lab-scenarios-title" className={styles.scenarioSection}>
         <header className={styles.sectionHeader}>

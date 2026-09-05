@@ -313,6 +313,19 @@ describe("authority schema", () => {
     );
   });
 
+  it("scopes feature overrides to one authenticated session and freezes product adoption receipts", async () => {
+    const sql = await readFile(
+      new URL("./046_lab_feature_overrides.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("CREATE TABLE lab_feature_overrides");
+    expect(sql).toContain("REFERENCES sessions(account_id, user_id, id)");
+    expect(sql).toContain("WHERE status='active'");
+    expect(sql).toContain("ADD COLUMN lab_feature_receipt jsonb");
+    expect(sql).not.toContain("objective");
+    expect(sql).not.toContain("evidence_fragment");
+  });
+
   it("makes confirmed identity clues temporal and auditable", async () => {
     const sql = await readFile(
       new URL("./016_identity_handle_freshness.sql", import.meta.url),

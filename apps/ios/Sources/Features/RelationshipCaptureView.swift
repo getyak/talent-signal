@@ -146,6 +146,7 @@ struct RelationshipCaptureView: View {
     @State private var relationshipDetailsExpanded = false
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
     private let workspaceID: String?
     let onDismiss: (CaptureDismissDisposition) -> Void
 
@@ -154,6 +155,7 @@ struct RelationshipCaptureView: View {
         backendURL: URL,
         accessToken: String? = nil,
         workspaceID: String? = nil,
+        runtimeScope: String? = nil,
         initialDraft: RecognizedCaptureDraft? = nil,
         onDismiss: @escaping (CaptureDismissDisposition) -> Void
     ) {
@@ -162,7 +164,8 @@ struct RelationshipCaptureView: View {
                 seed: seed,
                 service: URLRelationshipCaptureClient(
                     baseURL: backendURL,
-                    accessToken: accessToken
+                    accessToken: accessToken,
+                    runtimeScope: runtimeScope
                 ),
                 initialDraft: initialDraft
             )
@@ -184,6 +187,7 @@ struct RelationshipCaptureView: View {
         NavigationStack {
             ZStack {
                 Color.tsCanvas.ignoresSafeArea()
+                ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         sourceHeader
@@ -217,10 +221,16 @@ struct RelationshipCaptureView: View {
                                     "Only the selected person and relationship can receive this source."
                                 )
                             )
+                        case .loadingChanges, .savingChange:
+                            progressCard(eyebrow: appLanguage.text("Review changes"),
+                                title: appLanguage.text("Checking the current evidence"),
+                                detail: appLanguage.text("Your decision applies only to the source and version you reviewed."))
+                        case .reviewingChanges:
+                            changeReviewContent
                         case .compilingWiki:
                             progressCard(
                                 eyebrow: appLanguage.text("Living person page"),
-                                title: appLanguage.text("Compiling the relationship Wiki"),
+                                title: appLanguage.text("Preparing your review receipt"),
                                 detail: appLanguage.text(
                                     "Evidence, confirmed state, conflicts, and open questions remain distinct."
                                 )
@@ -235,6 +245,12 @@ struct RelationshipCaptureView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 18)
+                }
+                .onChange(of: store.stage) { stage in
+                    if stage == .reviewingChanges, let id = store.selectedClaimID {
+                        proxy.scrollTo(id, anchor: .top)
+                    }
+                }
                 }
             }
             .navigationTitle(appLanguage.text("Review capture"))
@@ -261,38 +277,44 @@ struct RelationshipCaptureView: View {
                 store.persistDraft()
             }
         }
+        .onChange(of: store.claimEdits) { _ in store.persistReviewPosition() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { Task { await store.checkLocalRetention() } }
+        }
         .confirmationDialog(
             appLanguage.text("Close this review?"),
             isPresented: $showCloseOptions,
             titleVisibility: .visible
         ) {
             Button(appLanguage.text("Keep for later")) {
-                onDismiss(.keepForLater)
+                Task { if await store.keepForLater() { onDismiss(.keepForLater) } }
             }
-            Button(appLanguage.text("Discard capture"), role: .destructive) {
+            .disabled(store.isBusy)
+            Button(appLanguage.text("Remove local copy"), role: .destructive) {
                 Task {
-                    await store.discard()
-                    onDismiss(.discard)
+                    if await store.discard() { onDismiss(.discard) }
                 }
             }
+            .disabled(!store.canRemoveLocalCopy)
             Button(appLanguage.text("Continue reviewing"), role: .cancel) {}
         } message: {
             Text(
                 appLanguage.text(
-                    "Keeping it preserves the screenshot and reviewed draft for the next app launch."
+                    "Review progress stays on this device for up to 30 days. Removing the local copy does not delete an uploaded source."
                 )
             )
         }
         .sheet(isPresented: $showSourceInspection) {
-            if let image = UIImage(data: store.seed.imageData) {
+            if store.originalAvailable, let image = UIImage(data: store.seed.imageData) {
                 CaptureSourceInspectionView(image: image)
             }
         }
+        .labDiagnosticPresentation()
     }
 
     @ViewBuilder
     private var sourceHeader: some View {
-        if UIImage(data: store.seed.imageData) != nil {
+        if store.originalAvailable, UIImage(data: store.seed.imageData) != nil {
             Button {
                 showSourceInspection = true
             } label: {
@@ -339,7 +361,7 @@ struct RelationshipCaptureView: View {
                     .foregroundStyle(Color.tsInk)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(appLanguage.text("Tap to inspect original"))
+                Text(appLanguage.text(store.originalAvailable ? "Tap to inspect original" : "Original unavailable · reviewed text retained"))
                     .font(.caption)
                     .foregroundStyle(Color.tsMutedInk)
                     .lineLimit(2)
@@ -351,7 +373,7 @@ struct RelationshipCaptureView: View {
 
     @ViewBuilder
     private var imagePreview: some View {
-        if let image = UIImage(data: store.seed.imageData) {
+        if store.originalAvailable, let image = UIImage(data: store.seed.imageData) {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
@@ -426,6 +448,29 @@ struct RelationshipCaptureView: View {
 
             captureContextReview
 
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(appLanguage.text("Keep original for review on this device"), isOn: Binding(
+                    get: { store.draft.keepOriginalForReview ?? true },
+                    set: { store.draft.keepOriginalForReview = $0 }
+                ))
+                .accessibilityIdentifier("capture-retain-original")
+                Text(appLanguage.text("The original stays on this device for up to 7 days, or until review is complete. Turn off to keep only reviewed text when saved. The image is never uploaded."))
+                    .font(.caption).foregroundStyle(Color.tsMutedInk)
+                Toggle(appLanguage.text("The message date is visible"), isOn: Binding(
+                    get: { store.draft.messageTimestampInput != nil },
+                    set: { store.draft.messageTimestampInput = $0 ? "" : nil; store.draft.messageTimestamp = nil }
+                ))
+                if store.draft.messageTimestampInput != nil {
+                    TextField(appLanguage.text("YYYY-MM-DD HH:mm"), text: Binding(
+                        get: { store.draft.messageTimestampInput ?? "" }, set: { store.updateMessageTime($0) }))
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel(appLanguage.text("Original message time"))
+                    Text(store.draft.sourceTimezone ?? TimeZone.current.identifier).font(.caption)
+                }
+                Text(appLanguage.text("Import time is not message time. Relative dates remain unresolved until you review a complete date."))
+                    .font(.caption).foregroundStyle(Color.tsMutedInk)
+            }.tsCard()
+
             Button {
                 store.submitReviewedDraft()
             } label: {
@@ -440,7 +485,7 @@ struct RelationshipCaptureView: View {
 
             Text(
                 appLanguage.text(
-                    "This saves reviewed text and source metadata. It does not save the original image or bind a person yet."
+                    "This saves reviewed text and source metadata to the server. It does not confirm facts or bind a person yet."
                 )
             )
                 .font(.caption)
@@ -729,6 +774,7 @@ struct RelationshipCaptureView: View {
                         store.bindSelectedCandidate()
                     }
                     .buttonStyle(TSPrimaryButtonStyle())
+                    .disabled(!store.canBindSelection)
                     .accessibilityIdentifier("bind-selected-person")
                 }
 
@@ -739,6 +785,7 @@ struct RelationshipCaptureView: View {
                         store.createNewPerson()
                     }
                     .buttonStyle(TSSecondaryButtonStyle())
+                    .disabled(!store.canCreatePerson)
                     .accessibilityIdentifier("create-new-person-from-capture")
                 }
 
@@ -870,6 +917,136 @@ struct RelationshipCaptureView: View {
         }
     }
 
+    @ViewBuilder
+    private var changeReviewContent: some View {
+        if let review = store.changes {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel(text: appLanguage.text("2 · Confirm changes"))
+                    Text(appLanguage.text("What should this source change?"))
+                        .font(.title2.weight(.semibold)).foregroundStyle(Color.tsInk)
+                    Text(appLanguage.text("The source is attached. Each fact still needs your decision."))
+                        .foregroundStyle(Color.tsMutedInk)
+                    Text(store.reviewScopeLabel).font(.subheadline.weight(.medium)).foregroundStyle(Color.tsInk)
+                    Text(verbatim: "\(review.confirmedCount) \(appLanguage.text("confirmed")) · \(review.pendingCount) \(appLanguage.text("still to review"))")
+                        .font(.subheadline).foregroundStyle(Color.tsMutedInk)
+                }
+                .accessibilityIdentifier("capture-change-review")
+
+                if review.needsEvidenceReview {
+                    Label(appLanguage.text("Speaker or source review is still unresolved"), systemImage: "person.crop.circle.badge.questionmark")
+                        .foregroundStyle(Color.tsWarning)
+                    Text(appLanguage.text("No candidate facts can be confirmed from unknown-speaker text. Keep this source for review."))
+                        .foregroundStyle(Color.tsMutedInk)
+                    ForEach(review.fragments.filter { $0.attribution.status != "confirmed" || $0.reviewStatus != "reviewed" }) { fragment in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(fragment.text ?? appLanguage.text("Source unavailable"))
+                                .font(.body).foregroundStyle(Color.tsInk)
+                            Picker(appLanguage.text("Who wrote this excerpt?"), selection: $store.reviewedSpeaker) {
+                                Text(appLanguage.text("Unresolved")).tag(Optional<TextSignalSpeaker>.none)
+                                ForEach(TextSignalSpeaker.allCases.filter { $0 != .unknown }) { speaker in
+                                    Text(appLanguage.text(speaker.label)).tag(Optional(speaker))
+                                }
+                            }
+                            .accessibilityIdentifier("capture-review-speaker-choice")
+                            Text(appLanguage.text("Confirm only if this entire excerpt has one supported author. Mixed or forwarded messages can stay unresolved."))
+                                .font(.caption).foregroundStyle(Color.tsMutedInk)
+                            Button(appLanguage.text("Confirm excerpt author")) { store.confirmSpeaker(fragment) }
+                                .buttonStyle(TSPrimaryButtonStyle())
+                                .disabled(store.reviewedSpeaker == nil)
+                                .accessibilityIdentifier("capture-confirm-speaker")
+                        }.tsCard()
+                    }
+                }
+                if review.claims.isEmpty && !review.needsEvidenceReview {
+                    Label(appLanguage.text("No supported change was found"), systemImage: "checkmark.circle")
+                    Text(appLanguage.text("The source is preserved as context. No action is required."))
+                        .foregroundStyle(Color.tsMutedInk)
+                }
+                ForEach(review.claims) { claim in
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(appLanguage.text(claimFieldLabel(claim.field)))
+                            .font(.headline).foregroundStyle(Color.tsInk)
+                        if let prior = claim.priorValue {
+                            Text(appLanguage.text("Previously") + ": " + prior)
+                                .font(.subheadline).foregroundStyle(Color.tsMutedInk)
+                        }
+                        Text(claim.reviewedValue ?? claim.proposedValue ?? appLanguage.text("Unresolved"))
+                            .font(.title3.weight(.medium)).foregroundStyle(Color.tsInk)
+                        if let quote = claim.quote {
+                            Text(verbatim: "“\(quote)”").font(.body).foregroundStyle(Color.tsInk)
+                                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.tsEvidence, in: RoundedRectangle(cornerRadius: 12))
+                                .accessibilityLabel(appLanguage.text("Source evidence") + ": " + quote)
+                        }
+                        DisclosureGroup(appLanguage.text("Source context")) {
+                            Text(store.draft.reviewedText).font(.body).foregroundStyle(Color.tsMutedInk)
+                            if store.originalAvailable {
+                                Button(appLanguage.text("Inspect original")) {
+                                    store.selectedClaimID = claim.id
+                                    store.persistReviewPosition()
+                                    showSourceInspection = true
+                                }
+                            }
+                        }
+                        if claim.needsReview {
+                            if claim.requiresDate {
+                                Text(appLanguage.text("Add a complete date. The import date is not an anchor."))
+                                    .font(.subheadline).foregroundStyle(Color.tsWarning)
+                            }
+                            TextField(appLanguage.text(claim.requiresDate ? "YYYY-MM-DD" : "Reviewed value"),
+                                text: Binding(get: { store.claimEdits[claim.id] ?? "" },
+                                              set: { store.selectedClaimID = claim.id; store.claimEdits[claim.id] = $0 }))
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("capture-claim-value-\(claim.field)")
+                            Button(appLanguage.text("Confirm this change")) {
+                                store.decideClaim(claim, decision: "confirm", correctedValue: store.claimEdits[claim.id])
+                            }
+                            .buttonStyle(TSPrimaryButtonStyle())
+                            .disabled(claim.hasBlockingEvidence || claim.reviewToken == nil ||
+                                (store.claimEdits[claim.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                                (claim.requiresDate && !RelationshipCaptureStore.isCompleteDate(store.claimEdits[claim.id] ?? "")))
+                            .accessibilityIdentifier("capture-confirm-\(claim.field)")
+                            HStack {
+                                Button(appLanguage.text("Keep unresolved")) {
+                                    store.decideClaim(claim, decision: "leave_unresolved")
+                                }
+                                Spacer()
+                                Button(appLanguage.text("Dismiss change")) {
+                                    store.decideClaim(claim, decision: "dismiss")
+                                }
+                            }.buttonStyle(TSTextButtonStyle())
+                        } else {
+                            Label(appLanguage.text(claim.reviewStatus == "confirmed" ? "Confirmed" : "Dismissed"),
+                                  systemImage: claim.reviewStatus == "confirmed" ? "checkmark.circle" : "minus.circle")
+                                .foregroundStyle(Color.tsMutedInk)
+                        }
+                    }.tsCard().id(claim.id)
+                }
+                Button(appLanguage.text("Finish review")) { store.finishReview() }
+                    .buttonStyle(TSPrimaryButtonStyle())
+                    .accessibilityIdentifier("capture-finish-review")
+                Text(appLanguage.text("Unresolved items stay in review. Finishing does not authorize any external action."))
+                    .font(.caption).foregroundStyle(Color.tsMutedInk)
+            }
+        }
+    }
+
+    private func claimFieldLabel(_ field: String) -> String {
+        switch field {
+        case "location": "Location"
+        case "current_role": "Current role"
+        case "current_employer": "Current company"
+        case "work_mode_preference": "Work mode"
+        case "notice_period": "Notice period"
+        case "availability": "Availability"
+        case "decision_deadline": "Decision deadline"
+        case "relocation_requirement": "Relocation"
+        case "competing_process": "Other process"
+        default: "Source detail"
+        }
+    }
+
     private func completionContent(
         _ completion: RelationshipCaptureCompletion
     ) -> some View {
@@ -884,56 +1061,48 @@ struct RelationshipCaptureView: View {
                     )
                 ) {
                     Button(appLanguage.text("Return to people")) {
-                        onDismiss(.finished)
+                        onDismiss(.keepForLater)
                     }
                         .buttonStyle(TSPrimaryButtonStyle())
                         .accessibilityIdentifier("return-to-people")
                 }
             } else {
                 VStack(alignment: .leading, spacing: 16) {
-                    Label(
-                        completion.wiki?.quality.verdict == "gold"
-                            ? "WIKI · GOLD"
-                            : "WIKI · \(completion.wiki?.quality.verdict.uppercased() ?? "NOT COMPILED")",
-                        systemImage: completion.wiki?.quality.verdict == "gold"
-                            ? "checkmark.seal.fill"
-                            : "exclamationmark.triangle"
-                    )
-                    .font(.caption.weight(.bold))
-                    .tracking(1)
-                    .foregroundStyle(
-                        completion.wiki?.quality.verdict == "gold"
-                            ? Color.tsConfirmed
-                            : Color.tsWarning
-                    )
-                    .accessibilityIdentifier("wiki-quality-verdict")
-
-                    Text(appLanguage.text("The person page is current"))
-                        .font(.system(.title2, design: .rounded).weight(.bold))
-                        .foregroundStyle(Color.tsInk)
-                    Text(
-                        "\(completion.wiki?.blocks.count ?? 0) \(appLanguage.text("source-linked blocks"))"
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .fixedSize(horizontal: false, vertical: true)
-
+                    Text(appLanguage.text(completion.needsReview ? "Saved with items still to review" : "Review complete"))
+                        .font(.title2.weight(.semibold)).foregroundStyle(Color.tsInk)
+                        .accessibilityIdentifier("capture-review-outcome")
+                    Text(verbatim: "\(completion.confirmedCount) \(appLanguage.text("changes confirmed")) · \(completion.unresolvedCount) \(appLanguage.text("still to review"))")
+                        .font(.subheadline).foregroundStyle(Color.tsMutedInk)
+                        .accessibilityIdentifier("capture-confirmed-count")
+                    if completion.needsEvidenceReview {
+                        Text(appLanguage.text("Speaker or source review is still unresolved"))
+                            .foregroundStyle(Color.tsWarning)
+                    }
+                    if completion.needsReview {
+                        Button(appLanguage.text("Continue review")) { store.refreshChanges() }
+                            .buttonStyle(TSPrimaryButtonStyle())
+                        Button(appLanguage.text("Keep for later")) {
+                            Task { if await store.keepForLater() { onDismiss(.keepForLater) } }
+                        }.buttonStyle(TSSecondaryButtonStyle())
+                    }
                     Button(appLanguage.text("Continue in Agent Session")) {
                         onDismiss(.continueInAgent(completion))
                     }
                     .buttonStyle(TSPrimaryButtonStyle())
+                    .disabled(completion.needsReview)
                     .accessibilityIdentifier("continue-capture-in-agent")
 
                     Button(appLanguage.text("Return to this person")) {
                         onDismiss(.finished)
                     }
                     .buttonStyle(TSSecondaryButtonStyle())
+                    .disabled(completion.needsReview)
                     .accessibilityIdentifier("return-to-person")
                 }
                 .tsCard()
 
-                if let personDisplayLabel = completion.personDisplayLabel {
-                    if let calendarProposal = DeviceCalendarProposalDetector.detect(
+                if !completion.needsReview, let personDisplayLabel = completion.personDisplayLabel {
+                    if !completion.needsReview, let calendarProposal = DeviceCalendarProposalDetector.detect(
                         draft: store.draft,
                         personDisplayName: personDisplayLabel,
                         sourceID: completion.captureID,
@@ -985,14 +1154,15 @@ struct RelationshipCaptureView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: appLanguage.text("Receipt"))
-                receiptRow(label: appLanguage.text("Capture"), value: completion.captureID)
-                receiptRow(label: appLanguage.text("Resource"), value: completion.resourceID)
-                if let personID = completion.personID {
-                    receiptRow(label: appLanguage.text("Person"), value: personID)
-                }
-                if let contextID = completion.relationshipContextID {
-                    receiptRow(label: appLanguage.text("Relationship"), value: contextID)
+                DisclosureGroup(appLanguage.text("Technical receipt")) {
+                    receiptRow(label: appLanguage.text("Capture"), value: completion.captureID)
+                    receiptRow(label: appLanguage.text("Resource"), value: completion.resourceID)
+                    if let personID = completion.personID {
+                        receiptRow(label: appLanguage.text("Person"), value: personID)
+                    }
+                    if let contextID = completion.relationshipContextID {
+                        receiptRow(label: appLanguage.text("Relationship"), value: contextID)
+                    }
                 }
             }
             .tsCard()
@@ -1037,7 +1207,7 @@ struct RelationshipCaptureView: View {
 
     private func failureContent(_ failure: RelationshipCaptureFailure) -> some View {
         StateMessage(
-            eyebrow: appLanguage.text("Nothing was silently changed"),
+            eyebrow: appLanguage.text("Saved progress needs checking"),
             icon: "arrow.clockwise.circle",
             title: appLanguage.text(failure.title),
             detail: appLanguage.text(failure.message)

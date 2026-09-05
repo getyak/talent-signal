@@ -77,57 +77,61 @@ final class VoiceInputStore: ObservableObject {
         sceneIsActive: Bool,
         transcriber: any VoiceTranscriptionServing
     ) async {
-        guard !isBusy else { return }
-        self.sceneIsActive = sceneIsActive
-        guard sceneIsActive else {
-            phase = .failed(
-                "Keep Talent Signal in the foreground to use voice input."
-            )
-            return
-        }
-        transcript = nil
-        var permission = recorder.permissionStatus()
-        if permission == .undetermined {
-            phase = .requestingPermission
-            permission = await recorder.requestPermission()
-        }
-        microphonePermission = permission
-        guard permission == .granted else {
-            phase = .failed(
-                "Microphone permission was not granted. No audio was recorded."
-            )
-            return
-        }
-        do {
-            while !self.sceneIsActive {
-                try Task.checkCancellation()
-                try await Task.sleep(for: .milliseconds(50))
+        await LabClientDiagnostics.observe(.audioSessionPreparation) {
+            guard !self.isBusy else { return .skipped }
+            self.sceneIsActive = sceneIsActive
+            guard sceneIsActive else {
+                self.phase = .failed(
+                    "Keep Talent Signal in the foreground to use voice input."
+                )
+                return .skipped
             }
-            try Task.checkCancellation()
-        } catch {
-            phase = .idle
-            return
-        }
-        do {
-            let recordID = UUID()
-            try recorder.start(recordID: recordID)
-            self.transcriber = transcriber
-            phase = .recording(startedAt: Date())
-            limitTask?.cancel()
-            limitTask = Task { [weak self] in
-                do {
-                    try await Task.sleep(for: .seconds(60))
-                } catch {
-                    return
+            self.transcript = nil
+            var permission = self.recorder.permissionStatus()
+            if permission == .undetermined {
+                self.phase = .requestingPermission
+                permission = await self.recorder.requestPermission()
+            }
+            self.microphonePermission = permission
+            guard permission == .granted else {
+                self.phase = .failed(
+                    "Microphone permission was not granted. No audio was recorded."
+                )
+                return .failed
+            }
+            do {
+                while !self.sceneIsActive {
+                    try Task.checkCancellation()
+                    try await Task.sleep(for: .milliseconds(50))
                 }
-                await self?.stopAndTranscribe(triggeredByLimit: true)
+                try Task.checkCancellation()
+            } catch {
+                self.phase = .idle
+                return LabClientDiagnostics.failure(error)
             }
-        } catch {
-            try? recorder.cancel()
-            phase = .failed(
-                (error as? LocalizedError)?.errorDescription
-                    ?? "Voice input could not start the microphone."
-            )
+            do {
+                let recordID = UUID()
+                try self.recorder.start(recordID: recordID)
+                self.transcriber = transcriber
+                self.phase = .recording(startedAt: Date())
+                self.limitTask?.cancel()
+                self.limitTask = Task { [weak self] in
+                    do {
+                        try await Task.sleep(for: .seconds(60))
+                    } catch {
+                        return
+                    }
+                    await self?.stopAndTranscribe(triggeredByLimit: true)
+                }
+                return .completed
+            } catch {
+                try? self.recorder.cancel()
+                self.phase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? "Voice input could not start the microphone."
+                )
+                return LabClientDiagnostics.failure(error)
+            }
         }
     }
 
@@ -138,7 +142,9 @@ final class VoiceInputStore: ObservableObject {
             limitTask = nil
         }
         do {
-            let payload = try recorder.stop()
+            let payload = try LabClientDiagnostics.measureSync(.audioPayloadFinalization) {
+                try recorder.stop()
+            }
             activePayload = payload
             phase = .transcribing
             defer {
@@ -147,12 +153,14 @@ final class VoiceInputStore: ObservableObject {
                 self.transcriber = nil
                 if triggeredByLimit { limitTask = nil }
             }
-            let operation = Task {
-                try await transcriber.transcribe(payload)
+            let draft = try await LabClientDiagnostics.measure(.voiceTranscription) {
+                let operation = Task {
+                    try await transcriber.transcribe(payload)
+                }
+                transcriptionOperation = operation
+                defer { transcriptionOperation = nil }
+                return try await operation.value
             }
-            transcriptionOperation = operation
-            defer { transcriptionOperation = nil }
-            let draft = try await operation.value
             try Task.checkCancellation()
             transcript = draft.transcript.trimmingCharacters(
                 in: .whitespacesAndNewlines
@@ -226,7 +234,7 @@ final class VoiceInputStore: ObservableObject {
 }
 
 private struct VoiceListeningVisualizer: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
     private let barCount = 13
 
@@ -259,7 +267,7 @@ private struct VoiceListeningVisualizer: View {
 private struct VoiceRecordButtonHalo: View {
     let isActive: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
     var body: some View {
         if isActive {
@@ -280,7 +288,7 @@ private struct VoiceRecordButtonHalo: View {
 }
 
 private struct MinimizedComposerActionStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -370,7 +378,7 @@ struct RelationshipAskView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.sizeCategory) private var sizeCategory
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @ScaledMetric(relativeTo: .caption2) private var scopeContextFontSize: CGFloat = 11
     @State private var selectedScope: AskScope?
@@ -844,6 +852,7 @@ struct RelationshipAskView: View {
                 )
             )
         }
+        .labDiagnosticPresentation()
         .accessibilityIdentifier("relationship-ask-sheet")
 #if DEBUG
         .overlay(alignment: .topTrailing) {
@@ -6433,6 +6442,20 @@ private struct AskTurnView: View {
                 .accessibilityIdentifier("ask-restored-response-needs-refresh")
             }
 
+            if let receipt = turn.response.labFeatureReceipt,
+               receipt.feature_id == "relationship_evidence_preview" {
+                Label(
+                    language.text(
+                        "Lab · Exact evidence is shown inline for this answer",
+                        zhHans: "Lab · 此回答已内联显示精确证据"
+                    ),
+                    systemImage: "flask.fill"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsVermilion)
+                .accessibilityIdentifier("ask-lab-feature-receipt")
+            }
+
             ForEach(turn.response.blocks) { block in
                 VStack(alignment: .leading, spacing: 9) {
                     if let eyebrow = responseEyebrow(for: block) {
@@ -6504,6 +6527,15 @@ private struct AskTurnView: View {
                                             Text(citation.compactProvenance(in: language))
                                                 .font(.caption2)
                                                 .foregroundStyle(Color.tsMutedInk)
+                                            if turn.response.labFeatureReceipt?.effective_value == "inline_excerpt",
+                                               let excerpt = citation.exactExcerpt {
+                                                Text(verbatim: "“\(excerpt)”")
+                                                    .font(.caption)
+                                                    .foregroundStyle(Color.tsInk)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                                    .padding(.top, 3)
+                                                    .accessibilityIdentifier("ask-citation-inline-excerpt-\(citation.id)")
+                                            }
                                         }
                                         Spacer(minLength: 6)
                                         Image(systemName: "chevron.right")

@@ -115,6 +115,7 @@ export const SessionResponseSchema = Type.Object(
         Type.Literal("simulated_human"),
         Type.Literal("apple_human"),
         Type.Literal("password_human"),
+        Type.Literal("lab_human"),
       ]),
       role: Type.Union([Type.Literal("admin"), Type.Literal("member")]),
       username: Type.Union([Type.String(), Type.Null()]),
@@ -140,6 +141,7 @@ export const CurrentSessionResponseSchema = Type.Object(
         Type.Literal("simulated_human"),
         Type.Literal("apple_human"),
         Type.Literal("password_human"),
+        Type.Literal("lab_human"),
       ]),
       role: Type.Union([Type.Literal("admin"), Type.Literal("member")]),
       username: Type.Union([Type.String(), Type.Null()]),
@@ -533,6 +535,7 @@ export const AnalysisProposalResponseSchema = Type.Object(
 export const AssertionDecisionRequestSchema = Type.Object(
   {
     idempotency_key: IdempotencyKey,
+    expected_review_token: Type.Optional(Type.String({ minLength: 64, maxLength: 64 })),
     expected_assertion_version: Type.Integer({ minimum: 1 }),
     decision: Type.Union([
       Type.Literal("confirm"),

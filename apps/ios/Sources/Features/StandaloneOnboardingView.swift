@@ -21,8 +21,10 @@ struct StandaloneOnboardingView: View {
     @StateObject private var voiceService = StandaloneVoiceCaptureService()
     @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @ObservedObject private var intentRouter = CaptureIntentRouter.shared
+    @ObservedObject private var demoResets = LabResetStore.demo
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
+    @Environment(\.labReduceMotion) private var labReduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appLanguage) private var appLanguage
@@ -53,15 +55,23 @@ struct StandaloneOnboardingView: View {
     private let pendingShortcutFixtureID: UUID?
     private let clearsPendingShortcutFixtures: Bool
     private let initialURL: URL?
+    private let labPreview: Bool
 
     init(
         arguments: [String] = ProcessInfo.processInfo.arguments,
-        initialURL: URL? = nil
+        initialURL: URL? = nil,
+        labPreview: Bool = false,
+        labPreviewStartsInReview: Bool = false,
+        labPreviewExpandedEvidence: Bool = false
     ) {
+        self.labPreview = labPreview
+        _showsAdvancedReview = State(initialValue: labPreview && labPreviewExpandedEvidence)
         let reset = arguments.contains("--standalone-onboarding-reset")
-        _store = StateObject(wrappedValue: StandaloneOnboardingStore(reset: reset))
+        _store = StateObject(wrappedValue: labPreview
+            ? StandaloneOnboardingStore(persistence: LabOnboardingMemoryStore(startsInReview: labPreviewStartsInReview))
+            : StandaloneOnboardingStore(reset: reset))
         _retainedSharedCaptures = State(
-            initialValue: (try? SharedCaptureInbox().retained()) ?? []
+            initialValue: labPreview ? [] : (try? SharedCaptureInbox().retained()) ?? []
         )
         forceDemoEngine = arguments.contains("--demo-proposal-engine")
             || arguments.contains("--standalone-demo")
@@ -124,7 +134,7 @@ struct StandaloneOnboardingView: View {
         }
         .foregroundStyle(Color.tsInk)
         .tint(.tsVermilion)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: store.state.route)
+        .animation(reduceMotion || labReduceMotion ? nil : .easeInOut(duration: 0.22), value: store.state.route)
         .onChange(of: voiceService.phase) { phase in
             switch phase {
             case .idle: break
@@ -154,6 +164,7 @@ struct StandaloneOnboardingView: View {
             }
         }
         .onChange(of: store.state.pursuit?.id) { _ in
+            guard !labPreview else { return }
             importNextSharedCapture()
             Task {
                 await captureHandoff.restorePendingCapture()
@@ -162,6 +173,7 @@ struct StandaloneOnboardingView: View {
             }
         }
         .onChange(of: intentRouter.request) { request in
+            guard !labPreview else { return }
             guard let request else { return }
             if store.state.route == .actionButtonPractice,
                store.state.actionPracticeState == .practiceWindowOpened,
@@ -184,6 +196,7 @@ struct StandaloneOnboardingView: View {
             intentRouter.consume(request.id)
         }
         .onChange(of: scenePhase) { phase in
+            guard !labPreview else { return }
             if phase == .active {
                 importNextSharedCapture()
                 consumeLiveActivityStopRequestIfNeeded()
@@ -198,6 +211,7 @@ struct StandaloneOnboardingView: View {
             }
         }
         .task {
+            guard !labPreview else { return }
             await clearPendingShortcutFixturesIfNeeded()
             await seedPendingShortcutFixtureIfNeeded()
             importNextSharedCapture()
@@ -245,6 +259,21 @@ struct StandaloneOnboardingView: View {
 
     @ViewBuilder
     private var routeContent: some View {
+        if labPreview {
+            switch store.state.route {
+            case .welcome: welcome
+            case .proposalReview: proposalReview
+            case .verifiedProgress: verifiedProgress
+            default:
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(localized("Onboarding preview complete"))
+                        .font(.title2.weight(.semibold))
+                    Text(localized("Only this isolated example changed. Your account, sources and system permissions are unchanged."))
+                    Button(localized("Replay onboarding")) { store.replayOnboarding() }
+                        .buttonStyle(TSPrimaryButtonStyle())
+                }
+            }
+        } else {
         switch store.state.route {
         case .welcome: welcome
         case .identity: identity
@@ -259,6 +288,7 @@ struct StandaloneOnboardingView: View {
         case .actionButtonOffer: actionButtonOffer
         case .actionButtonPractice: actionButtonPractice
         case .today: today
+        }
         }
     }
 
@@ -280,19 +310,20 @@ struct StandaloneOnboardingView: View {
             }
                 .buttonStyle(TSPrimaryButtonStyle())
                 .accessibilityIdentifier("standalone-start-example")
-            Button(localized("Use my own Signal")) {
+            if !labPreview { Button(localized("Use my own Signal")) {
                 store.startOwnSignalSetup()
             }
             .buttonStyle(TSSecondaryButtonStyle())
             .accessibilityIdentifier("standalone-use-own-signal")
+            }
             trustNote("Nothing becomes current until you confirm. Nothing is sent.")
                 .accessibilityIdentifier("standalone-trust-line")
-            if captureHandoff.savedSeed != nil || !retainedSharedCaptures.isEmpty {
+            if !labPreview && (captureHandoff.savedSeed != nil || !retainedSharedCaptures.isEmpty || !demoResets.operations.isEmpty) {
                 Button { openSettings() } label: {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(localized("Manage retained sources"))
+                        Text(localized(retainedSharedCaptures.isEmpty && captureHandoff.savedSeed == nil ? "Review Demo reset" : "Manage retained sources"))
                             .font(.body.weight(.semibold))
-                        Text(localized("Review or delete imported Share and Shortcut evidence."))
+                        Text(localized(retainedSharedCaptures.isEmpty && captureHandoff.savedSeed == nil ? "Review saved reset results or start the example again." : "Review or delete imported Share and Shortcut evidence."))
                             .font(.footnote)
                             .foregroundStyle(Color.tsMutedInk)
                     }
@@ -301,7 +332,7 @@ struct StandaloneOnboardingView: View {
                 .buttonStyle(TSTextButtonStyle())
                 .accessibilityIdentifier("standalone-manage-retained-sources")
             }
-            if captureHandoff.savedSeed != nil {
+            if !labPreview && captureHandoff.savedSeed != nil {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(localized("Shortcut screenshot queued"), systemImage: "lock.doc")
                         .font(.body.weight(.semibold))
@@ -915,9 +946,11 @@ struct StandaloneOnboardingView: View {
                         store.replayOnboarding()
                         showsSettings = false
                     }
-                    Button(localized("Reset Demo Data"), role: .destructive) {
-                        store.resetDemoData()
-                        showsSettings = false
+                    NavigationLink {
+                        LabResetView(refreshWorkspace: nil, demoOnly: true, onboarding: store.resetPersistence)
+                            .onDisappear { store.reloadAfterMaintenance() }
+                    } label: {
+                        Text(localized("Reset Demo Data"))
                     }
                     .accessibilityIdentifier("standalone-reset-demo-data")
                 }
@@ -1191,6 +1224,7 @@ struct StandaloneOnboardingView: View {
     }
 
     private func importNextSharedCapture() {
+        guard !labPreview else { return }
         do {
             let inbox = try SharedCaptureInbox()
             try store.reconcileSharedCaptureTransactions(using: inbox)
@@ -1213,6 +1247,7 @@ struct StandaloneOnboardingView: View {
 
     @MainActor
     private func importPendingIntentCapture() async {
+        guard !labPreview else { return }
         guard let seed = captureHandoff.pendingSeed else { return }
         guard store.state.pursuit != nil else {
             sharedCaptureNotice = "A Shortcut screenshot is safely queued. Create a Pursuit before importing it."
@@ -1336,6 +1371,7 @@ struct StandaloneOnboardingView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
+        guard !labPreview else { return }
         guard url.scheme == "talentsignal", url.host == "standalone" else { return }
         if url.path == "/proposal" { store.showLatestProposal() }
         if url.path == "/share" { importNextSharedCapture() }

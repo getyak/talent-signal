@@ -36,6 +36,7 @@ interface CaseRow {
   resolved_assignment_id: string | null;
   created_at: Date;
   updated_at: Date;
+  source_authorization_state: string;
 }
 
 interface CandidateRow {
@@ -94,14 +95,19 @@ async function loadCaseRow(
        cases.resolved_subject_id,
        cases.resolved_assignment_id,
        cases.created_at,
-       cases.updated_at
+       cases.updated_at,
+       CASE WHEN receipts.authorization_state = 'authorized'
+         AND receipts.authorization_expires_at <= now() THEN 'expired'
+         ELSE receipts.authorization_state END AS source_authorization_state
      FROM identity_resolution_cases cases
      JOIN captures
        ON captures.account_id = cases.account_id
       AND captures.id = cases.capture_id
+     JOIN source_retention_receipts receipts ON receipts.account_id = captures.account_id
+       AND receipts.capture_id = captures.id
      WHERE cases.account_id = $1
        AND cases.id = $2
-     ${lock ? "FOR UPDATE OF cases, captures" : ""}`,
+     ${lock ? "FOR UPDATE OF cases, captures, receipts" : ""}`,
     [accountId, caseId],
   );
   const row = result.rows[0];
@@ -118,6 +124,9 @@ async function loadCaseRow(
       "IDENTITY_RESOLUTION_CASE_DELETED",
       "The source and its identity resolution case were deleted.",
     );
+  }
+  if (row.source_authorization_state !== "authorized") {
+    throw new ApiError(409, "IDENTITY_SOURCE_AUTHORIZATION_UNAVAILABLE", "The source is no longer authorized for identity review.");
   }
   return row;
 }
@@ -415,22 +424,21 @@ export async function decideIdentityResolutionCase(
       request.idempotency_key,
       request,
     );
-    if (idempotency.replay) {
-      return {
-        body:
-          idempotency.replay
-            .body as IdentityResolutionDecisionResponse,
-        replayed: true,
-        status: idempotency.replay.status,
-      };
-    }
-
     const identityCase = await loadCaseRow(
       client,
       auth.accountId,
       caseId,
       true,
     );
+    if (idempotency.replay) {
+      const body = idempotency.replay.body as IdentityResolutionDecisionResponse;
+      if (identityCase.version !== body.case_version ||
+          identityCase.resolved_subject_id !== body.person_id ||
+          identityCase.resolved_assignment_id !== body.relationship_context_id) {
+        throw new ApiError(409, "IDENTITY_DECISION_SUPERSEDED", "A later identity decision replaced this result. Reload the source.");
+      }
+      return { body, replayed: true, status: idempotency.replay.status };
+    }
     if (identityCase.status !== "pending") {
       throw new ApiError(
         409,
