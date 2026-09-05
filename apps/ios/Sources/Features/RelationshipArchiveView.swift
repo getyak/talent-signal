@@ -1145,6 +1145,8 @@ private struct RelationshipArchiveHeader: View {
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.talentSignalReduceMotion) private var reduceMotion
     @State private var pageCenters: [String: CGFloat] = [:]
+    @State private var pageWidths: [String: CGFloat] = [:]
+    @State private var selectorViewportWidth: CGFloat = 0
 
     var body: some View {
         Group {
@@ -1217,23 +1219,62 @@ private struct RelationshipArchiveHeader: View {
     private var accessibilityPageSelector: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                pageSelector(expands: false)
+                HStack(spacing: 0) {
+                    Color.clear
+                        .frame(width: edgePadding(for: .today))
+                    pageSelector(expands: false)
+                    Color.clear
+                        .frame(width: edgePadding(for: .people))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .background {
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: RelationshipSelectorViewportWidthKey.self,
+                        value: geometry.size.width
+                    )
+                }
             }
             .accessibilityIdentifier("relationship-page-selector-scroll")
             .onAppear {
-                proxy.scrollTo(selectedPage.id, anchor: .center)
+                center(selectedPage, using: proxy, animated: false)
             }
             .onChange(of: selectedPage) { page in
-                if reduceMotion {
-                    proxy.scrollTo(page.id, anchor: .center)
-                } else {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(page.id, anchor: .center)
-                    }
+                center(page, using: proxy, animated: true)
+            }
+            .onPreferenceChange(RelationshipSelectorViewportWidthKey.self) { width in
+                if abs(selectorViewportWidth - width) > 0.5 {
+                    selectorViewportWidth = width
                 }
+            }
+            .onChange(of: selectorViewportWidth) { _ in
+                center(selectedPage, using: proxy, animated: false)
+            }
+            .onChange(of: pageWidths) { _ in
+                center(selectedPage, using: proxy, animated: false)
             }
         }
         .frame(minHeight: 44)
+    }
+
+    private func edgePadding(for page: RelationshipArchivePage) -> CGFloat {
+        let pageWidth = pageWidths[page.id] ?? 44
+        return max(0, (selectorViewportWidth - pageWidth) / 2)
+    }
+
+    private func center(
+        _ page: RelationshipArchivePage,
+        using proxy: ScrollViewProxy,
+        animated: Bool
+    ) {
+        if reduceMotion || !animated {
+            proxy.scrollTo(page.id, anchor: .center)
+        } else {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                proxy.scrollTo(page.id, anchor: .center)
+            }
+        }
     }
 
     private func pageSelector(expands: Bool) -> some View {
@@ -1247,6 +1288,11 @@ private struct RelationshipArchiveHeader: View {
         .onPreferenceChange(RelationshipTabCenterKey.self) { centers in
             if pageCenters != centers {
                 pageCenters = centers
+            }
+        }
+        .onPreferenceChange(RelationshipTabWidthKey.self) { widths in
+            if pageWidths != widths {
+                pageWidths = widths
             }
         }
         .overlay(alignment: .bottomLeading) {
@@ -1304,6 +1350,10 @@ private struct RelationshipArchiveHeader: View {
                             in: .named(Self.tabCoordinateSpace)
                         ).midX,
                     ]
+                )
+                .preference(
+                    key: RelationshipTabWidthKey.self,
+                    value: [page.id: geometry.size.width]
                 )
             }
         }
@@ -1368,6 +1418,25 @@ private struct RelationshipTabCenterKey: PreferenceKey {
         nextValue: () -> [String: CGFloat]
     ) {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+private struct RelationshipTabWidthKey: PreferenceKey {
+    static let defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(
+        value: inout [String: CGFloat],
+        nextValue: () -> [String: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+private struct RelationshipSelectorViewportWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

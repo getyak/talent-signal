@@ -1191,8 +1191,9 @@ final class CandidateSignalUITests: XCTestCase {
 
     func testPagedHeaderReflowsAtAX5WithoutShrinkingTapTargets() {
         app.launchArguments = [
-            "-UICTContentSizeCategoryName",
-            "UICTContentSizeCategoryAccessibilityXXXL",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            "-UIAccessibilityReduceMotionEnabled", "YES",
         ]
         app.launch()
 
@@ -1216,9 +1217,43 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(today.label, "Today")
         XCTAssertEqual(sessions.label, "Sessions")
         XCTAssertEqual(people.label, "People")
-        selector.swipeLeft()
-        XCTAssertTrue(people.isHittable)
+        assertHorizontallyCentered(today, in: selector)
+
+        element("editorial-today").swipeLeft()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        XCTAssertTrue(sessions.isSelected)
+        assertHorizontallyCentered(sessions, in: selector)
+
+        element("agent-session-list").swipeLeft()
+        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
+        XCTAssertTrue(people.isSelected)
+        assertHorizontallyCentered(people, in: selector)
         preserveScreenshot("Paged header reflows at AX5")
+    }
+
+    func testPagedHeaderCentersAX5TabsInRTL() {
+        app.launchArguments += [
+            "--force-right-to-left-layout",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+        ]
+        app.launch()
+
+        let selector = app.scrollViews["relationship-page-selector-scroll"]
+        let today = app.buttons["archive-tab-today"]
+        let sessions = app.buttons["archive-tab-sessions"]
+        let people = app.buttons["archive-tab-people"]
+        XCTAssertTrue(today.waitForExistence(timeout: 8))
+        assertHorizontallyCentered(today, in: selector)
+
+        element("editorial-today").swipeRight()
+        XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
+        assertHorizontallyCentered(sessions, in: selector)
+
+        element("agent-session-list").swipeRight()
+        XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
+        assertHorizontallyCentered(people, in: selector)
+        preserveScreenshot("RTL paged header centers AX5 tabs")
     }
 
     func testReducedMotionKeepsSessionNavigationReachable() {
@@ -5238,6 +5273,30 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertLessThanOrEqual(
             abs(element.frame.midY - expectedMidY),
             tolerance,
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertHorizontallyCentered(
+        _ element: XCUIElement,
+        in container: XCUIElement,
+        tolerance: CGFloat = 4,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(element.waitForExistence(timeout: 5), file: file, line: line)
+        XCTAssertTrue(container.waitForExistence(timeout: 5), file: file, line: line)
+        let centered = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                abs(element.frame.midX - container.frame.midX) <= tolerance
+            },
+            object: element
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [centered], timeout: 3),
+            .completed,
+            "Expected \(element.identifier) to stay centered in the adaptive selector.",
             file: file,
             line: line
         )

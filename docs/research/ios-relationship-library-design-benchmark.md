@@ -776,7 +776,8 @@ context survive page changes and temporary sheets.
 At accessibility text sizes, the two utility actions move to their own row.
 The destination selector keeps the user's full Dynamic Type category and may
 scroll horizontally so every label remains complete with a 44-point target;
-selecting a destination keeps it centered when space is constrained.
+dynamic edge insets derived from the viewport and the measured first and last
+tabs let every selected destination remain centered when space is constrained.
 
 ### Verification change
 
