@@ -773,10 +773,10 @@ semantic signal. Page changes do not reconstruct the retrieval shell: People
 search and filter state, each list's visible position, and the user's current
 context survive page changes and temporary sheets.
 
-At accessibility text sizes, the two utility actions move to their own row so
-the three destination labels receive the full content width. Navigation chrome
-uses a bounded readable text size rather than shrinking each label until it
-fits; the complete accessible label and 44-point target remain available.
+At accessibility text sizes, the two utility actions move to their own row.
+The destination selector keeps the user's full Dynamic Type category and may
+scroll horizontally so every label remains complete with a 44-point target;
+selecting a destination keeps it centered when space is constrained.
 
 ### Verification change
 

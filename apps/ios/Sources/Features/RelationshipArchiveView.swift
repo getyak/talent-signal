@@ -1155,13 +1155,13 @@ private struct RelationshipArchiveHeader: View {
                         Spacer(minLength: 0)
                         calendarButton
                     }
-                    pageSelector
+                    accessibilityPageSelector
                 }
                 .padding(.vertical, 4)
             } else {
                 HStack(spacing: 6) {
                     agentStudioButton
-                    pageSelector
+                    pageSelector(expands: true)
                     calendarButton
                 }
             }
@@ -1186,7 +1186,6 @@ private struct RelationshipArchiveHeader: View {
         }
         .buttonStyle(.plain)
         .frame(width: 44, height: 44)
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityLabel(
             appLanguage.text(
                 "Open Agent Studio",
@@ -1199,14 +1198,13 @@ private struct RelationshipArchiveHeader: View {
     private var calendarButton: some View {
         Button(action: onOpenCalendar) {
             Image(systemName: "calendar")
-                .font(.body.weight(.medium))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(Color.tsInk)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .frame(width: 44, height: 44)
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityLabel(
             appLanguage.text(
                 "Open relationship calendar",
@@ -1216,13 +1214,35 @@ private struct RelationshipArchiveHeader: View {
         .accessibilityIdentifier("today-calendar-peek")
     }
 
-    private var pageSelector: some View {
-        HStack(spacing: 0) {
-            ForEach(RelationshipArchivePage.allCases) { page in
-                pageButton(page)
+    private var accessibilityPageSelector: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                pageSelector(expands: false)
+            }
+            .accessibilityIdentifier("relationship-page-selector-scroll")
+            .onAppear {
+                proxy.scrollTo(selectedPage.id, anchor: .center)
+            }
+            .onChange(of: selectedPage) { page in
+                if reduceMotion {
+                    proxy.scrollTo(page.id, anchor: .center)
+                } else {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(page.id, anchor: .center)
+                    }
+                }
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(minHeight: 44)
+    }
+
+    private func pageSelector(expands: Bool) -> some View {
+        HStack(spacing: 0) {
+            ForEach(RelationshipArchivePage.allCases) { page in
+                pageButton(page, expands: expands)
+            }
+        }
+        .frame(maxWidth: expands ? .infinity : nil)
         .coordinateSpace(name: Self.tabCoordinateSpace)
         .onPreferenceChange(RelationshipTabCenterKey.self) { centers in
             if pageCenters != centers {
@@ -1235,7 +1255,10 @@ private struct RelationshipArchiveHeader: View {
         .accessibilityElement(children: .contain)
     }
 
-    private func pageButton(_ page: RelationshipArchivePage) -> some View {
+    private func pageButton(
+        _ page: RelationshipArchivePage,
+        expands: Bool
+    ) -> some View {
         Button {
             if reduceMotion {
                 selectedPage = page
@@ -1253,15 +1276,16 @@ private struct RelationshipArchiveHeader: View {
                     .foregroundStyle(
                         selectedPage == page ? Color.tsInk : Color.tsMutedInk
                     )
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .lineLimit(1)
+                    .fixedSize(horizontal: !expands, vertical: false)
                     .layoutPriority(1)
                     .accessibilityHidden(true)
                 Color.clear.frame(height: 2)
             }
+            .padding(.horizontal, expands ? 0 : 14)
             .frame(
                 minWidth: page == .sessions ? 70 : 58,
-                maxWidth: .infinity
+                maxWidth: expands ? .infinity : nil
             )
             .frame(minHeight: 44)
             .contentShape(Rectangle())
@@ -1270,6 +1294,7 @@ private struct RelationshipArchiveHeader: View {
         .accessibilityAddTraits(selectedPage == page ? .isSelected : [])
         .accessibilityLabel(page.title(in: appLanguage))
         .accessibilityIdentifier("archive-tab-\(page.accessibilityIdentifier)")
+        .id(page.id)
         .background {
             GeometryReader { geometry in
                 Color.clear.preference(

@@ -1,7 +1,7 @@
 # iOS paged retrieval
 
-Status: implementation and independent review complete; release verification
-in progress.
+Status: implementation complete; release is governed by the PR checks and iOS
+distribution receipt.
 
 ## Outcome
 
@@ -63,8 +63,8 @@ two high-priority defects and one proof blocker:
   focused suite and release checks pass.
 
 The adaptive header also moves utility actions to their own row at
-accessibility text sizes and caps only compact navigation chrome at XXXL,
-instead of shrinking labels to 72 percent.
+accessibility text sizes. Its selector preserves the user's full Dynamic Type
+category and scrolls horizontally when complete labels no longer fit.
 
 ## Completion evidence
 
@@ -80,4 +80,6 @@ instead of shrinking labels to 72 percent.
 
 ## Verification record
 
-Pending final isolated-worktree verification.
+The release branch records local parse, localization, documentation, policy,
+and clean-diff checks. PR #128 and its same-revision full iOS run provide the
+executable gate; the published release receipt remains the distribution proof.

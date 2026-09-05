@@ -1201,17 +1201,23 @@ final class CandidateSignalUITests: XCTestCase {
         let today = app.buttons["archive-tab-today"]
         let sessions = app.buttons["archive-tab-sessions"]
         let people = app.buttons["archive-tab-people"]
+        let selector = app.scrollViews["relationship-page-selector-scroll"]
         XCTAssertTrue(today.waitForExistence(timeout: 8))
+        XCTAssertTrue(selector.exists)
 
         for control in [studio, calendar, today, sessions, people] {
             XCTAssertGreaterThanOrEqual(control.frame.width, 44)
             XCTAssertGreaterThanOrEqual(control.frame.height, 44)
-            XCTAssertTrue(control.isHittable)
         }
+        XCTAssertTrue(studio.isHittable)
+        XCTAssertTrue(calendar.isHittable)
+        XCTAssertTrue(today.isHittable)
         XCTAssertGreaterThan(today.frame.minY, studio.frame.minY)
         XCTAssertEqual(today.label, "Today")
         XCTAssertEqual(sessions.label, "Sessions")
         XCTAssertEqual(people.label, "People")
+        selector.swipeLeft()
+        XCTAssertTrue(people.isHittable)
         preserveScreenshot("Paged header reflows at AX5")
     }
 
