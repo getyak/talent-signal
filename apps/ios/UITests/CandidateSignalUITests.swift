@@ -148,7 +148,6 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertEqual(preview.value as? String, "Compact")
 
         let comfortable = app.buttons["card-density-comfortable"]
-        XCTAssertTrue(comfortable.exists)
         scrollToVisible(comfortable)
         XCTAssertTrue(comfortable.isHittable)
         XCTAssertGreaterThanOrEqual(comfortable.frame.height, 44)
@@ -163,7 +162,6 @@ final class CandidateSignalUITests: XCTestCase {
         )
 
         let smallText = app.buttons["text-size-compact"]
-        XCTAssertTrue(smallText.exists)
         scrollToVisible(smallText)
         XCTAssertTrue(smallText.isHittable)
         XCTAssertGreaterThanOrEqual(smallText.frame.height, 44)
