@@ -1452,7 +1452,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
         let ask = app.buttons["relationship-guide"]
         XCTAssertTrue(ask.waitForExistence(timeout: 5))
-        ask.tap()
+        tapWhenVisible(ask)
 
         XCTAssertFalse(element("ask-scope-selector").exists)
         XCTAssertTrue(askComposer.exists)
@@ -4252,7 +4252,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(
             app.buttons["relationship-guide"].waitForExistence(timeout: 8)
         )
-        app.buttons["relationship-guide"].tap()
+        tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(
             element("relationship-ask-sheet").waitForExistence(timeout: 5)
         )
@@ -4322,7 +4322,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(
             app.buttons["relationship-guide"].waitForExistence(timeout: 8)
         )
-        app.buttons["relationship-guide"].tap()
+        tapWhenVisible(app.buttons["relationship-guide"])
         XCTAssertTrue(element("contact-proposal-card").waitForExistence(timeout: 5))
         XCTAssertFalse(
             app.keyboards.firstMatch.exists,
@@ -5326,14 +5326,30 @@ final class CandidateSignalUITests: XCTestCase {
             swipes += 1
         }
         XCTAssertTrue(element.exists, "Expected \(element) to exist after scrolling")
-        if !element.isHittable {
-            // A known SwiftUI control can sit outside the current viewport or
-            // behind the keyboard safe area. XCTest performs one semantic
-            // scroll-to-visible before synthesizing the user's tap.
+        if element.isHittable {
             element.tap()
             return
         }
-        element.tap()
+
+        let window = app.windows.firstMatch
+        let center = CGPoint(x: element.frame.midX, y: element.frame.midY)
+        if window.frame.contains(center) {
+            // XCTest can keep a visible SwiftUI control marked non-hittable at
+            // a scroll or safe-area edge. A coordinate tap preserves the
+            // current viewport for the following accessibility assertions.
+            tapVisibleCenter(element)
+            return
+        }
+
+        while !element.isHittable, swipes < maxSwipes {
+            app.swipeUp()
+            swipes += 1
+        }
+        if element.isHittable {
+            element.tap()
+        } else {
+            tapVisibleCenter(element)
+        }
     }
 
     private func tapVisibleCenter(_ element: XCUIElement) {
