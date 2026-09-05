@@ -174,6 +174,26 @@ final class AudioSignalCaptureTests: XCTestCase {
         XCTAssertEqual(transcriptionCalls, 1)
     }
 
+    func testVoiceInputPublishesBestEffortLiveWordsInsideComposer() async {
+        let recorder = VoiceDictationRecordingSpy(permission: .granted)
+        recorder.liveTranscript = "Help me organize last week's meeting"
+        let transcriber = VoiceTranscriptionSpy(
+            result: .failure(CancellationError())
+        )
+        let store = VoiceInputStore(recorder: recorder)
+
+        await store.start(
+            sceneIsActive: true,
+            locale: Locale(identifier: "en_US"),
+            transcriber: transcriber
+        )
+
+        XCTAssertEqual(store.liveTranscript, recorder.liveTranscript)
+        XCTAssertTrue(store.isRecording)
+        store.cancel()
+        XCTAssertTrue(store.liveTranscript.isEmpty)
+    }
+
     func testVoicePermissionOverlayWaitsForActiveSceneBeforeRecording() async {
         let recorder = VoiceDictationRecordingSpy(permission: .undetermined)
         let transcriber = VoiceTranscriptionSpy(
@@ -325,6 +345,8 @@ private final class VoiceDictationRecordingSpy: VoiceDictationRecordingServing {
     var deletedPayload: VoiceDictationPayload?
     var isRecording = false
     var onPermissionRequest: (() -> Void)?
+    var liveTranscript = ""
+    private var liveTranscriptHandler: ((String) -> Void)?
     let payload = VoiceDictationPayload(
         id: UUID(),
         fileURL: URL(fileURLWithPath: "/tmp/synthetic-voice-input.wav"),
@@ -350,9 +372,17 @@ private final class VoiceDictationRecordingSpy: VoiceDictationRecordingServing {
         return requestedPermission
     }
 
+    func prepareLiveTranscription(
+        locale: Locale,
+        onUpdate: @escaping (String) -> Void
+    ) async {
+        liveTranscriptHandler = onUpdate
+    }
+
     func start(recordID: UUID) throws {
         startCalls += 1
         isRecording = true
+        if !liveTranscript.isEmpty { liveTranscriptHandler?(liveTranscript) }
     }
 
     func stop() throws -> VoiceDictationPayload {
@@ -365,6 +395,7 @@ private final class VoiceDictationRecordingSpy: VoiceDictationRecordingServing {
     func cancel() throws {
         cancelCalls += 1
         isRecording = false
+        liveTranscriptHandler = nil
     }
 
     func delete(_ payload: VoiceDictationPayload) throws {

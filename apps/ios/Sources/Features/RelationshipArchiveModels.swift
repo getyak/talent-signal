@@ -1203,7 +1203,14 @@ final class AgentSessionStore: ObservableObject {
                         ))
             }
         }
-        let resolvedID = existingIndex.map { storedSessions[$0].id } ?? UUID()
+        let availableProposedID = sessionID.flatMap { proposedID in
+            storedSessions.contains(where: { $0.id == proposedID })
+                ? nil
+                : proposedID
+        }
+        let resolvedID = existingIndex.map { storedSessions[$0].id }
+            ?? availableProposedID
+            ?? UUID()
 
         if let index = existingIndex {
             if storedSessions[index].isUnresolvedIntent {
@@ -1476,7 +1483,7 @@ final class AgentSessionStore: ObservableObject {
         relationshipContextID: String,
         proposedIdempotencyKey: String,
         requestIdentity: String? = nil
-    ) -> String {
+    ) -> String? {
         _ = pruneExpiredState()
         if let pending = drafts.first(where: {
             $0.personID == personID
@@ -1486,6 +1493,7 @@ final class AgentSessionStore: ObservableObject {
         })?.pendingIdempotencyKey {
             return pending
         }
+        let priorDrafts = drafts
         drafts.removeAll {
             $0.personID == personID
                 && $0.relationshipContextID == relationshipContextID
@@ -1500,7 +1508,11 @@ final class AgentSessionStore: ObservableObject {
                 requestIdentity: requestIdentity
             )
         )
-        persist()
+        guard persist() else {
+            drafts = priorDrafts
+            scheduleNextExpiration()
+            return nil
+        }
         return proposedIdempotencyKey
     }
 

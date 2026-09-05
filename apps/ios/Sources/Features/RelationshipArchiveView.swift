@@ -8,6 +8,7 @@ struct RelationshipArchiveView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @StateObject private var captureIntentRouter = CaptureIntentRouter.shared
+    @StateObject private var askDeepLinkRouter = AgentAskDeepLinkRouter.shared
     @StateObject private var workspaceStore: PursuitWorkspaceStore
     @StateObject private var sessionStore: AgentSessionStore
     @StateObject private var labStore: TalentSignalLabStore
@@ -544,6 +545,26 @@ struct RelationshipArchiveView: View {
                 }
             }
             captureIntentRouter.consume(request.id)
+        }
+        .onReceive(askDeepLinkRouter.$link) { link in
+            guard let link,
+                  link.identity.workspaceID == workspaceStore.snapshot?.workspaceID,
+                  let sessionID = UUID(uuidString: link.identity.sessionID) else { return }
+            clearTransientRetrievalIntent()
+            selectedPage = .sessions
+            askPresentation = .init(
+                sessionID: sessionID,
+                seed: nil,
+                preferredPersonID: nil,
+                preferredPersonLabel: nil,
+                entryMode: .text
+            )
+            askDeepLinkRouter.consume(link.identity)
+            Task {
+                await AgentAskActivityController.shared.endActivities(
+                    sessionID: link.identity.sessionID
+                )
+            }
         }
         .onOpenURL { url in
             guard url.scheme == "talent-signal-capture" else { return }

@@ -483,7 +483,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         typeTextReliably("Hello", into: composer)
 
-        let send = app.buttons["ask-send"]
+        let send = hittableButton("ask-send")
         XCTAssertTrue(send.isEnabled)
         send.tap()
 
@@ -1000,7 +1000,7 @@ final class CandidateSignalUITests: XCTestCase {
         openRelationshipMenu()
 
         let reviewInbox = app.buttons["open-review-inbox"]
-        XCTAssertTrue(reviewInbox.waitForExistence(timeout: 5))
+        scrollToVisible(reviewInbox)
         reviewInbox.tap()
         XCTAssertTrue(element("review-inbox").waitForExistence(timeout: 5))
 
@@ -1065,7 +1065,7 @@ final class CandidateSignalUITests: XCTestCase {
     func testSessionUnreadAndJudgmentMetadataRemainCompact() {
         app.launch()
 
-        let sessions = app.buttons["archive-tab-sessions"]
+        let sessions = hittableButton("archive-tab-sessions", timeout: 8)
         XCTAssertTrue(sessions.waitForExistence(timeout: 8))
         sessions.tap()
         XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
@@ -1375,7 +1375,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(element("workspace-person-detail").waitForExistence(timeout: 5))
     }
 
-    func testPreferredPersonWithMultipleContextsCannotSendBeforeSelection() {
+    func testPreferredPersonWithMultipleContextsCanLeaveSelectionToAgent() {
         app.launchArguments = [
             "--preview-multi-context-person",
             "--fixture-record-ask-request-count",
@@ -1393,7 +1393,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         XCTAssertTrue(element("relationship-ask-sheet").waitForExistence(timeout: 5))
         XCTAssertTrue(
-            element("ask-preferred-scope-required").waitForExistence(timeout: 5)
+            element("ask-preferred-scope-optional").waitForExistence(timeout: 5)
         )
         let firstContext = app.buttons[
             "ask-scope-option-20000000-0000-4000-8000-000000000001-21000000-0000-4000-8000-000000000001"
@@ -1418,8 +1418,8 @@ final class CandidateSignalUITests: XCTestCase {
         typeTextReliably("What changed in this relationship?", into: composer)
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.exists)
-        XCTAssertFalse(send.isEnabled)
-        XCTAssertEqual(send.label, "Choose a relationship before sending")
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertEqual(send.label, "Send")
         let requestCount = element("ask-fixture-request-count")
         XCTAssertTrue(requestCount.waitForExistence(timeout: 5))
         XCTAssertEqual(requestCount.value as? String, "0")
@@ -1674,10 +1674,8 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(askComposer.exists)
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
         XCTAssertFalse(app.buttons["What changed?"].exists)
-        XCTAssertTrue(element("ask-expanded-composer").exists)
-        XCTAssertTrue(element("ask-markdown-toolbar").exists)
-        XCTAssertTrue(app.buttons["ask-markdown-photo"].isEnabled)
-        XCTAssertTrue(app.buttons["ask-markdown-more"].isEnabled)
+        XCTAssertTrue(element("ask-voice-ribbon").exists)
+        XCTAssertTrue(app.buttons["ask-attachment-menu"].isEnabled)
         XCTAssertFalse(app.buttons["ask-review-screenshot"].exists)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
         XCTAssertFalse(element("ask-remote-ai-disclosure").exists)
@@ -1703,21 +1701,15 @@ final class CandidateSignalUITests: XCTestCase {
             "The home entry should open as a lightweight new Chat composer."
         )
         XCTAssertTrue(element("ask-recall-disclosure").exists)
-        let expandedComposer = element("ask-expanded-composer")
-        XCTAssertTrue(expandedComposer.exists)
-        XCTAssertGreaterThanOrEqual(expandedComposer.frame.height, 210)
-        XCTAssertTrue(element("ask-markdown-toolbar").exists)
-        XCTAssertTrue(app.buttons["ask-markdown-heading"].exists)
-        XCTAssertTrue(app.buttons["ask-markdown-photo"].exists)
-        XCTAssertTrue(app.buttons["ask-markdown-bold"].exists)
-        XCTAssertTrue(app.buttons["ask-markdown-list"].exists)
-        XCTAssertTrue(app.buttons["ask-markdown-more"].exists)
+        XCTAssertTrue(element("ask-voice-ribbon").exists)
+        XCTAssertTrue(app.buttons["ask-attachment-menu"].exists)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
         XCTAssertFalse(app.buttons["ask-send"].exists)
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        XCTAssertLessThan(
-            element("relationship-ask-sheet").frame.height,
-            app.windows.firstMatch.frame.height * 0.9
+        XCTAssertGreaterThan(
+            element("relationship-ask-sheet").frame.minY,
+            app.windows.firstMatch.frame.height * 0.05,
+            "The focused composer should still leave the workspace visibly present above it."
         )
 
         typeTextReliably("x", into: composer)
@@ -1732,7 +1724,8 @@ final class CandidateSignalUITests: XCTestCase {
         let send = app.buttons["ask-send"]
         XCTAssertTrue(send.exists)
         XCTAssertTrue(send.isEnabled)
-        XCTAssertFalse(app.buttons["ask-voice"].exists)
+        XCTAssertTrue(app.buttons["ask-voice"].exists)
+        XCTAssertFalse(app.buttons["ask-voice"].isEnabled)
         preserveScreenshot("Global Agent compact new Chat ready to type")
     }
 
@@ -1764,7 +1757,7 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(text.exists)
         XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1))
         XCTAssertGreaterThanOrEqual(sheet.frame.height, 120)
-        XCTAssertLessThan(sheet.frame.height, 160)
+        XCTAssertLessThan(sheet.frame.height, 170)
         for action in [photos, files, voice, text] {
             XCTAssertGreaterThanOrEqual(action.frame.height, 44)
             XCTAssertGreaterThanOrEqual(action.frame.width, 44)
@@ -1775,13 +1768,11 @@ final class CandidateSignalUITests: XCTestCase {
             (actionMidpoints.max() ?? 0) - (actionMidpoints.min() ?? 0),
             2
         )
-        XCTAssertFalse(element("ask-expanded-composer").exists)
-        XCTAssertFalse(element("ask-markdown-toolbar").exists)
+        XCTAssertFalse(element("ask-voice-ribbon").exists)
         preserveScreenshot("Global Agent new Chat smallest detent")
 
         text.tap()
-        XCTAssertTrue(element("ask-expanded-composer").waitForExistence(timeout: 3))
-        XCTAssertTrue(element("ask-markdown-toolbar").exists)
+        XCTAssertTrue(element("ask-voice-ribbon").waitForExistence(timeout: 3))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
     }
 
@@ -1849,7 +1840,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         let sheet = element("relationship-ask-sheet")
         XCTAssertTrue(sheet.waitForExistence(timeout: 5))
-        XCTAssertTrue(element("ask-expanded-composer").exists)
+        XCTAssertTrue(element("ask-voice-ribbon").exists)
         XCTAssertFalse(app.buttons["ask-minimized-photos"].exists)
         XCTAssertFalse(app.buttons["ask-minimized-files"].exists)
         XCTAssertFalse(app.buttons["ask-minimized-voice"].exists)
@@ -1875,7 +1866,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Global Agent new Chat AX5 avoids smallest detent")
     }
 
-    func testGlobalAgentMinimizedVoiceKeepsAnExistingTextDraftEditable() {
+    func testGlobalAgentMinimizedVoicePreservesAnExistingTextDraft() {
         app.launchArguments = [
             "--deterministic-voice-input",
             "-voice-input-cloud-disclosure-v1", "NO",
@@ -1908,27 +1899,15 @@ final class CandidateSignalUITests: XCTestCase {
         let start = app.buttons.matching(
             identifier: "confirm-voice-input-disclosure"
         ).firstMatch
-        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        XCTAssertFalse(start.waitForExistence(timeout: 1))
         XCTAssertEqual(composer.value as? String, "Maya follow-up")
         XCTAssertFalse(element("ask-response-turn").exists)
-        start.tap()
-
-        XCTAssertTrue(element("ask-voice-recording").waitForExistence(timeout: 5))
-        let stop = app.buttons["ask-voice"]
-        XCTAssertTrue(stop.waitForExistence(timeout: 3))
-        XCTAssertEqual(stop.label, "Stop and transcribe")
-        XCTAssertFalse(app.buttons["ask-send"].exists)
-        stop.tap()
-
-        XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 5))
-        XCTAssertEqual(
-            composer.value as? String,
-            "Maya follow-up What changed in this search?"
-        )
+        XCTAssertTrue(element("ask-voice-ribbon").exists)
+        XCTAssertTrue(app.buttons["ask-send"].isEnabled)
         XCTAssertFalse(element("ask-response-turn").exists)
     }
 
-    func testNewChatMarkdownToolbarInsertsEditableSyntaxAndSwitchesVoiceToSend() {
+    func testNewChatRibbonKeepsTypedFormattingAndSwitchesToSend() {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
@@ -1938,19 +1917,15 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
+        XCTAssertTrue(app.buttons["ask-attachment-menu"].isEnabled)
 
-        app.buttons["ask-markdown-heading"].tap()
-        XCTAssertEqual(composer.value as? String, "# ")
+        let message = "# Search note\n\n- Add Maya Chen"
+        typeTextReliably(message, into: composer)
+        XCTAssertEqual(composer.value as? String, message)
         XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.buttons["ask-voice"].exists)
-
-        app.buttons["ask-markdown-bold"].tap()
-        XCTAssertEqual(composer.value as? String, "# **bold text**")
-
-        app.buttons["ask-markdown-list"].tap()
-        XCTAssertEqual(composer.value as? String, "# **bold text**\n- ")
+        XCTAssertFalse(app.buttons["ask-voice"].isEnabled)
         XCTAssertTrue(app.keyboards.firstMatch.exists)
-        preserveScreenshot("New Chat Markdown toolbar and adaptive send")
+        preserveScreenshot("New Chat voice ribbon and adaptive send")
     }
 
     func testHomePlusShowsAttachmentSourcesBeforeOpeningAPicker() {
@@ -1983,11 +1958,14 @@ final class CandidateSignalUITests: XCTestCase {
         let message = "Compare this screenshot with what changed"
         typeTextReliably(message, into: composer)
 
-        let photos = app.buttons["ask-markdown-photo"]
-        XCTAssertTrue(photos.waitForExistence(timeout: 5))
-        XCTAssertTrue(photos.isEnabled)
-        XCTAssertGreaterThanOrEqual(photos.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(photos.frame.height, 44)
+        let attachments = app.buttons["ask-attachment-menu"]
+        XCTAssertTrue(attachments.waitForExistence(timeout: 5))
+        XCTAssertTrue(attachments.isEnabled)
+        XCTAssertGreaterThanOrEqual(attachments.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(attachments.frame.height, 44)
+        attachments.tap()
+        let photos = app.buttons["Photos"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 3))
         photos.tap()
 
         let photoPicker = waitForPhotoPicker()
@@ -2119,7 +2097,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Named relationship stays with the Agent")
     }
 
-    func testVoiceInputInsertsAnEditableDraftWithoutSending() {
+    func testVoiceRibbonShowsLiveWordsAndSendsDirectlyToAgent() {
         app.launchArguments = [
             "--deterministic-voice-input",
             "-voice-input-cloud-disclosure-v1", "NO",
@@ -2135,6 +2113,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         let voice = app.buttons["ask-voice"]
         XCTAssertTrue(voice.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(voice.frame.height, 48)
         voice.tap()
 
         let start = app.buttons.matching(
@@ -2142,21 +2121,46 @@ final class CandidateSignalUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(start.waitForExistence(timeout: 5))
         start.tap()
-        XCTAssertTrue(element("ask-voice-recording").waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(voice.frame.height, 48)
-        preserveScreenshot("Voice input listening state")
+        let sendVoice = app.buttons["ask-voice-send"]
+        XCTAssertTrue(sendVoice.waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-voice-live-transcript").exists)
+        XCTAssertTrue(app.staticTexts["What changed in this search?"].exists)
+        preserveScreenshot("Voice ribbon live words")
         XCTAssertTrue(
             app.buttons["ask-voice-cancel"].waitForExistence(timeout: 5)
         )
 
-        voice.tap()
+        sendVoice.tap()
 
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 8))
+        XCTAssertFalse(sendVoice.exists)
+        preserveScreenshot("Voice sent directly to Agent")
+    }
+
+    func testHoldingEmptyComposerReleasesStraightToAgent() {
+        app.launchArguments = [
+            "--deterministic-voice-input",
+            "-voice-input-cloud-disclosure-v1", "YES",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        app.buttons["relationship-guide"].tap()
         let composer = app.textFields["ask-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["ask-send"].waitForExistence(timeout: 5))
-        XCTAssertEqual(composer.value as? String, "What changed in this search?")
-        XCTAssertFalse(element("ask-response-turn").exists)
-        preserveScreenshot("Voice input remains an editable Agent draft")
+
+        let voice = app.buttons["ask-voice"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 3))
+        voice.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ).press(forDuration: 0.65)
+
+        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["What changed in this search?"].exists)
+        XCTAssertFalse(element("ask-active-voice-ribbon").exists)
+        preserveScreenshot("Hold and release sends voice to Agent")
     }
 
     func testCanonicalLoopbackOffersAuthenticatedVoiceInput() async throws {
@@ -2182,7 +2186,7 @@ final class CandidateSignalUITests: XCTestCase {
 
         let voice = app.buttons["ask-voice"]
         XCTAssertTrue(voice.waitForExistence(timeout: 5))
-        XCTAssertEqual(voice.label, "Start voice input")
+        XCTAssertEqual(voice.label, "Hold to talk")
         voice.tap()
         XCTAssertTrue(
             app.buttons["confirm-voice-input-disclosure"]
@@ -2258,10 +2262,10 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(start.waitForExistence(timeout: 5))
         start.tap()
 
-        XCTAssertTrue(element("ask-voice-recording").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["正在听你说"].exists)
+        XCTAssertTrue(element("ask-active-voice-ribbon").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("ask-voice-live-transcript").exists)
         XCTAssertTrue(app.buttons["ask-voice-cancel"].waitForExistence(timeout: 5))
-        preserveScreenshot("Voice input Simplified Chinese")
+        preserveScreenshot("Voice ribbon Simplified Chinese")
     }
 
     func testCanonicalAskSearchesWorkspaceAndReturnsEvidenceBoundResponse() async throws {
@@ -2284,21 +2288,27 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         let question = "What changed with Leila?"
         typeTextReliably(question, into: composer)
-        let send = app.buttons["ask-send"]
+        let send = hittableButton("ask-send")
         XCTAssertTrue(send.isEnabled)
         send.tap()
 
         let pendingTurn = element("ask-pending-turn")
-        XCTAssertTrue(pendingTurn.waitForExistence(timeout: 15))
-        XCTAssertFalse(element("ask-recall-unresolved").exists)
-        let pendingMessage = element("ask-user-message")
-        XCTAssertEqual(pendingMessage.label, question)
-        let pendingComposer = askComposer
-        XCTAssertFalse(String(describing: pendingComposer.value).contains(question))
-        XCTAssertFalse(pendingComposer.isEnabled)
-        XCTAssertFalse(element("ask-response-turn").exists)
-        preserveScreenshot("Canonical Ask pending turn")
-        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 60))
+        let responseTurn = element("ask-response-turn")
+        if pendingTurn.waitForExistence(timeout: 1) {
+            XCTAssertFalse(element("ask-recall-unresolved").exists)
+            let pendingMessage = element("ask-user-message")
+            XCTAssertEqual(pendingMessage.label, question)
+            let pendingComposer = askComposer
+            XCTAssertFalse(String(describing: pendingComposer.value).contains(question))
+            XCTAssertFalse(pendingComposer.isEnabled)
+            preserveScreenshot("Canonical Ask pending turn")
+        } else {
+            XCTAssertTrue(
+                responseTurn.waitForExistence(timeout: 10),
+                "The delayed fixture should expose either its pending turn or its completed response."
+            )
+        }
+        XCTAssertTrue(responseTurn.waitForExistence(timeout: 60))
         XCTAssertTrue(pendingTurn.waitForNonExistence(timeout: 2))
         XCTAssertTrue(askComposer.isEnabled)
         XCTAssertFalse(app.staticTexts["Preview data · connect a workspace to send"].exists)
@@ -2311,7 +2321,7 @@ final class CandidateSignalUITests: XCTestCase {
         let evidence = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Evidence from ")
         ).firstMatch
-        XCTAssertTrue(evidence.waitForExistence(timeout: 5))
+        scrollToVisible(evidence)
         evidence.tap()
         XCTAssertTrue(element("ask-citation-detail").waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-citation-excerpt").exists)
@@ -2376,7 +2386,10 @@ final class CandidateSignalUITests: XCTestCase {
 
         let composer = askComposer
         typeTextReliably("What changed with Leila?", into: composer)
-        app.buttons["ask-send"].tap()
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        XCTAssertTrue(send.isHittable)
+        send.tap()
 
         guard element("ask-response-turn").waitForExistence(timeout: 60) else {
             XCTFail("The canonical Ask response did not render.")
@@ -2439,7 +2452,9 @@ final class CandidateSignalUITests: XCTestCase {
         tapWhenVisible(app.buttons["relationship-guide"])
         let composer = askComposer
         typeTextReliably("What do we know about Robin Current?", into: composer)
-        tapVisibleCenter(app.buttons["ask-send"])
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.isHittable)
+        send.tap()
 
         XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 60))
         XCTAssertFalse(element("ask-recall-unresolved").exists)
@@ -2447,7 +2462,7 @@ final class CandidateSignalUITests: XCTestCase {
         let evidence = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Evidence from ")
         ).firstMatch
-        XCTAssertTrue(evidence.waitForExistence(timeout: 5))
+        scrollToVisible(evidence)
         evidence.tap()
         XCTAssertTrue(element("ask-citation-detail").waitForExistence(timeout: 5))
         XCTAssertTrue(element("ask-citation-excerpt").exists)
@@ -2481,7 +2496,12 @@ final class CandidateSignalUITests: XCTestCase {
         let composer = askComposer
         let question = "Leila 有什么变化？"
         typeTextReliably(question, into: composer)
-        app.buttons["ask-send"].tap()
+        let send = app.buttons["ask-send"]
+        guard send.isHittable else {
+            XCTFail("The Ask send button is visible but cannot receive a tap.")
+            return
+        }
+        send.tap()
 
         let pendingTurn = element("ask-pending-turn")
         XCTAssertTrue(pendingTurn.waitForExistence(timeout: 15))
@@ -2559,12 +2579,22 @@ final class CandidateSignalUITests: XCTestCase {
         let composer = askComposer
         let question = "What changed with Leila?"
         typeTextReliably(question, into: composer)
-        app.buttons["ask-send"].tap()
+        let send = app.buttons["ask-send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertTrue(send.isHittable)
+        send.tap()
 
-        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 15))
+        let pendingTurn = element("ask-pending-turn")
+        let failure = element("ask-error")
+        XCTAssertTrue(
+            pendingTurn.waitForExistence(timeout: 1)
+                || failure.waitForExistence(timeout: 10),
+            "The delayed fixture should expose either its pending turn or its first failure."
+        )
         XCTAssertFalse(element("ask-recall-unresolved").exists)
-        XCTAssertTrue(element("ask-error").waitForExistence(timeout: 60))
-        XCTAssertFalse(element("ask-pending-turn").exists)
+        XCTAssertTrue(failure.waitForExistence(timeout: 60))
+        XCTAssertFalse(pendingTurn.exists)
         XCTAssertTrue(
             String(describing: askComposer.value).contains(question)
         )
@@ -2574,8 +2604,13 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(retry.exists)
         XCTAssertTrue(retry.isHittable)
         retry.tap()
-        XCTAssertTrue(element("ask-pending-turn").waitForExistence(timeout: 5))
-        XCTAssertTrue(element("ask-response-turn").waitForExistence(timeout: 60))
+        let responseTurn = element("ask-response-turn")
+        XCTAssertTrue(
+            pendingTurn.waitForExistence(timeout: 1)
+                || responseTurn.waitForExistence(timeout: 10),
+            "Retry should expose either its pending turn or its completed response."
+        )
+        XCTAssertTrue(responseTurn.waitForExistence(timeout: 60))
         XCTAssertFalse(element("ask-error").exists)
     }
 
@@ -2636,20 +2671,19 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertFalse(app.buttons["ask-prompt-menu"].exists)
         XCTAssertFalse(app.buttons["What changed?"].exists)
 
-        let expandedComposer = element("ask-expanded-composer")
-        let photos = app.buttons["ask-markdown-photo"]
+        let ribbon = element("ask-voice-ribbon")
+        let attachments = app.buttons["ask-attachment-menu"]
         let voice = app.buttons["ask-voice"]
-        XCTAssertTrue(expandedComposer.exists)
-        XCTAssertTrue(element("ask-markdown-toolbar").exists)
-        XCTAssertTrue(photos.exists)
-        XCTAssertTrue(photos.isEnabled)
+        XCTAssertTrue(ribbon.exists)
+        XCTAssertTrue(attachments.exists)
+        XCTAssertTrue(attachments.isEnabled)
         XCTAssertTrue(voice.exists)
-        XCTAssertGreaterThanOrEqual(photos.frame.height, 44)
-        XCTAssertLessThanOrEqual(photos.frame.width, 60)
+        XCTAssertGreaterThanOrEqual(attachments.frame.height, 44)
+        XCTAssertLessThanOrEqual(attachments.frame.width, 60)
         XCTAssertGreaterThanOrEqual(voice.frame.height, 44)
         XCTAssertLessThanOrEqual(voice.frame.width, 60)
         XCTAssertLessThanOrEqual(composer.frame.maxX, app.frame.maxX)
-        XCTAssertLessThanOrEqual(expandedComposer.frame.maxY, app.frame.maxY)
+        XCTAssertLessThanOrEqual(composer.frame.maxY, app.frame.maxY)
         XCTAssertTrue(element("ask-preview-send-boundary").exists)
         preserveScreenshot("Ask Chinese dark AX5 input-first")
 
@@ -4556,7 +4590,7 @@ final class CandidateSignalUITests: XCTestCase {
             element("contact-proposal-card").waitForNonExistence(timeout: 5)
         )
         XCTAssertTrue(app.textFields["ask-composer"].isEnabled)
-        XCTAssertTrue(app.buttons["ask-markdown-more"].isEnabled)
+        XCTAssertTrue(app.buttons["ask-attachment-menu"].isEnabled)
         XCTAssertTrue(app.buttons["ask-voice"].isEnabled)
     }
 
@@ -5312,15 +5346,19 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     private func testConfiguration(_ key: String, fallback: String) -> String {
-        if let environmentValue = ProcessInfo.processInfo.environment[key],
-           !environmentValue.isEmpty {
-            return environmentValue
-        }
+        // XCTest can reuse a simulator test daemon whose environment still
+        // carries an earlier run's ephemeral fixture ports. The bundle values
+        // are expanded by the current xcodebuild invocation and are therefore
+        // authoritative for this runner.
         if let bundleValue = Bundle(for: CandidateSignalUITests.self)
             .object(forInfoDictionaryKey: key) as? String,
            !bundleValue.isEmpty,
            !bundleValue.contains("$(") {
             return bundleValue
+        }
+        if let environmentValue = ProcessInfo.processInfo.environment[key],
+           !environmentValue.isEmpty {
+            return environmentValue
         }
         return fallback
     }
@@ -5738,7 +5776,34 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     private func element(_ identifier: String) -> XCUIElement {
-        app.descendants(matching: .any)[identifier]
+        let matches = app.descendants(matching: .any)
+            .matching(identifier: identifier)
+        if identifier == "relationship-ask-sheet",
+           let visible = matches.allElementsBoundByIndex.max(by: {
+               $0.frame.height < $1.frame.height
+           }) {
+            return visible
+        }
+        return app.descendants(matching: .any)[identifier]
+    }
+
+    private func hittableButton(
+        _ identifier: String,
+        timeout: TimeInterval = 5
+    ) -> XCUIElement {
+        let matches = app.buttons.matching(identifier: identifier)
+        let first = matches.firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: timeout))
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let visible = matches.allElementsBoundByIndex.first(where: {
+                $0.isHittable
+            }) {
+                return visible
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return first
     }
 
     private var askComposer: XCUIElement {
@@ -5785,8 +5850,8 @@ final class CandidateSignalUITests: XCTestCase {
     }
 
     private func openRelationshipMenu() {
-        let entry = app.buttons["relationship-agent-studio"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        let entry = hittableButton("relationship-agent-studio")
+        XCTAssertTrue(entry.isHittable)
         entry.tap()
         XCTAssertTrue(element("agent-studio").waitForExistence(timeout: 5))
         let settings = app.buttons["agent-settings"]

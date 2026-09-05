@@ -1,46 +1,6 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "Capture could not be removed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法移除截图"
-          }
-        }
-      }
-    },
-    "Inbox needs another try": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "截图列表需要重新加载"
-          }
-        }
-      }
-    },
-    "Remove local capture": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移除本地截图"
-          }
-        }
-      }
-    },
-    "Remove this capture?": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移除此截图？"
-          }
-        }
-      }
-    },
     "Week view": {
       "localizations": {
         "zh-Hans": {
@@ -26256,6 +26216,46 @@
         }
       }
     },
+    "Capture could not be removed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法移除截图"
+          }
+        }
+      }
+    },
+    "Inbox needs another try": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图列表需要重新加载"
+          }
+        }
+      }
+    },
+    "Remove local capture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除本地截图"
+          }
+        }
+      }
+    },
+    "Remove this capture?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除此截图？"
+          }
+        }
+      }
+    },
     "Selection starts an Agent Session. It processes the screenshot in the background and asks only when a decision is required.": {
       "localizations": {
         "zh-Hans": {
@@ -26542,6 +26542,246 @@
           "stringUnit": {
             "state": "translated",
             "value": "Agent 需要一个身份或证据决策才能继续。"
+          }
+        }
+      }
+    },
+    "Voice straight to Agent?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音直接交给 Agent？"
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始"
+          }
+        }
+      }
+    },
+    "When available, live words appear on device while you speak. When you release, the temporary recording goes to Doubao for transcription and the text is sent directly to Agent. Talent Signal deletes its temporary audio after transcription; provider handling follows your service agreement.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备支持时，说话过程中会在本机显示实时文字。松开后，临时录音交给豆包转写，文字直接发送给 Agent；转写完成后 Talent Signal 会删除临时音频。服务商按你的服务协议处理。"
+          }
+        }
+      }
+    },
+    "Hold to talk": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住说话"
+          }
+        }
+      }
+    },
+    "Double tap for hands-free voice, or hold the composer and release to send.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击开始免手持语音，或按住输入框说话，松开发送。"
+          }
+        }
+      }
+    },
+    "Send voice to Agent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送语音给 Agent"
+          }
+        }
+      }
+    },
+    "Listening…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在听…"
+          }
+        }
+      }
+    },
+    "One moment": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稍等一下"
+          }
+        }
+      }
+    },
+    "Release to send · up to lock · left to cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松开发送 · 上滑锁定 · 左滑取消"
+          }
+        }
+      }
+    },
+    "Hands-free": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免手持"
+          }
+        }
+      }
+    },
+    "Release to cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松开取消"
+          }
+        }
+      }
+    },
+    "Release to send": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松开发送"
+          }
+        }
+      }
+    },
+    "Microphone is off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "麦克风没打开"
+          }
+        }
+      }
+    },
+    "Didn't catch that": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没听清"
+          }
+        }
+      }
+    },
+    "Couldn't connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没连上"
+          }
+        }
+      }
+    },
+    "Still waiting": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没回来"
+          }
+        }
+      }
+    },
+    "Open": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看"
+          }
+        }
+      }
+    },
+    "Talent Signal Agent is preparing a response.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal Agent 正在准备回复。"
+          }
+        }
+      }
+    },
+    "Talent Signal Agent response is ready to review.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal Agent 的回复已可查看。"
+          }
+        }
+      }
+    },
+    "Talent Signal Agent did not connect. Open the protected Session to retry.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal Agent 未能连接。打开受保护的会话后重试。"
+          }
+        }
+      }
+    },
+    "Talent Signal Agent response is delayed. Open the protected Session to check or retry.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal Agent 的回复延迟了。打开受保护的会话查看或重试。"
+          }
+        }
+      }
+    },
+    "Stops recording, transcribes the temporary audio, and sends the words directly to Agent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止录音、转写临时音频，并将文字直接发送给 Agent。"
+          }
+        }
+      }
+    },
+    "Starts foreground voice input. Release to send, slide up to continue hands-free, or slide left to cancel.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始前台语音输入。松开发送，上滑继续免手持，左滑取消。"
+          }
+        }
+      }
+    },
+    "The question could not be protected for retry. Your message was not sent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法为重试安全保存这次提问。你的消息没有发送。"
           }
         }
       }
