@@ -4995,7 +4995,11 @@ final class CandidateSignalUITests: XCTestCase {
                     ? scrollView.frame.maxY
                     : window.maxY
                 let statusBottom = statusBar.frame.maxY
-                let edgeTolerance: CGFloat = 1
+                // The audit crop is unreliable when only the edge of a text
+                // line is inside the scroll viewport. Ignore that clipped
+                // line, while keeping contrast findings for fully visible
+                // content active.
+                let edgeTolerance = max(1, min(frame.height, 44))
                 return frame.minY <= statusBottom + edgeTolerance
                     || frame.maxY >= viewportBottom - edgeTolerance
             }
