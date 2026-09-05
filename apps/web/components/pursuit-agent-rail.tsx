@@ -12,9 +12,13 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  initialAgentTaskStreamState,
+  reduceAgentTaskStream,
+  type AgentTaskStreamFrame,
+} from "@/lib/agentTaskStream";
 import {
   workspaceSessionExpired,
   workspaceSessionFetch,
@@ -34,6 +38,7 @@ type Props = {
   } | null;
   initialTask: AgentTaskProjection | null;
   evidenceHref: string | null;
+  eventStreamHref?: string;
 };
 
 const runningStatuses = new Set<AgentTaskProjection["status"]>(["active"]);
@@ -71,9 +76,12 @@ export function PursuitAgentRail({
   agentContext,
   initialTask,
   evidenceHref,
+  eventStreamHref,
 }: Props) {
-  const router = useRouter();
   const [task, setTask] = useState(initialTask);
+  const [streamState, setStreamState] = useState(() =>
+    initialAgentTaskStreamState(initialTask),
+  );
   const [busy, setBusy] = useState<"create" | "cancel" | "">("");
   const [error, setError] = useState<string | null>(null);
   const objective = useMemo(
@@ -81,46 +89,58 @@ export function PursuitAgentRail({
       `为“${pursuit.title}”准备通话前简报：只使用已审阅且仍获授权的证据，说明发生了什么、当前依赖，以及一个最小安全下一步；证据不足时明确记录无需行动。`,
     [pursuit.title],
   );
+  const taskId = task?.id ?? null;
 
   useEffect(() => {
-    if (!task || !runningStatuses.has(task.status)) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const readback = async () => {
+    if (!taskId) return;
+    const source = new EventSource(
+      eventStreamHref ?? `/api/pursuit-agent-tasks/${taskId}/stream?after=0`,
+    );
+    const consume = (event: MessageEvent<string>) => {
       try {
-        const response = await workspaceSessionFetch(
-          `/api/pursuit-agent-tasks/${task.id}`,
-        );
-        const payload = (await response.json()) as {
-          task?: AgentTaskProjection;
-          error?: { message?: string };
-        };
-        if (workspaceSessionExpired(response.status, payload) || cancelled) return;
-        if (!response.ok || !payload.task) {
-          throw new Error(payload.error?.message ?? "任务读回暂时不可用。");
+        const frame = JSON.parse(event.data) as AgentTaskStreamFrame;
+        setStreamState((current) => {
+          try {
+            return reduceAgentTaskStream(current, frame);
+          } catch {
+            return {
+              ...current,
+              connected: false,
+              transportError: "收到无法识别的任务事件；正在以规范读回恢复。",
+            };
+          }
+        });
+        if (frame.type === "snapshot") {
+          setTask(frame.task);
+          if (!runningStatuses.has(frame.task.status)) {
+            source.close();
+          }
         }
-        setTask(payload.task);
-        if (runningStatuses.has(payload.task.status)) {
-          timer = setTimeout(readback, 900);
-        } else {
-          router.refresh();
-        }
-      } catch (caught) {
-        if (!cancelled) {
-          setError(
-            caught instanceof Error
-              ? caught.message
-              : "任务读回暂时不可用。",
-          );
-        }
+      } catch {
+        setStreamState((current) => ({
+          ...current,
+          transportError: "收到无法识别的任务事件；正在以规范读回恢复。",
+        }));
       }
     };
-    timer = setTimeout(readback, 500);
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
+    source.addEventListener("stream-open", consume as EventListener);
+    source.addEventListener("task-event", consume as EventListener);
+    source.addEventListener("task-snapshot", consume as EventListener);
+    source.addEventListener("content-block", consume as EventListener);
+    source.addEventListener("stream-error", consume as EventListener);
+    source.onopen = () => {
+      setStreamState((current) =>
+        reduceAgentTaskStream(current, {
+          taskId,
+          type: "stream_open",
+        }),
+      );
     };
-  }, [router, task]);
+    source.onerror = () => {
+      setStreamState((current) => ({ ...current, connected: false }));
+    };
+    return () => source.close();
+  }, [eventStreamHref, taskId]);
 
   async function createTask() {
     if (!agentContext || busy) return;
@@ -165,6 +185,7 @@ export function PursuitAgentRail({
         );
       }
       setTask(payload.task);
+      setStreamState(initialAgentTaskStreamState(payload.task));
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -265,7 +286,7 @@ export function PursuitAgentRail({
             <p>
               <strong>{statusCopy[task.status]}</strong>
               <span>
-                任务修订 {task.task_revision} · 事件 {task.latest_sequence} · 外部效果 0
+                任务修订 {task.task_revision} · 事件 {Math.max(task.latest_sequence, streamState.latestSequence)} · 外部效果 0
               </span>
             </p>
             {task.status === "active" ? (
@@ -276,7 +297,90 @@ export function PursuitAgentRail({
             ) : null}
           </div>
 
-          {artifact ? (
+          {streamState.steps.length > 0 ? (
+            <>
+              <p className={styles.srOnly} aria-live="polite" role="status">
+                {streamState.steps.at(-1)?.label}
+              </p>
+              <ol className={styles.progress} aria-label="任务处理过程">
+                {streamState.steps.slice(-6).map((step) => (
+                  <li
+                    data-status={
+                      step.status === "current" &&
+                      step.sequence < streamState.latestSequence
+                        ? "complete"
+                        : step.status
+                    }
+                    key={step.eventId}
+                  >
+                    <span aria-hidden="true" />
+                    <p>
+                      <strong>{step.label}</strong>
+                      <small>{step.detail}</small>
+                    </p>
+                  </li>
+                ))}
+                {task.status === "active" ? (
+                  <li data-status="current">
+                    <span aria-hidden="true" />
+                    <p>
+                      <strong>正在形成受治理的简报</strong>
+                      <small>
+                        {streamState.connected
+                          ? "事件流已连接；只展示可核验阶段，不展示模型私有推理。"
+                          : "正在重连；任务继续由后端持有，刷新不会重复执行。"}
+                      </small>
+                    </p>
+                  </li>
+                ) : null}
+              </ol>
+            </>
+          ) : null}
+
+          {task.status === "waiting_for_clarification" && task.clarification ? (
+            <section className={styles.handoff} data-kind="clarification">
+              <p className={styles.label}>需要准确澄清</p>
+              <h3>{task.clarification.question}</h3>
+              <p>{task.clarification.reason}</p>
+              <span>
+                这里不会自动执行动作；继续前必须由受治理流程记录回答并重新核对任务范围。
+              </span>
+            </section>
+          ) : null}
+
+          {task.status === "waiting_for_domain_decision" && task.decision_bundle ? (
+            <section className={styles.handoff} data-kind="decision">
+              <p className={styles.label}>等待你的决定</p>
+              <h3>{task.decision_bundle.dependency}</h3>
+              <p>
+                {task.decision_bundle.items.filter((item) => item.status === "open").length} 项提案仍未决定。事实确认与行动批准保持分离。
+              </p>
+              <Link href={`/workspace/pursuits/${pursuit.id}#proposal`}>
+                在受影响对象上审阅
+                <ArrowRight aria-hidden="true" size={15} />
+              </Link>
+            </section>
+          ) : null}
+
+          {!artifact && streamState.blocks.length > 0 ? (
+            <div className={styles.streamBriefing}>
+              {streamState.blocks.map((block) => (
+                <section data-kind={block.kind} data-status={block.status} key={block.id}>
+                  <p className={styles.label}>{block.title}</p>
+                  <p>{block.text || "正在形成…"}</p>
+                  {block.citationIds.length > 0 ? (
+                    evidenceHref ? (
+                      <Link href={evidenceHref}>
+                        {block.citationIds.length} 条受治理来源已连接
+                      </Link>
+                    ) : (
+                      <span>{block.citationIds.length} 条受治理来源已连接</span>
+                    )
+                  ) : null}
+                </section>
+              ))}
+            </div>
+          ) : artifact ? (
             <div className={styles.briefing} data-stale={isStale || undefined}>
               <section>
                 <p className={styles.label}>发生了什么</p>
@@ -347,6 +451,12 @@ export function PursuitAgentRail({
                 <span>离开页面不会丢失任务；返回时以规范快照为准。</span>
               </p>
             </div>
+          ) : null}
+
+          {streamState.transportError ? (
+            <p className={styles.transportNote} role="status">
+              {streamState.transportError}
+            </p>
           ) : null}
         </>
       )}

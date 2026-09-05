@@ -9,6 +9,19 @@
   top: 24px;
 }
 
+.srOnly {
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .header {
   align-items: center;
   display: grid;
@@ -145,6 +158,186 @@
   font-size: 0.74rem;
   gap: 5px;
   padding: 6px;
+}
+
+.progress {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 17px 22px 15px;
+}
+
+.progress li {
+  display: grid;
+  gap: 11px;
+  grid-template-columns: 10px 1fr;
+  min-height: 42px;
+  position: relative;
+}
+
+.progress li:not(:last-child)::after {
+  background: color-mix(in srgb, var(--ink, #27231f) 13%, transparent);
+  content: "";
+  height: calc(100% - 10px);
+  left: 4px;
+  position: absolute;
+  top: 11px;
+  width: 1px;
+}
+
+.progress li > span {
+  background: color-mix(in srgb, var(--surface, #fff) 90%, #e4ddd6);
+  border: 1px solid color-mix(in srgb, var(--ink, #27231f) 28%, transparent);
+  border-radius: 50%;
+  height: 9px;
+  margin-top: 4px;
+  position: relative;
+  width: 9px;
+  z-index: 1;
+}
+
+.progress li[data-status="complete"] > span {
+  background: var(--ink, #27231f);
+  border-color: var(--ink, #27231f);
+}
+
+.progress li[data-status="current"] > span {
+  animation: streamPulse 1.45s ease-in-out infinite;
+  background: #b9432d;
+  border-color: #b9432d;
+  box-shadow: 0 0 0 4px color-mix(in srgb, #b9432d 10%, transparent);
+}
+
+.progress li[data-status="attention"] > span,
+.progress li[data-status="failed"] > span {
+  background: #b9432d;
+  border-color: #b9432d;
+}
+
+.progress p {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 12px;
+}
+
+.progress strong {
+  font-size: 0.78rem;
+}
+
+.progress small {
+  color: color-mix(in srgb, var(--ink, #27231f) 58%, transparent);
+  font-size: 0.7rem;
+  line-height: 1.42;
+}
+
+.streamBriefing {
+  border-top: 1px solid color-mix(in srgb, var(--ink, #27231f) 9%, transparent);
+  display: grid;
+}
+
+.handoff {
+  border-top: 1px solid color-mix(in srgb, var(--ink, #27231f) 9%, transparent);
+  display: grid;
+  gap: 8px;
+  padding: 20px 22px 22px;
+  position: relative;
+}
+
+.handoff::before {
+  background: #b9432d;
+  content: "";
+  inset: 17px auto 17px 0;
+  position: absolute;
+  width: 3px;
+}
+
+.handoff h3,
+.handoff p,
+.handoff span {
+  margin: 0;
+}
+
+.handoff h3 {
+  font-size: 0.96rem;
+  line-height: 1.42;
+}
+
+.handoff > p:not(.label),
+.handoff > span {
+  color: color-mix(in srgb, var(--ink, #27231f) 66%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.handoff > span {
+  font-size: 0.7rem;
+}
+
+.handoff a {
+  align-items: center;
+  color: #9e3725;
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 720;
+  gap: 6px;
+  justify-self: start;
+  margin-top: 3px;
+  text-underline-offset: 3px;
+}
+
+.streamBriefing section {
+  animation: settleBlock 240ms cubic-bezier(0.2, 0.72, 0.22, 1) both;
+  padding: 19px 22px;
+  position: relative;
+}
+
+.streamBriefing section + section {
+  border-top: 1px solid color-mix(in srgb, var(--ink, #27231f) 8%, transparent);
+}
+
+.streamBriefing section[data-kind="dependency"] {
+  padding-left: 25px;
+}
+
+.streamBriefing section[data-kind="dependency"]::before {
+  animation: causalLine 340ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  background: #b9432d;
+  content: "";
+  inset: 16px auto 16px 0;
+  position: absolute;
+  transform-origin: top;
+  width: 3px;
+}
+
+.streamBriefing section[data-status="forming"] > p:not(.label) {
+  color: color-mix(in srgb, var(--ink, #27231f) 62%, transparent);
+}
+
+.streamBriefing section > p:not(.label) {
+  font-size: 0.84rem;
+  line-height: 1.55;
+  margin: 7px 0 0;
+  white-space: pre-line;
+}
+
+.streamBriefing section > span,
+.streamBriefing section > a {
+  color: #9e3725;
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-top: 8px;
+  text-underline-offset: 3px;
+}
+
+.transportNote {
+  border-top: 1px solid color-mix(in srgb, var(--ink, #27231f) 8%, transparent);
+  color: color-mix(in srgb, var(--ink, #27231f) 62%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  margin: 0;
+  padding: 11px 22px 14px;
 }
 
 .briefing > section {
@@ -298,8 +491,45 @@
   }
 }
 
+@keyframes streamPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, #b9432d 8%, transparent);
+    transform: scale(0.9);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, #b9432d 3%, transparent);
+    transform: scale(1);
+  }
+}
+
+@keyframes settleBlock {
+  from {
+    opacity: 0.45;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes causalLine {
+  from {
+    opacity: 0;
+    transform: scaleY(0.08);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .working > span {
+  .working > span,
+  .progress li[data-status="current"] > span,
+  .streamBriefing section,
+  .streamBriefing section[data-kind="dependency"]::before {
     animation: none;
   }
 }
@@ -316,9 +546,17 @@
   .start,
   .status,
   .working,
-  .details {
+  .details,
+  .progress,
+  .streamBriefing section,
+  .transportNote,
+  .handoff {
     padding-left: 17px;
     padding-right: 17px;
+  }
+
+  .streamBriefing section[data-kind="dependency"] {
+    padding-left: 20px;
   }
 
   .claims li {
