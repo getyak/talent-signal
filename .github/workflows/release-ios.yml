@@ -370,7 +370,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/asc_key.p8"
 
       - name: Restore exact archived IPA
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: TalentSignal-${{ needs.package.outputs.release_version }}-${{ needs.package.outputs.build_number }}
           path: build/ios
@@ -492,7 +492,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/asc_key.p8"
 
       - name: Restore exact uploaded IPA
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: TalentSignal-${{ needs.package.outputs.release_version }}-${{ needs.package.outputs.build_number }}
           path: build/ios
