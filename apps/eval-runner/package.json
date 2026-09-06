@@ -35,7 +35,7 @@
     "@sinclair/typebox": "^0.34.41"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
+    "@types/node": "^26.4.1",
     "tsx": "^4.23.12",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^4.1.11"

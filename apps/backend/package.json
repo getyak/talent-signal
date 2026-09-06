@@ -54,7 +54,7 @@
     "@talent-signal/evaluation": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.12",
     "typescript": "npm:@typescript/typescript6@6.0.2",
