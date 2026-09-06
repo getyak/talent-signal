@@ -195,6 +195,7 @@
 		CE35A34564136E92390F588E /* AgentWorkActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF4110EBF1C86CED7EFCED7 /* AgentWorkActivity.swift */; };
 		D08C2E84FC404988E0F82AE0 /* PursuitWorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */; };
 		D0A27182CBC7B809B9E99260 /* LabClientDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32DF7502592C73D42007EAB /* LabClientDiagnostics.swift */; };
+		D232A19CB53AF4F95547908A /* GoogleSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6215CA433BAEDC5DB807D7D3 /* GoogleSignInFlow.swift */; };
 		D2D82942CCD916156DBE1562 /* AgentAskLiveActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DCF08378478F3EB4965310B /* AgentAskLiveActivityUITests.swift */; };
 		D3873CA0595F191A0F3D7AD6 /* LabRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB3E02683C96CA56520CB12 /* LabRegressionTests.swift */; };
 		D41400F985C51EB415930910 /* LabDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BB714ED2B98094D6088D177 /* LabDiagnostics.swift */; };
@@ -202,6 +203,7 @@
 		D631C86A5EED28CC60D37E74 /* SharedCaptureEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */; };
 		D83900926F4FA1004644DC62 /* LabClientSpanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF393781C8A216BBD40FCB08 /* LabClientSpanTests.swift */; };
 		DAA7EA50674E48EA2BE36B37 /* AgentSourceImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF28145F685A0E49E323A85F /* AgentSourceImport.swift */; };
+		DB14818DB152AA692A267A31 /* GoogleSignInFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE5D2E6B4A895E655F0B421 /* GoogleSignInFlowTests.swift */; };
 		DB16C993EA71AB4C8AF6E003 /* LabResetExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6033B9D88E886443433BE75 /* LabResetExecutor.swift */; };
 		DBDEEC80AA6AC5C4E44CA1D1 /* LabReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BF299542D7248062A20CFEE /* LabReset.swift */; };
 		DDB0F17C3A014370AA4C8CC1 /* CandidateMomentumLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8806D300F51296BE8C1CECE3 /* CandidateMomentumLoop.swift */; };
@@ -215,9 +217,12 @@
 		EC03818C4A0DC080E11CF0F2 /* RelationshipCaptureClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2B7831196A17D268065375 /* RelationshipCaptureClient.swift */; };
 		ED720A2BC5113E7BE3DA5AAA /* AppAuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6709D57D3A6344F855B478F /* AppAuthenticationView.swift */; };
 		EDB8F227EF0E06B6933CA94E /* LabJobStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39793F9CFD3F4CDD94A4782 /* LabJobStore.swift */; };
+		EDE480A0FCEDE44DA2269451 /* AuthenticationPortraitScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80C665A25854FF38B8EEB05 /* AuthenticationPortraitScene.swift */; };
 		EE08E4BFF39F3C4D6B523814 /* LabDiagnosticsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97A09225E0E88A4272C063BE /* LabDiagnosticsEngine.swift */; };
+		EF8B1007C9B5DB795BC042AC /* AuthenticationEmailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074E415EAC1F24FEDE6B3C27 /* AuthenticationEmailView.swift */; };
 		F05235BB73AF218BB785AC65 /* LabFault.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6586D136C160B7A7AEAEA40E /* LabFault.swift */; };
 		F12627D7E2EDF5E5506EDD92 /* AppSessionEndingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51741768CB8F7BFFB7DB1B2F /* AppSessionEndingController.swift */; };
+		F1EB74C6F817F7F51EAD22AB /* AuthenticationWelcomeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBE09192F33FB568C5DDD402 /* AuthenticationWelcomeUITests.swift */; };
 		F26CC652696C26220B7BCE39 /* ResearchActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0A4A5861074DECBB9DD2A7 /* ResearchActivity.swift */; };
 		F29414196CFB77B16AEF2319 /* TextSignalSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11262DED3E38696377856A6 /* TextSignalSyncClient.swift */; };
 		F3E8C0F8266E3749EA007A9C /* LabFaultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9EE45D571DF974240C9F499 /* LabFaultView.swift */; };
@@ -230,6 +235,7 @@
 		F9BB4AC75F061F9F41AB74F8 /* AgentAskDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A7036D4B3995FAD7F72F5F /* AgentAskDeepLink.swift */; };
 		FA2154B29466D7C1BF4C6347 /* RelationshipAskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */; };
 		FB785570BB8B32E21F21850E /* AudioSignalCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A9699249B87A87A878D261 /* AudioSignalCapture.swift */; };
+		FBD44D642451C22499801364 /* AuthenticationWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D2BA6C0C47D3F0EA682072 /* AuthenticationWelcomeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -284,6 +290,7 @@
 		0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewStore.swift; sourceTree = "<group>"; };
 		062C1584E789157D567078A8 /* LabFaultTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFaultTransport.swift; sourceTree = "<group>"; };
 		06ADD1619E8386FC4116FD31 /* LabSessionEndingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabSessionEndingsView.swift; sourceTree = "<group>"; };
+		074E415EAC1F24FEDE6B3C27 /* AuthenticationEmailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationEmailView.swift; sourceTree = "<group>"; };
 		07A7036D4B3995FAD7F72F5F /* AgentAskDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAskDeepLink.swift; sourceTree = "<group>"; };
 		080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitWorkspaceStore.swift; sourceTree = "<group>"; };
 		0875AC9189D11935C0FEA846 /* LabFeatureOverrideStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFeatureOverrideStore.swift; sourceTree = "<group>"; };
@@ -350,6 +357,7 @@
 		5E9E39D69232B7E4E068B600 /* StandaloneVoiceCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneVoiceCaptureService.swift; sourceTree = "<group>"; };
 		5EF4110EBF1C86CED7EFCED7 /* AgentWorkActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkActivity.swift; sourceTree = "<group>"; };
 		60A18C3F984A35189159BEC7 /* LabCIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabCIView.swift; sourceTree = "<group>"; };
+		6215CA433BAEDC5DB807D7D3 /* GoogleSignInFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInFlow.swift; sourceTree = "<group>"; };
 		63953A0F31800DC886749C51 /* ConversationTextRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationTextRecognizer.swift; sourceTree = "<group>"; };
 		63EDB5D30193BD69657831B5 /* LabMetricKitStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabMetricKitStore.swift; sourceTree = "<group>"; };
 		6586D136C160B7A7AEAEA40E /* LabFault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFault.swift; sourceTree = "<group>"; };
@@ -415,6 +423,7 @@
 		A529998BE8981323162D3C6B /* RelationshipArchiveSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipArchiveSheets.swift; sourceTree = "<group>"; };
 		A551BFD6547CCDF5B612E66D /* AppSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSessionTests.swift; sourceTree = "<group>"; };
 		A6033B9D88E886443433BE75 /* LabResetExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabResetExecutor.swift; sourceTree = "<group>"; };
+		A80C665A25854FF38B8EEB05 /* AuthenticationPortraitScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationPortraitScene.swift; sourceTree = "<group>"; };
 		A9161D0F10C35A2F93579D36 /* AgentTaskProjectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTaskProjectionStoreTests.swift; sourceTree = "<group>"; };
 		AA2B7831196A17D268065375 /* RelationshipCaptureClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCaptureClient.swift; sourceTree = "<group>"; };
 		AA5787007A2101D53C994CC4 /* ResearchActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchActivityTests.swift; sourceTree = "<group>"; };
@@ -436,6 +445,7 @@
 		BB9EFCAC52B0FE8E9A27402D /* LabFaultUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFaultUITests.swift; sourceTree = "<group>"; };
 		BE7D8D288EC295CF8F91EE6B /* RelationshipAskMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipAskMedia.swift; sourceTree = "<group>"; };
 		BEAC612B5F8D83AB7BA6CA2F /* RelationshipCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCapture.swift; sourceTree = "<group>"; };
+		BEE5D2E6B4A895E655F0B421 /* GoogleSignInFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInFlowTests.swift; sourceTree = "<group>"; };
 		C055DF9018C7C6137410022B /* LabResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabResetTests.swift; sourceTree = "<group>"; };
 		C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewClient.swift; sourceTree = "<group>"; };
 		C163AFC6685072EC347E7902 /* RelationshipCalendarWeekGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCalendarWeekGrid.swift; sourceTree = "<group>"; };
@@ -486,12 +496,14 @@
 		EFCC78A34D94A81860D97866 /* LabDiagnosticsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabDiagnosticsStore.swift; sourceTree = "<group>"; };
 		F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureSyncClient.swift; sourceTree = "<group>"; };
 		F170F1FA5E3CCFE86BAAA3C7 /* LabExperiment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabExperiment.swift; sourceTree = "<group>"; };
+		F1D2BA6C0C47D3F0EA682072 /* AuthenticationWelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationWelcomeView.swift; sourceTree = "<group>"; };
 		F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalView.swift; sourceTree = "<group>"; };
 		F4A5D22923CCC606F2FA73CC /* LabTaskTrialTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabTaskTrialTests.swift; sourceTree = "<group>"; };
 		F53E8ACA4C974310ADDAD651 /* RuntimeEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeEnvironmentTests.swift; sourceTree = "<group>"; };
 		F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSignalComponents.swift; sourceTree = "<group>"; };
 		FA4DE25B40A661065D2904DC /* LabMetricKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabMetricKitView.swift; sourceTree = "<group>"; };
 		FBC1A0D411E14B92F259BD21 /* AgentWorkShowcaseStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkShowcaseStoreTests.swift; sourceTree = "<group>"; };
+		FBE09192F33FB568C5DDD402 /* AuthenticationWelcomeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationWelcomeUITests.swift; sourceTree = "<group>"; };
 		FD09035FB0CA0D56BB937CAA /* ConversationContactIntake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationContactIntake.swift; sourceTree = "<group>"; };
 		FD364EDBF5A4336B3493CAB7 /* ScreenshotContactTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotContactTask.swift; sourceTree = "<group>"; };
 		FE3ECC4EC4904ED2131A5BA2 /* TalentSignalLabClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalLabClient.swift; sourceTree = "<group>"; };
@@ -520,6 +532,7 @@
 				00C1F85CF77A1219EEEDAF19 /* AudioSignalCaptureTests.swift */,
 				E41661443A1C8C4C0123BD27 /* CandidateSignalTests.swift */,
 				BAF7A150F49BBD2D49301417 /* ConversationContactIntakeTests.swift */,
+				BEE5D2E6B4A895E655F0B421 /* GoogleSignInFlowTests.swift */,
 				744427491C9864B09CAF13DD /* HeroLoopTests.swift */,
 				208291EBFF8C8FF4721330B4 /* LabCITests.swift */,
 				CF393781C8A216BBD40FCB08 /* LabClientSpanTests.swift */,
@@ -613,6 +626,7 @@
 				9DCF08378478F3EB4965310B /* AgentAskLiveActivityUITests.swift */,
 				CAAB9035F34B0E674E37ED2C /* AgentSourceImportUITests.swift */,
 				8284F66591A57487F14F964F /* AgentWorkShowcaseUITests.swift */,
+				FBE09192F33FB568C5DDD402 /* AuthenticationWelcomeUITests.swift */,
 				59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */,
 				EB1929D001893C3FA445C73B /* LabDemoResetUITests.swift */,
 				B7BA6ABF89066A837B02D357 /* LabDiagnosticsUITests.swift */,
@@ -659,6 +673,7 @@
 				B0595635496A42C62406F044 /* ConversationContactIntentInterpreter.swift */,
 				63953A0F31800DC886749C51 /* ConversationTextRecognizer.swift */,
 				F0A0ED203FAD1B4BD2A974CE /* FixtureSyncClient.swift */,
+				6215CA433BAEDC5DB807D7D3 /* GoogleSignInFlow.swift */,
 				A32DF7502592C73D42007EAB /* LabClientDiagnostics.swift */,
 				963F1DB2940F190D82DC7BE0 /* LabDemoReset.swift */,
 				C67F020BFF4B5D36459852B5 /* LabDiagnosticFiles.swift */,
@@ -714,6 +729,9 @@
 				E4A87D8AD9EB892B7AA6D836 /* AskInputReliability.swift */,
 				86268F86835A658E3431C11B /* AudioSignalCaptureStore.swift */,
 				D08F6E4EC1E24E8888C85C5A /* AudioSignalCaptureView.swift */,
+				074E415EAC1F24FEDE6B3C27 /* AuthenticationEmailView.swift */,
+				A80C665A25854FF38B8EEB05 /* AuthenticationPortraitScene.swift */,
+				F1D2BA6C0C47D3F0EA682072 /* AuthenticationWelcomeView.swift */,
 				F65FD02A1A72391E9BBB4E70 /* CandidateSignalComponents.swift */,
 				1126D2A5D6E0AB92128FDA22 /* CandidateSignalStore.swift */,
 				F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */,
@@ -1030,6 +1048,7 @@
 				9BFF4FE9255A2B018D330A10 /* AudioSignalCaptureTests.swift in Sources */,
 				3030219A987894DFC181C6EE /* CandidateSignalTests.swift in Sources */,
 				100DE00DA44FED823CD5ED20 /* ConversationContactIntakeTests.swift in Sources */,
+				DB14818DB152AA692A267A31 /* GoogleSignInFlowTests.swift in Sources */,
 				344B5467E2BD111985A44EA1 /* HeroLoopTests.swift in Sources */,
 				16CB4CD0617CB6263D9EC665 /* LabCITests.swift in Sources */,
 				D83900926F4FA1004644DC62 /* LabClientSpanTests.swift in Sources */,
@@ -1066,6 +1085,7 @@
 				D2D82942CCD916156DBE1562 /* AgentAskLiveActivityUITests.swift in Sources */,
 				65DFBB837BC3BA748724FC37 /* AgentSourceImportUITests.swift in Sources */,
 				5F4C0601B701323F55D5FC2A /* AgentWorkShowcaseUITests.swift in Sources */,
+				F1EB74C6F817F7F51EAD22AB /* AuthenticationWelcomeUITests.swift in Sources */,
 				5AB53512D99F0073F3911B6E /* CandidateSignalUITests.swift in Sources */,
 				5DC32E9DAC5533A161806413 /* LabDemoResetUITests.swift in Sources */,
 				87AC6DED6156702F973E966F /* LabDiagnosticsUITests.swift in Sources */,
@@ -1124,6 +1144,9 @@
 				5DA957CEE37AF61DFF8F2076 /* AudioSignalCaptureStore.swift in Sources */,
 				1F026D22636BADFB28C6ED7F /* AudioSignalCaptureView.swift in Sources */,
 				9399BE568B566B35A27873C0 /* AudioSignalRecorder.swift in Sources */,
+				EF8B1007C9B5DB795BC042AC /* AuthenticationEmailView.swift in Sources */,
+				EDE480A0FCEDE44DA2269451 /* AuthenticationPortraitScene.swift in Sources */,
+				FBD44D642451C22499801364 /* AuthenticationWelcomeView.swift in Sources */,
 				DDB0F17C3A014370AA4C8CC1 /* CandidateMomentumLoop.swift in Sources */,
 				EA6EA4AEAC8EDD736735E7A8 /* CandidateSignal.swift in Sources */,
 				AD08E92344FA0B6C172C1F68 /* CandidateSignalComponents.swift in Sources */,
@@ -1138,6 +1161,7 @@
 				11C0F6747910DC2616DB4931 /* DeviceContactHandoffView.swift in Sources */,
 				978B6B4ADCF708381B6BD4C4 /* DeviceLabStore.swift in Sources */,
 				855BD6D5CC0D965D2DB61D81 /* FixtureSyncClient.swift in Sources */,
+				D232A19CB53AF4F95547908A /* GoogleSignInFlow.swift in Sources */,
 				7E5C6DFC8ED9BB98FE04A67F /* LabAppearanceView.swift in Sources */,
 				7A6F3BBFF6AB703CF545D11E /* LabCI.swift in Sources */,
 				10D0DE5381A557414500AF84 /* LabCIStore.swift in Sources */,

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>TalentSignalGoogleClientID</key>
+    <string>599793800024-o383jlkge2l7idep81uu4akqmdselnrb.apps.googleusercontent.com</string>
     <key>TalentSignalDeviceLabEnabled</key>
     <string>$(TALENT_SIGNAL_DEVICE_LAB_ENABLED)</string>
     <key>CFBundleDevelopmentRegion</key>
@@ -24,6 +26,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>talentsignal</string>
+                <string>com.googleusercontent.apps.599793800024-o383jlkge2l7idep81uu4akqmdselnrb</string>
 			</array>
 		</dict>
 	</array>

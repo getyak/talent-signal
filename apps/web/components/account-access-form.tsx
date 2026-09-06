@@ -16,7 +16,7 @@ function SubmitButton({ mode }: { mode: "register" | "sign-in" }) {
   const label = mode === "register" ? "创建工作台" : "进入工作台";
   return (
     <button className="button auth-submit" type="submit" disabled={pending}>
-      {pending ? "正在保护账号" : label}
+      {pending ? "正在登录…" : label}
       <ArrowRight aria-hidden="true" size={17} />
     </button>
   );
@@ -74,13 +74,13 @@ export function AccountAccessForm({
         <form className="email-sign-in" action={signInAction}>
           <input type="hidden" name="redirectTo" value={callbackUrl} />
           <div className="auth-field">
-            <label htmlFor="account-identifier">用户名或邮箱</label>
+            <label htmlFor="account-identifier">邮箱</label>
             <input
               id="account-identifier"
               name="identifier"
-              type="text"
+              type="email"
               autoComplete="username"
-              placeholder="输入用户名或邮箱"
+              placeholder="you@example.com"
               required
             />
           </div>
@@ -99,9 +99,7 @@ export function AccountAccessForm({
           </div>
           <FormError message={signInState.error} />
           <SubmitButton mode="sign-in" />
-          <p className="auth-account-note">
-            本地管理员：<strong>cubxxw</strong>。身份验证只会打开账号范围；关系变更仍需审阅。
-          </p>
+
         </form>
       ) : (
         <form className="email-sign-in" action={registrationAction}>
@@ -119,20 +117,7 @@ export function AccountAccessForm({
                 required
               />
             </div>
-            <div className="auth-field">
-              <label htmlFor="registration-username">用户名</label>
-              <input
-                id="registration-username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                placeholder="字母、数字、. _ -"
-                minLength={3}
-                maxLength={40}
-                pattern="[a-zA-Z0-9][a-zA-Z0-9._-]*"
-                required
-              />
-            </div>
+
           </div>
           <div className="auth-field">
             <label htmlFor="registration-email">邮箱</label>

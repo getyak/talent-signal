@@ -1,3 +1,4 @@
+import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
 import { LabTaskTrialService } from "./modules/labTaskTrials.js";
 import { registerLabTaskTrialRoutes } from "./modules/labTaskTrialRoutes.js";
@@ -631,7 +632,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '049_contact_task_images'`,
+           WHERE version = '050_google_auth'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -762,6 +763,7 @@ export async function buildApp(
       ),
   );
 
+  registerGoogleAuth(app, pool, config);
   const authenticate = createAuthGuard(pool);
   const security = [{ bearerSession: [] }];
   registerRuntimeManifest(app, config);

@@ -63,7 +63,10 @@ for (const path of swiftFiles(sourceRoot)) {
     /\b(?:appLanguage|language|interfaceLanguage)\.text\(\s*"((?:\\.|[^"\\])*)"\s*\)/gsu,
   );
   for (const match of directCatalogCalls) {
-    const key = match[1].replaceAll('\\"', '"').replaceAll("\\\\", "\\");
+    // Decode Swift escapes once, keeping a literal backslash-n distinct from a newline.
+    const key = match[1].replace(/\\(["\\nrt0])/gu, (_, escaped) => ({
+      '"': '"', "\\": "\\", n: "\n", r: "\r", t: "\t", "0": "\0",
+    })[escaped]);
     if (!interfaceKeys.has(key)) missingCatalogKeys.add(key);
   }
   legacyInlineCount += legacy;

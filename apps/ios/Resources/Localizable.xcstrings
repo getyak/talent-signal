@@ -28001,6 +28001,206 @@
           }
         }
       }
+    },
+    "Every relationship.\nA next chapter.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让每一段关系，\n都有新的可能。"
+          }
+        }
+      }
+    },
+    "Keep the context. Make room for what’s next.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留住来时的线索，让下一步自然发生。"
+          }
+        }
+      }
+    },
+    "Swipe up, or tap to begin": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻轻上滑，开始连接"
+          }
+        }
+      }
+    },
+    "Introduction": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初次见面"
+          }
+        }
+      }
+    },
+    "Continue with Google": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Google 继续"
+          }
+        }
+      }
+    },
+    "Continue with email": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用邮箱继续"
+          }
+        }
+      }
+    },
+    "New here? Create an account": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第一次来？创建账号"
+          }
+        }
+      }
+    },
+    "Already have an account? Sign in": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已有账号？登录"
+          }
+        }
+      }
+    },
+    "Sign in": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录"
+          }
+        }
+      }
+    },
+    "Password": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码"
+          }
+        }
+      }
+    },
+    "Create workspace": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建工作区"
+          }
+        }
+      }
+    },
+    "Use at least 8 characters for your password.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码至少需要 8 个字符。"
+          }
+        }
+      }
+    },
+    "Google sign-in is not available in this build. Use Apple or email.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此版本暂不支持 Google 登录，请使用 Apple 或邮箱。"
+          }
+        }
+      }
+    },
+    "Google sign-in could not be verified. Please try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能验证 Google 登录，请重试。"
+          }
+        }
+      }
+    },
+    "Google sign-in could not finish. Please try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 登录未完成，请重试。"
+          }
+        }
+      }
+    },
+    "The email or password is not recognized.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "邮箱或密码不正确，请重试。"
+          }
+        }
+      }
+    },
+    "This email already has an account. Please sign in.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该邮箱已有账号，请直接登录。"
+          }
+        }
+      }
+    },
+    "This email already has a workspace. Use its existing sign-in method.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该邮箱已有工作区，请使用原来的方式登录。"
+          }
+        }
+      }
+    },
+    "Google sign-in expired. Please try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google 登录已过期，请重新开始。"
+          }
+        }
+      }
+    },
+    "Sign-in is temporarily unavailable. Please try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法登录，请稍后重试。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

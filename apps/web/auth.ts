@@ -21,6 +21,9 @@ import {
 } from "@/lib/server/backendAuth";
 import { getGoogleOAuthCredentials } from "@/lib/server/google-oauth";
 
+import { GOOGLE_NONCE_COOKIE } from "@/lib/server/google-session";
+import { finishGoogleSignIn } from "@/lib/server/google-session";
+
 const credentialAttempts = new Map<
   string,
   { count: number; resetAt: number }
@@ -178,6 +181,7 @@ if (googleCredentials) {
     Google({
       clientId: googleCredentials.clientId,
       clientSecret: googleCredentials.clientSecret,
+      checks: ["pkce", "state", "nonce"],
     }),
   );
 }
@@ -214,8 +218,27 @@ if (getDefaultAccount().quickLoginEnabled) {
 }
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
+  logger: {
+    error(error) { console.error("Authentication failed:", error.name); },
+  },
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user, account }) {
+      if (account?.provider === "google") {
+        if (!account.id_token) throw new Error("Google did not return an identity token.");
+        const backend = await finishGoogleSignIn(account.id_token);
+        token.sub = backend.user.id;
+        token.email = backend.user.email;
+        token.name = backend.user.display_name;
+        token.backendAccessToken = backend.access_token;
+        token.backendAccountId = backend.account.id;
+        token.backendAccountName = backend.account.name;
+        token.backendAccountSlug = backend.account.slug;
+        token.backendExpiresAt = backend.expires_at;
+        token.backendRole = backend.user.role;
+        token.backendUserId = backend.user.id;
+        token.backendUsername = backend.user.username;
+        return token;
+      }
       if (user) {
         const backendUser = user as typeof user & {
           backendAccessToken?: string;
@@ -276,6 +299,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
   },
   cookies: {
+    nonce: { name: GOOGLE_NONCE_COOKIE, options: { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" } },
     sessionToken: {
       name: AUTH_SESSION_COOKIE,
       options: {
@@ -289,6 +313,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   providers,
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   session: {
     maxAge: 60 * 60 * 8,

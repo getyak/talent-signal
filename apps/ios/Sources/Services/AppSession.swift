@@ -176,6 +176,9 @@ final class KeychainTalentSignalSessionStore: TalentSignalSessionPersisting {
 }
 
 protocol AppAuthenticationServing {
+    func googleChallenge() async throws -> AppleLoginChallenge
+    func signInGoogle(identityToken: String, challengeID: String) async throws -> TalentSignalSession
+    func signInEmail(email: String, password: String, registering: Bool) async throws -> TalentSignalSession
     func challenge() async throws -> AppleLoginChallenge
     func signIn(
         identityToken: String,
@@ -187,6 +190,12 @@ protocol AppAuthenticationServing {
     func logout(_ stored: TalentSignalSession) async throws
 }
 
+extension AppAuthenticationServing {
+    func googleChallenge() async throws -> AppleLoginChallenge { throw GoogleSignInError.unavailable }
+    func signInGoogle(identityToken: String, challengeID: String) async throws -> TalentSignalSession { throw GoogleSignInError.unavailable }
+    func signInEmail(email: String, password: String, registering: Bool) async throws -> TalentSignalSession { throw GoogleSignInError.unavailable }
+}
+
 actor AppAuthenticationClient: AppAuthenticationServing {
     private let baseURL: URL
     private let session: URLSession
@@ -194,6 +203,36 @@ actor AppAuthenticationClient: AppAuthenticationServing {
     init(baseURL: URL, session: URLSession = TalentSignalNetworking.session) {
         self.baseURL = baseURL
         self.session = session
+    }
+
+    func googleChallenge() async throws -> AppleLoginChallenge {
+        try await request(path: "v1/auth/google/challenges", method: "POST", token: nil,
+                          body: ["client_label": "ios"])
+    }
+
+    func signInGoogle(identityToken: String, challengeID: String) async throws -> TalentSignalSession {
+        let envelope: AppSessionEnvelope = try await request(path: "v1/auth/google", method: "POST", token: nil,
+            body: ["identity_token": identityToken, "challenge_id": challengeID, "client_label": "ios"])
+        return try session(from: envelope)
+    }
+
+    func signInEmail(email: String, password: String, registering: Bool) async throws -> TalentSignalSession {
+        let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let body = registering
+            ? ["username": "u" + UUID().uuidString.replacingOccurrences(of: "-", with: ""),
+               "email": normalized, "display_name": String(normalized.split(separator: "@").first ?? "Talent Signal"),
+               "password": password, "client_label": "ios"]
+            : ["identifier": normalized, "password": password, "client_label": "ios"]
+        let envelope: AppSessionEnvelope = try await request(path: registering ? "v1/auth/password/register" : "v1/auth/password/login",
+            method: "POST", token: nil, body: body)
+        return try session(from: envelope)
+    }
+
+    private func session(from response: AppSessionEnvelope) throws -> TalentSignalSession {
+        guard response.contractVersion == TalentSignalAPIContract.version else { throw AppSessionError.contractMismatch }
+        return TalentSignalSession(baseURL: baseURL, accessToken: response.accessToken, expiresAt: response.expiresAt,
+            account: .init(id: response.account.id, slug: response.account.slug, name: response.account.name),
+            user: .init(id: response.user.id, email: response.user.email, displayName: response.user.displayName, kind: response.user.kind))
     }
 
     func challenge() async throws -> AppleLoginChallenge {

@@ -26,7 +26,7 @@ import {
   verifyPasswordCredential,
 } from "./passwordCredential.js";
 
-type UserKind = "simulated_human" | "apple_human" | "password_human" | "lab_human";
+type UserKind = "simulated_human" | "apple_human" | "password_human" | "lab_human" | "google_human";
 type UserRole = "admin" | "member";
 
 export interface AuthContext {
@@ -113,7 +113,7 @@ function boundedName(request: AppleLoginRequest): string {
   return name || "Talent Signal Recruiter";
 }
 
-async function insertSession(
+export async function insertSession(
   client: Pick<Pool, "query"> | PoolClient,
   config: BackendConfig,
   identity: {

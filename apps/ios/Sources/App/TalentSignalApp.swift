@@ -216,6 +216,13 @@ struct TalentSignalApp: App {
                 .id(appSessionStore.contextGeneration)
                 .environment(\.labRuntime, labRuntimeStore)
                 .preferredColorScheme(requestedColorScheme)
+#if DEBUG
+                // Exercise the reduced-motion rendering branch through the Lab
+                // override, without changing Simulator's system preference.
+                .transformEnvironment(\.labReduceMotion) { value in
+                    value = value || ProcessInfo.processInfo.arguments.contains("--reduce-motion")
+                }
+#endif
                 .task {
                     if requiresAuthentication, appSessionStore.phase == .restoring, !labRuntimeStore.isWorking {
                         if labRuntimeStore.hasActivated { await labRuntimeStore.restoreSelectedEnvironment() }
