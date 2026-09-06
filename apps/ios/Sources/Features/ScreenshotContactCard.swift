@@ -84,7 +84,7 @@ struct ScreenshotContactCard: View {
                 }
             }
             if let sources = task.sourceImages, let onLoadImage, !sources.isEmpty {
-                DisclosureGroup(language.text("Original images", zhHans: "原始图片")) {
+                DisclosureGroup(language.text("Original images")) {
                     ForEach(sources, id: \.imageIndex) { source in
                         Button {
                             loadingSource = true
@@ -92,8 +92,8 @@ struct ScreenshotContactCard: View {
                                 let content = try await onLoadImage(source.imageIndex)
                                 guard let image = UIImage(data: content.data) else { throw PursuitWorkspaceClientError.invalidResponse }
                                 sourceImage = image; showsSourceImage = true; recoveryError = nil
-                            } catch { recoveryError = language.text("The image could not be read.", zhHans: "原图读取失败，请重试。") } }
-                        } label: { Text(verbatim: "\(language.text("Image", zhHans: "图片")) \(source.imageIndex + 1)").frame(minHeight: 44) }
+                            } catch { recoveryError = language.text("The image could not be read.") } }
+                        } label: { Text(verbatim: "\(language.text("Image")) \(source.imageIndex + 1)").frame(minHeight: 44) }
                         .disabled(loadingSource)
                     }
                 }
@@ -102,7 +102,7 @@ struct ScreenshotContactCard: View {
                 DisclosureGroup(language.text("Chat evidence")) {
                     ForEach(extraction.messages) { message in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(verbatim: "\(message.sourceImageIndex.map { "\(language.text("Image", zhHans: "图片")) \($0 + 1) · " } ?? "")\(message.messageID) · \(message.speakerSide == "left" ? language.text("Left side") : message.speakerSide == "right" ? language.text("Right side") : language.text("Speaker unknown"))")
+                            Text(verbatim: "\(message.sourceImageIndex.map { "\(language.text("Image")) \($0 + 1) · " } ?? "")\(message.messageID) · \(message.speakerSide == "left" ? language.text("Left side") : message.speakerSide == "right" ? language.text("Right side") : language.text("Speaker unknown"))")
                                 .font(.caption2).foregroundStyle(Color.tsMutedInk)
                             Text(message.text).font(.subheadline).textSelection(.enabled)
                             if let time = message.timeText { Text(time).font(.caption2).foregroundStyle(Color.tsMutedInk) }
@@ -133,7 +133,7 @@ struct ScreenshotContactCard: View {
             .sheet(isPresented: $showsSourceImage, onDismiss: { sourceImage = nil }) {
                 NavigationStack {
                     ScrollView([.horizontal, .vertical]) { if let sourceImage { Image(uiImage: sourceImage).resizable().scaledToFit() } }
-                        .navigationTitle(language.text("Original image", zhHans: "原始图片"))
+                        .navigationTitle(language.text("Original image"))
                         .toolbar { ToolbarItem(placement: .cancellationAction) { Button(language.text("Done")) { showsSourceImage = false } } }
                 }
             }

@@ -13,7 +13,8 @@ function sourceFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
-      if (new Set([".next", "dist", "node_modules"]).has(entry.name)) return [];
+      if (new Set([".next", "dist", "node_modules"]).has(entry.name)
+        || entry.name.startsWith(".next-")) return [];
       return sourceFiles(path);
     }
     if (/\.(?:test|spec)\./u.test(entry.name)) return [];

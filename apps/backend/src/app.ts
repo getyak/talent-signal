@@ -632,7 +632,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '046_lab_feature_overrides'`,
+           WHERE version = '050_google_auth'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");

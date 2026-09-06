@@ -16,7 +16,7 @@ interaction refinement, not a new visual identity.
 
 - [Diagnosis](../docs/evaluations/2026-09-04-ios-scroll-jitter.md): missing guide
   clearance is measured; sustained frame stalls were not independently proven.
-- Current main checkout has substantial concurrent work, including iOS tests
+- Current shared working checkout has substantial concurrent work, including iOS tests
   using the existing simulator. Implement in `/tmp/talent-signal-scroll-continuity`
   on `codex/ios-scroll-continuity`, seeded with the current iOS working files.
 - Own only archive layout/scroll feedback, a narrowly necessary metadata helper,
@@ -54,3 +54,19 @@ marker, which is a 1-point background view. The actual List now has its own
 identifier, and regression tests require a large gesture target and a changed
 deep-list anchor before testing restoration. This prevents a non-scrolling
 test from passing on the first row.
+
+## Publication follow-up
+
+The user explicitly authorized committing, merging to remote `main`, and
+publishing a new version. The current trusted TestFlight release is `v0.1.43`.
+
+1. [complete] Create `codex/release-ios-scroll-continuity` from remote `main`
+   (`56aff0d`) in `/tmp/talent-signal-scroll-release`. Apply only the saved task
+   delta, keeping the main branch's native accessibility environment key.
+   Unrelated Lab/calendar work remains in the shared working checkout.
+2. [complete] Re-run the focused eight UI cases and one unit case against
+   isolated production source `d6617b6`: all nine passed. Commit the final
+   screenshots and keep hosted checks attached to PR #119.
+3. [in progress] Merge the passing PR, follow main CI and automatic TestFlight
+   delivery, and verify the release receipt binds the new build to the merged
+   commit. The published receipt is the authoritative delivery evidence.

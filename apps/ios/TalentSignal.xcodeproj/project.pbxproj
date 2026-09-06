@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0280A09F855960F8B9B8B582 /* AgentAskActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3328EB6E9CD5E04046B93CBB /* AgentAskActivity.swift */; };
+		028A2559C5DD59ED1867A7D4 /* LivingConnectionMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231394EAA3A3E7C83062638C /* LivingConnectionMark.swift */; };
 		02D37D4D53E73293C4D3D9A0 /* ResearchShowcaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC263880F93DD93183A4721 /* ResearchShowcaseView.swift */; };
 		0314D8056DFF292BFD22CB4E /* SharedCaptureEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */; };
 		0513C2E912C1D6479E8AA01B /* LabRegressionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31393B212BA4B3E67630341 /* LabRegressionStore.swift */; };
@@ -33,6 +35,8 @@
 		122F3F66FF0C0C53631CBACD /* AgentSourceImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67B400CAEE0BA7279B55B84 /* AgentSourceImportTests.swift */; };
 		14CBE52224646433A28484EB /* PendingCaptureInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43E2D32DD9913AC4F6E097A /* PendingCaptureInbox.swift */; };
 		151197801AAA0BD6501466C2 /* ReleaseBoundaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D137439B29C6808B301FD14C /* ReleaseBoundaryTests.swift */; };
+		15D4764A44E1FA18A7FCDF91 /* LivingConnectionMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231394EAA3A3E7C83062638C /* LivingConnectionMark.swift */; };
+		15F64F09BF7F3AA01A386C9F /* AgentAskLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F0E05C7B34524A0C830C9A /* AgentAskLiveActivity.swift */; };
 		16CB4CD0617CB6263D9EC665 /* LabCITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 208291EBFF8C8FF4721330B4 /* LabCITests.swift */; };
 		17554FC903A4478FE7F41E25 /* TalentSignalLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB1094A0E966F6F4FD0ECEA /* TalentSignalLab.swift */; };
 		17AB391376909DD604853403 /* LabResetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F8ED6FCB699557253F515D8 /* LabResetView.swift */; };
@@ -80,6 +84,7 @@
 		51955724A4CC1CE0BADEDF64 /* LabWorkspaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22DD07C8A3CC5DF320D396B /* LabWorkspaceTests.swift */; };
 		51CC4576387A30B5422FED93 /* ProductLabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358CF9D54C9748EFCB0468A7 /* ProductLabTests.swift */; };
 		51D67F57B05649EB7A86C282 /* LabFeatureOverrideTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2510365385378D04B3C2FF06 /* LabFeatureOverrideTests.swift */; };
+		520014E1A1A0A4D79DEA8717 /* RelationshipCalendarWeekGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = C163AFC6685072EC347E7902 /* RelationshipCalendarWeekGrid.swift */; };
 		54382CF52C643FC1746E25A5 /* LabExperimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5059110E994D6B1B1834B9F9 /* LabExperimentView.swift */; };
 		54C1228F6FA21FD84789FBEB /* ScreenshotContactCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DE1D23A8F15392A25620C0 /* ScreenshotContactCard.swift */; };
 		5717CFDFE12342D1A36EAB8B /* TalentSignalLabClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE3ECC4EC4904ED2131A5BA2 /* TalentSignalLabClient.swift */; };
@@ -98,19 +103,23 @@
 		61A9FCA9306146EBB8B4D618 /* StandaloneOnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18DB19A9B630FFFC327395CB /* StandaloneOnboardingTests.swift */; };
 		61C6EB2AE6DFAA4CC58A1DEE /* TextSignalOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBE84777F748BF910538D0E /* TextSignalOutbox.swift */; };
 		6301D1E69B8E5C7A596D63B0 /* StandaloneCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C66F4083C1349A570FEBEC26 /* StandaloneCalendarService.swift */; };
+		644BBC50752D85C3D302642D /* AgentAskDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A7036D4B3995FAD7F72F5F /* AgentAskDeepLink.swift */; };
 		65A6C324A3F1E15232BCD315 /* AgentTaskProjectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9161D0F10C35A2F93579D36 /* AgentTaskProjectionStoreTests.swift */; };
 		65DFBB837BC3BA748724FC37 /* AgentSourceImportUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAAB9035F34B0E674E37ED2C /* AgentSourceImportUITests.swift */; };
 		66267EA89F7EF5166E793778 /* LabMetricKitStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63EDB5D30193BD69657831B5 /* LabMetricKitStore.swift */; };
 		682FD75326F0B5D63FFF0424 /* AppSessionEndingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1B014F1D0CC158C46AF490 /* AppSessionEndingStore.swift */; };
 		69008CBE1C879982F0C15317 /* LabFaultFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE1365345F9EB91F6DB5ED9 /* LabFaultFixtures.swift */; };
+		6A9B5A156F2375D6878D90A5 /* AgentAskActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E994DB114437B41140D89F8F /* AgentAskActivityController.swift */; };
 		6C0BB9BFACC7F67BA2E9B6D2 /* LabMetricKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67264938699A317F2D8670B /* LabMetricKitTests.swift */; };
 		7014831C5B18487CAD449AEE /* AppSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E964E1942AD295B505F9A3 /* AppSettingsView.swift */; };
 		706A5D1C083A3CDD32642F00 /* PursuitProposalReviewStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78788A89F71A15312E2EC139 /* PursuitProposalReviewStoreTests.swift */; };
+		712886B371B043412BED9D8E /* AgentAskActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4681EAC2D1B102202997C758 /* AgentAskActivityTests.swift */; };
 		717BD2A1DB11583B3D0A8FDA /* LabWorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3ABCAB879646B50E6D13A3 /* LabWorkspaceStore.swift */; };
 		71C2191A8B9F500124E59F7D /* TalentSignalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C6AFD36C53DCE168525B5F /* TalentSignalApp.swift */; };
 		7230D7E787C6A595BE24845E /* AppSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6D8F6894923DD54E359F8E /* AppSession.swift */; };
 		72B340A984815C3C9D0858BB /* CandidateSignalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D9B7F6140163816B8B25C2 /* CandidateSignalView.swift */; };
 		73C829D4D73DEE5B45E69EF5 /* AppSessionEndingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9A9E650EDCD2F91EC6076C /* AppSessionEndingTests.swift */; };
+		740B05CF8F6F47928D7053CE /* AgentAskActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3328EB6E9CD5E04046B93CBB /* AgentAskActivity.swift */; };
 		74230B00F95395AE5436FA30 /* TalentSignalLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3F004990C36E6DDFE34C78F1 /* TalentSignalLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		77486493B1A1B6C4F81928D8 /* LabDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48BDD93D1E228A24D59741B /* LabDisplay.swift */; };
 		77C7E7613C67FBDF162269EA /* AgentWorkLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1B45C64EB571D6FF9CE73A /* AgentWorkLiveActivity.swift */; };
@@ -187,6 +196,7 @@
 		D08C2E84FC404988E0F82AE0 /* PursuitWorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */; };
 		D0A27182CBC7B809B9E99260 /* LabClientDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32DF7502592C73D42007EAB /* LabClientDiagnostics.swift */; };
 		D232A19CB53AF4F95547908A /* GoogleSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6215CA433BAEDC5DB807D7D3 /* GoogleSignInFlow.swift */; };
+		D2D82942CCD916156DBE1562 /* AgentAskLiveActivityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DCF08378478F3EB4965310B /* AgentAskLiveActivityUITests.swift */; };
 		D3873CA0595F191A0F3D7AD6 /* LabRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB3E02683C96CA56520CB12 /* LabRegressionTests.swift */; };
 		D41400F985C51EB415930910 /* LabDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BB714ED2B98094D6088D177 /* LabDiagnostics.swift */; };
 		D4A62460F620C32CA5059986 /* RelationshipCaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */; };
@@ -222,6 +232,7 @@
 		F864B401A294FBA71D6C93C2 /* TextSignalCaptureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54258A90B16E34F5EE3E5D6E /* TextSignalCaptureStore.swift */; };
 		F96C69AAB23CB1B752B993E5 /* LabServerTraceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B8AA9A90553828117B10B7 /* LabServerTraceTests.swift */; };
 		F99D87ADB719E827B646BECB /* TalentSignalShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3C016B1623AC9D14699F323A /* TalentSignalShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F9BB4AC75F061F9F41AB74F8 /* AgentAskDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A7036D4B3995FAD7F72F5F /* AgentAskDeepLink.swift */; };
 		FA2154B29466D7C1BF4C6347 /* RelationshipAskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */; };
 		FB785570BB8B32E21F21850E /* AudioSignalCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A9699249B87A87A878D261 /* AudioSignalCapture.swift */; };
 		FBD44D642451C22499801364 /* AuthenticationWelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D2BA6C0C47D3F0EA682072 /* AuthenticationWelcomeView.swift */; };
@@ -280,6 +291,7 @@
 		062C1584E789157D567078A8 /* LabFaultTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFaultTransport.swift; sourceTree = "<group>"; };
 		06ADD1619E8386FC4116FD31 /* LabSessionEndingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabSessionEndingsView.swift; sourceTree = "<group>"; };
 		074E415EAC1F24FEDE6B3C27 /* AuthenticationEmailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationEmailView.swift; sourceTree = "<group>"; };
+		07A7036D4B3995FAD7F72F5F /* AgentAskDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAskDeepLink.swift; sourceTree = "<group>"; };
 		080E6FA76D7185947E24AC2C /* PursuitWorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitWorkspaceStore.swift; sourceTree = "<group>"; };
 		0875AC9189D11935C0FEA846 /* LabFeatureOverrideStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFeatureOverrideStore.swift; sourceTree = "<group>"; };
 		0E8F03F28B7FF8E63906218F /* LabRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabRegressionUITests.swift; sourceTree = "<group>"; };
@@ -294,6 +306,7 @@
 		20D743A016C7D7D7112A485C /* PursuitWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitWorkspace.swift; sourceTree = "<group>"; };
 		229BFC9CA8CC2F6CB674E4B2 /* LabFeatureOverrideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFeatureOverrideView.swift; sourceTree = "<group>"; };
 		22DB0A59B2443F9BDAFB6893 /* LabResetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabResetStore.swift; sourceTree = "<group>"; };
+		231394EAA3A3E7C83062638C /* LivingConnectionMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivingConnectionMark.swift; sourceTree = "<group>"; };
 		2510365385378D04B3C2FF06 /* LabFeatureOverrideTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFeatureOverrideTests.swift; sourceTree = "<group>"; };
 		2796745F45891838868FEA7B /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		2C8A42CBB4A5B1229D5BCC0D /* TalentSignalBrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalBrandMark.swift; sourceTree = "<group>"; };
@@ -303,6 +316,7 @@
 		31807D07BD9324DED4296DA1 /* ResearchShowcaseUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchShowcaseUITests.swift; sourceTree = "<group>"; };
 		32026C689AEC61DA656EF0CC /* ProductLabUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductLabUITests.swift; sourceTree = "<group>"; };
 		327317B5194F28D22C27E733 /* LabJobView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabJobView.swift; sourceTree = "<group>"; };
+		3328EB6E9CD5E04046B93CBB /* AgentAskActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAskActivity.swift; sourceTree = "<group>"; };
 		35643A5A42A9001D1E2A25BA /* LabWorkspaceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabWorkspaceClient.swift; sourceTree = "<group>"; };
 		358CF9D54C9748EFCB0468A7 /* ProductLabTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductLabTests.swift; sourceTree = "<group>"; };
 		382034DC80F815EB41351067 /* DeviceCalendarHandoffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCalendarHandoffView.swift; sourceTree = "<group>"; };
@@ -314,6 +328,7 @@
 		3CA3B1B8042B74DA1B5D1670 /* TextSignalCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSignalCaptureView.swift; sourceTree = "<group>"; };
 		3ECC062E60F1241A933BAA8E /* LabMetricKitSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabMetricKitSource.swift; sourceTree = "<group>"; };
 		3F004990C36E6DDFE34C78F1 /* TalentSignalLiveActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TalentSignalLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4681EAC2D1B102202997C758 /* AgentAskActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAskActivityTests.swift; sourceTree = "<group>"; };
 		477706244A63791F58675F88 /* StandaloneOnboardingPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneOnboardingPersistence.swift; sourceTree = "<group>"; };
 		47F40DA10468A0E4EF2DE9C6 /* LabWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabWorkspace.swift; sourceTree = "<group>"; };
 		492B173010D561E3AE1D1630 /* LabCIStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabCIStore.swift; sourceTree = "<group>"; };
@@ -395,6 +410,7 @@
 		9A6CFD746E2C15C43760ED29 /* AgentWorkActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkActivityTests.swift; sourceTree = "<group>"; };
 		9A7BDAF8D5C011D35DFB8C91 /* TalentSignalLabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalLabStore.swift; sourceTree = "<group>"; };
 		9CB1094A0E966F6F4FD0ECEA /* TalentSignalLab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalentSignalLab.swift; sourceTree = "<group>"; };
+		9DCF08378478F3EB4965310B /* AgentAskLiveActivityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAskLiveActivityUITests.swift; sourceTree = "<group>"; };
 		9E61BE45D1DCE5E4FCBD98AB /* AgentWorkShowcaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentWorkShowcaseView.swift; sourceTree = "<group>"; };
 		9F3299334B73DB2B186B8E0D /* LabExperimentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabExperimentStore.swift; sourceTree = "<group>"; };
 		9F949D7FD6FC90553A6E5BBC /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
@@ -432,8 +448,10 @@
 		BEE5D2E6B4A895E655F0B421 /* GoogleSignInFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInFlowTests.swift; sourceTree = "<group>"; };
 		C055DF9018C7C6137410022B /* LabResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabResetTests.swift; sourceTree = "<group>"; };
 		C0D05DF05D08ED499C60BA0E /* PursuitProposalReviewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PursuitProposalReviewClient.swift; sourceTree = "<group>"; };
+		C163AFC6685072EC347E7902 /* RelationshipCalendarWeekGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipCalendarWeekGrid.swift; sourceTree = "<group>"; };
 		C22DD07C8A3CC5DF320D396B /* LabWorkspaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabWorkspaceTests.swift; sourceTree = "<group>"; };
 		C39793F9CFD3F4CDD94A4782 /* LabJobStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabJobStore.swift; sourceTree = "<group>"; };
+		C4F0E05C7B34524A0C830C9A /* AgentAskLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAskLiveActivity.swift; sourceTree = "<group>"; };
 		C66F4083C1349A570FEBEC26 /* StandaloneCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneCalendarService.swift; sourceTree = "<group>"; };
 		C6709D57D3A6344F855B478F /* AppAuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAuthenticationView.swift; sourceTree = "<group>"; };
 		C67F020BFF4B5D36459852B5 /* LabDiagnosticFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabDiagnosticFiles.swift; sourceTree = "<group>"; };
@@ -467,6 +485,7 @@
 		E4B9DD88B0418B709B3BB579 /* LabDisplayStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabDisplayStore.swift; sourceTree = "<group>"; };
 		E68ADCA955185ACDD422B618 /* SignalCaptureHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalCaptureHubView.swift; sourceTree = "<group>"; };
 		E81E698FE234DABDA4A1DE8A /* RuntimeWorkRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeWorkRegistry.swift; sourceTree = "<group>"; };
+		E994DB114437B41140D89F8F /* AgentAskActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAskActivityController.swift; sourceTree = "<group>"; };
 		E9C7FFDCFE8722F56DF1F6EA /* AudioSignalRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalRecorder.swift; sourceTree = "<group>"; };
 		EB1929D001893C3FA445C73B /* LabDemoResetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabDemoResetUITests.swift; sourceTree = "<group>"; };
 		EDE8E6527C5E88A9A0F9A7CE /* TalentSignal.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TalentSignal.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -502,6 +521,7 @@
 		5F3AB4552568EA1521E713B1 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				4681EAC2D1B102202997C758 /* AgentAskActivityTests.swift */,
 				D67B400CAEE0BA7279B55B84 /* AgentSourceImportTests.swift */,
 				A9161D0F10C35A2F93579D36 /* AgentTaskProjectionStoreTests.swift */,
 				9A6CFD746E2C15C43760ED29 /* AgentWorkActivityTests.swift */,
@@ -546,7 +566,9 @@
 		7FD836AA9D0C855C795C982E /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				3328EB6E9CD5E04046B93CBB /* AgentAskActivity.swift */,
 				5EF4110EBF1C86CED7EFCED7 /* AgentWorkActivity.swift */,
+				231394EAA3A3E7C83062638C /* LivingConnectionMark.swift */,
 				DB0A4A5861074DECBB9DD2A7 /* ResearchActivity.swift */,
 				4A50CADCC91C4605F27C6C1A /* SharedCaptureEnvelope.swift */,
 				92D3DFA665A94517E53A0FA4 /* SignalRecordingActivity.swift */,
@@ -565,6 +587,7 @@
 		B4411FAA4554EB31C0452C9D /* LiveActivityExtension */ = {
 			isa = PBXGroup;
 			children = (
+				C4F0E05C7B34524A0C830C9A /* AgentAskLiveActivity.swift */,
 				1C1B45C64EB571D6FF9CE73A /* AgentWorkLiveActivity.swift */,
 				7F54857C6EA2DBE6A1473233 /* ResearchLiveActivity.swift */,
 				CBB35C452EFE107B189275BF /* TalentSignalLiveActivity.swift */,
@@ -575,6 +598,7 @@
 		B6B247646EF67B2E1643E203 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				07A7036D4B3995FAD7F72F5F /* AgentAskDeepLink.swift */,
 				3A553780CF4A3FD1D02A3B97 /* AgentWorkDeepLink.swift */,
 				9F949D7FD6FC90553A6E5BBC /* AppLanguage.swift */,
 				52A9FCA23A5C5E97951C4D39 /* CaptureAppIntents.swift */,
@@ -599,6 +623,7 @@
 		C44A1D05CD0EA51DDD875F43 /* UITests */ = {
 			isa = PBXGroup;
 			children = (
+				9DCF08378478F3EB4965310B /* AgentAskLiveActivityUITests.swift */,
 				CAAB9035F34B0E674E37ED2C /* AgentSourceImportUITests.swift */,
 				8284F66591A57487F14F964F /* AgentWorkShowcaseUITests.swift */,
 				FBE09192F33FB568C5DDD402 /* AuthenticationWelcomeUITests.swift */,
@@ -638,6 +663,7 @@
 		D8A8D595EBD5932C805DAE83 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				E994DB114437B41140D89F8F /* AgentAskActivityController.swift */,
 				96782C69AE43C6EF3F999F7A /* AgentTaskClient.swift */,
 				1A23BD2192A87045AA609DC9 /* AgentWorkActivityController.swift */,
 				DC6D8F6894923DD54E359F8E /* AppSession.swift */,
@@ -750,6 +776,7 @@
 				BE7D8D288EC295CF8F91EE6B /* RelationshipAskMedia.swift */,
 				7458AA13E847D3B5B5883E13 /* RelationshipAskView.swift */,
 				5303360A786621B5E24E6FBA /* RelationshipCalendarView.swift */,
+				C163AFC6685072EC347E7902 /* RelationshipCalendarWeekGrid.swift */,
 				91CE9CF3D21A7E16E3C237D8 /* RelationshipCaptureStore.swift */,
 				7FAEBC372E2477E425197A45 /* RelationshipCaptureView.swift */,
 				CCC263880F93DD93183A4721 /* ResearchShowcaseView.swift */,
@@ -990,9 +1017,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				740B05CF8F6F47928D7053CE /* AgentAskActivity.swift in Sources */,
+				644BBC50752D85C3D302642D /* AgentAskDeepLink.swift in Sources */,
+				15F64F09BF7F3AA01A386C9F /* AgentAskLiveActivity.swift in Sources */,
 				859EC52FB93AF008278378C3 /* AgentWorkActivity.swift in Sources */,
 				8EF20E674F788485564775EF /* AgentWorkDeepLink.swift in Sources */,
 				77C7E7613C67FBDF162269EA /* AgentWorkLiveActivity.swift in Sources */,
+				15D4764A44E1FA18A7FCDF91 /* LivingConnectionMark.swift in Sources */,
 				0C02816E75FA6E097B709B75 /* ResearchActivity.swift in Sources */,
 				E23715D21368381A6A1B2892 /* ResearchDeepLink.swift in Sources */,
 				7B2C7F6A9B631DD2E524FAC4 /* ResearchLiveActivity.swift in Sources */,
@@ -1006,6 +1037,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				712886B371B043412BED9D8E /* AgentAskActivityTests.swift in Sources */,
 				122F3F66FF0C0C53631CBACD /* AgentSourceImportTests.swift in Sources */,
 				65A6C324A3F1E15232BCD315 /* AgentTaskProjectionStoreTests.swift in Sources */,
 				9085961F86A4AC442B154DA6 /* AgentWorkActivityTests.swift in Sources */,
@@ -1050,6 +1082,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D2D82942CCD916156DBE1562 /* AgentAskLiveActivityUITests.swift in Sources */,
 				65DFBB837BC3BA748724FC37 /* AgentSourceImportUITests.swift in Sources */,
 				5F4C0601B701323F55D5FC2A /* AgentWorkShowcaseUITests.swift in Sources */,
 				F1EB74C6F817F7F51EAD22AB /* AuthenticationWelcomeUITests.swift in Sources */,
@@ -1087,6 +1120,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0280A09F855960F8B9B8B582 /* AgentAskActivity.swift in Sources */,
+				6A9B5A156F2375D6878D90A5 /* AgentAskActivityController.swift in Sources */,
+				F9BB4AC75F061F9F41AB74F8 /* AgentAskDeepLink.swift in Sources */,
 				DAA7EA50674E48EA2BE36B37 /* AgentSourceImport.swift in Sources */,
 				3D83D117ABDF33015527917A /* AgentSourceSettingsView.swift in Sources */,
 				9F4ECEB9B5EB3201E4987926 /* AgentTaskClient.swift in Sources */,
@@ -1180,6 +1216,7 @@
 				F7982A2DD2E9DBE8E42AE202 /* LabWorkspaceJourneyStore.swift in Sources */,
 				717BD2A1DB11583B3D0A8FDA /* LabWorkspaceStore.swift in Sources */,
 				DED516B92DC9766A9E603815 /* LabWorkspaceView.swift in Sources */,
+				028A2559C5DD59ED1867A7D4 /* LivingConnectionMark.swift in Sources */,
 				14CBE52224646433A28484EB /* PendingCaptureInbox.swift in Sources */,
 				9FB627ED726DA10B9878C338 /* ProductLabView.swift in Sources */,
 				0579CDAB80FE992D88E870AF /* PursuitProposalReviewClient.swift in Sources */,
@@ -1194,6 +1231,7 @@
 				ACC0E1060D9BE78F6F244141 /* RelationshipAskMedia.swift in Sources */,
 				FA2154B29466D7C1BF4C6347 /* RelationshipAskView.swift in Sources */,
 				82F626089258164A29855376 /* RelationshipCalendarView.swift in Sources */,
+				520014E1A1A0A4D79DEA8717 /* RelationshipCalendarWeekGrid.swift in Sources */,
 				78E69431CCB66C1BFA7EFDDF /* RelationshipCapture.swift in Sources */,
 				EC03818C4A0DC080E11CF0F2 /* RelationshipCaptureClient.swift in Sources */,
 				D4A62460F620C32CA5059986 /* RelationshipCaptureStore.swift in Sources */,

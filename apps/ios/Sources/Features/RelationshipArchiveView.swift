@@ -1,18 +1,20 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 @MainActor
 struct RelationshipArchiveView: View {
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @StateObject private var captureIntentRouter = CaptureIntentRouter.shared
+    @StateObject private var askDeepLinkRouter = AgentAskDeepLinkRouter.shared
     @StateObject private var workspaceStore: PursuitWorkspaceStore
     @StateObject private var sessionStore: AgentSessionStore
     @StateObject private var labStore: TalentSignalLabStore
     @State private var selectedPage: RelationshipArchivePage = .today
     @State private var pageSwipeProgress: CGFloat = 0
-    @State private var retrievalIntentGeneration = 0
     @State private var sessionScrollPosition: UUID?
     @State private var peopleScrollPosition: String?
     @State private var sessionRestorationPosition: UUID?
@@ -21,7 +23,9 @@ struct RelationshipArchiveView: View {
     @State private var askPresentation: RelationshipAskPresentation?
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
-    @State private var isRelationshipCalendarPresented = false
+    @State private var isCaptureInboxPresented = false
+    @State private var relationshipCalendarPresentation:
+        RelationshipCalendarLaunchIntent?
     @State private var relationshipCalendarActivities: [RelationshipCalendarActivity] = []
     @State private var deferredIntakePresentation: AgentIntakePresentation?
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
@@ -149,6 +153,13 @@ struct RelationshipArchiveView: View {
         accountEmail = session?.userEmail
         workspaceLabel = session?.accountSlug
         self.onSignOut = onSignOut
+#if DEBUG
+        if arguments.contains("--capture-inbox-open-hub") {
+            _intakePresentation = State(
+                initialValue: AgentIntakePresentation(initialDestination: .hub)
+            )
+        }
+#endif
     }
 
     var body: some View {
@@ -156,25 +167,22 @@ struct RelationshipArchiveView: View {
             ZStack {
                 Color.tsSurface.ignoresSafeArea()
                 pageContent
-                    .id(retrievalIntentGeneration)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
                     RelationshipArchiveHeader(
                         selectedPage: Binding(
                             get: { selectedPage },
-                            set: selectPage
+                            set: { selectPage($0) }
                         ),
                         pageProgress: pageSwipeProgress,
                         onOpenAgentStudio: {
                             clearTransientRetrievalIntent()
                             presentedSheet = .agentStudio
                         },
-                        onOpenCalendar: {
-                            clearTransientRetrievalIntent()
-                            isRelationshipCalendarPresented = true
-                        }
+                        onOpenCalendar: openRelationshipCalendar
                     )
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     if (labStore.isEnabled || DeviceLabAvailability.enabled)
                         && (selectedPage == .today || labStore.session != nil) {
                         HStack {
@@ -195,6 +203,7 @@ struct RelationshipArchiveView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+        .environment(\.layoutDirection, pageLayoutDirection)
         .overlay(alignment: .top) {
             if let notice = workspaceStore.refreshNotice {
                 PursuitWorkspaceRefreshNotice(message: notice)
@@ -327,7 +336,10 @@ struct RelationshipArchiveView: View {
                 onSignOut: onSignOut,
                 refreshWorkspace: workspaceStore.isCanonical ? { await workspaceStore.refreshForLab() } : nil)
         }
-        .sheet(item: $askPresentation, onDismiss: completeDeferredTransition) { presentation in
+        .fullScreenCover(
+            item: $askPresentation,
+            onDismiss: completeDeferredTransition
+        ) { presentation in
             if let snapshot = workspaceStore.snapshot {
                 RelationshipAskView(
                     snapshot: snapshot,
@@ -431,17 +443,18 @@ struct RelationshipArchiveView: View {
             }
         }
         .fullScreenCover(
-            isPresented: $isRelationshipCalendarPresented,
+            item: $relationshipCalendarPresentation,
             onDismiss: {
                 reloadRelationshipCalendarActivities()
                 completeDeferredTransition()
             }
-        ) {
+        ) { launchIntent in
             if let snapshot = workspaceStore.snapshot {
                 RelationshipCalendarView(
                     snapshot: snapshot,
                     isPreview: !workspaceStore.isCanonical,
                     initialActivities: relationshipCalendarActivities,
+                    launchIntent: launchIntent,
                     personDetail: { personID in
                         guard let current = workspaceStore.snapshot,
                               let person = current.person(id: personID) else { return nil }
@@ -465,6 +478,21 @@ struct RelationshipArchiveView: View {
                 reloadRelationshipCalendarActivities()
                 await revalidateSessionEvidence()
                 await labStore.load(force: true)
+                await captureHandoff.processPendingCaptures(
+                    sessionStore: sessionStore,
+                    service: captureProcessingService
+                )
+            }
+        }
+        .onChange(of: captureHandoff.inboxItems) { items in
+            guard items.contains(where: {
+                $0.processingState == .queued || $0.processingState == .processing
+            }) else { return }
+            Task {
+                await captureHandoff.processPendingCaptures(
+                    sessionStore: sessionStore,
+                    service: captureProcessingService
+                )
             }
         }
         .sheet(
@@ -481,8 +509,22 @@ struct RelationshipArchiveView: View {
                 onContinueInAgent: continueCaptureInAgent
             )
         }
+        .sheet(
+            isPresented: $isCaptureInboxPresented,
+            onDismiss: completeDeferredTransition
+        ) {
+            CaptureInboxView(
+                backendURL: reviewBaseURL,
+                accessToken: authenticatedAccessToken,
+                workspaceID: workspaceStore.snapshot?.workspaceID,
+                runtimeScope: runtimeScope,
+                onDismiss: { isCaptureInboxPresented = false },
+                onContinueInAgent: continueCaptureInAgent
+            )
+        }
         .onReceive(captureHandoff.$pendingSeed) { seed in
             guard let seed else { return }
+            guard !isCaptureInboxPresented else { return }
             if intakePresentation != nil {
                 if seed.origin == .appShortcut {
                     deferredCapturePresentation = .screenshot
@@ -509,6 +551,26 @@ struct RelationshipArchiveView: View {
             }
             captureIntentRouter.consume(request.id)
         }
+        .onReceive(askDeepLinkRouter.$link) { link in
+            guard let link,
+                  link.identity.workspaceID == workspaceStore.snapshot?.workspaceID,
+                  let sessionID = UUID(uuidString: link.identity.sessionID) else { return }
+            clearTransientRetrievalIntent()
+            selectedPage = .sessions
+            askPresentation = .init(
+                sessionID: sessionID,
+                seed: nil,
+                preferredPersonID: nil,
+                preferredPersonLabel: nil,
+                entryMode: .text
+            )
+            askDeepLinkRouter.consume(link.identity)
+            Task {
+                await AgentAskActivityController.shared.endActivities(
+                    sessionID: link.identity.sessionID
+                )
+            }
+        }
         .onOpenURL { url in
             guard url.scheme == "talent-signal-capture" else { return }
             switch url.host {
@@ -522,6 +584,10 @@ struct RelationshipArchiveView: View {
             await workspaceStore.load()
             reloadRelationshipCalendarActivities()
             await revalidateSessionEvidence()
+            await captureHandoff.processPendingCaptures(
+                sessionStore: sessionStore,
+                service: captureProcessingService
+            )
         }
         .task {
             await labStore.load()
@@ -551,6 +617,16 @@ struct RelationshipArchiveView: View {
                     accessToken: accessToken
                 )
             }
+        }
+    }
+
+    private var captureProcessingService: (any RelationshipCaptureServing)? {
+        reviewBaseURL.map {
+            URLRelationshipCaptureClient(
+                baseURL: $0,
+                accessToken: authenticatedAccessToken,
+                runtimeScope: runtimeScope
+            )
         }
     }
 
@@ -591,6 +667,30 @@ struct RelationshipArchiveView: View {
 
     @ViewBuilder
     private var pageContent: some View {
+        TabView(
+            selection: Binding(
+                get: { selectedPage },
+                set: { selectPage($0) }
+            )
+        ) {
+            ForEach(RelationshipArchivePage.allCases) { page in
+                archivePage(page) {
+                    pageContent(for: page)
+                }
+                .tag(page)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .indexViewStyle(.page(backgroundDisplayMode: .never))
+        .coordinateSpace(name: Self.pageCoordinateSpace)
+        .onPreferenceChange(RelationshipPageMeasurementKey.self) { measurements in
+            updatePageProgress(from: measurements)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func pageContent(for page: RelationshipArchivePage) -> some View {
         switch workspaceStore.phase {
         case .loading:
             PursuitWorkspaceLoadingView()
@@ -603,96 +703,93 @@ struct RelationshipArchiveView: View {
                 Task { await workspaceStore.load() }
             }
         case .empty:
-            PursuitWorkspaceEmptyView(selectedPage: selectedPage)
+            PursuitWorkspaceEmptyView(
+                selectedPage: page,
+                pendingCaptureCount: captureHandoff.attentionCount,
+                onOpenCaptureInbox: {
+                    clearTransientRetrievalIntent()
+                    isCaptureInboxPresented = true
+                }
+            )
         case let .preview(snapshot), let .loaded(snapshot):
-            TabView(
-                selection: Binding(
-                    get: { selectedPage },
-                    set: { selectPage($0) }
-                )
-            ) {
-                archivePage(.today) {
-                    PursuitTodayView(
-                        snapshot: snapshot,
-                        isPreview: !workspaceStore.isCanonical,
-                        calendarActivities: relationshipCalendarActivities,
-                        unreadSessions: sessionStore.unreadSessions,
-                        actionRecovery: workspaceStore.latestActionRecovery(
-                            in: snapshot
-                        ),
-                        onOpenSession: openSession,
-                        onOpenCalendar: {
-                            clearTransientRetrievalIntent()
-                            isRelationshipCalendarPresented = true
-                        },
-                        onOpenAttention: openAttention,
-                        onOpenPursuit: { presentedSheet = .pursuit($0) },
-                        onOpenActionRecovery: { pursuitID in
-                            guard let pursuit = snapshot.pursuit(id: pursuitID) else {
-                                return
-                            }
-                            presentedSheet = .pursuit(pursuit)
+            loadedPage(page, snapshot: snapshot)
+        }
+    }
+
+    @ViewBuilder
+    private func loadedPage(
+        _ page: RelationshipArchivePage,
+        snapshot: PursuitWorkspaceSnapshot
+    ) -> some View {
+        switch page {
+        case .today:
+            PursuitTodayView(
+                snapshot: snapshot,
+                isPreview: !workspaceStore.isCanonical,
+                calendarActivities: relationshipCalendarActivities,
+                unreadSessions: sessionStore.unreadSessions,
+                actionRecovery: workspaceStore.latestActionRecovery(in: snapshot),
+                onOpenSession: openSession,
+                onOpenCalendar: {
+                    openRelationshipCalendar(.overview)
+                },
+                onOpenAttention: openAttention,
+                onOpenPursuit: { presentedSheet = .pursuit($0) },
+                onOpenActionRecovery: { pursuitID in
+                    guard let pursuit = snapshot.pursuit(id: pursuitID) else {
+                        return
+                    }
+                    presentedSheet = .pursuit(pursuit)
+                },
+                pendingCaptureCount: captureHandoff.attentionCount,
+                onOpenCaptureInbox: {
+                    clearTransientRetrievalIntent()
+                    isCaptureInboxPresented = true
+                }
+            )
+        case .sessions:
+            AgentSessionListView(
+                sessions: sessionStore.sessions,
+                people: Dictionary(
+                    uniqueKeysWithValues: snapshot.people.map { ($0.id, $0) }
+                ),
+                isPreview: !workspaceStore.isCanonical,
+                persistenceNotice: sessionStore.persistenceNotice,
+                restorationPosition: sessionRestorationPosition,
+                scrollPosition: Binding(
+                    get: { sessionScrollPosition },
+                    set: { newPosition in
+                        if let newPosition {
+                            sessionScrollPosition = newPosition
                         }
+                    }
+                ),
+                onOpen: openSession,
+                onMarkRead: sessionStore.markRead,
+                onMarkUnread: sessionStore.markUnread,
+                onDelete: sessionStore.delete
+            )
+        case .people:
+            WorkspacePeopleView(
+                snapshot: snapshot,
+                isPreview: !workspaceStore.isCanonical,
+                restorationPosition: peopleRestorationPosition,
+                scrollPosition: Binding(
+                    get: { peopleScrollPosition },
+                    set: { newPosition in
+                        if let newPosition {
+                            peopleScrollPosition = newPosition
+                        }
+                    }
+                ),
+                onSelect: { person in
+                    presentedSheet = .workspacePerson(
+                        person,
+                        roles(for: person.id, in: snapshot)
                     )
-                }
-                .tag(RelationshipArchivePage.today)
-
-                archivePage(.sessions) {
-                    AgentSessionListView(
-                        sessions: sessionStore.sessions,
-                        people: Dictionary(
-                            uniqueKeysWithValues: snapshot.people.map { ($0.id, $0) }
-                        ),
-                        isPreview: !workspaceStore.isCanonical,
-                        persistenceNotice: sessionStore.persistenceNotice,
-                        restorationPosition: sessionRestorationPosition,
-                        scrollPosition: Binding(
-                            get: { sessionScrollPosition },
-                            set: { newPosition in
-                                if let newPosition {
-                                    sessionScrollPosition = newPosition
-                                }
-                            }
-                        ),
-                        onOpen: openSession,
-                        onMarkRead: sessionStore.markRead,
-                        onMarkUnread: sessionStore.markUnread,
-                        onDelete: sessionStore.delete
-                    )
-                }
-                .tag(RelationshipArchivePage.sessions)
-
-                archivePage(.people) {
-                    WorkspacePeopleView(
-                        snapshot: snapshot,
-                        isPreview: !workspaceStore.isCanonical,
-                        restorationPosition: peopleRestorationPosition,
-                        scrollPosition: Binding(
-                            get: { peopleScrollPosition },
-                            set: { newPosition in
-                                if let newPosition {
-                                    peopleScrollPosition = newPosition
-                                }
-                            }
-                        ),
-                        onSelect: { person in
-                            presentedSheet = .workspacePerson(
-                                person,
-                                roles(for: person.id, in: snapshot)
-                            )
-                        },
-                        onAsk: askAboutPerson
-                    )
-                }
-                .tag(RelationshipArchivePage.people)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .indexViewStyle(.page(backgroundDisplayMode: .never))
-            .coordinateSpace(name: Self.pageCoordinateSpace)
-            .onPreferenceChange(RelationshipPageMeasurementKey.self) { measurements in
-                updatePageProgress(from: measurements)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                },
+                onAsk: askAboutPerson
+            )
         }
     }
 
@@ -762,7 +859,9 @@ struct RelationshipArchiveView: View {
                   $0.id == nearest.key
               }) else { return }
 
-        let rawProgress = CGFloat(index) - nearest.value.minX / nearest.value.width
+        let direction: CGFloat = pageLayoutDirection == .rightToLeft ? -1 : 1
+        let rawProgress = CGFloat(index)
+            - direction * nearest.value.minX / nearest.value.width
         let maximum = CGFloat(RelationshipArchivePage.allCases.count - 1)
         let resolved = min(max(rawProgress, 0), maximum)
         if abs(resolved - pageSwipeProgress) > 0.001 {
@@ -772,7 +871,6 @@ struct RelationshipArchiveView: View {
 
     private func clearTransientRetrievalIntent() {
         captureRetrievalPositions()
-        retrievalIntentGeneration &+= 1
     }
 
     private func captureRetrievalPositions() {
@@ -920,6 +1018,7 @@ struct RelationshipArchiveView: View {
             )
             capturePresentation = nil
             intakePresentation = nil
+            isCaptureInboxPresented = false
         }
     }
 
@@ -978,6 +1077,24 @@ struct RelationshipArchiveView: View {
     private func reloadCanonicalWorkspace() {
         guard workspaceStore.isCanonical else { return }
         Task { await workspaceStore.load() }
+    }
+
+    private func openRelationshipCalendar(
+        _ intent: RelationshipCalendarLaunchIntent
+    ) {
+        clearTransientRetrievalIntent()
+        relationshipCalendarPresentation = intent
+    }
+
+    private var pageLayoutDirection: LayoutDirection {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(
+            "--force-right-to-left-layout"
+        ) {
+            return .rightToLeft
+        }
+#endif
+        return layoutDirection
     }
 
     private static let pageCoordinateSpace = "relationship-page-space"
@@ -1054,122 +1171,358 @@ private struct RelationshipArchiveHeader: View {
     @Binding var selectedPage: RelationshipArchivePage
     let pageProgress: CGFloat
     let onOpenAgentStudio: () -> Void
-    let onOpenCalendar: () -> Void
+    let onOpenCalendar: (RelationshipCalendarLaunchIntent) -> Void
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.talentSignalReduceMotion) private var reduceMotion
+    @State private var pageCenters: [String: CGFloat] = [:]
+    @State private var pageWidths: [String: CGFloat] = [:]
+    @State private var selectorViewportWidth: CGFloat = 0
 
     var body: some View {
-        HStack(spacing: 6) {
-            Button(action: onOpenAgentStudio) {
-                RelationshipSignalOrb()
-                    .frame(width: 30, height: 30)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 2) {
+                    HStack(spacing: 12) {
+                        agentStudioButton
+                        Spacer(minLength: 0)
+                        calendarButton
+                    }
+                    accessibilityPageSelector
+                }
+                .padding(.vertical, 4)
+            } else {
+                HStack(spacing: 6) {
+                    agentStudioButton
+                    pageSelector(expands: true)
+                    calendarButton
+                }
             }
-            .buttonStyle(.plain)
-            .frame(width: 44, height: 44)
-            .accessibilityLabel(
-                appLanguage.text(
-                    "Open Agent Studio",
-                    zhHans: "打开 Agent Studio"
-                )
-            )
-            .accessibilityIdentifier("relationship-agent-studio")
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 52)
+        .background(Color.tsSurface)
+    }
 
-            HStack(spacing: 0) {
-                ForEach(RelationshipArchivePage.allCases) { page in
-                    Button {
-                        if reduceMotion {
-                            selectedPage = page
-                        } else {
-                            withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
-                                selectedPage = page
-                            }
-                        }
-                    } label: {
-                        VStack(spacing: 2) {
-                            Text(page.title(in: appLanguage))
-                                .font(.subheadline.weight(
-                                    selectedPage == page ? .semibold : .regular
-                                ))
-                                .foregroundStyle(
-                                    selectedPage == page
-                                        ? Color.tsInk
-                                        : Color.tsMutedInk
-                                )
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.72)
-                                .layoutPriority(1)
-                                .accessibilityHidden(true)
-                            Color.clear.frame(height: 1.5)
-                        }
-                        .frame(
-                            minWidth: page == .sessions ? 70 : 58,
-                            maxWidth: .infinity
-                        )
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(
-                        selectedPage == page ? .isSelected : []
+    private var agentStudioButton: some View {
+        Button(action: onOpenAgentStudio) {
+            RelationshipSignalOrb()
+                .frame(width: 30, height: 30)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: 44, height: 44)
+        .accessibilityLabel(
+            appLanguage.text(
+                "Open Agent Studio",
+                zhHans: "打开 Agent Studio"
+            )
+        )
+        .accessibilityIdentifier("relationship-agent-studio")
+    }
+
+    private var calendarButton: some View {
+        Menu {
+            Button {
+                onOpenCalendar(.overview)
+            } label: {
+                Label(
+                    appLanguage.text("Open calendar", zhHans: "打开日历"),
+                    systemImage: "calendar"
+                )
+            }
+            .accessibilityIdentifier("calendar-shortcut-open")
+
+            Section(appLanguage.text("Go to")) {
+                Button {
+                    onOpenCalendar(.today)
+                } label: {
+                    Label(
+                        appLanguage.text("Today"),
+                        systemImage: "calendar.badge.clock"
                     )
-                    .accessibilityLabel(page.title(in: appLanguage))
-                    .accessibilityShowsLargeContentViewer {
-                        Text(page.title(in: appLanguage))
-                    }
-                    .accessibilityIdentifier(
-                        "archive-tab-\(page.accessibilityIdentifier)"
+                }
+                .accessibilityIdentifier("calendar-shortcut-today")
+
+                Button {
+                    onOpenCalendar(.thisWeek)
+                } label: {
+                    Label(
+                        appLanguage.text("This week"),
+                        systemImage: "calendar"
                     )
+                }
+                .accessibilityIdentifier("calendar-shortcut-this-week")
+            }
+
+            Button {
+                onOpenCalendar(.addActivity)
+            } label: {
+                Label(
+                    appLanguage.text("Add activity"),
+                    systemImage: "plus"
+                )
+            }
+            .accessibilityIdentifier("calendar-shortcut-add-activity")
+        } label: {
+            Image(systemName: "calendar")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.tsInk)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        } primaryAction: {
+            onOpenCalendar(.overview)
+        }
+        .buttonStyle(.plain)
+        .frame(width: 44, height: 44)
+        .accessibilityLabel(
+            appLanguage.text(
+                "Open relationship calendar",
+                zhHans: "打开关系日历"
+            )
+        )
+        .accessibilityHint(
+            appLanguage.text(
+                "Opens the calendar. More actions jump to today, this week, or add an activity.",
+                zhHans: "打开日历；更多操作可前往今天、本周或添加日程。"
+            )
+        )
+        .accessibilityAction(named: Text(appLanguage.text("Today"))) {
+            onOpenCalendar(.today)
+        }
+        .accessibilityAction(named: Text(appLanguage.text("This week"))) {
+            onOpenCalendar(.thisWeek)
+        }
+        .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
+            onOpenCalendar(.addActivity)
+        }
+        .accessibilityIdentifier("today-calendar-peek")
+    }
+
+    private var accessibilityPageSelector: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    Color.clear
+                        .frame(width: edgePadding(for: .today))
+                    pageSelector(expands: false)
+                    Color.clear
+                        .frame(width: edgePadding(for: .people))
                 }
             }
             .frame(maxWidth: .infinity)
-            .overlay(alignment: .bottomLeading) {
+            .background {
                 GeometryReader { geometry in
-                    let count = CGFloat(RelationshipArchivePage.allCases.count)
-                    let segmentWidth = geometry.size.width / count
-                    let resolvedProgress = reduceMotion
-                        ? CGFloat(selectedPage.pageIndex)
-                        : min(max(pageProgress, 0), count - 1)
-                    let fraction = resolvedProgress.rounded(.down)
-                    let travel = resolvedProgress - fraction
-                    let stretch = reduceMotion ? 0 : sin(travel * .pi) * 14
-                    let indicatorWidth = 22 + stretch
-
-                    Capsule(style: .continuous)
-                        .fill(Color.tsInk)
-                        .frame(width: indicatorWidth, height: 2)
-                        .offset(
-                            x: segmentWidth * (resolvedProgress + 0.5)
-                                - indicatorWidth / 2,
-                            y: geometry.size.height - 2
-                        )
+                    Color.clear.preference(
+                        key: RelationshipSelectorViewportWidthKey.self,
+                        value: geometry.size.width
+                    )
                 }
-                .allowsHitTesting(false)
             }
-            .accessibilityElement(children: .contain)
-
-            Button(action: onOpenCalendar) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(Color.tsInk)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+            .onAppear {
+                center(selectedPage, using: proxy, animated: false)
             }
-            .buttonStyle(.plain)
-            .frame(width: 44, height: 44)
-            .accessibilityLabel(
-                appLanguage.text(
-                    "Open relationship calendar",
-                    zhHans: "打开关系日历"
-                )
-            )
-            .accessibilityIdentifier("today-calendar-peek")
+            .onChange(of: selectedPage) { page in
+                center(page, using: proxy, animated: true)
+            }
+            .onPreferenceChange(RelationshipSelectorViewportWidthKey.self) { width in
+                if abs(selectorViewportWidth - width) > 0.5 {
+                    selectorViewportWidth = width
+                }
+            }
+            .onChange(of: selectorViewportWidth) { _ in
+                center(selectedPage, using: proxy, animated: false)
+            }
+            .onChange(of: pageWidths) { _ in
+                center(selectedPage, using: proxy, animated: false)
+            }
         }
-        .padding(.horizontal, 14)
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .frame(height: 52)
-        .background(Color.tsSurface)
+        .frame(minHeight: 44)
+    }
+
+    private func edgePadding(for page: RelationshipArchivePage) -> CGFloat {
+        let pageWidth = pageWidths[page.id] ?? 44
+        return max(0, (selectorViewportWidth - pageWidth) / 2)
+    }
+
+    private func center(
+        _ page: RelationshipArchivePage,
+        using proxy: ScrollViewProxy,
+        animated: Bool
+    ) {
+        if reduceMotion || !animated {
+            proxy.scrollTo(page.id, anchor: .center)
+        } else {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                proxy.scrollTo(page.id, anchor: .center)
+            }
+        }
+    }
+
+    private func pageSelector(expands: Bool) -> some View {
+        HStack(spacing: 0) {
+            ForEach(RelationshipArchivePage.allCases) { page in
+                pageButton(page, expands: expands)
+            }
+        }
+        .frame(maxWidth: expands ? .infinity : nil)
+        .coordinateSpace(name: Self.tabCoordinateSpace)
+        .onPreferenceChange(RelationshipTabCenterKey.self) { centers in
+            if pageCenters != centers {
+                pageCenters = centers
+            }
+        }
+        .onPreferenceChange(RelationshipTabWidthKey.self) { widths in
+            if pageWidths != widths {
+                pageWidths = widths
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            pageIndicator
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func pageButton(
+        _ page: RelationshipArchivePage,
+        expands: Bool
+    ) -> some View {
+        Button {
+            if reduceMotion {
+                selectedPage = page
+            } else {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                    selectedPage = page
+                }
+            }
+        } label: {
+            VStack(spacing: 2) {
+                Text(page.title(in: appLanguage))
+                    .font(.subheadline.weight(
+                        selectedPage == page ? .semibold : .regular
+                    ))
+                    .foregroundStyle(
+                        selectedPage == page ? Color.tsInk : Color.tsMutedInk
+                    )
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: !expands, vertical: false)
+                    .layoutPriority(1)
+                    .accessibilityHidden(true)
+                Color.clear.frame(height: 2)
+            }
+            .padding(.horizontal, expands ? 0 : 14)
+            .frame(
+                minWidth: page == .sessions ? 70 : 58,
+                maxWidth: expands ? .infinity : nil
+            )
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selectedPage == page ? .isSelected : [])
+        .accessibilityLabel(page.title(in: appLanguage))
+        .accessibilityIdentifier("archive-tab-\(page.accessibilityIdentifier)")
+        .accessibilityShowsLargeContentViewer { Text(page.title(in: appLanguage)) }
+        .id(page.id)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: RelationshipTabCenterKey.self,
+                    value: [
+                        page.id: geometry.frame(
+                            in: .named(Self.tabCoordinateSpace)
+                        ).midX,
+                    ]
+                )
+                .preference(
+                    key: RelationshipTabWidthKey.self,
+                    value: [page.id: geometry.size.width]
+                )
+            }
+        }
+    }
+
+    private var pageIndicator: some View {
+        GeometryReader { geometry in
+            let count = CGFloat(RelationshipArchivePage.allCases.count)
+            let resolvedProgress = reduceMotion
+                ? CGFloat(selectedPage.pageIndex)
+                : min(max(pageProgress, 0), count - 1)
+            let lowerIndex = Int(resolvedProgress.rounded(.down))
+            let upperIndex = min(
+                lowerIndex + 1,
+                RelationshipArchivePage.allCases.count - 1
+            )
+            let travel = resolvedProgress - CGFloat(lowerIndex)
+            let lowerCenter = tabCenter(
+                at: lowerIndex,
+                availableWidth: geometry.size.width
+            )
+            let upperCenter = tabCenter(
+                at: upperIndex,
+                availableWidth: geometry.size.width
+            )
+            let indicatorCenter = lowerCenter + (upperCenter - lowerCenter) * travel
+            let stretch = reduceMotion ? 0 : sin(travel * .pi) * 14
+            let indicatorWidth = 22 + stretch
+
+            Capsule(style: .continuous)
+                .fill(Color.tsInk)
+                .frame(width: indicatorWidth, height: 2)
+                .offset(
+                    x: indicatorCenter - indicatorWidth / 2,
+                    y: geometry.size.height - 2
+                )
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func tabCenter(at index: Int, availableWidth: CGFloat) -> CGFloat {
+        let page = RelationshipArchivePage.allCases[index]
+        if let measuredCenter = pageCenters[page.id] {
+            return measuredCenter
+        }
+        let count = CGFloat(RelationshipArchivePage.allCases.count)
+        let physicalIndex = layoutDirection == .rightToLeft
+            ? count - 1 - CGFloat(index)
+            : CGFloat(index)
+        return availableWidth / count * (physicalIndex + 0.5)
+    }
+
+    private static let tabCoordinateSpace = "relationship-tab-space"
+}
+
+private struct RelationshipTabCenterKey: PreferenceKey {
+    static let defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(
+        value: inout [String: CGFloat],
+        nextValue: () -> [String: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+private struct RelationshipTabWidthKey: PreferenceKey {
+    static let defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(
+        value: inout [String: CGFloat],
+        nextValue: () -> [String: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+private struct RelationshipSelectorViewportWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
@@ -1184,12 +1537,42 @@ struct PursuitTodayView: View {
     let onOpenAttention: (PursuitAttentionItem) -> Void
     let onOpenPursuit: (WorkspacePursuit) -> Void
     let onOpenActionRecovery: (String) -> Void
+    let pendingCaptureCount: Int
+    let onOpenCaptureInbox: () -> Void
     @State private var showsAllAttention = false
     @State private var decisionStates: [String: TodayInlineDecisionStatus] = [:]
     @State private var decisionOverrides: [String: TodayInlineDecision] = [:]
     @State private var expandedEvidenceDecisionID: String?
     @State private var editingDecision: TodayInlineDecision?
     @Environment(\.appLanguage) private var appLanguage
+
+    init(
+        snapshot: PursuitWorkspaceSnapshot,
+        isPreview: Bool,
+        calendarActivities: [RelationshipCalendarActivity],
+        unreadSessions: [AgentSession],
+        actionRecovery: PursuitActionRecoveryItem?,
+        onOpenSession: @escaping (AgentSession) -> Void,
+        onOpenCalendar: @escaping () -> Void,
+        onOpenAttention: @escaping (PursuitAttentionItem) -> Void,
+        onOpenPursuit: @escaping (WorkspacePursuit) -> Void,
+        onOpenActionRecovery: @escaping (String) -> Void,
+        pendingCaptureCount: Int = 0,
+        onOpenCaptureInbox: @escaping () -> Void = {}
+    ) {
+        self.snapshot = snapshot
+        self.isPreview = isPreview
+        self.calendarActivities = calendarActivities
+        self.unreadSessions = unreadSessions
+        self.actionRecovery = actionRecovery
+        self.onOpenSession = onOpenSession
+        self.onOpenCalendar = onOpenCalendar
+        self.onOpenAttention = onOpenAttention
+        self.onOpenPursuit = onOpenPursuit
+        self.onOpenActionRecovery = onOpenActionRecovery
+        self.pendingCaptureCount = pendingCaptureCount
+        self.onOpenCaptureInbox = onOpenCaptureInbox
+    }
 
     var body: some View {
         ScrollView {
@@ -1211,6 +1594,14 @@ struct PursuitTodayView: View {
                     TodayRelationshipCalendarPeek(
                         activities: calendarActivities,
                         onOpen: onOpenCalendar
+                    )
+                    .padding(.top, 14)
+                }
+
+                if pendingCaptureCount > 0 {
+                    TodayCaptureInboxRow(
+                        count: pendingCaptureCount,
+                        action: onOpenCaptureInbox
                     )
                     .padding(.top, 14)
                 }
@@ -1371,7 +1762,7 @@ struct PursuitTodayView: View {
         }
 
         if attentionItems.isEmpty {
-            if attentionRecovery == nil {
+            if attentionRecovery == nil, pendingCaptureCount == 0 {
                 PursuitNoActionView()
                     .padding(.top, topWorkSpacing)
             }
@@ -1522,6 +1913,63 @@ struct PursuitTodayView: View {
         }
     }
 
+}
+
+private struct TodayCaptureInboxRow: View {
+    let count: Int
+    let action: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: "rectangle.stack")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.tsVermilion)
+                    .frame(width: 44, height: 44)
+                    .background(Color.tsSurfaceMuted, in: Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(appLanguage.text("Capture Sessions"))
+                        .font(.headline)
+                        .foregroundStyle(Color.tsInk)
+                    Text(countLabel)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tsMutedInk)
+                }
+                Spacer(minLength: 8)
+                Text(verbatim: "\(count)")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.tsVermilion)
+                    .monospacedDigit()
+                    .frame(minWidth: 30, minHeight: 30)
+                    .background(Color.tsVermilion.opacity(0.1), in: Capsule())
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.tsMutedInk)
+            }
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .tsCard()
+        .accessibilityLabel(
+            appLanguage.text("Capture Sessions") + ", " + countLabel
+        )
+        .accessibilityHint(
+            appLanguage.text(
+                "Opens capture decisions that need your input"
+            )
+        )
+        .accessibilityIdentifier("today-capture-inbox")
+    }
+
+    private var countLabel: String {
+        String(
+            format: appLanguage.text("%lld need your input"),
+            locale: appLanguage.locale,
+            Int64(count)
+        )
+    }
 }
 
 private enum TodayInlineDecisionStatus: Equatable {
@@ -3050,7 +3498,7 @@ private struct AgentSessionRow: View {
                 relativeTime
                 unreadState
                 if session.retrievalAttention != nil {
-                    Text("·").foregroundStyle(Color.tsMutedInk)
+                    Text(verbatim: "·").foregroundStyle(Color.tsMutedInk)
                         .accessibilityHidden(true)
                     attentionState
                 }
@@ -3075,7 +3523,7 @@ private struct AgentSessionRow: View {
     @ViewBuilder
     private var unreadState: some View {
         if session.isUnread {
-            Text("·").font(.caption).foregroundStyle(Color.tsMutedInk)
+            Text(verbatim: "·").font(.caption).foregroundStyle(Color.tsMutedInk)
                 .accessibilityHidden(true)
             Text(appLanguage.text("Unread"))
                 .font(.caption)
@@ -3650,7 +4098,7 @@ private struct WorkspacePersonRow: View {
                         .foregroundStyle(Color.tsMutedInk)
                 }
                 if metadata.roleType != nil, metadata.lastActivityAt != nil {
-                    Text("·").font(.caption).foregroundStyle(Color.tsMutedInk)
+                    Text(verbatim: "·").font(.caption).foregroundStyle(Color.tsMutedInk)
                         .accessibilityHidden(true)
                 }
                 activityTime
@@ -4000,7 +4448,19 @@ struct PursuitWorkspaceFailureView: View {
 
 struct PursuitWorkspaceEmptyView: View {
     let selectedPage: RelationshipArchivePage
+    let pendingCaptureCount: Int
+    let onOpenCaptureInbox: () -> Void
     @Environment(\.appLanguage) private var appLanguage
+
+    init(
+        selectedPage: RelationshipArchivePage,
+        pendingCaptureCount: Int = 0,
+        onOpenCaptureInbox: @escaping () -> Void = {}
+    ) {
+        self.selectedPage = selectedPage
+        self.pendingCaptureCount = pendingCaptureCount
+        self.onOpenCaptureInbox = onOpenCaptureInbox
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -4023,6 +4483,13 @@ struct PursuitWorkspaceEmptyView: View {
             )
                 .font(.subheadline)
                 .foregroundStyle(Color.tsMutedInk)
+            if selectedPage == .today, pendingCaptureCount > 0 {
+                TodayCaptureInboxRow(
+                    count: pendingCaptureCount,
+                    action: onOpenCaptureInbox
+                )
+                .padding(.top, 8)
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -4032,7 +4499,11 @@ struct PursuitWorkspaceEmptyView: View {
     private var emptyTitle: String {
         switch selectedPage {
         case .today:
-            return appLanguage.text("Nothing needs attention", zhHans: "暂无待处理事项")
+            return pendingCaptureCount > 0
+                ? appLanguage.text(
+                    "A capture decision is waiting"
+                )
+                : appLanguage.text("Nothing needs attention", zhHans: "暂无待处理事项")
         case .sessions:
             return appLanguage.text("No sessions yet", zhHans: "还没有会话")
         case .people:
@@ -4647,9 +5118,8 @@ private struct WorkspacePersonDetailView: View {
                         RelationshipEyebrow(appLanguage.text("Conversation and sourced context"))
                             .padding(.top, 30)
                         ForEach(sourceTasks) { task in
-                            ScreenshotContactCard(task: task, language: appLanguage, onLoadImage: { index in
-                                try await workspaceStore.loadScreenshotContactImage(taskID: task.taskID, index: index)
-                            }).padding(.top, 16)
+                            ScreenshotContactCard(task: task, language: appLanguage,
+                                onLoadImage: { index in try await workspaceStore.loadScreenshotContactImage(taskID: task.taskID, index: index) }).padding(.top, 16)
                         }
                     }
                     if let sourceError { Text(sourceError).font(.caption).foregroundStyle(Color.tsMutedInk).padding(.top, 16) }
@@ -4724,6 +5194,10 @@ private struct RelationshipGuideRail: View {
     let onAttach: () -> Void
     let onVoice: () -> Void
     @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
+    @State private var isHoldingForVoice = false
+    @State private var voiceLongPressTriggered = false
+    @State private var voiceHoldTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -4747,11 +5221,22 @@ private struct RelationshipGuideRail: View {
                 Label(appLanguage.text("Choose what to add to an Agent message"), systemImage: "plus")
             }
 
-            Button(action: onGuide) {
+            Button {
+                guard !voiceLongPressTriggered else { return }
+                onGuide()
+            } label: {
                 HStack(spacing: 10) {
-                    Text(appLanguage.text("Ask anything", zhHans: "问点什么"))
-                        .font(.subheadline)
-                        .foregroundStyle(Color.tsMutedInk)
+                    Text(
+                        isHoldingForVoice
+                            ? appLanguage.text(
+                                "Keep holding for voice…"
+                            )
+                            : appLanguage.text("Ask anything", zhHans: "问点什么")
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(
+                        isHoldingForVoice ? Color.tsInk : Color.tsMutedInk
+                    )
                     Spacer(minLength: 6)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -4759,13 +5244,37 @@ private struct RelationshipGuideRail: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .background(
+                isHoldingForVoice ? Color.tsSurfaceMuted.opacity(0.72) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .scaleEffect(isHoldingForVoice && !reduceMotion ? 0.985 : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.12),
+                value: isHoldingForVoice
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                    .onChanged { _ in beginVoiceHoldIfNeeded() }
+                    .onEnded { _ in endVoiceHold() }
+            )
             .accessibilityLabel(
                 appLanguage.text("Open a new Agent session", zhHans: "打开新的 Agent 会话")
             )
+            .accessibilityHint(
+                appLanguage.text(
+                    "Double tap to type. Touch and hold to start voice input."
+                )
+            )
+            .accessibilityAction(
+                named: Text(
+                    appLanguage.text(
+                        "Start voice input"
+                    )
+                )
+            ) { onVoice() }
+            // This control reserves touch-and-hold for voice input.
             .accessibilityIdentifier("relationship-guide")
-            .accessibilityShowsLargeContentViewer {
-                Text(appLanguage.text("Ask anything", zhHans: "问点什么"))
-            }
 
             Button(action: onVoice) {
                 ZStack {
@@ -4793,6 +5302,40 @@ private struct RelationshipGuideRail: View {
         .modifier(RelationshipGuideMaterialModifier())
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+    }
+
+    private func beginVoice() {
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred()
+        onVoice()
+    }
+
+    private func beginVoiceHoldIfNeeded() {
+        guard voiceHoldTask == nil, !voiceLongPressTriggered else { return }
+        isHoldingForVoice = true
+        voiceHoldTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(550))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            voiceHoldTask = nil
+            voiceLongPressTriggered = true
+            beginVoice()
+        }
+    }
+
+    private func endVoiceHold() {
+        voiceHoldTask?.cancel()
+        voiceHoldTask = nil
+        isHoldingForVoice = false
+        guard voiceLongPressTriggered else { return }
+        Task { @MainActor in
+            await Task.yield()
+            voiceLongPressTriggered = false
+        }
     }
 }
 

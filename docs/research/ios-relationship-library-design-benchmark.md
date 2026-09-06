@@ -742,7 +742,7 @@ This supersedes the fifth-iteration ownership decision without restoring its
 original two-owner conflict:
 
 1. a native page container owns every horizontal drag across Today, Sessions,
-   and People;
+   and People, including loading, failure, empty, preview, and loaded states;
 2. the labeled top selection remains tappable and follows live page movement;
 3. Session and People rows remove `swipeActions` entirely;
 4. tap remains the row's primary Open action;
@@ -758,14 +758,26 @@ separate command vocabulary. People shortcuts remain limited to opening the
 person and starting a visibly scoped Ask. Session shortcuts remain limited to
 opening, changing local read state, and staging deletion of local history.
 
-### Motion language
+### Motion, direction, and continuity
 
 The page tracks the finger with native paging physics. While it moves, the top
-indicator travels continuously between labels and stretches modestly around the
-midpoint before returning to its resting width. It does not scale cards, add
-parallax, or place glass inside content. A tap on a top label uses the same page
-transition. Under Reduce Motion, the indicator does not stretch or bounce and
-the selected label remains the stable semantic signal.
+indicator interpolates between the measured centers of the adjacent labels and
+stretches modestly around the midpoint before returning to its resting width.
+Using measured anchors avoids assumptions about equal label widths and keeps
+the trajectory correct when the interface is right-to-left. It does not scale
+cards, add parallax, or place glass inside content.
+
+A tap on a top label uses the same page transition. Under Reduce Motion, the
+indicator does not stretch or bounce and the selected label remains the stable
+semantic signal. Page changes do not reconstruct the retrieval shell: People
+search and filter state, each list's visible position, and the user's current
+context survive page changes and temporary sheets.
+
+At accessibility text sizes, the two utility actions move to their own row.
+The destination selector keeps the user's full Dynamic Type category and may
+scroll horizontally so every label remains complete with a 44-point target;
+dynamic edge insets derived from the viewport and the measured first and last
+tabs let every selected destination remain centered when space is constrained.
 
 ### Verification change
 
@@ -775,9 +787,11 @@ Executable proof now needs to show:
 - Today swipes to Sessions, Sessions swipes to People, and both reverse;
 - the selected top label agrees with the visible page after every transition;
 - tapping a top label reaches the same destination and preserves local
-  scroll/search state;
+  scroll, search, and filter state after page changes and temporary sheets;
 - row secondary commands are available from both the visible menu and long
   press, with matching labels and consequences;
 - no row exposes a native leading or trailing swipe action;
-- Dynamic Type, Simplified Chinese, RTL, Reduce Motion, VoiceOver, interruption,
-  and small/large supported iPhones preserve navigation and command reachability.
+- the indicator follows real label anchors in both LTR and RTL layouts;
+- Dynamic Type, Simplified Chinese, Reduce Motion, VoiceOver, interruption,
+  and small/large supported iPhones preserve navigation and command
+  reachability.

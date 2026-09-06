@@ -66,6 +66,14 @@ progressively stronger attention.
 The current state should be simple, while prior values, conflicts, corrections,
 and outcomes remain available through progressive disclosure.
 
+Calendar scanning leads with time, person, and activity. Keep secondary
+properties and inactive filters behind a named control; reveal an active filter
+where it affects the view. Avoid repeating time, normal sync status, and scope
+across stacked chrome and cards. Compactness removes repetition and framing,
+not readable type or touch targets. Calendar views change time layout; filters
+change which records appear. Preserve that distinction, and keep conflicts,
+uncertain writes, and recovery visible when metadata is collapsed.
+
 ### Space is part of the hierarchy
 
 Breathing room gives each mobile viewport one visual resting point and open
@@ -101,10 +109,10 @@ retrieval destination. Pursuit rooms remain directly reachable without
 competing for primary navigation. Evidence opens from its claim or record;
 Today stays sparse with one lead dependency and a complete no-action state.
 
-The Agent is a contextual threshold; Sessions retrieves conversations without owning truth or execution authority. On mobile, familiar top navigation owns
-retrieval and one bottom global composer owns intent; never combine them.
-Scope, capture, and record navigation follow intent. Text, an ordered image set, or voice
-becomes proposed structure before consequential review stays explicit. Mobile and Web composers treat multi-stage marked text as provisional: input methods own candidate selection, and Send remains unavailable until the text is committed. Draft recovery preserves committed whitespace and line breaks, coalesces persistence for responsive input, and flushes at true lifecycle boundaries. A system permission overlay is not itself a background cancellation; protected capture begins only after authorization and an active foreground, while real backgrounding or audio interruption stops capture with truthful recovery feedback. Diagnostics record only closed lifecycle states, never message, transcript, person, or relationship content.
+The Agent is a contextual threshold; Sessions retrieves conversations without owning truth or execution authority. On mobile, familiar top navigation owns retrieval and one bottom global composer owns intent; never combine them. The bottom control is a launch rail, not the editing surface: text, attachment, and voice entry open one full-screen New Session with an explicit close path. Its text entry is a visibly bounded multiline editor with direct image and formatting controls. The first send changes that same full-screen surface in place into the active Session; it does not begin in a partial-height sheet or open a second conversation modal. Scope, capture, and record navigation follow intent. Text, an ordered image set, or voice becomes proposed structure before consequential review stays explicit.
+Mobile and Web composers treat multi-stage marked text as provisional: input methods own candidate selection, and Send remains unavailable until the text is committed. Draft recovery preserves committed whitespace and line breaks, coalesces persistence for responsive input, and flushes at true lifecycle boundaries. A system permission overlay is not itself a background cancellation; protected capture begins only after authorization and an active foreground, while real backgrounding or audio interruption stops capture with truthful recovery feedback. Diagnostics record only closed lifecycle states, never message, transcript, person, or relationship content.
+
+Within an active Session, the mobile reply composer is one quiet ribbon rather than a persistent formatting panel. On the global rail, tap opens the full-screen text composer while touch-and-hold enters the same protected voice mode as the visible waveform control; both retain accessible explicit actions. Its connection mark represents the missing piece between people and morphs across listening, transcript finalization, waiting, `Review`, failure, and timeout. Voice expands inside the ribbon so provisional live words, elapsed time, cancel, lock, and stop remain one gesture-local surface while the relationship workspace stays visible. Stopping creates an editable provider-final draft; `Send` remains independent and partial words never enter Agent reasoning. Waiting uses restrained motion without status prose; reduced motion preserves the same state through geometry. Failure and timeout use the changed mark plus one short recovery action. An Ask Live Activity begins only after explicit Send and extends the same mark to Dynamic Island and the Lock Screen. The compact waiting state is mark and motion only; a completed response uses `Review`; failure and timeout stay brief. The system surface contains no relationship content and always returns to the exact protected Session, where evidence, recovery, and decisions remain available.
 
 ## Agent-operated relationship workspace
 
@@ -156,16 +164,12 @@ when the compact decision lacks enough governed distinguishing evidence.
 
 ## Attention hierarchy
 
-Within a page, prioritize:
+Prioritize identity and current context, then meaningful change or dependency,
+exact supporting evidence, and the smallest next action. History, alternatives,
+and deeper analysis follow.
 
-1. identity and current context;
-2. the meaningful change or dependency;
-3. exact supporting evidence;
-4. the smallest next action;
-5. history, alternatives, and deeper analysis.
-
-AI provenance is secondary; the interface describes work rather than advertising AI. Attachments and sending show selected images and meaningful progress.
-Omit routine footnotes and success notices; disclose sources on demand and highlight actionable errors or identity questions.
+AI provenance stays secondary. Attachments and sending show selected images and meaningful progress; omit routine footnotes and success notices. Disclose sources
+on demand and highlight actionable errors or identity questions.
 
 ## Visual character
 
@@ -184,7 +188,7 @@ the surrounding product is the reference for density and idiom.
 
 Mobile reading preferences keep `Text size` and `Card density` independent. Text shifts only standard Dynamic Type categories and never reduces an accessibility category.
 Density changes card spacing, shape, and avatars without shrinking controls below 44 points; Settings previews the result and compact is the retrieval default.
-People and Sessions share quiet search and filter controls, with the active filter named and directly clearable. Rows prioritize title, identity, context, and recency; identity keeps the same scan position across attention states. People use a quiet directory rhythm. Unread Sessions alone receive restrained elevation, stronger type, and quiet visible and accessible read-state labels; operational attention remains a separate label. At accessibility sizes, identity and context use the full row width. Utility chrome must leave room for that content, with complete navigation names, practical symbols, and large-content alternatives for bounded controls.
+People and Sessions share quiet search and filter controls, with the active filter named and directly clearable. Rows prioritize title, identity, context, and recency; identity keeps the same scan position across attention states. People use a quiet directory rhythm. Unread Sessions alone receive restrained elevation, stronger type, and quiet visible and accessible read-state labels; operational attention remains a separate label. At accessibility sizes, identity and context use the full row width. Utility chrome must leave room for that content, with complete navigation names, practical symbols, and large-content alternatives for bounded controls where they do not replace an existing hold gesture.
 
 On working surfaces, headings name the current object, date, state, or
 decision within a bounded operational scale. Page and object titles never
@@ -257,10 +261,11 @@ or turn weak associations into authoritative relationships.
 
 Optimize for capture, one-thumb review, Today, interruption, and device-owned action.
 
-Today, Sessions, and People form one horizontally paged retrieval space. The page follows the finger and the labeled top selection follows page progress;
-both remain accessible controls and preserve each destination's local state. Session and People rows do not own horizontal swipes. Tap opens the row, while
-the same secondary commands remain available from an explicit 44-point menu, a native long-press context menu, and accessibility actions.
-See the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#sixth-iteration-pages-own-the-horizontal-axis).
+Today, Sessions, and People form one horizontal pager. Pages follow the finger
+while the measured top indicator tracks real label positions in LTR and RTL;
+navigation preserves each page's search, filter, and scroll state. Rows reserve
+horizontal movement for paging: tap opens, while a 44-point menu, native context
+menu, and accessibility actions expose the same secondary commands. See the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#sixth-iteration-pages-own-the-horizontal-axis). Calendar follows the same gesture rule and leads with the selected time horizon and relationship agenda. Its menus expose edit, open, preparation, and Person; editing fixes relationship scope and reviews changed fields plus external effect. A linked EventKit event updates by saved identifier only; missing never creates a replacement.
 Treat screenshot intake as one progressive decision, not a miniature contact
 form or a success toast:
 
@@ -307,13 +312,8 @@ review into a chat reply.
 Functional audits gate release but do not establish design quality or
 preference. For a consequential visual change, compare at least two rendered
 directions against product truth, logo-off ownability, five-second clarity, and
-accessibility risk before micro-detail.
-Review the uncropped viewport across themes, text sizes, and crossed attention states. Independent craft scores use frozen criteria and preserved deductions; they are subjective evidence and never replace functional proof or user judgment.
+accessibility risk before micro-detail. Review the uncropped viewport across themes, text sizes, and crossed attention states. Independent craft scores use frozen criteria and preserved deductions; they are subjective evidence and never replace functional proof or user judgment.
 
-Approved mark geometry, controlled material variants, practical exports, and
-usage constraints live in the repository
-[brand system](../brand/README.md).
-
-External comparisons and borrowing boundaries live in the
+See the [brand system](../brand/README.md) for approved marks and usage, and the
 [Design reference catalog](research/design-reference-catalog.md) and
-[iOS relationship library benchmark](research/ios-relationship-library-design-benchmark.md).
+[iOS relationship library benchmark](research/ios-relationship-library-design-benchmark.md) for borrowing boundaries.

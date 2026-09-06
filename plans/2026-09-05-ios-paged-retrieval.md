@@ -1,8 +1,7 @@
 # iOS paged retrieval
 
-Status: implementation complete; focused Simulator interaction verification is
-pending because another repository worktree owns the machine-wide iOS automation
-lock for a long-running full suite.
+Status: implementation complete; release is governed by the PR checks and iOS
+distribution receipt.
 
 ## Outcome
 
@@ -18,58 +17,69 @@ longer compete for the same gesture.
   guidance, and focused regression tests.
 - Out of scope: changes to governed relationship state, Session persistence,
   People identity, external writes, or the visual hierarchy inside each page.
-- Preserve all unrelated work already present in the dirty worktree.
-
-## Current evidence
-
-- The current shell switches `selectedPage` through a non-paging `ZStack`.
-- Session and People rows currently own native horizontal `swipeActions`.
-- Existing tests intentionally assert that content-wide swipes do not navigate.
-- The user has explicitly chosen the opposite ownership model: pages own the
-  horizontal axis; rows use tap, long press, an explicit menu, and accessibility
-  actions.
+- The release work is isolated from unrelated changes in the original dirty
+  worktree.
 
 ## Approach
 
-1. Restore a native page-style container so the page transition follows the
-   finger and preserves platform paging physics.
-2. Report live page geometry to the header and render a restrained stretching
-   selection indicator; Reduce Motion keeps a simple non-elastic treatment.
+1. Use a native page-style container in every workspace phase so the page
+   follows the finger with platform paging physics.
+2. Report live page geometry to the header and interpolate a restrained
+   stretching indicator between measured tab anchors; mirror gesture progress
+   in RTL and remove elastic treatment under Reduce Motion.
 3. Replace Session and People row swipe actions with a 44-point trailing menu,
-   keep the matching context menu, and preserve explicit confirmation for local
-   Session deletion.
-4. Rewrite focused UI tests around page swiping, menu equivalence, destination
-   stability, and accessibility identifiers.
-5. Update the canonical mobile rule and verify build/tests/docs.
+   keep the matching native context menu, and preserve explicit confirmation
+   for local Session deletion.
+4. Preserve page-local search, filter, and scroll state across page changes and
+   temporary sheets rather than rebuilding the pager for transient dismissal.
+5. Rewrite focused UI tests around paging, menu equivalence, direction,
+   destination state, and accessibility identifiers.
 
 ## Rejected alternatives
 
 - Keeping both page paging and row swipes: repeats ambiguous same-axis gesture
   arbitration.
-- Custom velocity/angle thresholds: adds recognizer, RTL, accessibility, and
+- Custom velocity or angle thresholds: adds recognizer, RTL, accessibility, and
   physics debt without improving the ownership model.
 - Long press as the only row shortcut: too hidden; the visible menu is the
   discoverable equivalent.
+- Equal-width indicator segments: drift from the real label positions under
+  RTL and adaptive layout.
+- Rebuilding the entire pager to close row actions: row swipes no longer exist,
+  and reconstruction discards useful People search and filter context.
+
+## Independent review resolution
+
+The review returned `pass_with_changes / HOLD`, with no safety veto. It found
+two high-priority defects and one proof blocker:
+
+- RTL used LTR-only page-progress and indicator geometry. Resolved by applying
+  semantic direction to page measurements and interpolating measured tab
+  centers.
+- The old transient-intent generation rebuilt the pager and cleared People
+  state. Resolved by removing identity-based reconstruction while retaining
+  scroll-position capture.
+- Core interaction tests had not executed. Release remains held until the
+  focused suite and release checks pass.
+
+The adaptive header also moves utility actions to their own row at
+accessibility text sizes. Its selector preserves the user's full Dynamic Type
+category and scrolls horizontally when complete labels no longer fit.
 
 ## Completion evidence
 
-- A drag on Today changes to Sessions, then People, and reverses reliably.
-- Session and People row commands are reachable from both the visible menu and
-  long press, without row swipe actions.
-- Top selection stays semantically selected and visibly follows page progress.
-- Scroll/search state remains owned by each destination.
-- Relevant iOS build/tests and `pnpm docs:check` pass, or any environmental
-  blocker is recorded precisely.
+- A drag changes Today to Sessions, then People, and reverses reliably in LTR
+  and RTL.
+- Session and People commands are reachable from both the visible menu and long
+  press, without row swipe actions.
+- Top selection stays semantically selected and the visual indicator follows
+  measured page progress.
+- Search, filter, and scroll state remain owned by each destination.
+- Relevant iOS build/tests, localization checks, documentation checks, and
+  clean-diff checks pass before release.
 
 ## Verification record
 
-- `xcodebuild ... CODE_SIGNING_ALLOWED=NO build`: passed for the Debug app and
-  both bundled extensions on the iOS 26.5 Simulator SDK.
-- `xcrun swiftc -parse apps/ios/UITests/CandidateSignalUITests.swift`: passed.
-- `node scripts/ios/check-localization.mjs`: passed with both new menu labels in
-  the string catalog.
-- `pnpm docs:check`: passed, including wiki and architecture diagram checks.
-- `git diff --check`: passed.
-- Focused UI tests were updated but not executed: the machine-wide automation
-  lock is held by `/tmp/talent-signal-ios-check-remaining.sh` in another
-  worktree. The queued run was stopped without interrupting that owner.
+The release branch records local parse, localization, documentation, policy,
+and clean-diff checks. PR #128 and its same-revision full iOS run provide the
+executable gate; the published release receipt remains the distribution proof.

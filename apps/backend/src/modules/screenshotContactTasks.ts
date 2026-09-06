@@ -285,7 +285,7 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
         binding_basis:row.state.selected?"User selected this existing contact for filing.":"Unique internal contact match to visible screenshot label; content remains unreviewed source evidence."},
     resource:{client_resource_id:clientResourceID,kind:"conversation_screenshot",display_name:`${extraction.platform} 聊天截图`,media_type:manifest.image.media_type,
       observed_at:manifest.captured_at,source_timezone:"UTC",byte_size:[manifest.image,...manifest.additional_images??[]].reduce((sum,image)=>sum+image.byte_size,0),content_hash:manifest.additional_images?.length?digest(JSON.stringify([manifest.image,...manifest.additional_images])):manifest.image.content_hash,
-      retention:{requested_mode:"evidence_crop",source_scope:"reviewed_extracted_text",requested_retention_until:row.expires_at.toISOString()}},
+      retention:{requested_mode:"evidence_crop",source_scope:"proposed_extracted_text",requested_retention_until:row.expires_at.toISOString()}},
     fragments:extraction.messages.map(m=>({client_resource_id:clientResourceID,kind:"message",sequence:m.sequence,text:m.text,
       locator:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side},
       attribution:{actor_kind:"unknown",status:"unknown"},review_status:"proposed",parser:{name:"screenshot-contact-agent",version:"1"}})),

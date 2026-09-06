@@ -572,7 +572,7 @@ struct AgentWorkShowcaseView: View {
     @StateObject private var store = AgentWorkShowcaseStore()
     @ObservedObject private var controller = AgentWorkActivityController.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.talentSignalReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
     init(

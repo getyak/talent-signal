@@ -86,6 +86,9 @@ and `pnpm docs:check`. Physical-device claims require physical-device evidence.
   [the evaluation](../docs/evaluations/2026-09-05-live-activity-refinement/README.md).
   The system-card screenshots preserve Apple's first-use permission prompt;
   they are not presented as physically locked-device evidence.
+- The isolated PR branch was rebased onto current `origin/main`. Its App build,
+  the 34 focused tests under an explicit `en-US` test locale, `pnpm docs:check`,
+  screenshot hashes, and source manifest all passed before publishing.
 - The UI refinement slice is complete. Recording visual capture, system-selected
   minimal, signed-device Always-On, and real background delivery remain separate
   verification limits rather than inferred passes.

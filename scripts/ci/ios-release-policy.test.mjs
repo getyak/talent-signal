@@ -17,6 +17,11 @@ import {
   PROFILE_SPECS,
   validateProvisioningProfile,
 } from "./manage-ios-signing-profiles.mjs";
+import {
+  PermanentAppStoreConnectError,
+  selectExactBuildUpload,
+  waitForTestFlightBuild,
+} from "./wait-for-testflight-build.mjs";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const classifier = join(repositoryRoot, "scripts/ci/has-ios-changes.sh");
@@ -139,6 +144,20 @@ test("CI and release use explicit, shared iOS change sets", () => {
     base = head;
     head = writeCommit(
       temporaryDirectory,
+      "scripts/ci/wait-for-testflight-build.mjs",
+      "export const wait = true;\n",
+      "Change TestFlight processing policy",
+    );
+    assert.equal(classify(temporaryDirectory, base, head), "false");
+    assert.equal(classify(temporaryDirectory, base, head, "--ci-files"), "true");
+    assert.equal(
+      classify(temporaryDirectory, base, head, "--release-files"),
+      "true",
+    );
+
+    base = head;
+    head = writeCommit(
+      temporaryDirectory,
       "apps/ios/App.swift",
       "// iOS product change\n",
       "Change iOS product",
@@ -186,13 +205,21 @@ test("iOS CI blocks on a bounded smoke suite and keeps full coverage explicit", 
 
   assert.ok(iosJob, "expected the iOS CI job");
   assert.match(iosJob[1], /name: iOS release smoke/);
-  assert.match(iosJob[1], /timeout-minutes: 30/);
+  assert.match(iosJob[1], /timeout-minutes: 45/);
   assert.match(
     iosJob[1],
     /IOS_UI_TEST_SCOPE: \$\{\{ inputs\.ios_test_scope \|\| 'smoke' \}\}/,
   );
   assert.match(ciWorkflow, /ios_test_scope:/);
   assert.match(ciWorkflow, /- smoke\n\s+- full/);
+
+  const iosCheck = readFileSync(
+    join(repositoryRoot, "scripts/ios/check.sh"),
+    "utf8",
+  );
+  assert.match(iosCheck, /Timed out waiting for AX loaded notification/);
+  assert.match(iosCheck, /Audit failed to complete in time/);
+  assert.doesNotMatch(iosCheck, /rg --files-with-matches/);
 
   const smokeTests = readFileSync(
     join(repositoryRoot, "scripts/ios/ci-smoke-tests.txt"),
@@ -222,7 +249,7 @@ test("automatic releases classify all changes since the last trusted receipt", (
     "utf8",
   );
   const prepareJob = releaseWorkflow.match(
-    /  prepare:\n([\s\S]*?)(?=\n  testflight:)/,
+    /  prepare:\n([\s\S]*?)(?=\n  package:)/,
   );
 
   assert.ok(prepareJob, "expected the release preparation job");
@@ -259,6 +286,31 @@ test("automatic releases classify all changes since the last trusted receipt", (
   assert.match(releaseWorkflow, /testflight-release-receipt\.cjs/);
   assert.match(releaseWorkflow, /testflight-release-receipt\.json/);
   assert.match(releaseWorkflow, /build\/ios\/TalentSignal\.ipa/);
+  assert.match(releaseWorkflow, /Finalize TestFlight release/);
+  assert.match(releaseWorkflow, /wait-for-testflight-build\.mjs/);
+  assert.match(
+    releaseWorkflow,
+    /actions\/download-artifact@[0-9a-f]{40} # v7/,
+  );
+  assert.ok(
+    releaseWorkflow.indexOf("Preserve IPA before Apple upload") <
+      releaseWorkflow.indexOf("Submit exact archived IPA") &&
+      releaseWorkflow.indexOf("Submit exact archived IPA") <
+      releaseWorkflow.indexOf("Wait for exact TestFlight build processing"),
+  );
+  assert.match(releaseWorkflow, /bundle exec fastlane ios archive_beta/);
+  assert.match(releaseWorkflow, /bundle exec fastlane ios upload_beta/);
+  assert.match(releaseWorkflow, /Check for an existing exact upload/);
+  assert.match(releaseWorkflow, /TESTFLIGHT_LOOKUP_MODE: probe/);
+  assert.match(releaseWorkflow, /2\) echo "exists=false"/);
+  assert.match(
+    releaseWorkflow,
+    /Submit exact archived IPA\n\s+id: upload\n\s+if: steps\.existing_upload\.outputs\.exists != 'true'\n\s+continue-on-error: true/,
+  );
+  assert.match(releaseWorkflow, /Confirm exact TestFlight build is valid/);
+  assert.match(releaseWorkflow, /existing_sha="\$\(git rev-list -n 1 "\$RELEASE_TAG"\)"/);
+  assert.match(releaseWorkflow, /Tag \$RELEASE_TAG already points to the verified release commit/);
+  assert.match(releaseWorkflow, /gh release upload "\$RELEASE_TAG"[\s\S]*?--clobber/);
 
   assert.match(releaseWorkflow, /TALENT_SIGNAL_API_BASE_URL/);
   assert.match(releaseWorkflow, /probe-auth-backend\.mjs/);
@@ -418,6 +470,10 @@ test("manual Fastlane builds require the same Release environment", () => {
     fastfile,
     /lane :beta do[\s\S]*?configure_ios_environment\("Release"\)/,
   );
+  assert.match(
+    fastfile,
+    /lane :archive_beta do[\s\S]*?configure_ios_environment\("Release"\)/,
+  );
   assert.match(fastfile, /APP_IDENTIFIER = "com\.talentsignal\.app"/);
   assert.match(
     fastfile,
@@ -431,10 +487,13 @@ test("manual Fastlane builds require the same Release environment", () => {
     fastfile,
     /lane :prepare_signing do[\s\S]*?app_identifier: APP_IDENTIFIERS[\s\S]*?force: true,[\s\S]*?readonly: false/,
   );
-  assert.match(
-    fastfile,
-    /lane :beta do[\s\S]*?app_identifier: APP_IDENTIFIERS[\s\S]*?readonly: true/,
-  );
+  assert.match(fastfile, /def archive_testflight_build\(key\)/);
+  assert.match(fastfile, /app_identifier: APP_IDENTIFIERS[\s\S]*?readonly: true/);
+  assert.match(fastfile, /def upload_testflight_build\(key\)/);
+  assert.match(fastfile, /ipa: ipa_path/);
+  assert.match(fastfile, /skip_waiting_for_build_processing: true/);
+  assert.match(fastfile, /lane :upload_beta do/);
+  assert.doesNotMatch(fastfile, /changelog: release_changelog/);
   assert.match(
     fastfile,
     /SHARE_EXTENSION_IDENTIFIER => "match AppStore #\{SHARE_EXTENSION_IDENTIFIER\}"/,
@@ -443,6 +502,130 @@ test("manual Fastlane builds require the same Release environment", () => {
     fastfile,
     /LIVE_ACTIVITY_IDENTIFIER => "match AppStore #\{LIVE_ACTIVITY_IDENTIFIER\}"/,
   );
+});
+
+function buildUploadDocument({ buildState = null, uploadState = "PROCESSING" } = {}) {
+  const upload = {
+    type: "buildUploads",
+    id: "upload-1",
+    attributes: {
+      cfBundleShortVersionString: "0.1.43",
+      cfBundleVersion: "20260904030000",
+      platform: "IOS",
+      uploadedDate: "2026-09-04T03:01:00Z",
+      state: { state: uploadState, errors: [] },
+    },
+    relationships: {
+      build: { data: buildState ? { type: "builds", id: "build-1" } : null },
+    },
+  };
+  return {
+    data: [upload],
+    included: buildState
+      ? [{ type: "builds", id: "build-1", attributes: { processingState: buildState } }]
+      : [],
+  };
+}
+
+test("TestFlight processing selects only the exact version and build", () => {
+  const document = buildUploadDocument({ buildState: "VALID", uploadState: "COMPLETE" });
+  document.data.push({
+    ...document.data[0],
+    id: "other-upload",
+    attributes: {
+      ...document.data[0].attributes,
+      cfBundleVersion: "20260904020000",
+    },
+  });
+
+  assert.deepEqual(
+    selectExactBuildUpload(document, {
+      buildNumber: "20260904030000",
+      releaseVersion: "0.1.43",
+    }),
+    {
+      buildID: "build-1",
+      buildNumber: "20260904030000",
+      buildProcessingState: "VALID",
+      messages: [],
+      releaseVersion: "0.1.43",
+      uploadID: "upload-1",
+      uploadedDate: "2026-09-04T03:01:00Z",
+      uploadState: "COMPLETE",
+    },
+  );
+  assert.equal(
+    selectExactBuildUpload(document, {
+      buildNumber: "20260904030000",
+      releaseVersion: "0.1.44",
+    }),
+    null,
+  );
+});
+
+test("TestFlight processing retries missing and transient lookups without re-uploading", async () => {
+  let clock = 0;
+  let index = 0;
+  const observations = [
+    null,
+    new Error("temporary DNS failure"),
+    selectExactBuildUpload(
+      buildUploadDocument({ buildState: "VALID", uploadState: "COMPLETE" }),
+      { buildNumber: "20260904030000", releaseVersion: "0.1.43" },
+    ),
+  ];
+
+  const result = await waitForTestFlightBuild({
+    buildNumber: "20260904030000",
+    lookup: async () => {
+      const observation = observations[index++];
+      if (observation instanceof Error) throw observation;
+      return observation;
+    },
+    now: () => clock,
+    pollIntervalMs: 100,
+    releaseVersion: "0.1.43",
+    sleep: async (milliseconds) => { clock += milliseconds; },
+    timeoutMs: 1_000,
+  });
+
+  assert.equal(result.buildProcessingState, "VALID");
+  assert.equal(index, 3);
+  assert.equal(clock, 200);
+});
+
+test("TestFlight processing fails closed on an Apple upload rejection", async () => {
+  const document = buildUploadDocument({ uploadState: "FAILED" });
+  document.data[0].attributes.state.errors = [{
+    code: "90626",
+    description: "Invalid App Intent metadata",
+  }];
+  const rejected = selectExactBuildUpload(document, {
+    buildNumber: "20260904030000",
+    releaseVersion: "0.1.43",
+  });
+
+  await assert.rejects(
+    waitForTestFlightBuild({
+      buildNumber: "20260904030000",
+      lookup: async () => rejected,
+      releaseVersion: "0.1.43",
+      timeoutMs: 1_000,
+    }),
+    (error) =>
+      error instanceof PermanentAppStoreConnectError &&
+      /rejected.*90626: Invalid App Intent metadata/.test(error.message),
+  );
+});
+
+test("App Intent metadata avoids Apple's rejected device-name wording", () => {
+  const appIntents = readFileSync(
+    join(repositoryRoot, "apps/ios/Sources/App/CaptureAppIntents.swift"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(appIntents, /\b(?:iPhone|iPad)\b/i);
+  assert.match(appIntents, /save it on this device/);
 });
 
 test("all shipped targets pin their App Store profiles in Release", () => {

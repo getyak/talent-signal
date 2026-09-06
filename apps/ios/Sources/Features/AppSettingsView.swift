@@ -838,7 +838,7 @@ struct CalendarSyncSettingsView: View {
         List {
             Section {
                 Toggle(
-                    appLanguage.text("Sync confirmed events"),
+                    appLanguage.text("Sync new confirmed events"),
                     isOn: $isCalendarSyncEnabled
                 )
                 .accessibilityIdentifier("calendar-sync-toggle")
@@ -851,9 +851,7 @@ struct CalendarSyncSettingsView: View {
                 Text(appLanguage.text("Calendar sync"))
             } footer: {
                 Text(
-                    appLanguage.text(
-                        "Talent Signal saves the event first, then syncs it one way. It never imports or rechecks Apple Calendar events."
-                    )
+                    appLanguage.text("New events sync outbound after confirmation. Talent Signal never imports or browses Apple Calendar; after you review an edit to a linked event, it reads only that saved identifier to update and verify that event.")
                 )
             }
 
@@ -861,9 +859,7 @@ struct CalendarSyncSettingsView: View {
                 SettingsExplanationRow(
                     systemImage: "arrow.up.forward.app",
                     title: appLanguage.text("Outbound only"),
-                    detail: appLanguage.text(
-                        "Turning sync off keeps new confirmed events in Talent Signal without changing Apple Calendar."
-                    )
+                    detail: appLanguage.text("Turning sync off keeps new events in Talent Signal. A reviewed edit to an already linked event still updates that event only.")
                 )
             }
         }

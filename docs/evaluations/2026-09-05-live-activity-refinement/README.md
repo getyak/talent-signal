@@ -61,15 +61,13 @@ candidate-free fixture, not production research or a background delivery test.
 - [34 focused tests](unit-summary.json), [4 English system journeys](ui-en-summary.json),
   and [1 Chinese AX5 system journey](ui-zh-summary.json) passed on iPhone 17 Pro,
   iOS 26.5, device `432CF099-1379-47F5-93EB-8E87F7B2782C`.
-- The current shared-workspace App build passed (`/tmp/talent-signal-island-app-build.log`).
-  Integrated build-for-testing encountered unrelated in-progress
-  `RelationshipCaptureServiceStub` protocol conformance. No integrated full-suite
-  pass is claimed. Focused tests ran on a detached clean-base worktree carrying
-  the same Activity source and tests. The unrelated custom Reduce Motion
-  environment property retained its base value there.
-- [Source hashes](source-manifest.json) identify the final shared-workspace
-  implementation. Temporary build/test worktrees and original xcresults remain
-  under `/tmp/talent-signal-island-*` as local verification artifacts.
+- The final PR branch was rebased onto current `origin/main`; its App build and
+  the same 34 focused tests passed. Tests ran with an explicit `en-US` locale so
+  English copy assertions do not depend on the Simulator's previously selected
+  system language. The earlier Chinese system journey remains a separate receipt.
+- [Source hashes](source-manifest.json) identify the final PR implementation.
+  Temporary build/test worktrees and original xcresults remain under
+  `/tmp/talent-signal-island-*` as local verification artifacts.
 
 The deterministic corrections belong in projection and lifecycle tests. No
 additional global policy or duplicate design specification was introduced.

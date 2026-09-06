@@ -62,6 +62,7 @@ private enum DeviceCalendarHandoffResult: Equatable {
 enum DeviceCalendarSyncFailure: Error, Equatable {
     case permissionDenied
     case noDefaultCalendar
+    case eventNotFound
     case unsupportedOS
     case saveFailed(String)
 }
@@ -70,6 +71,10 @@ enum DeviceCalendarSyncFailure: Error, Equatable {
 protocol DeviceCalendarSyncing: AnyObject {
     func createEvent(from proposal: DeviceCalendarProposal) async
         -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure>
+    func updateEvent(
+        eventIdentifier: String,
+        from proposal: DeviceCalendarProposal
+    ) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure>
 }
 
 @MainActor
@@ -116,6 +121,54 @@ final class EventKitDeviceCalendarSyncService: DeviceCalendarSyncing {
         }
     }
 
+    func updateEvent(
+        eventIdentifier: String,
+        from proposal: DeviceCalendarProposal
+    ) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure> {
+        guard #available(iOS 17.0, *) else {
+            return .failure(.unsupportedOS)
+        }
+        do {
+            guard try await ensureFullAccess() else {
+                return .failure(.permissionDenied)
+            }
+            guard !eventIdentifier.isEmpty,
+                  let event = eventStore.event(withIdentifier: eventIdentifier) else {
+                return .failure(.eventNotFound)
+            }
+
+            event.title = proposal.title
+            event.startDate = proposal.startDate
+            event.endDate = proposal.endDate
+            event.timeZone = TimeZone(identifier: proposal.timeZoneIdentifier)
+            try eventStore.save(event, span: .thisEvent, commit: true)
+
+            let savedIdentifier = event.eventIdentifier ?? eventIdentifier
+            guard let readback = eventStore.event(withIdentifier: savedIdentifier),
+                  readback.title == proposal.title,
+                  readback.startDate == proposal.startDate,
+                  readback.endDate == proposal.endDate,
+                  readback.timeZone?.identifier == proposal.timeZoneIdentifier else {
+                return .failure(
+                    .saveFailed("Apple Calendar did not return the updated event.")
+                )
+            }
+
+            return .success(
+                DeviceCalendarSavedEvent(
+                    identifier: savedIdentifier,
+                    title: readback.title,
+                    startDate: readback.startDate,
+                    endDate: readback.endDate,
+                    timeZoneIdentifier: readback.timeZone?.identifier
+                        ?? proposal.timeZoneIdentifier
+                )
+            )
+        } catch {
+            return .failure(.saveFailed(error.localizedDescription))
+        }
+    }
+
     private func ensureWriteAccess() async throws -> Bool {
         let status = EKEventStore.authorizationStatus(for: .event)
         if #available(iOS 17.0, *) {
@@ -132,6 +185,20 @@ final class EventKitDeviceCalendarSyncService: DeviceCalendarSyncing {
         }
 
         return false
+    }
+
+    @available(iOS 17.0, *)
+    private func ensureFullAccess() async throws -> Bool {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess, .authorized:
+            return true
+        case .notDetermined, .writeOnly:
+            return try await eventStore.requestFullAccessToEvents()
+        case .denied, .restricted:
+            return false
+        @unknown default:
+            return false
+        }
     }
 }
 
@@ -506,6 +573,8 @@ struct DeviceCalendarHandoffView: View {
             return appState + appLanguage.text(
                 "Choose a default calendar in Apple Calendar, then try again."
             )
+        case .eventNotFound:
+            return appState + appLanguage.text("The linked Apple Calendar event could not be found. Nothing new was created.")
         case .unsupportedOS:
             return appState + appLanguage.text(
                 "One-way Calendar sync requires iOS 17 or later."
@@ -536,6 +605,21 @@ private final class DeterministicDeviceCalendarSyncService: DeviceCalendarSyncin
         .success(
             DeviceCalendarSavedEvent(
                 identifier: "synthetic-\(proposal.sourceID)",
+                title: proposal.title,
+                startDate: proposal.startDate,
+                endDate: proposal.endDate,
+                timeZoneIdentifier: proposal.timeZoneIdentifier
+            )
+        )
+    }
+
+    func updateEvent(
+        eventIdentifier: String,
+        from proposal: DeviceCalendarProposal
+    ) async -> Result<DeviceCalendarSavedEvent, DeviceCalendarSyncFailure> {
+        .success(
+            DeviceCalendarSavedEvent(
+                identifier: eventIdentifier,
                 title: proposal.title,
                 startDate: proposal.startDate,
                 endDate: proposal.endDate,

@@ -1,22 +1,202 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "This person is no longer available.": {
+    "Apple Calendar add": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此人物记录已不可用。"
+            "value": "添加到 Apple 日历"
           }
         }
       }
     },
-    "An internal device-tools build is required to save or apply display settings. Page previews remain available.": {
+    "Apple Calendar update": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "保存或应用显示设置需要启用设备工具的内部构建。页面预览仍可使用。"
+            "value": "更新 Apple 日历"
+          }
+        }
+      }
+    },
+    "Failed · safe to retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败 · 可以安全重试"
+          }
+        }
+      }
+    },
+    "Latest reviewed change": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近审阅的修改"
+          }
+        }
+      }
+    },
+    "Linked event missing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到已关联日程"
+          }
+        }
+      }
+    },
+    "Result unknown · check Apple Calendar": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果不确定 · 请检查 Apple 日历"
+          }
+        }
+      }
+    },
+    "Reviewed %@ · operation %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审阅于 %@ · 操作 %@"
+          }
+        }
+      }
+    },
+    "Reviewed · waiting": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已审阅 · 等待执行"
+          }
+        }
+      }
+    },
+    "Updating": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在更新"
+          }
+        }
+      }
+    },
+    "Verified": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已验证"
+          }
+        }
+      }
+    },
+    "Week view": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "周视图"
+          }
+        }
+      }
+    },
+    "View": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视图"
+          }
+        }
+      }
+    },
+    "Go to": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳转到"
+          }
+        }
+      }
+    },
+    "This week": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本周"
+          }
+        }
+      }
+    },
+    "Filter": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选"
+          }
+        }
+      }
+    },
+    "Calendar view and filters": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历视图与筛选"
+          }
+        }
+      }
+    },
+    "Calendar details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历详情"
+          }
+        }
+      }
+    },
+    "Week shown as a list for readable times and text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本周以列表显示，方便阅读时间与内容。"
+          }
+        }
+      }
+    },
+    "Swipe across to see the week": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左右滑动查看整周"
+          }
+        }
+      }
+    },
+    "Overlapping activities": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日程重叠"
           }
         }
       }
@@ -251,1112 +431,12 @@
         }
       }
     },
-    "Some display preferences could not be saved. Check your current settings before retrying.": {
+    "This person is no longer available.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "部分显示偏好未能保存。请检查当前设置后再试。"
-          }
-        }
-      }
-    },
-    "English": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "English"
-          }
-        }
-      }
-    },
-    "Extra large": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "超大"
-          }
-        }
-      }
-    },
-    "Onboarding": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "首次使用引导"
-          }
-        }
-      }
-    },
-    "Empty": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空状态"
-          }
-        }
-      }
-    },
-    "%lld minutes": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 分钟"
-          }
-        }
-      }
-    },
-    "Ends at": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "结束时间"
-          }
-        }
-      }
-    },
-    "Temporary display settings applied": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已应用临时显示设置"
-          }
-        }
-      }
-    },
-    "Display trial expired. Saved preferences restored.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示试用已到期，已恢复个人偏好。"
-          }
-        }
-      }
-    },
-    "Saved display preferences restored": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已恢复个人显示偏好"
-          }
-        }
-      }
-    },
-    "Display trial ended when the account or environment changed.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "账号或环境已切换，显示试用已结束。"
-          }
-        }
-      }
-    },
-    "Display presets could not be read. Existing saved data was preserved.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法读取外观预设，原有数据已保留。"
-          }
-        }
-      }
-    },
-    "Display presets saved on this device": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "外观预设已保存到本机"
-          }
-        }
-      }
-    },
-    "Display presets could not be saved. Refresh before trying again.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法保存外观预设，请重新读取后再试。"
-          }
-        }
-      }
-    },
-    "Theme, language and card density saved. Simulated accessibility settings stay temporary.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "主题、语言和卡片密度已保存，辅助功能模拟仍为临时设置。"
-          }
-        }
-      }
-    },
-    "DISPLAY TRIAL": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示试用中"
-          }
-        }
-      }
-    },
-    "Restore display": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "恢复显示"
-          }
-        }
-      }
-    },
-    "Current language": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "当前语言"
-          }
-        }
-      }
-    },
-    "Current text size": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "当前字号"
-          }
-        }
-      }
-    },
-    "Accessibility 1": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "辅助功能字号 1"
-          }
-        }
-      }
-    },
-    "Accessibility 3": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "辅助功能字号 3"
-          }
-        }
-      }
-    },
-    "Accessibility 5": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "辅助功能字号 5"
-          }
-        }
-      }
-    },
-    "Current card density": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "当前卡片密度"
-          }
-        }
-      }
-    },
-    "Review · concise": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "审核 · 简洁视图"
-          }
-        }
-      }
-    },
-    "Review · full evidence": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "审核 · 完整证据"
-          }
-        }
-      }
-    },
-    "Stale read": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旧版内容"
-          }
-        }
-      }
-    },
-    "Missing details": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "信息不完整"
-          }
-        }
-      }
-    },
-    "Long names & content": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "超长名称与内容"
-          }
-        }
-      }
-    },
-    "Inspect real pages with repeatable display settings.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "用可重复的显示配置检查真实页面。"
-          }
-        }
-      }
-    },
-    "Page previews use synthetic data. Apply a temporary display trial to inspect your current app.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "页面预览使用合成数据，也可以临时应用显示配置来检查当前 App。"
-          }
-        }
-      }
-    },
-    "Page state catalog": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "页面状态库"
-          }
-        }
-      }
-    },
-    "Page": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "页面"
-          }
-        }
-      }
-    },
-    "Page state": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "页面状态"
-          }
-        }
-      }
-    },
-    "Current app · Temporary": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "当前 App · 临时试用"
-          }
-        }
-      }
-    },
-    "Apply to current app": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "应用到当前 App"
-          }
-        }
-      }
-    },
-    "Apply updated display trial": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新当前显示试用"
-          }
-        }
-      }
-    },
-    "Close Lab to inspect the app. Restore, expiry, account change or app relaunch ends the trial. Saved preferences remain unchanged.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "关闭 Lab 后即可检查 App。恢复、到期、切换账号或重启 App 都会结束试用，个人偏好保持不变。"
-          }
-        }
-      }
-    },
-    "Display presets": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "外观预设"
-          }
-        }
-      }
-    },
-    "Delete preset %@": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除预设 %@"
-          }
-        }
-      }
-    },
-    "Save as display preset": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存为外观预设"
-          }
-        }
-      }
-    },
-    "Reset preview controls": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重置预览设置"
-          }
-        }
-      }
-    },
-    "Save theme, language & density": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存主题、语言和密度"
-          }
-        }
-      }
-    },
-    "Presets are stored only on this device. Loading a preset does not apply it to the app.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预设仅保存在本机。载入预设后，需另行应用到 App。"
-          }
-        }
-      }
-    },
-    "Reload display presets": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新读取外观预设"
-          }
-        }
-      }
-    },
-    "Name this display preset": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "为外观预设命名"
-          }
-        }
-      }
-    },
-    "Preset name": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预设名称"
-          }
-        }
-      }
-    },
-    "Save these personal display preferences?": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存这些个人显示偏好？"
-          }
-        }
-      }
-    },
-    "Theme, language and card density will remain after relaunch. Text-size simulation, motion, transparency, contrast and layout guides stay temporary.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "主题、语言和卡片密度将在重启后保留。字号模拟、动效、透明度、对比度和布局参考线仍为临时设置。"
-          }
-        }
-      }
-    },
-    "Preview display": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预览显示设置"
-          }
-        }
-      }
-    },
-    "Reduce app motion": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "减少 App 动效"
-          }
-        }
-      }
-    },
-    "Opaque app surfaces": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用不透明表面"
-          }
-        }
-      }
-    },
-    "Contrast rendering preview": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "对比度渲染预览"
-          }
-        }
-      }
-    },
-    "Show component bounds": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示组件边界"
-          }
-        }
-      }
-    },
-    "App simulations do not change system accessibility settings. System text-size and motion protections still apply. Contrast preview is a rendering adjustment, not an accessibility certification.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App 内模拟不会更改系统辅助功能设置。系统的大字号和减少动态效果仍然有效。对比度预览仅调整渲染效果，不代表通过辅助功能验证。"
-          }
-        }
-      }
-    },
-    "System accessibility · Read only": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "系统辅助功能 · 只读"
-          }
-        }
-      }
-    },
-    "Accessibility text size": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "辅助功能字号"
-          }
-        }
-      }
-    },
-    "Reduce motion": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "减少动态效果"
-          }
-        }
-      }
-    },
-    "Reduce transparency": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "降低透明度"
-          }
-        }
-      }
-    },
-    "Increased contrast": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "增强对比度"
-          }
-        }
-      }
-    },
-    "SYNTHETIC PAGE · Changes stay in this preview": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "合成页面 · 修改仅限本次预览"
-          }
-        }
-      }
-    },
-    "Display": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示"
-          }
-        }
-      }
-    },
-    "The last read is stale. Refresh before relying on this content.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此内容来自旧版读取，使用前请刷新。"
-          }
-        }
-      }
-    },
-    "Synthetic connection failure. Retry changes only this preview.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模拟连接失败，重试仅影响本次预览。"
-          }
-        }
-      }
-    },
-    "Preview interaction": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预览交互"
-          }
-        }
-      }
-    },
-    "Preview real pages, save presets, try display settings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预览真实页面、保存外观预设、试用显示设置"
-          }
-        }
-      }
-    },
-    "Selected product rerun": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已选产品复测记录"
-          }
-        }
-      }
-    },
-    "Verify that CI checked this exact case and rerun.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "核验 CI 是否检查过这个案例及其确切复测结果。"
-          }
-        }
-      }
-    },
-    "This reads an existing GitHub run. It does not run a model or change a release rule.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "读取已有的 GitHub 运行记录，不会调用模型或修改发布规则。"
-          }
-        }
-      }
-    },
-    "Check a CI run": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "核验 CI 记录"
-          }
-        }
-      }
-    },
-    "Trusted repository": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "受信任的仓库"
-          }
-        }
-      }
-    },
-    "Product rerun": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "产品复测记录"
-          }
-        }
-      }
-    },
-    "Choose a completed rerun": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择已结束的复测"
-          }
-        }
-      }
-    },
-    "GitHub run URL or ID": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GitHub 运行链接或 ID"
-          }
-        }
-      }
-    },
-    "Verify CI record": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "核验 CI 记录"
-          }
-        }
-      }
-    },
-    "CI verification is not configured for this backend.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此后端尚未配置 CI 核验。"
-          }
-        }
-      }
-    },
-    "An operator must connect a trusted workflow and read-only GitHub access before verification is available.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "管理员配置受信任的工作流和 GitHub 只读访问后，即可核验。"
-          }
-        }
-      }
-    },
-    "Last verification": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上次核验"
-          }
-        }
-      }
-    },
-    "CI record verified": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CI 记录已核验"
-          }
-        }
-      }
-    },
-    "CI record not verified": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CI 记录未通过核验"
-          }
-        }
-      }
-    },
-    "Recorded integrity checks passed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "记录完整性检查通过"
-          }
-        }
-      }
-    },
-    "Recorded integrity checks need attention": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "记录完整性检查存在问题"
-          }
-        }
-      }
-    },
-    "Output quality still needs review. Release enforcement is not verified.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "输出质量仍需评审，尚未核验发布规则是否强制执行。"
-          }
-        }
-      }
-    },
-    "Checked": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "核验时间"
-          }
-        }
-      }
-    },
-    "Refresh verification before relying on this record.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用这条记录前，请重新核验。"
-          }
-        }
-      }
-    },
-    "Open GitHub run": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开 GitHub 运行记录"
-          }
-        }
-      }
-    },
-    "Verification details": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "核验详情"
-          }
-        }
-      }
-    },
-    "CI source revision": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CI 代码版本"
-          }
-        }
-      }
-    },
-    "Product source revision": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "产品代码版本"
-          }
-        }
-      }
-    },
-    "Run attempt": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "运行次数"
-          }
-        }
-      }
-    },
-    "Workflow result": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "工作流结果"
-          }
-        }
-      }
-    },
-    "Backend job result": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "后端检查结果"
-          }
-        }
-      }
-    },
-    "Report fingerprint": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "报告指纹"
-          }
-        }
-      }
-    },
-    "Verification expires within 15 minutes. A new CI attempt, changed trust settings, expired report or deleted source requires another check.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "核验最多有效 15 分钟。CI 重新运行、信任配置变更、报告过期或来源删除后，需要重新检查。"
-          }
-        }
-      }
-    },
-    "Checking CI evidence…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在核验 CI 证据…"
-          }
-        }
-      }
-    },
-    "A CI verification request needs readback.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有一条 CI 核验请求需要恢复确认。"
-          }
-        }
-      }
-    },
-    "Saved case": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已保存的案例"
-          }
-        }
-      }
-    },
-    "Recover CI verification": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "恢复 CI 核验"
-          }
-        }
-      }
-    },
-    "Retry the same verification": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重试原核验请求"
-          }
-        }
-      }
-    },
-    "Dismiss pending verification": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消恢复此核验请求"
-          }
-        }
-      }
-    },
-    "Refresh saved case": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刷新案例"
-          }
-        }
-      }
-    },
-    "CI verification": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CI 核验"
-          }
-        }
-      }
-    },
-    "CI verification needs refresh": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CI 核验需要刷新"
-          }
-        }
-      }
-    },
-    "No verified CI record": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂无已核验的 CI 记录"
-          }
-        }
-      }
-    },
-    "This run does not match the configured trusted workflow.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此记录与已配置的受信任工作流不匹配。"
-          }
-        }
-      }
-    },
-    "The required CI check did not complete in this run.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本次运行未完成所需的 CI 检查。"
-          }
-        }
-      }
-    },
-    "The CI report is missing, expired or changed. Check the latest run.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CI 报告缺失、过期或已变更，请检查最新运行。"
-          }
-        }
-      }
-    },
-    "The CI report could not be matched to this exact case and rerun.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法确认 CI 报告对应此案例及其确切复测结果。"
-          }
-        }
-      }
-    },
-    "CI evidence could not be verified. Refresh or check the workflow configuration.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法核验 CI 证据，请刷新或检查工作流配置。"
-          }
-        }
-      }
-    },
-    "Saving a case, checking it in CI and approving its quality are separate steps.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存案例、CI 检查和质量认可分别记录。"
-          }
-        }
-      }
-    },
-    "Unlock the device and refresh to recover the saved CI request.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请解锁设备并刷新，以恢复已保存的 CI 请求。"
-          }
-        }
-      }
-    },
-    "The source regression was deleted or expired. No new call was sent.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "来源回归案例已删除或过期，未发送新的模型请求。"
+            "value": "此人物记录已不可用。"
           }
         }
       }
@@ -3907,6 +2987,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "日历。下一项：%@，%@，%@。"
+          }
+        }
+      }
+    },
+    "Calendar. Nothing scheduled today. Open Calendar to plan the next relationship moment.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历。今天暂无日程。打开日历，安排下一次联系。"
           }
         }
       }
@@ -6791,26 +5881,6 @@
         }
       }
     },
-    "More person actions": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更多人物操作"
-          }
-        }
-      }
-    },
-    "More session actions": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更多会话操作"
-          }
-        }
-      }
-    },
     "Match the language selected on this iPhone.": {
       "localizations": {
         "zh-Hans": {
@@ -6927,6 +5997,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "更多 Markdown 与附件选项"
+          }
+        }
+      }
+    },
+    "More person actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多人物操作"
+          }
+        }
+      }
+    },
+    "More session actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多会话操作"
           }
         }
       }
@@ -7447,6 +6537,16 @@
         }
       }
     },
+    "Nothing scheduled today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天暂无日程"
+          }
+        }
+      }
+    },
     "Nothing becomes current until you confirm. Nothing is sent.": {
       "localizations": {
         "zh-Hans": {
@@ -7903,6 +7003,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开状态"
+          }
+        }
+      }
+    },
+    "Open Calendar to plan the next relationship moment.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开日历，安排下一次联系。"
           }
         }
       }
@@ -14033,6 +13143,1126 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的决定"
+          }
+        }
+      }
+    },
+    "An internal device-tools build is required to save or apply display settings. Page previews remain available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存或应用显示设置需要启用设备工具的内部构建。页面预览仍可使用。"
+          }
+        }
+      }
+    },
+    "Some display preferences could not be saved. Check your current settings before retrying.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分显示偏好未能保存。请检查当前设置后再试。"
+          }
+        }
+      }
+    },
+    "English": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        }
+      }
+    },
+    "Extra large": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超大"
+          }
+        }
+      }
+    },
+    "Onboarding": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首次使用引导"
+          }
+        }
+      }
+    },
+    "Empty": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空状态"
+          }
+        }
+      }
+    },
+    "%lld minutes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分钟"
+          }
+        }
+      }
+    },
+    "Ends at": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束时间"
+          }
+        }
+      }
+    },
+    "Temporary display settings applied": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已应用临时显示设置"
+          }
+        }
+      }
+    },
+    "Display trial expired. Saved preferences restored.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示试用已到期，已恢复个人偏好。"
+          }
+        }
+      }
+    },
+    "Saved display preferences restored": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢复个人显示偏好"
+          }
+        }
+      }
+    },
+    "Display trial ended when the account or environment changed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账号或环境已切换，显示试用已结束。"
+          }
+        }
+      }
+    },
+    "Display presets could not be read. Existing saved data was preserved.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取外观预设，原有数据已保留。"
+          }
+        }
+      }
+    },
+    "Display presets saved on this device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外观预设已保存到本机"
+          }
+        }
+      }
+    },
+    "Display presets could not be saved. Refresh before trying again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存外观预设，请重新读取后再试。"
+          }
+        }
+      }
+    },
+    "Theme, language and card density saved. Simulated accessibility settings stay temporary.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主题、语言和卡片密度已保存，辅助功能模拟仍为临时设置。"
+          }
+        }
+      }
+    },
+    "DISPLAY TRIAL": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示试用中"
+          }
+        }
+      }
+    },
+    "Restore display": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复显示"
+          }
+        }
+      }
+    },
+    "Current language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前语言"
+          }
+        }
+      }
+    },
+    "Current text size": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前字号"
+          }
+        }
+      }
+    },
+    "Accessibility 1": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能字号 1"
+          }
+        }
+      }
+    },
+    "Accessibility 3": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能字号 3"
+          }
+        }
+      }
+    },
+    "Accessibility 5": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能字号 5"
+          }
+        }
+      }
+    },
+    "Current card density": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前卡片密度"
+          }
+        }
+      }
+    },
+    "Review · concise": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审核 · 简洁视图"
+          }
+        }
+      }
+    },
+    "Review · full evidence": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审核 · 完整证据"
+          }
+        }
+      }
+    },
+    "Stale read": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旧版内容"
+          }
+        }
+      }
+    },
+    "Missing details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信息不完整"
+          }
+        }
+      }
+    },
+    "Long names & content": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超长名称与内容"
+          }
+        }
+      }
+    },
+    "Inspect real pages with repeatable display settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用可重复的显示配置检查真实页面。"
+          }
+        }
+      }
+    },
+    "Page previews use synthetic data. Apply a temporary display trial to inspect your current app.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "页面预览使用合成数据，也可以临时应用显示配置来检查当前 App。"
+          }
+        }
+      }
+    },
+    "Page state catalog": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "页面状态库"
+          }
+        }
+      }
+    },
+    "Page": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "页面"
+          }
+        }
+      }
+    },
+    "Page state": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "页面状态"
+          }
+        }
+      }
+    },
+    "Current app · Temporary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前 App · 临时试用"
+          }
+        }
+      }
+    },
+    "Apply to current app": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用到当前 App"
+          }
+        }
+      }
+    },
+    "Apply updated display trial": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新当前显示试用"
+          }
+        }
+      }
+    },
+    "Close Lab to inspect the app. Restore, expiry, account change or app relaunch ends the trial. Saved preferences remain unchanged.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭 Lab 后即可检查 App。恢复、到期、切换账号或重启 App 都会结束试用，个人偏好保持不变。"
+          }
+        }
+      }
+    },
+    "Display presets": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外观预设"
+          }
+        }
+      }
+    },
+    "Delete preset %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除预设 %@"
+          }
+        }
+      }
+    },
+    "Save as display preset": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存为外观预设"
+          }
+        }
+      }
+    },
+    "Reset preview controls": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置预览设置"
+          }
+        }
+      }
+    },
+    "Save theme, language & density": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存主题、语言和密度"
+          }
+        }
+      }
+    },
+    "Presets are stored only on this device. Loading a preset does not apply it to the app.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预设仅保存在本机。载入预设后，需另行应用到 App。"
+          }
+        }
+      }
+    },
+    "Reload display presets": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新读取外观预设"
+          }
+        }
+      }
+    },
+    "Name this display preset": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为外观预设命名"
+          }
+        }
+      }
+    },
+    "Preset name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预设名称"
+          }
+        }
+      }
+    },
+    "Save these personal display preferences?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存这些个人显示偏好？"
+          }
+        }
+      }
+    },
+    "Theme, language and card density will remain after relaunch. Text-size simulation, motion, transparency, contrast and layout guides stay temporary.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主题、语言和卡片密度将在重启后保留。字号模拟、动效、透明度、对比度和布局参考线仍为临时设置。"
+          }
+        }
+      }
+    },
+    "Preview display": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览显示设置"
+          }
+        }
+      }
+    },
+    "Reduce app motion": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "减少 App 动效"
+          }
+        }
+      }
+    },
+    "Opaque app surfaces": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用不透明表面"
+          }
+        }
+      }
+    },
+    "Contrast rendering preview": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对比度渲染预览"
+          }
+        }
+      }
+    },
+    "Show component bounds": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示组件边界"
+          }
+        }
+      }
+    },
+    "App simulations do not change system accessibility settings. System text-size and motion protections still apply. Contrast preview is a rendering adjustment, not an accessibility certification.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 内模拟不会更改系统辅助功能设置。系统的大字号和减少动态效果仍然有效。对比度预览仅调整渲染效果，不代表通过辅助功能验证。"
+          }
+        }
+      }
+    },
+    "System accessibility · Read only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统辅助功能 · 只读"
+          }
+        }
+      }
+    },
+    "Accessibility text size": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能字号"
+          }
+        }
+      }
+    },
+    "Reduce motion": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "减少动态效果"
+          }
+        }
+      }
+    },
+    "Reduce transparency": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "降低透明度"
+          }
+        }
+      }
+    },
+    "Increased contrast": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增强对比度"
+          }
+        }
+      }
+    },
+    "SYNTHETIC PAGE · Changes stay in this preview": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合成页面 · 修改仅限本次预览"
+          }
+        }
+      }
+    },
+    "Display": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示"
+          }
+        }
+      }
+    },
+    "The last read is stale. Refresh before relying on this content.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此内容来自旧版读取，使用前请刷新。"
+          }
+        }
+      }
+    },
+    "Synthetic connection failure. Retry changes only this preview.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模拟连接失败，重试仅影响本次预览。"
+          }
+        }
+      }
+    },
+    "Preview interaction": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览交互"
+          }
+        }
+      }
+    },
+    "Preview real pages, save presets, try display settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览真实页面、保存外观预设、试用显示设置"
+          }
+        }
+      }
+    },
+    "Selected product rerun": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选产品复测记录"
+          }
+        }
+      }
+    },
+    "Verify that CI checked this exact case and rerun.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核验 CI 是否检查过这个案例及其确切复测结果。"
+          }
+        }
+      }
+    },
+    "This reads an existing GitHub run. It does not run a model or change a release rule.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取已有的 GitHub 运行记录，不会调用模型或修改发布规则。"
+          }
+        }
+      }
+    },
+    "Check a CI run": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核验 CI 记录"
+          }
+        }
+      }
+    },
+    "Trusted repository": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受信任的仓库"
+          }
+        }
+      }
+    },
+    "Product rerun": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "产品复测记录"
+          }
+        }
+      }
+    },
+    "Choose a completed rerun": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择已结束的复测"
+          }
+        }
+      }
+    },
+    "GitHub run URL or ID": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub 运行链接或 ID"
+          }
+        }
+      }
+    },
+    "Verify CI record": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核验 CI 记录"
+          }
+        }
+      }
+    },
+    "CI verification is not configured for this backend.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此后端尚未配置 CI 核验。"
+          }
+        }
+      }
+    },
+    "An operator must connect a trusted workflow and read-only GitHub access before verification is available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理员配置受信任的工作流和 GitHub 只读访问后，即可核验。"
+          }
+        }
+      }
+    },
+    "Last verification": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次核验"
+          }
+        }
+      }
+    },
+    "CI record verified": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CI 记录已核验"
+          }
+        }
+      }
+    },
+    "CI record not verified": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CI 记录未通过核验"
+          }
+        }
+      }
+    },
+    "Recorded integrity checks passed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录完整性检查通过"
+          }
+        }
+      }
+    },
+    "Recorded integrity checks need attention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录完整性检查存在问题"
+          }
+        }
+      }
+    },
+    "Output quality still needs review. Release enforcement is not verified.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输出质量仍需评审，尚未核验发布规则是否强制执行。"
+          }
+        }
+      }
+    },
+    "Checked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核验时间"
+          }
+        }
+      }
+    },
+    "Refresh verification before relying on this record.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用这条记录前，请重新核验。"
+          }
+        }
+      }
+    },
+    "Open GitHub run": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 GitHub 运行记录"
+          }
+        }
+      }
+    },
+    "Verification details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核验详情"
+          }
+        }
+      }
+    },
+    "CI source revision": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CI 代码版本"
+          }
+        }
+      }
+    },
+    "Product source revision": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "产品代码版本"
+          }
+        }
+      }
+    },
+    "Run attempt": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行次数"
+          }
+        }
+      }
+    },
+    "Workflow result": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作流结果"
+          }
+        }
+      }
+    },
+    "Backend job result": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后端检查结果"
+          }
+        }
+      }
+    },
+    "Report fingerprint": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "报告指纹"
+          }
+        }
+      }
+    },
+    "Verification expires within 15 minutes. A new CI attempt, changed trust settings, expired report or deleted source requires another check.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核验最多有效 15 分钟。CI 重新运行、信任配置变更、报告过期或来源删除后，需要重新检查。"
+          }
+        }
+      }
+    },
+    "Checking CI evidence…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在核验 CI 证据…"
+          }
+        }
+      }
+    },
+    "A CI verification request needs readback.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有一条 CI 核验请求需要恢复确认。"
+          }
+        }
+      }
+    },
+    "Saved case": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存的案例"
+          }
+        }
+      }
+    },
+    "Recover CI verification": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复 CI 核验"
+          }
+        }
+      }
+    },
+    "Retry the same verification": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试原核验请求"
+          }
+        }
+      }
+    },
+    "Dismiss pending verification": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消恢复此核验请求"
+          }
+        }
+      }
+    },
+    "Refresh saved case": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新案例"
+          }
+        }
+      }
+    },
+    "CI verification": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CI 核验"
+          }
+        }
+      }
+    },
+    "CI verification needs refresh": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CI 核验需要刷新"
+          }
+        }
+      }
+    },
+    "No verified CI record": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无已核验的 CI 记录"
+          }
+        }
+      }
+    },
+    "This run does not match the configured trusted workflow.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此记录与已配置的受信任工作流不匹配。"
+          }
+        }
+      }
+    },
+    "The required CI check did not complete in this run.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本次运行未完成所需的 CI 检查。"
+          }
+        }
+      }
+    },
+    "The CI report is missing, expired or changed. Check the latest run.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CI 报告缺失、过期或已变更，请检查最新运行。"
+          }
+        }
+      }
+    },
+    "The CI report could not be matched to this exact case and rerun.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法确认 CI 报告对应此案例及其确切复测结果。"
+          }
+        }
+      }
+    },
+    "CI evidence could not be verified. Refresh or check the workflow configuration.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法核验 CI 证据，请刷新或检查工作流配置。"
+          }
+        }
+      }
+    },
+    "Saving a case, checking it in CI and approving its quality are separate steps.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存案例、CI 检查和质量认可分别记录。"
+          }
+        }
+      }
+    },
+    "Unlock the device and refresh to recover the saved CI request.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请解锁设备并刷新，以恢复已保存的 CI 请求。"
+          }
+        }
+      }
+    },
+    "The source regression was deleted or expired. No new call was sent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源回归案例已删除或过期，未发送新的模型请求。"
           }
         }
       }
@@ -26116,172 +26346,1042 @@
         }
       }
     },
-    "Search sessions": {
+    "Capture could not be removed": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "搜索会话"
+            "value": "无法移除截图"
           }
         }
       }
     },
-    "Filter sessions": {
+    "Inbox needs another try": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "筛选会话"
+            "value": "截图列表需要重新加载"
           }
         }
       }
     },
-    "All sessions": {
+    "Remove local capture": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "全部会话"
+            "value": "移除本地截图"
           }
         }
       }
     },
-    "No matching sessions": {
+    "Remove this capture?": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有匹配的会话"
+            "value": "移除此截图？"
           }
         }
       }
     },
-    "Clear filter": {
+    "Selection starts an Agent Session. It processes the screenshot in the background and asks only when a decision is required.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "清除筛选"
+            "value": "选择后会立即创建 Agent 会话并在后台处理，只有需要你决策时才会提醒。"
           }
         }
       }
     },
-    "No people yet": {
+    "Opens the system photo picker, then starts an Agent Session.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "还没有人物"
+            "value": "打开系统照片选择器，随后创建 Agent 会话。"
           }
         }
       }
     },
-    "Read session": {
+    "Capture Sessions": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已读会话"
+            "value": "截图会话"
           }
         }
       }
     },
-    "Reading the conversation": {
+    "Opens capture decisions that need your input": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在读取对话"
+            "value": "打开需要你处理的截图决策"
           }
         }
       }
     },
-    "Open contact": {
+    "%lld need your input": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "打开联系人"
+            "value": "%lld 个需要你决策"
           }
         }
       }
     },
-    "Existing contact reused": {
+    "A capture decision is waiting": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已复用联系人"
+            "value": "有截图决策等待处理"
           }
         }
       }
     },
-    "messages saved": {
+    "%lld processing": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "条消息已保存"
+            "value": "%lld 个处理中"
           }
         }
       }
     },
-    "Contact name for filing": {
+    "%lld active capture Session": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本次归档的联系人姓名"
+            "value": "%lld 个进行中的截图会话"
           }
         }
       }
     },
-    "Confirm and continue": {
+    "%lld active capture Sessions": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "确认并继续"
+            "value": "%lld 个进行中的截图会话"
           }
         }
       }
     },
-    "Continue this task": {
+    "Close Capture Sessions": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "继续这个任务"
+            "value": "关闭截图会话"
           }
         }
       }
     },
-    "Interpretation": {
+    "This removes the protected local screenshot and Session processing recovery. It does not delete proposed source text already accepted by the backend.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "分析判断"
+            "value": "这会移除本地受保护的截图和会话处理恢复数据，但不会删除后端已接收的候选来源文本。"
           }
         }
       }
     },
-    "Source statement": {
+    "Session processing": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "来源陈述"
+            "value": "会话处理"
           }
         }
       }
     },
-    "Sourced professional context": {
+    "Each screenshot starts an Agent Session immediately. This surface appears only while processing is active or the Agent needs a decision.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "有来源的职业资料"
+            "value": "每张截图都会立即创建 Agent 会话。这里只显示正在处理或需要你决策的项目。"
+          }
+        }
+      }
+    },
+    "No active capture Sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有进行中的截图会话"
+          }
+        }
+      }
+    },
+    "Processed screenshots stay available from Sessions unless they need your input.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已处理的截图会保留在会话中，只有需要你决策时才会出现在这里。"
+          }
+        }
+      }
+    },
+    "Inspect and retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查并重试"
+          }
+        }
+      }
+    },
+    "Review decision": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "处理决策"
+          }
+        }
+      }
+    },
+    "Open required decision": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开待处理决策"
+          }
+        }
+      }
+    },
+    "Agent is processing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 正在处理"
+          }
+        }
+      }
+    },
+    "Session queued": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话已创建"
+          }
+        }
+      }
+    },
+    "Agent needs your input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 需要你决策"
+          }
+        }
+      }
+    },
+    "Processing complete": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "处理完成"
+          }
+        }
+      }
+    },
+    "The Session is protected and waiting to start.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话已安全保存，正在等待处理。"
+          }
+        }
+      }
+    },
+    "The Agent is reading the screenshot on this device.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 正在此设备上读取截图。"
+          }
+        }
+      }
+    },
+    "Processing stopped. Open the saved capture to inspect or retry it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "处理已停止。打开已保存的截图进行检查或重试。"
+          }
+        }
+      }
+    },
+    "Multiple people match this screenshot. Choose who owns the conversation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多个联系人可能匹配这张截图。请选择这段对话属于谁。"
+          }
+        }
+      }
+    },
+    "The Agent found proposed facts that need speaker or evidence confirmation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 找到了候选事实，需要你确认说话人或证据。"
+          }
+        }
+      }
+    },
+    "The Agent could not resolve the person safely. Choose the person and relationship.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 无法安全确定联系人。请选择联系人和关系。"
+          }
+        }
+      }
+    },
+    "The Agent needs one identity or evidence decision to continue.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent 需要一个身份或证据决策才能继续。"
+          }
+        }
+      }
+    },
+    "Create a voice draft?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建语音草稿？"
+          }
+        }
+      }
+    },
+    "Keep holding for voice…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续按住以开始语音…"
+          }
+        }
+      }
+    },
+    "Double tap to type. Touch and hold to start voice input.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击输入文字；触摸并按住可开始语音输入。"
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始"
+          }
+        }
+      }
+    },
+    "Start dictating": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始听写"
+          }
+        }
+      }
+    },
+    "When available, provisional words appear on device while you speak. After you stop, the temporary recording goes to Doubao to create an editable draft. Nothing is sent to Agent until you tap Send. Talent Signal deletes its temporary audio after transcription; provider handling follows your service agreement.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备支持时，说话过程中会在本机显示临时文字。停止后，临时录音会交给豆包生成可编辑草稿；点击发送前，不会向 Agent 提交任何文字。转写完成后 Talent Signal 会删除临时音频，服务商按你的服务协议处理。"
+          }
+        }
+      }
+    },
+    "Hold to talk": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住说话"
+          }
+        }
+      }
+    },
+    "Double tap for hands-free voice, or hold and release to create an editable draft.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击开始免手持语音，或按住说话并松开以创建可编辑草稿。"
+          }
+        }
+      }
+    },
+    "Stop and review transcript": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止并检查转写"
+          }
+        }
+      }
+    },
+    "Listening…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在听…"
+          }
+        }
+      }
+    },
+    "Finalizing transcript…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在完成转写…"
+          }
+        }
+      }
+    },
+    "Release to review · up to lock · left to cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松开后检查 · 上滑锁定 · 左滑取消"
+          }
+        }
+      }
+    },
+    "Hands-free · tap stop to review": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免手持 · 点击停止后检查"
+          }
+        }
+      }
+    },
+    "Release to cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松开取消"
+          }
+        }
+      }
+    },
+    "Release to review": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松开后检查"
+          }
+        }
+      }
+    },
+    "Microphone is off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "麦克风没打开"
+          }
+        }
+      }
+    },
+    "Didn't catch that": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没听清"
+          }
+        }
+      }
+    },
+    "Couldn't connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没连上"
+          }
+        }
+      }
+    },
+    "Still waiting": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没回来"
+          }
+        }
+      }
+    },
+    "Open": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看"
+          }
+        }
+      }
+    },
+    "Talent Signal Agent is preparing a response.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal Agent 正在准备回复。"
+          }
+        }
+      }
+    },
+    "Talent Signal Agent response is ready to review.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal Agent 的回复已可查看。"
+          }
+        }
+      }
+    },
+    "Talent Signal Agent did not connect. Open the protected Session to retry.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal Agent 未能连接。打开受保护的会话后重试。"
+          }
+        }
+      }
+    },
+    "Talent Signal Agent response is delayed. Open the protected Session to check or retry.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal Agent 的回复延迟了。打开受保护的会话查看或重试。"
+          }
+        }
+      }
+    },
+    "Stops recording and creates an editable transcript. Nothing is sent until you tap Send.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止录音并创建可编辑转写；点击发送前，不会提交任何文字。"
+          }
+        }
+      }
+    },
+    "Starts foreground voice input. Release to review, slide up to continue hands-free, or slide left to cancel.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始前台语音输入。松开后检查，上滑继续免手持，左滑取消。"
+          }
+        }
+      }
+    },
+    "The question could not be protected for retry. Your message was not sent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法为重试安全保存这次提问。你的消息没有发送。"
+          }
+        }
+      }
+    },
+    "The changes are saved in Talent Signal, but the linked Apple Calendar event could not be found. Nothing new was created.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改已保存到 Talent Signal，但找不到已关联的 Apple 日历日程；没有新建任何日程。"
+          }
+        }
+      }
+    },
+    "The event is saved in Talent Signal. Choose a default calendar in Apple Calendar, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日程已保存到 Talent Signal。请先在 Apple 日历中选择默认日历，然后重试。"
+          }
+        }
+      }
+    },
+    "The changes are saved in Talent Signal. This Apple Calendar operation requires iOS 17 or later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改已保存到 Talent Signal。此 Apple 日历操作需要 iOS 17 或更高版本。"
+          }
+        }
+      }
+    },
+    "Prepare": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "准备"
+          }
+        }
+      }
+    },
+    "Prepare for %@ with Agent": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Agent 为 %@ 做准备"
+          }
+        }
+      }
+    },
+    "Opens an editable Session draft. Nothing is sent yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开可编辑的 Session 草稿；尚未发送任何内容。"
+          }
+        }
+      }
+    },
+    "Week": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一周"
+          }
+        }
+      }
+    },
+    "Tomorrow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明天"
+          }
+        }
+      }
+    },
+    "Open activity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开日程"
+          }
+        }
+      }
+    },
+    "Edit activity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改日程"
+          }
+        }
+      }
+    },
+    "Activity actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日程操作"
+          }
+        }
+      }
+    },
+    "Calendar access required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要日历访问权限"
+          }
+        }
+      }
+    },
+    "Default calendar required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要设置默认日历"
+          }
+        }
+      }
+    },
+    "Requires iOS 17 or later": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 iOS 17 或更高版本"
+          }
+        }
+      }
+    },
+    "Linked Calendar event missing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到已关联的日历日程"
+          }
+        }
+      }
+    },
+    "Calendar access required · allow it in Settings, then retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要日历访问权限 · 请在“设置”中允许后重试"
+          }
+        }
+      }
+    },
+    "Default calendar required · choose one, then retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要默认日历 · 选择后再重试"
+          }
+        }
+      }
+    },
+    "Requires iOS 17 or later · event kept in Talent Signal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 iOS 17 或更高版本 · 日程保留在 Talent Signal"
+          }
+        }
+      }
+    },
+    "Linked event missing · no replacement created": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到已关联日程 · 未新建替代日程"
+          }
+        }
+      }
+    },
+    "Relationship stays unchanged when editing from Calendar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从日历修改时，关联人物与关系上下文保持不变。"
+          }
+        }
+      }
+    },
+    "Changes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改内容"
+          }
+        }
+      }
+    },
+    "Update activity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新日程"
+          }
+        }
+      }
+    },
+    "Review the differences before updating the linked Apple Calendar event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先审阅修改内容，再更新已关联的 Apple 日历日程。"
+          }
+        }
+      }
+    },
+    "Review the differences before retrying Apple Calendar with the edited details.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先审阅修改内容，再用修改后的信息重试 Apple 日历同步。"
+          }
+        }
+      }
+    },
+    "This activity has no linked Apple Calendar event; editing changes Talent Signal only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此日程没有关联的 Apple 日历日程；修改只会保存到 Talent Signal。"
+          }
+        }
+      }
+    },
+    "Shows every changed field and the exact Apple Calendar effect, if any, before updating.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新前显示每项修改，以及对 Apple 日历的确切影响（如有）。"
+          }
+        }
+      }
+    },
+    "Type": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "类型"
+          }
+        }
+      }
+    },
+    "Ends": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束"
+          }
+        }
+      }
+    },
+    "Preview only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅供预览"
+          }
+        }
+      }
+    },
+    "Updates the linked Apple Calendar event": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已关联的 Apple 日历日程"
+          }
+        }
+      }
+    },
+    "Retries one Apple Calendar event": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试写入一条 Apple 日历日程"
+          }
+        }
+      }
+    },
+    "Talent Signal only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅 Talent Signal"
+          }
+        }
+      }
+    },
+    "The preview changes in this session. No Calendar permission is requested and nothing is written externally.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改只保留在本次预览中，不会请求日历权限，也不会写入外部系统。"
+          }
+        }
+      }
+    },
+    "Talent Signal first records this reviewed change, then finds the existing event by its saved identifier and updates that event only. It never creates a replacement.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talent Signal 会先记录这次已审阅的修改，再通过已保存的标识符查找现有日程，并只更新这一条；不会新建替代日程。"
+          }
+        }
+      }
+    },
+    "The earlier add did not complete. Confirming saves these changes, then retries one Calendar add without changing the relationship.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "之前的添加没有完成。确认后会先保存修改，再重试添加一条日历日程，人物关系保持不变。"
+          }
+        }
+      }
+    },
+    "No linked Apple Calendar event exists, so this edit changes the Talent Signal activity only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前没有关联的 Apple 日历日程，因此此次修改只会更新 Talent Signal 日程。"
+          }
+        }
+      }
+    },
+    "Saves the reviewed changes in Talent Signal without updating an existing Apple Calendar event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存已审阅的修改，不会更新现有 Apple 日历日程。"
+          }
+        }
+      }
+    },
+    "Saves the reviewed changes, then retries adding one Apple Calendar event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存已审阅的修改，然后重试添加一条 Apple 日历日程。"
+          }
+        }
+      }
+    },
+    "Saves the reviewed changes in Talent Signal without changing Apple Calendar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存已审阅的修改，不会更改 Apple 日历。"
+          }
+        }
+      }
+    },
+    "Saves the reviewed changes, then updates only the linked Apple Calendar event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存已审阅的修改，然后只更新已关联的 Apple 日历日程。"
+          }
+        }
+      }
+    },
+    "Sync new confirmed events": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步新确认的日程"
+          }
+        }
+      }
+    },
+    "New events sync outbound after confirmation. Talent Signal never imports or browses Apple Calendar; after you review an edit to a linked event, it reads only that saved identifier to update and verify that event.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新日程会在确认后单向同步。Talent Signal 不会导入或浏览 Apple 日历；修改已关联日程时，只会在你审阅后通过已保存的标识符读取、更新并验证那一条日程。"
+          }
+        }
+      }
+    },
+    "Turning sync off keeps new events in Talent Signal. A reviewed edit to an already linked event still updates that event only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭同步后，新日程只保留在 Talent Signal；已关联日程经你审阅确认的修改，仍只会更新对应的那一条日程。"
+          }
+        }
+      }
+    },
+    "The linked Apple Calendar event could not be found. Nothing new was created.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到已关联的 Apple 日历日程，且没有新建任何日程。"
           }
         }
       }
@@ -26296,229 +27396,12 @@
         }
       }
     },
-    "Left side": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "画面左侧"
-          }
-        }
-      }
-    },
-    "Right side": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "画面右侧"
-          }
-        }
-      }
-    },
-    "Speaker unknown": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "说话人未知"
-          }
-        }
-      }
-    },
-    "Public sources explored": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "检索过的公开来源"
-          }
-        }
-      }
-    },
-    "Content read": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已读取正文"
-          }
-        }
-      }
-    },
-    "Possible match": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "待核对匹配"
-          }
-        }
-      }
-    },
-    "Uncertainty and limitations": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仍需核对"
-          }
-        }
-      }
-    },
-    "Organizing": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在整理"
-          }
-        }
-      }
-    },
-    "Organized": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已整理"
-          }
-        }
-      }
-    },
-    "Saved, with unfinished work": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已保存，部分未完成"
-          }
-        }
-      }
-    },
-    "Needs your clarification": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "需要你确认"
-          }
-        }
-      }
-    },
-    "Stopped": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已停止"
-          }
-        }
-      }
-    },
-    "Not completed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚未完成"
-          }
-        }
-      }
-    },
     "Chat screenshot": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "聊天截图"
-          }
-        }
-      }
-    },
-    "Your screenshot tasks appear here.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你的截图整理任务会保留在这里。"
-          }
-        }
-      }
-    },
-    "Screenshot tasks": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "截图整理记录"
-          }
-        }
-      }
-    },
-    "Send to file messages and sourced contact context. Identity ambiguity pauses for you.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "发送后会自动归档消息和来源资料，遇到身份歧义会请你确认。"
-          }
-        }
-      }
-    },
-    "File this chat screenshot to the correct internal contact, save its messages, and explain supported changes and the next step. Research public professional context when useful.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "把聊天截图归档到正确联系人，保存消息，整理有依据的变化与下一步；在有帮助时查找公开职业资料。"
-          }
-        }
-      }
-    },
-    "Messages and sourced context are retained for 30 days; the original image is not retained.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "消息和来源资料保留 30 天，原图不保留。"
-          }
-        }
-      }
-    },
-    "Conversation and sourced context": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "对话与来源资料"
-          }
-        }
-      }
-    },
-    "Source context could not be refreshed.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂时无法刷新来源资料。"
-          }
-        }
-      }
-    },
-    "Reattach the same screenshot": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reattach the same screenshot"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新附上同一张截图"
           }
         }
       }
@@ -26540,23 +27423,6 @@
         }
       }
     },
-    "Professional headline": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Professional headline"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一句话职业背景"
-          }
-        }
-      }
-    },
     "Company": {
       "extractionState": "manual",
       "localizations": {
@@ -26570,6 +27436,96 @@
           "stringUnit": {
             "state": "translated",
             "value": "公司"
+          }
+        }
+      }
+    },
+    "Confirm and continue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认并继续"
+          }
+        }
+      }
+    },
+    "Contact name for filing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本次归档的联系人姓名"
+          }
+        }
+      }
+    },
+    "Content read": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已读取正文"
+          }
+        }
+      }
+    },
+    "Continue this task": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续这个任务"
+          }
+        }
+      }
+    },
+    "Conversation and sourced context": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话与来源资料"
+          }
+        }
+      }
+    },
+    "Existing contact reused": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复用联系人"
+          }
+        }
+      }
+    },
+    "File this chat screenshot to the correct internal contact, save its messages, and explain supported changes and the next step. Research public professional context when useful.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把聊天截图归档到正确联系人，保存消息，整理有依据的变化与下一步；在有帮助时查找公开职业资料。"
+          }
+        }
+      }
+    },
+    "Interpretation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分析判断"
+          }
+        }
+      }
+    },
+    "Left side": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面左侧"
           }
         }
       }
@@ -26591,6 +27547,76 @@
         }
       }
     },
+    "Messages and sourced context are retained for 30 days; the original image is not retained.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消息和来源资料保留 30 天，原图不保留。"
+          }
+        }
+      }
+    },
+    "Needs your clarification": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要你确认"
+          }
+        }
+      }
+    },
+    "Not completed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未完成"
+          }
+        }
+      }
+    },
+    "Open contact": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开联系人"
+          }
+        }
+      }
+    },
+    "Organized": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已整理"
+          }
+        }
+      }
+    },
+    "Organizing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在整理"
+          }
+        }
+      }
+    },
+    "Possible match": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待核对匹配"
+          }
+        }
+      }
+    },
     "Professional background": {
       "extractionState": "manual",
       "localizations": {
@@ -26604,6 +27630,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "职业背景"
+          }
+        }
+      }
+    },
+    "Professional headline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Professional headline"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一句话职业背景"
           }
         }
       }
@@ -26642,12 +27685,229 @@
         }
       }
     },
+    "Public sources explored": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检索过的公开来源"
+          }
+        }
+      }
+    },
+    "Reading the conversation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取对话"
+          }
+        }
+      }
+    },
+    "Reattach the same screenshot": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reattach the same screenshot"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新附上同一张截图"
+          }
+        }
+      }
+    },
+    "Right side": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画面右侧"
+          }
+        }
+      }
+    },
+    "Saved, with unfinished work": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存，部分未完成"
+          }
+        }
+      }
+    },
+    "Screenshot tasks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图整理记录"
+          }
+        }
+      }
+    },
+    "Send to file messages and sourced contact context. Identity ambiguity pauses for you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送后会自动归档消息和来源资料，遇到身份歧义会请你确认。"
+          }
+        }
+      }
+    },
+    "Source context could not be refreshed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法刷新来源资料。"
+          }
+        }
+      }
+    },
+    "Source statement": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源陈述"
+          }
+        }
+      }
+    },
+    "Sourced professional context": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有来源的职业资料"
+          }
+        }
+      }
+    },
+    "Speaker unknown": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话人未知"
+          }
+        }
+      }
+    },
+    "Stopped": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已停止"
+          }
+        }
+      }
+    },
+    "Uncertainty and limitations": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仍需核对"
+          }
+        }
+      }
+    },
+    "Your screenshot tasks appear here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的截图整理任务会保留在这里。"
+          }
+        }
+      }
+    },
+    "messages saved": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "条消息已保存"
+          }
+        }
+      }
+    },
+    "All sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部会话"
+          }
+        }
+      }
+    },
+    "Clear filter": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除筛选"
+          }
+        }
+      }
+    },
+    "Filter sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选会话"
+          }
+        }
+      }
+    },
+    "No matching sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的会话"
+          }
+        }
+      }
+    },
+    "Read session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已读会话"
+          }
+        }
+      }
+    },
     "Review needed": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "待你确认"
+          }
+        }
+      }
+    },
+    "Search sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索会话"
           }
         }
       }
@@ -26688,6 +27948,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "个会话"
+          }
+        }
+      }
+    },
+    "Original images": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始图片"
+          }
+        }
+      }
+    },
+    "The image could not be read.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图读取失败，请重试。"
+          }
+        }
+      }
+    },
+    "Original image": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始图片"
+          }
+        }
+      }
+    },
+    "Images must total no more than 30 MB.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图片总计不能超过 30 MB，请分开发送。"
+          }
+        }
+      }
+    },
+    "Choose up to ten PNG, JPEG, or WebP images.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次可发送最多 10 张 PNG、JPEG 或 WebP 图片。"
           }
         }
       }

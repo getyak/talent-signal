@@ -16,6 +16,7 @@ export const SOURCE_SCOPES = [
   "reviewed_selected_text",
   "reviewed_evidence_crop",
   "reviewed_extracted_text",
+  "proposed_extracted_text",
   "full_reviewed_source",
 ] as const;
 

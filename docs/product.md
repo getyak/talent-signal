@@ -117,11 +117,12 @@ system changed. An answer may cite only exact, currently available evidence
 fragments from its account-, person-, relationship-, and snapshot-bound context.
 The source name is visible in the conversation and opens an inspectable evidence
 readback; a generic person page or an opaque evidence count is not a citation.
-Successful mobile Sessions and unsent drafts resume within the same signed-in
-account. Restored answers are visibly stale, hide their citations, and require a
-new Ask before source authority is claimed again. A submitted question remains
-recoverable until validated recording succeeds, and retry reuses the same task
-intent instead of creating duplicate work.
+Successful mobile Sessions and unsent drafts resume within the same signed-in account. Restored answers are visibly stale, hide their citations, and require a new Ask before source authority is claimed again. A submitted question remains recoverable until validated recording succeeds, and retry reuses the same task intent instead of creating duplicate work.
+
+On mobile, voice is a direct path to an editable Agent-input draft. The global composer accepts a normal tap for text and touch-and-hold for voice; the Session composer shows best-effort on-device provisional words inside the same ribbon.
+Releasing stops capture and requests one provider-final transcript, but never submits it: the exact final words remain editable until the recruiter taps `Send`. Sliding up keeps capture hands-free and sliding left cancels.
+First use explains the temporary audio processor and deletion boundary, and existing typed text is never replaced by a voice gesture. Voice input does not make a recruiter recollection source evidence or grant downstream confirmation or action authority.
+After an admitted Ask starts, a content-free Live Activity may carry only opaque workspace, Session, and activity identifiers plus lifecycle state. It opens the exact protected Session for `Review` or retry and never exposes the question, transcript, person, relationship, answer, or evidence.
 
 When no relationship is selected, the recruiter sends normally. The Agent may
 answer from the submitted text, search the authenticated contact index with one
@@ -158,13 +159,11 @@ original request is in flight, recovery is visible but cannot start a competing
 reconciliation. A no-action result carries one evidence-state condition for
 revisiting the decision without manufacturing urgency.
 
-Mobile capture is the complementary intent surface. A screenshot selected from
-Photos or handed in through a system shortcut enters one recoverable review:
-the recruiter corrects on-device text, supplies only the identity and
-relationship clues they can support, compares temporal owners without a
-default selection, and explicitly attaches the governed source. Completion
-returns the actual compiled-Wiki quality and identifiers; it does not create a
-second contact merely because another source arrived. Selected contact files follow the same rule: on-device staging exposes malformed and duplicate rows, each valid row receives an exact protected identity decision and canonical receipt, raw bytes are discarded, and unreviewed notes or mapped context gain no fact or Memory authority.
+Mobile capture is the complementary intent surface. Selecting a screenshot in Photos or handing one in through a system shortcut immediately creates a recoverable Agent Session and authorizes purpose-bound processing.
+On-device text recognition and bounded tools may run without another tap; extracted text crosses into shared storage only as a proposed, attributable source.
+A sole match may be attached automatically only when a current confirmed identity clue resolves to one person and one existing relationship context. The product returns to the foreground when tools fail, identity or relationship context remains materially ambiguous, or an external effect needs approval.
+Screenshot intent authorizes that bounded source attachment. Extracted text, speaker attribution, facts, and actions remain proposed until they receive their own authority.
+Selected contact files follow the same rule: on-device staging exposes malformed and duplicate rows, each valid row receives an exact protected identity decision and canonical receipt, raw bytes are discarded, and unreviewed notes or mapped context gain no fact or Memory authority.
 
 Relationship Ask also accepts a screenshot as a purpose-bound task attachment.
 After Send, an admitted Agent may autonomously choose bounded public-profile

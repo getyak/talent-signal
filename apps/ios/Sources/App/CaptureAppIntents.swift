@@ -165,9 +165,9 @@ struct OpenPursuitIntent: AppIntent {
 }
 
 struct ImportConversationScreenshotIntent: AppIntent {
-    static let title: LocalizedStringResource = "Review screenshot"
+    static let title: LocalizedStringResource = "Process screenshot"
     static let description = IntentDescription(
-        "Receive one screenshot from a Shortcut and save it on this iPhone for editable text and identity review."
+        "Receive one screenshot, save it on this device, create a protected Agent Session, and ask only when processing needs a decision."
     )
 
     @available(iOS 26.0, *)
@@ -178,12 +178,12 @@ struct ImportConversationScreenshotIntent: AppIntent {
 
     @Parameter(
         title: "Screenshot",
-        requestValueDialog: "Choose a screenshot to review."
+        requestValueDialog: "Choose a screenshot to process."
     )
     var screenshot: IntentFile
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Review \(\.$screenshot)")
+        Summary("Process \(\.$screenshot)")
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
@@ -196,10 +196,10 @@ struct ImportConversationScreenshotIntent: AppIntent {
         )
         trace.mark("persisted")
         trace.mark("setup_receipt_recorded")
-        trace.mark("review_enqueued")
+        trace.mark("session_enqueued")
         trace.mark("intent_returning")
         return .result(
-            dialog: "Saved on this iPhone. Nothing was uploaded or confirmed."
+            dialog: "Agent Session created. Processing will continue securely; Talent Signal will ask only if a decision is needed."
         )
     }
 

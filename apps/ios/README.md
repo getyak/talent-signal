@@ -457,6 +457,26 @@ route. Candidate details and every consequential decision remain in the app.
 No demo card writes to Contacts, Calendar, ATS, CRM, or a messaging service;
 the final state is a local review handoff rather than a claimed external result.
 
+Relationship Ask uses the global composer as a direct voice ribbon. Tap the
+home text surface to type or touch and hold it to enter voice immediately. Hold
+an empty Session composer to speak, release to create an editable transcript,
+and tap Send only after reviewing the provider-final words. Slide up to continue
+hands-free, or slide left to cancel. A tap on the connection mark starts the
+same hands-free path for accessibility. When the device supports on-device
+Speech recognition, partial words stay inside the ribbon while recording;
+Doubao produces the provider-final editable draft under the first-use disclosure.
+Temporary audio is deleted after transcription or cancellation.
+
+An admitted remote Ask starts a separate private Live Activity. Its payload is
+limited to opaque workspace, Session, and activity-instance identifiers plus
+phase and revision. Waiting is shown by the animated connection mark; completion
+shows `Review`; failure or timeout shows one concise retry entry. The Activity
+never carries the question, transcript, person, relationship, answer, or
+evidence, and its deep link returns to the exact protected Session. For
+Simulator visual inspection, launch Debug with
+`--fixture-agent-ask-activity --fixture-agent-ask-phase thinking`; phases also
+accept `review`, `failed`, and `timedOut`.
+
 The controls advance only when tapped, so this route proves UI projection and
 state ordering, not background delivery, APNs, elapsed time, or an ETA. Starting
 a new synthetic run closes an older run for the same task and assigns a new
@@ -526,8 +546,11 @@ bundle exec fastlane ios beta
 ```
 
 `prepare_signing` is an explicit provisioning or rotation step. CI runs Match
-in read-only mode, waits for App Store Connect to finish processing the build,
-and then creates the matching release tag and receipt. See the
+in read-only mode, archives, attests, and preserves the exact IPA before any
+Apple upload. A separate retryable job uploads that same IPA without coupling
+the runner to Fastlane's processing watcher, then verifies the exact App Store
+Connect build before the final job creates the matching release tag and
+receipt. See the
 [CI/CD operations guide](../../docs/operations/ci-cd.md#release-gates) for the
 authoritative release trust and recovery rules. Uploads require:
 

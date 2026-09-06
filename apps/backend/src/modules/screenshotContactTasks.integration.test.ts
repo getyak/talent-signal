@@ -45,6 +45,8 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
     expect(result.status,JSON.stringify(result)).toBe("completed");expect(result.contact?.disposition).toBe("created");expect(result.message_count).toBe(1);
     const fragments=await pool!.query("SELECT text_content,review_status,attributed_actor,attribution_status FROM evidence_fragments WHERE capture_id=$1",[result.capture_id]);
     expect(fragments.rows).toEqual([{text_content:"I work at Example Labs. I can talk next Tuesday.",review_status:"proposed",attributed_actor:"unknown",attribution_status:"unknown"}]);
+    const retention=await pool!.query("SELECT source_scope FROM source_retention_receipts WHERE capture_id=$1",[result.capture_id]);
+    expect(retention.rows).toEqual([{source_scope:"proposed_extracted_text"}]);
     const retry=await createScreenshotContactTask(pool!,auth,request);expect(retry.replayed).toBe(true);expect(retry.body.contact?.person_id).toBe(result.contact?.person_id);
     const secondInput=input();const second=await createScreenshotContactTask(pool!,auth,secondInput);await runner.start(auth,second.body.task_id,secondInput.image);
     const reused=await loadScreenshotContactTask(pool!,auth,second.body.task_id);

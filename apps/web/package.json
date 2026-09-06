@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "pnpm --filter @talent-signal/contracts build && next build",
+    "build": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && next build",
     "auth:hash-password": "node scripts/hash-password.mjs",
     "start": "next start",
     "lint": "eslint app components lib next.config.ts vitest.config.ts postcss.config.mjs",
-    "typecheck": "pnpm --filter @talent-signal/contracts build && tsc --noEmit",
+    "typecheck": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

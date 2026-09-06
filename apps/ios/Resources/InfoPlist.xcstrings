@@ -1,6 +1,12 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "NSCalendarsFullAccessUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal uses full Calendar access only to find and update the exact linked event after you review and confirm its changes." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal 仅在你审阅并确认修改后，使用完整日历访问权限查找并更新那一条已关联日程。" } }
+      }
+    },
     "NSCalendarsWriteOnlyAccessUsageDescription" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Talent Signal adds an event to your default calendar only after you confirm its title and time in the app." } },

@@ -97,10 +97,21 @@ struct VoiceTranscriptionDraft: Decodable, Equatable, Sendable {
 protocol VoiceDictationRecordingServing: AnyObject {
     func permissionStatus() -> AudioSignalPermission
     func requestPermission() async -> AudioSignalPermission
+    func prepareLiveTranscription(
+        locale: Locale,
+        onUpdate: @escaping (String) -> Void
+    ) async
     func start(recordID: UUID) throws
     func stop() throws -> VoiceDictationPayload
     func cancel() throws
     func delete(_ payload: VoiceDictationPayload) throws
+}
+
+extension VoiceDictationRecordingServing {
+    func prepareLiveTranscription(
+        locale: Locale,
+        onUpdate: @escaping (String) -> Void
+    ) async {}
 }
 
 protocol VoiceTranscriptionServing: Sendable {

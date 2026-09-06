@@ -11,6 +11,11 @@ protocol RelationshipCaptureServing {
         draft: RecognizedCaptureDraft
     ) async throws -> ResourceCaptureResult
 
+    func createProposedCapture(
+        seed: PendingCaptureSeed,
+        draft: RecognizedCaptureDraft
+    ) async throws -> ResourceCaptureResult
+
     func loadIdentityCase(id: String) async throws -> IdentityResolutionCase
 
     func decideIdentity(
@@ -30,6 +35,13 @@ protocol RelationshipCaptureServing {
 
 extension RelationshipCaptureServing {
     var runtimeScope: String? { nil }
+
+    func createProposedCapture(
+        seed: PendingCaptureSeed,
+        draft: RecognizedCaptureDraft
+    ) async throws -> ResourceCaptureResult {
+        try await createCapture(seed: seed, draft: draft)
+    }
 }
 
 actor URLRelationshipCaptureClient: RelationshipCaptureServing {
@@ -56,13 +68,45 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
         seed: PendingCaptureSeed,
         draft: RecognizedCaptureDraft
     ) async throws -> ResourceCaptureResult {
+        try await createCapture(
+            seed: seed,
+            draft: draft,
+            reviewStatus: "reviewed",
+            sourceScope: "reviewed_extracted_text",
+            purpose: "Preserve recruiter-reviewed conversation evidence for a purpose-scoped relationship",
+            identityReason: "A recruiter reviewed the extracted text and must explicitly resolve the person."
+        )
+    }
+
+    func createProposedCapture(
+        seed: PendingCaptureSeed,
+        draft: RecognizedCaptureDraft
+    ) async throws -> ResourceCaptureResult {
+        try await createCapture(
+            seed: seed,
+            draft: draft,
+            reviewStatus: "proposed",
+            sourceScope: "proposed_extracted_text",
+            purpose: "Process one recruiter-selected screenshot into proposed relationship evidence",
+            identityReason: "The Agent extracted an identity clue but cannot confirm who owns the screenshot."
+        )
+    }
+
+    private func createCapture(
+        seed: PendingCaptureSeed,
+        draft: RecognizedCaptureDraft,
+        reviewStatus: String,
+        sourceScope: String,
+        purpose: String,
+        identityReason: String
+    ) async throws -> ResourceCaptureResult {
         let clientResourceID = "ios-share:\(seed.id.uuidString.lowercased())"
         let reviewedSpeaker = draft.speaker ?? .unknown
         let body = ResourceCaptureBody(
             contractVersion: TalentSignalAPIContract.version,
             idempotencyKey: "ios:\(seed.id.uuidString.lowercased()):capture",
             channel: "ios_share",
-            purpose: "Preserve recruiter-reviewed conversation evidence for a purpose-scoped relationship",
+            purpose: purpose,
             capturedAt: Self.timestamp(seed.createdAt),
             sourceTimezone: draft.sourceTimezone ?? TimeZone.current.identifier,
             personScope: .init(
@@ -78,7 +122,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                     ]
                 } ?? [],
                 relationshipContext: draft.relationshipLabel.nonEmpty == nil ? nil : .proposed(draft: draft),
-                reason: "A recruiter reviewed the extracted text and must explicitly resolve the person."
+                reason: identityReason
             ),
             resource: .init(
                 clientResourceID: clientResourceID,
@@ -91,7 +135,7 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                 sourceLocator: "ios-share:\(seed.origin.rawValue)",
                 retention: .init(
                     requestedMode: "ephemeral",
-                    sourceScope: "reviewed_extracted_text"
+                    sourceScope: sourceScope
                 )
             ),
             fragments: [
@@ -102,18 +146,20 @@ actor URLRelationshipCaptureClient: RelationshipCaptureServing {
                     text: draft.reviewedText,
                     locator: .init(
                         kind: "message",
-                        sourceMessageID: "ocr-reviewed-1",
+                        sourceMessageID: reviewStatus == "proposed"
+                            ? "ocr-proposed-1"
+                            : "ocr-reviewed-1",
                         sequence: 0,
                         speakerSide: "unknown",
                         messageTimestamp: draft.messageTimestamp.map(Self.timestamp)
                     ),
                     attribution: .init(
                         actorKind: reviewedSpeaker.rawValue,
-                        status: draft.speaker == nil
+                        status: reviewStatus == "proposed" || draft.speaker == nil
                             ? "proposed"
                             : reviewedSpeaker.attributionStatus
                     ),
-                    reviewStatus: "reviewed",
+                    reviewStatus: reviewStatus,
                     parser: .init(
                         name: "ios-vision-text-recognition",
                         version: "1.0.0"
@@ -560,6 +606,20 @@ private struct IdentityDecisionBody: Encodable {
                 "The recruiter compared the source with the visible identity evidence and explicitly selected this person.",
                 forKey: .reason
             )
+        case let .bindFromAgent(candidate, context):
+            try container.encode("bind_existing", forKey: .decision)
+            try container.encode(candidate.personID, forKey: .selectedPersonID)
+            try container.encode(
+                ExistingRelationshipContext(
+                    status: "existing",
+                    relationshipContextID: context.id
+                ),
+                forKey: .relationshipContext
+            )
+            try container.encode(
+                "The recruiter instructed this Agent Session to process the screenshot. The Agent attached it because one current confirmed identity clue matched one person with one existing relationship context.",
+                forKey: .reason
+            )
         case .createNew:
             try container.encode("create_new", forKey: .decision)
             try container.encode(
@@ -620,6 +680,8 @@ private extension IdentityDecision {
         switch self {
         case let .bind(candidate, context):
             return "bind:\(candidate.personID):\(context?.id ?? "new")"
+        case let .bindFromAgent(candidate, context):
+            return "agent-bind:\(candidate.personID):\(context.id)"
         case .createNew:
             return "create"
         case .leaveUnresolved:

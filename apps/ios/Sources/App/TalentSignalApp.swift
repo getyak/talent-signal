@@ -60,6 +60,7 @@ struct TalentSignalApp: App {
 #endif
         let session = AppSessionStore(baseURL: directory.selected?.endpoint, closeSessionSurfaces: {
             await CaptureHandoffStore.shared.changeRuntimeScope(nil)
+            await AgentAskActivityController.shared.endAllActivities()
             await AgentWorkActivityController.shared.endAllActivities()
             await ResearchActivityController.shared.endAllActivities()
         })
@@ -237,7 +238,12 @@ struct TalentSignalApp: App {
                         }
                     }
                     await labRuntimeStore.workspaceStore.reconcile()
-                    let configured = CaptureHandoffStore.shared
+#if DEBUG
+                    await AgentAskActivityController.shared.configureDeterministicLaunch(
+                        arguments: ProcessInfo.processInfo.arguments
+                    )
+#endif
+                    let configured = await CaptureHandoffStore.shared
                         .configureDeterministicLaunch(
                             arguments: ProcessInfo.processInfo.arguments
                         )
@@ -264,12 +270,15 @@ struct TalentSignalApp: App {
                     if phase == .background { labMetricKitStore.closeExport() }
                     guard phase == .active else { return }
                     Task {
+                        await AgentAskActivityController.shared.cleanExpired()
                         await CaptureHandoffStore.shared.restorePendingCapture()
                         await labRuntimeStore.workspaceStore.reconcile()
                     }
                 }
                 .onOpenURL { url in
-                    if ResearchDeepLink.parse(url) != nil {
+                    if AgentAskDeepLinkRouter.shared.accept(url) {
+                        return
+                    } else if ResearchDeepLink.parse(url) != nil {
                         researchOpenURL = url
                     } else if AgentWorkDeepLink.parse(url) != nil {
                         agentWorkOpenURL = url
@@ -495,8 +504,8 @@ enum TalentSignalRootRoute {
 
     static func opensReviewWorkbench(arguments: [String]) -> Bool {
 #if DEBUG
-        if value(after: "--scenario", in: arguments)
-            == "relationship-capture-archive" {
+        if let scenario = value(after: "--scenario", in: arguments),
+           ["relationship-capture-archive", "capture-inbox"].contains(scenario) {
             return false
         }
         return !reviewArguments.isDisjoint(with: Set(arguments))

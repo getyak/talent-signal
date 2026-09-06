@@ -52,6 +52,7 @@ const MIGRATIONS = [
   "044_lab_ci_verifications",
   "045_lab_test_workspaces",
   "046_lab_feature_overrides",
+  "047_proposed_extracted_text",
   "047_screenshot_contact_tasks",
   "048_contact_task_invalidation",
   "049_contact_task_images",

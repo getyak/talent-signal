@@ -330,6 +330,7 @@ struct RelationshipCaptureView: View {
                     "Opens the original image for zooming before you correct the recognized text."
                 )
             )
+            .accessibilityValue(store.seed.fileName)
             .accessibilityIdentifier("inspect-capture-source")
         } else {
             sourceHeaderContent(showsInspectionCue: false)

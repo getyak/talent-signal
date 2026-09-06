@@ -50,6 +50,18 @@ and a clean console capture. The specialist gate therefore passes for the
 focused prototype. This does not substitute for production connector proof or
 the separate real-human MX-01 comprehension gate, which remains pending.
 
+## Preserved source
+
+The [prototype source](prototype-source/package.json) and its
+[file manifest](prototype-source-manifest.json) were preserved on 2026-09-07.
+All six primary files still match the V8 freeze hashes. Supporting runtime,
+tests, synthetic assets, and dependency declarations are included. Dependencies,
+build outputs, runner results, local npm configuration, and hosting identity
+remain machine-local. The historical review is unchanged; this copy is not a
+new product release or human comprehension result. The original Sites packaging
+script requires a separately configured `.openai/hosting.json`; local Vite
+development and source checks do not require that deployment configuration.
+
 ## Stopping rule
 
 Stop when the frozen candidate has DQI ≥95, every dimension ≥90, every critical

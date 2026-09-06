@@ -146,7 +146,8 @@ describe("relationship workspace initial read", () => {
     expect(login).toContain(
       'parameters.reason === "backend_session_expired"',
     );
-    expect(login).toContain("系统没有用缓存的关系状态替代当前内容");
+    expect(login).toContain("登录已过期，请重新登录以回到刚才的页面。");
+    expect(login).toContain("session?.user && !sessionExpired && !parameters.error");
   });
 
   it("funnels relationship feature requests through one expiry boundary", () => {

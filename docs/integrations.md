@@ -14,15 +14,18 @@ the trust boundary. Local processing may reduce exposure, while Contacts and
 Calendar effects remain visible to the user and platform.
 
 An iOS Shortcuts action may accept one user-selected image, validate its actual
-decodable content plus byte and pixel bounds, stage it in the device-owned
-pending-capture inbox, and open the
-app's ordinary review. One-press screenshot capture requires a user-owned
+decodable content plus byte and pixel bounds, and stage a device-owned capture
+with a stable Agent Session identifier. The app resumes processing from that
+protected queue and opens only when a concrete decision is blocked. One-press screenshot capture requires a user-owned
 personal Shortcut that chains the system `Take Screenshot` action into that
 image action; a required-image App Shortcut alone would still ask the user for
 input. Only the user can assign the personal Shortcut to the Action Button in
 system Settings. Talent Signal cannot capture another app's screen or inspect
-or change that mapping. The shortcut is an entry adapter: it has no identity,
-relationship, compilation, model-processing, or external-write authority.
+or change that mapping. The screenshot choice authorizes purpose-bound
+processing, reversible proposals, and source attachment when one current
+confirmed identity clue resolves to one person with one existing relationship
+context. It grants no fact confirmation, compilation, or external-write
+authority.
 
 A contacts CSV, LinkedIn `Connections.csv`, or vCard selected in the Agent's
 Sources page is another local intake adapter, not a connected account. The
@@ -54,10 +57,18 @@ account boundary so a prior workspace cannot remain visible.
 Calendar is an outbound device projection, not an intake source or a second
 record. Talent Signal persists the user-confirmed event and its projection
 state before requesting write-only access and adding one event to the system
-default calendar. It does not import, mirror, listen to, or reconcile Apple
-Calendar events. A denied or failed write leaves the Talent Signal event intact
-and retryable; an edit or deletion made later in Apple Calendar does not mutate
-Talent Signal truth.
+default calendar. It does not import, browse, mirror, or listen to Apple
+Calendar. After the user separately reviews an edit to an already linked event,
+the app may request full access, resolve only the saved EventKit identifier,
+update that exact event, and read it back to verify the result; it never scans
+the surrounding calendar or creates a replacement when the identifier is
+missing. Turning off default sync keeps new events local but does not override
+an explicit reviewed update to an already linked event. A denied or failed
+write leaves the Talent Signal event intact. Each reviewed edit retains an
+append-only operation receipt with its before/after values, intended projection,
+and observed EventKit outcome; an interrupted result remains unknown until the
+user reconciles it. An edit or deletion made directly in Apple Calendar does
+not mutate Talent Signal truth.
 
 ### Shared services
 

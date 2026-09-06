@@ -61,6 +61,62 @@ actor PendingCaptureInbox {
         return nil
     }
 
+    func load(id: UUID, scope: String?) throws -> PendingCaptureSeed? {
+        try prepareQueue()
+        guard let metadata = try queuedMetadata().first(where: {
+            $0.id == id && ($0.runtimeScope == nil || $0.runtimeScope == scope)
+        }) else {
+            return nil
+        }
+        return try load(metadata: metadata)
+    }
+
+    func summaries(scope: String? = nil) throws -> [PendingCaptureSummary] {
+        try prepareQueue()
+        return try queuedMetadata()
+            .filter { $0.runtimeScope == nil || $0.runtimeScope == scope }
+            .map { metadata in
+                PendingCaptureSummary(
+                    id: metadata.id,
+                    fileName: metadata.fileName,
+                    mediaType: metadata.mediaType,
+                    createdAt: metadata.createdAt,
+                    origin: metadata.origin,
+                    originalAvailable: FileManager.default.fileExists(
+                        atPath: imageURL(for: metadata.id).path
+                    ),
+                    hasSavedProgress: FileManager.default.fileExists(
+                        atPath: draftURL(for: metadata.id).path
+                    ),
+                    sessionID: metadata.sessionID,
+                    processingState: metadata.processingState ?? .queued,
+                    processingDetail: metadata.processingDetail
+                )
+            }
+    }
+
+    func updateSessionProcessing(
+        id: UUID,
+        sessionID: UUID,
+        state: CaptureSessionProcessingState,
+        detail: String?,
+        scope: String?
+    ) throws {
+        try prepareQueue()
+        guard var metadata = try queuedMetadata().first(where: {
+            $0.id == id && ($0.runtimeScope == nil || $0.runtimeScope == scope)
+        }) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        metadata.sessionID = sessionID
+        metadata.processingState = state
+        metadata.processingDetail = detail
+        try writeProtected(
+            JSONEncoder.captureEncoder.encode(metadata),
+            to: metadataURL(for: id)
+        )
+    }
+
     func claim(id: UUID, scope: String) throws {
         try prepareQueue()
         guard !scope.isEmpty, var metadata = try queuedMetadata().first(where: { $0.id == id }),
@@ -374,6 +430,9 @@ actor PendingCaptureInbox {
         let contentFingerprint: String?
         let enqueueOrder: Int64?
         var runtimeScope: String? = nil
+        var sessionID: UUID? = nil
+        var processingState: CaptureSessionProcessingState? = nil
+        var processingDetail: String? = nil
 
         var queueOrder: Int64 {
             enqueueOrder
@@ -393,6 +452,9 @@ actor PendingCaptureInbox {
             enqueueOrder = Int64(
                 seed.createdAt.timeIntervalSince1970 * 1_000_000
             )
+            sessionID = UUID()
+            processingState = .queued
+            processingDetail = "Agent Session created. Waiting for on-device processing."
         }
     }
 
@@ -410,8 +472,25 @@ final class CaptureHandoffStore: ObservableObject {
     @Published var pendingSeed: PendingCaptureSeed?
     @Published private(set) var savedSeed: PendingCaptureSeed?
     @Published private(set) var initialDraft: RecognizedCaptureDraft?
+    @Published private(set) var inboxItems: [PendingCaptureSummary] = []
+    @Published private(set) var inboxLoadError: String?
+    private let inbox: PendingCaptureInbox
     private var runtimeScope: String?
     private var generation = UUID()
+    private var processingIDs: Set<UUID> = []
+    private weak var processingSessionStore: AgentSessionStore?
+
+    init(inbox: PendingCaptureInbox = .shared) {
+        self.inbox = inbox
+    }
+
+    var inboxCount: Int { inboxItems.count }
+    var attentionCount: Int { inboxItems.filter(\.needsAttention).count }
+    var processingCount: Int {
+        inboxItems.filter {
+            $0.processingState == .queued || $0.processingState == .processing
+        }.count
+    }
 
     func changeRuntimeScope(_ scope: String?) async {
         guard scope != runtimeScope else { return }
@@ -420,6 +499,9 @@ final class CaptureHandoffStore: ObservableObject {
         pendingSeed = nil
         savedSeed = nil
         initialDraft = nil
+        inboxItems = []
+        inboxLoadError = nil
+        processingSessionStore = nil
         await restorePendingCapture()
     }
 
@@ -432,36 +514,556 @@ final class CaptureHandoffStore: ObservableObject {
         savedSeed = seed
         self.initialDraft = initialDraft
         pendingSeed = seed
+        Task { await refreshInbox() }
+    }
+
+    func enqueueForAgentProcessing(
+        _ seed: PendingCaptureSeed,
+        expectedScope: String? = nil
+    ) {
+        guard expectedScope == runtimeScope else { return }
+        savedSeed = seed
+        initialDraft = nil
+        pendingSeed = nil
+        Task { await refreshInbox() }
     }
 
     func restorePendingCapture() async {
+        await refreshInbox()
+#if DEBUG
+        if Self.value(after: "--scenario", in: ProcessInfo.processInfo.arguments)
+            == "capture-inbox" {
+            return
+        }
+#endif
         guard savedSeed == nil else { return }
         let generation = generation
-        if let seed = try? await PendingCaptureInbox.shared.load(scope: runtimeScope) {
+        if let item = inboxItems.first,
+           let seed = try? await inbox.load(id: item.id, scope: runtimeScope) {
             guard generation == self.generation else { return }
             savedSeed = seed
-            pendingSeed = seed
+            initialDraft = try? await inbox.loadDraft(
+                for: seed.id,
+                scope: runtimeScope
+            )
         }
     }
 
-    func advanceToNextCapture() async {
+    func processPendingCaptures(
+        sessionStore: AgentSessionStore,
+        service: RelationshipCaptureServing? = nil,
+        recognizer: ConversationTextRecognizing = VisionConversationTextRecognizer()
+    ) async {
+        processingSessionStore = sessionStore
+        await refreshInbox()
+        let generation = generation
+
+        for item in inboxItems where item.processingState != .completed {
+            guard generation == self.generation else { return }
+            if item.sessionID.flatMap({ sessionStore.session(id: $0) }) == nil {
+                let objective = "Process conversation screenshot: \(item.fileName)"
+                let durableSessionID = item.sessionID ?? UUID()
+                guard let sessionID = sessionStore.beginUnscopedSession(
+                    objective: objective,
+                    id: durableSessionID,
+                    createdAt: item.createdAt
+                ) else {
+                    inboxLoadError = "The capture Session could not be protected on this device."
+                    continue
+                }
+                do {
+                    try await inbox.updateSessionProcessing(
+                        id: item.id,
+                        sessionID: sessionID,
+                        state: .queued,
+                        detail: "Agent Session created. Waiting for on-device processing.",
+                        scope: runtimeScope
+                    )
+                } catch {
+                    _ = sessionStore.delete(sessionID)
+                    inboxLoadError = error.localizedDescription
+                }
+            }
+        }
+
+        await refreshInbox()
+        for item in inboxItems where
+            item.processingState == .queued || item.processingState == .processing {
+            guard generation == self.generation else { return }
+            await process(
+                item,
+                sessionStore: sessionStore,
+                service: service,
+                recognizer: recognizer
+            )
+        }
+        await refreshInbox()
+    }
+
+    private func process(
+        _ item: PendingCaptureSummary,
+        sessionStore: AgentSessionStore,
+        service: RelationshipCaptureServing?,
+        recognizer: ConversationTextRecognizing
+    ) async {
+        guard !processingIDs.contains(item.id),
+              let sessionID = item.sessionID,
+              sessionStore.session(id: sessionID) != nil else { return }
+        processingIDs.insert(item.id)
+        defer { processingIDs.remove(item.id) }
+
+        let objective = sessionStore.session(id: sessionID)?.pendingObjective
+            ?? "Process conversation screenshot: \(item.fileName)"
+        do {
+            if let existingTurn = processingTurn(
+                captureID: item.id,
+                sessionID: sessionID,
+                sessionStore: sessionStore
+            ) {
+                let needsDecision = existingTurn.response.blocks.contains(where: \.requiresUserDecision)
+                try await inbox.updateSessionProcessing(
+                    id: item.id,
+                    sessionID: sessionID,
+                    state: needsDecision ? .needsDecision : .completed,
+                    detail: existingTurn.response.blocks.first?.body,
+                    scope: runtimeScope
+                )
+                if needsDecision {
+                    sessionStore.markUnread(sessionID)
+                } else {
+                    try await removeCompletedCapture(id: item.id)
+                }
+                return
+            }
+            try await inbox.updateSessionProcessing(
+                id: item.id,
+                sessionID: sessionID,
+                state: .processing,
+                detail: "Reading the screenshot on this device.",
+                scope: runtimeScope
+            )
+            await refreshInbox()
+            guard let seed = try await inbox.load(id: item.id, scope: runtimeScope),
+                  !seed.imageData.isEmpty else {
+                throw ConversationRecognitionError.unreadableImage
+            }
+            let draft: RecognizedCaptureDraft
+            if let saved = try await inbox.loadDraft(for: item.id, scope: runtimeScope) {
+                draft = saved
+            } else {
+                let text = try await recognizer.recognizeText(in: seed.imageData)
+                draft = CaptureDraftBuilder.makeDraft(from: text)
+                try await inbox.saveDraft(draft, for: item.id, scope: runtimeScope)
+            }
+            let blockers: [String]
+            if let service {
+                var recovery = try await inbox.loadRecovery(
+                    for: item.id,
+                    scope: runtimeScope
+                ) ?? CaptureReviewRecovery()
+                var capture: ResourceCaptureResult
+                if let savedCapture = recovery.capture {
+                    capture = savedCapture
+                } else {
+                    var submittedDraft = recovery.submittedDraft ?? draft
+                    submittedDraft.sourceByteCount = seed.imageData.count
+                    submittedDraft.sourceTimezone = TimeZone.current.identifier
+                    recovery.submittedDraft = submittedDraft
+                    recovery.submittedByAgent = true
+                    try await inbox.saveReview(
+                        seed: seed,
+                        draft: submittedDraft,
+                        recovery: recovery,
+                        scope: runtimeScope
+                    )
+                    capture = try await service.createProposedCapture(
+                        seed: seed,
+                        draft: submittedDraft
+                    )
+                    recovery.capture = capture
+                    try await inbox.saveReview(
+                        seed: seed,
+                        draft: submittedDraft,
+                        recovery: recovery,
+                        scope: runtimeScope
+                    )
+                }
+                var identityCase: IdentityResolutionCase?
+                if capture.identity.status != "bound",
+                   let caseID = capture.identity.resolutionCaseID {
+                    let loadedCase = try await service.loadIdentityCase(id: caseID)
+                    identityCase = loadedCase
+                    if loadedCase.status != "pending" {
+                        capture = try await service.loadCapture(id: capture.captureID)
+                        recovery.capture = capture
+                        try await inbox.saveReview(
+                            seed: seed,
+                            draft: recovery.submittedDraft ?? draft,
+                            recovery: recovery,
+                            scope: runtimeScope
+                        )
+                    } else if let binding = CaptureSessionDecisionPolicy.automaticBinding(
+                        for: loadedCase
+                    ) {
+                        let result = try await service.decideIdentity(
+                            identityCase: loadedCase,
+                            decision: .bindFromAgent(
+                                candidate: binding.candidate,
+                                context: binding.context
+                            ),
+                            seed: seed,
+                            draft: recovery.submittedDraft ?? draft
+                        )
+                        if result.identityStatus == "bound" {
+                            capture = ResourceCaptureResult(
+                                captureID: capture.captureID,
+                                identity: .init(
+                                    status: "bound",
+                                    personID: result.personID,
+                                    relationshipContextID: result.relationshipContextID,
+                                    resolutionCaseID: nil,
+                                    candidatePersonIDs: [],
+                                    personDisplayLabel: binding.candidate.displayLabel,
+                                    relationshipDisplayLabel: binding.context.displayLabel
+                                ),
+                                resource: .init(
+                                    id: capture.resource.id,
+                                    processingState: result.resourceProcessingState,
+                                    duplicateOfResourceID: capture.resource.duplicateOfResourceID,
+                                    fragmentCount: capture.resource.fragmentCount
+                                )
+                            )
+                            recovery.capture = capture
+                            try await inbox.saveReview(
+                                seed: seed,
+                                draft: recovery.submittedDraft ?? draft,
+                                recovery: recovery,
+                                scope: runtimeScope
+                            )
+                        }
+                    }
+                }
+                blockers = CaptureSessionDecisionPolicy.blockers(
+                    for: capture,
+                    identityCase: identityCase
+                )
+            } else {
+                blockers = CaptureSessionDecisionPolicy.blockers(for: draft)
+            }
+            let response = Self.processingResponse(
+                captureID: item.id,
+                blockers: blockers
+            )
+            guard sessionStore.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: objective,
+                response: response
+            ) else {
+                throw CaptureSessionProcessingError.sessionPersistenceUnavailable
+            }
+            let needsDecision = !blockers.isEmpty
+            try await inbox.updateSessionProcessing(
+                id: item.id,
+                sessionID: sessionID,
+                state: needsDecision ? .needsDecision : .completed,
+                detail: needsDecision
+                    ? blockers.joined(separator: " ")
+                    : "The screenshot was attached as proposed evidence without a blocking decision.",
+                scope: runtimeScope
+            )
+            if needsDecision {
+                sessionStore.markUnread(sessionID)
+            } else {
+                try await removeCompletedCapture(id: item.id)
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            if let existingTurn = processingTurn(
+                captureID: item.id,
+                sessionID: sessionID,
+                sessionStore: sessionStore
+            ) {
+                let needsDecision = existingTurn.response.blocks.contains(
+                    where: \.requiresUserDecision
+                )
+                do {
+                    try await inbox.updateSessionProcessing(
+                        id: item.id,
+                        sessionID: sessionID,
+                        state: needsDecision ? .needsDecision : .completed,
+                        detail: existingTurn.response.blocks.first?.body,
+                        scope: runtimeScope
+                    )
+                    if needsDecision {
+                        sessionStore.markUnread(sessionID)
+                    } else {
+                        try await removeCompletedCapture(id: item.id)
+                    }
+                } catch {
+                    inboxLoadError = error.localizedDescription
+                }
+                return
+            }
+            let response = Self.failureResponse(captureID: item.id)
+            _ = sessionStore.recordUnscopedChat(
+                sessionID: sessionID,
+                objective: objective,
+                response: response
+            )
+            sessionStore.markUnread(sessionID)
+            try? await inbox.updateSessionProcessing(
+                id: item.id,
+                sessionID: sessionID,
+                state: .failed,
+                detail: "Agent processing stopped. Open this decision to retry from the protected screenshot.",
+                scope: runtimeScope
+            )
+        }
+    }
+
+    private func processingTurn(
+        captureID: UUID,
+        sessionID: UUID,
+        sessionStore: AgentSessionStore
+    ) -> AgentSessionTurn? {
+        let taskID = "capture-\(captureID.uuidString.lowercased())"
+        return sessionStore.session(id: sessionID)?.turns.first(where: {
+            $0.response.taskID == taskID || $0.response.taskID == "\(taskID)-failed"
+        })
+    }
+
+    private func removeCompletedCapture(id: UUID) async throws {
+        try await inbox.remove(id: id)
+        if savedSeed?.id == id {
+            savedSeed = nil
+            initialDraft = nil
+        }
+        if pendingSeed?.id == id {
+            pendingSeed = nil
+        }
+    }
+
+    private static func processingResponse(
+        captureID: UUID,
+        blockers: [String]
+    ) -> RelationshipAskResponse {
+        let needsDecision = !blockers.isEmpty
+        return RelationshipAskResponse(
+            contractVersion: TalentSignalAPIContract.version,
+            taskID: "capture-\(captureID.uuidString.lowercased())",
+            contextManifestID: "none-unbound-conversation",
+            knowledgeSnapshotID: "local-capture-processing",
+            disposition: needsDecision ? "clarify" : "answer",
+            blocks: [
+                .init(
+                    id: "capture-status-\(captureID.uuidString.lowercased())",
+                    kind: needsDecision ? "clarification" : "answer",
+                    title: needsDecision
+                        ? "Capture needs one decision"
+                        : "Capture processed",
+                    body: needsDecision
+                        ? blockers.joined(separator: " ")
+                        : "The screenshot was attached to the matched relationship as proposed evidence. No extracted fact was confirmed and no external action was performed.",
+                    status: needsDecision ? "needs_review" : "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: needsDecision
+                ),
+            ],
+            createdAt: ISO8601DateFormatter().string(from: Date())
+        )
+    }
+
+    private static func failureResponse(captureID: UUID) -> RelationshipAskResponse {
+        RelationshipAskResponse(
+            contractVersion: TalentSignalAPIContract.version,
+            taskID: "capture-\(captureID.uuidString.lowercased())-failed",
+            contextManifestID: "none-unbound-conversation",
+            knowledgeSnapshotID: "local-capture-processing",
+            disposition: "block",
+            blocks: [
+                .init(
+                    id: "capture-failure-\(captureID.uuidString.lowercased())",
+                    kind: "clarification",
+                    title: "Capture processing stopped",
+                    body: "The Agent could not read enough from the protected screenshot. Open this decision to inspect the source or try again.",
+                    status: "needs_review",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: true
+                ),
+            ],
+            createdAt: ISO8601DateFormatter().string(from: Date())
+        )
+    }
+
+    func refreshInbox() async {
+        let generation = generation
+        do {
+            let items = try await inbox.summaries(scope: runtimeScope)
+            guard generation == self.generation else { return }
+            inboxItems = items
+            inboxLoadError = nil
+        } catch {
+            guard generation == self.generation else { return }
+            inboxLoadError = error.localizedDescription
+        }
+    }
+
+    func resume(id: UUID) async {
+        let generation = generation
+        do {
+            guard let seed = try await inbox.load(id: id, scope: runtimeScope) else {
+                await refreshInbox()
+                return
+            }
+            let draft = try? await inbox.loadDraft(for: id, scope: runtimeScope)
+            guard generation == self.generation else { return }
+            savedSeed = seed
+            initialDraft = draft
+            pendingSeed = seed
+            inboxLoadError = nil
+        } catch {
+            guard generation == self.generation else { return }
+            inboxLoadError = error.localizedDescription
+        }
+    }
+
+    func removeFromInbox(id: UUID) async throws {
+        try resolveProcessingSession(captureID: id, resolution: .dismissed)
+        try await inbox.remove(id: id)
+        if savedSeed?.id == id || pendingSeed?.id == id {
+            pendingSeed = nil
+            savedSeed = nil
+            initialDraft = nil
+        }
+        await refreshInbox()
+        if savedSeed == nil, let next = inboxItems.first,
+           let seed = try? await inbox.load(id: next.id, scope: runtimeScope) {
+            savedSeed = seed
+            initialDraft = try? await inbox.loadDraft(
+                for: seed.id,
+                scope: runtimeScope
+            )
+        }
+    }
+
+    func advanceToNextCapture(
+        resolution: CaptureSessionResolution? = nil
+    ) async {
+        if let resolution, let completedID = pendingSeed?.id {
+            do {
+                try resolveProcessingSession(
+                    captureID: completedID,
+                    resolution: resolution
+                )
+            } catch {
+                inboxLoadError = error.localizedDescription
+            }
+        }
         pendingSeed = nil
         savedSeed = nil
         initialDraft = nil
+        await refreshInbox()
         let generation = generation
-        if let seed = try? await PendingCaptureInbox.shared.load(scope: runtimeScope) {
+        if let item = inboxItems.first,
+           let seed = try? await inbox.load(id: item.id, scope: runtimeScope) {
             guard generation == self.generation else { return }
             savedSeed = seed
+            initialDraft = try? await inbox.loadDraft(
+                for: seed.id,
+                scope: runtimeScope
+            )
         }
     }
 
+    private func resolveProcessingSession(
+        captureID: UUID,
+        resolution: CaptureSessionResolution
+    ) throws {
+        guard let sessionID = inboxItems.first(where: { $0.id == captureID })?.sessionID,
+              let sessionStore = processingSessionStore,
+              sessionStore.session(id: sessionID) != nil else {
+            return
+        }
+        let taskID = "capture-\(captureID.uuidString.lowercased())-resolved"
+        if sessionStore.session(id: sessionID)?.turns.contains(where: {
+            $0.response.taskID == taskID
+        }) == true {
+            sessionStore.markRead(sessionID)
+            return
+        }
+        let dismissed = resolution == .dismissed
+        let response = RelationshipAskResponse(
+            contractVersion: TalentSignalAPIContract.version,
+            taskID: taskID,
+            contextManifestID: "none-unbound-conversation",
+            knowledgeSnapshotID: "local-capture-processing",
+            disposition: "answer",
+            blocks: [
+                .init(
+                    id: "capture-resolution-\(captureID.uuidString.lowercased())",
+                    kind: "answer",
+                    title: dismissed ? "Capture dismissed" : "Capture decision completed",
+                    body: dismissed
+                        ? "The recruiter removed the local capture. No identity, fact, or external action was confirmed by that dismissal."
+                        : "The recruiter completed the required capture decision in the governed review flow.",
+                    status: "informational",
+                    citationDependencyIDs: [],
+                    requiresUserDecision: false
+                ),
+            ],
+            createdAt: ISO8601DateFormatter().string(from: Date())
+        )
+        guard sessionStore.recordUnscopedChat(
+            sessionID: sessionID,
+            objective: "Resolve conversation screenshot",
+            response: response
+        ) else {
+            throw CaptureSessionProcessingError.sessionPersistenceUnavailable
+        }
+        sessionStore.markRead(sessionID)
+    }
+
     @discardableResult
-    func configureDeterministicLaunch(arguments: [String]) -> Bool {
+    func configureDeterministicLaunch(arguments: [String]) async -> Bool {
 #if DEBUG
         guard let scenario = Self.value(after: "--scenario", in: arguments),
-              ["relationship-capture", "relationship-capture-archive"]
+              ["relationship-capture", "relationship-capture-archive", "capture-inbox"]
                 .contains(scenario) else {
             return false
+        }
+        if scenario == "capture-inbox" {
+            try? await inbox.removeAllForTesting()
+            for index in 1...3 {
+                let displayName = ["Alex Chen", "Priya Nair", "Jordan Lee"][index - 1]
+                let seed = PendingCaptureSeed(
+                    imageData: Self.deterministicCaptureImageData(
+                        displayName: displayName,
+                        handle: "+65800000\(index)",
+                        message: "Conversation \(index) is waiting for review."
+                    ),
+                    fileName: index == 2
+                        ? "conversation-with-priya-about-the-singapore-search.png"
+                        : "conversation-\(index).png",
+                    mediaType: "image/png",
+                    origin: index == 1 ? .appShortcut : .photosPicker
+                )
+                _ = try? await inbox.stage(
+                    imageData: seed.imageData,
+                    fileName: seed.fileName,
+                    mediaType: seed.mediaType,
+                    origin: seed.origin
+                )
+            }
+            pendingSeed = nil
+            initialDraft = nil
+            await refreshInbox()
+            if let first = inboxItems.first {
+                savedSeed = try? await inbox.load(id: first.id, scope: runtimeScope)
+            } else {
+                savedSeed = nil
+            }
+            return true
         }
         let captureName = Self.value(
             after: "--capture-name",
@@ -580,6 +1182,8 @@ final class CaptureHandoffStore: ObservableObject {
         pendingSeed = nil
         savedSeed = nil
         initialDraft = nil
+        inboxItems = []
+        inboxLoadError = nil
     }
 
     private static func value(
@@ -591,6 +1195,14 @@ final class CaptureHandoffStore: ObservableObject {
             return nil
         }
         return arguments[index + 1]
+    }
+}
+
+private enum CaptureSessionProcessingError: LocalizedError {
+    case sessionPersistenceUnavailable
+
+    var errorDescription: String? {
+        "The capture Session could not be protected on this device."
     }
 }
 

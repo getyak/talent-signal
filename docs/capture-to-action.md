@@ -163,12 +163,15 @@ living page. Generated views remain rebuildable.
 
 ### Mobile
 
-Fast intentional capture, lightweight correction, time-sensitive attention,
-and device-owned effects. Image capture should converge on one resumable
-evidence review: local text extraction, explicit unknown-speaker state,
-identity-clue review, temporal-owner comparison, explicit relationship
-attachment, independent fact review, and a truthful review receipt. A system shortcut may shorten
-entry, but it must not shorten the human decision sequence.
+Fast intentional capture, background processing, time-sensitive attention, and
+device-owned effects. Image capture starts one resumable Agent Session: local
+text extraction, proposed-source intake, and bounded internal tools continue
+without foreground review. The recruiter is interrupted only for a blocking
+identity or relationship-context ambiguity, a tool failure, or a consequential
+effect. Intentional capture authorizes the Agent to attach the source when one
+current confirmed identity clue resolves to one person and one existing
+relationship context. Extracted text, speaker attribution, facts, and effects
+keep their own authority. A shortcut and Photos selection follow the same rule.
 
 The separately enabled screenshot contact-filing mode lets intentional
 single-image Send grant automatic internal filing and sourced analysis. It

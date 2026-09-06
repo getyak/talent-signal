@@ -1,6 +1,7 @@
-import AVFAudio
+@preconcurrency import AVFAudio
 import CryptoKit
 import Foundation
+import Speech
 
 @MainActor
 final class AudioSignalRecorder: NSObject, AudioSignalRecordingServing {
@@ -342,15 +343,24 @@ final class DeterministicAudioSignalRecorder: AudioSignalRecordingServing {
 final class DeterministicVoiceDictationRecorder:
     VoiceDictationRecordingServing {
     private var activeID: UUID?
+    private var liveTranscriptHandler: ((String) -> Void)?
 
     func permissionStatus() -> AudioSignalPermission { .granted }
     func requestPermission() async -> AudioSignalPermission { .granted }
+
+    func prepareLiveTranscription(
+        locale: Locale,
+        onUpdate: @escaping (String) -> Void
+    ) async {
+        liveTranscriptHandler = onUpdate
+    }
 
     func start(recordID: UUID) throws {
         guard activeID == nil else {
             throw VoiceDictationRecorderError.alreadyRecording
         }
         activeID = recordID
+        liveTranscriptHandler?("What changed in this search?")
     }
 
     func stop() throws -> VoiceDictationPayload {
@@ -358,6 +368,7 @@ final class DeterministicVoiceDictationRecorder:
             throw VoiceDictationRecorderError.notRecording
         }
         self.activeID = nil
+        liveTranscriptHandler = nil
         return VoiceDictationPayload(
             id: activeID,
             fileURL: URL(
@@ -369,7 +380,10 @@ final class DeterministicVoiceDictationRecorder:
         )
     }
 
-    func cancel() throws { activeID = nil }
+    func cancel() throws {
+        activeID = nil
+        liveTranscriptHandler = nil
+    }
     func delete(_ payload: VoiceDictationPayload) throws {}
 }
 
@@ -392,13 +406,46 @@ actor DeterministicVoiceTranscriber: VoiceTranscriptionServing {
 }
 #endif
 
+enum VoiceDictationAudioContract {
+    static let sampleRate = 16_000.0
+    static let channelCount: AVAudioChannelCount = 1
+    static let bitDepth = 16
+    static let maximumDurationSeconds: TimeInterval = 60
+    static let maximumPayloadBytes = 2_500_000
+
+    static var fileFormat: AVAudioFormat? {
+        AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: sampleRate,
+            channels: channelCount,
+            interleaved: true
+        )
+    }
+
+    static func estimatedPCMByteCount(
+        durationSeconds: TimeInterval
+    ) -> Int {
+        let frameCount = Int(
+            ceil(max(0, durationSeconds) * sampleRate)
+        )
+        let bytesPerFrame = Int(channelCount) * bitDepth / 8
+        return 44 + frameCount * bytesPerFrame
+    }
+}
+
 @MainActor
 final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
     private let recordsDirectoryURL: URL
     private let audioSession: AVAudioSession
-    private var recorder: AVAudioRecorder?
+    private var audioEngine: AVAudioEngine?
+    private var audioFile: AVAudioFile?
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private var liveRecognizer: SFSpeechRecognizer?
+    private var liveTranscriptHandler: ((String) -> Void)?
     private var runtimeLease: RuntimeWorkLease?
     private var activeRecordID: UUID?
+    private var startedAt: Date?
 
     init(
         directoryURL: URL? = nil,
@@ -443,8 +490,29 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
         return granted ? .granted : .denied
     }
 
+    func prepareLiveTranscription(
+        locale: Locale,
+        onUpdate: @escaping (String) -> Void
+    ) async {
+        let authorization = await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { status in
+                continuation.resume(returning: status)
+            }
+        }
+        guard authorization == .authorized,
+              let recognizer = SFSpeechRecognizer(locale: locale),
+              recognizer.isAvailable,
+              recognizer.supportsOnDeviceRecognition else {
+            liveRecognizer = nil
+            liveTranscriptHandler = nil
+            return
+        }
+        liveRecognizer = recognizer
+        liveTranscriptHandler = onUpdate
+    }
+
     func start(recordID: UUID) throws {
-        guard recorder == nil else {
+        guard audioEngine == nil else {
             throw VoiceDictationRecorderError.alreadyRecording
         }
         guard permissionStatus() == .granted else {
@@ -460,47 +528,101 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
         do {
             try audioSession.setCategory(.record, mode: .spokenAudio)
             try audioSession.setActive(true)
-            let candidate = try AVAudioRecorder(
-                url: url,
-                settings: [
-                    AVFormatIDKey: Int(kAudioFormatLinearPCM),
-                    AVSampleRateKey: 16_000,
-                    AVNumberOfChannelsKey: 1,
-                    AVLinearPCMBitDepthKey: 16,
-                    AVLinearPCMIsBigEndianKey: false,
-                    AVLinearPCMIsFloatKey: false,
-                    AVLinearPCMIsNonInterleaved: false,
-                ]
+            let engine = AVAudioEngine()
+            let inputNode = engine.inputNode
+            let inputFormat = inputNode.outputFormat(forBus: 0)
+            guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+                throw VoiceDictationRecorderError.inputUnavailable
+            }
+            guard let outputFormat = VoiceDictationAudioContract.fileFormat,
+                  let converter = AVAudioConverter(
+                    from: inputFormat,
+                    to: outputFormat
+                  ) else {
+                throw VoiceDictationRecorderError.formatUnavailable
+            }
+            let file = try AVAudioFile(
+                forWriting: url,
+                settings: outputFormat.settings,
+                commonFormat: .pcmFormatInt16,
+                interleaved: true
             )
-            guard candidate.prepareToRecord(), candidate.record() else {
+            let request: SFSpeechAudioBufferRecognitionRequest? = liveRecognizer.map { _ in
+                let value = SFSpeechAudioBufferRecognitionRequest()
+                value.shouldReportPartialResults = true
+                value.requiresOnDeviceRecognition = true
+                return value
+            }
+            if let recognizer = liveRecognizer, let request {
+                recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, _ in
+                    guard let text = result?.bestTranscription.formattedString,
+                          !text.isEmpty else { return }
+                    Task { @MainActor in self?.liveTranscriptHandler?(text) }
+                }
+            }
+            inputNode.installTap(
+                onBus: 0,
+                bufferSize: 1_024,
+                format: inputFormat
+            ) { buffer, _ in
+                request?.append(buffer)
+                do {
+                    let output = try Self.convert(
+                        buffer,
+                        using: converter,
+                        to: outputFormat
+                    )
+                    if output.frameLength > 0 {
+                        try file.write(from: output)
+                    }
+                } catch {
+                    request?.endAudio()
+                }
+            }
+            audioEngine = engine
+            audioFile = file
+            recognitionRequest = request
+            engine.prepare()
+            try engine.start()
+            guard engine.isRunning else {
                 throw VoiceDictationRecorderError.startFailed
             }
             try protect(url)
-            recorder = candidate
             runtimeLease = lease
             activeRecordID = recordID
+            startedAt = Date()
         } catch {
+            recognitionRequest?.endAudio()
+            recognitionTask?.cancel()
+            audioEngine?.inputNode.removeTap(onBus: 0)
+            audioEngine?.stop()
             try? audioSession.setActive(
                 false,
                 options: .notifyOthersOnDeactivation
             )
             try? removeIfPresent(url)
-            recorder = nil
+            clearRecordingResources()
             runtimeLease = nil
             activeRecordID = nil
+            startedAt = nil
             throw error
         }
     }
 
     func stop() throws -> VoiceDictationPayload {
-        guard let recorder, recorder.isRecording, let activeRecordID else {
+        guard let engine = audioEngine, engine.isRunning,
+              let activeRecordID else {
             throw VoiceDictationRecorderError.notRecording
         }
-        let duration = recorder.currentTime
-        recorder.stop()
-        self.recorder = nil
+        let duration = max(0, Date().timeIntervalSince(startedAt ?? Date()))
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        clearRecordingResources()
         runtimeLease = nil
         self.activeRecordID = nil
+        startedAt = nil
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
 
         let url = audioURL(for: activeRecordID)
@@ -511,6 +633,10 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
         guard byteCount > 44 else {
             try? removeIfPresent(url)
             throw VoiceDictationRecorderError.emptyRecording
+        }
+        guard byteCount <= VoiceDictationAudioContract.maximumPayloadBytes else {
+            try? removeIfPresent(url)
+            throw VoiceDictationRecorderError.payloadTooLarge
         }
         try protect(url)
         return VoiceDictationPayload(
@@ -524,12 +650,27 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
 
     func cancel() throws {
         let recordID = activeRecordID
-        if recorder?.isRecording == true { recorder?.stop() }
-        recorder = nil
+        if let engine = audioEngine {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        clearRecordingResources()
         runtimeLease = nil
         activeRecordID = nil
+        startedAt = nil
         try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
         if let recordID { try removeIfPresent(audioURL(for: recordID)) }
+    }
+
+    private func clearRecordingResources() {
+        audioEngine = nil
+        audioFile = nil
+        recognitionRequest = nil
+        recognitionTask = nil
+        liveRecognizer = nil
+        liveTranscriptHandler = nil
     }
 
     func delete(_ payload: VoiceDictationPayload) throws {
@@ -565,14 +706,52 @@ final class VoiceDictationRecorder: NSObject, VoiceDictationRecordingServing {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
     }
+
+    nonisolated private static func convert(
+        _ input: AVAudioPCMBuffer,
+        using converter: AVAudioConverter,
+        to outputFormat: AVAudioFormat
+    ) throws -> AVAudioPCMBuffer {
+        let ratio = outputFormat.sampleRate / input.format.sampleRate
+        let estimatedFrames = ceil(Double(input.frameLength) * ratio)
+        let capacity = max(1, AVAudioFrameCount(estimatedFrames) + 32)
+        guard let output = AVAudioPCMBuffer(
+            pcmFormat: outputFormat,
+            frameCapacity: capacity
+        ) else {
+            throw VoiceDictationRecorderError.formatUnavailable
+        }
+
+        var suppliedInput = false
+        var conversionError: NSError?
+        let status = converter.convert(
+            to: output,
+            error: &conversionError
+        ) { _, inputStatus in
+            guard !suppliedInput else {
+                inputStatus.pointee = .noDataNow
+                return nil
+            }
+            suppliedInput = true
+            inputStatus.pointee = .haveData
+            return input
+        }
+        guard status != .error else {
+            throw conversionError ?? VoiceDictationRecorderError.conversionFailed
+        }
+        return output
+    }
 }
 
 enum VoiceDictationRecorderError: LocalizedError, Equatable {
     case alreadyRecording
+    case conversionFailed
     case emptyRecording
+    case formatUnavailable
     case inputUnavailable
     case invalidPayload
     case notRecording
+    case payloadTooLarge
     case permissionUnavailable
     case startFailed
 
@@ -580,6 +759,8 @@ enum VoiceDictationRecorderError: LocalizedError, Equatable {
         switch self {
         case .alreadyRecording:
             return "Voice input is already listening."
+        case .conversionFailed, .formatUnavailable:
+            return "Voice input could not prepare a compatible temporary recording."
         case .emptyRecording:
             return "No voice was recorded. Try one short phrase."
         case .inputUnavailable:
@@ -588,6 +769,8 @@ enum VoiceDictationRecorderError: LocalizedError, Equatable {
             return "The temporary voice recording could not be verified."
         case .notRecording:
             return "Voice input is not recording."
+        case .payloadTooLarge:
+            return "The voice draft is too long to transcribe. Try a shorter phrase."
         case .permissionUnavailable:
             return "Microphone permission is unavailable."
         case .startFailed:
@@ -616,8 +799,12 @@ actor URLVoiceTranscriptionClient: VoiceTranscriptionServing {
     ) async throws -> VoiceTranscriptionDraft {
         guard payload.mimeType == "audio/wav",
               payload.byteCount > 44,
+              payload.byteCount <= VoiceDictationAudioContract.maximumPayloadBytes,
               !accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty else {
+            if payload.byteCount > VoiceDictationAudioContract.maximumPayloadBytes {
+                throw VoiceTranscriptionClientError.payloadTooLarge
+            }
             throw VoiceTranscriptionClientError.invalidRequest
         }
         let audio = try Data(contentsOf: payload.fileURL)
@@ -782,6 +969,7 @@ enum VoiceTranscriptionClientError: LocalizedError, Equatable {
     case backend(String)
     case invalidRequest
     case invalidResponse
+    case payloadTooLarge
 
     var errorDescription: String? {
         switch self {
@@ -791,6 +979,8 @@ enum VoiceTranscriptionClientError: LocalizedError, Equatable {
             return "The temporary voice recording could not be verified."
         case .invalidResponse:
             return "Voice transcription returned an invalid draft."
+        case .payloadTooLarge:
+            return "The voice draft is too long to transcribe. Try a shorter phrase."
         }
     }
 }

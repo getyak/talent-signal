@@ -41,7 +41,9 @@ are reproducible test inputs.
 - iOS single-image Send, task cards, task history, same-image recovery, and
   contact-page source cards compile in the actual Simulator target. The generic
   Debug Simulator build and localization checks passed. A new iOS/TestFlight
-  binary was not uploaded, and this record does not claim a native UI trial.
+  binary was not uploaded at that initial proof stage. The subsequent
+  [0.1.57 release](../../../plans/2026-09-06-screenshot-contact-agent-release.md)
+  passed Release CI, Apple processing, and internal-group access verification.
 
 ## Focused checks
 

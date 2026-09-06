@@ -135,10 +135,41 @@ dedicated SKView now owns lifecycle pausing separately from the scene's bounded
 idle pause. The revealed screenshots and recording verify that fix. The two
 portrait renderers also honor both system and Lab reduced-motion preferences.
 
-This delivery changes the local source and running backend; it does not upload
-a new TestFlight binary or publish Google's consent screen to production.
+The initial design delivery changed local source and the running backend. The
+subsequent authorized TestFlight publication is recorded in the
+[release evidence](release.md); Google's consent screen remains in Testing.
 
 Sources: [Google native OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
 [Google identity verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token),
 [Google sign-in branding](https://developers.google.com/identity/branding-guidelines).
 The standard Google G asset is downloaded from that branding documentation.
+
+## Release-branch integration
+
+The authorized release branch is based on current main `9873f22`, preserving
+newer Agent Ask lifecycle routing, Calendar permission copy, migration
+`047_proposed_extracted_text`, and every upstream localization and secret
+mapping. Backend readiness now requires migration `050_google_auth`. The
+localization checker decodes escaped newlines in Swift keys once; the actual
+headline translation remains unchanged.
+
+On this isolated branch, backend build and 26 focused backend tests passed;
+Web passed nine focused tests, TypeScript and ESLint. The two native Google/email
+unit tests and both swipe/recovery/reduced-motion UI tests passed on the dedicated
+iPhone 17 Pro Simulator. Documentation, localization, and 18 secret-boundary
+checks passed. These checks complement, rather than replace, the required PR
+CI and Security gates.
+
+The release branch also passed the full Web suite (327 passed, one pre-existing
+skip) and a production Web build using the repository's build-only CI secret.
+An old test expecting the replaced expiry sentence was updated while retaining
+the returnable expired-session boundary assertions.
+
+The local API and Agent Host now run the isolated release image. Docker Hub
+still returned EOF, so its runtime is the prior verified multi-image release,
+whose lockfile SHA-256 exactly matches this branch, with freshly compiled
+backend/contracts/agent/evaluation/Agent Host output. Seven deployed hashes,
+including the retained proposed-extracted-text migration, match; see the
+[deployment proof](release-deployment-proof.json). The standard deployment
+script's database, readiness, Apple, voice, Chat, and Tailscale probes passed,
+and a new Google challenge succeeded.
