@@ -1,6 +1,6 @@
 # Native retrieval release
 
-Status: PR #138 is open; native integration checks pass and final visual readback is active.
+Status: release complete; v0.1.58 / build 20260906032423 is processed and available to the existing internal TestFlight group.
 
 ## Outcome and authorization
 
@@ -26,12 +26,12 @@ screenshots and tests verify the actual publication source.
 
 ## Milestones
 
-1. Active: validate the scoped port with Release compilation, focused native
+1. Complete: validate the scoped port with Release compilation, focused native
    retrieval/navigation/voice checks, localization, documentation and diff review.
-2. Push a pull request, pass required CI/Security, and merge its verified head.
-3. Follow main CI and automatic Release iOS through Apple processing and receipt.
-4. Audit existing internal group/build access without resending invitations;
-   record release version, build, commit and exact delivery evidence.
+2. Complete: PR #138 passed required CI/Security and merged as 640c2b9.
+3. Complete: main CI and Release iOS passed; Apple processing and receipt verified.
+4. Complete: exact build/group access audited without resending invitations;
+   version, build, commit and delivery evidence recorded below.
 
 ## Known evidence
 
@@ -54,3 +54,28 @@ existing next-ios-version policy after successful CI; do not hand-create a tag.
   evidence across these two runs. No test was disabled or weakened.
 - Native artifacts: /tmp/talent-signal-retrieval-v2/release-*.log and xcresult.
   CI/Security are required on the final PR head before merge.
+
+## Remote merge evidence
+
+- Final PR source: 24da545a11741e29e4f5f88e5b2676401472647d.
+- Merge: 640c2b9735b0bfe81d045ded6270344b94e56e33 at 2026-09-06T03:03:26Z; its entire tree matches the verified PR source.
+- CI 34006803543 passed Release compilation, all 458 unit tests, all 9 isolated UI smoke journeys, repository/docs, Web and backend checks. Security 34006803468 passed.
+- Main CI: https://github.com/getyak/talent-signal/actions/runs/34008030416.
+- Publication integration captures and hashes: docs/evaluations/2026-09-06-ios-retrieval-craft/release-integration/.
+
+## Distribution preflight
+
+Read-only TestFlight Access run 34008149967 passed on 2026-09-06. The configured tester is an internal-group member, the group includes all builds, and server access is ready. Version 0.1.57 / build 20260906001520 was VALID at preflight. No invitation was resent and no repair was requested. Recheck the exact new build after publication; this preflight is not delivery proof for the new version.
+
+## Main release gate
+
+Main CI 34008030416 passed Release compilation, 458 unit tests and all 9 isolated UI smoke journeys, with zero failures or skipped UI journeys. Automatic Release iOS run 34008858161 selected merge 640c2b9 and entered archive after API reachability and signing setup passed.
+
+## Completed delivery
+
+- Release: https://github.com/getyak/talent-signal/releases/tag/v0.1.58.
+- Version 0.1.58; build 20260906032423; source 640c2b9735b0bfe81d045ded6270344b94e56e33.
+- Release iOS 34008858161 passed archive, upload, exact Apple processing and finalization. App Store Connect processing was confirmed at 2026-09-06T03:33:29Z; the GitHub prerelease was published at 03:33:35Z.
+- The bot-owned release receipt, published asset SHA-256 and annotated tag target were checked against the exact version/build/source.
+- TestFlight Access 34009323684 passed at 03:34:54Z: latest version/build match, BUILD_STATE=VALID, GROUP_MEMBER=true, GROUP_ALL_BUILDS=true, SERVER_ACCESS_READY=true. No group/build repair was needed and no invitation was resent. This proves server-side availability, not installation of this specific build on a device.
+- Receipt and sanitized access proof are retained beside the publication integration captures. All published records and captures use synthetic preview data.
