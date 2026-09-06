@@ -2,9 +2,10 @@ import {
   AppleLogo,
   ArrowLeft,
   ArrowRight,
-  GoogleLogo,
-  ShieldCheck,
 } from "@phosphor-icons/react/dist/ssr";
+import { OAuthSubmit } from "@/components/oauth-submit";
+import { LoginPortraits } from "@/components/login-portraits";
+import styles from "./login.module.css";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
 const oauthErrors: Record<string, string> = {
   AccessDenied: "该账号未获访问权限。",
   Configuration:
-    "登录服务尚未完整配置，请检查凭据与回调地址。",
+    "暂时无法完成登录，请重试或使用邮箱继续。",
   OAuthCallbackError:
     "登录服务无法完成回调，请重试。",
   OAuthSignin: "暂时无法连接登录服务，请重试。",
@@ -60,7 +61,7 @@ export default async function LoginPage({
   const parameters = await searchParams;
   const callbackUrl = safeRedirectTarget(parameters.callbackUrl);
   const sessionExpired = parameters.reason === "backend_session_expired";
-  if (session?.user && !sessionExpired) {
+  if (session?.user && !sessionExpired && !parameters.error) {
     redirect(callbackUrl);
   }
 
@@ -79,16 +80,8 @@ export default async function LoginPage({
     availability.defaultAccount;
 
   return (
-    <main id="main-content" className="auth-page" tabIndex={-1}>
+    <main id="main-content" className={`auth-page ${styles.page}`} tabIndex={-1}>
       <section className="auth-story" aria-label="Talent Signal 产品背景">
-        <Image
-          src="/images/recruiter-notes.webp"
-          alt="一位招聘顾问正在用红色铅笔审阅候选人笔记。"
-          fill
-          priority
-          sizes="(max-width: 767px) 100vw, 52vw"
-        />
-        <div className="auth-story__veil" />
         <div className="auth-story__header">
           <BrandMark />
           <Link href="/">
@@ -96,14 +89,15 @@ export default async function LoginPage({
             返回产品页
           </Link>
         </div>
-        <div className="auth-story__copy">
-          <p>候选人知识，始终保留完整来源。</p>
-          <h1>回到关系，而不只是回到记录。</h1>
-          <div>
-            <ShieldCheck aria-hidden="true" size={18} />
-            每一项重要变化都保持可审阅。
+        <div className={styles.visual}>
+          <LoginPortraits />
+          <div className={styles.story}>
+            <p>每一段关系，都是新的可能。</p>
+            <h1>留住线索。<br />让连接自然发生。</h1>
+            <span>记得来时的对话，也看见下一步。</span>
           </div>
         </div>
+        <p className={styles.footnote}>为认真经营关系的人而造</p>
       </section>
 
       <section className="auth-panel" aria-labelledby="sign-in-title">
@@ -116,13 +110,13 @@ export default async function LoginPage({
             <p>Talent Signal 工作台</p>
             <h2 id="sign-in-title">欢迎回来。</h2>
             <span>
-              登录后审阅候选人背景、来源证据与下一步。
+              让每一次重要的对话，都有一个安放的地方。
             </span>
           </header>
 
           {sessionExpired ? (
             <p className="auth-error" role="alert">
-              安全工作台会话已过期。请重新登录以返回同一页面；系统没有用缓存的关系状态替代当前内容。
+              登录已过期，请重新登录以回到刚才的页面。
             </p>
           ) : null}
 
@@ -143,14 +137,10 @@ export default async function LoginPage({
                         name="redirectTo"
                         value={callbackUrl}
                       />
-                      <button className="auth-provider" type="submit">
-                        <GoogleLogo
-                          aria-hidden="true"
-                          size={19}
-                          weight="bold"
-                        />
+                      <OAuthSubmit>
+                        <Image src="/images/google-sign-in.png" width={20} height={20} alt="" />
                         <span>使用 Google 继续</span>
-                      </button>
+                      </OAuthSubmit>
                     </form>
                   ) : null}
                   {availability.apple ? (
@@ -160,17 +150,14 @@ export default async function LoginPage({
                         name="redirectTo"
                         value={callbackUrl}
                       />
-                      <button
-                        className="auth-provider auth-provider--apple"
-                        type="submit"
-                      >
+                      <OAuthSubmit className="auth-provider auth-provider--apple">
                         <AppleLogo
                           aria-hidden="true"
                           size={20}
                           weight="fill"
                         />
                         <span>使用 Apple 继续</span>
-                      </button>
+                      </OAuthSubmit>
                     </form>
                   ) : null}
                 </div>
@@ -178,7 +165,7 @@ export default async function LoginPage({
 
               {hasOAuth && (availability.password || availability.email) ? (
                 <div className="auth-divider">
-                  <span>或使用工作台账号</span>
+                  <span>或使用邮箱</span>
                 </div>
               ) : null}
 

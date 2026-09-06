@@ -114,6 +114,7 @@ export const SessionResponseSchema = Type.Object(
       kind: Type.Union([
         Type.Literal("simulated_human"),
         Type.Literal("apple_human"),
+        Type.Literal("google_human"),
         Type.Literal("password_human"),
         Type.Literal("lab_human"),
       ]),
@@ -140,6 +141,7 @@ export const CurrentSessionResponseSchema = Type.Object(
       kind: Type.Union([
         Type.Literal("simulated_human"),
         Type.Literal("apple_human"),
+        Type.Literal("google_human"),
         Type.Literal("password_human"),
         Type.Literal("lab_human"),
       ]),

@@ -2,6 +2,7 @@ export interface BackendConfig {
   allowedOrigins: string[];
   appleSignInAudiences: string[];
   appleSignInEnabled: boolean;
+  googleSignInAudiences?: string[];
   databaseUrl: string;
   host: string;
   passwordAuthEnabled: boolean;
@@ -112,6 +113,7 @@ export function loadConfig(): BackendConfig {
       .filter(Boolean),
     appleSignInAudiences,
     appleSignInEnabled,
+    googleSignInAudiences: (process.env.GOOGLE_SIGN_IN_AUDIENCES ?? "").split(",").map(value => value.trim()).filter(Boolean),
     databaseUrl: requireValue("DATABASE_URL"),
     host: process.env.HOST ?? "0.0.0.0",
     passwordAuthEnabled,

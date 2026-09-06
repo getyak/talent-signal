@@ -185,6 +185,66 @@ final class AppSessionStore: ObservableObject {
         }
     }
 
+    func signInWithGoogle() async {
+        guard authenticationAllowed, !isWorking, let client, let baseURL else { return }
+        let generation = contextGeneration
+        isWorking = true; notice = nil
+        defer { if generation == contextGeneration { isWorking = false } }
+        do {
+            let challenge = try await client.googleChallenge()
+            guard challenge.contractVersion == TalentSignalAPIContract.version, challenge.expiresAt > .now else { throw AppSessionError.contractMismatch }
+            let flow = GoogleSignInFlow()
+            let token = try await flow.identityToken(nonce: challenge.nonce)
+            guard generation == contextGeneration else { return }
+            let session = try await client.signInGoogle(identityToken: token, challengeID: challenge.id)
+            guard generation == contextGeneration else { return }
+            try verify(session, endpoint: baseURL)
+            let validated = try await client.validate(session)
+            guard generation == contextGeneration else { return }
+            try verify(validated, endpoint: baseURL)
+            guard validated.account.id == session.account.id, validated.user.id == session.user.id else { throw AppSessionError.scopeMismatch }
+            guard try !endingPersistence.load().contains(where: { $0.credentialFingerprint == AppSessionEnding.fingerprint(validated) }) else { throw AppSessionError.scopeMismatch }
+            try persistence.save(validated)
+            phase = .signedIn(validated); self.challenge = nil
+        } catch {
+            guard generation == contextGeneration else { return }
+            if (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin { notice = signInNotice(error) }
+        }
+    }
+
+    func signInWithEmail(email: String, password: String, registering: Bool) async {
+        guard authenticationAllowed, !isWorking, let client, let baseURL else { return }
+        let generation = contextGeneration
+        isWorking = true; notice = nil
+        defer { if generation == contextGeneration { isWorking = false } }
+        do {
+            let session = try await client.signInEmail(email: email, password: password, registering: registering)
+            guard generation == contextGeneration else { return }
+            try verify(session, endpoint: baseURL)
+            let validated = try await client.validate(session)
+            guard generation == contextGeneration else { return }
+            try verify(validated, endpoint: baseURL)
+            guard validated.account.id == session.account.id, validated.user.id == session.user.id else { throw AppSessionError.scopeMismatch }
+            guard try !endingPersistence.load().contains(where: { $0.credentialFingerprint == AppSessionEnding.fingerprint(validated) }) else { throw AppSessionError.scopeMismatch }
+            try persistence.save(validated)
+            phase = .signedIn(validated); challenge = nil
+        } catch {
+            guard generation == contextGeneration else { return }
+            notice = signInNotice(error)
+        }
+    }
+
+    private func signInNotice(_ error: Error) -> String {
+        guard case let AppSessionError.backend(_, code, _) = error else { return error.localizedDescription }
+        switch code {
+        case "PASSWORD_SIGN_IN_FAILED": return "The email or password is not recognized."
+        case "PASSWORD_ACCOUNT_EXISTS": return "This email already has an account. Please sign in."
+        case "GOOGLE_ACCOUNT_LINK_REQUIRED": return "This email already has a workspace. Use its existing sign-in method."
+        case "GOOGLE_CHALLENGE_INVALID", "GOOGLE_TOKEN_REPLAYED", "GOOGLE_TOKEN_INVALID": return "Google sign-in expired. Please try again."
+        default: return "Sign-in is temporarily unavailable. Please try again."
+        }
+    }
+
     @discardableResult
     func signOut() async -> AppSessionEndingReceipt? {
         guard !isWorking, case let .signedIn(session) = phase, let baseURL, let client else { return nil }
@@ -338,30 +398,27 @@ struct AppAuthenticationView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appLanguage) private var appLanguage
     @State private var showsSignOutRecovery = false
+    @State private var showsEmail = false
 
     var body: some View {
-        ZStack {
-            Color.tsSurface.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer()
-
-                RelationshipSignalOrb()
-                    .frame(width: 58, height: 58)
-                    .accessibilityHidden(true)
-
-                Text("Talent Signal")
-                    .font(.custom("Georgia", size: 42, relativeTo: .largeTitle))
-                    .foregroundStyle(Color.tsInk)
-                    .tracking(-1.1)
-                    .padding(.top, 26)
-
-                Text("Relationships, in context.")
-                    .font(.title3)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .padding(.top, 8)
-
-                Spacer()
-
+        AuthenticationWelcomeView {
+            VStack(spacing: 10) {
+                if GoogleSignInFlow.clientID != nil {
+                    Button { Task { await store.signInWithGoogle() } } label: {
+                        HStack(spacing: 12) {
+                            Image("GoogleSignInMark").resizable().frame(width: 20, height: 20)
+                            Text(appLanguage.text("Continue with Google")).font(.headline)
+                            if store.isWorking { ProgressView() }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.12))
+                        .background(Color.white, in: Capsule())
+                        .overlay(Capsule().stroke(Color.tsLine, lineWidth: 0.7))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(store.isWorking)
+                    .accessibilityIdentifier("sign-in-with-google")
+                }
                 if store.challenge != nil {
                     SignInWithAppleButton(.continue) { request in
                         request.requestedScopes = [.fullName, .email]
@@ -391,7 +448,7 @@ struct AppAuthenticationView: View {
                         colorScheme == .dark ? .white : .black
                     )
                     .frame(height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .clipShape(Capsule())
                     .disabled(store.isWorking)
                     .accessibilityIdentifier("sign-in-with-apple")
                 } else {
@@ -410,6 +467,11 @@ struct AppAuthenticationView: View {
                     .disabled(store.isWorking || store.baseURL == nil)
                     .accessibilityIdentifier("retry-apple-challenge")
                 }
+
+                Button(appLanguage.text("Continue with email")) { showsEmail = true }
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .disabled(store.isWorking)
+                    .accessibilityIdentifier("sign-in-with-email")
 
                 if let notice = store.notice {
                     Text(appLanguage.text(notice))
@@ -432,8 +494,6 @@ struct AppAuthenticationView: View {
                     .padding(.top, 20)
                     .padding(.bottom, 10)
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 24)
         }
         .task {
             if store.phase == .signedOut, store.challenge == nil {
@@ -442,6 +502,7 @@ struct AppAuthenticationView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("authentication-screen")
+        .sheet(isPresented: $showsEmail) { AuthenticationEmailView(store: store) }
         .sheet(isPresented: $showsSignOutRecovery) {
             NavigationStack {
                 LabSessionEndingsView(store: store)
