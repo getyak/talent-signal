@@ -419,6 +419,10 @@ final class PursuitWorkspaceStore: ObservableObject {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
         return try await service.createScreenshotContactTask(body)
     }
+    func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent {
+        guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
+        return try await service.loadScreenshotContactImage(taskID: taskID, index: index)
+    }
     func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask {
         guard let service else { throw PursuitWorkspaceClientError.askUnavailable }
         return try await service.loadScreenshotContactTask(id: id)

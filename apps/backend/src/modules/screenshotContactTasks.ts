@@ -15,11 +15,16 @@ import { appendAudit } from "../lib/audit.js";
 import type { AuthContext } from "./auth.js";
 import { searchPeople, getRelationshipScope } from "./people.js";
 import { createResourceCaptureInTransaction } from "./resourceIntake.js";
+import type { ChatMediaStorage } from "./chatMediaStorage.js";
+import { contactImages, validateContactImage, reserveContactImages, persistContactImages, readContactImage, purgeExpiredContactImages, type ContactImageManifest } from "./contactTaskImages.js";
+import { mergeContactExtractions } from "./mergeContactExtractions.js";
 import { LocalContactResearchClient, type ContactResearchClient } from "./contactResearchClient.js";
 
 type Response = ScreenshotContactTaskResponse;
-type Manifest = Omit<ScreenshotContactTaskRequest, "image"> & { image: Omit<ScreenshotContactTaskRequest["image"], "data_base64"> };
+type Manifest = Omit<ScreenshotContactTaskRequest, "image" | "additional_images"> & { image: ContactImageManifest; additional_images?: ContactImageManifest[] };
 interface TaskState {
+  extraction_parts?: NonNullable<Response["extraction"]>[];
+  batch_conflict?: boolean;
   response: Response;
   searches: Array<{ query: string; candidates: Response["candidates"] }>;
   observations: Array<{ tool: string; result: unknown }>;
@@ -106,10 +111,10 @@ export async function resumeScreenshotContactTask(pool:Pool,auth:AuthContext,id:
     if(input.new_contact_name&&input.selected_person_id)deny("CONTACT_TASK_SCOPE_AMBIGUOUS");
     if(input.image){
       if(row.state.response.extraction)deny("CONTACT_EXTRACTION_ALREADY_CHECKPOINTED");
-      const request={...row.input_manifest,image:input.image};
-      const manifest=imageManifest(request);
-      if(manifest.image.content_hash!==row.input_manifest.image.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
+      const manifest=validateContactImage(input.image);
+      if(manifest.content_hash!==row.input_manifest.image.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
     }
+    if(row.state.batch_conflict) throw new ApiError(409,"CONTACT_BATCH_IDENTITY_CONFLICT","这些截图包含不同联系人，请分别发送。 ");
     if(input.new_contact_name){
       if(row.state.response.capture_id)deny("CONTACT_TASK_ALREADY_FILED");
       row.state.user_contact_label=input.new_contact_name.trim();
@@ -140,13 +145,14 @@ export async function cancelScreenshotContactTask(pool:Pool,auth:AuthContext,id:
   return loadScreenshotContactTask(pool,auth,id);
 }
 
-export async function expireScreenshotContactTasks(pool:Pool):Promise<void>{
+export async function expireScreenshotContactTasks(pool:Pool,storage?:ChatMediaStorage):Promise<void>{
   await inTransaction(pool,async client=>{
     await client.query(`DELETE FROM contact_profile_observations o USING screenshot_contact_tasks t
       WHERE o.account_id=t.account_id AND o.task_id=t.id AND t.expires_at<=now()`);
     await client.query(`UPDATE screenshot_contact_tasks SET state='{}'::jsonb,input_manifest='{}'::jsonb,status='deleted',
       lease_until=NULL,lease_epoch=lease_epoch+1,revision=revision+1,updated_at=now() WHERE expires_at<=now() AND status<>'deleted'`);
   });
+  if(storage) await purgeExpiredContactImages(pool,storage);
 }
 
 export async function loadContactIntelligence(pool:Pool,auth:AuthContext,personID:string,contextID:string){
@@ -177,26 +183,27 @@ export async function listScreenshotContactTasks(pool:Pool,auth:AuthContext){
 }
 
 function imageManifest(request: ScreenshotContactTaskRequest): Manifest {
-  const bytes=Buffer.from(request.image.data_base64,"base64");
-  if (bytes.toString("base64")!==request.image.data_base64 || bytes.length!==request.image.byte_size || digest(bytes)!==request.image.content_hash)
-    throw new ApiError(422,"CONTACT_IMAGE_INTEGRITY_MISMATCH","Screenshot bytes do not match their manifest.");
-  const valid=request.image.media_type==="image/png" ? bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
-    : request.image.media_type==="image/jpeg" ? bytes[0]===255&&bytes[1]===216&&bytes[2]===255
-    : bytes.toString("ascii",0,4)==="RIFF"&&bytes.toString("ascii",8,12)==="WEBP";
-  if (!valid) throw new ApiError(422,"CONTACT_IMAGE_FORMAT_MISMATCH","Screenshot format does not match the file bytes.");
-  const {data_base64:_,...image}=request.image;
-  return {...request,image};
+  const {image, additional_images, ...rest}=request;
+  return {...rest,image:validateContactImage(image),...(additional_images?.length?{additional_images:additional_images.map(validateContactImage)}:{})};
 }
 
-export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,raw: unknown): Promise<{body:Response;replayed:boolean}> {
+export async function loadScreenshotContactImage(pool:Pool,auth:AuthContext,id:string,index:number,storage:ChatMediaStorage){
+  await assertSourceCurrent(pool,await rowFor(pool,auth,id));
+  const image=await readContactImage(pool,auth,id,index,storage);
+  if(!image)throw new ApiError(404,"CONTACT_IMAGE_UNAVAILABLE","原图暂时不可用，请重试。");
+  await assertSourceCurrent(pool,await rowFor(pool,auth,id));
+  return image;
+}
+
+export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,raw: unknown, storage?:ChatMediaStorage): Promise<{body:Response;replayed:boolean}> {
   const parsed=ScreenshotContactTaskRequestSchema.safeParse(raw);
-  if (!parsed.success) throw new ApiError(422,"CONTACT_TASK_INPUT_INVALID","One chat screenshot and a task objective are required.");
+  if (!parsed.success) throw new ApiError(422,"CONTACT_TASK_INPUT_INVALID","请选择最多 10 张截图，每张不超过 10 MB，总计不超过 30 MB。");
   const request=parsed.data;const manifest=imageManifest(request);const hash=digest(JSON.stringify(manifest));
   if (Boolean(request.selected_person_id)!==Boolean(request.selected_relationship_context_id)) deny("CONTACT_TASK_SCOPE_INCOMPLETE");
-  return inTransaction(pool,async(client)=>{
+  const result = await inTransaction(pool,async(client)=>{
     if(request.selected_person_id) await getRelationshipScope(client,auth,request.selected_person_id,request.selected_relationship_context_id!);
     const id=randomUUID();const now=new Date().toISOString();
-    const response:Response={task_id:id,revision:1,status:"running",contact:null,capture_id:null,source_resource_id:null,
+    const response:Response={...(storage?{source_images:contactImages(request).map((image,image_index)=>({...validateContactImage(image),image_index}))}:{}),task_id:id,revision:1,status:"running",contact:null,capture_id:null,source_resource_id:null,
       message_count:0,extraction:null,summary:"",findings:[],profile_fields:[],public_sources:[],question:null,candidates:[],
       limitations:[],events:[],external_effects:[],created_at:now,updated_at:now};
     const state:TaskState={response,searches:[],observations:[],model_receipts:[],turns:0,tokens:0,pending_research:null,
@@ -210,10 +217,16 @@ export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,r
       await assertSourceCurrent(client,row);
       return {body:{...row.state.response,revision:row.revision,updated_at:row.updated_at.toISOString()},replayed:true};
     }
+    if(storage) await reserveContactImages(client,auth,id,contactImages(request).map(validateContactImage),storage);
     await appendAudit(client,{accountId:auth.accountId,actorUserId:auth.userId},"contact_task.created","screenshot_contact_task",id,
-      {image_content_hash:request.image.content_hash,raw_image_persisted:false,automatic_internal_filing:true,public_research:request.allow_public_research});
+      {image_content_hashes:contactImages(request).map(image=>image.content_hash),raw_image_storage_requested:Boolean(storage),automatic_internal_filing:true,public_research:request.allow_public_research});
     return {body:response,replayed:false};
   });
+  if(storage) {
+    try { await persistContactImages(pool,auth,result.body.task_id,contactImages(request),storage); }
+    catch { throw new ApiError(503,"CONTACT_IMAGE_UPLOAD_FAILED","图片尚未全部保存，请重试本次发送。"); }
+  }
+  return {...result,body:await loadScreenshotContactTask(pool,auth,result.body.task_id)};
 }
 
 function toolsFor(row: Row): ContactIntakeToolName[] {
@@ -269,10 +282,10 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
       :{status:"confirmed",person_id:response.contact!.person_id,relationship_context:{status:"existing",relationship_context_id:response.contact!.relationship_context_id},
         binding_basis:row.state.selected?"User selected this existing contact for filing.":"Unique internal contact match to visible screenshot label; content remains unreviewed source evidence."},
     resource:{client_resource_id:clientResourceID,kind:"conversation_screenshot",display_name:`${extraction.platform} 聊天截图`,media_type:manifest.image.media_type,
-      observed_at:manifest.captured_at,source_timezone:"UTC",byte_size:manifest.image.byte_size,content_hash:manifest.image.content_hash,
+      observed_at:manifest.captured_at,source_timezone:"UTC",byte_size:[manifest.image,...manifest.additional_images??[]].reduce((sum,image)=>sum+image.byte_size,0),content_hash:manifest.additional_images?.length?digest(JSON.stringify([manifest.image,...manifest.additional_images])):manifest.image.content_hash,
       retention:{requested_mode:"evidence_crop",source_scope:"proposed_extracted_text",requested_retention_until:row.expires_at.toISOString()}},
     fragments:extraction.messages.map(m=>({client_resource_id:clientResourceID,kind:"message",sequence:m.sequence,text:m.text,
-      locator:{kind:"message",source_message_id:m.message_id,sequence:m.sequence,speaker_side:m.speaker_side},
+      locator:{kind:"message",source_message_id:m.source_image_index===undefined?m.message_id:`image${m.source_image_index+1}:${m.message_id}`,sequence:m.sequence,speaker_side:m.speaker_side},
       attribution:{actor_kind:"unknown",status:"unknown"},review_status:"proposed",parser:{name:"screenshot-contact-agent",version:"1"}})),
   };
   const result=await createResourceCaptureInTransaction(client,auth,request);
@@ -282,8 +295,7 @@ async function storeChat(client:PoolClient,auth:AuthContext,row:Row,displayName?
     display_name:identity.person_display_label??displayName??response.contact!.display_name,disposition:displayName?"created":"reused"};
   response.capture_id=result.body.capture_id;response.source_resource_id=result.body.resource.id;
   response.message_count=result.body.resource.fragment_count;
-  response.limitations.push("原图仅用于本次识别；系统保留提取的消息，姓名、说话人和时间仍可核对更正。");
-  return {contact:response.contact,capture_id:response.capture_id,source_resource_id:response.source_resource_id,message_count:response.message_count,raw_image_persisted:false};
+  return {contact:response.contact,capture_id:response.capture_id,source_resource_id:response.source_resource_id,message_count:response.message_count,raw_image_persisted:Boolean(response.source_images?.length)};
 }
 
 async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:ContactAgentToolCall):Promise<unknown> {
@@ -385,7 +397,7 @@ async function executeLocalTool(client:PoolClient,auth:AuthContext,row:Row,call:
 export class ScreenshotContactTaskRunner {
   private readonly active=new Map<string,Promise<void>>();
   private readonly controllers=new Map<string,AbortController>();
-  constructor(private readonly pool:Pool,private readonly dependencies:ScreenshotContactDependencies){}
+  constructor(private readonly pool:Pool,private readonly dependencies:ScreenshotContactDependencies,private readonly storage?:ChatMediaStorage){}
   start(auth:AuthContext,id:string,image?:ScreenshotContactTaskRequest["image"]):Promise<void> {
     const key=`${auth.accountId}:${id}`;const existing=this.active.get(key);if(existing)return existing;
     const controller=new AbortController();this.controllers.set(key,controller);
@@ -409,13 +421,28 @@ export class ScreenshotContactTaskRunner {
     try{
       let row=await rowFor(this.pool,auth,id);
       if(!row.state.response.extraction){
-        if(!image){await this.checkpoint(auth,id,epoch,async(_,r)=>{r.state.response.status="waiting_for_user";r.state.response.question="识别尚未完成，原图未保留。请重新附上这张截图继续同一任务。";});return;}
-        const output=await this.dependencies.model.extract(image,signal);
+        const manifests=[row.input_manifest.image,...row.input_manifest.additional_images??[]];
+        for(let index=row.state.extraction_parts?.length??0;index<manifests.length;index++) {
+          await assertSourceCurrent(this.pool,await rowFor(this.pool,auth,id));
+          const source=this.storage?await readContactImage(this.pool,auth,id,index,this.storage):null;
+          const current=source??(index===0?image:undefined);
+          if(!current){await this.checkpoint(auth,id,epoch,async(_,r)=>{r.state.response.status="waiting_for_user";r.state.response.question=r.state.response.source_images?.length?"图片尚未全部保存，请重试原来的发送。":"识别尚未完成，请重新附上原截图继续。";});return;}
+          validateContactImage(current);
+          if(current.content_hash!==manifests[index]!.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
+          // Refresh the lease for each bounded image read, and checkpoint each result.
+          await this.checkpoint(auth,id,epoch,async()=>{});
+          const output=await this.dependencies.model.extract(current,signal);
+          await this.checkpoint(auth,id,epoch,async(_,r)=>{
+            r.state.extraction_parts??=[];r.state.extraction_parts.push(output.extraction);
+            r.state.tokens+=output.inputTokens+output.outputTokens;
+            r.state.model_receipts.push({model:output.model,request_id:output.providerRequestID,input_tokens:output.inputTokens,output_tokens:output.outputTokens});
+            r.state.response.events.push({sequence:r.state.response.events.length+1,tool:"extract_chat_screenshot",status:"completed",occurred_at:new Date().toISOString()});
+          });
+        }
         await this.checkpoint(auth,id,epoch,async(_,r)=>{
-          r.state.response.extraction=output.extraction;r.state.tokens+=output.inputTokens+output.outputTokens;
-          r.state.model_receipts.push({model:output.model,request_id:output.providerRequestID,input_tokens:output.inputTokens,output_tokens:output.outputTokens});
-          r.state.response.events.push({sequence:1,tool:"extract_chat_screenshot",status:"completed",occurred_at:new Date().toISOString()});
-          if(output.extraction.messages.length===0){r.state.response.status="waiting_for_user";r.state.response.question="这张图没有可读取的聊天消息，请提供包含消息正文的聊天截图。";}
+          const merged=mergeContactExtractions(r.state.extraction_parts!);
+          r.state.response.extraction=merged.extraction;
+          if(merged.question){r.state.response.status="waiting_for_user";r.state.response.question=merged.question;r.state.batch_conflict=merged.identityConflict;}
         });
       }
       // Unknown public-read responses are visible; do not silently repeat billed requests after recovery.

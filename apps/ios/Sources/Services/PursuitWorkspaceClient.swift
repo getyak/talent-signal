@@ -335,6 +335,7 @@ protocol PursuitWorkspaceServing {
     ) async throws -> UnscopedChatTaskResponse
     func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask
     func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask
+    func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent
     func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList
     func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope
     func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask
@@ -440,6 +441,7 @@ extension PursuitWorkspaceServing {
 
     func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
     func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
+    func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent { throw PursuitWorkspaceClientError.askUnavailable }
     func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList { throw PursuitWorkspaceClientError.askUnavailable }
     func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope { throw PursuitWorkspaceClientError.askUnavailable }
     func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
@@ -1022,6 +1024,22 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         let response: ScreenshotContactTask = try await request(path: "v1/contact-agent/tasks/\(id)", token: login.accessToken)
         guard response.taskID == id else { throw PursuitWorkspaceClientError.scopeReadbackMismatch }
         return response
+    }
+    func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent {
+        guard UUID(uuidString: taskID) != nil, (0..<10).contains(index) else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        var request = URLRequest(url: baseURL.appending(path: "v1/contact-agent/tasks/\(taskID)/images/\(index)"))
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
+        guard let http = response as? HTTPURLResponse else { throw PursuitWorkspaceClientError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            throw Self.backendError(data: data, statusCode: http.statusCode, fallback: "The image could not be read.")
+        }
+        guard let mediaType = http.value(forHTTPHeaderField: "content-type"), mediaType.hasPrefix("image/"), !data.isEmpty else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+        return ChatMediaContent(data: data, mediaType: mediaType)
     }
     func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList {
         let login = try await contactAgentLogin()

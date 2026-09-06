@@ -78,6 +78,18 @@ final class RelationshipArchiveTests: XCTestCase {
         }
     }
 
+    func testBatchScreenshotRequestPreservesEveryImageInOrder() throws {
+        let images = (0..<10).map { ScreenshotContactTaskBody.Image(data: Data([UInt8($0)]), mediaType: "image/png") }
+        let request = ScreenshotContactTaskBody(idempotencyKey: "batch-test", objective: "File screenshots", images: images, personID: nil, contextID: nil)
+        let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
+        let first = try XCTUnwrap(encoded["image"] as? [String: Any])
+        let additional = try XCTUnwrap(encoded["additional_images"] as? [[String: Any]])
+        XCTAssertEqual(additional.count, 9)
+        XCTAssertEqual(([first] + additional).compactMap { $0["content_hash"] as? String }, images.map(\.contentHash))
+        XCTAssertEqual(AskScreenshotResearchRoutingPolicy.route(hasSelectedRelationship: false, mediaTypes: Array(repeating: "image/png", count: 10)), .directResearch)
+        XCTAssertEqual(AskScreenshotResearchRoutingPolicy.route(hasSelectedRelationship: false, mediaTypes: Array(repeating: "image/png", count: 11)), .unsupported)
+    }
+
     func testSingleUnscopedScreenshotRoutesDirectlyWithoutRelationshipOrToolSelection() {
         XCTAssertEqual(
             AskScreenshotResearchRoutingPolicy.route(
@@ -91,7 +103,7 @@ final class RelationshipArchiveTests: XCTestCase {
                 hasSelectedRelationship: false,
                 mediaTypes: ["image/png", "image/jpeg"]
             ),
-            .unsupported
+            .directResearch
         )
         XCTAssertEqual(
             AskScreenshotResearchRoutingPolicy.route(

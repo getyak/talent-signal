@@ -5118,7 +5118,8 @@ private struct WorkspacePersonDetailView: View {
                         RelationshipEyebrow(appLanguage.text("Conversation and sourced context"))
                             .padding(.top, 30)
                         ForEach(sourceTasks) { task in
-                            ScreenshotContactCard(task: task, language: appLanguage).padding(.top, 16)
+                            ScreenshotContactCard(task: task, language: appLanguage,
+                                onLoadImage: { index in try await workspaceStore.loadScreenshotContactImage(taskID: task.taskID, index: index) }).padding(.top, 16)
                         }
                     }
                     if let sourceError { Text(sourceError).font(.caption).foregroundStyle(Color.tsMutedInk).padding(.top, 16) }

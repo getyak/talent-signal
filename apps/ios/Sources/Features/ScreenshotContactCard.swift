@@ -7,6 +7,10 @@ struct ScreenshotContactCard: View {
     var onOpenPerson: ((String) -> Void)? = nil
     var onResume: ((ScreenshotContactResumeBody) -> Void)? = nil
     var onCancel: (() -> Void)? = nil
+    var onLoadImage: ((Int) async throws -> ChatMediaContent)? = nil
+    @State private var sourceImage: UIImage?
+    @State private var showsSourceImage = false
+    @State private var loadingSource = false
     @State private var filingName = ""
     @State private var showsImageRecovery = false
     @State private var recoveryError: String?
@@ -45,10 +49,10 @@ struct ScreenshotContactCard: View {
                     }.disabled(filingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            if ["partial", "failed", "cancelled"].contains(task.status), task.extraction != nil, onResume != nil {
+            if ["partial", "failed", "cancelled"].contains(task.status), (task.extraction != nil || task.sourceImages?.isEmpty == false), onResume != nil {
                 Button(language.text("Continue this task")) { onResume?(.init(expectedRevision: task.revision)) }
             }
-            if task.extraction == nil, ["waiting_for_user", "failed", "cancelled"].contains(task.status), onResume != nil {
+            if task.extraction == nil, task.sourceImages?.isEmpty != false, ["waiting_for_user", "failed", "cancelled"].contains(task.status), onResume != nil {
                 Button(language.text("Reattach the same screenshot")) { showsImageRecovery = true }
             }
             if let recoveryError { Text(recoveryError).font(.caption).foregroundStyle(Color.tsMutedInk) }
@@ -79,11 +83,26 @@ struct ScreenshotContactCard: View {
                     }
                 }
             }
+            if let sources = task.sourceImages, let onLoadImage, !sources.isEmpty {
+                DisclosureGroup(language.text("Original images")) {
+                    ForEach(sources, id: \.imageIndex) { source in
+                        Button {
+                            loadingSource = true
+                            Task { defer { loadingSource = false }; do {
+                                let content = try await onLoadImage(source.imageIndex)
+                                guard let image = UIImage(data: content.data) else { throw PursuitWorkspaceClientError.invalidResponse }
+                                sourceImage = image; showsSourceImage = true; recoveryError = nil
+                            } catch { recoveryError = language.text("The image could not be read.") } }
+                        } label: { Text(verbatim: "\(language.text("Image")) \(source.imageIndex + 1)").frame(minHeight: 44) }
+                        .disabled(loadingSource)
+                    }
+                }
+            }
             if let extraction = task.extraction {
                 DisclosureGroup(language.text("Chat evidence")) {
                     ForEach(extraction.messages) { message in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(verbatim: "\(message.messageID) · \(message.speakerSide == "left" ? language.text("Left side") : message.speakerSide == "right" ? language.text("Right side") : language.text("Speaker unknown"))")
+                            Text(verbatim: "\(message.sourceImageIndex.map { "\(language.text("Image")) \($0 + 1) · " } ?? "")\(message.messageID) · \(message.speakerSide == "left" ? language.text("Left side") : message.speakerSide == "right" ? language.text("Right side") : language.text("Speaker unknown"))")
                                 .font(.caption2).foregroundStyle(Color.tsMutedInk)
                             Text(message.text).font(.subheadline).textSelection(.enabled)
                             if let time = message.timeText { Text(time).font(.caption2).foregroundStyle(Color.tsMutedInk) }
@@ -111,6 +130,13 @@ struct ScreenshotContactCard: View {
         }.padding(20).background(Color.tsSurfaceMuted, in: RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.tsLine.opacity(0.7)))
             .accessibilityIdentifier("screenshot-contact-card")
+            .sheet(isPresented: $showsSourceImage, onDismiss: { sourceImage = nil }) {
+                NavigationStack {
+                    ScrollView([.horizontal, .vertical]) { if let sourceImage { Image(uiImage: sourceImage).resizable().scaledToFit() } }
+                        .navigationTitle(language.text("Original image"))
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button(language.text("Done")) { showsSourceImage = false } } }
+                }
+            }
             .fileImporter(isPresented: $showsImageRecovery, allowedContentTypes: [.png, .jpeg, .webP]) { result in
                 do {
                     let url = try result.get(); let accessed = url.startAccessingSecurityScopedResource()
@@ -158,7 +184,7 @@ struct ScreenshotContactHistoryView: View {
                             Task { do { self.selected = try await workspaceStore.resumeScreenshotContactTask(id: selected.taskID, body: body) } catch { self.error = error.localizedDescription } }
                         }, onCancel: {
                             Task { do { self.selected = try await workspaceStore.cancelScreenshotContactTask(id: selected.taskID, revision: selected.revision) } catch { self.error = error.localizedDescription } }
-                        })
+                        }, onLoadImage: { index in try await workspaceStore.loadScreenshotContactImage(taskID: selected.taskID, index: index) })
                     }
                     ForEach(tasks) { task in
                         Button { Task { do { selected = try await workspaceStore.loadScreenshotContactTask(id: task.taskID) } catch { self.error = error.localizedDescription } } } label: {

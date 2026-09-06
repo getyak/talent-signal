@@ -98,10 +98,10 @@ Photos selection and App Shortcuts converge on a durable capture queue. Staging 
 
 The capture surface appears while processing is active or blocked. Zero or multiple plausible identities, historical identity clues, zero or multiple relationship contexts, tool failure, and consequential external writes return to the recruiter. One current confirmed clue that resolves to one person and one existing relationship context may attach the source without another tap. Extracted text, speaker attribution, and facts remain proposed, and unresolved identity cannot feed confirmed relationship state.
 
-Relationship Ask screenshots are a separate task-input boundary. A screenshot inside an existing relationship uses the ordinary bound media lifecycle.
-A single PNG/JPEG/WebP sent without a selected relationship instead uses an account-scoped `person-research` task: the authenticated API verifies its byte count and content hash, keeps the bytes process-only, and forwards one read-only Run to the credential-isolated Agent Host without creating or selecting a Person, relationship, Wiki snapshot, or evidence record.
-Only visible text or platform clues may drive bounded searches; appearance alone must abstain. The returned block is an unconfirmed, cited research draft and never bypasses source review, identity review, or effect approval.
-Raw bytes are not stored in Agent state, and open-world provider credentials never enter the API or client.
+Relationship Ask accepts ordered images with or without a selected relationship.
+The backend owns scoped originals, extraction checkpoints, provenance, and recovery.
+Upload alone never makes pixels reviewed evidence. Filing and the legacy read-only
+definition remain separate [Agent capabilities](agent-system.md#authorized-screenshot-contact-filing).
 
 ## Truth model
 

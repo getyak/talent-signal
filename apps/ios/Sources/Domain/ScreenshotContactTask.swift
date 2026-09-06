@@ -14,8 +14,9 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
         let text: String
         let speakerSide: String
         let timeText: String?
+        let sourceImageIndex: Int?
         var id: String { messageID }
-        enum CodingKeys: String, CodingKey { case messageID = "message_id", text, speakerSide = "speaker_side", timeText = "time_text" }
+        enum CodingKeys: String, CodingKey { case messageID = "message_id", text, speakerSide = "speaker_side", timeText = "time_text", sourceImageIndex = "source_image_index" }
     }
     struct Extraction: Decodable, Equatable { let messages: [Message]; let uncertainties: [String] }
     struct Finding: Decodable, Equatable {
@@ -37,6 +38,11 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
         enum CodingKeys: String, CodingKey { case personID = "person_id", relationshipContextID = "relationship_context_id", displayName = "display_name", relationshipLabel = "relationship_label" }
     }
     struct Event: Decodable, Equatable { let sequence: Int; let tool: String; let status: String }
+    struct SourceImage: Decodable, Equatable {
+        let imageIndex: Int
+        enum CodingKeys: String, CodingKey { case imageIndex = "image_index" }
+    }
+    let sourceImages: [SourceImage]?
     let taskID: String
     let revision: Int
     let status: String
@@ -55,7 +61,7 @@ struct ScreenshotContactTask: Decodable, Equatable, Identifiable {
     let events: [Event]
     var id: String { taskID }
     enum CodingKeys: String, CodingKey {
-        case taskID = "task_id", revision, status, contact, captureID = "capture_id", sourceResourceID = "source_resource_id", messageCount = "message_count"
+        case sourceImages = "source_images", taskID = "task_id", revision, status, contact, captureID = "capture_id", sourceResourceID = "source_resource_id", messageCount = "message_count"
         case extraction, summary, findings, profileFields = "profile_fields", publicSources = "public_sources", question, candidates, limitations, events
     }
 }
@@ -81,19 +87,24 @@ struct ScreenshotContactTaskBody: Encodable {
     let idempotencyKey: String
     let objective: String
     let image: Image
+    let additionalImages: [Image]?
     let selectedPersonID: String?
     let selectedRelationshipContextID: String?
     let allowPublicResearch: Bool
     let capturedAt: String
     init(idempotencyKey: String, objective: String, data: Data, mediaType: String, personID: String?, contextID: String?, capturedAt: Date = Date()) {
+        self.init(idempotencyKey: idempotencyKey, objective: objective, images: [Image(data: data, mediaType: mediaType)], personID: personID, contextID: contextID, capturedAt: capturedAt)
+    }
+    init(idempotencyKey: String, objective: String, images: [Image], personID: String?, contextID: String?, capturedAt: Date = Date()) {
+        precondition(!images.isEmpty && images.count <= 10)
         self.idempotencyKey = idempotencyKey; self.objective = objective
-        image = Image(data: data, mediaType: mediaType)
+        image = images[0]; additionalImages = images.count > 1 ? Array(images.dropFirst()) : nil
         selectedPersonID = personID; selectedRelationshipContextID = contextID; allowPublicResearch = true
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         self.capturedAt = formatter.string(from: capturedAt)
     }
     enum CodingKeys: String, CodingKey {
-        case idempotencyKey = "idempotency_key", objective, image, selectedPersonID = "selected_person_id", selectedRelationshipContextID = "selected_relationship_context_id", allowPublicResearch = "allow_public_research", capturedAt = "captured_at"
+        case idempotencyKey = "idempotency_key", objective, image, additionalImages = "additional_images", selectedPersonID = "selected_person_id", selectedRelationshipContextID = "selected_relationship_context_id", allowPublicResearch = "allow_public_research", capturedAt = "captured_at"
     }
 }
 

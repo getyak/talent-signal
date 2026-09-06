@@ -23,6 +23,7 @@ CHAT_MEDIA_S3_ENDPOINT=
 CHAT_MEDIA_S3_FORCE_PATH_STYLE=false
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+AWS_SESSION_TOKEN=
 
 # Optional build/runtime overrides.
 BACKEND_IMAGE=talent-signal-backend:production

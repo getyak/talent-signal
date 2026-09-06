@@ -235,10 +235,10 @@ import {
 } from "./modules/personResearchAgentClient.js";
 import { createPersonResearchTask } from "./modules/personResearchTasks.js";
 import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask,
-  cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks,
+  cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, loadScreenshotContactImage,
   environmentScreenshotContactDependencies, ScreenshotContactTaskRunner,
   type ScreenshotContactDependencies } from "./modules/screenshotContactTasks.js";
-import { ScreenshotContactTaskRequestSchema, type ScreenshotContactTaskRequest } from "@talent-signal/agent";
+import { type ScreenshotContactTaskRequest } from "@talent-signal/agent";
 import { executeGrantedContactArchive, restoreContactArchive } from "./modules/contactArchive.js";
 import {
   createEnvironmentChatAnswerProvider,
@@ -470,7 +470,6 @@ export async function buildApp(
   const { appleTokenVerifier, config, pool } = dependencies;
   const screenshotContact = dependencies.screenshotContact === undefined
     ? environmentScreenshotContactDependencies() : dependencies.screenshotContact;
-  const screenshotRunner = screenshotContact ? new ScreenshotContactTaskRunner(pool,screenshotContact) : null;
   const remoteChatProvider = dependencies.remoteChatProvider === undefined
     ? createEnvironmentChatAnswerProvider()
     : dependencies.remoteChatProvider;
@@ -482,6 +481,7 @@ export async function buildApp(
     dependencies.voiceTranscriber ?? new EnvironmentDoubaoVoiceTranscriber();
   const chatMediaStorage =
     dependencies.chatMediaStorage ?? createChatMediaStorage(config);
+  const screenshotRunner = screenshotContact ? new ScreenshotContactTaskRunner(pool,screenshotContact,chatMediaStorage) : null;
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
@@ -631,7 +631,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '048_contact_task_invalidation'`,
+           WHERE version = '049_contact_task_images'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -2525,14 +2525,20 @@ export async function buildApp(
   );
 
   app.post<{ Body: unknown }>("/v1/contact-agent/tasks", {
-    preHandler: authenticate, bodyLimit: 14_000_000,
+    preHandler: authenticate, bodyLimit: 40_100_000,
     schema: {tags:["contact-agent"],security},
   }, async(request,reply)=>{
     if(!screenshotRunner)throw new ApiError(503,"CONTACT_AGENT_UNAVAILABLE","Screenshot contact Agent is not configured.");
-    const result=await createScreenshotContactTask(pool,request.auth,request.body);
-    const image=ScreenshotContactTaskRequestSchema.parse(request.body).image;
-    void screenshotRunner.start(request.auth,result.body.task_id,image).catch(()=>request.log.error({task_id:result.body.task_id},"Contact task could not start"));
+    const result=await createScreenshotContactTask(pool,request.auth,request.body,chatMediaStorage);
+    void screenshotRunner.start(request.auth,result.body.task_id).catch(()=>request.log.error({task_id:result.body.task_id},"Contact task could not start"));
     return reply.header("idempotent-replayed",result.replayed).status(result.replayed?200:201).send(result.body);
+  });
+  app.get<{Params:{id:string;index:number}}>("/v1/contact-agent/tasks/:id/images/:index",{
+    preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"}),index:Type.Integer({minimum:0,maximum:9})})}
+  },async(request,reply)=>{
+    const image=await loadScreenshotContactImage(pool,request.auth,request.params.id,request.params.index,chatMediaStorage);
+    return reply.header("cache-control","private, no-store").header("x-content-type-options","nosniff")
+      .type(image.media_type).send(Buffer.from(image.data_base64,"base64"));
   });
   app.get("/v1/contact-agent/tasks",{preHandler:authenticate,schema:{security}},async request=>listScreenshotContactTasks(pool,request.auth));
   app.get<{Params:{id:string}}>("/v1/contact-agent/tasks/:id",{preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},async request=>{
@@ -3115,7 +3121,7 @@ export async function buildApp(
   );
 
   const retentionSweep = setInterval(() => {
-    void expireScreenshotContactTasks(pool).catch(()=>app.log.error("Contact task retention sweep failed"));
+    void expireScreenshotContactTasks(pool,chatMediaStorage).catch(()=>app.log.error("Contact task retention sweep failed"));
     void runSourceLifecycleSweep(pool).catch((error: unknown) => {
       app.log.error(
         { err: error },
