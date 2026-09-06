@@ -2991,6 +2991,16 @@
         }
       }
     },
+    "Calendar. Nothing scheduled today. Open Calendar to plan the next relationship moment.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日历。今天暂无日程。打开日历，安排下一次联系。"
+          }
+        }
+      }
+    },
     "Calendar. No linked moments.": {
       "localizations": {
         "zh-Hans": {
@@ -6527,6 +6537,16 @@
         }
       }
     },
+    "Nothing scheduled today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天暂无日程"
+          }
+        }
+      }
+    },
     "Nothing becomes current until you confirm. Nothing is sent.": {
       "localizations": {
         "zh-Hans": {
@@ -6983,6 +7003,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开状态"
+          }
+        }
+      }
+    },
+    "Open Calendar to plan the next relationship moment.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开日历，安排下一次联系。"
           }
         }
       }
