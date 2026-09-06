@@ -5272,8 +5272,8 @@ private struct RelationshipGuideRail: View {
                     )
                 )
             ) { onVoice() }
+            // This control reserves touch-and-hold for voice input.
             .accessibilityIdentifier("relationship-guide")
-            .accessibilityShowsLargeContentViewer { Text(appLanguage.text("Ask anything")) }
 
             Button(action: onVoice) {
                 ZStack {

@@ -1,6 +1,6 @@
 # Native retrieval release
 
-Status: focused integration validation is active.
+Status: PR #138 is open; native integration checks pass and final visual readback is active.
 
 ## Outcome and authorization
 
@@ -40,3 +40,17 @@ pre-existing AX5 screenshot-review contrast audit. No build failure occurred.
 Reproduce that named test before deciding whether a fix is needed; do not
 weaken its checks or bypass required gates. Release version is selected by the
 existing next-ios-version policy after successful CI; do not hand-create a tag.
+
+## Integration evidence
+
+- Commit 761b89e opened https://github.com/getyak/talent-signal/pull/138.
+- Release simulator build, localization, docs and secret hygiene pass.
+- release-integration.xcresult passed 13 checks, including the pre-existing
+  AX5 contrast audit, search/filter/reset, long-list restoration and RTL targets.
+  Its one failure was the AX5 global voice hold after adding a large-content
+  viewer to the same control. Removing that conflicting viewer preserved the
+  original hold gesture; both Chinese AX5 and English voice-hold tests pass in
+  release-voice-recovery.xcresult. Fifteen distinct checks now have passing
+  evidence across these two runs. No test was disabled or weakened.
+- Native artifacts: /tmp/talent-signal-retrieval-v2/release-*.log and xcresult.
+  CI/Security are required on the final PR head before merge.
