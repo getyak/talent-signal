@@ -12,6 +12,7 @@ describe("local third-party Tool provider registry", () => {
   it("declares credential and subscription ownership without fallback", () => {
     expect(Object.keys(LOCAL_WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
       "brave",
+      "exa",
       "tavily",
     ]);
     for (const registration of Object.values(
@@ -32,7 +33,7 @@ describe("local third-party Tool provider registry", () => {
       configuredLocalWebSearchProvider({
         TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER: "unknown",
       }),
-    ).toThrow("must be brave or tavily");
+    ).toThrow("must be brave, tavily, or exa");
     expect(() =>
       configuredLocalWebSearchProvider({
         TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER: "brave",

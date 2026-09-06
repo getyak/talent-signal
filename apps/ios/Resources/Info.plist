@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>TalentSignalGoogleClientID</key>
+    <string>599793800024-o383jlkge2l7idep81uu4akqmdselnrb.apps.googleusercontent.com</string>
+    <key>TalentSignalDeviceLabEnabled</key>
+    <string>$(TALENT_SIGNAL_DEVICE_LAB_ENABLED)</string>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
@@ -22,6 +26,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>talentsignal</string>
+                <string>com.googleusercontent.apps.599793800024-o383jlkge2l7idep81uu4akqmdselnrb</string>
 			</array>
 		</dict>
 	</array>
@@ -56,6 +61,8 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
     <string>Talent Signal imports only the conversation screenshot you choose.</string>
+    <key>TalentSignalEnvironmentProfilesBase64URL</key>
+    <string>$(TALENT_SIGNAL_ENVIRONMENT_PROFILES_BASE64URL)</string>
     <key>TalentSignalAPIBaseURLBase64URL</key>
     <string>$(TALENT_SIGNAL_API_BASE_URL_BASE64URL)</string>
     <key>UIApplicationSceneManifest</key>

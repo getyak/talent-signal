@@ -103,7 +103,7 @@ Today stays sparse with one lead dependency and a complete no-action state.
 
 The Agent is a contextual threshold; Sessions retrieves conversations without owning truth or execution authority. On mobile, familiar top navigation owns
 retrieval and one bottom global composer owns intent; never combine them.
-Scope, capture, and record navigation follow intent. Text, one image, or voice
+Scope, capture, and record navigation follow intent. Text, an ordered image set, or voice
 becomes proposed structure before consequential review stays explicit. Mobile and Web composers treat multi-stage marked text as provisional: input methods own candidate selection, and Send remains unavailable until the text is committed. Draft recovery preserves committed whitespace and line breaks, coalesces persistence for responsive input, and flushes at true lifecycle boundaries. A system permission overlay is not itself a background cancellation; protected capture begins only after authorization and an active foreground, while real backgrounding or audio interruption stops capture with truthful recovery feedback. Diagnostics record only closed lifecycle states, never message, transcript, person, or relationship content.
 
 ## Agent-operated relationship workspace
@@ -164,8 +164,8 @@ Within a page, prioritize:
 4. the smallest next action;
 5. history, alternatives, and deeper analysis.
 
-AI provenance should be visible but secondary. The interface should describe
-the work, not advertise that AI exists.
+AI provenance is secondary; the interface describes work rather than advertising AI. Attachments and sending show selected images and meaningful progress.
+Omit routine footnotes and success notices; disclose sources on demand and highlight actionable errors or identity questions.
 
 ## Visual character
 
@@ -184,7 +184,7 @@ the surrounding product is the reference for density and idiom.
 
 Mobile reading preferences keep `Text size` and `Card density` independent. Text shifts only standard Dynamic Type categories and never reduces an accessibility category.
 Density changes card spacing, shape, and avatars without shrinking controls below 44 points; Settings previews the result and compact is the retrieval default.
-People and Sessions use independent stroked cards, concise title/context/recency metadata, and vertical accessibility fallbacks instead of source counts or answer excerpts.
+People and Sessions share quiet search and filter controls, with the active filter named and directly clearable. Rows prioritize title, identity, context, and recency; identity keeps the same scan position across attention states. People use a quiet directory rhythm. Unread Sessions alone receive restrained elevation, stronger type, and quiet visible and accessible read-state labels; operational attention remains a separate label. At accessibility sizes, identity and context use the full row width. Utility chrome must leave room for that content, with complete navigation names, practical symbols, and large-content alternatives for bounded controls.
 
 On working surfaces, headings name the current object, date, state, or
 decision within a bounded operational scale. Page and object titles never
@@ -257,11 +257,10 @@ or turn weak associations into authoritative relationships.
 
 Optimize for capture, one-thumb review, Today, interruption, and device-owned action.
 
-When rows reveal horizontal swipe actions, Today, Sessions, and People change only through explicit accessible controls. Reveals are transient, close on new
-intent rather than a timer, and expose no hidden higher-consequence command;
-see the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#fifth-iteration-row-gesture-ownership).
-
-Row swipe reveals are transient, close on new intent, never change Today, Sessions, or People, and hide no higher-consequence command; see the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#fifth-iteration-row-gesture-ownership).
+Today, Sessions, and People form one horizontally paged retrieval space. The page follows the finger and the labeled top selection follows page progress;
+both remain accessible controls and preserve each destination's local state. Session and People rows do not own horizontal swipes. Tap opens the row, while
+the same secondary commands remain available from an explicit 44-point menu, a native long-press context menu, and accessibility actions.
+See the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#sixth-iteration-pages-own-the-horizontal-axis).
 Treat screenshot intake as one progressive decision, not a miniature contact
 form or a success toast:
 
@@ -309,6 +308,7 @@ Functional audits gate release but do not establish design quality or
 preference. For a consequential visual change, compare at least two rendered
 directions against product truth, logo-off ownability, five-second clarity, and
 accessibility risk before micro-detail.
+Review the uncropped viewport across themes, text sizes, and crossed attention states. Independent craft scores use frozen criteria and preserved deductions; they are subjective evidence and never replace functional proof or user judgment.
 
 Approved mark geometry, controlled material variants, practical exports, and
 usage constraints live in the repository

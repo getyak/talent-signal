@@ -1,4 +1,7 @@
 export * from "./claudeProvider.js";
+export * from "./contactResearchSchemas.js";
+export * from "./contactIntakeSchemas.js";
+export * from "./contactIntakeProvider.js";
 export * from "./bigModelProvider.js";
 export * from "./fingerprint.js";
 export * from "./memoryJournal.js";
@@ -14,3 +17,5 @@ export * from "./schemas.js";
 export * from "./scriptedProvider.js";
 export * from "./toolCatalog.js";
 export * from "./types.js";
+export * from "./prompts.js";
+export * from "./promptRegistry.js";

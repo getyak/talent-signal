@@ -64,6 +64,7 @@ final class AgentWorkActivityTests: XCTestCase {
         )
 
         XCTAssertEqual(view.title, "No action needed")
+        XCTAssertEqual(view.displayStatus, .noAction)
         XCTAssertNil(view.action)
         XCTAssertEqual(view.boundaryText, "Nothing was changed")
     }
@@ -123,7 +124,7 @@ final class AgentWorkActivityTests: XCTestCase {
         let expected: [
             (AgentWorkBoundaryAtlasFixture, AgentWorkGlyph, AgentWorkActivityAction)
         ] = [
-            (.partial, .partial, .openActions),
+            (.partial, .partial, .resolve),
             (.failed, .failed, .resolve),
             (.unknown, .unknown, .resolve),
             (.stale, .actions, .openStatus),
@@ -183,6 +184,43 @@ final class AgentWorkActivityTests: XCTestCase {
         XCTAssertEqual(decision(from: running, to: running), .noOp)
         XCTAssertEqual(decision(from: running, to: conflict), .sameRevisionConflict)
         XCTAssertEqual(decision(from: terminal, to: regression), .terminalRegression)
+    }
+
+    func testSystemStalenessOverridesRunningAndReviewPresentationOnly() {
+        for state in [
+            makeState(execution: .running, attention: .observe, stage: .readingEvidence, revision: 2),
+            makeState(execution: .completed, attention: .review, stage: .readyForReview, actionCount: 2, revision: 3),
+        ] {
+            let fresh = AgentWorkActivityProjector.presentation(state, isSystemStale: false)
+            let stale = AgentWorkActivityProjector.presentation(state, isSystemStale: true)
+            XCTAssertEqual(stale.displayStatus, .delayed)
+            XCTAssertEqual(stale.title, "Update delayed")
+            XCTAssertFalse(stale.accessibilityLabel.contains("You can leave"))
+            XCTAssertEqual(stale.action, fresh.action)
+            XCTAssertEqual(stale.isTerminal, fresh.isTerminal)
+        }
+    }
+
+    func testInvalidPresentationDoesNotOfferAnUnsupportedReviewRoute() {
+        let view = AgentWorkActivityProjector.presentation(
+            makeState(execution: .running, attention: .review, stage: .readyForReview, actionCount: 2, revision: 2),
+            isSystemStale: false
+        )
+        XCTAssertEqual(view.displayStatus, .attention)
+        XCTAssertNil(view.action)
+        XCTAssertFalse(view.isTerminal)
+    }
+
+    func testBoundaryPresentationDistinguishesPartialIssueAndDelayed() {
+        let cases: [(AgentWorkBoundaryAtlasFixture, LiveActivityDisplayStatus)] = [
+            (.partial, .partial), (.failed, .attention), (.unknown, .attention), (.stale, .delayed),
+        ]
+        for (fixture, expected) in cases {
+            let view = AgentWorkActivityProjector.presentation(fixture.state, isSystemStale: false)
+            XCTAssertEqual(view.displayStatus, expected, fixture.rawValue)
+            XCTAssertNotEqual(view.displayStatus, .working)
+            XCTAssertNotEqual(view.displayStatus.systemImageName, "checkmark")
+        }
     }
 
     func testOldInstanceCannotUpdateNewActivity() {

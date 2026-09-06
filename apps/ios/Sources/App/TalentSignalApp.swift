@@ -12,9 +12,16 @@ struct TalentSignalApp: App {
     @AppStorage(WorkspaceCardDensityPreference.storageKey)
     private var storedCardDensity = WorkspaceCardDensityPreference.compact.rawValue
     @StateObject private var appSessionStore: AppSessionStore
+    @StateObject private var labRuntimeStore: LabRuntimeStore
+    @StateObject private var labDisplayStore = LabDisplayStore()
+    @StateObject private var labDiagnosticsStore = LabDiagnosticsStore.shared
+    @StateObject private var labMetricKitStore = LabMetricKitStore.shared
+    @AppStorage(LabDisplayStore.themeKey) private var savedTheme = LabDisplayConfiguration.Theme.system.rawValue
     @State private var standaloneOpenURL: URL?
     @State private var agentWorkOpenURL: URL?
     @State private var researchOpenURL: URL?
+    @State private var showsLoginLab = false
+    @StateObject private var loginLabStore = TalentSignalLabStore(service: nil)
 
     init() {
 #if DEBUG
@@ -34,13 +41,30 @@ struct TalentSignalApp: App {
             )
         }
 #endif
-        _appSessionStore = StateObject(
-            wrappedValue: AppSessionStore(
-                baseURL: TalentSignalAuthenticationConfiguration.baseURL(
-                    arguments: ProcessInfo.processInfo.arguments
-                )
-            )
-        )
+        let directory = RuntimeEnvironmentDirectory(buildEndpoint:
+            TalentSignalAuthenticationConfiguration.baseURL(arguments: ProcessInfo.processInfo.arguments))
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--reset-lab-workspace-journey") {
+            KeychainLabWorkspaceJourneyStore.resetAllForUITesting()
+        }
+        if let encoded = ProcessInfo.processInfo.environment["TS_IOS_UI_TEST_AUTHENTICATED_SESSION"],
+           let data = Data(base64Encoded: encoded), let endpoint = directory.selected?.endpoint,
+           URLFixtureLoader.isLoopback(endpoint) {
+            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+            if let fixture = try? decoder.decode(TalentSignalSession.self, from: data),
+               fixture.user.kind == "simulated_human", fixture.account.slug.hasPrefix("fixture-"),
+               RuntimeEndpoint.same(fixture.baseURL, endpoint) {
+                try? KeychainTalentSignalSessionStore(baseURL: endpoint).save(fixture)
+            }
+        }
+#endif
+        let session = AppSessionStore(baseURL: directory.selected?.endpoint, closeSessionSurfaces: {
+            await CaptureHandoffStore.shared.changeRuntimeScope(nil)
+            await AgentWorkActivityController.shared.endAllActivities()
+            await ResearchActivityController.shared.endAllActivities()
+        })
+        _appSessionStore = StateObject(wrappedValue: session)
+        _labRuntimeStore = StateObject(wrappedValue: LabRuntimeStore(directory: directory, sessionStore: session))
     }
 
     private var appLanguage: AppLanguage {
@@ -56,11 +80,11 @@ struct TalentSignalApp: App {
     }
 
     private var requestedColorScheme: ColorScheme? {
+        if let active = labDisplayStore.active { return active.configuration.theme.colorScheme }
 #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("--force-dark") ? .dark : nil
-#else
-        nil
+        if ProcessInfo.processInfo.arguments.contains("--force-dark") { return .dark }
 #endif
+        return LabDisplayConfiguration.Theme(rawValue: savedTheme)?.colorScheme
     }
 
     private var opensReviewWorkbenchDirectly: Bool {
@@ -157,6 +181,8 @@ struct TalentSignalApp: App {
                 textSize: textSizePreference,
                 cardDensity: cardDensityPreference
             ) {
+                LabDisplaySessionRoot(store: labDisplayStore) {
+                LabDiagnosticsRoot(store: labDiagnosticsStore) {
                 Group {
                     if let researchShowcaseRoot {
                         researchShowcaseRoot
@@ -164,9 +190,7 @@ struct TalentSignalApp: App {
                         agentWorkShowcaseRoot
                     } else if let standaloneOnboardingRoot {
                         standaloneOnboardingRoot
-                    } else if TalentSignalAuthenticationConfiguration.requiresAuthentication(
-                        arguments: ProcessInfo.processInfo.arguments
-                    ) {
+                    } else if requiresAuthentication {
                         authenticatedRoot
                     } else if let calendarHandoffScenarioRoot {
                         calendarHandoffScenarioRoot
@@ -188,28 +212,60 @@ struct TalentSignalApp: App {
                         RelationshipArchiveView(session: pursuitWorkspaceSession)
                     }
                 }
+                .id(appSessionStore.contextGeneration)
+                .environment(\.labRuntime, labRuntimeStore)
                 .preferredColorScheme(requestedColorScheme)
-                .environment(\.appLanguage, appLanguage)
-                .environment(\.locale, appLanguage.locale)
+#if DEBUG
+                // Exercise the reduced-motion rendering branch through the Lab
+                // override, without changing Simulator's system preference.
+                .transformEnvironment(\.labReduceMotion) { value in
+                    value = value || ProcessInfo.processInfo.arguments.contains("--reduce-motion")
+                }
+#endif
                 .task {
-                    if TalentSignalAuthenticationConfiguration.requiresAuthentication(
-                        arguments: ProcessInfo.processInfo.arguments
-                    ), appSessionStore.phase == .restoring {
-                        await appSessionStore.restore()
+                    if requiresAuthentication, appSessionStore.phase == .restoring, !labRuntimeStore.isWorking {
+                        if labRuntimeStore.hasActivated { await labRuntimeStore.restoreSelectedEnvironment() }
+                        else {
+#if DEBUG
+                            let fixture = ProcessInfo.processInfo.environment["TS_IOS_UI_TEST_AUTHENTICATED_SESSION"] != nil
+                            await appSessionStore.restore(allowOfflineWorkspace:
+                                !fixture && !labRuntimeStore.workspaceStore.requiresOnlineRestore)
+#else
+                            await appSessionStore.restore(allowOfflineWorkspace:
+                                !labRuntimeStore.workspaceStore.requiresOnlineRestore)
+#endif
+                        }
                     }
+                    await labRuntimeStore.workspaceStore.reconcile()
                     let configured = CaptureHandoffStore.shared
                         .configureDeterministicLaunch(
                             arguments: ProcessInfo.processInfo.arguments
                         )
-                    if !configured {
+                    if !configured, !requiresAuthentication {
+                        await CaptureHandoffStore.shared.changeRuntimeScope(pursuitWorkspaceSession?.persistenceScope)
                         await CaptureHandoffStore.shared.restorePendingCapture()
                     }
                     TalentSignalShortcuts.updateAppShortcutParameters()
                 }
+                .onChange(of: appSessionStore.contextGeneration) { _ in
+                    labDisplayStore.contextChanged()
+                    labDiagnosticsStore.contextChanged()
+                    labMetricKitStore.pause(); labMetricKitStore.closeExport()
+                    showsLoginLab = false
+                    standaloneOpenURL = nil
+                    agentWorkOpenURL = nil
+                    researchOpenURL = nil
+                }
+                .onChange(of: appSessionStore.phase) { _ in
+                    Task { await labRuntimeStore.workspaceStore.reconcile() }
+                }
                 .onChange(of: scenePhase) { phase in
+                    if phase == .active { labMetricKitStore.refresh() }
+                    if phase == .background { labMetricKitStore.closeExport() }
                     guard phase == .active else { return }
                     Task {
                         await CaptureHandoffStore.shared.restorePendingCapture()
+                        await labRuntimeStore.workspaceStore.reconcile()
                     }
                 }
                 .onOpenURL { url in
@@ -221,8 +277,17 @@ struct TalentSignalApp: App {
                         standaloneOpenURL = url
                     }
                 }
+                }
+                }
+                .environment(\.appLanguage, appLanguage)
+                .environment(\.locale, appLanguage.locale)
             }
         }
+    }
+
+    private var requiresAuthentication: Bool {
+        labRuntimeStore.hasActivated || TalentSignalAuthenticationConfiguration.requiresAuthentication(
+            arguments: ProcessInfo.processInfo.arguments)
     }
 
     @ViewBuilder
@@ -235,17 +300,76 @@ struct TalentSignalApp: App {
             }
             .accessibilityIdentifier("authentication-restoring")
         case .signedOut:
-            AppAuthenticationView(store: appSessionStore)
-        case let .signedIn(session):
-            RelationshipArchiveView(
-                session: .authenticated(session),
-                onSignOut: {
-                    await AgentWorkActivityController.shared.endAllActivities()
-                    await ResearchActivityController.shared.endAllActivities()
-                    await appSessionStore.signOut()
+            Group {
+                if labRuntimeStore.workspaceStore.secureStoreFailed {
+                    LabWorkspaceRecoveryView(store: labRuntimeStore.workspaceStore,
+                        sessionStore: appSessionStore)
+                } else {
+                    AppAuthenticationView(store: appSessionStore)
                 }
-            )
-            .id(session.account.id)
+            }
+                .task { await CaptureHandoffStore.shared.changeRuntimeScope(nil) }
+                .safeAreaInset(edge: .bottom) {
+                    VStack(spacing: 6) {
+                        if labRuntimeStore.workspaceStore.hasOpenJourney {
+                            Button(appLanguage.text("Recover test workspace journey")) {
+                                Task { await labRuntimeStore.workspaceStore.recoverOriginalSession() }
+                            }
+                            .frame(minHeight: 44)
+                            .disabled(labRuntimeStore.workspaceStore.isWorking)
+                            .accessibilityIdentifier("login-lab-workspace-recovery")
+                        }
+                        if DeviceLabAvailability.enabled {
+                            Button(appLanguage.text("LAB · Experiments & tools")) { showsLoginLab = true }
+                                .frame(minHeight: 44)
+                                .accessibilityIdentifier("login-product-lab")
+                        }
+                    }
+                }
+                .sheet(isPresented: $showsLoginLab) {
+                    ProductLabView(deterministic: loginLabStore, service: nil,
+                        baseURL: appSessionStore.baseURL, workspace: nil)
+                }
+        case let .signedIn(session):
+            if labRuntimeStore.workspaceStore.allowsDisplay(session) {
+                RuntimeWorkspaceRoot(session: session) {
+                RelationshipArchiveView(
+                    session: .authenticated(session),
+                    onSignOut: {
+                        await appSessionStore.signOut()
+                        return appSessionStore.phase == .signedOut
+                    }
+                )
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if session.user.kind == "lab_human" {
+                        LabWorkspaceBanner(store: labRuntimeStore.workspaceStore)
+                    }
+                }
+                .id(RuntimeEndpoint.scope(session.baseURL, accountID: session.account.id, userID: session.user.id))
+            } else {
+                LabWorkspaceRecoveryView(store: labRuntimeStore.workspaceStore,
+                    sessionStore: appSessionStore)
+            }
+        }
+    }
+}
+
+@MainActor
+private struct RuntimeWorkspaceRoot<Content: View>: View {
+    let session: TalentSignalSession
+    @ViewBuilder let content: () -> Content
+    @State private var ready = false
+    var body: some View {
+        Group {
+            if ready { content() }
+            else { ProgressView().accessibilityIdentifier("runtime-restoring-captures") }
+        }
+        .task {
+            await CaptureHandoffStore.shared.changeRuntimeScope(RuntimeEndpoint.scope(
+                session.baseURL, accountID: session.account.id, userID: session.user.id))
+            guard !Task.isCancelled else { return }
+            ready = true
         }
     }
 }

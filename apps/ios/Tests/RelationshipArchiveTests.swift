@@ -53,6 +53,18 @@ final class RelationshipArchiveTests: XCTestCase {
         }
     }
 
+    func testBatchScreenshotRequestPreservesEveryImageInOrder() throws {
+        let images = (0..<10).map { ScreenshotContactTaskBody.Image(data: Data([UInt8($0)]), mediaType: "image/png") }
+        let request = ScreenshotContactTaskBody(idempotencyKey: "batch-test", objective: "File screenshots", images: images, personID: nil, contextID: nil)
+        let encoded = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
+        let first = try XCTUnwrap(encoded["image"] as? [String: Any])
+        let additional = try XCTUnwrap(encoded["additional_images"] as? [[String: Any]])
+        XCTAssertEqual(additional.count, 9)
+        XCTAssertEqual(([first] + additional).compactMap { $0["content_hash"] as? String }, images.map(\.contentHash))
+        XCTAssertEqual(AskScreenshotResearchRoutingPolicy.route(hasSelectedRelationship: false, mediaTypes: Array(repeating: "image/png", count: 10)), .directResearch)
+        XCTAssertEqual(AskScreenshotResearchRoutingPolicy.route(hasSelectedRelationship: false, mediaTypes: Array(repeating: "image/png", count: 11)), .unsupported)
+    }
+
     func testSingleUnscopedScreenshotRoutesDirectlyWithoutRelationshipOrToolSelection() {
         XCTAssertEqual(
             AskScreenshotResearchRoutingPolicy.route(
@@ -66,7 +78,7 @@ final class RelationshipArchiveTests: XCTestCase {
                 hasSelectedRelationship: false,
                 mediaTypes: ["image/png", "image/jpeg"]
             ),
-            .unsupported
+            .directResearch
         )
         XCTAssertEqual(
             AskScreenshotResearchRoutingPolicy.route(
@@ -3342,6 +3354,15 @@ final class RelationshipArchiveTests: XCTestCase {
             ).map(\.displayLabel),
             ["Leila Hartmann", "Nia Williams"]
         )
+        XCTAssertEqual(
+            WorkspacePeopleRetrievalPolicy.filteredPeople(
+                in: snapshot,
+                query: "候选人",
+                scope: .all,
+                language: .simplifiedChinese
+            ).map(\.displayLabel),
+            ["Leila Hartmann", "Nia Williams"]
+        )
 
         let chiefProductOfficerSearch = try XCTUnwrap(snapshot.pursuits.first)
         let chiefProductOfficerScope = WorkspacePeopleScope.pursuit(
@@ -3374,6 +3395,31 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertEqual(metadata.roleType, "candidate")
         XCTAssertEqual(metadata.pursuitTitle, "Chief Product Officer search")
         XCTAssertNotNil(metadata.lastActivityAt)
+    }
+
+    @MainActor
+    func testSessionSearchCombinesVisibleMetadataAndScopeWithoutChangingOrder() throws {
+        let store = AgentSessionStore.preview(snapshot: .preview)
+        var sessions = store.sessions
+        sessions[0].isUnread = true
+        func results(_ query: String, _ scope: AgentSessionRetrievalScope = .all) -> [UUID] {
+            AgentSessionRetrievalPolicy.filteredSessions(
+                sessions, query: query, scope: scope, language: .english
+            ).map(\.id)
+        }
+        XCTAssertEqual(results("  "), sessions.map(\.id))
+        XCTAssertEqual(results("LÉILA product"), [sessions[0].id])
+        XCTAssertEqual(results("next conversation"), [sessions[1].id])
+        XCTAssertEqual(results("", .unread), [sessions[0].id])
+        XCTAssertEqual(results("Nia", .unread), [])
+        XCTAssertEqual(results("", .needsAttention), [sessions[0].id])
+        XCTAssertEqual(results("not a matching person"), [])
+        // Hidden response bodies and exact source excerpts are not an index.
+        XCTAssertEqual(results("full-time relocation"), [])
+        sessions[0].isUnread = false
+        XCTAssertEqual(results("", .unread), [])
+        XCTAssertEqual(store.sessions.count, 2)
+        XCTAssertFalse(store.sessions[0].isUnread)
     }
 
     @MainActor
@@ -3853,5 +3899,67 @@ private final class FailingActionCompletions: PursuitActionCompletionPersisting 
 
     func deleteAll() {
         entryValue = nil
+    }
+}
+
+final class RelationshipCalendarAgendaTests: XCTestCase {
+    private var calendar: Calendar {
+        var value = Calendar(identifier: .gregorian)
+        value.timeZone = TimeZone(identifier: "America/New_York")!
+        return value
+    }
+
+    private func date(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
+    }
+
+    private func activity(_ id: String, person: String = "person-a", start: String, end: String) -> RelationshipCalendarActivity {
+        RelationshipCalendarActivity(
+            id: id, kind: .meeting, title: "Review", personID: person,
+            relationshipContextID: "context-\(person)", personDisplayLabel: "Alex Chen",
+            contextDisplayLabel: "Search", startDate: date(start), endDate: date(end),
+            timeZoneIdentifier: "America/New_York", source: .talentSignal
+        )
+    }
+
+    func testDayProjectionIncludesOvernightButExcludesEventEndingAtMidnight() {
+        let interval = RelationshipCalendarAgenda.interval(
+            for: date("2026-09-05T16:00:00Z"), mode: .day, calendar: calendar
+        )
+        let overnight = activity("overnight", start: "2026-09-05T03:30:00Z", end: "2026-09-05T04:30:00Z")
+        let ended = activity("ended", start: "2026-09-05T03:00:00Z", end: "2026-09-05T04:00:00Z")
+        let tomorrow = activity("tomorrow", start: "2026-09-06T04:00:00Z", end: "2026-09-06T05:00:00Z")
+        XCTAssertEqual(RelationshipCalendarAgenda.activities([tomorrow, ended, overnight], in: interval).map(\.id), ["overnight"])
+    }
+
+    func testWeekUsesCalendarDaysAcrossDaylightSavingTime() {
+        let start = date("2026-03-08T05:00:00Z")
+        let interval = RelationshipCalendarAgenda.interval(for: start, mode: .week, calendar: calendar)
+        XCTAssertEqual(interval.start, start)
+        XCTAssertEqual(interval.end, date("2026-03-15T04:00:00Z"))
+        XCTAssertEqual(interval.duration, 167 * 3600)
+    }
+
+    func testSameNameDoesNotCombinePeopleOrLoseContext() {
+        let first = activity("a", start: "2026-09-05T13:00:00Z", end: "2026-09-05T14:00:00Z")
+        let second = activity("b", person: "person-b", start: "2026-09-05T15:00:00Z", end: "2026-09-05T16:00:00Z")
+        let interval = RelationshipCalendarAgenda.interval(for: first.startDate, mode: .week, calendar: calendar)
+        let filtered = RelationshipCalendarAgenda.activities([first, second], in: interval, personID: "person-b")
+        XCTAssertEqual(filtered.map(\.id), ["b"])
+        XCTAssertEqual(filtered.first?.relationshipContextID, "context-person-b")
+        XCTAssertTrue(RelationshipCalendarAgenda.activities([first, second], in: interval, personID: "missing").isEmpty)
+    }
+
+    func testOverlapUsesKnownActivitiesAndAllowsBackToBackMeetings() {
+        let a = activity("a", start: "2026-09-05T13:00:00Z", end: "2026-09-05T14:00:00Z")
+        let b = activity("b", person: "person-b", start: "2026-09-05T13:30:00Z", end: "2026-09-05T13:45:00Z")
+        let c = activity("c", start: "2026-09-05T14:00:00Z", end: "2026-09-05T15:00:00Z")
+        XCTAssertEqual(RelationshipCalendarAgenda.overlappingIDs(in: [c, b, a]), ["a", "b"])
+    }
+
+    func testComposerKeepsFutureSelectedDayAndNeverSeedsPastTime() {
+        let now = date("2026-09-04T20:30:00Z")
+        XCTAssertEqual(RelationshipCalendarAgenda.suggestedStart(on: date("2026-09-08T04:00:00Z"), now: now, calendar: calendar), date("2026-09-08T13:00:00Z"))
+        XCTAssertEqual(RelationshipCalendarAgenda.suggestedStart(on: date("2026-09-01T04:00:00Z"), now: now, calendar: calendar), date("2026-09-04T21:00:00Z"))
     }
 }

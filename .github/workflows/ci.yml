@@ -14,6 +14,14 @@ on:
         options:
           - smoke
           - full
+      regression_case_id:
+        description: Optional saved Lab case UUID for authenticated CI consumption
+        required: false
+        type: string
+      regression_run_id:
+        description: Completed rerun UUID belonging to the selected Lab case
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -188,6 +196,20 @@ jobs:
     name: Backend quality
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      lab-postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: lab-ci-only
+          POSTGRES_DB: lab_regression_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lab_regression_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -208,6 +230,61 @@ jobs:
 
       - name: Typecheck, test, and build
         run: pnpm backend:ci
+
+      - name: Verify Lab regression consumer boundaries
+        run: |
+          pnpm --filter @talent-signal/eval-runner typecheck
+          pnpm --filter @talent-signal/eval-runner exec vitest run src/labRegression.test.ts
+
+      - name: Exercise saved regression lifecycle with a synthetic provider
+        env:
+          DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+          LAB_REGRESSION_EVALUATION_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+          LAB_CI_EVALUATION_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+          LAB_REGRESSION_PROOF_OUTPUT_DIR: ${{ github.workspace }}/build/lab-regression-inputs
+        run: |
+          pnpm --filter @talent-signal/backend migrate
+          pnpm --filter @talent-signal/backend seed
+          pnpm --filter @talent-signal/backend exec tsx src/evaluation/runLabRegressionEvaluation.ts
+          pnpm --filter @talent-signal/backend exec tsx src/evaluation/runLabCIVerificationEvaluation.ts
+          pnpm --filter @talent-signal/eval-runner exec tsx src/cli.ts lab-regression \
+            --bundle "$LAB_REGRESSION_PROOF_OUTPUT_DIR/bundle.json" \
+            --run "$LAB_REGRESSION_PROOF_OUTPUT_DIR/run.json" \
+            --output "$GITHUB_WORKSPACE/build/lab-regression-report.json"
+
+      - name: Preserve Lab regression fixture metadata
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lab-regression-fixture-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/lab-regression-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Consume the selected Lab regression
+        if: github.event_name == 'workflow_dispatch' && (inputs.regression_case_id != '' || inputs.regression_run_id != '')
+        env:
+          LAB_CASE_ID: ${{ inputs.regression_case_id }}
+          LAB_RUN_ID: ${{ inputs.regression_run_id }}
+          LAB_BACKEND_ORIGIN: ${{ vars.LAB_BACKEND_ORIGIN }}
+          TS_LAB_EVALUATION_TOKEN: ${{ secrets.LAB_EVALUATION_SESSION_TOKEN }}
+        run: |
+          test -n "$LAB_CASE_ID"
+          test -n "$LAB_RUN_ID"
+          test -n "$LAB_BACKEND_ORIGIN"
+          test -n "$TS_LAB_EVALUATION_TOKEN"
+          pnpm --filter @talent-signal/eval-runner exec tsx src/cli.ts lab-regression \
+            --backend "$LAB_BACKEND_ORIGIN" --regression-id "$LAB_CASE_ID" --run-id "$LAB_RUN_ID" \
+            --output "$GITHUB_WORKSPACE/build/lab-selected-regression/lab-regression-report.json"
+
+      - name: Preserve selected Lab regression consumption metadata
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.regression_case_id != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: lab-regression-consumption-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/lab-selected-regression/lab-regression-report.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   ios:
     name: iOS release smoke

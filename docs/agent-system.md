@@ -46,17 +46,25 @@ Good uses include:
 - client-update or interview-question drafts;
 - repository and product work.
 
-An open-ended agent may produce an artifact or proposal. It cannot confirm a
-fact, merge identity, or execute a consequential action.
+An open-ended agent may produce an artifact or proposal. A task may also grant
+specific reversible internal filing operations, enforced by domain tools. It
+cannot confirm a fact, merge identity, or grant itself consequential actions.
 
 Public-web research has a separate definition, explicit company/market purpose, domain and usage budgets, and no conversation evidence or attachments.
 Search discovers untrusted leads; every draft claim cites only same-Run fetched sources and gains no truth or action authority.
-Screenshot-driven public-person research is another definition: one intentional image authorizes one read-only local Run where a pinned vision model may use only visible text clues to choose bounded profile tools and emit an unconfirmed cited draft or `no_action`; raw-image persistence, face identification, private/contact lookup, person assessment, identity binding, confirmation, and publication are absent.
+The legacy screenshot public-person definition is read-only: one intentional
+image authorizes a local Run using visible text clues and bounded profile tools
+to emit an unconfirmed cited draft or `no_action`. It has no internal filing
+grant. The separately gated contact-filing task below adds that explicit grant.
 
 ### Runtime placement
 
-Runtime location follows capability ownership, not UI location. A local Agent host owns open-world reads, credentials, network policy, checkpoints, and draft artifacts. Standalone Runs need no product runtime.
-For intentional Relationship Ask image ingress, the authenticated backend sends one verified task image through a typed local boundary to a credential-isolated Agent Host and receives only a zero-effect result. An existing relationship may use its bound task asset; an unscoped single image uses a process-only account task and does not manufacture a Person, relationship, Wiki, or evidence scope. The Agent Host never receives database access, and the backend never receives open-world provider credentials.
+Runtime follows capability ownership. The backend owns contact-filing vision
+extraction and the durable tool loop. Only public identity anchors and typed
+research calls cross to the Agent Host, which owns open-web credentials and
+network policy, never database access or authority to change a contact. The
+legacy read-only definition forwards process-only image input to that host
+without granting filing authority.
 
 The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision. The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
 
@@ -80,40 +88,16 @@ task is cancelled.
 
 ## Agent control plane
 
-The control plane needs durable concepts, regardless of implementation:
+The control plane owns these concepts independently of provider sessions:
 
-### Definition
-
-A versioned description of one recognizable job: its method, eligible
-capabilities, context policy, output expectations, and stop conditions.
-
-### Task
-
-One user-authorized objective with subject scope, purpose, time horizon,
-retention, and budget.
-
-### Run
-
-One attempt against one immutable task version. It may run, wait, resume,
-branch, finish, fail, expire, or be cancelled.
-
-### Checkpoint
-
-A restorable boundary containing completed progress, current plan, unresolved
-questions, observations, artifacts, and remaining budget.
-
-### Artifact
-
-A useful output that can exist without becoming truth: a brief, research
-packet, question set, draft, proposed state patch, or proposed playbook.
-
-### Proposal
-
-A request for a fact decision, action decision, or learning decision. A
-proposal carries provenance but no authority.
-
-These concepts belong to Talent Signal even when a provider supplies the
-underlying session.
+| Concept | Meaning |
+| --- | --- |
+| Definition | Versioned job, eligible capabilities, context policy, output expectations, and stop conditions. |
+| Task | User-authorized objective, subject scope, purpose, retention, budget, and time horizon. |
+| Run | One attempt against an immutable task version; it may wait, resume, branch, finish, fail, expire, or be cancelled. |
+| Checkpoint | Restorable progress, current plan, unresolved questions, observations, artifacts, and remaining budget. |
+| Artifact | Useful output without truth authority: a brief, packet, question set, proposed patch, or playbook. |
+| Proposal | Provenance-bearing request for a fact, action, or learning decision; no execution authority. |
 
 ## Capability boundary
 
@@ -137,11 +121,15 @@ The system preserves three independent gates:
 2. Action approval: should this exact effect happen now?
 3. Outcome verification: did the intended destination actually change?
 
-No model result collapses these gates.
-
 ## Context engineering
 
-Context is compiled for a task, not concatenated from every available source.
+Support natural conversation around the user's current intent; load relevant
+task context and match the requested form and depth. Formal prompts ship with
+code and load locally; each task and experiment freezes its selected version.
+Opik mirrors versions for experiments, with selected drafts imported as source
+changes. Tool descriptions own usage, the host owns authorization and validation,
+and adapters add terminal protocol. Give useful partial answers and clarify
+material gaps. See [prompt operations](operations/opik-prompts.md).
 
 Use this order:
 
@@ -238,14 +226,8 @@ cannot preselect, collapse records, bind to history, or retry after failure.
 
 Codex, Claude, Cursor, Manus, OpenClaw, and future runtimes should connect through one provider-neutral Talent Signal boundary.
 
-Initial external abilities should remain narrow:
-
-- read a scoped Pursuit brief or evidence excerpt;
-- submit intentional capture;
-- create an artifact;
-- propose a fact or action;
-- create or snooze internal attention;
-- return a signed review handoff.
+Initial external abilities are scoped reads, intentional capture, artifacts,
+fact/action proposals, internal attention, and signed review handoffs.
 
 External agents should not directly confirm facts, merge identities, send
 messages, change calendars or contacts, update an ATS, query the production
@@ -266,10 +248,27 @@ effects remain empty and recovery uses durable state, not provider memory.
 The company/market public-research definition assembles `search_web`, `fetch_web`, and `create_research_artifact`.
 The local host selects one provider, isolates credentials, guards fetches, checkpoints observations, and writes drafts with no publication authority.
 
-The screenshot public-person definition exposes only platform-specific public-profile searches and draft creation. Relationship Ask may start it automatically for exactly one supported image after both deployment gates pass, including when no Person or relationship has been selected.
-The result remains an unconfirmed response block with public-source references; it is not canonical evidence, identity state, or permission to act.
-
 The account-scoped workspace-conversation definition may answer directly or call only `contact_workspace`: `search`, `read`, `propose_create`, and `propose_update`. Search clues must come from the message; one uniquely resolved header may be read and handed to governed relationship Ask, while ambiguity stops for clarification. Same-Run authorization binds reads and update targets. Proposal fields and source excerpts must be grounded in the message or unchanged exact-target labels; the Tool returns a fingerprint and `needs_review`, never an apply operation or canonical mutation.
+
+### Authorized screenshot contact filing
+
+An intentional import grants internal filing, IM storage, analysis, and optional
+sourced professional observations. The model chooses tools; the backend owns
+validation, writes, checkpoints, and readback. Ambiguity requires clarification.
+Filing never confirms actors, dates, real-world identity, or interpreted claims.
+
+An ordered image set is one immutable import intent. Each message retains image
+provenance; conflicting visible identities stop filing, and overlapping messages
+are not repeated commitments. Private originals stay outside model/task state
+and expire with the task. Recovery reuses stored images and extraction checkpoints.
+Source invalidation denies access and queues retryable permanent cleanup;
+reversible archive hides sources without extending retention. See the
+[storage playbook](operations/backend-production.md#chat-media-object-storage).
+
+Profile observations preserve provenance and conflicts without overwriting
+confirmed facts. Cancellation fences work; expiry and invalidation retract derivatives.
+Deletion needs a separate current-target grant with reversal. Imports never
+grant identity merges, device writes, or messaging.
 
 Every catalog entry declares its capability class, consequence, approval,
 reversibility, idempotency, read-only behavior, and open-world behavior. These

@@ -11,6 +11,7 @@ import {
   type AgentWebSearchProvider,
 } from "./webSearchProviders.js";
 import { TikHubProvider } from "./tikHubProvider.js";
+import { ExaProvider } from "./exaProvider.js";
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
   const value = environment[name]?.trim();
@@ -113,7 +114,7 @@ export function configuredLocalVisionAgentProvider(
 }
 
 export interface LocalToolProviderRegistration {
-  id: "brave" | "tavily";
+  id: "brave" | "tavily" | "exa";
   capability: "public_web_search";
   secretPath: "/agent-host";
   credentialNames: readonly string[];
@@ -125,6 +126,15 @@ export interface LocalToolProviderRegistration {
 export const LOCAL_WEB_SEARCH_PROVIDER_REGISTRY: Readonly<
   Record<LocalToolProviderRegistration["id"], LocalToolProviderRegistration>
 > = Object.freeze({
+  exa: {
+    id: "exa",
+    capability: "public_web_search",
+    secretPath: "/agent-host",
+    credentialNames: ["EXA_API_KEY"],
+    subscriptionOwner: "vendor_account",
+    automaticFallback: false,
+    create: (environment) => new ExaProvider({ apiKey: required(environment, "EXA_API_KEY") }),
+  },
   brave: {
     id: "brave",
     capability: "public_web_search",
@@ -170,7 +180,7 @@ export function configuredLocalWebSearchProvider(
     ].create(environment);
   }
   throw new Error(
-    "TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER must be brave or tavily.",
+    "TALENT_SIGNAL_AGENT_WEB_SEARCH_PROVIDER must be brave, tavily, or exa.",
   );
 }
 

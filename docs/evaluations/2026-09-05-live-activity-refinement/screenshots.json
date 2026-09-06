@@ -1,0 +1,130 @@
+[
+  {
+    "file": "baseline-research-review-expanded.png",
+    "test": "ResearchShowcaseUITests/testExactResearchActivityMovesFromAwayToReviewAndEndsOnDeepLink()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788542695.791,
+    "source": "/tmp/talent-signal-island-proof/baseline/63CE01D5-04DF-418F-A65F-159A0E072CAA.png",
+    "sha256": "ac3eca2d507749a34fccf3b7a0baff3f0d4a0b80ebd7308f7f3c2b6601cf7569"
+  },
+  {
+    "file": "baseline-research-running-expanded.png",
+    "test": "ResearchShowcaseUITests/testExactResearchActivityMovesFromAwayToReviewAndEndsOnDeepLink()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788542677.8,
+    "source": "/tmp/talent-signal-island-proof/baseline/5412E91D-A815-4C03-83B4-4F151BDC16EA.png",
+    "sha256": "cb8392e7b9dd359fff630d1e91d4776e6f43cef1433ef8dca7bc5c266057ec71"
+  },
+  {
+    "file": "final-en-agent-delayed-expanded.png",
+    "test": "AgentWorkShowcaseUITests/testBoundaryAtlasUsesRealSystemSurfaces()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788543862.005,
+    "source": "/tmp/talent-signal-island-proof/final-en/4D725F9E-FFD3-4F68-AA2D-6A46875A6FA2.png",
+    "sha256": "b5dcd7a697c50600c947dcb6075b70305bf85e127028ffe9b78062dfc3c62851"
+  },
+  {
+    "file": "final-en-agent-partial-expanded.png",
+    "test": "AgentWorkShowcaseUITests/testBoundaryAtlasUsesRealSystemSurfaces()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788543814.141,
+    "source": "/tmp/talent-signal-island-proof/final-en/975881A6-0274-4E26-9F1C-4EDA448994C7.png",
+    "sha256": "06c1aeb9fde11c1249bc5dbca60def93b5a83739bb421d35e704c8c8b450ef4b"
+  },
+  {
+    "file": "final-en-research-review-expanded.png",
+    "test": "ResearchShowcaseUITests/testExactResearchActivityMovesFromWorkingToReviewAndEndsOnDeepLink()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788543941.605,
+    "source": "/tmp/talent-signal-island-proof/final-en/686A2880-0E42-4F0D-A173-CEAA29DC7865.png",
+    "sha256": "05b9c38ae4aea1e16513d51986dd454018d1c2fc735efaeca21d69d34b4db74b"
+  },
+  {
+    "file": "final-en-research-review-compact.png",
+    "test": "ResearchShowcaseUITests/testExactResearchActivityMovesFromWorkingToReviewAndEndsOnDeepLink()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788543936.074,
+    "source": "/tmp/talent-signal-island-proof/final-en/67585527-0D48-4F18-9A34-42B3F97F9E35.png",
+    "sha256": "785fd08d3273c301b506a4c2f7a17a74c77989f3ffc7fc8808fda1a324b0309f"
+  },
+  {
+    "file": "final-en-research-running-expanded.png",
+    "test": "ResearchShowcaseUITests/testExactResearchActivityMovesFromWorkingToReviewAndEndsOnDeepLink()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788543924.24,
+    "source": "/tmp/talent-signal-island-proof/final-en/82356D61-3AE3-40B1-BC3B-D97B8F2EF526.png",
+    "sha256": "2a0088dc236646da4d143a9614d4de4f8fcc653efa03c7e596506591a7b37472"
+  },
+  {
+    "file": "final-en-research-running-compact.png",
+    "test": "ResearchShowcaseUITests/testExactResearchActivityMovesFromWorkingToReviewAndEndsOnDeepLink()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788543919.437,
+    "source": "/tmp/talent-signal-island-proof/final-en/6DA2B341-354A-42B4-AAEB-D79E700BF1FC.png",
+    "sha256": "fd36baf3d77cb1c7162a86bebb759e4216a15fc706694aae5056a7dbfbba3fd5"
+  },
+  {
+    "file": "final-en-research-review-system-card-first-use.png",
+    "test": "ResearchShowcaseUITests/testResearchNotificationCenterCardKeepsItsExactHandoff()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788543986.752,
+    "source": "/tmp/talent-signal-island-proof/final-en/50097754-C348-4942-ADE7-B1991AFA8B04.png",
+    "sha256": "f80b74d1ed5f4451e9614a5a48acc0521a46bc8981e7b3bff9bf0df28b9ccd4e"
+  },
+  {
+    "file": "final-en-research-running-system-card-first-use.png",
+    "test": "ResearchShowcaseUITests/testResearchNotificationCenterCardKeepsItsExactHandoff()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788543975.115,
+    "source": "/tmp/talent-signal-island-proof/final-en/0475A53B-E8B8-440A-9A45-F224CFFECDAD.png",
+    "sha256": "faf4c5dcea59ad64d29ee148d749aa34fae65294e6c27c8f43a06842354bb9f3"
+  },
+  {
+    "file": "zh-ax5-review-system-card.png",
+    "test": "ResearchShowcaseUITests/testChineseResearchHandoffUsesLocalizedSystemCopy()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788544137.355,
+    "source": "/tmp/talent-signal-island-proof/final-zh/B8C19828-63F7-412E-9F96-9A608635524E.png",
+    "sha256": "1f399a0582f52ac27991d9d9493baf248a64cead9e6fa7fa4d7c81844f6ea0d7"
+  },
+  {
+    "file": "zh-ax5-review-expanded.png",
+    "test": "ResearchShowcaseUITests/testChineseResearchHandoffUsesLocalizedSystemCopy()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788544128.651,
+    "source": "/tmp/talent-signal-island-proof/final-zh/A7A26FB3-11A2-4A24-ADA5-61D10907A144.png",
+    "sha256": "a46c14e1869e8c69d93a523aa293ad694f5772260f9eeefe22bd7a131f9d369b"
+  },
+  {
+    "file": "zh-ax5-review-compact.png",
+    "test": "ResearchShowcaseUITests/testChineseResearchHandoffUsesLocalizedSystemCopy()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788544123.762,
+    "source": "/tmp/talent-signal-island-proof/final-zh/831E1C2D-C783-41E3-A33D-A7DE617498B6.png",
+    "sha256": "bf1a335483fd19f51191afdde3f6ddd734f1f0585fad761f7a5340c6c336339f"
+  },
+  {
+    "file": "zh-ax5-running-system-card.png",
+    "test": "ResearchShowcaseUITests/testChineseResearchHandoffUsesLocalizedSystemCopy()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788544113.359,
+    "source": "/tmp/talent-signal-island-proof/final-zh/E08C5582-487C-4EA4-9C8C-506CB0EC640F.png",
+    "sha256": "57ed88cd045186e24a5c448e5d7b24b0c7a07fb368f1b88581e7faa9460de500"
+  },
+  {
+    "file": "zh-ax5-running-expanded.png",
+    "test": "ResearchShowcaseUITests/testChineseResearchHandoffUsesLocalizedSystemCopy()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788544100.727,
+    "source": "/tmp/talent-signal-island-proof/final-zh/76CBBF63-0A8F-4EA4-8ED1-18A7B8E8CB0E.png",
+    "sha256": "8ea4f38d0d3ac31de0a82d3a47a4f98859d42151051636c4195ff268200fab48"
+  },
+  {
+    "file": "zh-ax5-running-compact.png",
+    "test": "ResearchShowcaseUITests/testChineseResearchHandoffUsesLocalizedSystemCopy()",
+    "device": "432CF099-1379-47F5-93EB-8E87F7B2782C",
+    "timestamp": 1788544095.836,
+    "source": "/tmp/talent-signal-island-proof/final-zh/424A5CF5-618A-45EC-BC1F-A34CCD321065.png",
+    "sha256": "bbd0f028394e51d0f11e433d653f8e01895201060f343c22f0803dcd5ee472da"
+  }
+]

@@ -1,13 +1,17 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
+  ListObjectVersionsCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 
 import type { BackendConfig } from "../config.js";
+import { sha256 } from "../lib/hash.js";
 
 export interface StoredChatMedia {
   body: Uint8Array;
@@ -16,6 +20,10 @@ export interface StoredChatMedia {
 
 export interface ChatMediaStorage {
   readonly provider: "local" | "s3";
+  readonly labScopeID?: string;
+  purgeForLab?(objectKey: string): Promise<void>;
+  purge?(objectKey: string): Promise<void>;
+  existsForLab?(objectKey: string): Promise<boolean>;
   delete(objectKey: string): Promise<void>;
   get(objectKey: string, contentType: string): Promise<StoredChatMedia>;
   put(objectKey: string, body: Uint8Array, contentType: string): Promise<void>;
@@ -32,8 +40,18 @@ function safeLocalPath(directory: string, objectKey: string): string {
 
 export class LocalChatMediaStorage implements ChatMediaStorage {
   readonly provider = "local" as const;
+  readonly labScopeID: string;
 
-  constructor(private readonly directory: string) {}
+  constructor(private readonly directory: string) {
+    this.labScopeID = sha256(JSON.stringify({provider:this.provider,directory:resolve(directory)}));
+  }
+
+  async purge(objectKey: string): Promise<void> { await this.delete(objectKey); }
+  async purgeForLab(objectKey: string): Promise<void> { await this.purge(objectKey); }
+  async existsForLab(objectKey: string): Promise<boolean> {
+    try { await stat(safeLocalPath(this.directory, objectKey)); return true; }
+    catch(error) { if((error as NodeJS.ErrnoException).code === "ENOENT")return false;throw error; }
+  }
 
   async put(
     objectKey: string,
@@ -63,6 +81,7 @@ export class LocalChatMediaStorage implements ChatMediaStorage {
 
 export class S3ChatMediaStorage implements ChatMediaStorage {
   readonly provider = "s3" as const;
+  readonly labScopeID: string;
   private readonly client: S3Client;
 
   constructor(
@@ -74,6 +93,34 @@ export class S3ChatMediaStorage implements ChatMediaStorage {
     },
   ) {
     this.client = new S3Client(options);
+    this.labScopeID = sha256(JSON.stringify({provider:this.provider,bucket,
+      endpoint:options.endpoint??null,region:options.region,forcePathStyle:options.forcePathStyle}));
+  }
+
+  private async exactVersions(objectKey: string) {
+    const result = await this.client.send(new ListObjectVersionsCommand({Bucket:this.bucket,Prefix:objectKey,MaxKeys:1000}));
+    return [...result.Versions??[],...result.DeleteMarkers??[]]
+      .filter(v=>v.Key===objectKey).map(v=>({Key:objectKey,VersionId:v.VersionId}));
+  }
+
+  async purgeForLab(objectKey: string): Promise<void> { await this.purge(objectKey); }
+
+  async purge(objectKey: string): Promise<void> {
+    // A plain DeleteObject can leave all historical bytes in a versioned bucket.
+    // Delete only exact-key versions/markers, never adjacent prefix matches.
+    for(let page=0;page<20;page++) {
+      const objects=await this.exactVersions(objectKey);
+      if(objects.length===0)return;
+      const result=await this.client.send(new DeleteObjectsCommand({Bucket:this.bucket,Delete:{Objects:objects,Quiet:true}}));
+      if(result.Errors?.length)throw new Error("Some media versions could not be deleted.");
+    }
+    throw new Error("Media version cleanup remains incomplete.");
+  }
+
+  async existsForLab(objectKey: string): Promise<boolean> {
+    try { await this.client.send(new HeadObjectCommand({Bucket:this.bucket,Key:objectKey})); return true; }
+    catch(error) { if((error as {$metadata?:{httpStatusCode?:number}}).$metadata?.httpStatusCode!==404)throw error; }
+    return (await this.exactVersions(objectKey)).length>0;
   }
 
   async put(

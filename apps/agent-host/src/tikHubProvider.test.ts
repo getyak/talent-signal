@@ -10,15 +10,24 @@ function response(body: unknown, status = 200) {
 }
 
 describe("TikHubProvider", () => {
+  it("normalizes the nested live envelopes used by Douyin v2, Weibo v2, and Threads GraphQL", async()=>{
+    const envelopes=[
+      {platform:"douyin" as const,data:{data:{user_list:[{user_id:"42",nick_name:"Example Person"}]}}},
+      {platform:"weibo" as const,data:{parsed_data:{users:[{uid:"42",name:"Example Person",profile_url:"https://weibo.com/u/42"}]}}},
+      {platform:"threads" as const,data:{xdt_api__v1__users__search_connection:{edges:[{node:{pk:"42",username:"example",full_name:"Example Person"}}]}}},
+    ];
+    for(const envelope of envelopes){
+      const provider=new TikHubProvider({apiKey:"test-secret",fetcher:(async()=>response({code:200,request_id:"live-shape",data:envelope.data})) as typeof fetch});
+      const result=await provider.searchProfiles({platform:envelope.platform,query:"Example Person",maximumResults:2},new AbortController().signal);
+      expect(result).toHaveLength(1);expect(result[0]).toMatchObject({displayName:"Example Person",providerRequestID:"live-shape"});
+    }
+  });
   it("uses the bearer credential without returning it and normalizes Douyin profiles", async () => {
     const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       expect(init?.headers).toMatchObject({ authorization: "Bearer secret-value" });
       expect(JSON.parse(String(init?.body))).toEqual({
         keyword: "周宇",
         cursor: 0,
-        douyin_user_fans: "",
-        douyin_user_type: "",
-        search_id: "",
       });
       return response({
         code: 200,

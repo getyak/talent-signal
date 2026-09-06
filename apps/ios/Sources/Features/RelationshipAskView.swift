@@ -77,57 +77,61 @@ final class VoiceInputStore: ObservableObject {
         sceneIsActive: Bool,
         transcriber: any VoiceTranscriptionServing
     ) async {
-        guard !isBusy else { return }
-        self.sceneIsActive = sceneIsActive
-        guard sceneIsActive else {
-            phase = .failed(
-                "Keep Talent Signal in the foreground to use voice input."
-            )
-            return
-        }
-        transcript = nil
-        var permission = recorder.permissionStatus()
-        if permission == .undetermined {
-            phase = .requestingPermission
-            permission = await recorder.requestPermission()
-        }
-        microphonePermission = permission
-        guard permission == .granted else {
-            phase = .failed(
-                "Microphone permission was not granted. No audio was recorded."
-            )
-            return
-        }
-        do {
-            while !self.sceneIsActive {
-                try Task.checkCancellation()
-                try await Task.sleep(for: .milliseconds(50))
+        await LabClientDiagnostics.observe(.audioSessionPreparation) {
+            guard !self.isBusy else { return .skipped }
+            self.sceneIsActive = sceneIsActive
+            guard sceneIsActive else {
+                self.phase = .failed(
+                    "Keep Talent Signal in the foreground to use voice input."
+                )
+                return .skipped
             }
-            try Task.checkCancellation()
-        } catch {
-            phase = .idle
-            return
-        }
-        do {
-            let recordID = UUID()
-            try recorder.start(recordID: recordID)
-            self.transcriber = transcriber
-            phase = .recording(startedAt: Date())
-            limitTask?.cancel()
-            limitTask = Task { [weak self] in
-                do {
-                    try await Task.sleep(for: .seconds(60))
-                } catch {
-                    return
+            self.transcript = nil
+            var permission = self.recorder.permissionStatus()
+            if permission == .undetermined {
+                self.phase = .requestingPermission
+                permission = await self.recorder.requestPermission()
+            }
+            self.microphonePermission = permission
+            guard permission == .granted else {
+                self.phase = .failed(
+                    "Microphone permission was not granted. No audio was recorded."
+                )
+                return .failed
+            }
+            do {
+                while !self.sceneIsActive {
+                    try Task.checkCancellation()
+                    try await Task.sleep(for: .milliseconds(50))
                 }
-                await self?.stopAndTranscribe(triggeredByLimit: true)
+                try Task.checkCancellation()
+            } catch {
+                self.phase = .idle
+                return LabClientDiagnostics.failure(error)
             }
-        } catch {
-            try? recorder.cancel()
-            phase = .failed(
-                (error as? LocalizedError)?.errorDescription
-                    ?? "Voice input could not start the microphone."
-            )
+            do {
+                let recordID = UUID()
+                try self.recorder.start(recordID: recordID)
+                self.transcriber = transcriber
+                self.phase = .recording(startedAt: Date())
+                self.limitTask?.cancel()
+                self.limitTask = Task { [weak self] in
+                    do {
+                        try await Task.sleep(for: .seconds(60))
+                    } catch {
+                        return
+                    }
+                    await self?.stopAndTranscribe(triggeredByLimit: true)
+                }
+                return .completed
+            } catch {
+                try? self.recorder.cancel()
+                self.phase = .failed(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? "Voice input could not start the microphone."
+                )
+                return LabClientDiagnostics.failure(error)
+            }
         }
     }
 
@@ -138,7 +142,9 @@ final class VoiceInputStore: ObservableObject {
             limitTask = nil
         }
         do {
-            let payload = try recorder.stop()
+            let payload = try LabClientDiagnostics.measureSync(.audioPayloadFinalization) {
+                try recorder.stop()
+            }
             activePayload = payload
             phase = .transcribing
             defer {
@@ -147,12 +153,14 @@ final class VoiceInputStore: ObservableObject {
                 self.transcriber = nil
                 if triggeredByLimit { limitTask = nil }
             }
-            let operation = Task {
-                try await transcriber.transcribe(payload)
+            let draft = try await LabClientDiagnostics.measure(.voiceTranscription) {
+                let operation = Task {
+                    try await transcriber.transcribe(payload)
+                }
+                transcriptionOperation = operation
+                defer { transcriptionOperation = nil }
+                return try await operation.value
             }
-            transcriptionOperation = operation
-            defer { transcriptionOperation = nil }
-            let draft = try await operation.value
             try Task.checkCancellation()
             transcript = draft.transcript.trimmingCharacters(
                 in: .whitespacesAndNewlines
@@ -226,7 +234,7 @@ final class VoiceInputStore: ObservableObject {
 }
 
 private struct VoiceListeningVisualizer: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
     private let barCount = 13
 
@@ -259,7 +267,7 @@ private struct VoiceListeningVisualizer: View {
 private struct VoiceRecordButtonHalo: View {
     let isActive: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
     var body: some View {
         if isActive {
@@ -276,26 +284,6 @@ private struct VoiceRecordButtonHalo: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
-    }
-}
-
-private struct MinimizedComposerActionStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                configuration.isPressed
-                    ? Color.tsCanvas.opacity(0.72)
-                    : Color.clear,
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-            )
-            .opacity(configuration.isPressed ? 0.72 : 1)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
-            .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.12),
-                value: configuration.isPressed
-            )
     }
 }
 
@@ -370,7 +358,7 @@ struct RelationshipAskView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.sizeCategory) private var sizeCategory
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.talentSignalReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @ScaledMetric(relativeTo: .caption2) private var scopeContextFontSize: CGFloat = 11
     @State private var selectedScope: AskScope?
@@ -383,6 +371,9 @@ struct RelationshipAskView: View {
     @State private var isFileImporterPresented = false
     @State private var isHomeAttachmentChooserPresented = false
     @State private var mediaDrafts: [AskMediaDraft] = []
+    @State private var screenshotContactTask: ScreenshotContactTask?
+    @State private var screenshotContactRequest: ScreenshotContactTaskBody?
+    @State private var showScreenshotHistory = false
     @State private var mediaNotice: String?
     @State private var mediaImportTask: Task<Void, Never>?
     @State private var activeSessionID: UUID?
@@ -431,31 +422,8 @@ struct RelationshipAskView: View {
     private var hasAcceptedVoiceDisclosure = false
     @FocusState private var composerFocused: Bool
 
-    private var minimizedPresentationDetent: PresentationDetent {
-        .height(134)
-    }
-
     private var compactPresentationDetent: PresentationDetent {
         .fraction(0.76)
-    }
-
-    private var compactEntryDetents: Set<PresentationDetent> {
-        canMinimizeCompactEntry
-            ? [minimizedPresentationDetent, compactPresentationDetent]
-            : [compactPresentationDetent]
-    }
-
-    private var canMinimizeCompactEntry: Bool {
-        !usesAccessibilityLayout
-            && !voiceOverEnabled
-            && !voiceInput.isBusy
-            && mediaDrafts.isEmpty
-            && mediaNotice == nil
-            && !isHomeAttachmentChooserPresented
-    }
-
-    private var isMinimizedEntry: Bool {
-        isCompactEntry && presentationDetent == minimizedPresentationDetent
     }
 
     private var preferredPersonName: String? {
@@ -467,9 +435,7 @@ struct RelationshipAskView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if isMinimizedEntry {
-                    minimizedComposerDock
-                } else if isCompactEntry, isHomeAttachmentChooserPresented {
+                if isCompactEntry, isHomeAttachmentChooserPresented {
                     homeAttachmentChooser
                 } else if isCompactEntry {
                     Spacer(minLength: 0)
@@ -511,16 +477,15 @@ struct RelationshipAskView: View {
                     : .spring(response: 0.42, dampingFraction: 0.88),
                 value: isCompactEntry
             )
-            .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.18),
-                value: isMinimizedEntry
-            )
             .toolbar(.hidden, for: .navigationBar)
         }
         .tint(.tsInk)
+        .sheet(isPresented: $showScreenshotHistory) {
+            ScreenshotContactHistoryView(workspaceStore: workspaceStore, onOpenPerson: onOpenPerson)
+        }
         .presentationDetents(
             isCompactEntry
-                ? compactEntryDetents
+                ? [compactPresentationDetent]
                 : [.large],
             selection: $presentationDetent
         )
@@ -755,11 +720,6 @@ struct RelationshipAskView: View {
         .onChange(of: isSending) { sending in
             if sending { presentationDetent = .large }
         }
-        .onChange(of: presentationDetent) { detent in
-            guard detent == minimizedPresentationDetent else { return }
-            composerFocused = false
-            flushDraftPersistence()
-        }
         .onChange(of: isRequestingScope) { requesting in
             if requesting { presentationDetent = compactPresentationDetent }
         }
@@ -845,6 +805,7 @@ struct RelationshipAskView: View {
             )
         }
         .accessibilityIdentifier("relationship-ask-sheet")
+        .labDiagnosticPresentation()
 #if DEBUG
         .overlay(alignment: .topTrailing) {
             if ProcessInfo.processInfo.arguments.contains(
@@ -1096,6 +1057,12 @@ struct RelationshipAskView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
+                    if let screenshotContactTask {
+                        ScreenshotContactCard(task: screenshotContactTask, language: appLanguage, onOpenPerson: onOpenPerson,
+                            onResume: { body in resumeScreenshotContact(body) },
+                            onCancel: { cancelScreenshotContact() },
+                            onLoadImage: { index in try await workspaceStore.loadScreenshotContactImage(taskID: screenshotContactTask.taskID, index: index) })
+                    }
                     if shouldShowScopeBar,
                        contactDraft == nil || contactSaveMessage != nil,
                        usesScrollableScopeBar {
@@ -1109,7 +1076,7 @@ struct RelationshipAskView: View {
                             .id("ask-scope-choices")
                     }
 
-                    if conversationItems.isEmpty, contactDraft == nil {
+                    if conversationItems.isEmpty, contactDraft == nil, screenshotContactTask == nil {
                         starterGrid
                             .padding(.top, 24)
                     }
@@ -1446,6 +1413,17 @@ struct RelationshipAskView: View {
         let controlSize = composerControlSize
 
         return VStack(spacing: 8) {
+            if isCanonical {
+                HStack {
+                    if !mediaDrafts.isEmpty {
+                        Text(appLanguage.text("Send to file messages and sourced contact context. Identity ambiguity pauses for you."))
+                            .font(.caption2).foregroundStyle(Color.tsMutedInk)
+                    }
+                    Spacer(minLength: 8)
+                    Button(appLanguage.text("Screenshot tasks")) { showScreenshotHistory = true }
+                        .font(.caption2).accessibilityIdentifier("screenshot-contact-history")
+                }
+            }
             askSubmissionStatus
             voiceInputStatus
 
@@ -2246,6 +2224,7 @@ struct RelationshipAskView: View {
             && activeSessionID == nil
             && initialSeed == nil
             && contactDraft == nil
+            && screenshotContactTask == nil
             && preferredPersonID == nil
             && selectedScope == nil
             && !isChoosingScope
@@ -2253,116 +2232,6 @@ struct RelationshipAskView: View {
             && !isRequestingScope
             && errorMessage == nil
             && reviewPreparationError == nil
-    }
-
-    private var minimizedComposerDock: some View {
-        HStack(alignment: .top, spacing: 10) {
-            minimizedComposerAction(
-                title: appLanguage.text("Image"),
-                symbol: "photo",
-                identifier: "ask-minimized-photos",
-                hint: appLanguage.text(
-                    "Choose images from your photo library.",
-                    zhHans: "从照片图库选择图片。"
-                ),
-                action: openMinimizedPhotos
-            )
-            minimizedComposerAction(
-                title: appLanguage.text("Files"),
-                symbol: "folder",
-                identifier: "ask-minimized-files",
-                hint: appLanguage.text(
-                    "Choose image files from Files.",
-                    zhHans: "从文件中选择图片。"
-                ),
-                action: openMinimizedFiles
-            )
-            minimizedComposerAction(
-                title: appLanguage.text("Voice"),
-                symbol: "waveform",
-                identifier: "ask-minimized-voice",
-                hint: appLanguage.text(
-                    "Expand the chat and start voice input.",
-                    zhHans: "展开对话并开始语音输入。"
-                ),
-                action: openMinimizedVoice
-            )
-            minimizedComposerAction(
-                title: appLanguage.text("Text"),
-                symbol: "pencil",
-                identifier: "ask-minimized-text",
-                hint: appLanguage.text(
-                    "Expand the chat and focus the text field.",
-                    zhHans: "展开对话并聚焦文字输入框。"
-                ),
-                action: openMinimizedText
-            )
-        }
-        .padding(.horizontal, 24)
-        .frame(maxHeight: .infinity, alignment: .center)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("ask-minimized-actions")
-    }
-
-    private func minimizedComposerAction(
-        title: String,
-        symbol: String,
-        identifier: String,
-        hint: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 22, weight: .medium))
-                    .symbolRenderingMode(.monochrome)
-                    .frame(width: 48, height: 42)
-                Text(title)
-                    .font(.callout.weight(.medium))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(Color.tsInk)
-            .frame(maxWidth: .infinity, minHeight: 82)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(MinimizedComposerActionStyle())
-        .accessibilityLabel(title)
-        .accessibilityHint(hint)
-        .accessibilityIdentifier(identifier)
-    }
-
-    private func openMinimizedPhotos() {
-        expandMinimizedComposer {
-            composerFocused = false
-            isPhotoLibraryPresented = true
-        }
-    }
-
-    private func openMinimizedFiles() {
-        expandMinimizedComposer {
-            composerFocused = false
-            isFileImporterPresented = true
-        }
-    }
-
-    private func openMinimizedVoice() {
-        expandMinimizedComposer {
-            requestVoiceInput()
-        }
-    }
-
-    private func openMinimizedText() {
-        expandMinimizedComposer {
-            composerFocused = true
-        }
-    }
-
-    private func expandMinimizedComposer(perform action: @escaping () -> Void) {
-        presentationDetent = compactPresentationDetent
-        Task { @MainActor in
-            await Task.yield()
-            action()
-        }
     }
 
     @ViewBuilder
@@ -2546,7 +2415,7 @@ struct RelationshipAskView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(title). \(detail)")
+        .accessibilityLabel(Text(verbatim: "\(title). \(detail)"))
         .accessibilityIdentifier(identifier)
     }
 
@@ -2735,7 +2604,7 @@ struct RelationshipAskView: View {
                     var fileExtension = item.supportedContentTypes
                         .compactMap(\.preferredFilenameExtension)
                         .first
-                    if mediaType == nil {
+                    if mediaType == nil || !["image/png", "image/jpeg", "image/webp"].contains(mediaType ?? "") {
                         guard let converted = preview.jpegData(compressionQuality: 0.9) else {
                             throw PursuitWorkspaceClientError.invalidResponse
                         }
@@ -2797,7 +2666,7 @@ struct RelationshipAskView: View {
                     let normalizedName: String
                     let mediaType: String
                     if let originalType,
-                       Self.allowedChatMediaTypes.contains(originalType) {
+                       ["image/png", "image/jpeg", "image/webp"].contains(originalType) {
                         normalizedData = data
                         normalizedName = url.lastPathComponent
                         mediaType = originalType
@@ -2841,7 +2710,7 @@ struct RelationshipAskView: View {
             height: max(1, Int(preview.size.height * scale)),
             routingText: "",
             remoteAsset: nil,
-            phase: selectedScope == nil ? .waitingForContext : .uploading
+            phase: .waitingForContext
         )
         mediaDrafts.append(mediaDraft)
         Task {
@@ -2853,9 +2722,7 @@ struct RelationshipAskView: View {
             }
             mediaDrafts[index].routingText = recognizedText
         }
-        mediaNotice = appLanguage.text(
-            "Attached for this Agent task · visible identity clues may be used for automatic public-profile research · not reviewed evidence"
-        )
+        mediaNotice = nil
         if let selectedScope {
             uploadMediaDraft(id, scope: selectedScope)
         }
@@ -2896,6 +2763,10 @@ struct RelationshipAskView: View {
     private func uploadMediaDraft(_ id: UUID, scope: AskScope? = nil) {
         guard let index = mediaDrafts.firstIndex(where: { $0.id == id }),
               let resolvedScope = scope ?? selectedScope else { return }
+        if ["image/png", "image/jpeg", "image/webp"].contains(mediaDrafts[index].mediaType) {
+            mediaDrafts[index].phase = .waitingForContext
+            return
+        }
         mediaDrafts[index].phase = .uploading
         let mediaDraft = mediaDrafts[index]
         Task {
@@ -3015,16 +2886,18 @@ struct RelationshipAskView: View {
         let isUnscopedPersonResearch = screenshotRoute == .directResearch
         if screenshotRoute == .unsupported {
             errorMessage = appLanguage.text(
-                "Public profile research needs exactly one PNG, JPEG, or WebP screenshot. Remove extra or unsupported images, then Send again."
+                "Choose up to ten PNG, JPEG, or WebP images.", zhHans: "每次可发送最多 10 张 PNG、JPEG 或 WebP 图片。"
             )
             composerFocused = false
             return
         }
+        if mediaDrafts.reduce(0, { $0 + $1.data.count }) > 30_000_000 {
+            errorMessage = appLanguage.text("Images must total no more than 30 MB.", zhHans: "图片总计不能超过 30 MB，请分开发送。")
+            return
+        }
         let effectiveObjective = trimmed.isEmpty
             ? isUnscopedPersonResearch
-                ? appLanguage.text(
-                    "Find possible public profiles from visible identity clues in this screenshot and summarize public information. Do not identify from appearance alone."
-                )
+                ? appLanguage.text("File this chat screenshot to the correct internal contact, save its messages, and explain supported changes and the next step. Research public professional context when useful.")
                 : appLanguage.text(
                     "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step."
                 )
@@ -3041,6 +2914,12 @@ struct RelationshipAskView: View {
         isSending = true
         draft = ""
         composerFocused = false
+
+        if !mediaDrafts.isEmpty, mediaDrafts.count <= 10,
+           mediaDrafts.allSatisfy({ ["image/png", "image/jpeg", "image/webp"].contains($0.mediaType) }) {
+            performScreenshotContact(media: mediaDrafts, objective: effectiveObjective, originalDraft: trimmed)
+            return
+        }
 
         if let selectedScope {
             relationshipRecallPhase = .reading(nil)
@@ -3094,6 +2973,87 @@ struct RelationshipAskView: View {
             effectiveObjective: effectiveObjective,
             originalDraft: trimmed
         )
+    }
+
+    private func performScreenshotContact(media: [AskMediaDraft], objective: String, originalDraft: String) {
+        let proposed = ScreenshotContactTaskBody(idempotencyKey: "ios:contact-agent:\(UUID().uuidString.lowercased())", objective: objective,
+            images: media.map { .init(data: $0.data, mediaType: $0.mediaType) }, personID: selectedScope?.person.id, contextID: selectedScope?.context.id)
+        let previousHashes = screenshotContactRequest.map { [$0.image.contentHash] + ($0.additionalImages ?? []).map(\.contentHash) }
+        let proposedHashes = [proposed.image.contentHash] + (proposed.additionalImages ?? []).map(\.contentHash)
+        if previousHashes != proposedHashes || screenshotContactRequest?.objective != objective
+            || screenshotContactRequest?.selectedPersonID != proposed.selectedPersonID
+            || screenshotContactRequest?.selectedRelationshipContextID != proposed.selectedRelationshipContextID {
+            screenshotContactRequest = proposed
+        }
+        guard let request = screenshotContactRequest else { return }
+        presentationDetent = .large
+        updateAskSubmissionPhase(.requestingWorkspaceAnswer)
+        askOperation?.cancel()
+        askOperation = Task {
+            var accepted = false
+            do {
+                var response = try await workspaceStore.createScreenshotContactTask(request)
+                try Task.checkCancellation()
+                screenshotContactTask = response
+                accepted = true
+                screenshotContactRequest = nil
+                mediaDrafts = []
+                mediaNotice = nil
+                while response.status == "running" {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    response = try await workspaceStore.loadScreenshotContactTask(id: response.taskID)
+                    try Task.checkCancellation()
+                    screenshotContactTask = response
+                }
+                await workspaceStore.load()
+                pendingObjective = nil
+                pendingScopedSend = nil
+                updateAskSubmissionPhase(.idle)
+                isSending = false
+                askOperation = nil
+            } catch {
+                if Task.isCancelled { return }
+                draft = accepted ? "" : originalDraft
+                pendingObjective = nil
+                updateAskSubmissionPhase(.idle)
+                isSending = false
+                presentAskFailure(error)
+                askOperation = nil
+            }
+        }
+    }
+
+    private func resumeScreenshotContact(_ body: ScreenshotContactResumeBody) {
+        guard let current = screenshotContactTask else { return }
+        isSending = true
+        askOperation?.cancel()
+        askOperation = Task {
+            do {
+                var response = try await workspaceStore.resumeScreenshotContactTask(id: current.taskID, body: body)
+                screenshotContactTask = response
+                while response.status == "running" {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    response = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
+                    try Task.checkCancellation()
+                    screenshotContactTask = response
+                }
+                await workspaceStore.load()
+            } catch { if !Task.isCancelled { presentAskFailure(error) } }
+            isSending = false
+            askOperation = nil
+        }
+    }
+
+    private func cancelScreenshotContact() {
+        guard let current = screenshotContactTask else { return }
+        Task {
+            do {
+                let latest = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
+                screenshotContactTask = try await workspaceStore.cancelScreenshotContactTask(id: current.taskID, revision: latest.revision)
+                askOperation?.cancel(); askOperation = nil; isSending = false
+                pendingObjective = nil; updateAskSubmissionPhase(.idle)
+            } catch { presentAskFailure(error) }
+        }
     }
 
     private func performUnscopedPersonResearch(
@@ -6433,6 +6393,20 @@ private struct AskTurnView: View {
                 .accessibilityIdentifier("ask-restored-response-needs-refresh")
             }
 
+            if let receipt = turn.response.labFeatureReceipt,
+               receipt.feature_id == "relationship_evidence_preview" {
+                Label(
+                    language.text(
+                        "Lab · Exact evidence is shown inline for this answer",
+                        zhHans: "Lab · 此回答已内联显示精确证据"
+                    ),
+                    systemImage: "flask.fill"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.tsVermilion)
+                .accessibilityIdentifier("ask-lab-feature-receipt")
+            }
+
             ForEach(turn.response.blocks) { block in
                 VStack(alignment: .leading, spacing: 9) {
                     if let eyebrow = responseEyebrow(for: block) {
@@ -6504,6 +6478,15 @@ private struct AskTurnView: View {
                                             Text(citation.compactProvenance(in: language))
                                                 .font(.caption2)
                                                 .foregroundStyle(Color.tsMutedInk)
+                                            if turn.response.labFeatureReceipt?.effective_value == "inline_excerpt",
+                                               let excerpt = citation.exactExcerpt {
+                                                Text(verbatim: "“\(excerpt)”")
+                                                    .font(.caption)
+                                                    .foregroundStyle(Color.tsInk)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                                    .padding(.top, 3)
+                                                    .accessibilityIdentifier("ask-citation-inline-excerpt-\(citation.id)")
+                                            }
                                         }
                                         Spacer(minLength: 6)
                                         Image(systemName: "chevron.right")
@@ -6775,7 +6758,7 @@ private struct AskEvidenceReviewStatusView: View {
                         .controlSize(.small)
                 }
             }
-            Text("\(operation.sourceName) · \(operation.personDisplayName) · \(operation.relationshipContextDisplayName)")
+            Text(verbatim: "\(operation.sourceName) · \(operation.personDisplayName) · \(operation.relationshipContextDisplayName)")
                 .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
                 .fixedSize(horizontal: false, vertical: true)
@@ -6990,7 +6973,7 @@ private struct AskEvidenceReviewHistoryView: View {
                             .font(.caption)
                             .foregroundStyle(Color.tsInk)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("\(operation.state.rawValue) · …\(operation.idempotencyKey.suffix(8))")
+                        Text(verbatim: "\(operation.state.rawValue) · …\(operation.idempotencyKey.suffix(8))")
                             .font(.caption2.monospaced())
                             .foregroundStyle(Color.tsMutedInk)
                     }

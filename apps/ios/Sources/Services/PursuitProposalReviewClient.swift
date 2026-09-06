@@ -81,7 +81,7 @@ actor URLPursuitProposalReviewClient: PursuitProposalReviewServing {
     init(
         baseURL: URL,
         accessToken: String? = nil,
-        session: URLSession = .shared
+        session: URLSession = TalentSignalNetworking.session
     ) {
         self.baseURL = baseURL
         self.accessToken = accessToken
@@ -152,7 +152,7 @@ actor URLPursuitProposalReviewClient: PursuitProposalReviewServing {
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.httpBody = try JSONEncoder().encode(body)
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw PursuitProposalReviewClientError.invalidResponse
         }
@@ -187,7 +187,7 @@ actor URLPursuitProposalReviewClient: PursuitProposalReviewServing {
                 clientLabel: "ios-pursuit-proposal-review"
             )
         )
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               let login = try? JSONDecoder().decode(PursuitReviewLoginResponse.self, from: data) else {

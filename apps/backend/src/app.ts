@@ -1,3 +1,14 @@
+import { registerGoogleAuth } from "./modules/googleAuth.js";
+import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
+import { LabTaskTrialService } from "./modules/labTaskTrials.js";
+import { registerLabTaskTrialRoutes } from "./modules/labTaskTrialRoutes.js";
+import { LabFeatureOverrideService } from "./modules/labFeatureOverrides.js";
+import { registerLabFeatureOverrideRoutes } from "./modules/labFeatureOverrideRoutes.js";
+import { LabWorkspaceService } from "./modules/labWorkspaces.js";
+import { registerLabWorkspaceRoutes } from "./modules/labWorkspaceRoutes.js";
+import { LabExperimentJobService } from "./modules/labExperimentJobs.js";
+import { registerLabJobRoutes } from "./modules/labJobRoutes.js";
+import { environmentLabCIVerifier, type LabCIVerifying } from "./modules/labCIVerifier.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -165,6 +176,9 @@ import swagger from "@fastify/swagger";
 import Fastify, { type FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { Pool } from "pg";
+import { LabExperimentService, labModelProviders } from "./modules/labExperiments.js";
+import { registerLabExperimentRoutes } from "./modules/labExperimentRoutes.js";
+import { registerRuntimeManifest } from "./modules/runtimeManifest.js";
 
 import type { BackendConfig } from "./config.js";
 import { ApiError } from "./lib/apiError.js";
@@ -221,6 +235,12 @@ import {
   type PersonResearchAgentProviding,
 } from "./modules/personResearchAgentClient.js";
 import { createPersonResearchTask } from "./modules/personResearchTasks.js";
+import { createScreenshotContactTask, loadScreenshotContactTask, resumeScreenshotContactTask,
+  cancelScreenshotContactTask, loadContactIntelligence, expireScreenshotContactTasks, listScreenshotContactTasks, loadScreenshotContactImage,
+  environmentScreenshotContactDependencies, ScreenshotContactTaskRunner,
+  type ScreenshotContactDependencies } from "./modules/screenshotContactTasks.js";
+import { type ScreenshotContactTaskRequest } from "@talent-signal/agent";
+import { executeGrantedContactArchive, restoreContactArchive } from "./modules/contactArchive.js";
 import {
   createEnvironmentChatAnswerProvider,
   type RemoteChatAnswerProviding,
@@ -272,7 +292,8 @@ import {
   stagePursuitProposal,
   type ProposalReviewConflict,
 } from "./modules/pursuitProposals.js";
-import { createResourceCapture } from "./modules/resourceIntake.js";
+import { createResourceCapture, loadResourceCapture } from "./modules/resourceIntake.js";
+import { prepareCaptureReview } from "./modules/captureReview.js";
 import {
   getLatestPublicResearchTask,
   runPublicResearch,
@@ -437,13 +458,19 @@ export interface AppDependencies {
   voiceTranscriber?: VoiceTranscriptionServing;
   chatMediaStorage?: ChatMediaStorage;
   remoteChatProvider?: RemoteChatAnswerProviding | null;
+  labProviders?: Map<string, RemoteChatAnswerProviding>;
+  labJobWorkerEnabled?: boolean;
+  labCIVerifier?: LabCIVerifying | null;
   personResearchProvider?: PersonResearchAgentProviding | null;
+  screenshotContact?: ScreenshotContactDependencies | null;
 }
 
 export async function buildApp(
   dependencies: AppDependencies,
 ): Promise<FastifyInstance> {
   const { appleTokenVerifier, config, pool } = dependencies;
+  const screenshotContact = dependencies.screenshotContact === undefined
+    ? environmentScreenshotContactDependencies() : dependencies.screenshotContact;
   const remoteChatProvider = dependencies.remoteChatProvider === undefined
     ? createEnvironmentChatAnswerProvider()
     : dependencies.remoteChatProvider;
@@ -455,6 +482,7 @@ export async function buildApp(
     dependencies.voiceTranscriber ?? new EnvironmentDoubaoVoiceTranscriber();
   const chatMediaStorage =
     dependencies.chatMediaStorage ?? createChatMediaStorage(config);
+  const screenshotRunner = screenshotContact ? new ScreenshotContactTaskRunner(pool,screenshotContact,chatMediaStorage) : null;
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
@@ -462,16 +490,22 @@ export async function buildApp(
         paths: [
           "req.headers.authorization",
           "req.body.password",
+          "req.body.access_token",
           "req.body.audio_base64",
           "req.body.content_parts[*].content_text",
           "req.body.content_parts[*].content_base64",
           "req.body.image.data_base64",
+          "req.body.expected_behavior",
+          "req.body.review_note",
           "headers.authorization",
           "body.password",
+          "body.access_token",
           "body.audio_base64",
           "body.content_parts[*].content_text",
           "body.content_parts[*].content_base64",
           "body.image.data_base64",
+          "body.expected_behavior",
+          "body.review_note",
           "access_token",
           "password_scrypt",
         ],
@@ -483,6 +517,8 @@ export async function buildApp(
     bodyLimit: 2 * 1024 * 1024,
   });
 
+  registerLabDiagnostics(app, config.internalLabEnabled === true);
+
   app.addContentTypeParser(
     /^image\//,
     { parseAs: "buffer", bodyLimit: CHAT_MEDIA_MAX_BYTES },
@@ -491,6 +527,7 @@ export async function buildApp(
 
   app.decorateRequest("auth", null as unknown as AuthContext);
   await app.register(cors, {
+    exposedHeaders: ["x-talent-signal-lab-trace"],
     credentials: false,
     origin(origin, callback) {
       if (!origin || config.allowedOrigins.includes(origin)) {
@@ -526,6 +563,10 @@ export async function buildApp(
   });
 
   app.setErrorHandler((error, request, reply) => {
+    if ((error as {code?:string;message?:string}).code === "P0001" && (error as {message?:string}).message === "LAB_TEST_WORKSPACE_CLOSED") {
+      void reply.status(410).send({error:{code:"LAB_TEST_WORKSPACE_CLOSED",message:"This test workspace no longer accepts changes.",request_id:request.id}});
+      return;
+    }
     if (error instanceof ApiError) {
       void reply.status(error.statusCode).send({
         error: {
@@ -591,7 +632,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '039_talent_signal_lab'`,
+           WHERE version = '046_lab_feature_overrides'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -722,8 +763,28 @@ export async function buildApp(
       ),
   );
 
+  registerGoogleAuth(app, pool, config);
   const authenticate = createAuthGuard(pool);
   const security = [{ bearerSession: [] }];
+  registerRuntimeManifest(app, config);
+  registerLabWorkspaceRoutes(app,new LabWorkspaceService(pool,chatMediaStorage,config.sessionTtlSeconds),authenticate,config.internalLabEnabled===true);
+
+  const labProviders = dependencies.labProviders ?? labModelProviders(remoteChatProvider);
+  const labTrials = new LabTaskTrialService(pool, labProviders, remoteChatProvider,
+    process.env.TALENT_SIGNAL_BACKEND_REVISION?.trim() || null);
+  registerLabTaskTrialRoutes(app, labTrials, authenticate, config.internalLabEnabled === true);
+  const labFeatures = new LabFeatureOverrideService(pool,
+    process.env.TALENT_SIGNAL_BACKEND_REVISION?.trim() || null);
+  registerLabFeatureOverrideRoutes(app, labFeatures, authenticate, config.internalLabEnabled === true);
+  registerLabJobRoutes(app, new LabExperimentJobService(pool, labProviders,
+    process.env.TALENT_SIGNAL_BACKEND_REVISION?.trim() || null,
+    Number(process.env.TALENT_SIGNAL_LAB_DAILY_CALL_LIMIT ?? "240")), authenticate,
+    config.internalLabEnabled === true, dependencies.labJobWorkerEnabled !== false,
+    config.internalLabEnabled ? dependencies.labCIVerifier === undefined ? environmentLabCIVerifier() : dependencies.labCIVerifier : null);
+  registerLabExperimentRoutes(app, new LabExperimentService(pool,
+    labProviders,
+    process.env.TALENT_SIGNAL_BACKEND_REVISION?.trim() || null), authenticate,
+    config.internalLabEnabled === true);
 
   app.get(
     "/v1/lab",
@@ -1670,6 +1731,26 @@ export async function buildApp(
     },
   );
 
+  app.get<{ Params: { id: string } }>(
+    "/v1/resource-captures/:id",
+    {
+      preHandler: authenticate,
+      schema: { tags: ["resources"], security, params: IdParamsSchema,
+        response: { 200: ResourceCaptureResponseSchema, "4xx": ErrorResponseSchema } },
+    },
+    async (request) => loadResourceCapture(pool, request.auth.accountId, request.params.id),
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/v1/resource-captures/:id/review-preparations",
+    {
+      preHandler: authenticate,
+      schema: { tags: ["resources"], security, params: IdParamsSchema,
+        response: { 200: RelationshipResourceDetailSchema, "4xx": ErrorResponseSchema } },
+    },
+    async (request) => prepareCaptureReview(pool, request.auth, request.params.id),
+  );
+
   app.post<{ Body: ResourceCaptureRequest }>(
     "/v1/resource-captures",
     {
@@ -2380,12 +2461,14 @@ export async function buildApp(
       },
     },
     async (request, reply) => {
+      const trial = config.internalLabEnabled ? labTrials.taskContext(request.auth, "unscoped_chat", request.body.idempotency_key) : null;
+      let productOutcome: "accepted" | "fallback" | "product_failed" | "unverified" = "product_failed";
       const result = await createUnscopedChatTask(
-        pool,
-        request.auth,
-        request.body,
-        remoteChatProvider,
-      );
+        pool, request.auth, request.body, remoteChatProvider, trial?.select,
+      ).then((result) => { productOutcome = result.labProductOutcome ?? "unverified"; return result; }).finally(async () => {
+        const persisted = await trial?.finish(productOutcome);
+        if (persisted != null) reply.header("lab-observation-persisted", String(persisted));
+      });
       request.log.info(
         {
           unscoped_chat_task_id: result.body.task_id,
@@ -2417,14 +2500,16 @@ export async function buildApp(
       },
     },
     async (request, reply) => {
+      const trial = config.internalLabEnabled ? labTrials.taskContext(request.auth,
+        request.body.media_ids?.length ? "relationship_image" : "relationship_text", request.body.idempotency_key) : null;
+      let productOutcome: "accepted" | "fallback" | "product_failed" | "unverified" = "product_failed";
       const result = await createChatTask(
-        pool,
-        request.auth,
-        request.body,
-        remoteChatProvider,
-        chatMediaStorage,
-        personResearchProvider,
-      );
+        pool, request.auth, request.body, remoteChatProvider, chatMediaStorage, personResearchProvider, trial?.select,
+        config.internalLabEnabled ? (client) => labFeatures.adoptionReceipt(client, request.auth) : undefined,
+      ).then((result) => { productOutcome = result.labProductOutcome ?? "unverified"; return result; }).finally(async () => {
+        const persisted = await trial?.finish(productOutcome);
+        if (persisted != null) reply.header("lab-observation-persisted", String(persisted));
+      });
       request.log.info(
         {
           trace_id: result.body.telemetry?.trace_id ?? null,
@@ -2440,6 +2525,50 @@ export async function buildApp(
         .send(result.body);
     },
   );
+
+  app.post<{ Body: unknown }>("/v1/contact-agent/tasks", {
+    preHandler: authenticate, bodyLimit: 40_100_000,
+    schema: {tags:["contact-agent"],security},
+  }, async(request,reply)=>{
+    if(!screenshotRunner)throw new ApiError(503,"CONTACT_AGENT_UNAVAILABLE","Screenshot contact Agent is not configured.");
+    const result=await createScreenshotContactTask(pool,request.auth,request.body,chatMediaStorage);
+    void screenshotRunner.start(request.auth,result.body.task_id).catch(()=>request.log.error({task_id:result.body.task_id},"Contact task could not start"));
+    return reply.header("idempotent-replayed",result.replayed).status(result.replayed?200:201).send(result.body);
+  });
+  app.get<{Params:{id:string;index:number}}>("/v1/contact-agent/tasks/:id/images/:index",{
+    preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"}),index:Type.Integer({minimum:0,maximum:9})})}
+  },async(request,reply)=>{
+    const image=await loadScreenshotContactImage(pool,request.auth,request.params.id,request.params.index,chatMediaStorage);
+    return reply.header("cache-control","private, no-store").header("x-content-type-options","nosniff")
+      .type(image.media_type).send(Buffer.from(image.data_base64,"base64"));
+  });
+  app.get("/v1/contact-agent/tasks",{preHandler:authenticate,schema:{security}},async request=>listScreenshotContactTasks(pool,request.auth));
+  app.get<{Params:{id:string}}>("/v1/contact-agent/tasks/:id",{preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},async request=>{
+    const result=await loadScreenshotContactTask(pool,request.auth,request.params.id);
+    if(result.status==="running")void screenshotRunner?.start(request.auth,result.task_id).catch(()=>{});
+    return result;
+  });
+  app.post<{Params:{id:string};Body:{expected_revision:number;selected_person_id?:string;selected_relationship_context_id?:string;new_contact_name?:string;image?:ScreenshotContactTaskRequest["image"]}}>(
+    "/v1/contact-agent/tasks/:id/resume",{preHandler:authenticate,bodyLimit:14_000_000,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),
+      body:Type.Object({expected_revision:Type.Integer({minimum:1}),selected_person_id:Type.Optional(Type.String({format:"uuid"})),
+        selected_relationship_context_id:Type.Optional(Type.String({format:"uuid"})),new_contact_name:Type.Optional(Type.String({minLength:1,maxLength:200})),
+        image:Type.Optional(Type.Object({media_type:Type.Union([Type.Literal("image/png"),Type.Literal("image/jpeg"),Type.Literal("image/webp")]),
+          byte_size:Type.Integer({minimum:1,maximum:10_000_000}),content_hash:Type.String({pattern:"^[a-f0-9]{64}$"}),data_base64:Type.String({maxLength:13_400_000})},{additionalProperties:false}))},{additionalProperties:false})}},async request=>{
+      if(!screenshotRunner)throw new ApiError(503,"CONTACT_AGENT_UNAVAILABLE","Screenshot contact Agent is not configured.");
+      const result=await resumeScreenshotContactTask(pool,request.auth,request.params.id,request.body);
+      void screenshotRunner.start(request.auth,result.task_id,request.body.image).catch(()=>{});return result;
+    });
+  app.post<{Params:{id:string};Body:{expected_revision:number}}>("/v1/contact-agent/tasks/:id/cancel",{preHandler:authenticate,
+    schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1})},{additionalProperties:false})}},
+    async request=>cancelScreenshotContactTask(pool,request.auth,request.params.id,request.body.expected_revision));
+  app.get<{Params:{id:string};Querystring:{relationship_context_id:string}}>("/v1/people/:id/contact-intelligence",{preHandler:authenticate,
+    schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),querystring:Type.Object({relationship_context_id:Type.String({format:"uuid"})},{additionalProperties:false})}},
+    async request=>loadContactIntelligence(pool,request.auth,request.params.id,request.query.relationship_context_id));
+  app.post<{Params:{id:string};Body:{expected_revision:number;idempotency_key:string;decision:"archive"}}>("/v1/people/:id/archive",{preHandler:authenticate,
+    schema:{security,params:Type.Object({id:Type.String({format:"uuid"})}),body:Type.Object({expected_revision:Type.Integer({minimum:1}),idempotency_key:Type.String({minLength:1,maxLength:128}),decision:Type.Literal("archive")},{additionalProperties:false})}},
+    async request=>executeGrantedContactArchive(pool,request.auth,{person_id:request.params.id,...request.body}));
+  app.post<{Params:{id:string}}>("/v1/contact-archives/:id/restore",{preHandler:authenticate,schema:{security,params:Type.Object({id:Type.String({format:"uuid"})})}},
+    async request=>restoreContactArchive(pool,request.auth,request.params.id));
 
   app.post<{ Body: PersonResearchTaskRequest }>(
     "/v1/person-research/tasks",
@@ -2994,6 +3123,7 @@ export async function buildApp(
   );
 
   const retentionSweep = setInterval(() => {
+    void expireScreenshotContactTasks(pool,chatMediaStorage).catch(()=>app.log.error("Contact task retention sweep failed"));
     void runSourceLifecycleSweep(pool).catch((error: unknown) => {
       app.log.error(
         { err: error },
@@ -3004,6 +3134,7 @@ export async function buildApp(
   retentionSweep.unref();
   app.addHook("onClose", async () => {
     clearInterval(retentionSweep);
+    await screenshotRunner?.close();
   });
 
   return app;

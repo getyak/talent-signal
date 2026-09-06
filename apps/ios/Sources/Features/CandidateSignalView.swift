@@ -53,12 +53,14 @@ struct CandidateSignalView: View {
     private let authenticatedBackendURL: URL?
     private let authenticatedAccessToken: String?
     private let authenticatedWorkspaceID: String?
+    private let runtimeScope: String?
     private let entryMode: CandidateSignalEntryMode
 
     init(
         backendURL: URL? = nil,
         accessToken: String? = nil,
         workspaceID: String? = nil,
+        runtimeScope: String? = nil,
         entryMode: CandidateSignalEntryMode = .workbench,
         onClose: (() -> Void)? = nil,
         onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)? = nil
@@ -69,6 +71,7 @@ struct CandidateSignalView: View {
         authenticatedBackendURL = backendURL
         authenticatedAccessToken = accessToken
         authenticatedWorkspaceID = workspaceID
+        self.runtimeScope = runtimeScope
         self.entryMode = entryMode
         showsFixtureTools = TalentSignalRootRoute.opensReviewWorkbench(
             arguments: ProcessInfo.processInfo.arguments
@@ -82,6 +85,7 @@ struct CandidateSignalView: View {
         authenticatedBackendURL = nil
         authenticatedAccessToken = nil
         authenticatedWorkspaceID = nil
+        runtimeScope = nil
         entryMode = .workbench
         showsFixtureTools = true
     }
@@ -197,6 +201,7 @@ struct CandidateSignalView: View {
                 backendURL: effectiveBackendURL,
                 accessToken: authenticatedAccessToken,
                 workspaceID: authenticatedWorkspaceID,
+                    runtimeScope: runtimeScope,
                 initialRecord: pendingTextSignal
             ) {
                 Task { await refreshPendingTextSignal() }
@@ -208,6 +213,7 @@ struct CandidateSignalView: View {
                 backendURL: effectiveBackendURL,
                 accessToken: authenticatedAccessToken,
                 workspaceID: authenticatedWorkspaceID,
+                    runtimeScope: runtimeScope,
                 initialDraft: captureHandoff.initialDraft
             ) { disposition in
                 selectedPhoto = nil
@@ -226,6 +232,7 @@ struct CandidateSignalView: View {
                 }
             }
         }
+        .labDiagnosticPresentation()
     }
 
     private var effectiveBackendURL: URL {
@@ -712,8 +719,10 @@ struct CandidateSignalView: View {
                     origin: .photosPicker
                 )
                 try Task.checkCancellation()
+                if let runtimeScope { try await PendingCaptureInbox.shared.claim(id: seed.id, scope: runtimeScope) }
+                try Task.checkCancellation()
                 store.reset()
-                captureHandoff.present(seed)
+                captureHandoff.present(seed, expectedScope: runtimeScope)
             } catch is CancellationError {
                 return
             } catch {
@@ -733,13 +742,12 @@ struct CandidateSignalView: View {
     }
 
     private func refreshPendingTextSignal() async {
-        guard let baseURL = URL(string: store.backendAddress) else {
-            pendingTextSignal = nil
-            return
-        }
+        let baseURL = effectiveBackendURL
         do {
-            let catalog = try await URLTextSignalSyncClient(baseURL: baseURL).loadScopes()
-            pendingTextSignal = try await TextSignalOutbox.shared.oldest(
+            let catalog = try await URLTextSignalSyncClient(baseURL: baseURL, accessToken: authenticatedAccessToken,
+                workspaceID: authenticatedWorkspaceID).loadScopes()
+            pendingTextSignal = try await TextSignalOutbox.scoped(runtimeScope, backendURL: baseURL,
+                workspaceID: catalog.workspaceID).oldest(
                 workspaceID: catalog.workspaceID
             )
         } catch {

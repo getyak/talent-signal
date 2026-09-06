@@ -56,7 +56,7 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("039_talent_signal_lab"),
+      expect.stringContaining("046_lab_feature_overrides"),
     );
   }, 10_000);
 });
@@ -100,6 +100,35 @@ describe("Talent Signal Lab capability policy", () => {
       latest_run: null,
       eval_cases: [],
     });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("denies real experiments before reading experiment state when disabled", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{
+      account_id: "30000000-0000-4000-8000-000000000001", account_slug: "fixture-alpha",
+      user_id: "40000000-0000-4000-8000-000000000001", user_email: "reviewer@example.test",
+      user_kind: "simulated_human", session_id: "50000000-0000-4000-8000-000000000001",
+    }] });
+    const app = await buildApp({ config: { ...config, internalLabEnabled: false }, pool: { query } as unknown as Pool });
+    apps.push(app);
+    const response = await app.inject({ method: "GET", url: "/v1/lab/experiments",
+      headers: { authorization: "Bearer synthetic-session" } });
+    expect(response.statusCode).toBe(403);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("denies feature configuration before reading override state when disabled", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{
+      account_id: "30000000-0000-4000-8000-000000000001", account_slug: "fixture-alpha",
+      user_id: "40000000-0000-4000-8000-000000000001", user_email: "reviewer@example.test",
+      user_kind: "simulated_human", session_id: "50000000-0000-4000-8000-000000000001",
+    }] });
+    const app = await buildApp({ config: { ...config, internalLabEnabled: false }, pool: { query } as unknown as Pool });
+    apps.push(app);
+    const response = await app.inject({ method: "GET", url: "/v1/lab/feature-configuration",
+      headers: { authorization: "Bearer synthetic-session" } });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: { code: "LAB_CAPABILITY_DENIED" } });
     expect(query).toHaveBeenCalledTimes(1);
   });
 

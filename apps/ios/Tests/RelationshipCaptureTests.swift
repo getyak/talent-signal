@@ -575,7 +575,7 @@ final class RelationshipCaptureTests: XCTestCase {
             withIntermediateDirectories: true
         )
         let id = UUID()
-        let createdAt = Date(timeIntervalSince1970: 1_786_400_000)
+        let createdAt = Date().addingTimeInterval(-60)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(
@@ -656,6 +656,10 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertEqual(store.selectedContextID, Self.currentContextID)
         store.bindSelectedCandidate()
 
+        try await waitUntil { store.stage == .reviewingChanges }
+        let beforeConfirmation = await service.compileCount
+        XCTAssertEqual(beforeConfirmation, 0, "Binding must not finish fact review.")
+        store.finishReview()
         try await waitUntil {
             if case let .completed(completion) = store.stage {
                 return completion.wiki?.quality.verdict == "gold"
@@ -752,6 +756,8 @@ final class RelationshipCaptureTests: XCTestCase {
         try await waitUntil { store.stage == .resolvingIdentity }
         store.selectCandidate(identityCase.candidates[0])
         store.bindSelectedCandidate()
+        try await waitUntil { store.stage == .reviewingChanges }
+        store.finishReview()
         try await waitUntil {
             guard case let .failed(failure) = store.stage else { return false }
             return failure.recoveryStage == .compilation
@@ -784,6 +790,112 @@ final class RelationshipCaptureTests: XCTestCase {
             }
             try await Task.sleep(nanoseconds: 20_000_000)
         }
+    }
+
+    @MainActor
+    func testPartialReviewSurvivesResponseLossRestartAndTerminalClose() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "capture-recovery-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = try await inbox.stage(imageData: Data([1, 2, 3]), fileName: "fixture.png", mediaType: "image/png", origin: .deterministicTest)
+        let claims: [CaptureChangeReview.Claim] = [
+            .init(id: "work", field: "work_mode_preference", proposedValue: "Hybrid", priorValue: nil,
+                  quote: "Work mode: Hybrid", reviewStatus: "pending", proposalStatus: "proposed", version: 1,
+                  reviewToken: String(repeating: "a", count: 64), blockers: []),
+            .init(id: "date", field: "decision_deadline", proposedValue: "next Friday", priorValue: nil,
+                  quote: "Deadline: next Friday", reviewStatus: "pending", proposalStatus: "ambiguous", version: 1,
+                  reviewToken: String(repeating: "b", count: 64), blockers: ["calendar_date_required"]),
+        ]
+        let service = RelationshipCaptureServiceStub(identityCase: Self.twoOwnerCase(),
+            decisionResult: .init(decision: "bind_existing", identityStatus: "bound", personID: Self.currentPersonID,
+                relationshipContextID: Self.currentContextID, resourceProcessingState: "needs_fact_review"),
+            wiki: Self.goldWiki(), claims: claims, loseFirstClaimResponse: true)
+        var draft = RecognizedCaptureDraft.empty
+        draft.reviewedText = "Work mode: Hybrid\nDeadline: next Friday"
+        draft.speaker = .candidate
+        draft.keepOriginalForReview = false
+        let first = RelationshipCaptureStore(seed: seed, service: service, initialDraft: draft, inbox: inbox)
+        first.submitReviewedDraft()
+        try await waitUntil { first.stage == .resolvingIdentity }
+        first.selectCandidate(Self.twoOwnerCase().candidates[0])
+        first.bindSelectedCandidate()
+        try await waitUntil { first.stage == .reviewingChanges }
+        first.decideClaim(claims[1], decision: "confirm", correctedValue: "2026-02-30")
+        let invalidDateRequests = await service.claimDecisions.count
+        XCTAssertEqual(invalidDateRequests, 0)
+        first.claimEdits["date"] = "2026-09-11"
+        first.decideClaim(claims[0], decision: "confirm", correctedValue: "Hybrid")
+        try await waitUntil { if case .failed = first.stage { return true }; return false }
+        let saved = try await inbox.loadRecovery(for: seed.id)
+        XCTAssertNotNil(saved?.pendingClaim)
+        let loadedSeed = try await inbox.load()
+        let restoredSeed = try XCTUnwrap(loadedSeed)
+        XCTAssertTrue(restoredSeed.imageData.isEmpty, "Text-only recovery must remain queued after original removal.")
+        let resumed = RelationshipCaptureStore(seed: restoredSeed, service: service, inbox: inbox)
+        resumed.start()
+        try await waitUntil { if case .failed = resumed.stage { return true }; return false }
+        let beforeRetry = await service.claimDecisions.count
+        XCTAssertEqual(beforeRetry, 1, "Opening must not replay an unknown mutation automatically.")
+        XCTAssertEqual(resumed.claimEdits["date"], "2026-09-11")
+        XCTAssertEqual(resumed.selectedClaimID, "work")
+        resumed.retry()
+        try await waitUntil { resumed.stage == .reviewingChanges }
+        let attempts = await service.claimDecisions
+        XCTAssertEqual(attempts.count, 2)
+        XCTAssertEqual(attempts[0], attempts[1], "Retry must reuse the exact persisted operation.")
+        XCTAssertEqual(resumed.changes?.confirmedCount, 1)
+        XCTAssertEqual(resumed.changes?.pendingCount, 1)
+        resumed.finishReview()
+        try await waitUntil { if case .completed = resumed.stage { return true }; return false }
+        guard case let .completed(partial) = resumed.stage else { return XCTFail("Missing partial receipt") }
+        XCTAssertTrue(partial.needsReview)
+        XCTAssertEqual(partial.confirmedCount, 1)
+        let pendingCount = try await inbox.count()
+        XCTAssertEqual(pendingCount, 1)
+        resumed.returnToReview()
+        try await waitUntil { resumed.stage == .reviewingChanges }
+        resumed.decideClaim(try XCTUnwrap(resumed.changes?.claims.first { $0.id == "date" }), decision: "confirm", correctedValue: "2026-09-11")
+        try await waitUntil { resumed.stage == .reviewingChanges && resumed.changes?.confirmedCount == 2 }
+        resumed.finishReview()
+        try await waitUntil { if case .completed = resumed.stage { return true }; return false }
+        let closed = await resumed.keepForLater()
+        XCTAssertTrue(closed)
+        let finalCount = try await inbox.count()
+        XCTAssertEqual(finalCount, 0, "Closing a terminal receipt must not recreate the inbox entry.")
+        let creates = await service.createCount
+        XCTAssertEqual(creates, 1)
+        let fingerprints = await service.reviewFingerprints
+        XCTAssertEqual(fingerprints.count, 2)
+        XCTAssertNotEqual(fingerprints[0], fingerprints[1], "A changed review must compile under new current-state authority.")
+    }
+
+    func testOriginalExpiresButReviewedTextRemainsUntilReviewExpiry() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "capture-expiry-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let seed = PendingCaptureSeed(imageData: Data([4, 5]), fileName: "old.png", mediaType: "image/png",
+            createdAt: Date().addingTimeInterval(-8 * 86_400), origin: .deterministicTest)
+        var draft = RecognizedCaptureDraft.empty
+        draft.reviewedText = "Location: Shanghai"
+        try await inbox.saveReview(seed: seed, draft: draft, recovery: .init(), scope: nil)
+        let restored = try await inbox.load()
+        XCTAssertEqual(restored?.id, seed.id)
+        XCTAssertTrue(restored?.imageData.isEmpty == true)
+        let restoredDraft = try await inbox.loadDraft(for: seed.id)
+        XCTAssertEqual(restoredDraft?.reviewedText, draft.reviewedText)
+        let reimported = try await inbox.stage(imageData: Data([4, 5]), fileName: "old.png", mediaType: "image/png", origin: .deterministicTest)
+        XCTAssertNotEqual(reimported.id, seed.id)
+        XCTAssertEqual(reimported.imageData, Data([4, 5]), "A deliberate reimport starts a new retention clock without mutating the old review.")
+        try await inbox.remove(id: reimported.id)
+        let metadataURL = directory.appending(path: "captures/\(seed.id.uuidString).metadata.json")
+        var metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: metadataURL)) as? [String: Any])
+        metadata["createdAt"] = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-31 * 86_400))
+        try JSONSerialization.data(withJSONObject: metadata).write(to: metadataURL)
+        let fresh = try await inbox.stage(imageData: Data([7, 8]), fileName: "new.png", mediaType: "image/png", origin: .deterministicTest)
+        let next = try await inbox.load()
+        XCTAssertEqual(next?.id, fresh.id, "An expired head must not hide subsequent work.")
+        let removedDraft = try await inbox.loadDraft(for: seed.id)
+        XCTAssertNil(removedDraft)
     }
 
     private static let currentPersonID = "11111111-1111-4111-8111-111111111111"
@@ -878,24 +990,63 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
     private let compileFailuresBeforeSuccess: Int
     private(set) var decisions: [IdentityDecision] = []
     private(set) var compileCount = 0
+    private var bound = false
+    private var claims: [CaptureChangeReview.Claim]
+    private let loseFirstClaimResponse: Bool
+    private(set) var createCount = 0
+    private(set) var claimDecisions: [CaptureClaimDecision] = []
+    private(set) var reviewFingerprints: [String] = []
+    private var claimReceipts: [String: String] = [:]
+
+    func loadCapture(id: String) async throws -> ResourceCaptureResult {
+        ResourceCaptureResult(captureID: id, identity: .init(status: bound ? "bound" : "needs_review",
+            personID: bound ? decisionResult.personID : nil,
+            relationshipContextID: bound ? decisionResult.relationshipContextID : nil,
+            resolutionCaseID: bound ? nil : identityCase.id, candidatePersonIDs: []),
+            resource: .init(id: identityCase.source.resourceID, processingState: "ready", duplicateOfResourceID: nil, fragmentCount: 1))
+    }
+    func prepareChanges(captureID: String) async throws -> CaptureChangeReview {
+        .init(resource: .init(id: identityCase.source.resourceID, captureID: captureID, authorization: "authorized", processingState: "ready"),
+              fragments: [], claims: claims)
+    }
+    func decideClaim(_ decision: CaptureClaimDecision) async throws -> String {
+        claimDecisions.append(decision)
+        if let receipt = claimReceipts[decision.idempotencyKey] { return receipt }
+        let receipt = UUID().uuidString
+        claimReceipts[decision.idempotencyKey] = receipt
+        if let index = claims.firstIndex(where: { $0.id == decision.assertionID }) {
+            let old = claims[index]
+            claims[index] = .init(id: old.id, field: old.field, proposedValue: old.proposedValue, priorValue: old.priorValue,
+                quote: old.quote, reviewStatus: decision.decision == "confirm" ? "confirmed" : decision.decision == "dismiss" ? "dismissed" : "unresolved",
+                proposalStatus: old.proposalStatus, version: old.version + 1, reviewToken: old.reviewToken,
+                blockers: old.blockers, reviewedValue: decision.correctedValue ?? old.proposedValue, lastDecisionID: receipt)
+        }
+        if loseFirstClaimResponse && claimDecisions.count == 1 { throw URLError(.networkConnectionLost) }
+        return receipt
+    }
+    func confirmSpeaker(_ decision: CaptureSpeakerDecision) async throws -> String { "speaker-receipt" }
 
     init(
         identityCase: IdentityResolutionCase,
         decisionResult: IdentityDecisionResult,
         wiki: WikiCompilationReceipt,
-        compileFailuresBeforeSuccess: Int = 0
+        compileFailuresBeforeSuccess: Int = 0,
+        claims: [CaptureChangeReview.Claim] = [], loseFirstClaimResponse: Bool = false
     ) {
         self.identityCase = identityCase
         self.decisionResult = decisionResult
         self.wiki = wiki
         self.compileFailuresBeforeSuccess = compileFailuresBeforeSuccess
+        self.claims = claims
+        self.loseFirstClaimResponse = loseFirstClaimResponse
     }
 
     func createCapture(
         seed: PendingCaptureSeed,
         draft: RecognizedCaptureDraft
     ) async throws -> ResourceCaptureResult {
-        ResourceCaptureResult(
+        createCount += 1
+        return ResourceCaptureResult(
             captureID: "99999999-9999-4999-8999-999999999999",
             identity: .init(
                 status: "needs_review",
@@ -924,15 +1075,18 @@ private actor RelationshipCaptureServiceStub: RelationshipCaptureServing {
         draft: RecognizedCaptureDraft
     ) async throws -> IdentityDecisionResult {
         decisions.append(decision)
+        bound = decisionResult.identityStatus == "bound"
         return decisionResult
     }
 
     func compileWiki(
         personID: String,
         relationshipContextID: String,
-        seedID: UUID
+        seedID: UUID,
+        reviewFingerprint: String
     ) async throws -> WikiCompilationReceipt {
         compileCount += 1
+        reviewFingerprints.append(reviewFingerprint)
         if compileCount <= compileFailuresBeforeSuccess {
             throw RelationshipCaptureServiceStubError.transientCompilation
         }

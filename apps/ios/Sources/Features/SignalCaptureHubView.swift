@@ -13,6 +13,7 @@ struct SignalCaptureHubView: View {
     let backendURL: URL?
     let accessToken: String?
     let workspaceID: String?
+    let runtimeScope: String?
     let initialDestination: CaptureIntentDestination?
     let onDismiss: () -> Void
     let onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)?
@@ -26,6 +27,7 @@ struct SignalCaptureHubView: View {
         backendURL: URL?,
         accessToken: String? = nil,
         workspaceID: String? = nil,
+        runtimeScope: String? = nil,
         initialDestination: CaptureIntentDestination? = nil,
         onDismiss: @escaping () -> Void = {},
         onContinueInAgent: ((RelationshipCaptureCompletion) -> Void)? = nil
@@ -33,6 +35,7 @@ struct SignalCaptureHubView: View {
         self.backendURL = backendURL
         self.accessToken = accessToken
         self.workspaceID = workspaceID
+        self.runtimeScope = runtimeScope
         self.initialDestination = initialDestination
         self.onDismiss = onDismiss
         self.onContinueInAgent = onContinueInAgent
@@ -106,6 +109,7 @@ struct SignalCaptureHubView: View {
                     backendURL: backendURL,
                     accessToken: accessToken,
                     workspaceID: workspaceID,
+                    runtimeScope: runtimeScope,
                     onClose: { destination = nil },
                     onContinueInAgent: { completion in
                         destination = nil
@@ -116,7 +120,7 @@ struct SignalCaptureHubView: View {
                     }
                 )
             case .audio:
-                AudioSignalCaptureView(onDismiss: { destination = nil })
+                AudioSignalCaptureView(runtimeScope: runtimeScope, onDismiss: { destination = nil })
             }
         }
         .task {
@@ -127,6 +131,7 @@ struct SignalCaptureHubView: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .tint(.tsVermilion)
+        .labDiagnosticPresentation()
         .accessibilityIdentifier("signal-capture-hub")
     }
 
@@ -159,6 +164,7 @@ struct SignalCaptureHubView: View {
                 backendURL: backendURL,
                 accessToken: accessToken,
                 workspaceID: workspaceID,
+                runtimeScope: runtimeScope,
                 onDismiss: { destination = nil }
             )
         } else {

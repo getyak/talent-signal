@@ -116,6 +116,22 @@ import type {
   RunLabScenarioRequest,
   StartLabSessionRequest,
 } from "./labSchemas.js";
+import type {
+  LabJobCatalog,
+  LabJobRequest,
+  LabJobResponse,
+  LabJobReview,
+} from "./labJobSchemas.js";
+import type {
+  LabRegressionList,
+  LabRegressionRequest,
+  LabRegressionResponse,
+} from "./labRegressionSchemas.js";
+import type {
+  LabFeatureConfiguration,
+  LabFeatureOverrideRequest,
+  LabFeatureOverride,
+} from "./labFeatureSchemas.js";
 
 export class TalentSignalHttpError extends Error {
   readonly status: number;
@@ -426,6 +442,77 @@ export class TalentSignalClient {
     });
   }
 
+  getLabJobCatalog(): Promise<LabJobCatalog> {
+    return this.request("/v1/lab/experiment-jobs", { method: "GET" });
+  }
+
+  startLabJob(request: LabJobRequest): Promise<LabJobResponse> {
+    return this.request("/v1/lab/experiment-jobs", {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  getLabJob(jobId: string): Promise<LabJobResponse> {
+    return this.request(`/v1/lab/experiment-jobs/${jobId}`, { method: "GET" });
+  }
+
+  cancelLabJob(jobId: string): Promise<LabJobResponse> {
+    return this.request(`/v1/lab/experiment-jobs/${jobId}/cancel`, {
+      method: "POST",
+      body: {},
+    });
+  }
+
+  reviewLabJob(jobId: string, review: LabJobReview): Promise<LabJobResponse> {
+    return this.request(`/v1/lab/experiment-jobs/${jobId}/review`, {
+      method: "POST",
+      body: review,
+    });
+  }
+
+  listLabRegressions(): Promise<LabRegressionList> {
+    return this.request("/v1/lab/regressions", { method: "GET" });
+  }
+
+  getLabRegression(regressionId: string): Promise<LabRegressionResponse> {
+    return this.request(`/v1/lab/regressions/${regressionId}`, {
+      method: "GET",
+    });
+  }
+
+  saveLabRegression(request: LabRegressionRequest): Promise<LabRegressionResponse> {
+    return this.request("/v1/lab/regressions", {
+      method: "POST",
+      body: request,
+    });
+  }
+
+  getLabFeatureConfiguration(): Promise<LabFeatureConfiguration> {
+    return this.request("/v1/lab/feature-configuration", { method: "GET" });
+  }
+
+  startLabFeatureOverride(request: LabFeatureOverrideRequest): Promise<{
+    contract_version: string;
+    override: LabFeatureOverride;
+  }> {
+    return this.request("/v1/lab/feature-overrides", { method: "POST", body: request });
+  }
+
+  getLabFeatureOverride(overrideId: string): Promise<{
+    contract_version: string;
+    override: LabFeatureOverride;
+  }> {
+    return this.request(`/v1/lab/feature-overrides/${overrideId}`, { method: "GET" });
+  }
+
+  stopLabFeatureOverride(overrideId: string): Promise<{
+    contract_version: string;
+    override: LabFeatureOverride;
+  }> {
+    return this.request(`/v1/lab/feature-overrides/${overrideId}/stop`, { method: "POST", body: {} });
+  }
+
   async getTelemetryArtifactContent(
     artifactId: string,
   ): Promise<{ body: ArrayBuffer; contentType: string }> {
@@ -493,6 +580,14 @@ export class TalentSignalClient {
       `/v1/people/${personId}/contexts/${relationshipContextId}/resources`,
       { method: "GET" },
     );
+  }
+
+  loadResourceCapture(captureId: string): Promise<ResourceCaptureResponse> {
+    return this.request(`/v1/resource-captures/${captureId}`, { method: "GET" });
+  }
+
+  prepareCaptureReview(captureId: string): Promise<RelationshipResourceDetail> {
+    return this.request(`/v1/resource-captures/${captureId}/review-preparations`, { method: "POST" });
   }
 
   getRelationshipResource(

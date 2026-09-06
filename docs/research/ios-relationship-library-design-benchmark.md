@@ -728,3 +728,56 @@ result, People lacks parity, and the revealed-state recovery path cannot be
 reliably entered for validation. This does not re-score the rest of the mobile
 product. Release status can move to `pass_with_changes` only after the ownership,
 dismissal, consequence, and accessibility rows above have executable proof.
+
+## Sixth iteration: pages own the horizontal axis
+
+### Product decision
+
+Direct user evaluation found that removing content-wide paging made Today,
+Sessions, and People feel like disconnected destinations. The preferred model
+is one continuous retrieval space in which the primary page, rather than a row,
+owns horizontal movement.
+
+This supersedes the fifth-iteration ownership decision without restoring its
+original two-owner conflict:
+
+1. a native page container owns every horizontal drag across Today, Sessions,
+   and People;
+2. the labeled top selection remains tappable and follows live page movement;
+3. Session and People rows remove `swipeActions` entirely;
+4. tap remains the row's primary Open action;
+5. a visible 44-point menu and the native long-press context menu expose the
+   same secondary commands;
+6. VoiceOver actions provide a non-gesture equivalent;
+7. local Session deletion remains destructive-last and requires its existing
+   exact-effect confirmation.
+
+The visible menu is required because a context menu alone is hidden by default.
+The long press supplies direct, item-anchored focus and system feedback, not a
+separate command vocabulary. People shortcuts remain limited to opening the
+person and starting a visibly scoped Ask. Session shortcuts remain limited to
+opening, changing local read state, and staging deletion of local history.
+
+### Motion language
+
+The page tracks the finger with native paging physics. While it moves, the top
+indicator travels continuously between labels and stretches modestly around the
+midpoint before returning to its resting width. It does not scale cards, add
+parallax, or place glass inside content. A tap on a top label uses the same page
+transition. Under Reduce Motion, the indicator does not stretch or bounce and
+the selected label remains the stable semantic signal.
+
+### Verification change
+
+Replace tests that expect a page swipe to remain on the current destination.
+Executable proof now needs to show:
+
+- Today swipes to Sessions, Sessions swipes to People, and both reverse;
+- the selected top label agrees with the visible page after every transition;
+- tapping a top label reaches the same destination and preserves local
+  scroll/search state;
+- row secondary commands are available from both the visible menu and long
+  press, with matching labels and consequences;
+- no row exposes a native leading or trailing swipe action;
+- Dynamic Type, Simplified Chinese, RTL, Reduce Motion, VoiceOver, interruption,
+  and small/large supported iPhones preserve navigation and command reachability.

@@ -10,6 +10,7 @@ import type { Pool, PoolClient } from "pg";
 import { inTransaction } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
+import { lockLabMediaWorkspace, trackedLabMediaPut } from "./labWorkspaceAccess.js";
 import type { AuthContext } from "./auth.js";
 import type {
   ChatMediaStorage,
@@ -208,7 +209,10 @@ export async function uploadChatMediaContent(
   body: Uint8Array,
   contentType: string,
 ): Promise<ChatMediaAsset> {
-  const row = await mediaRow(pool, auth.accountId, mediaId);
+  const perform = async (query: Pick<Pool,"query"> | PoolClient,
+    finish: (operation:(client:PoolClient)=>Promise<ChatMediaAsset>)=>Promise<ChatMediaAsset>,
+    workspaceId?:string):Promise<ChatMediaAsset> => {
+  const row = await mediaRow(query, auth.accountId, mediaId);
   if (row.created_by_user_id !== auth.userId) {
     throw new ApiError(403, "CHAT_MEDIA_UPLOAD_DENIED", "Only the uploader can finish this image upload.");
   }
@@ -227,9 +231,10 @@ export async function uploadChatMediaContent(
     );
   }
   try {
-    await storage.put(row.object_key, body, row.media_type);
+    if(workspaceId)await trackedLabMediaPut(pool,workspaceId,mediaId,storage,row.object_key,body,row.media_type);
+    else await storage.put(row.object_key, body, row.media_type);
   } catch (error) {
-    await pool.query(
+    await query.query(
       `UPDATE chat_media_assets
        SET status = 'failed', failure_reason = $3, updated_at = now()
        WHERE account_id = $1 AND id = $2 AND status <> 'deleted'`,
@@ -241,7 +246,7 @@ export async function uploadChatMediaContent(
     );
     throw new ApiError(503, "CHAT_MEDIA_STORAGE_FAILED", "The image could not be stored. Retry keeps the same upload identity.");
   }
-  return inTransaction(pool, async (client) => {
+  return finish(async (client) => {
     const updated = await client.query<ChatMediaRow>(
       `UPDATE chat_media_assets
        SET status = 'ready', failure_reason = NULL, updated_at = now()
@@ -262,6 +267,12 @@ export async function uploadChatMediaContent(
     );
     return asset(ready);
   });
+  };
+  if(auth.userKind==="lab_human")return inTransaction(pool,async client=>{
+    const workspaceId=await lockLabMediaWorkspace(client,auth,storage);
+    return perform(client,operation=>operation(client),workspaceId);
+  });
+  return perform(pool,operation=>inTransaction(pool,operation));
 }
 
 export async function getChatMediaContent(

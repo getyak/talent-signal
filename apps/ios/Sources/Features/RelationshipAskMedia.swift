@@ -44,9 +44,8 @@ enum AskScreenshotResearchRoutingPolicy {
         guard !hasSelectedRelationship, !mediaTypes.isEmpty else {
             return .notApplicable
         }
-        guard mediaTypes.count == 1,
-              let mediaType = mediaTypes.first,
-              supportedMediaTypes.contains(mediaType) else {
+        guard mediaTypes.count <= 10,
+              mediaTypes.allSatisfy(supportedMediaTypes.contains) else {
             return .unsupported
         }
         return .directResearch
@@ -57,6 +56,7 @@ struct AskMediaDraftTray: View {
     let drafts: [AskMediaDraft]
     let onRetry: (UUID) -> Void
     let onRemove: (UUID) -> Void
+    @Environment(\.talentSignalReduceTransparency) private var reduceTransparency
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
@@ -109,14 +109,7 @@ struct AskMediaDraftTray: View {
     private func phaseOverlay(_ draft: AskMediaDraft) -> some View {
         switch draft.phase {
         case .waitingForContext:
-            Image(systemName: "sparkles")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.tsInk)
-                .padding(8)
-                .background(.ultraThinMaterial, in: Circle())
-                .accessibilityLabel(
-                    appLanguage.text("Ready for Agent context")
-                )
+            EmptyView()
         case .uploading, .removing:
             ProgressView()
                 .tint(.white)

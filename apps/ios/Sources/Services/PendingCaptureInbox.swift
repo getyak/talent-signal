@@ -33,28 +33,48 @@ actor PendingCaptureInbox {
         mediaType: String,
         origin: CaptureOrigin
     ) throws -> PendingCaptureSeed {
-        try prepareQueue()
-        let contentFingerprint = Self.contentFingerprint(for: imageData)
-        if let metadata = try queuedMetadata().first(
-            where: { $0.contentFingerprint == contentFingerprint }
-        ), let existing = try load(metadata: metadata) {
-            return existing
-        }
+        try LabClientDiagnostics.measureSync(.imagePreparation) {
+            try prepareQueue()
+            let contentFingerprint = Self.contentFingerprint(for: imageData)
+            if let metadata = try queuedMetadata().first(
+                where: { $0.contentFingerprint == contentFingerprint && $0.runtimeScope == nil }
+            ), let existing = try load(metadata: metadata) {
+                if !existing.imageData.isEmpty { return existing }
+            }
 
-        let seed = PendingCaptureSeed(
-            imageData: imageData,
-            fileName: fileName,
-            mediaType: mediaType,
-            origin: origin
-        )
-        try persist(seed, contentFingerprint: contentFingerprint)
-        return seed
+            let seed = PendingCaptureSeed(
+                imageData: imageData,
+                fileName: fileName,
+                mediaType: mediaType,
+                origin: origin
+            )
+            try persist(seed, contentFingerprint: contentFingerprint)
+            return seed
+        }
     }
 
-    func load() throws -> PendingCaptureSeed? {
+    func load(scope: String? = nil) throws -> PendingCaptureSeed? {
         try prepareQueue()
-        guard let metadata = try queuedMetadata().first else { return nil }
-        return try load(metadata: metadata)
+        for metadata in try queuedMetadata() where metadata.runtimeScope == nil || metadata.runtimeScope == scope {
+            if let seed = try load(metadata: metadata) { return seed }
+        }
+        return nil
+    }
+
+    func claim(id: UUID, scope: String) throws {
+        try prepareQueue()
+        guard !scope.isEmpty, var metadata = try queuedMetadata().first(where: { $0.id == id }),
+              metadata.runtimeScope == nil || metadata.runtimeScope == scope else {
+            throw AppSessionError.scopeMismatch
+        }
+        metadata.runtimeScope = scope
+        try writeProtected(JSONEncoder.captureEncoder.encode(metadata), to: metadataURL(for: id))
+    }
+
+    func permits(id: UUID, scope: String?) throws -> Bool {
+        try prepareQueue()
+        guard let metadata = try queuedMetadata().first(where: { $0.id == id }) else { return false }
+        return metadata.runtimeScope == nil || metadata.runtimeScope == scope
     }
 
     func count() throws -> Int {
@@ -64,6 +84,10 @@ actor PendingCaptureInbox {
 
     func remove(id: UUID) throws {
         try prepareQueue()
+        try removeFiles(id: id)
+    }
+
+    private func removeFiles(id: UUID) throws {
         guard FileManager.default.fileExists(
             atPath: metadataURL(for: id).path
         ) else {
@@ -85,19 +109,21 @@ actor PendingCaptureInbox {
     }
 #endif
 
-    func saveDraft(_ draft: RecognizedCaptureDraft, for id: UUID) throws {
+    func saveDraft(_ draft: RecognizedCaptureDraft, for id: UUID, scope: String? = nil) throws {
         try prepareQueue()
         guard try load(id: id) != nil else { return }
+        guard try permits(id: id, scope: scope) else { throw AppSessionError.scopeMismatch }
         try writeProtected(
             JSONEncoder.captureEncoder.encode(
-                SavedDraft(seedID: id, draft: draft)
+                SavedDraft(seedID: id, draft: draft, recovery: try loadRecovery(for: id, scope: scope))
             ),
             to: draftURL(for: id)
         )
     }
 
-    func loadDraft(for id: UUID) throws -> RecognizedCaptureDraft? {
+    func loadDraft(for id: UUID, scope: String? = nil) throws -> RecognizedCaptureDraft? {
         try prepareQueue()
+        guard try permits(id: id, scope: scope) else { return nil }
         let url = draftURL(for: id)
         guard FileManager.default.fileExists(atPath: url.path) else {
             return nil
@@ -107,6 +133,38 @@ actor PendingCaptureInbox {
             from: Data(contentsOf: url)
         )
         return saved.seedID == id ? saved.draft : nil
+    }
+
+    func saveReview(seed: PendingCaptureSeed, draft: RecognizedCaptureDraft,
+                    recovery: CaptureReviewRecovery, scope: String?) throws {
+        try prepareQueue()
+        guard Date().timeIntervalSince(seed.createdAt) < 30 * 86_400 else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        if !FileManager.default.fileExists(atPath: metadataURL(for: seed.id).path) {
+            try persist(seed, contentFingerprint: Self.contentFingerprint(for: seed.imageData))
+        }
+        if let scope { try claim(id: seed.id, scope: scope) }
+        guard try permits(id: seed.id, scope: scope) else { throw AppSessionError.scopeMismatch }
+        try writeProtected(JSONEncoder.captureEncoder.encode(
+            SavedDraft(seedID: seed.id, draft: draft, recovery: recovery)
+        ), to: draftURL(for: seed.id))
+        if draft.keepOriginalForReview == false || Date().timeIntervalSince(seed.createdAt) >= 7 * 86_400 {
+            try removeOriginal(id: seed.id)
+        }
+    }
+
+    func loadRecovery(for id: UUID, scope: String? = nil) throws -> CaptureReviewRecovery? {
+        guard try permits(id: id, scope: scope) else { return nil }
+        let url = draftURL(for: id)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let saved = try JSONDecoder.captureDecoder.decode(SavedDraft.self, from: Data(contentsOf: url))
+        return saved.seedID == id ? saved.recovery : nil
+    }
+
+    func removeOriginal(id: UUID) throws {
+        let url = imageURL(for: id)
+        if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
     }
 
     private func prepareQueue() throws {
@@ -124,6 +182,11 @@ actor PendingCaptureInbox {
         var protectedDirectoryURL = capturesDirectoryURL
         try protectedDirectoryURL.setResourceValues(resourceValues)
         try migrateLegacyCaptureIfNeeded()
+        for metadata in try queuedMetadata() {
+            let age = Date().timeIntervalSince(metadata.createdAt)
+            if age >= 30 * 86_400 { try removeFiles(id: metadata.id) }
+            else if age >= 7 * 86_400 { try removeOriginal(id: metadata.id) }
+        }
         for url in try FileManager.default.contentsOfDirectory(
             at: capturesDirectoryURL,
             includingPropertiesForKeys: nil
@@ -209,12 +272,16 @@ actor PendingCaptureInbox {
 
     private func load(metadata: PendingMetadata) throws -> PendingCaptureSeed? {
         let url = imageURL(for: metadata.id)
-        guard FileManager.default.fileExists(atPath: url.path) else {
+        let age = Date().timeIntervalSince(metadata.createdAt)
+        if age >= 7 * 24 * 60 * 60 { try removeOriginal(id: metadata.id) }
+        if age >= 30 * 24 * 60 * 60 {
+            try removeFiles(id: metadata.id)
             return nil
         }
+        let imageData = FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : Data()
         return PendingCaptureSeed(
             id: metadata.id,
-            imageData: try Data(contentsOf: url),
+            imageData: imageData,
             fileName: metadata.fileName,
             mediaType: metadata.mediaType,
             createdAt: metadata.createdAt,
@@ -233,9 +300,6 @@ actor PendingCaptureInbox {
                 PendingMetadata.self,
                 from: Data(contentsOf: url)
             )
-        }
-        .filter {
-            FileManager.default.fileExists(atPath: imageURL(for: $0.id).path)
         }
         .sorted {
             if $0.queueOrder == $1.queueOrder {
@@ -309,6 +373,7 @@ actor PendingCaptureInbox {
         let origin: CaptureOrigin
         let contentFingerprint: String?
         let enqueueOrder: Int64?
+        var runtimeScope: String? = nil
 
         var queueOrder: Int64 {
             enqueueOrder
@@ -334,6 +399,7 @@ actor PendingCaptureInbox {
     private struct SavedDraft: Codable {
         let seedID: UUID
         let draft: RecognizedCaptureDraft
+        var recovery: CaptureReviewRecovery? = nil
     }
 }
 
@@ -344,11 +410,25 @@ final class CaptureHandoffStore: ObservableObject {
     @Published var pendingSeed: PendingCaptureSeed?
     @Published private(set) var savedSeed: PendingCaptureSeed?
     @Published private(set) var initialDraft: RecognizedCaptureDraft?
+    private var runtimeScope: String?
+    private var generation = UUID()
+
+    func changeRuntimeScope(_ scope: String?) async {
+        guard scope != runtimeScope else { return }
+        runtimeScope = scope
+        generation = UUID()
+        pendingSeed = nil
+        savedSeed = nil
+        initialDraft = nil
+        await restorePendingCapture()
+    }
 
     func present(
         _ seed: PendingCaptureSeed,
-        initialDraft: RecognizedCaptureDraft? = nil
+        initialDraft: RecognizedCaptureDraft? = nil,
+        expectedScope: String? = nil
     ) {
+        guard expectedScope == runtimeScope else { return }
         savedSeed = seed
         self.initialDraft = initialDraft
         pendingSeed = seed
@@ -356,7 +436,9 @@ final class CaptureHandoffStore: ObservableObject {
 
     func restorePendingCapture() async {
         guard savedSeed == nil else { return }
-        if let seed = try? await PendingCaptureInbox.shared.load() {
+        let generation = generation
+        if let seed = try? await PendingCaptureInbox.shared.load(scope: runtimeScope) {
+            guard generation == self.generation else { return }
             savedSeed = seed
             pendingSeed = seed
         }
@@ -366,7 +448,9 @@ final class CaptureHandoffStore: ObservableObject {
         pendingSeed = nil
         savedSeed = nil
         initialDraft = nil
-        if let seed = try? await PendingCaptureInbox.shared.load() {
+        let generation = generation
+        if let seed = try? await PendingCaptureInbox.shared.load(scope: runtimeScope) {
+            guard generation == self.generation else { return }
             savedSeed = seed
         }
     }
@@ -388,7 +472,9 @@ final class CaptureHandoffStore: ObservableObject {
             in: arguments
         ) ?? "+6580805531"
         var draft = RecognizedCaptureDraft.empty
-        draft.reviewedText = Self.value(
+        draft.reviewedText = Self.value(after: "--capture-text-base64", in: arguments)
+            .flatMap { Data(base64Encoded: $0) }.flatMap { String(data: $0, encoding: .utf8) }
+            ?? Self.value(
             after: "--capture-text",
             in: arguments
         ) ?? "Phone: +6580805531\nPlease keep this conversation with the current relationship."

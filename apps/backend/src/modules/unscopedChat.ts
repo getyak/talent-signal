@@ -1,3 +1,4 @@
+import { measureLabServerStage } from "../lib/labDiagnostics.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -26,6 +27,7 @@ import {
 } from "./workspaceConversationAgent.js";
 
 export interface UnscopedChatTaskMutationResult {
+  labProductOutcome?: "accepted" | "fallback";
   body: UnscopedChatTaskResponse;
   replayed: boolean;
   status: number;
@@ -41,6 +43,7 @@ interface UnscopedChatExecution {
     providerRequestID: string | null;
     inputTokens: number;
     outputTokens: number;
+    prompt?: import("@talent-signal/agent").PromptReference;
   } | null;
 }
 
@@ -111,16 +114,17 @@ export async function executeUnscopedChatTask(input: {
           providerRequestID: execution.providerResult.sessionID ?? null,
           inputTokens: execution.providerResult.inputTokens,
           outputTokens: execution.providerResult.outputTokens,
+          ...(execution.providerResult.prompt ? { prompt: execution.providerResult.prompt } : {}),
         };
         remoteStatus = "agent_completed";
       } else {
-        providerResult = await input.provider.answer({
+        providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
           mode: "unscoped_conversation",
           objective: input.request.objective,
           context_blocks: [],
           allowed_citation_ids: [],
           images: [],
-        });
+        }));
         if (providerResult.kind === "question_set") {
           throw new Error("Unscoped Chat cannot return an evidence question set.");
         }
@@ -131,13 +135,13 @@ export async function executeUnscopedChatTask(input: {
       providerResult = null;
       agentProviderResult = null;
       try {
-        providerResult = await input.provider.answer({
+        providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
           mode: "unscoped_conversation",
           objective: input.request.objective,
           context_blocks: [],
           allowed_citation_ids: [],
           images: [],
-        });
+        }));
         if (providerResult.kind === "question_set") {
           throw new Error("Unscoped Chat cannot return an evidence question set.");
         }
@@ -173,6 +177,7 @@ export async function createUnscopedChatTask(
   auth: AuthContext,
   request: UnscopedChatTaskRequest,
   provider: RemoteChatAnswerProviding | null,
+  selectRemoteProvider?: (client: DatabaseClient) => Promise<RemoteChatAnswerProviding | null>,
 ): Promise<UnscopedChatTaskMutationResult> {
   return inTransaction(pool, async (client) => {
     const requestIdentity = {
@@ -212,6 +217,7 @@ export async function createUnscopedChatTask(
       };
     }
 
+    if (selectRemoteProvider) provider = await selectRemoteProvider(client);
     const execution = await executeUnscopedChatTask({
       request,
       provider,
@@ -243,9 +249,13 @@ export async function createUnscopedChatTask(
             ?? execution.providerResult?.provider_request_id
             ?? null,
         contact_agent_event_kind: execution.body.agent_event?.kind ?? null,
+        prompt: execution.agentProviderResult?.prompt ?? (execution.providerResult?.prompt_snapshot
+          ? { name: execution.providerResult.prompt_snapshot.name, revision: execution.providerResult.prompt_snapshot.revision,
+            versionId: execution.providerResult.prompt_snapshot.versionId, source: execution.providerResult.prompt_snapshot.source } : null),
       },
     );
     await completeIdempotency(client, idempotency, 201, execution.body);
-    return { body: execution.body, replayed: false, status: 201 };
+    return { body: execution.body, replayed: false, status: 201,
+      labProductOutcome: execution.remoteStatus === "agent_completed" || execution.remoteStatus === "completed" ? "accepted" : "fallback" };
   });
 }

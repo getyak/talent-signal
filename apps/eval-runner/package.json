@@ -15,8 +15,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "pnpm --filter @talent-signal/evaluation build && tsc6 -p tsconfig.build.json",
-    "typecheck": "pnpm --filter @talent-signal/evaluation build && tsc6 -p tsconfig.json --noEmit",
+    "build": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/evaluation build && tsc6 -p tsconfig.build.json",
+    "typecheck": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/evaluation build && tsc6 -p tsconfig.json --noEmit",
     "test": "vitest run src",
     "check": "pnpm typecheck && pnpm test",
     "validate": "tsx src/cli.ts validate",
@@ -30,7 +30,9 @@
   },
   "dependencies": {
     "@talent-signal/evaluation": "workspace:*",
-    "opik": "2.2.45"
+    "opik": "2.2.45",
+    "@talent-signal/contracts": "workspace:*",
+    "@sinclair/typebox": "^0.34.41"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

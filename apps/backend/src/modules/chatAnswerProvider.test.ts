@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { bundledPrompt, promptRevision } from "@talent-signal/agent/prompt-registry";
 
 import {
   createEnvironmentChatAnswerProvider,
+  configuredAgentPrompt,
   ZhipuChatAnswerProvider,
   type RemoteChatAnswerRequest,
 } from "./chatAnswerProvider.js";
@@ -51,6 +53,48 @@ function provider(
 }
 
 describe("Zhipu Chat answer provider", () => {
+  it("sends a frozen managed prompt and reports the actual text revision", async () => {
+    const text = "Synthetic published prompt: answer naturally in the requested JSON envelope.";
+    const snapshot = { ...bundledPrompt("assistant/relationship"), text, revision: promptRevision(text), source: "opik" as const, versionId: "synthetic-version", commit: "12345678", environment: "production" };
+    const result = await provider({ kind: "answer", title: "Answer", body: "Available next month.", citation_ids: [citationID] },
+      (_url, init) => expect(JSON.parse(init.body as string).messages[0].content).toBe(text))
+      .answer({ ...request(), prompt_snapshot: snapshot });
+    expect(result.prompt_revision).toBe(snapshot.revision.slice(0, 16));
+    expect(result.prompt_snapshot?.versionId).toBe("synthetic-version");
+  });
+  it("accepts a grounded partial answer with labeled alternatives and a usable draft", async () => {
+    const result = await provider({
+      kind: "answer",
+      title: "A useful next conversation",
+      body: "Known: availability is described as next month. Interpretation: timing needs confirmation. Draft: Which date and timezone would work for you? I have not sent this draft.",
+      citation_ids: [citationID],
+    }).answer({ ...request(), objective: "Explain what we know and draft a follow-up even though the exact date is missing." });
+    expect(result.kind).toBe("answer");
+    expect(result.citation_ids).toEqual([citationID]);
+    expect(result.body).toContain("I have not sent this draft.");
+  });
+
+  it("allows the requested question count without forcing a clarification", async () => {
+    const questions = Array.from({ length: 6 }, (_, index) => `${index + 1}. Synthetic evidence-grounded question?`).join("\n");
+    const result = await provider({
+      kind: "question_set", title: "Interview preparation", body: questions, citation_ids: [citationID],
+    }).answer({ ...request(), objective: "Prepare six questions based on this context." });
+    expect(result.body.split("\n")).toHaveLength(6);
+    expect(result.kind).toBe("question_set");
+  });
+
+  it("supports general brainstorming and unsent drafts without opening private context", async () => {
+    const result = await provider({
+      kind: "answer", title: "Outreach options", body: "Option A: a short introduction. Option B: a role-scope question. These are unsent templates.", citation_ids: [],
+    }, (_url, init) => {
+      const payload = JSON.parse(String(init.body));
+      expect(payload.tools).toBeUndefined();
+      expect(JSON.parse(payload.messages[1].content)).toMatchObject({ context_blocks: [], allowed_citation_ids: [] });
+    }).answer({ mode: "unscoped_conversation", objective: "Draft two general recruiter outreach approaches.", context_blocks: [], allowed_citation_ids: [] });
+    expect(result.kind).toBe("answer");
+    expect(result.citation_ids).toEqual([]);
+  });
+
   it("keeps less explicit model-directed contact Tool calls serial and bounded", async () => {
     const fetcher = vi
       .fn()
@@ -154,11 +198,8 @@ describe("Zhipu Chat answer provider", () => {
       parallel_tool_calls: boolean;
     };
     expect(firstRequest.parallel_tool_calls).toBe(false);
-    expect(firstRequest.messages[0]?.content).toContain(
-      "A named Person or relationship question needs contact context",
-    );
-    expect(firstRequest.messages[0]?.content).toContain(
-      "even when immutable_scope has no current Person or relationship",
+    expect(firstRequest.messages[0]?.content).toBe(
+      configuredAgentPrompt("Stay inside the authorized account.").text,
     );
   });
 

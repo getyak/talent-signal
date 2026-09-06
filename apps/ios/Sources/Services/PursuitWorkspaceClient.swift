@@ -10,6 +10,10 @@ struct PursuitWorkspaceSession: Equatable {
     let userID: String?
     let userDisplayName: String?
 
+    var persistenceScope: String {
+        RuntimeEndpoint.scope(baseURL, accountID: accountID ?? accountSlug, userID: userID ?? userEmail)
+    }
+
     static func authenticated(_ session: TalentSignalSession) -> PursuitWorkspaceSession {
         PursuitWorkspaceSession(
             baseURL: session.baseURL,
@@ -329,6 +333,13 @@ protocol PursuitWorkspaceServing {
         objective: String,
         idempotencyKey: String
     ) async throws -> UnscopedChatTaskResponse
+    func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask
+    func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask
+    func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent
+    func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList
+    func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope
+    func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask
+    func cancelScreenshotContactTask(id: String, revision: Int) async throws -> ScreenshotContactTask
     func researchPerson(
         objective: String,
         imageData: Data,
@@ -428,6 +439,13 @@ extension PursuitWorkspaceServing {
         throw PursuitWorkspaceClientError.askUnavailable
     }
 
+    func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
+    func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
+    func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent { throw PursuitWorkspaceClientError.askUnavailable }
+    func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList { throw PursuitWorkspaceClientError.askUnavailable }
+    func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope { throw PursuitWorkspaceClientError.askUnavailable }
+    func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
+    func cancelScreenshotContactTask(id: String, revision: Int) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
     func researchPerson(
         objective: String,
         imageData: Data,
@@ -567,7 +585,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         accountID: String? = nil,
         userID: String? = nil,
         userDisplayName: String? = nil,
-        session: URLSession = .shared
+        session: URLSession = TalentSignalNetworking.session
     ) {
         self.baseURL = baseURL
         self.accountSlug = accountSlug
@@ -996,6 +1014,62 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             ).isEmpty
     }
 
+    func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask {
+        let login = try await contactAgentLogin()
+        return try await post(path: "v1/contact-agent/tasks", token: login.accessToken, body: body)
+    }
+    func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask {
+        guard UUID(uuidString: id) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        let response: ScreenshotContactTask = try await request(path: "v1/contact-agent/tasks/\(id)", token: login.accessToken)
+        guard response.taskID == id else { throw PursuitWorkspaceClientError.scopeReadbackMismatch }
+        return response
+    }
+    func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent {
+        guard UUID(uuidString: taskID) != nil, (0..<10).contains(index) else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        var request = URLRequest(url: baseURL.appending(path: "v1/contact-agent/tasks/\(taskID)/images/\(index)"))
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
+        guard let http = response as? HTTPURLResponse else { throw PursuitWorkspaceClientError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            throw Self.backendError(data: data, statusCode: http.statusCode, fallback: "The image could not be read.")
+        }
+        guard let mediaType = http.value(forHTTPHeaderField: "content-type"), mediaType.hasPrefix("image/"), !data.isEmpty else {
+            throw PursuitWorkspaceClientError.invalidResponse
+        }
+        return ChatMediaContent(data: data, mediaType: mediaType)
+    }
+    func listScreenshotContactTasks() async throws -> ScreenshotContactTaskList {
+        let login = try await contactAgentLogin()
+        return try await request(path: "v1/contact-agent/tasks", token: login.accessToken)
+    }
+    func loadContactIntelligence(personID: String, contextID: String) async throws -> ContactIntelligenceEnvelope {
+        guard UUID(uuidString: personID) != nil, UUID(uuidString: contextID) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        var components = URLComponents(url: baseURL.appending(path: "v1/people/\(personID)/contact-intelligence"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "relationship_context_id", value: contextID)]
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
+        return try await decodedResponse(request, rejectionMessage: "Contact sources could not be read.")
+    }
+    func resumeScreenshotContactTask(id: String, body: ScreenshotContactResumeBody) async throws -> ScreenshotContactTask {
+        guard UUID(uuidString: id) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        return try await post(path: "v1/contact-agent/tasks/\(id)/resume", token: login.accessToken, body: body)
+    }
+    func cancelScreenshotContactTask(id: String, revision: Int) async throws -> ScreenshotContactTask {
+        guard UUID(uuidString: id) != nil else { throw PursuitWorkspaceClientError.invalidResponse }
+        let login = try await contactAgentLogin()
+        return try await post(path: "v1/contact-agent/tasks/\(id)/cancel", token: login.accessToken, body: ScreenshotContactResumeBody(expectedRevision: revision))
+    }
+
+    private func contactAgentLogin() async throws -> WorkspaceLoginResponse {
+        guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else { throw PursuitWorkspaceClientError.loopbackOnly }
+        return try await loginIfNeeded()
+    }
+
     func researchPerson(
         objective: String,
         imageData: Data,
@@ -1106,7 +1180,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         request.httpMethod = "GET"
         request.setValue("image/*", forHTTPHeaderField: "accept")
         request.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw PursuitWorkspaceClientError.invalidResponse
         }
@@ -1280,7 +1354,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "accept")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw PursuitWorkspaceClientError.invalidResponse
         }
@@ -1292,7 +1366,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             )
         }
         do {
-            return try JSONDecoder().decode(Response.self, from: data)
+            return try LabClientDiagnostics.measureSync(.responseDecoding) { try JSONDecoder().decode(Response.self, from: data) }
         } catch {
             throw PursuitWorkspaceClientError.invalidResponse
         }
@@ -1308,7 +1382,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         request.setValue("application/json", forHTTPHeaderField: "accept")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
-        request.httpBody = try JSONEncoder().encode(body)
+        request.httpBody = try LabClientDiagnostics.measureSync(.requestEncoding) { try JSONEncoder().encode(body) }
         return try await decodedResponse(request, rejectionMessage: "The action outcome was rejected.")
     }
 
@@ -1316,7 +1390,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         _ request: URLRequest,
         rejectionMessage: String
     ) async throws -> Response {
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw PursuitWorkspaceClientError.invalidResponse
         }
@@ -1324,7 +1398,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             throw Self.backendError(data: data, statusCode: http.statusCode, fallback: rejectionMessage)
         }
         do {
-            return try JSONDecoder().decode(Response.self, from: data)
+            return try LabClientDiagnostics.measureSync(.responseDecoding) { try JSONDecoder().decode(Response.self, from: data) }
         } catch {
             throw PursuitWorkspaceClientError.invalidResponse
         }
@@ -1391,7 +1465,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
                 clientLabel: "ios-pursuit-workspace"
             )
         )
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               let login = try? JSONDecoder().decode(WorkspaceLoginResponse.self, from: data),
@@ -1475,6 +1549,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
     let media: [ChatMediaAsset]
     let createdAt: String
     let citations: [Citation]
+    var labFeatureReceipt: LabFeatureAdoptionReceipt? = nil
 
     var id: String { taskID }
 
@@ -1641,7 +1716,8 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         blocks: [Block],
         media: [ChatMediaAsset] = [],
         createdAt: String,
-        citations: [Citation] = []
+        citations: [Citation] = [],
+        labFeatureReceipt: LabFeatureAdoptionReceipt? = nil
     ) {
         self.contractVersion = contractVersion
         self.taskID = taskID
@@ -1652,6 +1728,7 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         self.media = media
         self.createdAt = createdAt
         self.citations = citations
+        self.labFeatureReceipt = labFeatureReceipt
     }
 
     init(from decoder: Decoder) throws {
@@ -1665,9 +1742,10 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
         media = try container.decodeIfPresent([ChatMediaAsset].self, forKey: .media) ?? []
         createdAt = try container.decode(String.self, forKey: .createdAt)
         citations = []
+        labFeatureReceipt = nil
     }
 
-    func attaching(citations: [Citation]) -> RelationshipAskResponse {
+    func attaching(citations: [Citation], labFeatureReceipt: LabFeatureAdoptionReceipt?) -> RelationshipAskResponse {
         RelationshipAskResponse(
             contractVersion: contractVersion,
             taskID: taskID,
@@ -1677,7 +1755,8 @@ struct RelationshipAskResponse: Decodable, Equatable, Identifiable {
             blocks: blocks,
             media: media,
             createdAt: createdAt,
-            citations: citations
+            citations: citations,
+            labFeatureReceipt: labFeatureReceipt
         )
     }
 
@@ -1908,6 +1987,7 @@ struct RelationshipAskReadback: Decodable, Equatable {
     let snapshotStatus: String
     let authorizationScope: String
     let citations: [RelationshipAskResponse.Citation]
+    var labFeatureReceipt: LabFeatureAdoptionReceipt? = nil
     var media: [ChatMediaAsset]? = nil
     let createdAt: String
 
@@ -1989,13 +2069,27 @@ struct RelationshipAskReadback: Decodable, Equatable {
         }) else {
             throw PursuitWorkspaceClientError.askCitationReviewAuthorityMissing
         }
+        if let receipt = labFeatureReceipt {
+            guard receipt.feature_id == "relationship_evidence_preview",
+                  receipt.server_value == "source_only",
+                  receipt.override_value == "inline_excerpt",
+                  receipt.effective_value == "inline_excerpt",
+                  receipt.scope == "this_authenticated_session",
+                  !receipt.override_id.isEmpty,
+                  !receipt.catalog_revision.isEmpty,
+                  !receipt.definition_revision.isEmpty else {
+                throw PursuitWorkspaceClientError.askReadbackEnvelopeMismatch
+            }
+        }
         return response.attaching(
-            citations: citedIDs.compactMap { detailsByID[$0] }
+            citations: citedIDs.compactMap { detailsByID[$0] },
+            labFeatureReceipt: labFeatureReceipt
         )
     }
 
     enum CodingKeys: String, CodingKey {
         case citations, media
+        case labFeatureReceipt = "lab_feature_receipt"
         case contractVersion = "contract_version"
         case accountID = "account_id"
         case taskID = "task_id"

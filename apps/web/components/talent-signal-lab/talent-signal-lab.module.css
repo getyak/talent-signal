@@ -1260,6 +1260,405 @@
   width: 1px;
 }
 
+.batchWorkspace {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  margin: 0 0 76px;
+  padding: 42px 0 64px;
+}
+
+.batchHeader {
+  align-items: end;
+  display: flex;
+  gap: 32px;
+  justify-content: space-between;
+}
+
+.batchHeader h2,
+.batchResult h3,
+.batchRegressionLibrary h3 {
+  font-size: clamp(1.55rem, 2.7vw, 2.55rem);
+  font-weight: 610;
+  letter-spacing: -0.045em;
+  margin: 0;
+}
+
+.batchHeader > div:first-child > p:last-child {
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin: 13px 0 0;
+  max-width: 690px;
+}
+
+.batchBoundary {
+  align-items: center;
+  border: 1px solid var(--line);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 11px;
+  padding: 13px 16px;
+}
+
+.batchBoundary svg { color: var(--accent-strong); }
+.batchBoundary span { display: grid; gap: 3px; }
+.batchBoundary strong { font-size: 0.78rem; }
+.batchBoundary small { color: var(--muted-strong); font-size: 0.68rem; }
+
+.batchCreateGrid {
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: minmax(270px, 0.72fr) minmax(420px, 1.28fr);
+  margin-top: 28px;
+}
+
+.batchCasePicker,
+.batchSetup {
+  min-width: 0;
+  padding: 24px;
+}
+
+.batchCasePicker { border-right: 1px solid var(--line); }
+.batchCasePicker > header,
+.batchSetup > header,
+.batchHistory > header,
+.batchRegressionCandidates > header,
+.batchRegressionLibrary > header {
+  align-items: baseline;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.batchCasePicker > header span,
+.batchSetup > header span,
+.batchRegressionCandidates > header span,
+.batchRegressionLibrary > header > span {
+  color: var(--muted-strong);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.65rem;
+}
+
+.batchCasePicker > label {
+  align-items: start;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  display: flex;
+  gap: 11px;
+  padding: 14px 10px;
+}
+
+.batchCasePicker > label:last-child { border-bottom: 1px solid var(--line); }
+.batchCasePicker > label[data-selected="true"] { background: var(--surface-muted); }
+.batchCasePicker input { accent-color: var(--accent-strong); margin-top: 3px; }
+.batchCasePicker label > span { display: grid; gap: 4px; }
+.batchCasePicker label strong { font-size: 0.78rem; }
+.batchCasePicker label small { color: var(--muted-strong); font-size: 0.67rem; }
+
+.batchConfigPair {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.batchConfig {
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 13px;
+  margin: 0;
+  min-width: 0;
+  padding: 13px 15px 16px;
+}
+
+.batchConfig legend {
+  color: var(--accent-strong);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  font-weight: 760;
+  padding: 0 6px;
+}
+
+.batchConfig label,
+.batchRepeat,
+.batchRegressionForm label {
+  display: grid;
+  gap: 6px;
+}
+
+.batchConfig label > span,
+.batchRepeat > span,
+.batchRegressionForm label > span {
+  color: var(--muted-strong);
+  font-size: 0.67rem;
+  font-weight: 680;
+}
+
+.batchConfig select,
+.batchRepeat select,
+.batchReview select,
+.batchRegressionForm textarea {
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--ink);
+  font: inherit;
+  min-height: 42px;
+  padding: 9px 11px;
+  width: 100%;
+}
+
+.batchConfig select:focus-visible,
+.batchRepeat select:focus-visible,
+.batchReview select:focus-visible,
+.batchRegressionForm textarea:focus-visible {
+  border-color: var(--accent-strong);
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.batchRepeat { margin-top: 15px; max-width: 240px; }
+.batchBudget {
+  align-items: center;
+  color: var(--muted-strong);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  gap: 7px;
+  margin: 17px 0;
+}
+
+.batchHistory { margin-top: 24px; }
+.batchHistory > header button,
+.batchUnavailable button,
+.batchRunning button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--accent-strong);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 720;
+  gap: 5px;
+}
+
+.batchHistory > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 95px minmax(180px, 1fr) minmax(230px, auto);
+  padding: 13px 9px;
+  text-align: left;
+  width: 100%;
+}
+
+.batchHistory > button:last-child { border-bottom: 1px solid var(--line); }
+.batchHistory > button:hover,
+.batchHistory > button[aria-current="true"] { background: var(--surface-muted); }
+.batchHistory > button > span,
+.batchResult > header > span {
+  color: var(--muted-strong);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 760;
+}
+.batchHistory > button > span[data-state="running"],
+.batchHistory > button > span[data-state="queued"],
+.batchResult > header > span[data-state="running"] { color: var(--accent-strong); }
+.batchHistory > button small { color: var(--muted-strong); text-align: right; }
+
+.batchResult {
+  border-top: 2px solid var(--ink);
+  margin-top: 56px;
+  padding-top: 24px;
+}
+
+.batchResult > header {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+}
+
+.batchProgress {
+  background: var(--ink);
+  color: var(--background);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.batchProgress > div {
+  border-right: 1px solid color-mix(in srgb, var(--background) 18%, transparent);
+  display: grid;
+  gap: 6px;
+  padding: 15px;
+}
+.batchProgress > div:last-child { border-right: 0; }
+.batchProgress span { color: color-mix(in srgb, var(--background) 62%, transparent); font-size: 0.64rem; }
+.batchProgress strong { font-size: 1.1rem; }
+.batchProgress code { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; }
+
+.batchRunning {
+  align-items: center;
+  background: var(--surface-muted);
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px;
+}
+.batchRunning > span { color: var(--ink-soft); flex: 1; font-size: 0.75rem; }
+
+.batchCaseResults details { border-bottom: 1px solid var(--line); }
+.batchCaseResults summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  list-style: none;
+  padding: 19px 8px;
+}
+.batchCaseResults summary::-webkit-details-marker { display: none; }
+.batchCaseResults summary > span:first-child { display: grid; gap: 5px; }
+.batchCaseResults summary small { color: var(--muted-strong); line-height: 1.45; }
+.batchCaseResults summary > span:last-child { color: var(--accent-strong); font-family: var(--font-mono), monospace; font-size: 0.68rem; }
+
+.batchAttemptPair {
+  background: var(--surface-muted);
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 1px;
+}
+.batchAttemptPair > div { display: grid; gap: 1px; }
+.batchAttempt {
+  background: var(--background);
+  display: grid;
+  gap: 13px;
+  min-height: 280px;
+  padding: 19px;
+}
+.batchAttempt > header { align-items: start; display: flex; justify-content: space-between; }
+.batchAttempt > header > div { display: grid; gap: 4px; }
+.batchAttempt > header span { color: var(--muted-strong); font-family: var(--font-mono), monospace; font-size: 0.64rem; }
+.batchAttempt h4 { margin: 5px 0 0; }
+.batchAttempt > p { line-height: 1.6; margin: 0; white-space: pre-wrap; }
+.batchMuted { color: var(--muted-strong); }
+.batchAttempt dl { display: grid; gap: 5px; margin: auto 0 0; }
+.batchAttempt dl > div { display: grid; gap: 8px; grid-template-columns: 64px minmax(0, 1fr); }
+.batchAttempt dt { color: var(--muted-strong); font-size: 0.65rem; }
+.batchAttempt dd { font-family: var(--font-mono), monospace; font-size: 0.66rem; margin: 0; overflow-wrap: anywhere; }
+.batchChecks { display: grid; gap: 5px; }
+.batchChecks span { border-left: 2px solid var(--line); color: var(--ink-soft); font-size: 0.68rem; line-height: 1.45; padding-left: 8px; }
+.batchChecks span[data-verdict="fail"] { border-color: var(--accent-strong); color: var(--ink); }
+.batchChecks span[data-verdict="pass"] { border-color: var(--success); }
+.batchHardFailure { align-items: center; color: var(--accent-strong); display: flex; font-size: 0.7rem; gap: 6px; }
+
+.batchReview,
+.batchRegressionForm,
+.batchRegressionDetail {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  margin-top: 28px;
+  padding: 22px;
+}
+.batchReview > div:first-child p { color: var(--ink-soft); margin: 6px 0 16px; }
+.batchReview > select { max-width: 300px; }
+.batchCategoryPicker { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.batchCategoryPicker label {
+  align-items: center;
+  background: var(--background);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.69rem;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.batchCategoryPicker input { accent-color: var(--accent-strong); }
+
+.batchRegressionCandidates { margin-top: 34px; }
+.batchRegressionCandidates > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  gap: 11px;
+  padding: 13px 8px;
+  text-align: left;
+  width: 100%;
+}
+.batchRegressionCandidates > button:last-child { border-bottom: 1px solid var(--line); }
+.batchRegressionCandidates button > span { display: grid; flex: 1; gap: 3px; }
+.batchRegressionCandidates button small { color: var(--muted-strong); }
+.batchRegressionCandidates button svg:first-child { color: var(--accent-strong); }
+.batchRegressionForm { display: grid; gap: 15px; }
+.batchRegressionForm textarea { line-height: 1.5; min-height: 84px; resize: vertical; }
+.batchRegressionForm > p { color: var(--muted-strong); font-size: 0.7rem; margin: 0; }
+.batchRegressionForm > div { display: flex; gap: 8px; justify-content: flex-end; }
+
+.batchRegressionLibrary {
+  border-top: 1px solid var(--line);
+  margin-top: 58px;
+  padding-top: 32px;
+}
+.batchRegressionLibrary > header { align-items: end; }
+.batchRegressionLibrary > p { color: var(--muted-strong); }
+.batchRegressionList { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.batchRegressionList > button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-right: 0;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  min-height: 155px;
+  padding: 16px;
+  text-align: left;
+}
+.batchRegressionList > button:nth-child(3n),
+.batchRegressionList > button:last-child { border-right: 1px solid var(--line); }
+.batchRegressionList > button[aria-current="true"] { box-shadow: inset 0 -3px 0 var(--accent); }
+.batchRegressionList button > span { color: var(--muted-strong); font-family: var(--font-mono), monospace; font-size: 0.62rem; }
+.batchRegressionList button > span[data-release="ci_verified"] { color: var(--success); }
+.batchRegressionList button small { color: var(--muted-strong); line-height: 1.4; }
+.batchRegressionList button code { font-size: 0.62rem; }
+
+.batchRegressionDetail > header { align-items: start; display: flex; gap: 20px; justify-content: space-between; }
+.batchRegressionDetail > header > div { display: grid; gap: 8px; }
+.batchRegressionDetail > header span { color: var(--muted-strong); font-family: var(--font-mono), monospace; font-size: 0.64rem; }
+.batchRegressionDetail > header span[data-tone="verified"] { color: var(--success); }
+.batchRegressionDetail > header span[data-tone="stale"] { color: var(--accent-strong); }
+.batchRegressionDetail h4 { font-size: 1.2rem; margin: 0; }
+.batchRegressionDetail > header code { font-size: 0.62rem; max-width: 45%; overflow-wrap: anywhere; }
+.batchRegressionDetail > p { color: var(--ink-soft); }
+.batchRegressionDetail dl { display: grid; gap: 1px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.batchRegressionDetail dl > div { background: var(--background); display: grid; gap: 7px; padding: 13px; }
+.batchRegressionDetail dt { color: var(--muted-strong); font-size: 0.64rem; }
+.batchRegressionDetail dd { line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+
+.batchUnavailable {
+  align-items: center;
+  border: 1px solid var(--line);
+  display: flex;
+  gap: 14px;
+  margin: 0 0 64px;
+  padding: 20px;
+}
+.batchUnavailable > div { display: grid; flex: 1; gap: 4px; }
+.batchUnavailable p { color: var(--muted-strong); margin: 0; }
+.batchError { background: var(--surface-muted); border-left: 3px solid var(--accent-strong); margin: 20px 0 0; padding: 13px; }
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -1273,6 +1672,10 @@
 }
 
 @media (max-width: 1180px) {
+  .batchCreateGrid { grid-template-columns: 1fr; }
+  .batchCasePicker { border-bottom: 1px solid var(--line); border-right: 0; }
+  .batchRegressionList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
   .scenarioGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1308,16 +1711,44 @@
 }
 
 @media (max-width: 760px) {
+  .batchWorkspace { margin-bottom: 54px; padding: 30px 0 46px; }
+  .batchHeader { align-items: flex-start; flex-direction: column; }
+  .batchBoundary { width: 100%; }
+  .batchCreateGrid { display: block; }
+  .batchCasePicker,
+  .batchSetup { padding: 17px; }
+  .batchConfigPair,
+  .batchAttemptPair,
+  .batchRegressionDetail dl,
+  .batchRegressionList { grid-template-columns: 1fr; }
+  .batchHistory > button { align-items: start; grid-template-columns: 1fr; gap: 5px; }
+  .batchHistory > button small { text-align: left; }
+  .batchProgress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .batchProgress > div { border-bottom: 1px solid color-mix(in srgb, var(--background) 18%, transparent); }
+  .batchRunning { align-items: flex-start; flex-wrap: wrap; }
+  .batchRunning > span { flex-basis: calc(100% - 30px); }
+  .batchCaseResults summary { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .batchRegressionForm > div { align-items: stretch; flex-direction: column; }
+  .batchRegressionDetail > header { flex-direction: column; }
+  .batchRegressionDetail > header code { max-width: 100%; }
+
   .page {
     padding: 76px 17px 64px;
   }
 
   .capsule {
-    max-width: calc(100vw - 86px);
+    left: 60px;
+    max-width: none;
     overflow: hidden;
-    right: 12px;
-    top: 64px;
+    right: auto;
+    top: 9px;
     white-space: nowrap;
+  }
+
+  .capsule i,
+  .capsule span:not(:first-of-type),
+  .capsule > svg:last-child {
+    display: none;
   }
 
   .pageHeader {

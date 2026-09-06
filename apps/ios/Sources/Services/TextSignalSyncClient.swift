@@ -131,7 +131,7 @@ actor URLTextSignalSyncClient: TextSignalSyncServing {
 
     init(
         baseURL: URL,
-        session: URLSession = .shared,
+        session: URLSession = TalentSignalNetworking.session,
         bindingStore: TextSignalWorkspaceBindingStore = .shared,
         accessToken: String? = nil,
         workspaceID: String? = nil
@@ -439,7 +439,7 @@ actor URLTextSignalSyncClient: TextSignalSyncServing {
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             request.httpBody = try JSONEncoder().encode(body)
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw TextSignalSyncError.invalidResponse
         }
@@ -469,7 +469,7 @@ actor URLTextSignalSyncClient: TextSignalSyncServing {
                 clientLabel: "ios-text-signal"
             )
         )
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await TalentSignalNetworking.data(for: request, using: session)
         guard let http = response as? HTTPURLResponse else {
             throw TextSignalSyncError.invalidResponse
         }

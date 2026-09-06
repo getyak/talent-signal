@@ -368,7 +368,7 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertNotNil(state.selectedSource)
     }
 
-    func testResetDeletesSessionAndRecordingsWithoutTouchingUnrelatedFiles() throws {
+    func testExplicitSessionResetPreservesRecordingsAndUnrelatedFiles() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let recordings = directory.appending(path: "Recordings", directoryHint: .isDirectory)
@@ -384,7 +384,7 @@ final class StandaloneOnboardingTests: XCTestCase {
         try persistence.reset()
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: recordings.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: recordings.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: unrelatedURL.path))
     }
 
@@ -407,17 +407,18 @@ final class StandaloneOnboardingTests: XCTestCase {
 
     @MainActor
     func testResetSaveFailureDoesNotPublishAnUnsavedFreshState() {
-        let originalState = readyForSourceChoice()
+        var originalState = StandaloneOnboardingState.fresh()
+        originalState.startFirstProgressExample()
         let persistence = ControlledStandalonePersistence(state: originalState)
         let store = StandaloneOnboardingStore(persistence: persistence)
         persistence.rejectSaves = true
 
-        store.resetDemoData()
+        XCTAssertThrowsError(try resetDemo(persistence))
+        store.reloadAfterMaintenance()
 
         XCTAssertEqual(store.state.sessionID, originalState.sessionID)
         XCTAssertEqual(store.state.route, originalState.route)
-        XCTAssertNotNil(store.persistenceNotice)
-        XCTAssertNil(persistence.state)
+        XCTAssertEqual(persistence.state, originalState)
     }
 
     @MainActor
@@ -446,16 +447,15 @@ final class StandaloneOnboardingTests: XCTestCase {
             mediaType: "image/png",
             sourceText: "Synthetic source text"
         )
-        let persistence = ControlledStandalonePersistence(state: readyForSourceChoice())
-        let resetter = ControlledDemoDataResetter()
-        let store = StandaloneOnboardingStore(
-            persistence: persistence,
-            demoDataResetter: resetter
-        )
+        var example = StandaloneOnboardingState.fresh()
+        example.startFirstProgressExample()
+        let persistence = ControlledStandalonePersistence(state: example)
+        let store = StandaloneOnboardingStore(persistence: persistence)
 
-        store.resetDemoData()
+        try resetDemo(persistence)
+        store.reloadAfterMaintenance()
 
-        XCTAssertEqual(resetter.resetCount, 1)
+        XCTAssertNil(store.state.account)
         XCTAssertEqual(try inbox.pending().map(\.id), [capture.id])
         XCTAssertNotNil(inbox.payloadURL(for: capture))
         XCTAssertNil(store.persistenceNotice)
@@ -701,15 +701,13 @@ final class StandaloneOnboardingTests: XCTestCase {
         var importedState = readyForSourceChoice()
         XCTAssertTrue(importedState.importSharedCapture(image))
         let persistence = ControlledStandalonePersistence(state: importedState)
-        let store = StandaloneOnboardingStore(
-            persistence: persistence,
-            demoDataResetter: ControlledDemoDataResetter()
-        )
+        let store = StandaloneOnboardingStore(persistence: persistence)
 
-        store.resetDemoData()
+        XCTAssertThrowsError(try resetDemo(persistence))
+        store.reloadAfterMaintenance()
 
-        XCTAssertNil(store.state.captureDraft)
-        XCTAssertTrue(store.state.importedSharedEnvelopeIDs.isEmpty)
+        XCTAssertEqual(store.state.captureDraft?.sharedEnvelopeID, image.id)
+        XCTAssertTrue(store.state.importedSharedEnvelopeIDs.contains(image.id))
         let relaunchedInbox = try SharedCaptureInbox(rootURL: directory)
         XCTAssertEqual(try relaunchedInbox.retained().map(\.id), [image.id])
 
@@ -1091,6 +1089,13 @@ final class StandaloneOnboardingTests: XCTestCase {
         XCTAssertEqual(state.route, .capture)
     }
 
+    private func resetDemo(_ persistence: any StandaloneOnboardingPersisting) throws {
+        guard let target = try LabDemoReset.target(persistence.load()) else { throw LabResetError.unavailable }
+        let context = LabResetContext(endpointScope: "local", ownerScope: "signed-out", credentialFingerprint: nil, demoTarget: target)
+        let operation = LabResetOperation(id: UUID(), startedAt: Date(), context: context, steps: [.init(action: .demo)])
+        _ = try LabDemoReset.perform(operation: operation, persistence: persistence)
+    }
+
     private func readyForSourceChoice() -> StandaloneOnboardingState {
         var state = StandaloneOnboardingState.fresh()
         state.begin(displayName: "Recruiter", demoAccount: false)
@@ -1138,14 +1143,6 @@ private final class ControlledStandalonePersistence: StandaloneOnboardingPersist
     func reset() throws {
         if rejectResets { throw ControlledPersistenceError.resetRejected }
         state = nil
-    }
-}
-
-private final class ControlledDemoDataResetter: StandaloneDemoDataResetting {
-    private(set) var resetCount = 0
-
-    func resetAncillaryDemoData() throws {
-        resetCount += 1
     }
 }
 

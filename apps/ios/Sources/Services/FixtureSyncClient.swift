@@ -10,7 +10,7 @@ struct URLFixtureLoader: FixtureLoading {
             throw FixtureSyncError.loopbackOnly
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await TalentSignalNetworking.session.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             throw FixtureSyncError.unsuccessfulResponse
@@ -80,7 +80,7 @@ struct URLBackendWorkspaceLoader: BackendWorkspaceLoading {
                 clientLabel: "ios-simulator"
             )
         )
-        let (loginData, loginResponse) = try await URLSession.shared.data(for: loginRequest)
+        let (loginData, loginResponse) = try await TalentSignalNetworking.data(for: loginRequest, using: TalentSignalNetworking.session)
         guard let loginHTTPResponse = loginResponse as? HTTPURLResponse,
               (200...299).contains(loginHTTPResponse.statusCode) else {
             throw FixtureSyncError.unsuccessfulResponse
@@ -98,7 +98,7 @@ struct URLBackendWorkspaceLoader: BackendWorkspaceLoading {
         var workspaceRequest = URLRequest(url: workspaceURL)
         workspaceRequest.setValue("Bearer \(login.accessToken)", forHTTPHeaderField: "authorization")
         workspaceRequest.setValue("application/json", forHTTPHeaderField: "accept")
-        let (workspaceData, workspaceResponse) = try await URLSession.shared.data(for: workspaceRequest)
+        let (workspaceData, workspaceResponse) = try await TalentSignalNetworking.data(for: workspaceRequest, using: TalentSignalNetworking.session)
         guard let workspaceHTTPResponse = workspaceResponse as? HTTPURLResponse,
               (200...299).contains(workspaceHTTPResponse.statusCode) else {
             throw FixtureSyncError.unsuccessfulResponse

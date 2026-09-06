@@ -98,10 +98,10 @@ The reviewed text is a governed source fragment with unknown speaker attribution
 Photos selection and App Shortcuts converge on one durable pending-capture inbox and the same review state machine. Interruption preserves the on-device draft; retry reuses stable intent keys.
 Neither path can bypass evidence review, identity review, or relationship selection. Binding compiles a derived Wiki projection only after the backend returns a person and purpose-scoped relationship. Leaving identity unresolved is a valid terminal state.
 
-Relationship Ask screenshots are a separate task-input boundary. A screenshot inside an existing relationship uses the ordinary bound media lifecycle.
-A single PNG/JPEG/WebP sent without a selected relationship instead uses an account-scoped `person-research` task: the authenticated API verifies its byte count and content hash, keeps the bytes process-only, and forwards one read-only Run to the credential-isolated Agent Host without creating or selecting a Person, relationship, Wiki snapshot, or evidence record.
-Only visible text or platform clues may drive bounded searches; appearance alone must abstain. The returned block is an unconfirmed, cited research draft and never bypasses source review, identity review, or effect approval.
-Raw bytes are not stored in Agent state, and open-world provider credentials never enter the API or client.
+Relationship Ask accepts ordered images with or without a selected relationship.
+The backend owns scoped originals, extraction checkpoints, provenance, and recovery.
+Upload alone never makes pixels reviewed evidence. Filing and the legacy read-only
+definition remain separate [Agent capabilities](agent-system.md#authorized-screenshot-contact-filing).
 
 ## Truth model
 

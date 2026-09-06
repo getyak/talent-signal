@@ -12,8 +12,9 @@ struct AudioSignalCaptureView: View {
     @FocusState private var focusedField: AudioSignalField?
     let onDismiss: () -> Void
 
-    init(onDismiss: @escaping () -> Void = {}) {
-        _store = StateObject(wrappedValue: AudioSignalCaptureStore())
+    init(runtimeScope: String? = nil, onDismiss: @escaping () -> Void = {}) {
+        _store = StateObject(wrappedValue: AudioSignalCaptureStore(recorder: AudioSignalRecorder(
+            directoryURL: runtimeScope.map { RuntimeScopedDirectories.directory("AudioSignalOutbox", scope: $0) })))
         self.onDismiss = onDismiss
     }
 
@@ -73,6 +74,7 @@ struct AudioSignalCaptureView: View {
         }
         .interactiveDismissDisabled(store.isRecording)
         .tint(.tsVermilion)
+        .labDiagnosticPresentation()
         .accessibilityIdentifier("audio-signal-capture")
     }
 

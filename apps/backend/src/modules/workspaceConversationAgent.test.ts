@@ -107,10 +107,10 @@ describe("workspace conversation Agent", () => {
       },
       run: vi.fn(async (request) => {
         expect(request.systemPrompt).toContain(
-          "must search contact_workspace with the exact message-grounded clue",
+          "search using clues in the message",
         );
         expect(request.systemPrompt).toContain(
-          "is not, by itself, a reason to ask the user to select one",
+          "read a unique match",
         );
         expect(request.budget.maxDurationMs).toBe(35_000);
         return {

@@ -53,6 +53,7 @@ struct ResearchActivityViewState: Equatable, Hashable {
     let action: ResearchActivityAction?
     let accessibilityLabel: String
     let isTerminal: Bool
+    let displayStatus: LiveActivityDisplayStatus
 }
 
 enum ResearchActivityProjectionError: Error, Equatable {
@@ -63,6 +64,33 @@ enum ResearchActivityProjectionError: Error, Equatable {
 }
 
 enum ResearchActivityProjector {
+    static func presentation(
+        _ state: ResearchActivityAttributes.ContentState,
+        isSystemStale: Bool
+    ) -> ResearchActivityViewState {
+        guard let view = try? project(state) else {
+            return viewState(
+                eyebrow: researchLocalized("CHECK STATUS"),
+                title: researchLocalized("Open Talent Signal"),
+                supportingText: researchLocalized("This update needs review"),
+                boundaryText: researchLocalized("Nothing used automatically"),
+                action: nil,
+                isTerminal: false,
+                displayStatus: .attention
+            )
+        }
+        guard view.action != nil, isSystemStale else { return view }
+        return viewState(
+            eyebrow: view.eyebrow,
+            title: researchLocalized("Update delayed"),
+            supportingText: researchLocalized("Open the app for current status"),
+            boundaryText: view.boundaryText,
+            action: view.action,
+            isTerminal: view.isTerminal,
+            displayStatus: .delayed
+        )
+    }
+
     static func project(
         _ state: ResearchActivityAttributes.ContentState
     ) throws -> ResearchActivityViewState {
@@ -74,7 +102,8 @@ enum ResearchActivityProjector {
                 supportingText: researchLocalized("You can leave"),
                 boundaryText: researchLocalized("Public sources only"),
                 action: .openStatus,
-                isTerminal: false
+                isTerminal: false,
+                displayStatus: .working
             )
         case (.completed, .pagesReadyForReview):
             return viewState(
@@ -83,7 +112,8 @@ enum ResearchActivityProjector {
                 supportingText: researchLocalized("Review required before use"),
                 boundaryText: researchLocalized("Nothing used automatically"),
                 action: .openReview,
-                isTerminal: true
+                isTerminal: true,
+                displayStatus: .review
             )
         case (.cancelled, .ended):
             return viewState(
@@ -92,7 +122,8 @@ enum ResearchActivityProjector {
                 supportingText: researchLocalized("No review is pending"),
                 boundaryText: researchLocalized("Nothing used automatically"),
                 action: nil,
-                isTerminal: true
+                isTerminal: true,
+                displayStatus: .ended
             )
         default:
             throw ResearchActivityProjectionError.unsupportedCombination(
@@ -108,7 +139,8 @@ enum ResearchActivityProjector {
         supportingText: String,
         boundaryText: String,
         action: ResearchActivityAction?,
-        isTerminal: Bool
+        isTerminal: Bool,
+        displayStatus: LiveActivityDisplayStatus
     ) -> ResearchActivityViewState {
         ResearchActivityViewState(
             eyebrow: eyebrow,
@@ -122,7 +154,8 @@ enum ResearchActivityProjector {
                 supportingText,
                 boundaryText,
             ].joined(separator: ". "),
-            isTerminal: isTerminal
+            isTerminal: isTerminal,
+            displayStatus: displayStatus
         )
     }
 }

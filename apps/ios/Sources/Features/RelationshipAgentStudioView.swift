@@ -39,6 +39,7 @@ struct RelationshipAgentStudioView: View {
         sessionStore: AgentSessionStore,
         isCanonical: Bool,
         workspaceID: String?,
+        runtimeScope: String? = nil,
         workspaceLabel: String?,
         accountName: String?,
         accountEmail: String?,
@@ -59,7 +60,7 @@ struct RelationshipAgentStudioView: View {
         self.onOpenProposal = onOpenProposal
         self.onSignOut = onSignOut
         _profileReferenceStore = StateObject(
-            wrappedValue: AgentProfileReferenceStore(workspaceID: workspaceID)
+            wrappedValue: AgentProfileReferenceStore(workspaceID: workspaceID, runtimeScope: runtimeScope)
         )
     }
 

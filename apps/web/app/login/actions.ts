@@ -1,5 +1,8 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+import { redirect } from "next/navigation";
+import { prepareGoogleSignIn, bindGoogleNonce } from "@/lib/server/google-session";
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/auth";
 import {
@@ -56,7 +59,7 @@ export async function signInWithPasswordAccount(
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: "请输入用户名或邮箱以及密码。" };
+    return { error: "请输入邮箱和密码。" };
   }
 
   try {
@@ -82,7 +85,7 @@ export async function registerPasswordAccount(
     return { error: "两次输入的密码不一致。" };
   }
   const parsed = passwordRegistrationSchema.safeParse({
-    username: formData.get("username"),
+    username: formData.get("username") || `u${randomUUID().replaceAll("-", "")}`,
     email: formData.get("email"),
     displayName: formData.get("displayName"),
     password: formData.get("password"),
@@ -137,9 +140,13 @@ export async function signInWithEmail(
 }
 
 export async function signInWithGoogle(formData: FormData) {
-  await signIn("google", {
-    redirectTo: safeRedirectTarget(formData.get("redirectTo")),
+  let nonce: string;
+  try { nonce = await prepareGoogleSignIn(); }
+  catch { redirect("/login?error=Configuration"); }
+  const url = await signIn("google", {
+    redirect: false, redirectTo: safeRedirectTarget(formData.get("redirectTo")),
   });
+  redirect(await bindGoogleNonce(url, nonce));
 }
 
 export async function signInWithApple(formData: FormData) {

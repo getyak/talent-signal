@@ -1,3 +1,4 @@
+import { measureLabServerStage } from "../lib/labDiagnostics.js";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -7,11 +8,12 @@ import type {
   ChatTaskReadback,
   ChatTaskResponse,
   KnowledgeBlock,
+  LabFeatureAdoptionReceipt,
 } from "@talent-signal/contracts";
 import { CONTRACT_VERSION } from "@talent-signal/contracts";
 import type { Pool } from "pg";
 
-import { inTransaction } from "../database/pool.js";
+import { inTransaction, type DatabaseClient } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import { appendAudit } from "../lib/audit.js";
 import {
@@ -45,6 +47,7 @@ import { loadSnapshot } from "./wiki.js";
 const CHAT_POLICY_VERSION = "chat-context.v2";
 
 export interface ChatTaskMutationResult {
+  labProductOutcome?: "accepted" | "fallback";
   body: ChatTaskResponse;
   replayed: boolean;
   status: number;
@@ -154,6 +157,7 @@ export interface ChatManifestRow {
   manifest_status: ChatTaskReadback["manifest_status"];
   snapshot_status: ChatTaskReadback["snapshot_status"];
   authorization_scope: string;
+  lab_feature_receipt?: LabFeatureAdoptionReceipt | null;
   created_at: Date;
 }
 
@@ -268,6 +272,7 @@ export async function getChatTaskReadback(
        manifests.status AS manifest_status,
        snapshots.status AS snapshot_status,
        manifests.authorization_scope,
+       manifests.lab_feature_receipt,
        manifests.created_at
      FROM context_manifests manifests
      JOIN knowledge_snapshots snapshots
@@ -419,6 +424,9 @@ export async function getChatTaskReadback(
     snapshot_status: manifest.snapshot_status,
     authorization_scope: manifest.authorization_scope,
     citations: readbackCitations,
+    ...(manifest.lab_feature_receipt
+      ? { lab_feature_receipt: manifest.lab_feature_receipt }
+      : {}),
     media: await listManifestChatMedia(pool, auth.accountId, manifest.id),
     created_at: manifest.created_at.toISOString(),
   };
@@ -771,6 +779,8 @@ export async function createChatTask(
   remoteChatProvider: RemoteChatAnswerProviding | null = null,
   chatMediaStorage: ChatMediaStorage | null = null,
   personResearchProvider: PersonResearchAgentProviding | null = null,
+  selectRemoteProvider?: (client: DatabaseClient) => Promise<RemoteChatAnswerProviding | null>,
+  resolveLabFeatureReceipt?: (client: DatabaseClient) => Promise<LabFeatureAdoptionReceipt | null>,
 ): Promise<ChatTaskMutationResult> {
   const chatStartedAt = new Date().toISOString();
   return inTransaction(pool, async (client) => {
@@ -800,16 +810,20 @@ export async function createChatTask(
         status: idempotency.replay.status,
       };
     }
+    if (selectRemoteProvider) remoteChatProvider = await selectRemoteProvider(client);
+    const labFeatureReceipt = resolveLabFeatureReceipt
+      ? await resolveLabFeatureReceipt(client)
+      : null;
     if (request.telemetry) {
       await assertTelemetryContext(client, auth, request.telemetry);
     }
 
-    const snapshot = await loadSnapshot(
+    const snapshot = await measureLabServerStage("context", () => loadSnapshot(
       client,
       auth.accountId,
       request.person_id,
       request.relationship_context_id,
-    );
+    ));
     if (snapshot.status !== "published" || snapshot.quality.verdict !== "gold") {
       throw new ApiError(
         409,
@@ -857,9 +871,10 @@ export async function createChatTask(
     await client.query(
       `INSERT INTO context_manifests(
          id, account_id, task_id, subject_id, assignment_id,
-         knowledge_snapshot_id, objective, authorization_scope, policy_version
+         knowledge_snapshot_id, objective, authorization_scope, policy_version,
+         lab_feature_receipt
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)`,
       [
         manifestId,
         auth.accountId,
@@ -870,6 +885,7 @@ export async function createChatTask(
         request.objective,
         authorizationScope,
         CHAT_POLICY_VERSION,
+        labFeatureReceipt ? JSON.stringify(labFeatureReceipt) : null,
       ],
     );
     for (const item of selectedBlocks) {
@@ -947,12 +963,12 @@ export async function createChatTask(
                 data: stored.body,
               };
             }));
-        remoteChatResult = await remoteChatProvider.answer({
+        remoteChatResult = await measureLabServerStage("model_adapter", () => remoteChatProvider!.answer({
           objective: request.objective,
           context_blocks: selectedBlocks.map(remoteContextBlock),
           allowed_citation_ids: evidenceFragmentIds,
           images,
-        });
+        }));
         remoteEndedAt = new Date().toISOString();
         const nextBlocks = insertAfterPersonBrief(
           blocks,
@@ -1084,6 +1100,9 @@ export async function createChatTask(
         remote_chat_status: remoteChatStatus,
         remote_chat_provider_id: remoteChatResult?.provider_id ?? null,
         remote_chat_model: remoteChatResult?.model ?? null,
+        remote_chat_prompt_revision: remoteChatResult?.prompt_revision ?? null,
+        remote_chat_prompt_version_id: remoteChatResult?.prompt_snapshot?.versionId ?? null,
+        remote_chat_prompt_source: remoteChatResult?.prompt_snapshot?.source ?? null,
         remote_chat_provider_request_id:
           remoteChatResult?.provider_request_id ?? null,
         remote_chat_input_tokens: remoteChatResult?.input_tokens ?? 0,
@@ -1095,6 +1114,7 @@ export async function createChatTask(
       body: response,
       replayed: false,
       status: 201,
+      labProductOutcome: remoteChatStatus === "completed" ? "accepted" : "fallback",
     };
   });
 }

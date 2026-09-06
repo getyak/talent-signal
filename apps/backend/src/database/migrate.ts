@@ -45,6 +45,17 @@ const MIGRATIONS = [
   "037_source_retention_derivative_lineage",
   "038_reviewed_person_public_profiles",
   "039_talent_signal_lab",
+  "040_lab_experiments",
+  "041_lab_task_trials",
+  "042_lab_experiment_jobs",
+  "043_lab_regressions",
+  "044_lab_ci_verifications",
+  "045_lab_test_workspaces",
+  "046_lab_feature_overrides",
+  "047_screenshot_contact_tasks",
+  "048_contact_task_invalidation",
+  "049_contact_task_images",
+  "050_google_auth",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

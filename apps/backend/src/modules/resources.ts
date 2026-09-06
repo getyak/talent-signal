@@ -21,6 +21,7 @@ import {
 } from "../lib/idempotency.js";
 import type { AuthContext } from "./auth.js";
 import { proposeResourceClaimsForFragment } from "./resourceClaims.js";
+import { loadClaimReviewAuthority } from "./claimReviewAuthority.js";
 
 interface ResourceListRow {
   id: string;
@@ -46,6 +47,7 @@ interface ResourceListRow {
 }
 
 interface FragmentRow {
+  last_review_id?: string | null;
   id: string;
   account_id: string;
   capture_id: string;
@@ -75,6 +77,8 @@ interface ClaimRow {
   temporal_relation: ResourceClaimProposal["temporal_relation"];
   supersedes_state_id: string | null;
   prior_confirmed_value: string | null;
+  reviewed_value: string | null;
+  last_decision_id: string | null;
   version: number;
   producer_name: string;
   producer_version: string;
@@ -292,6 +296,15 @@ export async function getRelationshipResource(
   auth: AuthContext,
   resourceId: string,
 ): Promise<RelationshipResourceDetail> {
+  return inTransaction(pool, async (client) => {
+    await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    return readRelationshipResource(client, auth, resourceId);
+  });
+}
+
+async function readRelationshipResource(
+  pool: PoolClient, auth: AuthContext, resourceId: string,
+): Promise<RelationshipResourceDetail> {
   const resourceResult = await pool.query<ResourceListRow>(
     `${RESOURCE_SELECT}
      WHERE resources.account_id = $1
@@ -328,7 +341,10 @@ export async function getRelationshipResource(
        id, account_id, capture_id, resource_id, fragment_kind, sequence,
        text_content, content_hash, locator, attributed_actor,
        attribution_status, review_status, parser_name, parser_version,
-       created_at
+       created_at,
+       (SELECT reviews.id FROM evidence_fragment_reviews reviews
+         WHERE reviews.account_id = evidence_fragments.account_id AND reviews.fragment_id = evidence_fragments.id
+         ORDER BY review_revision DESC LIMIT 1) AS last_review_id
      FROM evidence_fragments
      WHERE account_id = $1
        AND resource_id = $2
@@ -349,6 +365,10 @@ export async function getRelationshipResource(
        assertions.temporal_relation,
        assertions.supersedes_state_id,
        prior_states.value_text AS prior_confirmed_value,
+       latest_decision.id AS last_decision_id,
+       CASE WHEN latest_decision.decision = 'confirm'
+         THEN COALESCE(latest_decision.corrected_value, latest_decision.proposed_value_at_decision)
+         ELSE NULL END AS reviewed_value,
        assertions.version,
        proposals.producer_name,
        proposals.producer_version,
@@ -363,6 +383,11 @@ export async function getRelationshipResource(
      LEFT JOIN confirmed_states prior_states
        ON prior_states.account_id = assertions.account_id
       AND prior_states.id = assertions.supersedes_state_id
+     LEFT JOIN LATERAL (
+       SELECT id, decision, corrected_value, proposed_value_at_decision
+       FROM fact_decisions WHERE account_id = assertions.account_id AND assertion_id = assertions.id
+       ORDER BY assertion_version DESC, decided_at DESC, id DESC LIMIT 1
+     ) latest_decision ON true
      WHERE assertions.account_id = $1
        AND fragments.resource_id = $2
        AND assertions.review_status <> 'deleted'
@@ -375,6 +400,7 @@ export async function getRelationshipResource(
     resource: mapResource(resource),
     fragments: fragments.rows.map((fragment) => ({
       id: fragment.id,
+      last_review_id: fragment.last_review_id ?? null,
       account_id: fragment.account_id,
       capture_id: fragment.capture_id,
       resource_id: fragment.resource_id,
@@ -394,8 +420,12 @@ export async function getRelationshipResource(
       },
       created_at: fragment.created_at.toISOString(),
     })),
-    claim_proposals: claims.rows.map((claim) => ({
+    claim_proposals: await Promise.all(claims.rows.map(async (claim) => {
+      const authority = await loadClaimReviewAuthority(pool, auth.accountId, claim.id);
+      return {
       id: claim.id,
+      review_token: authority.token,
+      review_blockers: authority.blockers,
       field: claim.field,
       proposal_status: claim.proposal_status,
       review_status: claim.review_status,
@@ -406,12 +436,15 @@ export async function getRelationshipResource(
       temporal_relation: claim.temporal_relation,
       supersedes_state_id: claim.supersedes_state_id,
       prior_confirmed_value: claim.prior_confirmed_value,
+      reviewed_value: claim.reviewed_value,
+      last_decision_id: claim.last_decision_id,
       version: claim.version,
       producer: {
         name: claim.producer_name,
         version: claim.producer_version,
       },
       created_at: claim.created_at.toISOString(),
+      };
     })),
   };
 }
@@ -485,14 +518,21 @@ export async function reviewEvidenceFragment(
       request.idempotency_key,
       { fragment_id: fragmentId, ...request },
     );
+    await client.query(`SELECT id FROM captures WHERE account_id = $1 AND id = (
+      SELECT capture_id FROM evidence_fragments WHERE account_id = $1 AND id = $2
+    ) FOR UPDATE`, [auth.accountId, fragmentId]);
     const fragmentResult = await client.query<{
       resource_id: string;
+      attributed_actor: string;
+      attribution_status: string;
       review_status: EvidenceFragment["review_status"];
       identity_status: "bound" | "ambiguous" | "unbound";
       authorization_state: "authorized" | "revoked" | "expired";
     }>(
       `SELECT
          fragments.resource_id,
+         fragments.attributed_actor,
+         fragments.attribution_status,
          fragments.review_status,
          captures.identity_status,
          CASE
@@ -591,6 +631,16 @@ export async function reviewEvidenceFragment(
     }
 
     const decidedAt = new Date();
+    if (request.confirmed_speaker) {
+      if (request.decision !== "reviewed" ||
+          (lockedFragment.attribution_status === "confirmed" && lockedFragment.attributed_actor !== request.confirmed_speaker)) {
+        throw new ApiError(409, "SPEAKER_CORRECTION_REQUIRES_NEW_SOURCE", "This confirmed attribution requires a separate corrected source; it cannot be overwritten.");
+      }
+      await client.query(
+        `UPDATE evidence_fragments SET attributed_actor = $3, attribution_status = 'confirmed'
+         WHERE account_id = $1 AND id = $2`, [auth.accountId, fragmentId, request.confirmed_speaker],
+      );
+    }
     const reviewId = randomUUID();
     await client.query(
       `INSERT INTO evidence_fragment_reviews(
@@ -618,6 +668,31 @@ export async function reviewEvidenceFragment(
        WHERE account_id = $1 AND id = $2`,
       [auth.accountId, fragmentId, request.decision],
     );
+    let retractedStateIds: string[] = [];
+    if (request.decision === "rejected") {
+      const retracted = await client.query<{ id: string }>(
+        `UPDATE confirmed_states states SET status = 'retracted',
+           valid_until = COALESCE(states.valid_until, $3)
+         FROM proposed_assertions assertions
+         WHERE assertions.account_id = $1 AND assertions.evidence_fragment_id = $2
+           AND states.account_id = assertions.account_id AND states.source_assertion_id = assertions.id
+           AND states.status NOT IN ('deleted', 'retracted') RETURNING states.id`,
+        [auth.accountId, fragmentId, decidedAt],
+      );
+      retractedStateIds = retracted.rows.map((state) => state.id);
+      await client.query(
+        `UPDATE confirmed_states prior SET status = 'contested'
+         FROM confirmed_states retracted
+         WHERE retracted.account_id = $1 AND retracted.id = ANY($2::uuid[])
+           AND prior.account_id = retracted.account_id AND prior.id = retracted.supersedes_state_id
+           AND prior.status = 'superseded'`, [auth.accountId, retractedStateIds],
+      );
+      await client.query(
+        `UPDATE proposed_assertions SET review_status = 'deleted', version = version + 1
+         WHERE account_id = $1 AND evidence_fragment_id = $2 AND review_status <> 'deleted'`,
+        [auth.accountId, fragmentId],
+      );
+    }
     const proposedClaimCount =
       request.decision === "reviewed"
         ? await proposeResourceClaimsForFragment(
@@ -705,6 +780,8 @@ export async function reviewEvidenceFragment(
         prior_review_id: fragment.last_review_id,
         resource_id: fragment.resource_id,
         proposed_claim_count: proposedClaimCount,
+        confirmed_speaker: request.confirmed_speaker ?? null,
+        retracted_state_ids: retractedStateIds,
         invalidated_snapshot_ids: invalidatedSnapshotIds,
       },
     );

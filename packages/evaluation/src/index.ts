@@ -9,3 +9,4 @@ export * from "./localJsonReporter.js";
 export * from "./registry.js";
 export * from "./runtimeDependencies.js";
 export * from "./validate.js";
+export * from "./labRegression.js";

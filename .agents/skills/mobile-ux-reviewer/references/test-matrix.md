@@ -23,6 +23,8 @@ Select all rows relevant to the changed path. Record `pass`, `fail`, or `not_run
 - Same-name candidates and wrong-role suggestion.
 - Cropped, low-contrast, quoted, forwarded, group-chat, and third-party messages.
 - No-action input, contradiction, retraction, expired deadline, superseded state.
+- Evidence becoming unavailable while its observation timestamp remains present;
+  freshness must not hide lost authority in either primary or continuation rows.
 
 ## Accessibility
 
@@ -31,6 +33,9 @@ Select all rows relevant to the changed path. Record `pass`, `fail`, or `not_run
 - Every control has a meaningful name/value; no duplicated speech.
 - State differences remain understandable without color.
 - Default targets approximately 44×44 pt with adequate separation.
+- For custom controls, inspect the actual accessible button bounds and tap the
+  target. Padding or a SwiftUI frame alone does not prove the hit region;
+  verify any content-shape correction on the rendered control.
 - Contrast manually inspected; automated findings reviewed, not blindly accepted.
 - Full Keyboard Access/Switch Control where applicable.
 - Evidence highlights have a textual alternative.

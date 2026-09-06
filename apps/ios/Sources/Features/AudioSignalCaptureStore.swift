@@ -105,13 +105,19 @@ final class AudioSignalCaptureStore: ObservableObject {
     }
 
     func start(sceneIsActive: Bool) async {
+        await LabClientDiagnostics.observe(.audioSessionPreparation) {
+            await self.startRecorded(sceneIsActive: sceneIsActive)
+        }
+    }
+
+    private func startRecorded(sceneIsActive: Bool) async -> LabClientSpan.Outcome {
         guard canStart else {
             explainMissingRequirement()
-            return
+            return .skipped
         }
         guard sceneIsActive else {
             phase = .failed("Open Talent Signal in the foreground before recording. No recording started.")
-            return
+            return .skipped
         }
         notice = nil
         var permission = recorder.permissionStatus()
@@ -122,7 +128,7 @@ final class AudioSignalCaptureStore: ObservableObject {
         microphonePermission = permission
         guard permission == .granted else {
             phase = .failed("Microphone permission was not granted. No recording started.")
-            return
+            return .failed
         }
         phase = .preparing
         do {
@@ -139,31 +145,41 @@ final class AudioSignalCaptureStore: ObservableObject {
                 )
             )
             phase = .recording(startedAt: Date())
+            return .completed
         } catch {
             try? recorder.discardActiveRecording()
             phase = .failed(error.localizedDescription)
+            return LabClientDiagnostics.failure(error)
         }
     }
 
     func stop() {
         guard isRecording else { return }
-        do {
-            phase = .saved(try recorder.stop())
-        } catch {
-            try? recorder.discardActiveRecording()
-            phase = .failed("Recording stopped without a durable receipt: \(error.localizedDescription)")
+        LabClientDiagnostics.observeSync(.audioPayloadFinalization) {
+            do {
+                phase = .saved(try recorder.stop())
+                return .completed
+            } catch {
+                try? recorder.discardActiveRecording()
+                phase = .failed("Recording stopped without a durable receipt: \(error.localizedDescription)")
+                return LabClientDiagnostics.failure(error)
+            }
         }
     }
 
     func stopForForegroundLoss() {
         guard isRecording else { return }
-        do {
-            let receipt = try recorder.stop()
-            notice = "Recording stopped because Talent Signal left the foreground. The completed local payload is recoverable."
-            phase = .saved(receipt)
-        } catch {
-            try? recorder.discardActiveRecording()
-            phase = .failed("The foreground recording was interrupted and no verified payload was saved.")
+        LabClientDiagnostics.observeSync(.audioPayloadFinalization) {
+            do {
+                let receipt = try recorder.stop()
+                notice = "Recording stopped because Talent Signal left the foreground. The completed local payload is recoverable."
+                phase = .saved(receipt)
+                return .completed
+            } catch {
+                try? recorder.discardActiveRecording()
+                phase = .failed("The foreground recording was interrupted and no verified payload was saved.")
+                return LabClientDiagnostics.failure(error)
+            }
         }
     }
 

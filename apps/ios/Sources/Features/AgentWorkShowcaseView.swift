@@ -259,7 +259,11 @@ final class AgentWorkShowcaseStore: ObservableObject {
     }
 
     func open(_ link: AgentWorkDeepLink) async {
-        guard let linkedScenario = scenario(for: link.identity.taskID) else {
+        let linkedScenario = scenario(for: link.identity.taskID)
+        let linkedAtlas = AgentWorkBoundaryAtlasFixture.allCases.first {
+            link.identity.taskID == "task.agent-atlas.\($0.rawValue)"
+        }
+        guard linkedScenario != nil || linkedAtlas != nil else {
             phase = .routeRejected
             statusMessage = "The task is not an authorized showcase fixture."
             return
@@ -273,6 +277,27 @@ final class AgentWorkShowcaseStore: ObservableObject {
             statusMessage = "This Live Activity is no longer the current task. Nothing was ended or changed."
             return
         }
+        if let fixture = linkedAtlas {
+            let expected = fixture.state
+            let expectedDestination: AgentWorkDeepLinkDestination = fixture == .stale ? .status : .resolve
+            guard link.destination == expectedDestination,
+                  snapshot.state.execution == expected.execution,
+                  snapshot.state.attention == expected.attention,
+                  snapshot.state.freshness == expected.freshness,
+                  snapshot.state.stage == expected.stage,
+                  snapshot.state.reviewActionCount == expected.reviewActionCount,
+                  snapshot.state.eventRevision == expected.eventRevision else {
+                rejectStateMismatch()
+                return
+            }
+            identity = snapshot.identity
+            revision = snapshot.state.eventRevision
+            session = nil
+            phase = .boundaryAtlas(fixture)
+            statusMessage = "The exact synthetic issue is open. No retry or write happened automatically."
+            return
+        }
+        guard let linkedScenario else { return }
         scenario = linkedScenario
 
         switch link.destination {
@@ -467,7 +492,13 @@ final class AgentWorkShowcaseStore: ObservableObject {
     private func isResolutionState(
         _ state: AgentWorkActivityAttributes.ContentState
     ) -> Bool {
-        (state.execution == .failed || state.execution == .unknown)
+        if state.execution == .partial,
+           state.attention == .review,
+           state.stage == .readyForReview,
+           (1 ... 9).contains(state.reviewActionCount) {
+            return true
+        }
+        return (state.execution == .failed || state.execution == .unknown)
             && state.attention == .resolve
             && state.stage == .reconcilingOutcome
             && state.reviewActionCount == 0
@@ -541,7 +572,7 @@ struct AgentWorkShowcaseView: View {
     @StateObject private var store = AgentWorkShowcaseStore()
     @ObservedObject private var controller = AgentWorkActivityController.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.talentSignalReduceMotion) private var accessibilityReduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
     init(
@@ -593,10 +624,10 @@ struct AgentWorkShowcaseView: View {
         }
         .tint(.tsVermilion)
         .task(id: initialURL) {
-            if let atlasFixture {
-                await store.startBoundaryAtlas(atlasFixture)
-            } else if let initialURL, let link = AgentWorkDeepLink.parse(initialURL) {
+            if let initialURL, let link = AgentWorkDeepLink.parse(initialURL) {
                 await store.open(link)
+            } else if let atlasFixture {
+                await store.startBoundaryAtlas(atlasFixture)
             } else {
                 await store.restore()
             }

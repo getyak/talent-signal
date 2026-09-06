@@ -10,6 +10,7 @@ COPY apps/agent/package.json apps/agent/package.json
 COPY apps/agent-host/package.json apps/agent-host/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/evaluation/package.json packages/evaluation/package.json
 
 ARG PNPM_REGISTRY=https://registry.npmjs.org
 RUN pnpm config set registry "$PNPM_REGISTRY" \
@@ -18,6 +19,7 @@ RUN pnpm config set registry "$PNPM_REGISTRY" \
       --filter @talent-signal/agent-host...
 
 COPY packages/contracts packages/contracts
+COPY packages/evaluation packages/evaluation
 COPY apps/agent apps/agent
 COPY apps/agent-host apps/agent-host
 COPY apps/backend apps/backend
