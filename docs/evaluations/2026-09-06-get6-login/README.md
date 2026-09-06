@@ -135,8 +135,9 @@ dedicated SKView now owns lifecycle pausing separately from the scene's bounded
 idle pause. The revealed screenshots and recording verify that fix. The two
 portrait renderers also honor both system and Lab reduced-motion preferences.
 
-This delivery changes the local source and running backend; it does not upload
-a new TestFlight binary or publish Google's consent screen to production.
+The initial design delivery changed local source and the running backend. The
+subsequent authorized TestFlight publication is recorded in the
+[release evidence](release.md); Google's consent screen remains in Testing.
 
 Sources: [Google native OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
 [Google identity verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token),
