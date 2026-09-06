@@ -27841,6 +27841,116 @@
           }
         }
       }
+    },
+    "All sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部会话"
+          }
+        }
+      }
+    },
+    "Clear filter": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除筛选"
+          }
+        }
+      }
+    },
+    "Filter sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选会话"
+          }
+        }
+      }
+    },
+    "No matching sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的会话"
+          }
+        }
+      }
+    },
+    "Read session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已读会话"
+          }
+        }
+      }
+    },
+    "Review needed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待你确认"
+          }
+        }
+      }
+    },
+    "Search sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索会话"
+          }
+        }
+      }
+    },
+    "people": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人物"
+          }
+        }
+      }
+    },
+    "person": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人物"
+          }
+        }
+      }
+    },
+    "session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个会话"
+          }
+        }
+      }
+    },
+    "sessions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个会话"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

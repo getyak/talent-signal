@@ -2,6 +2,31 @@ import XCTest
 @testable import TalentSignal
 
 final class RelationshipArchiveTests: XCTestCase {
+    @MainActor
+    func testSessionSearchCombinesVisibleMetadataAndScopeWithoutChangingOrder() throws {
+        let store = AgentSessionStore.preview(snapshot: .preview)
+        var sessions = store.sessions
+        sessions[0].isUnread = true
+        func results(_ query: String, _ scope: AgentSessionRetrievalScope = .all) -> [UUID] {
+            AgentSessionRetrievalPolicy.filteredSessions(
+                sessions, query: query, scope: scope, language: .english
+            ).map(\.id)
+        }
+        XCTAssertEqual(results("  "), sessions.map(\.id))
+        XCTAssertEqual(results("LÉILA product"), [sessions[0].id])
+        XCTAssertEqual(results("next conversation"), [sessions[1].id])
+        XCTAssertEqual(results("", .unread), [sessions[0].id])
+        XCTAssertEqual(results("Nia", .unread), [])
+        XCTAssertEqual(results("", .needsAttention), [sessions[0].id])
+        XCTAssertEqual(results("not a matching person"), [])
+        // Hidden response bodies and exact source excerpts are not an index.
+        XCTAssertEqual(results("full-time relocation"), [])
+        sessions[0].isUnread = false
+        XCTAssertEqual(results("", .unread), [])
+        XCTAssertEqual(store.sessions.count, 2)
+        XCTAssertFalse(store.sessions[0].isUnread)
+    }
+
     func testAgentStudioSheetHasStableIdentifier() {
         XCTAssertEqual(RelationshipArchiveSheet.agentStudio.id, "agent-studio")
         XCTAssertEqual(RelationshipArchiveSheet.menu.id, "menu")
@@ -3778,6 +3803,15 @@ final class RelationshipArchiveTests: XCTestCase {
                 in: snapshot,
                 query: "candidate",
                 scope: .all
+            ).map(\.displayLabel),
+            ["Leila Hartmann", "Nia Williams"]
+        )
+        XCTAssertEqual(
+            WorkspacePeopleRetrievalPolicy.filteredPeople(
+                in: snapshot,
+                query: "候选人",
+                scope: .all,
+                language: .simplifiedChinese
             ).map(\.displayLabel),
             ["Leila Hartmann", "Nia Williams"]
         )
