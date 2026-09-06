@@ -2518,6 +2518,52 @@ struct WorkspacePersonRetrievalMetadata: Equatable {
     let lastActivityAt: Date?
 }
 
+enum AgentSessionRetrievalScope: String, CaseIterable, Identifiable {
+    case all, unread, needsAttention
+
+    var id: String { rawValue }
+
+    func displayLabel(in language: AppLanguage) -> String {
+        switch self {
+        case .all: return language.text("All sessions")
+        case .unread: return language.text("Unread")
+        case .needsAttention: return language.text("Needs attention")
+        }
+    }
+}
+
+enum AgentSessionRetrievalPolicy {
+    // Search the same local retrieval metadata the row presents. Do not expose
+    // private message bodies, stale answers, or another relationship's evidence.
+    static func filteredSessions(
+        _ sessions: [AgentSession],
+        query: String,
+        scope: AgentSessionRetrievalScope,
+        language: AppLanguage
+    ) -> [AgentSession] {
+        let words = normalize(query).split(whereSeparator: \.isWhitespace)
+        return sessions.filter { session in
+            switch scope {
+            case .all: break
+            case .unread: guard session.isUnread else { return false }
+            case .needsAttention:
+                guard session.retrievalAttention != nil else { return false }
+            }
+            let metadata = normalize([
+                session.displayTitle(in: language),
+                session.personDisplayLabel,
+                session.displayContextLabel(in: language),
+            ].joined(separator: " "))
+            return words.allSatisfy { metadata.contains($0) }
+        }
+    }
+
+    private static func normalize(_ value: String) -> String {
+        value.folding(options: [.caseInsensitive, .diacriticInsensitive],
+                      locale: Locale(identifier: "en_US_POSIX"))
+    }
+}
+
 enum WorkspacePeopleScope: Equatable, Identifiable {
     case all
     case pursuit(id: String, title: String)
@@ -2544,7 +2590,8 @@ enum WorkspacePeopleRetrievalPolicy {
     static func filteredPeople(
         in snapshot: PursuitWorkspaceSnapshot,
         query: String,
-        scope: WorkspacePeopleScope
+        scope: WorkspacePeopleScope,
+        language: AppLanguage = .english
     ) -> [WorkspacePerson] {
         let normalizedQuery = normalize(
             query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2577,6 +2624,7 @@ enum WorkspacePeopleRetrievalPolicy {
                         [
                             pursuit.title,
                             $0.roleType.replacingOccurrences(of: "_", with: " "),
+                            language.text($0.roleType.humanized),
                         ]
                     }
             }

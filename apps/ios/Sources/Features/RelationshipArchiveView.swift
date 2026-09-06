@@ -182,7 +182,9 @@ struct RelationshipArchiveView: View {
                         },
                         onOpenCalendar: openRelationshipCalendar
                     )
-                    if labStore.isEnabled || DeviceLabAvailability.enabled {
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    if (labStore.isEnabled || DeviceLabAvailability.enabled)
+                        && (selectedPage == .today || labStore.session != nil) {
                         HStack {
                             Spacer(minLength: 0)
                             TalentSignalLabCapsule(store: labStore) {
@@ -1201,12 +1203,6 @@ private struct RelationshipArchiveHeader: View {
         .padding(.horizontal, 14)
         .frame(minHeight: 52)
         .background(Color.tsSurface)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.tsLine.opacity(0.65))
-                .frame(height: 0.5)
-                .accessibilityHidden(true)
-        }
     }
 
     private var agentStudioButton: some View {
@@ -1272,7 +1268,7 @@ private struct RelationshipArchiveHeader: View {
             .accessibilityIdentifier("calendar-shortcut-add-activity")
         } label: {
             Image(systemName: "calendar")
-                .font(.system(size: 17, weight: .medium))
+                .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(Color.tsInk)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -1411,6 +1407,7 @@ private struct RelationshipArchiveHeader: View {
                         selectedPage == page ? Color.tsInk : Color.tsMutedInk
                     )
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                     .fixedSize(horizontal: !expands, vertical: false)
                     .layoutPriority(1)
                     .accessibilityHidden(true)
@@ -1428,6 +1425,7 @@ private struct RelationshipArchiveHeader: View {
         .accessibilityAddTraits(selectedPage == page ? .isSelected : [])
         .accessibilityLabel(page.title(in: appLanguage))
         .accessibilityIdentifier("archive-tab-\(page.accessibilityIdentifier)")
+        .accessibilityShowsLargeContentViewer { Text(page.title(in: appLanguage)) }
         .id(page.id)
         .background {
             GeometryReader { geometry in
@@ -2907,6 +2905,210 @@ private struct TodayDecisionContextLine: View {
     }
 }
 
+private struct RelationshipRetrievalMetadataLabelStyle: LabelStyle {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            configuration.icon
+                .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 20 : 12))
+            configuration.title
+        }
+    }
+}
+
+private struct RelationshipRetrievalIndex: View {
+    let count: Int
+    let noun: String
+    let isPreview: Bool
+    @Environment(\.appLanguage) private var appLanguage
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                countLabel.fixedSize()
+                Spacer(minLength: 12)
+                previewLabel.fixedSize()
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                countLabel
+                previewLabel
+            }
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var countLabel: some View {
+        Text(count.formatted() + " " + noun)
+            .foregroundStyle(Color.tsMutedInk)
+            .accessibilityShowsLargeContentViewer {
+                Text(count.formatted() + " " + noun)
+            }
+    }
+
+    @ViewBuilder
+    private var previewLabel: some View {
+        if isPreview {
+            Text(appLanguage.text("Synthetic preview"))
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityIdentifier("workspace-preview-boundary")
+                .accessibilityShowsLargeContentViewer {
+                    Text(appLanguage.text("Synthetic preview"))
+                }
+        }
+    }
+}
+
+// Shared retrieval controls keep search distinct from the global Agent composer.
+private struct RelationshipRetrievalSearchField: View {
+    let placeholder: String
+    let identifier: String
+    @Binding var text: String
+    @Environment(\.appLanguage) private var appLanguage
+    @Environment(\.colorSchemeContrast) private var contrast
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(Color.tsMutedInk)
+                .accessibilityHidden(true)
+            TextField(
+                "", text: $text,
+                prompt: Text(placeholder).foregroundColor(.tsMutedInk)
+            )
+                .font(.subheadline)
+                .foregroundStyle(Color.tsInk)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isFocused)
+                .frame(minHeight: 46)
+                .accessibilityLabel(placeholder)
+                .accessibilityIdentifier("\(identifier)-search-field")
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(Color.tsMutedInk)
+                        .frame(width: 44, height: 46)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(appLanguage.text("Clear search"))
+                .accessibilityIdentifier("\(identifier)-search-clear")
+            }
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, text.isEmpty ? 16 : 2)
+        .background(Color.tsInk.opacity(0.04), in: Capsule())
+        .overlay {
+            Capsule().strokeBorder(
+                Color.tsMutedInk.opacity(isFocused || contrast == .increased ? 0.45 : 0),
+                lineWidth: 1
+            )
+        }
+        .contentShape(Capsule())
+        .onTapGesture { isFocused = true }
+    }
+}
+
+private struct RelationshipRetrievalFilterLabel: View {
+    let isActive: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Image(systemName: isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+            .font(.system(size: 19, weight: .regular))
+            .foregroundStyle(isActive ? Color.tsInk : Color.tsMutedInk)
+            .frame(width: 46, height: 46)
+            .background(Color.tsInk.opacity(isActive ? 0.08 : 0.04), in: Circle())
+            .overlay {
+                Circle().strokeBorder(Color.tsLine.opacity(contrast == .increased ? 1 : 0), lineWidth: 1)
+            }
+            .contentShape(Circle())
+    }
+}
+
+private struct RelationshipRetrievalSelection: View {
+    let title: String
+    let identifier: String
+    let reset: () -> Void
+    @Environment(\.appLanguage) private var appLanguage
+
+    var body: some View {
+        Button(action: reset) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "xmark")
+                    .font(.caption2.weight(.semibold))
+            }
+            .foregroundStyle(Color.tsMutedInk)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .background(Color.tsInk.opacity(0.04), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel([title, appLanguage.text("Clear filter")].joined(separator: ", "))
+        .accessibilityIdentifier(identifier)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct RelationshipRetrievalSurface: ViewModifier {
+    var isUnread = false
+    var isDirectory = false
+    @Environment(\.workspaceCardDensity) private var cardDensity
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+        content
+            .padding(.horizontal, 16)
+            .padding(.vertical, cardDensity.cardPadding + 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if isUnread {
+                    shape.fill(colorScheme == .dark ? Color.tsSurfaceMuted : Color.tsEvidence)
+                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.22 : 0.07),
+                                radius: 12, x: 0, y: 4)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if !isUnread {
+                    Rectangle()
+                        .fill(Color.tsLine.opacity(contrast == .increased ? 1 : 0.5))
+                        .frame(height: 0.5)
+                        .padding(.leading, isDirectory && !dynamicTypeSize.isAccessibilitySize ? 72 : 16)
+                        .padding(.trailing, 16)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(shape)
+            .modifier(LabLayoutOutline())
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func retrievalScrollEdge() -> some View {
+        // Native diffusion preserves readable controls as content passes beneath.
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            self
+        }
+    }
+}
+
 struct AgentSessionListView: View {
     let sessions: [AgentSession]
     let people: [String: WorkspacePerson]
@@ -2923,15 +3125,13 @@ struct AgentSessionListView: View {
     @State private var presentedAlert: AgentSessionAlert?
     @State private var isRestoringScroll = false
     @State private var scrollViewport: CGRect = .zero
+    @State private var searchText = ""
+    @State private var selectedScope: AgentSessionRetrievalScope = .all
 
     var body: some View {
         VStack(spacing: 0) {
-            if isPreview {
-                PursuitPreviewBoundary()
-                    .padding(.horizontal, 20)
-                    .padding(.top, 14)
-                    .padding(.bottom, 6)
-            }
+            retrievalIndex
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
 
             if let persistenceNotice {
                 Label(persistenceNotice, systemImage: "exclamationmark.triangle")
@@ -2966,6 +3166,7 @@ struct AgentSessionListView: View {
                 sessionList
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) { retrievalRail }
         .background(Color.tsSurface)
         .alert(item: $presentedAlert) { alert in
             switch alert {
@@ -3017,6 +3218,73 @@ struct AgentSessionListView: View {
         }
     }
 
+    private var filteredSessions: [AgentSession] {
+        AgentSessionRetrievalPolicy.filteredSessions(
+            sessions, query: searchText, scope: selectedScope, language: appLanguage
+        )
+    }
+
+    private var retrievalRail: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 10) {
+                RelationshipRetrievalSearchField(
+                    placeholder: appLanguage.text("Search sessions"),
+                    identifier: "sessions", text: $searchText
+                )
+                Menu {
+                    ForEach(AgentSessionRetrievalScope.allCases) { scope in
+                        Button { selectedScope = scope } label: {
+                            if selectedScope == scope {
+                                Label(scope.displayLabel(in: appLanguage), systemImage: "checkmark")
+                            } else {
+                                Text(scope.displayLabel(in: appLanguage))
+                            }
+                        }
+                        .accessibilityIdentifier("sessions-filter-\(scope.id)")
+                    }
+                } label: {
+                    RelationshipRetrievalFilterLabel(isActive: selectedScope != .all)
+                }
+                .accessibilityLabel([appLanguage.text("Filter sessions"), selectedScope.displayLabel(in: appLanguage)].joined(separator: ", "))
+                .accessibilityIdentifier("sessions-filter-menu")
+            }
+            if selectedScope != .all {
+                RelationshipRetrievalSelection(
+                    title: selectedScope.displayLabel(in: appLanguage),
+                    identifier: "sessions-filter-clear"
+                ) { selectedScope = .all }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .background(Color.tsSurface)
+    }
+
+    private var noMatchesView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(appLanguage.text("No matching sessions"))
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+                .accessibilityIdentifier("sessions-no-matches")
+            Button {
+                searchText = ""
+                selectedScope = .all
+            } label: {
+                Text(appLanguage.text("Clear search and filter"))
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .background(Color.tsInk.opacity(0.045), in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.tsInk)
+            .accessibilityIdentifier("sessions-filter-reset")
+        }
+        .padding(.vertical, 20)
+    }
+
     private var sessionList: some View {
         ScrollViewReader { proxy in
             sessionListContent
@@ -3036,97 +3304,112 @@ struct AgentSessionListView: View {
         }
     }
 
-    private var sessionListContent: some View {
-        List {
-            ForEach(sessions) { session in
-                ZStack(alignment: .trailing) {
-                    Button { onOpen(session) } label: {
-                        AgentSessionRow(
-                            session: session,
-                            person: session.personID.flatMap { people[$0] }
-                        )
-                    }
-                    .buttonStyle(RelationshipRetrievalButtonStyle())
-                    .accessibilityIdentifier(
-                        "agent-session-\(session.id.uuidString)"
-                    )
-                    .accessibilityAction(
-                        named: Text(appLanguage.text("Open session"))
-                    ) {
-                        onOpen(session)
-                    }
-                    .accessibilityAction(
-                        named: Text(
-                            session.isUnread
-                                ? appLanguage.text("Mark as read")
-                                : appLanguage.text("Mark as unread")
-                        )
-                    ) {
-                        toggleReadState(for: session)
-                    }
-                    .accessibilityAction(
-                        named: Text(
-                            appLanguage.text("Delete session history from this device")
-                        )
-                    ) {
-                        presentedAlert = .delete(session)
-                    }
+    private var retrievalIndex: some View {
+        RelationshipRetrievalIndex(
+            count: filteredSessions.count,
+            noun: appLanguage.text(filteredSessions.count == 1 ? "session" : "sessions"),
+            isPreview: isPreview
+        )
+    }
 
-                    Menu {
-                        sessionActions(for: session)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(Color.tsMutedInk)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
+    private var sessionListContent: some View {
+                List {
+                    if filteredSessions.isEmpty {
+                        noMatchesView
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, max(4, cardDensity.cardPadding - 4))
-                    .accessibilityLabel(
-                        appLanguage.text("More session actions")
-                    )
-                    .accessibilityIdentifier(
-                        "session-actions-\(session.id.uuidString)"
-                    )
+                    ForEach(filteredSessions) { session in
+                        ZStack(alignment: .topTrailing) {
+                            Button { onOpen(session) } label: {
+                                AgentSessionRow(
+                                    session: session,
+                                    person: session.personID.flatMap { people[$0] }
+                                )
+                            }
+                            .buttonStyle(RelationshipRetrievalButtonStyle())
+                            .accessibilityIdentifier(
+                                "agent-session-\(session.id.uuidString)"
+                            )
+
+                            Menu {
+                                sessionActions(for: session)
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 17, weight: .regular))
+                                    .foregroundStyle(Color.tsMutedInk)
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 6)
+                            .padding(.top, 8)
+                            .accessibilityLabel(
+                                appLanguage.text("More session actions")
+                            )
+                            .accessibilityIdentifier(
+                                "session-actions-\(session.id.uuidString)"
+                            )
+                        }
+                        .modifier(RelationshipRowAnchor(
+                            id: session.id,
+                            viewport: scrollViewport
+                        ))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: cardDensity.rowVerticalInset + 1,
+                                leading: 16,
+                                bottom: cardDensity.rowVerticalInset + 1,
+                                trailing: 16
+                            )
+                        )
+                        .contextMenu {
+                            sessionActions(for: session)
+                        }
+                        .accessibilityAction(
+                            named: Text(appLanguage.text("Open session"))
+                        ) {
+                            onOpen(session)
+                        }
+                        .accessibilityAction(
+                            named: Text(
+                                session.isUnread
+                                    ? appLanguage.text("Mark as read")
+                                    : appLanguage.text("Mark as unread")
+                            )
+                        ) {
+                            toggleReadState(for: session)
+                        }
+                        .accessibilityAction(
+                            named: Text(
+                                appLanguage.text("Delete session history from this device")
+                            )
+                        ) {
+                            presentedAlert = .delete(session)
+                        }
+                    }
                 }
-                .modifier(RelationshipRowAnchor(
-                    id: session.id,
-                    coordinateSpace: Self.scrollCoordinateSpace,
-                    viewport: scrollViewport
-                ))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .listRowInsets(
-                    EdgeInsets(
-                        top: cardDensity.rowVerticalInset,
-                        leading: 16,
-                        bottom: cardDensity.rowVerticalInset,
-                        trailing: 16
-                    )
-                )
-                .contextMenu {
-                    sessionActions(for: session)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(Color.tsSurface)
+                .relationshipContentBounce()
+                .scrollDismissesKeyboard(.interactively)
+                .retrievalScrollEdge()
+                .coordinateSpace(name: Self.scrollCoordinateSpace)
+                .onGeometryChange(for: CGRect.self) { geometry in
+                    geometry.relationshipScrollViewport
+                } action: { scrollViewport = $0 }
+                .onPreferenceChange(RelationshipRowAnchorKey<UUID>.self) { candidates in
+                    guard !isRestoringScroll else { return }
+                    let anchor = filteredSessions.first { candidates.fullyVisible.contains($0.id) }?.id
+                        ?? filteredSessions.first { candidates.partiallyVisible.contains($0.id) }?.id
+                    if let anchor, anchor != scrollPosition {
+                        scrollPosition = anchor
+                    }
                 }
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(Color.tsSurface)
-        .relationshipContentBounce()
-        .coordinateSpace(name: Self.scrollCoordinateSpace)
-        .onGeometryChange(for: CGRect.self) { geometry in
-            geometry.relationshipScrollViewport
-        } action: { scrollViewport = $0 }
-        .onPreferenceChange(RelationshipRowAnchorKey<UUID>.self) { candidates in
-            guard !isRestoringScroll else { return }
-            let anchor = sessions.first { candidates.fullyVisible.contains($0.id) }?.id
-                ?? sessions.first { candidates.partiallyVisible.contains($0.id) }?.id
-            if let anchor, anchor != scrollPosition {
-                scrollPosition = anchor
-            }
-        }
-        .accessibilityIdentifier("agent-session-list")
+                .accessibilityIdentifier("agent-session-list")
     }
 
     private static let scrollCoordinateSpace = "relationship-session-viewport"
@@ -3200,83 +3483,60 @@ private struct AgentSessionRow: View {
                 compactLayout
             }
         }
-        .padding(.trailing, 44)
-        .padding(cardDensity.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color.tsCanvas,
-            in: RoundedRectangle(
-                cornerRadius: cardDensity.cardCornerRadius,
-                style: .continuous
-            )
-        )
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: cardDensity.cardCornerRadius,
-                style: .continuous
-            )
-            .stroke(Color.tsLine, lineWidth: 1)
-        }
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: cardDensity.cardCornerRadius,
-                style: .continuous
-            )
-        )
-        .modifier(LabLayoutOutline())
+        .modifier(RelationshipRetrievalSurface(isUnread: session.isUnread))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(sessionAccessibilityLabel)
     }
 
     private var compactLayout: some View {
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    unreadIndicator
-                    sessionTitle
-                    Spacer(minLength: 5)
-                    relativeTime
+        VStack(alignment: .leading, spacing: 8) {
+            sessionTitle
+                .padding(.trailing, 36)
+            participantContext
+                .padding(.trailing, 4)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                relativeTime
+                unreadState
+                if session.retrievalAttention != nil {
+                    Text(verbatim: "·").foregroundStyle(Color.tsMutedInk)
+                        .accessibilityHidden(true)
+                    attentionState
                 }
-                participantContext
-                attentionState
+                Spacer(minLength: 0)
             }
-            participantAvatar
         }
     }
 
     private var accessibilityLayout: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                unreadIndicator
-                sessionTitle
-                Spacer(minLength: 8)
-            }
-            relativeTime
-            HStack(alignment: .center, spacing: 10) {
-                participantContext
-                Spacer(minLength: 8)
-                participantAvatar
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            sessionTitle
+                .padding(.trailing, 36)
+            participantContext
             attentionState
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                relativeTime
+                unreadState
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var unreadState: some View {
+        if session.isUnread {
+            Text(verbatim: "·").font(.caption).foregroundStyle(Color.tsMutedInk)
+                .accessibilityHidden(true)
+            Text(appLanguage.text("Unread"))
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
         }
     }
 
     private var sessionTitle: some View {
         Text(session.displayTitle(in: appLanguage))
-            .font(.subheadline.weight(.semibold))
+            .font(.body.weight(session.isUnread ? .semibold : .medium))
             .foregroundStyle(Color.tsInk)
-            .lineLimit(2)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
             .fixedSize(horizontal: false, vertical: true)
-    }
-
-    @ViewBuilder
-    private var unreadIndicator: some View {
-        if session.isUnread {
-            Circle()
-                .fill(Color.tsVermilion)
-                .frame(width: 6, height: 6)
-                .accessibilityHidden(true)
-        }
     }
 
     private var relativeTime: some View {
@@ -3285,14 +3545,16 @@ private struct AgentSessionRow: View {
                 .relative(presentation: .numeric, unitsStyle: .abbreviated)
             )
         )
-        .font(.caption2.weight(.medium))
+        .font(.caption)
         .foregroundStyle(Color.tsMutedInk)
         .fixedSize()
     }
 
     private var participantContext: some View {
-        Text(participantContextLabel)
-            .font(.caption)
+        Text(dynamicTypeSize.isAccessibilitySize && !session.isUnresolvedIntent && !session.isIdentityReview
+            ? "\(session.personDisplayLabel)\n\(session.displayContextLabel(in: appLanguage))"
+            : participantContextLabel)
+            .font(.subheadline)
             .foregroundStyle(Color.tsMutedInk)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
             .fixedSize(
@@ -3305,56 +3567,30 @@ private struct AgentSessionRow: View {
     }
 
     @ViewBuilder
-    private var participantAvatar: some View {
-        if !session.isUnresolvedIntent {
-            Group {
-                if let person {
-                    WorkspacePersonAvatar(
-                        person: person,
-                        size: dynamicTypeSize.isAccessibilitySize
-                            ? max(32, cardDensity.sessionAvatarSize)
-                            : cardDensity.sessionAvatarSize
-                    )
-                } else {
-                    RelationshipInitials(
-                        initials: String(session.personDisplayLabel.prefix(2)).uppercased(),
-                        size: dynamicTypeSize.isAccessibilitySize
-                            ? max(32, cardDensity.sessionAvatarSize)
-                            : cardDensity.sessionAvatarSize
-                    )
-                }
-            }
-            .accessibilityLabel(session.personDisplayLabel)
-            .accessibilityIdentifier(
-                "agent-session-participant-\(session.id.uuidString)"
-            )
-        }
-    }
-
-    @ViewBuilder
     private var attentionState: some View {
         if let attention = session.retrievalAttention {
             switch attention {
             case .needsJudgment:
                 Label(
-                    appLanguage.text("Needs judgment"),
-                    systemImage: "questionmark.circle"
+                    appLanguage.text("Review needed"),
+                    systemImage: "circle.dotted"
                 )
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(Color.tsVermilion)
+                .labelStyle(RelationshipRetrievalMetadataLabelStyle())
             case .waitingToContinue:
                 Label(
                     appLanguage.text("Waiting to continue"),
                     systemImage: "clock"
                 )
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(Color.tsMutedInk)
             case .refreshNeeded:
                 Label(
                     appLanguage.text("Refresh needed"),
                     systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90"
                 )
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(Color.tsMutedInk)
             }
         }
@@ -3373,7 +3609,7 @@ private struct AgentSessionRow: View {
     private var attentionAccessibilityLabel: String? {
         guard let attention = session.retrievalAttention else { return nil }
         switch attention {
-        case .needsJudgment: return appLanguage.text("Needs judgment")
+        case .needsJudgment: return appLanguage.text("Review needed")
         case .waitingToContinue: return appLanguage.text("Waiting to continue")
         case .refreshNeeded: return appLanguage.text("Refresh needed")
         }
@@ -3383,8 +3619,9 @@ private struct AgentSessionRow: View {
         [
             session.displayTitle(in: appLanguage),
             participantContextLabel,
+            session.updatedAt.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)),
             attentionAccessibilityLabel,
-            session.isUnread ? appLanguage.text("Unread") : nil,
+            session.isUnread ? appLanguage.text("Unread") : appLanguage.text("Read session"),
         ]
         .compactMap { $0 }
         .joined(separator: ", ")
@@ -3509,17 +3746,18 @@ struct WorkspacePeopleView: View {
     @State private var scrollViewport: CGRect = .zero
     @State private var searchText = ""
     @State private var selectedScope: WorkspacePeopleScope = .all
-    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            if snapshot.people.isEmpty {
-                Spacer(minLength: 0)
-            } else {
-                retrievalRail
-                peopleList
-            }
+            RelationshipRetrievalIndex(
+                count: filteredPeople.count,
+                noun: appLanguage.text(filteredPeople.count == 1 ? "person" : "people"),
+                isPreview: isPreview
+            )
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            peopleList
         }
+        .safeAreaInset(edge: .top, spacing: 0) { retrievalRail }
         .background(Color.tsSurface)
         .background(alignment: .topLeading) {
             Color.clear
@@ -3531,53 +3769,25 @@ struct WorkspacePeopleView: View {
     }
 
     private var retrievalRail: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.tsMutedInk)
-                    .accessibilityHidden(true)
-
-                TextField(appLanguage.text("Search people"), text: $searchText)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tsInk)
-                    .padding(.vertical, 9)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .focused($isSearchFocused)
-                    .accessibilityIdentifier("people-search-field")
-
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.tsMutedInk)
-                            .frame(width: 30, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(appLanguage.text("Clear search"))
-                    .accessibilityIdentifier("people-search-clear")
-                }
+        VStack(spacing: 2) {
+            HStack(spacing: 10) {
+                RelationshipRetrievalSearchField(
+                    placeholder: appLanguage.text("Search people"),
+                    identifier: "people", text: $searchText
+                )
+                scopeMenu
             }
-            .padding(.leading, 12)
-            .padding(.trailing, searchText.isEmpty ? 12 : 3)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(
-                Color.tsCanvas,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.tsLine, lineWidth: 1)
+            if selectedScope != .all {
+                RelationshipRetrievalSelection(
+                    title: selectedScope.displayLabel(in: appLanguage),
+                    identifier: "people-filter-clear"
+                ) { selectedScope = .all }
             }
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .onTapGesture { isSearchFocused = true }
-
-            scopeMenu
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.bottom, 6)
+        .background(Color.tsSurface)
     }
 
     private var scopeMenu: some View {
@@ -3622,29 +3832,7 @@ struct WorkspacePeopleView: View {
                 .accessibilityIdentifier("people-filter-unassigned")
             }
         } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: "line.3.horizontal.decrease")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                if selectedScope != .all {
-                    Circle()
-                        .fill(Color.tsVermilion)
-                        .frame(width: 6, height: 6)
-                        .offset(x: -6, y: 6)
-                        .accessibilityHidden(true)
-                }
-            }
-            .foregroundStyle(
-                selectedScope == .all ? Color.tsInk : Color.tsVermilion
-            )
-            .background(
-                Color.tsCanvas,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.tsLine, lineWidth: 1)
-            }
+            RelationshipRetrievalFilterLabel(isActive: selectedScope != .all)
         }
         .accessibilityLabel(
             "\(appLanguage.text("Filter people")), \(selectedScope.displayLabel(in: appLanguage))"
@@ -3665,7 +3853,8 @@ struct WorkspacePeopleView: View {
         WorkspacePeopleRetrievalPolicy.filteredPeople(
             in: snapshot,
             query: searchText,
-            scope: selectedScope
+            scope: selectedScope,
+            language: appLanguage
         )
     }
 
@@ -3690,14 +3879,6 @@ struct WorkspacePeopleView: View {
 
     private var peopleListContent: some View {
         List {
-                if isPreview {
-                    PursuitPreviewBoundary()
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(
-                            EdgeInsets(top: 14, leading: 20, bottom: 2, trailing: 20)
-                        )
-                }
                 if filteredPeople.isEmpty {
                     noMatchesView
                         .listRowBackground(Color.clear)
@@ -3707,7 +3888,7 @@ struct WorkspacePeopleView: View {
                         )
                 }
                 ForEach(filteredPeople) { person in
-                    ZStack(alignment: .trailing) {
+                    ZStack(alignment: .topTrailing) {
                         Button { onSelect(person) } label: {
                             WorkspacePersonRow(
                                 person: person,
@@ -3720,30 +3901,19 @@ struct WorkspacePeopleView: View {
                         }
                         .buttonStyle(RelationshipRetrievalButtonStyle())
                         .accessibilityIdentifier("workspace-person-\(person.id)")
-                        .accessibilityAction(
-                            named: Text(appLanguage.text("Open person"))
-                        ) {
-                            onSelect(person)
-                        }
-                        .accessibilityAction(
-                            named: Text(
-                                appLanguage.text("Ask about this person")
-                            )
-                        ) {
-                            onAsk(person)
-                        }
 
                         Menu {
                             personActions(for: person)
                         } label: {
                             Image(systemName: "ellipsis")
-                                .font(.body.weight(.semibold))
+                                .font(.system(size: 17, weight: .regular))
                                 .foregroundStyle(Color.tsMutedInk)
                                 .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .padding(.trailing, max(4, cardDensity.cardPadding - 4))
+                        .padding(.trailing, 6)
+                        .padding(.top, 8)
                         .accessibilityLabel(
                             appLanguage.text("More person actions")
                         )
@@ -3751,21 +3921,32 @@ struct WorkspacePeopleView: View {
                     }
                     .modifier(RelationshipRowAnchor(
                         id: person.id,
-                        coordinateSpace: Self.scrollCoordinateSpace,
                         viewport: scrollViewport
                     ))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .listRowInsets(
                         EdgeInsets(
-                            top: cardDensity.rowVerticalInset,
+                            top: cardDensity.rowVerticalInset + 1,
                             leading: 16,
-                            bottom: cardDensity.rowVerticalInset,
+                            bottom: cardDensity.rowVerticalInset + 1,
                             trailing: 16
                         )
                     )
                     .contextMenu {
                         personActions(for: person)
+                    }
+                    .accessibilityAction(
+                        named: Text(appLanguage.text("Open person"))
+                    ) {
+                        onSelect(person)
+                    }
+                    .accessibilityAction(
+                        named: Text(
+                            appLanguage.text("Ask about this person")
+                        )
+                    ) {
+                        onAsk(person)
                     }
                 }
             }
@@ -3773,6 +3954,8 @@ struct WorkspacePeopleView: View {
             .scrollContentBackground(.hidden)
             .background(Color.tsSurface)
             .relationshipContentBounce()
+            .scrollDismissesKeyboard(.interactively)
+            .retrievalScrollEdge()
             .coordinateSpace(name: Self.scrollCoordinateSpace)
             .onGeometryChange(for: CGRect.self) { geometry in
                 geometry.relationshipScrollViewport
@@ -3811,34 +3994,27 @@ struct WorkspacePeopleView: View {
     private static let scrollCoordinateSpace = "relationship-people-viewport"
 
     private var noMatchesView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(appLanguage.text("No matching people"))
+        VStack(alignment: .leading, spacing: 12) {
+            Text(appLanguage.text(snapshot.people.isEmpty ? "No people yet" : "No matching people"))
                 .font(.headline)
                 .foregroundStyle(Color.tsInk)
                 .accessibilityIdentifier("people-no-matches")
-            Button {
-                searchText = ""
-                selectedScope = .all
-            } label: {
-                Label(
-                    appLanguage.text("Clear search and filter"),
-                    systemImage: "arrow.counterclockwise"
-                )
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 13)
-                .background(
-                    Color.tsCanvas,
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.tsLine, lineWidth: 1)
+            if !snapshot.people.isEmpty {
+                Button {
+                    searchText = ""
+                    selectedScope = .all
+                } label: {
+                    Text(appLanguage.text("Clear search and filter"))
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .background(Color.tsInk.opacity(0.045), in: Capsule())
+                        .contentShape(Capsule())
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.tsInk)
+                .accessibilityIdentifier("people-filter-reset")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.tsVermilion)
-            .accessibilityIdentifier("people-filter-reset")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -3859,62 +4035,26 @@ private struct WorkspacePersonRow: View {
                 compactLayout
             }
         }
-        .padding(.trailing, 44)
-        .padding(cardDensity.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color.tsCanvas,
-            in: RoundedRectangle(
-                cornerRadius: cardDensity.cardCornerRadius,
-                style: .continuous
-            )
-        )
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: cardDensity.cardCornerRadius,
-                style: .continuous
-            )
-            .stroke(Color.tsLine, lineWidth: 1)
-        }
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: cardDensity.cardCornerRadius,
-                style: .continuous
-            )
-        )
-        .modifier(LabLayoutOutline())
+        .modifier(RelationshipRetrievalSurface(isDirectory: true))
         .accessibilityElement(children: .combine)
     }
 
     private var compactLayout: some View {
-        HStack(alignment: .center, spacing: 10) {
-            WorkspacePersonAvatar(
-                person: person,
-                size: cardDensity.personAvatarSize
-            )
+        HStack(alignment: .top, spacing: 12) {
+            WorkspacePersonAvatar(person: person, size: cardDensity.personAvatarSize + 8)
+                .padding(.top, 2)
             metadataStack
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 7) {
-                activityTime
-                chevron
-            }
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private var accessibilityLayout: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .center, spacing: 12) {
-                WorkspacePersonAvatar(
-                    person: person,
-                    size: cardDensity.personAvatarSize
-                )
-                Text(person.displayLabel)
-                    .font(.headline)
-                    .foregroundStyle(Color.tsInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                chevron
-            }
+            Text(person.displayLabel)
+                .font(.headline)
+                .foregroundStyle(Color.tsInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, 36)
             if let headline = metadata.headline {
                 Text(headline)
                     .font(.subheadline)
@@ -3928,34 +4068,61 @@ private struct WorkspacePersonRow: View {
     }
 
     private var metadataStack: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(person.displayLabel)
                 .font(.headline)
                 .foregroundStyle(Color.tsInk)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, 36)
             if let headline = metadata.headline {
                 Text(headline)
-                    .font(.caption)
-                    .foregroundStyle(Color.tsInk)
-                    .lineLimit(1)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("workspace-person-headline-\(person.id)")
             }
-            roleAndPursuit
+            if let pursuitTitle = metadata.pursuitTitle {
+                Text(pursuitTitle)
+                    .font(.caption)
+                    .foregroundStyle(Color.tsMutedInk)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(true)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if let role = metadata.roleType {
+                    Text(appLanguage.text(role.humanized))
+                        .font(.caption)
+                        .foregroundStyle(Color.tsMutedInk)
+                }
+                if metadata.roleType != nil, metadata.lastActivityAt != nil {
+                    Text(verbatim: "·").font(.caption).foregroundStyle(Color.tsMutedInk)
+                        .accessibilityHidden(true)
+                }
+                activityTime
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel([metadata.roleType.map { appLanguage.text($0.humanized) }, metadata.pursuitTitle,
+                metadata.lastActivityAt?.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated))]
+                .compactMap { $0 }.joined(separator: " · "))
+            .accessibilityIdentifier("workspace-person-context-\(person.id)")
         }
         .layoutPriority(1)
     }
 
     @ViewBuilder
     private var roleAndPursuit: some View {
-        let values = [metadata.roleType?.humanized, metadata.pursuitTitle]
-            .compactMap { $0 }
+        let values = [metadata.roleType.map { appLanguage.text($0.humanized) }, metadata.pursuitTitle].compactMap { $0 }
         if !values.isEmpty {
             Text(values.joined(separator: " · "))
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(Color.tsMutedInk)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
-                .layoutPriority(1)
+                .accessibilityLabel(values.joined(separator: " · "))
                 .accessibilityIdentifier("workspace-person-context-\(person.id)")
         }
     }
@@ -3968,19 +4135,13 @@ private struct WorkspacePersonRow: View {
                     .relative(presentation: .numeric, unitsStyle: .abbreviated)
                 )
             )
-            .font(.caption2.weight(.medium))
+            .font(.caption2)
             .foregroundStyle(Color.tsMutedInk)
             .fixedSize()
             .accessibilityIdentifier("workspace-person-activity-\(person.id)")
         }
     }
 
-    private var chevron: some View {
-        Image(systemName: "chevron.right")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Color.tsMutedInk.opacity(0.7))
-            .accessibilityHidden(true)
-    }
 }
 
 private struct WorkspacePersonAvatar: View {
@@ -4014,10 +4175,15 @@ private struct WorkspacePersonAvatar: View {
     }
 
     private var initials: some View {
-        RelationshipInitials(
-            initials: String(person.displayLabel.prefix(2)).uppercased(),
-            size: size
-        )
+        let words = person.displayLabel.split(whereSeparator: \.isWhitespace)
+        let letters = words.count > 1
+            ? words.prefix(2).compactMap(\.first).map(String.init).joined()
+            : String(person.displayLabel.prefix(2))
+        return Text(letters.uppercased())
+            .font(.system(size: size * 0.34, weight: .medium, design: .rounded))
+            .foregroundStyle(Color.tsMutedInk)
+            .frame(width: size, height: size)
+            .background(Color.tsInk.opacity(0.055), in: Circle())
     }
 }
 
@@ -4041,7 +4207,6 @@ private struct RelationshipRowAnchorKey<ID: Hashable>: PreferenceKey {
 
 private struct RelationshipRowAnchor<ID: Hashable>: ViewModifier {
     let id: ID
-    let coordinateSpace: String
     let viewport: CGRect
     @State private var visibility = Visibility.hidden
 
@@ -4054,12 +4219,12 @@ private struct RelationshipRowAnchor<ID: Hashable>: ViewModifier {
             // Transform continuous geometry into edge crossings before touching
             // SwiftUI state. Pixel offsets never propagate through the shell.
             .onGeometryChange(for: Visibility.self) { geometry in
-                let row = geometry.frame(in: .named(coordinateSpace))
-                guard viewport.height > 0,
-                      row.maxY > viewport.minY,
-                      row.minY < viewport.maxY else { return .hidden }
-                return row.minY >= viewport.minY && row.maxY <= viewport.maxY
-                    ? .full : .partial
+                // UIKit-backed List cells and their viewport must share a
+                // coordinate system, including safe-area and pager offsets.
+                let row = geometry.frame(in: .global)
+                guard viewport.width > 0, viewport.height > 0,
+                      row.intersects(viewport) else { return .hidden }
+                return viewport.contains(row) ? .full : .partial
             } action: { visibility = $0 }
             .preference(
                 key: RelationshipRowAnchorKey<ID>.self,
@@ -4073,11 +4238,12 @@ private struct RelationshipRowAnchor<ID: Hashable>: ViewModifier {
 
 private extension GeometryProxy {
     var relationshipScrollViewport: CGRect {
-        CGRect(
-            x: 0,
-            y: safeAreaInsets.top,
-            width: size.width,
-            height: max(0, size.height - safeAreaInsets.top - safeAreaInsets.bottom)
+        let bounds = frame(in: .global)
+        return CGRect(
+            x: bounds.minX + safeAreaInsets.leading,
+            y: bounds.minY + safeAreaInsets.top,
+            width: max(0, bounds.width - safeAreaInsets.leading - safeAreaInsets.trailing),
+            height: max(0, bounds.height - safeAreaInsets.top - safeAreaInsets.bottom)
         )
     }
 }
@@ -5038,7 +5204,7 @@ private struct RelationshipGuideRail: View {
                 ZStack {
                     Color.clear
                     Image(systemName: "plus")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 19, weight: .semibold))
                         .foregroundStyle(Color.tsInk)
                 }
                 .frame(width: 44, height: 44)
@@ -5050,6 +5216,9 @@ private struct RelationshipGuideRail: View {
                 appLanguage.text("Choose what to add to an Agent message")
             )
             .accessibilityIdentifier("open-agent-attachments")
+            .accessibilityShowsLargeContentViewer {
+                Label(appLanguage.text("Choose what to add to an Agent message"), systemImage: "plus")
+            }
 
             Button {
                 guard !voiceLongPressTriggered else { return }
@@ -5104,12 +5273,13 @@ private struct RelationshipGuideRail: View {
                 )
             ) { onVoice() }
             .accessibilityIdentifier("relationship-guide")
+            .accessibilityShowsLargeContentViewer { Text(appLanguage.text("Ask anything")) }
 
             Button(action: onVoice) {
                 ZStack {
                     Color.clear
                     Image(systemName: "waveform")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: 19, weight: .semibold))
                         .foregroundStyle(Color.tsInk)
                 }
                 .frame(width: 44, height: 44)
@@ -5127,7 +5297,8 @@ private struct RelationshipGuideRail: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 6)
-        .modifier(RelationshipGuideGlassModifier())
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .modifier(RelationshipGuideMaterialModifier())
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
     }
@@ -5167,7 +5338,7 @@ private struct RelationshipGuideRail: View {
     }
 }
 
-private struct RelationshipGuideGlassModifier: ViewModifier {
+private struct RelationshipGuideMaterialModifier: ViewModifier {
     @Environment(\.talentSignalReduceTransparency) private var reduceTransparency
 
     private var usesOpaqueSurface: Bool {
@@ -5188,16 +5359,11 @@ private struct RelationshipGuideGlassModifier: ViewModifier {
                 .overlay {
                     Capsule().stroke(Color.tsLine, lineWidth: 1)
                 }
-        } else if #available(iOS 26.0, *) {
-            content.glassEffect(
-                .regular.tint(Color.tsVermilion.opacity(0.06)),
-                in: Capsule()
-            )
         } else {
             content
-                .background(.ultraThinMaterial, in: Capsule())
+                .background(.regularMaterial, in: Capsule())
                 .overlay {
-                    Capsule().stroke(Color.tsLine, lineWidth: 1)
+                    Capsule().stroke(Color.tsLine.opacity(0.5), lineWidth: 0.5)
                 }
         }
     }

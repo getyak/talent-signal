@@ -188,7 +188,7 @@ the surrounding product is the reference for density and idiom.
 
 Mobile reading preferences keep `Text size` and `Card density` independent. Text shifts only standard Dynamic Type categories and never reduces an accessibility category.
 Density changes card spacing, shape, and avatars without shrinking controls below 44 points; Settings previews the result and compact is the retrieval default.
-People and Sessions use independent stroked cards, concise title/context/recency metadata, and vertical accessibility fallbacks instead of source counts or answer excerpts.
+People and Sessions share quiet search and filter controls, with the active filter named and directly clearable. Rows prioritize title, identity, context, and recency; identity keeps the same scan position across attention states. People use a quiet directory rhythm. Unread Sessions alone receive restrained elevation, stronger type, and quiet visible and accessible read-state labels; operational attention remains a separate label. At accessibility sizes, identity and context use the full row width. Utility chrome must leave room for that content, with complete navigation names, practical symbols, and large-content alternatives for bounded controls.
 
 On working surfaces, headings name the current object, date, state, or
 decision within a bounded operational scale. Page and object titles never
@@ -312,7 +312,7 @@ review into a chat reply.
 Functional audits gate release but do not establish design quality or
 preference. For a consequential visual change, compare at least two rendered
 directions against product truth, logo-off ownability, five-second clarity, and
-accessibility risk before micro-detail.
+accessibility risk before micro-detail. Review the uncropped viewport across themes, text sizes, and crossed attention states. Independent craft scores use frozen criteria and preserved deductions; they are subjective evidence and never replace functional proof or user judgment.
 
 See the [brand system](../brand/README.md) for approved marks and usage, and the
 [Design reference catalog](research/design-reference-catalog.md) and

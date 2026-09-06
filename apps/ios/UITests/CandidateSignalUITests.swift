@@ -17,6 +17,39 @@ final class CandidateSignalUITests: XCTestCase {
         app.launchEnvironment[previewWorkspaceEnvironmentKey] = "true"
     }
 
+    func testSessionSearchFilterAndReadStateComposeAndReset() {
+        app.launch()
+        hittableButton("archive-tab-sessions", timeout: 8).tap()
+        let first = app.buttons["agent-session-90000000-0000-4000-8000-000000000001"]
+        let second = app.buttons["agent-session-90000000-0000-4000-8000-000000000002"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        let search = app.textFields["sessions-search-field"]
+        XCTAssertGreaterThanOrEqual(search.frame.height, 44)
+        search.tap()
+        search.typeText("Nia")
+        XCTAssertTrue(second.exists)
+        XCTAssertFalse(first.exists)
+        app.buttons["sessions-search-clear"].tap()
+        search.typeText("no matching session")
+        XCTAssertTrue(element("sessions-no-matches").waitForExistence(timeout: 3))
+        app.buttons["sessions-filter-reset"].tap()
+        XCTAssertTrue(first.exists)
+        openSessionActions(first)
+        app.buttons["Mark as unread"].tap()
+        XCTAssertTrue(first.label.contains("Unread"))
+        app.buttons["sessions-filter-menu"].tap()
+        app.buttons["sessions-filter-unread"].tap()
+        XCTAssertTrue(first.exists)
+        XCTAssertFalse(second.exists)
+        preserveScreenshot("Session search and unread filter")
+        openSessionActions(first)
+        app.buttons["Mark as read"].tap()
+        XCTAssertTrue(element("sessions-no-matches").waitForExistence(timeout: 3))
+        app.buttons["sessions-filter-reset"].tap()
+        XCTAssertTrue(second.exists)
+        XCTAssertTrue(first.label.contains("Read"))
+    }
+
     func testBareDebugLaunchOpensTheDocumentedLocalPreviewFallback() {
         app.launchEnvironment.removeValue(forKey: previewWorkspaceEnvironmentKey)
         app.launch()
@@ -1116,7 +1149,7 @@ final class CandidateSignalUITests: XCTestCase {
         ]
         XCTAssertTrue(session.waitForExistence(timeout: 5))
         XCTAssertTrue(session.label.contains("Leila Hartmann"))
-        XCTAssertTrue(session.label.contains("Needs judgment"))
+        XCTAssertTrue(session.label.contains("Review needed"))
         XCTAssertTrue(session.label.contains("Chief Product Officer search"))
 
         openSessionActions(session)
@@ -1228,7 +1261,7 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("RTL paged retrieval and measured tab indicator")
     }
 
-    func testPagedHeaderReflowsAtAX5WithoutShrinkingTapTargets() {
+    func testPagedHeaderKeepsAllAX5TabsVisibleWithFullTouchTargets() {
         app.launchArguments = [
             "-UIPreferredContentSizeCategoryName",
             UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
@@ -1252,23 +1285,29 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(studio.isHittable)
         XCTAssertTrue(calendar.isHittable)
         XCTAssertTrue(today.isHittable)
-        XCTAssertGreaterThan(today.frame.minY, studio.frame.minY)
+        XCTAssertEqual(today.frame.midY, studio.frame.midY, accuracy: 2)
         XCTAssertEqual(today.label, "Today")
         XCTAssertEqual(sessions.label, "Sessions")
         XCTAssertEqual(people.label, "People")
-        assertHorizontallyCentered(today, in: selectorViewport)
+        XCTAssertTrue(today.isHittable)
+        XCTAssertGreaterThanOrEqual(today.frame.minX, selectorViewport.frame.minX)
+        XCTAssertLessThanOrEqual(today.frame.maxX, selectorViewport.frame.maxX)
 
         sessions.tap()
         XCTAssertTrue(sessions.isSelected)
-        assertHorizontallyCentered(sessions, in: selectorViewport)
+        XCTAssertTrue(sessions.isHittable)
+        XCTAssertGreaterThanOrEqual(sessions.frame.minX, selectorViewport.frame.minX)
+        XCTAssertLessThanOrEqual(sessions.frame.maxX, selectorViewport.frame.maxX)
 
         people.tap()
         XCTAssertTrue(people.isSelected)
-        assertHorizontallyCentered(people, in: selectorViewport)
-        preserveScreenshot("Paged header reflows at AX5")
+        XCTAssertTrue(people.isHittable)
+        XCTAssertGreaterThanOrEqual(people.frame.minX, selectorViewport.frame.minX)
+        XCTAssertLessThanOrEqual(people.frame.maxX, selectorViewport.frame.maxX)
+        preserveScreenshot("All header controls remain visible at AX5")
     }
 
-    func testPagedHeaderCentersAX5TabsInRTL() {
+    func testPagedHeaderKeepsAllAX5TabsVisibleInRTL() {
         app.launchArguments += [
             "--force-right-to-left-layout",
             "-UIPreferredContentSizeCategoryName",
@@ -1281,16 +1320,24 @@ final class CandidateSignalUITests: XCTestCase {
         let sessions = app.buttons["archive-tab-sessions"]
         let people = app.buttons["archive-tab-people"]
         XCTAssertTrue(today.waitForExistence(timeout: 8))
-        assertHorizontallyCentered(today, in: selectorViewport)
+        XCTAssertLessThan(people.frame.midX, sessions.frame.midX)
+        XCTAssertLessThan(sessions.frame.midX, today.frame.midX)
+        XCTAssertTrue(today.isHittable)
+        XCTAssertGreaterThanOrEqual(today.frame.minX, selectorViewport.frame.minX)
+        XCTAssertLessThanOrEqual(today.frame.maxX, selectorViewport.frame.maxX)
 
         sessions.tap()
         XCTAssertTrue(sessions.isSelected)
-        assertHorizontallyCentered(sessions, in: selectorViewport)
+        XCTAssertTrue(sessions.isHittable)
+        XCTAssertGreaterThanOrEqual(sessions.frame.minX, selectorViewport.frame.minX)
+        XCTAssertLessThanOrEqual(sessions.frame.maxX, selectorViewport.frame.maxX)
 
         people.tap()
         XCTAssertTrue(people.isSelected)
-        assertHorizontallyCentered(people, in: selectorViewport)
-        preserveScreenshot("RTL paged header centers AX5 tabs")
+        XCTAssertTrue(people.isHittable)
+        XCTAssertGreaterThanOrEqual(people.frame.minX, selectorViewport.frame.minX)
+        XCTAssertLessThanOrEqual(people.frame.maxX, selectorViewport.frame.maxX)
+        preserveScreenshot("All RTL header controls remain visible at AX5")
     }
 
     func testReducedMotionKeepsSessionNavigationReachable() {
@@ -1567,6 +1614,8 @@ final class CandidateSignalUITests: XCTestCase {
         let target = app.buttons["workspace-person-\(anchorID)"]
         XCTAssertTrue(target.waitForExistence(timeout: 5))
         XCTAssertTrue(target.isHittable)
+        XCTAssertGreaterThanOrEqual(target.frame.minY, list.frame.minY - 1)
+        XCTAssertLessThanOrEqual(target.frame.maxY, list.frame.maxY + 1)
         let baselineMidY = target.frame.midY
         let tolerance = target.frame.height + 8
 
@@ -3845,12 +3894,17 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(personRow.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(personRow.frame.height, 44)
         XCTAssertTrue(personRow.label.contains("Chief Product Officer search"))
+        let personMenu = element("person-actions-20000000-0000-4000-8000-000000000001")
+        XCTAssertTrue(personMenu.isHittable, "The first person's menu must remain reachable at AX5.")
+        XCTAssertGreaterThanOrEqual(personMenu.frame.width, 44)
+        // CGRect conversion can return 43.99999999999997 for a 44-point target.
+        XCTAssertGreaterThanOrEqual(personMenu.frame.height, 44 - 0.001)
 
         let nia = app.buttons[
             "workspace-person-20000000-0000-4000-8000-000000000002"
         ]
         scrollToVisible(nia)
-        XCTAssertTrue(nia.label.contains("Candidate · Independent board director search"))
+        XCTAssertTrue(nia.label.contains("候选人 · Independent board director search"))
         XCTAssertGreaterThanOrEqual(nia.frame.height, 88)
         preserveScreenshot("People cards Chinese dark AX5 reduced motion")
     }
