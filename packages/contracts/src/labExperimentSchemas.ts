@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { CONTRACT_VERSION } from "./constants.js";
+import { PromptSnapshotSchema } from "./promptSchemas.js";
 
 const NullableText = Type.Union([Type.String(), Type.Null()]);
 const NullableCount = Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]);
@@ -23,6 +24,7 @@ export const LabExperimentSchema = Type.Object({
   case_revision: Type.String(),
   snapshot_hash: Type.String(),
   prompt_version: Type.String(),
+  prompt_snapshot: Type.Optional(PromptSnapshotSchema),
   backend_revision: NullableText,
   models: Type.Array(Type.String(), { minItems: 2, maxItems: 2 }),
   status: Type.Union([

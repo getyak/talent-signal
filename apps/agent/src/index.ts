@@ -17,3 +17,5 @@ export * from "./schemas.js";
 export * from "./scriptedProvider.js";
 export * from "./toolCatalog.js";
 export * from "./types.js";
+export * from "./prompts.js";
+export * from "./promptRegistry.js";

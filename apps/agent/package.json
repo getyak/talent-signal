@@ -9,6 +9,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./prompts": {
+      "types": "./dist/prompts.d.ts",
+      "import": "./dist/prompts.js"
+    },
+    "./prompt-registry": {
+      "types": "./dist/promptRegistry.d.ts",
+      "import": "./dist/promptRegistry.js"
     }
   },
   "files": [

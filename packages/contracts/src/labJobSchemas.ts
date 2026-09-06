@@ -1,6 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { CONTRACT_VERSION } from "./constants.js";
 import { LabPromptPresetSchema } from "./labRuntimeSchemas.js";
+import { PromptSnapshotSchema } from "./promptSchemas.js";
 
 const TextOrNull = Type.Union([Type.String(), Type.Null()]);
 const CountOrNull = Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]);
@@ -26,7 +27,7 @@ export const LabJobCaseSchema = Type.Object({
 }, { additionalProperties: false });
 export const LabJobDefinitionSchema = Type.Object({
   task: LabJobTaskSchema, cases: Type.Array(LabJobCaseSchema),
-  configurations: Type.Array(Type.Object({ model: Type.String(), prompt_preset: LabPromptPresetSchema, prompt_revision: Type.String() }, { additionalProperties: false })),
+  configurations: Type.Array(Type.Object({ model: Type.String(), prompt_preset: LabPromptPresetSchema, prompt_revision: Type.String(), prompt_snapshot: Type.Optional(PromptSnapshotSchema) }, { additionalProperties: false })),
   comparison: Type.Union((["repeatability", "model", "prompt", "combined"] as const).map((value) => Type.Literal(value))),
   repetitions: Type.Integer(), call_limit: Type.Integer(), max_output_tokens_per_call: Type.Literal(1600),
   reference_time: Type.String(), backend_revision: TextOrNull, instrument_revision: Type.String(),

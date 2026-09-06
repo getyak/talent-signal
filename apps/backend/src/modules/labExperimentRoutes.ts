@@ -1,10 +1,11 @@
+import { resolveProductPrompt } from "@talent-signal/agent/prompt-registry";
 import { CONTRACT_VERSION, LabExperimentCatalogSchema, LabExperimentRequestSchema,
   LabExperimentResponseSchema, LabExperimentReviewSchema, ErrorResponseSchema,
   type LabExperimentRequest, type LabExperiment } from "@talent-signal/contracts";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ApiError } from "../lib/apiError.js";
-import { CHAT_PROMPT_REVISION } from "./chatAnswerProvider.js";
+import { configuredChatPrompt } from "./chatAnswerProvider.js";
 import { experimentCases, LabExperimentService } from "./labExperiments.js";
 
 export function registerLabExperimentRoutes(app: FastifyInstance, service: LabExperimentService,
@@ -20,7 +21,7 @@ export function registerLabExperimentRoutes(app: FastifyInstance, service: LabEx
     response: { 200: LabExperimentCatalogSchema, "4xx": ErrorResponseSchema } } }, async (request) => ({
     contract_version: CONTRACT_VERSION, enabled: service.providers.size > 0,
     backend_revision: service.backendRevision, provider: "zhipu-chat-completions" as const,
-    prompt_version: CHAT_PROMPT_REVISION, models: [...service.providers.keys()],
+    prompt_version: configuredChatPrompt("relationship", "baseline", (await resolveProductPrompt("assistant/relationship")).text).revision, models: [...service.providers.keys()],
     cases: experimentCases(), experiments: await service.list(request.auth),
   }));
   app.post<{ Body: LabExperimentRequest }>("/v1/lab/experiments", {

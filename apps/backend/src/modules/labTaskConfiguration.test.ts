@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CHAT_PROMPT_REVISION, configuredAgentPrompt, configuredChatPrompt, RELATIONSHIP_SYSTEM_PROMPT,
   ZhipuChatAnswerProvider, type RemoteChatAnswerProviding, type RemoteChatAnswerRequest } from "./chatAnswerProvider.js";
 import { taskModelCatalog, trialProvider, type TrialRunMeasurement } from "./labTaskConfiguration.js";
+import { bundledPrompt, promptRevision } from "@talent-signal/agent/prompt-registry";
 
 const request: RemoteChatAnswerRequest = { objective: "Synthetic clarification", context_blocks: [], allowed_citation_ids: [] };
 function fixture(): RemoteChatAnswerProviding {
@@ -18,6 +19,20 @@ function fixture(): RemoteChatAnswerProviding {
 }
 
 describe("scoped task model configuration", () => {
+  it("keeps the saved Opik text across calls and rejects a corrupted snapshot", async () => {
+    const text = "Synthetic published relationship prompt.";
+    const snapshot = { ...bundledPrompt("assistant/relationship"), text, revision: promptRevision(text), versionId: "published-v1", source: "opik" as const };
+    const sent: string[] = [];
+    const provider = new ZhipuChatAnswerProvider({ apiKey: "synthetic", model: "glm-5.3", fetcher: vi.fn(async (_url, init) => {
+      sent.push(JSON.parse(init!.body as string).messages[0].content);
+      return new Response(JSON.stringify({ model: "glm-5.3", choices: [{ message: { content: JSON.stringify({ kind: "clarification", title: "Info", body: "Synthetic response", citation_ids: [] }) } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }));
+    }) as typeof fetch });
+    const entry = taskModelCatalog([provider]).find(x => x.task === "relationship_text")!;
+    const wrapped = trialProvider(entry, "baseline", () => {}, snapshot);
+    await wrapped.answer(request); await wrapped.answer(request);
+    expect(sent).toEqual([text, text]);
+    expect(() => trialProvider(entry, "baseline", () => {}, { ...snapshot, text: "Corrupted" })).toThrow("Invalid frozen prompt");
+  });
   it("names the actual admitted image model and separates task capabilities", () => {
     const entries = taskModelCatalog([fixture()]);
     expect(entries.map(({ task, model }) => [task, model])).toEqual([
@@ -90,6 +105,27 @@ const agentRequest: AgentProviderRequest = {
 };
 
 describe("configured workspace Agent", () => {
+  it("keeps the terminal contract identical across presets and stages no effects for a direct draft", async () => {
+    for (const preset of ["baseline", "concise", "evidence_first"] as const) {
+      const invokeTool = vi.fn();
+      const fetcher = vi.fn(async (_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        const system = body.messages[0].content as string;
+        expect(system.match(/Return one JSON object:/gu)).toHaveLength(1);
+        expect(system).not.toContain('"additionalProperties"');
+        expect(body.tools.map((item: { function: { name: string } }) => item.function.name)).toEqual(["contact_workspace"]);
+        return new Response(JSON.stringify({ model: "glm-5.3", id: `synthetic-draft-${preset}`,
+          choices: [{ message: { content: JSON.stringify({ outcome: "reply", title: "Draft", body: "Here is an unsent introduction template." }) } }],
+          usage: { prompt_tokens: 12, completion_tokens: 8 } }));
+      }) as typeof fetch;
+      const provider = new ZhipuChatAnswerProvider({ apiKey: "fixture-only", model: "glm-5.3", fetcher });
+      const result = await provider.runWithPromptPreset({ ...agentRequest, objective: "Draft a generic introduction." }, invokeTool,
+        new AbortController().signal, preset, () => {});
+      expect(result.structuredOutput).toMatchObject({ outcome: "reply" });
+      expect(invokeTool).not.toHaveBeenCalled();
+    }
+  });
+
   it("marks an invalid final output as failed even after a successful model response", async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ model: "glm-5.3", id: "synthetic-invalid-output",
       choices: [{ message: { content: JSON.stringify({ outcome: "reply", message: "Wrong output shape" }) } }],
@@ -99,7 +135,7 @@ describe("configured workspace Agent", () => {
     const wrapped = trialProvider(taskModelCatalog([original]).find((x) => x.task === "unscoped_chat")!, "concise", (x) => { records.push(x); });
     await expect((wrapped as unknown as AgentProvider).run(agentRequest, vi.fn(), new AbortController().signal)).rejects.toThrow();
     expect(records[0]).toMatchObject({ status: "failed", actual_model: "glm-5.3", remote_requests_started: 1 });
-    expect(configuredAgentPrompt(agentRequest.systemPrompt, "concise").text).toContain('"additionalProperties":false');
+    expect(configuredAgentPrompt(agentRequest.systemPrompt, "concise").text).toContain('"outcome":"reply"|"clarification"');
   });
 
   it("cannot retry an Agent failure using the different bare-answer prompt", async () => {

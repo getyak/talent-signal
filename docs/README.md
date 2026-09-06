@@ -81,6 +81,8 @@ updated.
   no-seed PostgreSQL, migration, API, and HTTPS deployment boundary.
 - [Secret delivery](operations/secrets.md) defines Infisical ownership, local
   injection, workload identity, environment isolation, and rotation.
+- [Prompt operations](operations/opik-prompts.md) explains editing, publishing,
+  source imports and bundled releases with Opik version mirroring.
 - [Internal TestFlight backend on Tailscale](operations/testflight-local-backend.md)
   defines the owner-operated Mac, loopback, tailnet, and no-seed testing
   boundary.

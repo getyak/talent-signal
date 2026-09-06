@@ -3,6 +3,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { CONTRACT_VERSION } from "./constants.js";
 import { PursuitReceiptSchema } from "./pursuitSchemas.js";
 import { TelemetryContextSchema } from "./telemetrySchemas.js";
+import { PromptSnapshotSchema } from "./promptSchemas.js";
 
 const Id = Type.String({ format: "uuid" });
 const Timestamp = Type.String({ format: "date-time" });
@@ -435,6 +436,7 @@ export const AgentTaskProjectionSchema = Type.Object(
         pursuit_revision: Type.Integer({ minimum: 1 }),
         evidence_manifest_digest: Fingerprint,
         agent_definition_digest: Fingerprint,
+        prompt_snapshot: Type.Optional(PromptSnapshotSchema),
         tool_schema_digest: Fingerprint,
         policy_digest: Fingerprint,
         model_digest: Fingerprint,

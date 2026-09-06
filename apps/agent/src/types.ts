@@ -397,6 +397,7 @@ export interface AgentProviderRequest {
 }
 
 export interface AgentProviderResult {
+  prompt?: import("./promptRegistry.js").PromptReference;
   structuredOutput: unknown;
   inputTokens: number;
   outputTokens: number;

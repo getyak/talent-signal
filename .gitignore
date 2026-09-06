@@ -12,9 +12,12 @@ xcuserdata/
 *.xcarchive
 apps/ios/Config/Environment.local.xcconfig
 node_modules/
+.pnpm-store/
 .next/
 .next-*/
 .playwright-cli/
+test-results/
+playwright-report/
 output/
 tmp/
 *.tsbuildinfo
@@ -50,6 +53,12 @@ docs/evaluations/2026-08-31-macos-relationship-workbench/visual/rc*-staging/
 docs/evaluations/2026-08-31-macos-relationship-workbench/visual/rc*-*.mov
 docs/evaluations/2026-09-02-ios-today-inline-decisions/implementation-v[0-9].png
 docs/evaluations/2026-09-02-ios-today-inline-decisions/xcresult-attachments*/
+
+# These frozen records are inputs to historical verification, not runner noise.
+!docs/evaluations/overnight/final/verifier.log
+!docs/evaluations/2026-08-31-macos-relationship-workbench/system/frozen-rc9/
+docs/evaluations/2026-08-31-macos-relationship-workbench/system/frozen-rc9/*
+!docs/evaluations/2026-08-31-macos-relationship-workbench/system/frozen-rc9/TalentSignalMac-source-0.1.0-build7.tar.gz
 
 # XcodeGen can accidentally emit a project inside the checked-in project
 # bundle when invoked with that bundle as its output directory.

@@ -1,5 +1,5 @@
 import { WorkspaceConversationFinalOutputSchema, type AgentProvider } from "@talent-signal/agent";
-import { WORKSPACE_CONVERSATION_SYSTEM_PROMPT } from "./workspaceConversationAgent.js";
+import { bundledPrompt, promptRevision, promptReference, type PromptSnapshot } from "@talent-signal/agent/prompt-registry";
 import { configuredAgentPrompt, configuredChatPrompt, type AgentRunConfigurationEvidence, type ChatPromptPreset, type RemoteChatAnswerProviding,
   type RemoteChatAnswerRequest, type RemoteChatAnswerResult } from "./chatAnswerProvider.js";
 import { ApiError } from "../lib/apiError.js";
@@ -35,11 +35,17 @@ function isAgentProvider(provider: RemoteChatAnswerProviding): provider is Remot
   return "run" in provider && typeof provider.run === "function";
 }
 
-export function taskPromptRevision(entry: LabTaskModel, preset: ChatPromptPreset): string {
+export function taskPromptSnapshot(entry: LabTaskModel): PromptSnapshot {
+  return bundledPrompt(entry.task === "unscoped_chat"
+    ? isAgentProvider(entry.provider) ? "assistant/workspace" : "assistant/conversation" : "assistant/relationship");
+}
+
+export function taskPromptRevision(entry: LabTaskModel, preset: ChatPromptPreset, snapshot = taskPromptSnapshot(entry)): string {
+  if (snapshot.name !== taskPromptSnapshot(entry).name || promptRevision(snapshot.text) !== snapshot.revision) throw new Error("Invalid frozen prompt snapshot.");
   if (entry.task === "unscoped_chat" && isAgentProvider(entry.provider)) {
-    return configuredAgentPrompt(WORKSPACE_CONVERSATION_SYSTEM_PROMPT, preset).revision;
+    return configuredAgentPrompt(snapshot.text, preset).revision;
   }
-  return configuredChatPrompt(entry.task === "unscoped_chat" ? "unscoped_conversation" : "relationship", preset).revision;
+  return configuredChatPrompt(entry.task === "unscoped_chat" ? "unscoped_conversation" : "relationship", preset, snapshot.text).revision;
 }
 
 export interface TrialRunMeasurement {
@@ -60,10 +66,11 @@ export interface TrialRunMeasurement {
 
 /** Capture only configuration and timing. The caller persists this after its product transaction ends. */
 export function trialProvider(entry: LabTaskModel, preset: ChatPromptPreset,
-  measured: (measurement: TrialRunMeasurement) => void): RemoteChatAnswerProviding {
+  measured: (measurement: TrialRunMeasurement) => void, snapshot = taskPromptSnapshot(entry)): RemoteChatAnswerProviding {
+  snapshot = Object.freeze({ ...snapshot });
   if (!entry.promptPresets.includes(preset)) throw new ApiError(422, "LAB_PROMPT_UNAVAILABLE", "Choose an admitted prompt preset.");
   const mode = entry.task === "unscoped_chat" ? "unscoped_conversation" : "relationship";
-  const promptRevision = taskPromptRevision(entry, preset);
+  const promptRevision = taskPromptRevision(entry, preset, snapshot);
   const wrapped: RemoteChatAnswerProviding = {
     providerId: entry.provider.providerId,
     model: entry.model,
@@ -84,7 +91,7 @@ export function trialProvider(entry: LabTaskModel, preset: ChatPromptPreset,
           throw new Error("Task input capability changed.");
         }
         dispatched = true;
-        actual = await entry.provider.answer({ ...request,
+        actual = await entry.provider.answer({ ...request, prompt_snapshot: snapshot,
           ...(entry.provider.supportsPromptPresets ? { prompt_preset: preset } : {}) });
         if (actual.model !== entry.model
           || (entry.provider.supportsPromptPresets && actual.prompt_revision !== promptRevision)) {
@@ -114,17 +121,14 @@ export function trialProvider(entry: LabTaskModel, preset: ChatPromptPreset,
       let evidence: AgentRunConfigurationEvidence | undefined;
       let status: TrialRunMeasurement["status"] = "failed";
       try {
-        if (configuredAgentPrompt(request.systemPrompt, preset).revision !== promptRevision) {
-          throw new Error("The frozen Agent prompt changed.");
-        }
-        const result = await original.runWithPromptPreset!(request, invokeTool, signal, preset, (value) => { evidence = value; });
+        const result = await original.runWithPromptPreset!({ ...request, systemPrompt: snapshot.text }, invokeTool, signal, preset, (value) => { evidence = value; });
         WorkspaceConversationFinalOutputSchema.parse(result.structuredOutput);
         if (!evidence || evidence.prompt_revision !== promptRevision
           || (evidence.requests_started > 0 && (evidence.actual_model !== entry.model || evidence.actual_prompt_revision !== promptRevision))) {
           throw new Error("Actual Agent configuration did not match the trial.");
         }
         status = "completed";
-        return result;
+        return { ...result, prompt: promptReference(snapshot) };
       } finally {
         measured({ requested_model: entry.model, resolved_model: entry.model,
           actual_model: evidence?.actual_model ?? null, prompt_revision: promptRevision,

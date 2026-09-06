@@ -59,13 +59,12 @@ grant. The separately gated contact-filing task below adds that explicit grant.
 
 ### Runtime placement
 
-Runtime location follows capability ownership, not UI location. A local Agent host owns open-world reads, credentials, network policy, checkpoints, and draft artifacts. Standalone Runs need no product runtime.
-For intentional Relationship Ask image ingress, the authenticated backend sends one verified task image through a typed local boundary to a credential-isolated Agent Host and receives only a zero-effect result. An existing relationship may use its bound task asset; an unscoped single image uses a process-only account task and does not manufacture a Person, relationship, Wiki, or evidence scope. The Agent Host never receives database access, and the backend never receives open-world provider credentials.
-
-That paragraph describes the legacy draft-only definition. In contact-filing
-mode, the backend owns vision extraction and the durable tool loop; only public
-identity anchors and typed research calls cross to the Agent Host. The host
-still has no database access or authority to change a contact.
+Runtime follows capability ownership. The backend owns contact-filing vision
+extraction and the durable tool loop. Only public identity anchors and typed
+research calls cross to the Agent Host, which owns open-web credentials and
+network policy, never database access or authority to change a contact. The
+legacy read-only definition forwards process-only image input to that host
+without granting filing authority.
 
 The backend owns authenticated product scope, canonical evidence, review, confirmed state, effects, and audit. A local artifact crosses that boundary only through an explicit publication or proposal decision. The Agent core owns shared schemas, policy, and orchestration, but neither secrets nor canonical state.
 
@@ -124,7 +123,13 @@ The system preserves three independent gates:
 
 ## Context engineering
 
-Context is compiled for a task, not concatenated from every available source.
+Support natural conversation around the user's current intent; load relevant
+task context and match the requested form and depth. Formal prompts ship with
+code and load locally; each task and experiment freezes its selected version.
+Opik mirrors versions for experiments, with selected drafts imported as source
+changes. Tool descriptions own usage, the host owns authorization and validation,
+and adapters add terminal protocol. Give useful partial answers and clarify
+material gaps. See [prompt operations](operations/opik-prompts.md).
 
 Use this order:
 
@@ -243,9 +248,6 @@ effects remain empty and recovery uses durable state, not provider memory.
 The company/market public-research definition assembles `search_web`, `fetch_web`, and `create_research_artifact`.
 The local host selects one provider, isolates credentials, guards fetches, checkpoints observations, and writes drafts with no publication authority.
 
-The screenshot public-person definition exposes only platform-specific public-profile searches and draft creation. It remains a legacy read-only capability; current contact intake uses the filing boundary below.
-The result remains an unconfirmed response block with public-source references; it is not canonical evidence, identity state, or permission to act.
-
 The account-scoped workspace-conversation definition may answer directly or call only `contact_workspace`: `search`, `read`, `propose_create`, and `propose_update`. Search clues must come from the message; one uniquely resolved header may be read and handed to governed relationship Ask, while ambiguity stops for clarification. Same-Run authorization binds reads and update targets. Proposal fields and source excerpts must be grounded in the message or unchanged exact-target labels; the Tool returns a fingerprint and `needs_review`, never an apply operation or canonical mutation.
 
 ### Authorized screenshot contact filing
@@ -263,7 +265,6 @@ Source invalidation denies access and queues retryable permanent cleanup;
 reversible archive hides sources without extending retention. See the
 [storage playbook](operations/backend-production.md#chat-media-object-storage).
 
-The Agent Host receives public identity anchors, never private IM queries.
 Profile observations preserve provenance and conflicts without overwriting
 confirmed facts. Cancellation fences work; expiry and invalidation retract derivatives.
 Deletion needs a separate current-target grant with reversal. Imports never

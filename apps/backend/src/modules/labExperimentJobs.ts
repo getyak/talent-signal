@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolveProductPrompt } from "@talent-signal/agent/prompt-registry";
 import type { Pool } from "pg";
 import type { LabJob, LabJobAttempt, LabJobDefinition, LabJobRequest, LabJobReview, LabJobSummary, LabJobTask } from "@talent-signal/contracts";
 import { inTransaction, type DatabaseClient } from "../database/pool.js";
@@ -56,6 +57,7 @@ export class LabExperimentJobService {
 
   async start(auth: AuthContext, request: LabJobRequest): Promise<LabJob> {
     const task: LabJobTask = request.task ?? "relationship_text";
+    const snapshot = await resolveProductPrompt(task === "unscoped_chat" ? "assistant/workspace" : "assistant/relationship");
     const requestHash = labHash({ catalog_revision: request.catalog_revision, ...(request.task ? { task } : {}), case_ids: request.case_ids, configurations: request.configurations.map((value) => ({ model: value.model, prompt_preset: value.prompt_preset })), repetitions: request.repetitions, call_limit: request.call_limit,
       ...(request.regression_source ? { regression_source: request.regression_source } : {}) });
     await inTransaction(this.pool, async (client) => {
@@ -89,7 +91,7 @@ export class LabExperimentJobService {
       });
       const definition: LabJobDefinition = { task, cases: frozenCases,
         configurations: request.configurations.map((value) => ({ ...value,
-          prompt_revision: taskPromptRevision(this.modelEntry(task, value.model)!, value.prompt_preset) })),
+          prompt_revision: taskPromptRevision(this.modelEntry(task, value.model)!, value.prompt_preset, snapshot), prompt_snapshot: snapshot })),
         comparison: sameModel ? samePrompt ? "repeatability" : "prompt" : samePrompt ? "model" : "combined",
         repetitions: request.repetitions, call_limit: request.call_limit, max_output_tokens_per_call: 1600,
         reference_time: referenceTime, backend_revision: this.backendRevision, instrument_revision: LAB_JOB_INSTRUMENT_REVISION,

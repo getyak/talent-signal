@@ -82,14 +82,15 @@ export async function executeJobAttempt(attempt: LabJobAttempt, sample: LabJobCa
     if (labHash(frozen) !== sample.input_hash || definition.instrument_revision !== LAB_JOB_INSTRUMENT_REVISION
       || (sample.task ?? "relationship_text") !== definition.task || !provider) throw new Error("Frozen input or instrument changed");
     const entry = taskModelCatalog([provider]).find((value) => value.task === definition.task && value.model === configuration.model);
-    if (!entry || taskPromptRevision(entry, configuration.prompt_preset) !== configuration.prompt_revision) throw new Error("Frozen configuration unavailable");
-    const configured = trialProvider(entry, configuration.prompt_preset, (value) => { measurement = value; });
+    if (!entry || taskPromptRevision(entry, configuration.prompt_preset, configuration.prompt_snapshot) !== configuration.prompt_revision) throw new Error("Frozen configuration unavailable");
+    const configured = trialProvider(entry, configuration.prompt_preset, (value) => { measurement = value; }, configuration.prompt_snapshot);
     let title: string, answer: string, citationIDs: string[], validCitations: boolean;
     if (definition.task === "unscoped_chat") {
       if (!isAgentProvider(configured)) throw new Error("Workspace Agent capability unavailable");
       const input = frozen as LabAgentJobInput;
       if (!Array.isArray(input.contact_fixture) || input.context_blocks.length !== 0 || input.allowed_citation_ids.length !== 0) throw new Error("Invalid Agent fixture");
       const result = await executeWorkspaceConversationAgentCore({ objective: input.objective, provider: configured,
+        ...(configuration.prompt_snapshot ? { promptSnapshot: configuration.prompt_snapshot } : {}),
         workspaceID: "registered-synthetic-lab", sessionID: null, contacts: fixtureContacts(input) });
       title = result.block.title; answer = result.block.body; citationIDs = result.block.citation_dependency_ids;
       validCitations = citationIDs.length === 0;

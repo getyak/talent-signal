@@ -4,6 +4,7 @@ import {
   CONTACT_INTAKE_TOOLS, CONTACT_RESEARCH_CONTRACT, ContactProfileFieldSchema,
   ScreenshotContactTaskRequestSchema, ScreenshotContactTaskResponseSchema,
   ZhipuContactAgentModel,
+  resolveProductPrompt, type PromptSnapshot,
   type ContactAgentModel, type ContactAgentToolCall, type ContactIntakeToolName,
   type ContactPublicSource, type ContactProfileField,
   type ScreenshotContactTaskRequest, type ScreenshotContactTaskResponse,
@@ -25,6 +26,7 @@ type Manifest = Omit<ScreenshotContactTaskRequest, "image" | "additional_images"
 interface TaskState {
   extraction_parts?: NonNullable<Response["extraction"]>[];
   batch_conflict?: boolean;
+  prompts?: { transcription: PromptSnapshot; contact: PromptSnapshot };
   response: Response;
   searches: Array<{ query: string; candidates: Response["candidates"] }>;
   observations: Array<{ tool: string; result: unknown }>;
@@ -420,6 +422,11 @@ export class ScreenshotContactTaskRunner {
     const signal=AbortSignal.any([AbortSignal.timeout(300_000),...(shutdown?[shutdown]:[])]);
     try{
       let row=await rowFor(this.pool,auth,id);
+      if(!row.state.prompts){
+        const [transcription,contact]=await Promise.all([resolveProductPrompt("capture/transcription"),resolveProductPrompt("capture/contact")]);
+        await this.checkpoint(auth,id,epoch,async(_,r)=>{r.state.prompts??={transcription,contact};});
+        row=await rowFor(this.pool,auth,id);
+      }
       if(!row.state.response.extraction){
         const manifests=[row.input_manifest.image,...row.input_manifest.additional_images??[]];
         for(let index=row.state.extraction_parts?.length??0;index<manifests.length;index++) {
@@ -431,7 +438,7 @@ export class ScreenshotContactTaskRunner {
           if(current.content_hash!==manifests[index]!.content_hash)deny("CONTACT_IMAGE_INTEGRITY_MISMATCH");
           // Refresh the lease for each bounded image read, and checkpoint each result.
           await this.checkpoint(auth,id,epoch,async()=>{});
-          const output=await this.dependencies.model.extract(current,signal);
+          const output=await this.dependencies.model.extract(current,signal,row.state.prompts!.transcription.text);
           await this.checkpoint(auth,id,epoch,async(_,r)=>{
             r.state.extraction_parts??=[];r.state.extraction_parts.push(output.extraction);
             r.state.tokens+=output.inputTokens+output.outputTokens;
@@ -452,6 +459,7 @@ export class ScreenshotContactTaskRunner {
         if(row.state.turns>=18||row.state.tokens>=80_000)deny("CONTACT_TASK_BUDGET_EXHAUSTED");
         const tools=toolsFor(row);
         const reply=await this.dependencies.model.next({objective:row.input_manifest.objective,extraction:row.state.response.extraction!,
+          systemPrompt:row.state.prompts!.contact.text,
           state:{contact:row.state.response.contact,capture_id:row.state.response.capture_id,selected:row.state.selected,
             searched_queries:row.state.searches.map(s=>({query:s.query,match_count:s.candidates.length})),
             user_selected_contact_name:row.state.user_contact_label??null,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WORKSPACE_OUTPUT_GUIDANCE } from "./prompts.js";
 
 import {
   CreateResearchArtifactInputSchema,
@@ -86,7 +87,7 @@ export const AGENT_TOOL_CATALOG: Readonly<
   },
   stage_pursuit_proposal: {
     description:
-      "Form one evidence-supported review candidate. This cannot confirm or apply state.",
+      "Stage an evidence-supported operational proposal for human review. Use add_gap with item_key operational_gap:<identity_unresolved|contact_channel_unavailable|availability_unknown|scheduling_constraint|stakeholder_response_pending|evidence_conflict|source_freshness_expired>, or add_action with item_key recruiter_task:<review_identity|review_evidence|ask_clarifying_question|prepare_message_draft|wait_until|verify_outcome>. Explain alternatives in the summary. This cannot assess candidate quality, change milestones or statuses, confirm facts, or apply state.",
     schema: StageProposalInputSchema,
     readOnly: false,
     openWorld: false,
@@ -170,7 +171,7 @@ export const AGENT_TOOL_CATALOG: Readonly<
   },
   contact_workspace: {
     description:
-      "Search or read one authenticated-account contact, or stage a review-only contact create/update proposal. Search queries must be grounded in the user's message. This tool cannot apply, merge, message, schedule, or publish anything.",
+      "Search the authenticated account using a specific clue copied from the user's message; never enumerate contacts. Read only a uniquely resolved Person/relationship pair from this run. No match or ambiguity needs clarification. propose_create/propose_update stage a review-only change using exact message excerpts and current target labels; return its fingerprint for human confirmation. No apply, identity merge, or external communication.",
     schema: ContactWorkspaceToolInputSchema,
     readOnly: false,
     openWorld: false,
@@ -221,4 +222,10 @@ export function candidateOutcome(
 
 export function agentCapabilityManifest(manifest: readonly AgentToolName[]) {
   return manifest.map((name) => ({ name, ...AGENT_TOOL_CATALOG[name] }));
+}
+
+/** Transport output instructions, shared by JSON/tool-call provider adapters. */
+export function agentOutputGuidance(manifest: readonly AgentToolName[]): string {
+  if (manifest.includes("contact_workspace")) return WORKSPACE_OUTPUT_GUIDANCE;
+  return `After a successful ${candidateToolNames(manifest).join(" or ")} call, return JSON {"outcome":"${candidateOutcome(manifest)}","candidate_fingerprint":string} with its exact fingerprint. Otherwise return JSON {"outcome":"no_action","reason_code":string,"reason":string,"missing_evidence_refs":[]}.`;
 }

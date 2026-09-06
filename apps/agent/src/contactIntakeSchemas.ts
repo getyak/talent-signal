@@ -43,7 +43,7 @@ export const ContactFindingSchema = z.strictObject({
 
 export const CONTACT_INTAKE_TOOLS = {
   search_contacts: {
-    description: "Search the authenticated contact directory with a specific identity clue from the screenshot or current user request. Call before creating a contact. Results contain only minimal identity and relationship labels.",
+    description: "Search contacts with an exact visible identity clue or current user-provided clue. Search before creating. Use each query once unless the directory changed; an empty exact-name search permits source-labeled filing. Do not retry company/title as a person's name. Results contain minimal identity/relationship labels.",
     schema: z.strictObject({ query: Text.max(200) }),
   },
   read_contact: {
@@ -67,7 +67,7 @@ export const CONTACT_INTAKE_TOOLS = {
     schema: z.strictObject({ source_id: z.union([Hash,z.string().regex(/^public[1-9][0-9]*$/u)]) }),
   },
   update_contact: {
-    description: "Save cited professional observations to the resolved contact's profile. Every field needs an exact excerpt from a fetched public source (public1/public2 source_ref or exact source_id), stored chat message m1/m2/etc, or extracted screenshot identity clue clue1/clue2/etc shown in governed state. Public-profile URL values must match the cited source URL. Preserve conflicting values and user-confirmed fields. No identity merge, candidate rating, or external write.",
+    description: "Save sourced professional observations using exact excerpts and references: public1/public2 or source_id for fetched sources, m1/m2 for messages, clue1/clue2 for header clues. source_statement copies source wording; paraphrases and role attribution are inference. public_profile is the exact cited HTTPS URL. Preserve conflicts and confirmed fields; omit popularity metrics. No identity merge, candidate rating, or external write.",
     schema: z.strictObject({ person_id: ID, fields: z.array(ContactProfileFieldSchema).min(1).max(10) }),
   },
   delete_contact: {
@@ -75,7 +75,7 @@ export const CONTACT_INTAKE_TOOLS = {
     schema: z.strictObject({ person_id: ID, expected_revision: z.number().int().min(1) }),
   },
   finish_contact_task: {
-    description: "Finish after actual contact and IM readback. Return a concise user-language summary, evidence-cited analysis, and one next step or no_action. Network failures may leave useful stored work with explicit limitations. Never claim an external message was sent.",
+    description: "Finish after contact and IM readback. Return a useful summary, findings with exact quotes and m1/m2 message references, and next steps only when useful. source_statement copies source wording; paraphrases and role attribution are inference. Explain optional research limitations while preserving completed work. No external message has been sent.",
     schema: z.strictObject({ summary: Text.max(2_000), findings: z.array(ContactFindingSchema).max(10), limitations: z.array(Text.max(500)).max(10) }),
   },
   ask_contact_clarification: {

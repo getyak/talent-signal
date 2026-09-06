@@ -1,0 +1,516 @@
+{
+  "name": "talent-signal-opik",
+  "networks": {
+    "default": {
+      "ipam": {}
+    }
+  },
+  "services": {
+    "backend": {
+      "command": [
+        "bash",
+        "-c",
+        "./run_db_migrations.sh && ./provision_agent_insights_readonly_user.sh && ./entrypoint.sh"
+      ],
+      "depends_on": {
+        "clickhouse": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "minio": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "mysql": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "redis": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "ANALYTICS_DB_CLUSTER_HEALTH_CHECK_ENABLED": "false",
+        "ANALYTICS_DB_COLD_STORAGE_DISK_HEALTH_CHECK_ENABLED": "false",
+        "ANALYTICS_DB_DATABASE_NAME": "opik",
+        "ANALYTICS_DB_DATA_MODEL_DELETION_EVENTS_INSERT_BATCH_SIZE": "1000",
+        "ANALYTICS_DB_DATA_MODEL_SPAN_COLUMNS_NON_NULLABLE": "false",
+        "ANALYTICS_DB_DATA_MODEL_SPAN_DELETION_EVENTS_CAPTURE_ENABLED": "false",
+        "ANALYTICS_DB_DATA_MODEL_TRACES_DISTRIBUTED_WRAP_ENABLED": "false",
+        "ANALYTICS_DB_DATA_MODEL_TRACE_COLUMNS_NON_NULLABLE": "false",
+        "ANALYTICS_DB_DATA_MODEL_TRACE_DELETION_EVENTS_CAPTURE_ENABLED": "false",
+        "ANALYTICS_DB_HEALTH_CHECK_TIMEOUT": "5s",
+        "ANALYTICS_DB_HOST": "clickhouse",
+        "ANALYTICS_DB_MIGRATIONS_PASS": "opik",
+        "ANALYTICS_DB_MIGRATIONS_URL": "jdbc:clickhouse://clickhouse:8123?socket_timeout=300000&connection_timeout=300000",
+        "ANALYTICS_DB_MIGRATIONS_USER": "opik",
+        "ANALYTICS_DB_PASS": "opik",
+        "ANALYTICS_DB_PORT": "8123",
+        "ANALYTICS_DB_PROTOCOL": "HTTP",
+        "ANALYTICS_DB_READ_ONLY_FREEFORM_SQL_PASS": "opik",
+        "ANALYTICS_DB_READ_ONLY_FREEFORM_SQL_USER": "comet_readonly_freeform_sql_user",
+        "ANALYTICS_DB_USERNAME": "opik",
+        "AWS_ACCESS_KEY_ID": "THAAIOSFODNN7EXAMPLE",
+        "AWS_SECRET_ACCESS_KEY": "LESlrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "IS_MINIO": "true",
+        "JAVA_OPTS": "-Dliquibase.propertySubstitutionEnabled=true -XX:+UseG1GC -Xms192m -Xmx512m",
+        "OPIK_ANALYTICS_ENABLED": "false",
+        "OPIK_USAGE_REPORT_ENABLED": "false",
+        "REDIS_HEALTH_CHECK_TIMEOUT": "5s",
+        "REDIS_URL": "redis://:opik@redis:6379/",
+        "S3_URL": "http://minio:9000",
+        "SHARED_HTTP_CLIENT_HEALTH_CHECK_TIMEOUT": "5s",
+        "STATE_DB_DATABASE_NAME": "opik",
+        "STATE_DB_PASS": "opik",
+        "STATE_DB_PROTOCOL": "jdbc:mysql://",
+        "STATE_DB_URL": "mysql:3306/opik?createDatabaseIfNotExist=true&rewriteBatchedStatements=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true",
+        "STATE_DB_USER": "opik",
+        "TOGGLE_OPIK_AI_ENABLED": "false",
+        "TOGGLE_WELCOME_WIZARD_ENABLED": "false",
+        "PYTHON_EVALUATOR_URL": "http://127.0.0.1:8000",
+        "OPIK_OTEL_SDK_ENABLED": "false"
+      },
+      "hostname": "backend",
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:8080/health-check"
+        ],
+        "timeout": "15s",
+        "interval": "5s",
+        "retries": 90,
+        "start_period": "15s"
+      },
+      "image": "ghcr.io/comet-ml/opik/opik-backend@sha256:2ea3198d94b010404cd7108d41471382aa6e280485f2e1aad038093bb0fafa83",
+      "mem_limit": "805306368",
+      "memswap_limit": "805306368",
+      "networks": {
+        "default": null
+      },
+      "restart": "unless-stopped",
+      "tmpfs": [
+        "/tmp"
+      ],
+      "pull_policy": "missing",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    },
+    "clickhouse": {
+      "command": null,
+      "depends_on": {
+        "clickhouse-init": {
+          "condition": "service_completed_successfully",
+          "required": true
+        },
+        "zookeeper": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "CLICKHOUSE_DB": "opik",
+        "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT": "1",
+        "CLICKHOUSE_PASSWORD": "opik",
+        "CLICKHOUSE_USER": "opik"
+      },
+      "hostname": "clickhouse",
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "--spider",
+          "-q",
+          "http://127.0.0.1:8123/ping"
+        ],
+        "timeout": "15s",
+        "interval": "5s",
+        "retries": 90,
+        "start_period": "15s"
+      },
+      "image": "clickhouse/clickhouse-server@sha256:b45ab149f0d331b944b4aa2ccdd47d0242238fd39e68ec524ad63338e4b9d8f8",
+      "mem_limit": "939524096",
+      "memswap_limit": "939524096",
+      "networks": {
+        "default": null
+      },
+      "ulimits": {
+        "nofile": {
+          "soft": 262144,
+          "hard": 262144
+        }
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "clickhouse",
+          "target": "/var/lib/clickhouse",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "clickhouse-server",
+          "target": "/var/log/clickhouse-server",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "clickhouse-config",
+          "target": "/etc/clickhouse-server/config.d",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "./clickhouse_config/users.d/enable_time_type.xml",
+          "target": "/etc/clickhouse-server/users.d/enable_time_type.xml",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "./clickhouse-low-memory.xml",
+          "target": "/etc/clickhouse-server/config.d/zz-talent-signal-low-memory.xml",
+          "read_only": true,
+          "bind": {}
+        }
+      ],
+      "pull_policy": "missing",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    },
+    "clickhouse-init": {
+      "command": [
+        "sh",
+        "-c",
+        "\n  cp -r /clickhouse_config_files/* /config/ &&\n  chown -R 1000:1000 /config\n"
+      ],
+      "entrypoint": null,
+      "image": "alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b",
+      "networks": {
+        "default": null
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "./clickhouse_config",
+          "target": "/clickhouse_config_files",
+          "bind": {}
+        },
+        {
+          "type": "volume",
+          "source": "clickhouse-config",
+          "target": "/config",
+          "volume": {}
+        }
+      ],
+      "pull_policy": "missing",
+      "restart": "no",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    },
+    "frontend": {
+      "command": null,
+      "depends_on": {
+        "backend": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "NGINX_CONF_SUFFIX": "local",
+        "NGINX_PORT": "5173",
+        "OPIK_VERSION": "latest",
+        "OTEL_COLLECTOR_HOST": "otel-collector",
+        "OTEL_COLLECTOR_PORT": "4317",
+        "OTEL_TRACE": "off"
+      },
+      "hostname": "frontend",
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "curl --fail --fail-early http://localhost:5173/health"
+        ],
+        "timeout": "15s",
+        "interval": "5s",
+        "retries": 90,
+        "start_period": "15s"
+      },
+      "image": "ghcr.io/comet-ml/opik/opik-frontend@sha256:69d311fbcf2657ca7bfc592c43f025bba5195204d460e321affac8590220fbaa",
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 5173,
+          "published": "5173",
+          "protocol": "tcp"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "./nginx_default_local.conf",
+          "target": "/etc/nginx/templates/default.conf.template",
+          "read_only": true,
+          "bind": {}
+        }
+      ],
+      "pull_policy": "missing",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    },
+    "mc": {
+      "command": null,
+      "depends_on": {
+        "minio": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "entrypoint": [
+        "/bin/sh",
+        "-c",
+        " sleep 10s; /usr/bin/mc alias set s3 http://minio:9000 THAAIOSFODNN7EXAMPLE LESlrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY --api S3v4 ; /usr/bin/mc mb --ignore-existing s3/public; /usr/bin/mc anonymous set download s3/public/; "
+      ],
+      "image": "minio/mc@sha256:470f5546b596e16c7816b9c3fa7a78ce4076bb73c2c73f7faeec0c8043923123",
+      "networks": {
+        "default": null
+      },
+      "pull_policy": "missing",
+      "restart": "no",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    },
+    "minio": {
+      "command": [
+        "server",
+        "--console-address",
+        ":9090",
+        "/data"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "MINIO_ROOT_PASSWORD": "LESlrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "MINIO_ROOT_USER": "THAAIOSFODNN7EXAMPLE"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:9000/minio/health/live"
+        ],
+        "timeout": "15s",
+        "interval": "5s",
+        "retries": 90,
+        "start_period": "15s"
+      },
+      "image": "minio/minio@sha256:46b3009bf7041eefbd90bd0d2b38c6ddc24d20a35d609551a1802c558c1c958f",
+      "networks": {
+        "default": null
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "minio-data",
+          "target": "/data",
+          "volume": {}
+        }
+      ],
+      "pull_policy": "missing",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    },
+    "mysql": {
+      "command": [
+        "mysqld",
+        "--performance-schema=OFF",
+        "--innodb-buffer-pool-size=32M",
+        "--key-buffer-size=8M",
+        "--max-connections=80"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "MYSQL_DATABASE": "opik",
+        "MYSQL_PASSWORD": "opik",
+        "MYSQL_ROOT_PASSWORD": "opik",
+        "MYSQL_USER": "opik"
+      },
+      "hostname": "mysql",
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "--silent"
+        ],
+        "timeout": "15s",
+        "interval": "5s",
+        "retries": 90,
+        "start_period": "15s"
+      },
+      "image": "mysql@sha256:ac80b6e09e5b12b4f9d5cd4f6425e43464247aa4ba4f6169da5daf59e5877f7d",
+      "mem_limit": "469762048",
+      "memswap_limit": "469762048",
+      "networks": {
+        "default": null
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "mysql",
+          "target": "/var/lib/mysql",
+          "volume": {}
+        }
+      ],
+      "pull_policy": "missing",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    },
+    "redis": {
+      "command": [
+        "redis-server",
+        "--requirepass",
+        "opik"
+      ],
+      "entrypoint": null,
+      "hostname": "redis",
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "nc",
+          "-z",
+          "localhost",
+          "6379"
+        ],
+        "timeout": "15s",
+        "interval": "5s",
+        "retries": 90,
+        "start_period": "15s"
+      },
+      "image": "redis@sha256:c8bb255c3559b3e458766db810aa7b3c7af1235b204cfdb304e79ff388fe1a5a",
+      "networks": {
+        "default": null
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "redis-data",
+          "target": "/data",
+          "volume": {}
+        }
+      ],
+      "pull_policy": "missing",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    },
+    "zookeeper": {
+      "command": null,
+      "entrypoint": [
+        "/bin/bash",
+        "-c",
+        "# Create data directory if it doesn't exist (for fresh installations)\n# We use /bitnami/zookeeper/data path for compatibility with upgrades from Bitnami images\n# Fresh installs need this directory created, while upgrades already have it with existing data\nmkdir -p /bitnami/zookeeper/data\nchown -R zookeeper:zookeeper /bitnami/zookeeper\n# Run the original entrypoint as zookeeper user\nexec gosu zookeeper /docker-entrypoint.sh zkServer.sh start-foreground\n"
+      ],
+      "environment": {
+        "JVMFLAGS": "-Xms32m -Xmx96m",
+        "ZOO_4LW_COMMANDS_WHITELIST": "srvr,ruok",
+        "ZOO_DATA_DIR": "/bitnami/zookeeper/data",
+        "ZOO_DATA_LOG_DIR": "/bitnami/zookeeper/data"
+      },
+      "hostname": "zookeeper",
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "echo ruok | nc localhost 2181 | grep -q imok"
+        ],
+        "timeout": "15s",
+        "interval": "5s",
+        "retries": 90,
+        "start_period": "15s"
+      },
+      "image": "zookeeper@sha256:dfa9ba46d14bd52bcb3c1dac3ba91f179cf4cebf7ee576e1c2df09c68fc1d30d",
+      "mem_limit": "167772160",
+      "memswap_limit": "167772160",
+      "networks": {
+        "default": null
+      },
+      "user": "root",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "zookeeper",
+          "target": "/bitnami/zookeeper",
+          "volume": {}
+        }
+      ],
+      "pull_policy": "missing",
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    }
+  },
+  "volumes": {
+    "clickhouse": {},
+    "clickhouse-config": {},
+    "clickhouse-server": {},
+    "minio-data": {},
+    "mysql": {},
+    "redis-data": {},
+    "zookeeper": {}
+  }
+}

@@ -1100,6 +1100,9 @@ export async function createChatTask(
         remote_chat_status: remoteChatStatus,
         remote_chat_provider_id: remoteChatResult?.provider_id ?? null,
         remote_chat_model: remoteChatResult?.model ?? null,
+        remote_chat_prompt_revision: remoteChatResult?.prompt_revision ?? null,
+        remote_chat_prompt_version_id: remoteChatResult?.prompt_snapshot?.versionId ?? null,
+        remote_chat_prompt_source: remoteChatResult?.prompt_snapshot?.source ?? null,
         remote_chat_provider_request_id:
           remoteChatResult?.provider_request_id ?? null,
         remote_chat_input_tokens: remoteChatResult?.input_tokens ?? 0,

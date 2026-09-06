@@ -1,1 +1,0 @@
-$ eslint app components lib next.config.ts vitest.config.ts postcss.config.mjs

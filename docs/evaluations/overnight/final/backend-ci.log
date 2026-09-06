@@ -1,9 +1,0 @@
-$ ./apps/backend/scripts/ci.sh
-
- RUN  v4.1.10 /Users/xiongxinwei/.codex/worktrees/7b14/talent-signal/apps/backend
-
-
- Test Files  3 passed (3)
-      Tests  6 passed (6)
-   Start at  04:20:28
-   Duration  987ms (transform 316ms, setup 0ms, import 723ms, tests 78ms, environment 0ms)

@@ -43,6 +43,7 @@ interface UnscopedChatExecution {
     providerRequestID: string | null;
     inputTokens: number;
     outputTokens: number;
+    prompt?: import("@talent-signal/agent").PromptReference;
   } | null;
 }
 
@@ -113,6 +114,7 @@ export async function executeUnscopedChatTask(input: {
           providerRequestID: execution.providerResult.sessionID ?? null,
           inputTokens: execution.providerResult.inputTokens,
           outputTokens: execution.providerResult.outputTokens,
+          ...(execution.providerResult.prompt ? { prompt: execution.providerResult.prompt } : {}),
         };
         remoteStatus = "agent_completed";
       } else {
@@ -247,6 +249,9 @@ export async function createUnscopedChatTask(
             ?? execution.providerResult?.provider_request_id
             ?? null,
         contact_agent_event_kind: execution.body.agent_event?.kind ?? null,
+        prompt: execution.agentProviderResult?.prompt ?? (execution.providerResult?.prompt_snapshot
+          ? { name: execution.providerResult.prompt_snapshot.name, revision: execution.providerResult.prompt_snapshot.revision,
+            versionId: execution.providerResult.prompt_snapshot.versionId, source: execution.providerResult.prompt_snapshot.source } : null),
       },
     );
     await completeIdempotency(client, idempotency, 201, execution.body);

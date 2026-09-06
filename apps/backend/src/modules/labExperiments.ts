@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
+import { resolveProductPrompt } from "@talent-signal/agent/prompt-registry";
 import type { LabExperiment, LabExperimentRequest, LabModelResult } from "@talent-signal/contracts";
 import type { Pool } from "pg";
 import { inTransaction } from "../database/pool.js";
 import { ApiError } from "../lib/apiError.js";
 import type { AuthContext } from "./auth.js";
-import { CHAT_PROMPT_REVISION, createEnvironmentChatAnswerProvider, type RemoteChatAnswerProviding,
+import { configuredChatPrompt, createEnvironmentChatAnswerProvider, type RemoteChatAnswerProviding,
   type RemoteChatAnswerRequest } from "./chatAnswerProvider.js";
 import { getLabScenario } from "./labScenarios.js";
 
@@ -55,7 +56,8 @@ export async function executeLabModel(provider: RemoteChatAnswerProviding,
   const start = performance.now();
   try {
     const result = await provider.answer(structuredClone(input));
-    if (result.model !== provider.model || !result.body.trim()
+    if ((input.prompt_snapshot && provider.supportsPromptPresets && result.prompt_revision !== configuredChatPrompt("relationship", "baseline", input.prompt_snapshot.text).revision)
+      || result.model !== provider.model || !result.body.trim()
       || result.body.length > 16000 || result.title.length > 1000
       || result.citation_ids.some((id) => !input.allowed_citation_ids.includes(id))) {
       throw new Error("Unverifiable provider output");
@@ -114,12 +116,14 @@ export class LabExperimentService {
       return this.read(auth, request.id);
     }
     const input = experimentInput(request.case_id);
+    const snapshot = await resolveProductPrompt("assistant/relationship");
     const selected = request.models.map((id) => this.providers.get(id));
     if (selected.some((x) => !x)) throw new ApiError(422, "LAB_MODEL_UNAVAILABLE", "Choose a configured model.");
     const now = new Date();
     const record: LabExperiment = {
       id: request.id, case_id: request.case_id, case_revision: getLabScenario(request.case_id)!.revision,
-      snapshot_hash: hash(input), prompt_version: CHAT_PROMPT_REVISION,
+      snapshot_hash: hash(input), prompt_version: configuredChatPrompt("relationship", "baseline", snapshot.text).revision,
+      prompt_snapshot: snapshot,
       backend_revision: this.backendRevision, models: [...request.models], status: "running", results: [],
       review: "unreviewed", created_at: now.toISOString(), expires_at: new Date(+now + 7 * 86400_000).toISOString(),
       provider_call_limit: 2, business_write_count: 0, cost_status: "unavailable",
@@ -145,7 +149,7 @@ export class LabExperimentService {
     });
     if (!inserted) return this.read(auth, record.id);
     // The committed ID survives phone disconnection. A process crash becomes unknown; it is never auto-replayed.
-    void this.execute(auth, record, selected as RemoteChatAnswerProviding[], input).catch(() => {});
+    void this.execute(auth, record, selected as RemoteChatAnswerProviding[], { ...input, prompt_snapshot: snapshot }).catch(() => {});
     return record;
   }
 

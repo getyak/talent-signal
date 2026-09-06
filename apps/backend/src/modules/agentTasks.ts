@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   fingerprint,
+  resolveProductPrompt, bundledPrompt,
   type AgentProvider,
 } from "@talent-signal/agent";
 import {
@@ -557,6 +558,7 @@ export async function createPursuitAgentTask(
   options: { provider?: AgentProvider; schedule?: boolean } = {},
 ): Promise<MutationResult<AgentTaskResponse>> {
   const provider = options.provider ?? configuredAgentProvider();
+  const promptSnapshot = await resolveProductPrompt("pursuit/proposal");
   const taskID = randomUUID();
   const objective = request.objective.trim();
   const result = await inTransaction(pool, async (client) => {
@@ -584,11 +586,12 @@ export async function createPursuitAgentTask(
       evidenceRefs: request.evidence_refs,
       inputArtifactManifest: [],
     });
-    const identity = pursuitAgentSemanticIdentity(provider);
+    const identity = pursuitAgentSemanticIdentity(provider, promptSnapshot.text);
     const semanticSnapshot: SemanticSnapshot = {
       pursuit_revision: scope.pursuitRevision,
       evidence_manifest_digest: fingerprint(scope.evidenceManifest),
       agent_definition_digest: identity.agentDefinitionDigest,
+      prompt_snapshot: promptSnapshot,
       tool_schema_digest: identity.toolSchemaDigest,
       policy_digest: identity.policyDigest,
       model_digest: identity.modelDigest,
@@ -1388,6 +1391,7 @@ export async function executeAgentTask(
       provider,
       controller.signal,
       "operational_only",
+      claimed.task.semantic_snapshot.prompt_snapshot ?? bundledPrompt("pursuit/proposal"),
     );
     await finalizeTask(pool, claimed, result.body.run);
   } catch (error) {

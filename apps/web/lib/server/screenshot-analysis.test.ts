@@ -199,15 +199,33 @@ describe("private screenshot analysis provider", () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
+  it("does not dispatch a model request when cancelled while resolving its prompt", async () => {
+    vi.stubEnv("TALENT_SIGNAL_AI_ENABLED", "true");
+    vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "true");
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubEnv("ARK_API_KEY", "");
+    const controller = new AbortController();
+    const fetchImpl = vi.fn();
+    const pending = analyzeScreenshot({ bytes: new Uint8Array([1, 2, 3]), mimeType: "image/webp",
+      contactName: "Synthetic", assignmentLabel: "Synthetic", screenshotOwner: "unknown",
+      signal: controller.signal, sourceSha256, fetchImpl: fetchImpl as typeof fetch });
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("propagates caller cancellation to the configured vision provider", async () => {
     vi.stubEnv("TALENT_SIGNAL_AI_ENABLED", "true");
     vi.stubEnv("TALENT_SIGNAL_ALLOW_SENSITIVE_AI_PROCESSING", "true");
     vi.stubEnv("OPENROUTER_API_KEY", "test-key");
     vi.stubEnv("ARK_API_KEY", "");
     const controller = new AbortController();
+    let dispatched!: () => void;
+    const started = new Promise<void>((resolve) => { dispatched = resolve; });
     const fetchImpl = vi.fn(
       async (_url: string | URL | Request, init?: RequestInit) => {
         const providerSignal = init?.signal;
+        dispatched();
         return await new Promise<Response>((_resolve, reject) => {
           providerSignal?.addEventListener(
             "abort",
@@ -228,6 +246,7 @@ describe("private screenshot analysis provider", () => {
       sourceSha256,
       fetchImpl: fetchImpl as typeof fetch,
     });
+    await started;
     controller.abort();
 
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
