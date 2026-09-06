@@ -158,3 +158,17 @@ unit tests and both swipe/recovery/reduced-motion UI tests passed on the dedicat
 iPhone 17 Pro Simulator. Documentation, localization, and 18 secret-boundary
 checks passed. These checks complement, rather than replace, the required PR
 CI and Security gates.
+
+The release branch also passed the full Web suite (327 passed, one pre-existing
+skip) and a production Web build using the repository's build-only CI secret.
+An old test expecting the replaced expiry sentence was updated while retaining
+the returnable expired-session boundary assertions.
+
+The local API and Agent Host now run the isolated release image. Docker Hub
+still returned EOF, so its runtime is the prior verified multi-image release,
+whose lockfile SHA-256 exactly matches this branch, with freshly compiled
+backend/contracts/agent/evaluation/Agent Host output. Seven deployed hashes,
+including the retained proposed-extracted-text migration, match; see the
+[deployment proof](release-deployment-proof.json). The standard deployment
+script's database, readiness, Apple, voice, Chat, and Tailscale probes passed,
+and a new Google challenge succeeded.
