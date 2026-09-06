@@ -1095,7 +1095,8 @@ struct RelationshipAskView: View {
                     if let screenshotContactTask {
                         ScreenshotContactCard(task: screenshotContactTask, language: appLanguage, onOpenPerson: onOpenPerson,
                             onResume: { body in resumeScreenshotContact(body) },
-                            onCancel: { cancelScreenshotContact() })
+                            onCancel: { cancelScreenshotContact() },
+                            onLoadImage: { index in try await workspaceStore.loadScreenshotContactImage(taskID: screenshotContactTask.taskID, index: index) })
                     }
                     if shouldShowScopeBar,
                        contactDraft == nil || contactSaveMessage != nil,
@@ -2869,7 +2870,7 @@ struct RelationshipAskView: View {
                     var fileExtension = item.supportedContentTypes
                         .compactMap(\.preferredFilenameExtension)
                         .first
-                    if mediaType == nil {
+                    if mediaType == nil || !["image/png", "image/jpeg", "image/webp"].contains(mediaType ?? "") {
                         guard let converted = preview.jpegData(compressionQuality: 0.9) else {
                             throw PursuitWorkspaceClientError.invalidResponse
                         }
@@ -2931,7 +2932,7 @@ struct RelationshipAskView: View {
                     let normalizedName: String
                     let mediaType: String
                     if let originalType,
-                       Self.allowedChatMediaTypes.contains(originalType) {
+                       ["image/png", "image/jpeg", "image/webp"].contains(originalType) {
                         normalizedData = data
                         normalizedName = url.lastPathComponent
                         mediaType = originalType
@@ -2975,7 +2976,7 @@ struct RelationshipAskView: View {
             height: max(1, Int(preview.size.height * scale)),
             routingText: "",
             remoteAsset: nil,
-            phase: selectedScope == nil ? .waitingForContext : .uploading
+            phase: .waitingForContext
         )
         mediaDrafts.append(mediaDraft)
         Task {
@@ -2987,9 +2988,7 @@ struct RelationshipAskView: View {
             }
             mediaDrafts[index].routingText = recognizedText
         }
-        mediaNotice = appLanguage.text(
-            "Attached for this Agent task · visible identity clues may be used for automatic public-profile research · not reviewed evidence"
-        )
+        mediaNotice = nil
         if let selectedScope {
             uploadMediaDraft(id, scope: selectedScope)
         }
@@ -3029,6 +3028,10 @@ struct RelationshipAskView: View {
     private func uploadMediaDraft(_ id: UUID, scope: AskScope? = nil) {
         guard let index = mediaDrafts.firstIndex(where: { $0.id == id }),
               let resolvedScope = scope ?? selectedScope else { return }
+        if ["image/png", "image/jpeg", "image/webp"].contains(mediaDrafts[index].mediaType) {
+            mediaDrafts[index].phase = .waitingForContext
+            return
+        }
         mediaDrafts[index].phase = .uploading
         let mediaDraft = mediaDrafts[index]
         Task {
@@ -3148,9 +3151,13 @@ struct RelationshipAskView: View {
         let isUnscopedPersonResearch = screenshotRoute == .directResearch
         if screenshotRoute == .unsupported {
             errorMessage = appLanguage.text(
-                "Public profile research needs exactly one PNG, JPEG, or WebP screenshot. Remove extra or unsupported images, then Send again."
+                "Choose up to ten PNG, JPEG, or WebP images."
             )
             composerFocused = false
+            return
+        }
+        if mediaDrafts.reduce(0, { $0 + $1.data.count }) > 30_000_000 {
+            errorMessage = appLanguage.text("Images must total no more than 30 MB.")
             return
         }
         let effectiveObjective = trimmed.isEmpty
@@ -3173,9 +3180,9 @@ struct RelationshipAskView: View {
         draft = ""
         composerFocused = false
 
-        if mediaDrafts.count == 1, let media = mediaDrafts.first,
-           ["image/png", "image/jpeg", "image/webp"].contains(media.mediaType) {
-            performScreenshotContact(media: media, objective: effectiveObjective, originalDraft: trimmed)
+        if !mediaDrafts.isEmpty, mediaDrafts.count <= 10,
+           mediaDrafts.allSatisfy({ ["image/png", "image/jpeg", "image/webp"].contains($0.mediaType) }) {
+            performScreenshotContact(media: mediaDrafts, objective: effectiveObjective, originalDraft: trimmed)
             return
         }
 
@@ -3238,27 +3245,29 @@ struct RelationshipAskView: View {
         )
     }
 
-    private func performScreenshotContact(media: AskMediaDraft, objective: String, originalDraft: String) {
+    private func performScreenshotContact(media: [AskMediaDraft], objective: String, originalDraft: String) {
         let proposed = ScreenshotContactTaskBody(idempotencyKey: "ios:contact-agent:\(UUID().uuidString.lowercased())", objective: objective,
-            data: media.data, mediaType: media.mediaType, personID: selectedScope?.person.id, contextID: selectedScope?.context.id)
-        if screenshotContactRequest?.image.contentHash != proposed.image.contentHash
-            || screenshotContactRequest?.objective != objective
+            images: media.map { .init(data: $0.data, mediaType: $0.mediaType) }, personID: selectedScope?.person.id, contextID: selectedScope?.context.id)
+        let previousHashes = screenshotContactRequest.map { [$0.image.contentHash] + ($0.additionalImages ?? []).map(\.contentHash) }
+        let proposedHashes = [proposed.image.contentHash] + (proposed.additionalImages ?? []).map(\.contentHash)
+        if previousHashes != proposedHashes || screenshotContactRequest?.objective != objective
             || screenshotContactRequest?.selectedPersonID != proposed.selectedPersonID
             || screenshotContactRequest?.selectedRelationshipContextID != proposed.selectedRelationshipContextID {
             screenshotContactRequest = proposed
-            screenshotContactTask = nil
         }
         guard let request = screenshotContactRequest else { return }
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
         askOperation?.cancel()
         askOperation = Task {
+            var accepted = false
             do {
                 var response = try await workspaceStore.createScreenshotContactTask(request)
                 try Task.checkCancellation()
                 screenshotContactTask = response
+                accepted = true
                 screenshotContactRequest = nil
                 mediaDrafts = []
-                mediaNotice = appLanguage.text("Messages and sourced context are retained for 30 days; the original image is not retained.")
+                mediaNotice = nil
                 while response.status == "running" {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
                     response = try await workspaceStore.loadScreenshotContactTask(id: response.taskID)
@@ -3273,7 +3282,7 @@ struct RelationshipAskView: View {
                 askOperation = nil
             } catch {
                 if Task.isCancelled { return }
-                draft = screenshotContactTask == nil ? originalDraft : ""
+                draft = accepted ? "" : originalDraft
                 pendingObjective = nil
                 updateAskSubmissionPhase(.idle)
                 isSending = false

@@ -3,8 +3,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { ContactResearchToolRequestSchema } from "@talent-signal/agent";
 import type { ContactAgentModel, ContactChatExtraction, ScreenshotContactTaskRequest } from "@talent-signal/agent";
-import { createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks } from "./screenshotContactTasks.js";
+import { createScreenshotContactTask, ScreenshotContactTaskRunner, loadScreenshotContactTask, loadContactIntelligence, resumeScreenshotContactTask, cancelScreenshotContactTask, expireScreenshotContactTasks, loadScreenshotContactImage } from "./screenshotContactTasks.js";
 import type { AuthContext } from "./auth.js";
+import type { ChatMediaStorage } from "./chatMediaStorage.js";
 import { executeGrantedContactArchive, restoreContactArchive } from "./contactArchive.js";
 
 const database=process.env.CONTACT_AGENT_TEST_DATABASE_URL;
@@ -145,4 +146,66 @@ describe.skipIf(!pool)("screenshot contact database authority",()=>{
     expect(result.profile_fields).toEqual([{field:"public_profile",value:"https://www.linkedin.com/in/contact-proof",source_refs:[sourceID],source_excerpt:"Founder at Example Labs.",epistemic_status:"source_statement"}]);
   });
 
+});
+
+class TestImageStorage implements ChatMediaStorage {
+  readonly provider="local" as const;
+  readonly labScopeID=randomUUID();
+  readonly objects=new Map<string,Uint8Array>();
+  puts=0; failPutAt=0; failPurge=false;
+  async put(key:string,body:Uint8Array){this.puts++;if(this.puts===this.failPutAt)throw new Error("TEST_UPLOAD_FAILED");this.objects.set(key,body);}
+  async get(key:string,contentType:string){const body=this.objects.get(key);if(!body)throw new Error("TEST_MISSING_IMAGE");return {body,contentType};}
+  async delete(key:string){this.objects.delete(key);}
+  async purge(key:string){if(this.failPurge)throw new Error("TEST_PURGE_FAILED");await this.delete(key);}
+}
+
+describe.skipIf(!pool)("durable multi-image contact sources",()=>{
+  it("reconciles a partial upload, survives extraction interruption, and reads each scoped original",async()=>{
+    const storage=new TestImageStorage();storage.failPutAt=2;
+    const request={...input(),additional_images:[input().image]};
+    await expect(createScreenshotContactTask(pool!,auth,request,storage)).rejects.toMatchObject({code:"CONTACT_IMAGE_UPLOAD_FAILED"});
+    expect(storage.objects.size).toBe(1);
+    const created=await createScreenshotContactTask(pool!,auth,request,storage);
+    expect(created.replayed).toBe(true);expect(storage.puts).toBe(3);expect(storage.objects.size).toBe(2);
+    const repeated=await createScreenshotContactTask(pool!,auth,request,storage);
+    expect(repeated.body.task_id).toBe(created.body.task_id);expect(storage.puts).toBe(3);
+    const base=model(`Batch proof ${randomUUID().slice(0,8)}`);let calls=0;
+    const flaky:ContactAgentModel={...base,extract:async(...args)=>{if(++calls===2)throw new Error("TEST_VISION_INTERRUPTED");return base.extract(...args);}};
+    const runner=new ScreenshotContactTaskRunner(pool!,{model:flaky,research:null},storage);
+    await runner.start(auth,created.body.task_id);
+    const failed=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(failed.status).toBe("failed");expect(failed.extraction).toBeNull();
+    await resumeScreenshotContactTask(pool!,auth,failed.task_id,{expected_revision:failed.revision});
+    await runner.start(auth,failed.task_id);
+    const result=await loadScreenshotContactTask(pool!,auth,failed.task_id);
+    expect(result.status,JSON.stringify(result)).toBe("completed");expect(calls).toBe(3);expect(result.message_count).toBe(2);
+    expect(result.extraction?.messages.map(m=>[m.message_id,m.source_image_index])).toEqual([["m1",0],["m2",1]]);
+    const persisted=await pool!.query("SELECT input_manifest,state FROM screenshot_contact_tasks WHERE id=$1",[result.task_id]);
+    expect(JSON.stringify(persisted.rows)).not.toContain("data_base64");
+    expect(await loadScreenshotContactImage(pool!,auth,result.task_id,1,storage)).toEqual(request.additional_images[0]);
+    await expect(loadScreenshotContactImage(pool!,{...auth,userId:randomUUID()},result.task_id,1,storage)).rejects.toMatchObject({code:"CONTACT_TASK_NOT_FOUND"});
+    await expect(loadScreenshotContactImage(pool!,auth,result.task_id,1,new TestImageStorage())).rejects.toThrow("CONTACT_IMAGE_STORAGE_MISMATCH");
+    await pool!.query("UPDATE source_retention_receipts SET authorization_state='revoked' WHERE capture_id=$1",[result.capture_id]);
+    await expect(loadScreenshotContactImage(pool!,auth,result.task_id,0,storage)).rejects.toMatchObject({code:"CONTACT_TASK_SOURCE_UNAVAILABLE"});
+    storage.failPurge=true;
+    await expect(expireScreenshotContactTasks(pool!,storage)).rejects.toThrow("CONTACT_IMAGE_PURGE_INCOMPLETE");
+    expect(storage.objects.size).toBe(2);
+    storage.failPurge=false;await expireScreenshotContactTasks(pool!,storage);
+    expect(storage.objects.size).toBe(0);
+    expect((await pool!.query("SELECT status FROM contact_task_images WHERE task_id=$1",[result.task_id])).rows).toEqual([{status:"deleted"},{status:"deleted"}]);
+  });
+  it("does not let contact selection override conflicting batch identities and expires unfiled originals",async()=>{
+    const storage=new TestImageStorage();const request={...input(),additional_images:[input().image]};
+    const created=await createScreenshotContactTask(pool!,auth,request,storage);let count=0;
+    const base=model(`Different proof ${randomUUID().slice(0,8)}`);
+    const runner=new ScreenshotContactTaskRunner(pool!,{research:null,model:{...base,extract:async(...args)=>{
+      const output=await base.extract(...args);return {...output,extraction:{...output.extraction,contact_name:`Different ${++count}`}};
+    }}},storage);
+    await runner.start(auth,created.body.task_id);
+    const waiting=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(waiting.status).toBe("waiting_for_user");expect(waiting.contact).toBeNull();
+    await expect(resumeScreenshotContactTask(pool!,auth,waiting.task_id,{expected_revision:waiting.revision,new_contact_name:"Different 1"})).rejects.toMatchObject({code:"CONTACT_BATCH_IDENTITY_CONFLICT"});
+    await pool!.query("UPDATE screenshot_contact_tasks SET expires_at=now()-interval '1 second' WHERE id=$1",[waiting.task_id]);
+    await expireScreenshotContactTasks(pool!,storage);expect(storage.objects.size).toBe(0);
+  });
 });

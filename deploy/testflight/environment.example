@@ -61,3 +61,13 @@ TS_PNPM_REGISTRY=https://registry.npmjs.org
 # Tailscale owns the Mac's scoped DNS configuration. Override only if required.
 TS_TESTFLIGHT_DNS_PRIMARY=100.100.100.100
 TS_TESTFLIGHT_DNS_FALLBACK=114.114.114.114
+
+# Optional private S3-compatible original image storage (local volume by default).
+CHAT_MEDIA_STORAGE_PROVIDER=local
+CHAT_MEDIA_S3_BUCKET=
+CHAT_MEDIA_S3_REGION=
+CHAT_MEDIA_S3_ENDPOINT=
+CHAT_MEDIA_S3_FORCE_PATH_STYLE=false
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_SESSION_TOKEN=

@@ -56,7 +56,7 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("048_contact_task_invalidation"),
+      expect.stringContaining("049_contact_task_images"),
     );
   }, 10_000);
 });

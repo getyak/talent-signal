@@ -221,14 +221,8 @@ cannot preselect, collapse records, bind to history, or retry after failure.
 
 Codex, Claude, Cursor, Manus, OpenClaw, and future runtimes should connect through one provider-neutral Talent Signal boundary.
 
-Initial external abilities should remain narrow:
-
-- read a scoped Pursuit brief or evidence excerpt;
-- submit intentional capture;
-- create an artifact;
-- propose a fact or action;
-- create or snooze internal attention;
-- return a signed review handoff.
+Initial external abilities are scoped reads, intentional capture, artifacts,
+fact/action proposals, internal attention, and signed review handoffs.
 
 External agents should not directly confirm facts, merge identities, send
 messages, change calendars or contacts, update an ATS, query the production
@@ -249,27 +243,31 @@ effects remain empty and recovery uses durable state, not provider memory.
 The company/market public-research definition assembles `search_web`, `fetch_web`, and `create_research_artifact`.
 The local host selects one provider, isolates credentials, guards fetches, checkpoints observations, and writes drafts with no publication authority.
 
-The screenshot public-person definition exposes only platform-specific public-profile searches and draft creation. Relationship Ask may start it automatically for exactly one supported image after both deployment gates pass, including when no Person or relationship has been selected.
+The screenshot public-person definition exposes only platform-specific public-profile searches and draft creation. It remains a legacy read-only capability; current contact intake uses the filing boundary below.
 The result remains an unconfirmed response block with public-source references; it is not canonical evidence, identity state, or permission to act.
 
 The account-scoped workspace-conversation definition may answer directly or call only `contact_workspace`: `search`, `read`, `propose_create`, and `propose_update`. Search clues must come from the message; one uniquely resolved header may be read and handed to governed relationship Ask, while ambiguity stops for clarification. Same-Run authorization binds reads and update targets. Proposal fields and source excerpts must be grounded in the message or unchanged exact-target labels; the Tool returns a fingerprint and `needs_review`, never an apply operation or canonical mutation.
 
 ### Authorized screenshot contact filing
 
-An intentional import can separately grant internal contact filing, extracted
-IM storage, analysis, and optional sourced professional observations. The model
-chooses tools; the backend owns validation, canonical writes, task checkpoints,
-and readback. Ambiguous identity requires clarification. Filing does not confirm
-actors, dates, real-world identity, or interpreted claims.
+An intentional import grants internal filing, IM storage, analysis, and optional
+sourced professional observations. The model chooses tools; the backend owns
+validation, writes, checkpoints, and readback. Ambiguity requires clarification.
+Filing never confirms actors, dates, real-world identity, or interpreted claims.
 
-The Agent Host receives public identity anchors, never private IM queries, and
-owns search/fetch credentials. Profile updates preserve exact provenance and
-conflicting values without overwriting confirmed facts. Cancellation, expiry,
-and source correction/deletion invalidate further work and derived material.
-Deletion requires a separate current-target human grant with durable reversal;
-imports never grant identity merges, device writes, or messaging. See the
-[implementation and delivery evidence](evaluations/2026-09-06-screenshot-contact-agent/README.md)
-for tools, fields, recovery cases, and the observed release boundary.
+An ordered image set is one immutable import intent. Each message retains image
+provenance; conflicting visible identities stop filing, and overlapping messages
+are not repeated commitments. Private originals stay outside model/task state
+and expire with the task. Recovery reuses stored images and extraction checkpoints.
+Source invalidation denies access and queues retryable permanent cleanup;
+reversible archive hides sources without extending retention. See the
+[storage playbook](operations/backend-production.md#chat-media-object-storage).
+
+The Agent Host receives public identity anchors, never private IM queries.
+Profile observations preserve provenance and conflicts without overwriting
+confirmed facts. Cancellation fences work; expiry and invalidation retract derivatives.
+Deletion needs a separate current-target grant with reversal. Imports never
+grant identity merges, device writes, or messaging.
 
 Every catalog entry declares its capability class, consequence, approval,
 reversibility, idempotency, read-only behavior, and open-world behavior. These

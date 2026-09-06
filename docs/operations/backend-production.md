@@ -56,15 +56,39 @@ origin be stored as the `TALENT_SIGNAL_API_BASE_URL` variable in the GitHub
 
 ## Chat media object storage
 
-Production uses a private S3 bucket for scoped Chat image content. Set
-`CHAT_MEDIA_STORAGE_PROVIDER=s3`, the bucket and region, and optionally an
-S3-compatible HTTPS endpoint and path-style addressing in the production
-environment. Prefer the host's AWS workload identity; use
-`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` only when the deployment cannot
-provide one. The principal needs only object read, write, and delete access to
-the configured bucket. Keep public access blocked and enable bucket encryption,
-versioning, access logging, and a lifecycle policy aligned with the future Chat
-retention decision.
+Production uses a private S3 bucket for scoped Chat images and contact-task
+originals. Set `CHAT_MEDIA_STORAGE_PROVIDER=s3`, `CHAT_MEDIA_S3_BUCKET`, and
+`CHAT_MEDIA_S3_REGION`; optionally set `CHAT_MEDIA_S3_ENDPOINT` and
+`CHAT_MEDIA_S3_FORCE_PATH_STYLE` for a compatible provider. TestFlight Compose
+accepts the same settings. Prefer AWS workload identity; temporary credentials
+also require `AWS_SESSION_TOKEN`. Store credentials in Infisical, never clients.
+
+Contact originals use `contact-sources/{account}/{task}/{index}-{hash}` keys
+without names or filenames. PostgreSQL reserves ordered manifests before PUT,
+checkpoints completed uploads, and stores provider-scope identity. A changed
+bucket/provider never silently reads or purges from another store. The API
+checks uploader/account and current source authority on each read, validates
+byte count/hash, and returns private `no-store` responses; it exposes no public
+object URL. PUT requests explicitly request SSE-S3 encryption.
+
+Contact-task originals expire with their 30-day task, including unfiled and
+partially uploaded tasks. Source revocation, correction, or deletion denies
+reads immediately and marks objects for the retention sweep. Failed deletion
+remains pending and is retried; cancellation and reversible archive preserve
+recovery only within the original expiry. Monitor sweep errors and pending
+objects, including scopes retired during a storage migration.
+
+The storage principal needs `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`,
+`s3:DeleteObjectVersion` on its owned objects and `s3:ListBucketVersions` on the
+bucket (restricted to owned prefixes). Block public access and configure bucket
+encryption. If versioning is enabled, permanent cleanup removes every exact-key
+version and delete marker before recording completion. A lifecycle policy must
+also expire noncurrent versions and abandoned multipart uploads as a backstop;
+plain DELETE or current-version expiry alone leaves recoverable bytes. See
+[AWS deletion semantics](https://docs.aws.amazon.com/AmazonS3/latest/userguide/DeletingObjectVersions.html)
+and [SSE-S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingServerSideEncryption.html).
+Do not apply the contact-task 30-day policy to unrelated Chat prefixes without
+a corresponding retention decision.
 
 Local development defaults to the `talent_signal_chat_media` Docker volume.
 That volume contains private task media and must not be copied into fixtures,

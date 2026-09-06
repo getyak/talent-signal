@@ -13,8 +13,10 @@ export const ContactChatExtractionSchema = z.strictObject({
     kind: z.enum(["name", "handle", "profile_url", "company", "job_title"]),
     value: Text.max(300),
     source_excerpt: Text.max(600),
+    source_image_index: z.number().int().min(0).max(9).optional(),
   })).max(12),
   messages: z.array(z.strictObject({
+    source_image_index: z.number().int().min(0).max(9).optional(),
     message_id: Text.max(80), sequence: z.number().int().min(0), text: Text.max(4_000),
     speaker_side: z.enum(["left", "right", "unknown"]),
     speaker_label: Text.max(120).nullable(),
@@ -87,20 +89,23 @@ export type ContactChatExtraction = z.infer<typeof ContactChatExtractionSchema>;
 export type ContactProfileField = z.infer<typeof ContactProfileFieldSchema>;
 export type ContactFinding = z.infer<typeof ContactFindingSchema>;
 
-export const ScreenshotContactTaskRequestSchema = z.strictObject({
-  idempotency_key: Text.max(128),
-  objective: Text.max(4_000),
-  image: z.strictObject({
+export const ScreenshotContactImageSchema = z.strictObject({
     media_type: z.enum(["image/png", "image/jpeg", "image/webp"]),
     byte_size: z.number().int().min(1).max(10_000_000),
     content_hash: Hash,
     data_base64: Text.max(13_400_000),
-  }),
+  });
+
+export const ScreenshotContactTaskRequestSchema = z.strictObject({
+  idempotency_key: Text.max(128),
+  objective: Text.max(4_000),
+  image: ScreenshotContactImageSchema,
+  additional_images: z.array(ScreenshotContactImageSchema).max(9).optional(),
   selected_person_id: ID.optional(),
   selected_relationship_context_id: ID.optional(),
   allow_public_research: z.boolean().default(true),
   captured_at: z.iso.datetime(),
-});
+}).refine(request => [request.image, ...(request.additional_images ?? [])].reduce((total, image) => total + image.byte_size, 0) <= 30_000_000, "Screenshots must total at most 30 MB.");
 
 export const ContactTaskCandidateSchema = z.strictObject({
   person_id: ID, display_name: Text.max(200),
@@ -115,6 +120,7 @@ export const ScreenshotContactTaskResponseSchema = z.strictObject({
     person_id: ID, relationship_context_id: ID, display_name: Text.max(200),
     disposition: z.enum(["created", "reused"]),
   }).nullable(),
+  source_images: z.array(ScreenshotContactImageSchema.omit({data_base64: true}).extend({image_index: z.number().int().min(0).max(9)})).max(10).optional(),
   capture_id: ID.nullable(),
   source_resource_id: ID.nullable(),
   message_count: z.number().int().nonnegative(),

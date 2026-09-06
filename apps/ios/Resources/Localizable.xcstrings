@@ -27951,6 +27951,56 @@
           }
         }
       }
+    },
+    "Original images": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始图片"
+          }
+        }
+      }
+    },
+    "The image could not be read.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原图读取失败，请重试。"
+          }
+        }
+      }
+    },
+    "Original image": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始图片"
+          }
+        }
+      }
+    },
+    "Images must total no more than 30 MB.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图片总计不能超过 30 MB，请分开发送。"
+          }
+        }
+      }
+    },
+    "Choose up to ten PNG, JPEG, or WebP images.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次可发送最多 10 张 PNG、JPEG 或 WebP 图片。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

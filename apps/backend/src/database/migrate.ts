@@ -55,6 +55,7 @@ const MIGRATIONS = [
   "047_proposed_extracted_text",
   "047_screenshot_contact_tasks",
   "048_contact_task_invalidation",
+  "049_contact_task_images",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

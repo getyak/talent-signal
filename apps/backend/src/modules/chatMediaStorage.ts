@@ -22,6 +22,7 @@ export interface ChatMediaStorage {
   readonly provider: "local" | "s3";
   readonly labScopeID?: string;
   purgeForLab?(objectKey: string): Promise<void>;
+  purge?(objectKey: string): Promise<void>;
   existsForLab?(objectKey: string): Promise<boolean>;
   delete(objectKey: string): Promise<void>;
   get(objectKey: string, contentType: string): Promise<StoredChatMedia>;
@@ -45,7 +46,8 @@ export class LocalChatMediaStorage implements ChatMediaStorage {
     this.labScopeID = sha256(JSON.stringify({provider:this.provider,directory:resolve(directory)}));
   }
 
-  async purgeForLab(objectKey: string): Promise<void> { await this.delete(objectKey); }
+  async purge(objectKey: string): Promise<void> { await this.delete(objectKey); }
+  async purgeForLab(objectKey: string): Promise<void> { await this.purge(objectKey); }
   async existsForLab(objectKey: string): Promise<boolean> {
     try { await stat(safeLocalPath(this.directory, objectKey)); return true; }
     catch(error) { if((error as NodeJS.ErrnoException).code === "ENOENT")return false;throw error; }
@@ -101,16 +103,18 @@ export class S3ChatMediaStorage implements ChatMediaStorage {
       .filter(v=>v.Key===objectKey).map(v=>({Key:objectKey,VersionId:v.VersionId}));
   }
 
-  async purgeForLab(objectKey: string): Promise<void> {
+  async purgeForLab(objectKey: string): Promise<void> { await this.purge(objectKey); }
+
+  async purge(objectKey: string): Promise<void> {
     // A plain DeleteObject can leave all historical bytes in a versioned bucket.
     // Delete only exact-key versions/markers, never adjacent prefix matches.
     for(let page=0;page<20;page++) {
       const objects=await this.exactVersions(objectKey);
       if(objects.length===0)return;
       const result=await this.client.send(new DeleteObjectsCommand({Bucket:this.bucket,Delete:{Objects:objects,Quiet:true}}));
-      if(result.Errors?.length)throw new Error("Some test-media versions could not be deleted.");
+      if(result.Errors?.length)throw new Error("Some media versions could not be deleted.");
     }
-    throw new Error("Test-media version cleanup remains incomplete.");
+    throw new Error("Media version cleanup remains incomplete.");
   }
 
   async existsForLab(objectKey: string): Promise<boolean> {
