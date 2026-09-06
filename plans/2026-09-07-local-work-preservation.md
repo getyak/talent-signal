@@ -1,6 +1,6 @@
 # Local work preservation and remote synchronization
 
-Status: verified; remote preservation pending
+Status: complete for remote preservation; local redeployment remains blocked
 Owner: Codex
 Started: 2026-09-07
 
@@ -32,7 +32,7 @@ No production deployment or direct update to `main` is part of this task.
 2. Complete: preserve useful changes and integrate remote main without reverting
    shipped behavior.
 3. Complete: verify source, documentation, secret boundaries, and ignored output.
-4. Active: commit, push, and independently verify the remote branch tip.
+4. Complete: commit, push, and independently verify the remote branch tip.
 
 ## Preservation decisions
 
@@ -93,7 +93,12 @@ unverified until the owner restores the normal Infisical login session.
 
 ## Completion evidence
 
-Record selected and excluded categories, actual checks and limitations, the
-remote branch, and destination readback. A backup commit does not certify a
-feature release. Re-plan if an artifact contains private evidence or a local
-change conflicts with newer remote behavior.
+The integration commit `f3e652bec369dacc51fcf3593b7ee56f88d35ed9` was pushed to
+`origin/codex/preserve-local-work-20260907`. An independent `git ls-remote`
+returned the exact same commit. The integration contains current remote main,
+and a clean export of the committed tree passed documentation, Wiki, and all
+three architecture checks. The working directory was clean after commit.
+
+This receipt is a documentation-only descendant of that verified integration.
+No force push, direct main update, or production release was performed. Local
+TestFlight redeployment has the explicit authentication limitation above.
