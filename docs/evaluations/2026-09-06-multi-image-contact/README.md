@@ -1,5 +1,8 @@
 # Multi-image contact intake verification
 
+The [integrated release record](release.md) follows the subsequent explicit PR
+merge and TestFlight request; the original development proof below is historical.
+
 ## Delivered behavior
 
 Web and iOS send up to ten ordered screenshots as one contact task. Each image
@@ -49,7 +52,7 @@ This is a synthetic product-flow proof, not a general OCR/identity accuracy
 claim. The complete UI proof used two images; the ten-image boundary is checked
 deterministically.
 
-## Checks
+## Original development checks
 
 - 17 focused backend tests passed, including nine real-PostgreSQL cases. New
   cases cover partial PUT/replay, extraction recovery, ordered provenance,
@@ -75,7 +78,7 @@ deterministically.
   `AWS_SESSION_TOKEN` is declared. This is not a fully green repository-wide
   check, and unrelated secret ownership was not expanded in this task.
 
-## Deployment and review
+## Original development deployment and review
 
 The local TestFlight API and Agent Host run the rebuilt
 `talent-signal-backend-local:multi-image-20260906` image. Migration 049 is applied;

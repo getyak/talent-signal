@@ -49,21 +49,23 @@ environment/release boundaries, not claims of completed cloud/native rollout.
 The broader secret-inventory scan has pre-existing ownership gaps, recorded in
 the evaluation; all required in-scope checks and the production Web build pass.
 
-## Authorized release follow-up
+## Authorized release follow-up — complete
 
-- Complete: port the bounded change onto current main in the isolated
-  `codex/multi-image-contact-release` worktree. Preserve newer fullscreen
-  sessions, retrieval, prompt independence, and proposed-source scope.
-- Active: verify the integrated revision, create PR, satisfy CI/Security,
-  and merge without bypassing required checks.
-- Pending: deploy the merged backend and wait for the automatic iOS release.
-  Completion requires the automation-owned receipt after Apple processing,
-  bound to the merged commit, version, and build.
+The subsequent request explicitly authorized update, PR merge, and TestFlight
+publication. [PR #140](https://github.com/getyak/talent-signal/pull/140) merged
+after required CI and Security passed, including the Release build, 459 native
+unit tests, and nine UI smoke journeys. The release branch retained newer main
+behavior and proposed-source authority while preserving the original dirty
+workspace. Merged-tree equality with the tested PR was verified.
 
-The preceding evaluation describes the original development surface; it is not
-proof that the subsequently integrated/released revision has passed its gates.
+The deployed backend matches the integrated revision and passed health, auth,
+voice/chat, and HTTPS probes. An explicit main-only release dispatch retained
+the normal signing, upload, attestation, and independent processing gates.
+TestFlight `0.1.59 (20260906062355)` is processed, and a read-only audit confirms
+that exact build is valid and available to the configured internal testing
+group. No invitations or tester relationships were changed.
 
-Integrated checks: 17 PostgreSQL/storage/merge checks pass; Web and backend
-TypeScript checks pass; localization is within its existing budget, new copy
-uses the string catalog. Documentation and all 18 secret-contract tests pass.
-The new migration is now the backend readiness check; its assertion is updated.
+The [integrated release record](../docs/evaluations/2026-09-06-multi-image-contact/release.md)
+owns the CI proof, deployed source hashes, Apple receipt, and access readback.
+Live S3 remains unconfigured; the private local adapter is deployed. This is a
+remaining environment boundary, not a claim of live S3 or device installation.
