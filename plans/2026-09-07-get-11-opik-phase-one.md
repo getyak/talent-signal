@@ -30,8 +30,8 @@ parameters, while implementation and deterministic proof proceed.
   `2.2.45`. Existing containers and volumes are reused, not redeployed.
 - Node dependencies installed with the frozen lockfile. Opik SDK is pinned to
   `2.2.45`; repository minimum Node version is `22.19.0`.
-- GET-13 failure is confirmed in code: remote dataset preflight precedes local
-  evaluation; transport conflates failures with a missing dataset.
+- GET-13's remote preflight dependency is removed: immutable local completion
+  precedes optional projection, and typed retries do not execute another model.
 - Existing GET-5 feedback and Lab reruns will be extended, not replaced.
 - Projection recovery and deletion were exercised against the existing private
   instance with synthetic data and zero model calls. The backend's pre-existing
@@ -39,9 +39,13 @@ parameters, while implementation and deterministic proof proceed.
 - Native correction entry, authenticated feedback/Lab integration, source
   invalidation, SQLite budget and shared production candidate configuration are
   implemented. Simulator and isolated PostgreSQL tests cover their state transitions.
-- Independent review found deletion/late-write races, crash remnants, a cross-device
-  feedback retry deadlock, and private-example source distribution. Owners are
-  repairing and retesting each finding; the dated review is the status authority.
+- Both independent reviews closed their confirmed P0/P1 findings, including
+  deletion/late writes, crash remnants, cross-device retry, private demonstrations,
+  unknown budget usage, reviewer independence and actual release scope/build.
+- Native feedback and Lab: 21 Simulator tests passed. Isolated feedback lifecycle:
+  11 PostgreSQL tests passed. Private Opik observation: two traces/ten spans and
+  image content read back, then deletion confirmed; earlier probe cleanup also
+  completed. The fixed eight-group CI verification passed with no paid credentials.
 
 ## Ownership
 
@@ -55,12 +59,15 @@ outbox/runtime integration respectively. Independent review follows integration.
 
 1. **Complete:** retrieve scope, preserve concurrent work, identify instance and
    missing execution parameters.
-2. **Active:** implement each bounded slice with real entry-point tests and
+2. **Complete:** implement each bounded slice with real entry-point tests and
    durable failure/retry/deletion evidence; integrate shared contracts.
-3. **Active:** task-level CLI is connected; complete semantic/release controllers,
+3. **Complete:** task-level CLI, semantic/release controllers,
    source-lifecycle bridge, credential-free CI and private runtime-content readback.
-4. **Active:** independent correctness and safety reviews, repair P0/P1 issues,
-   run focused regression/type/build/documentation checks.
+4. **Complete:** automatic observation retry and final-revision CI passed;
+   correctness/safety reviews have no open confirmed P0/P1. Signed proof records
+   implementation commit `59d6e11e`; later evidence-only documentation does not
+   change the implementation source or emitted build. Actual candidate release
+   still requires its own current-commit CI verification.
 5. **Pending:** funded real optimization and scoped release/rollback once GET-12
    parameters arrive; report any unavailable external proof honestly.
 

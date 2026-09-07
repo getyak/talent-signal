@@ -1,7 +1,8 @@
 # GET-11 independent implementation review
 
-Date: 2026-09-07. Status: first-pass findings repaired and independently checked;
-the separate safety review remains open. This is not a release approval.
+Date: 2026-09-07. Status: findings repaired and independently checked. Neither
+independent review has a remaining confirmed P0/P1 in its inspected paths.
+This is not a release approval.
 
 The independent reviewer inspected the isolated GET-11 worktree without changing
 implementation files. Review covered the budget ledger, optimizer/product adapter,
@@ -10,11 +11,11 @@ lineage and the native correction editor. Subsequent fixes belong to the named
 implementation owners. All reviewer reproductions used synthetic local content;
 no paid provider request, private-content export, or deployment was performed.
 
-A separate second reviewer is auditing newly integrated private-source bridges,
-global development examples, actual human-reviewer separation and unknown judge
-usage. Their additional findings and repair evidence live in
-[the final safety review](safety-review.md). Closing the findings below does not
-close that separate review.
+A separate second reviewer completed the audit of newly integrated private-source
+bridges, global development examples, actual human-reviewer separation and unknown
+judge usage. Their confirmed findings are repaired and independently retested;
+the owning evidence and subsequent maintenance follow-up live in
+[the final safety review](safety-review.md).
 
 ## Confirmed findings and repair evidence
 
@@ -44,22 +45,27 @@ Relevant implementation and test evidence:
 - [Native feedback client](../../../apps/ios/Sources/Services/AnswerFeedbackClient.swift)
   and [editor](../../../apps/ios/Sources/Features/AnswerFeedbackSheet.swift).
 
-## Remaining integration evidence
+## Integration evidence and release limits
 
 The first-pass repairs above have no remaining demonstrated P0/P1 code finding
-in their reviewed scope. The successful real-Opik proof was captured at
+in their reviewed scope. The successful [real-Opik proof](runtime-observation-proof.json) was captured at
 2026-09-07T10:13:11Z, used synthetic content and zero paid model calls, and covers
 two attempts in one run plus the shared production Ask image adapter. Its two
-traces and ten spans were read back before verified deletion. Earlier failed
-synthetic probes have a separate cleanup manifest because the service became
-unreliable again; the successful proof does not claim those probes were removed.
+traces and ten spans were read back before verified deletion. The separate
+[cleanup evidence](runtime-observation-cleanup.json) now records all six earlier
+synthetic probe traces and their fourteen known spans as absent. Three spans
+required a delayed cascade readback before returning 404. A later redundant read
+timed out and is recorded separately as unknown; it does not replace the observed
+deletion receipts or establish broader service health.
 
 Exact evaluated task configuration now binds the loaded model, prompt and
 policy through rehearsal, release and deployment readback. The command and
 package fixtures passed independently. The new private-source bridge, complete
 development-example history, actual human-reviewer separation and unknown judge
-usage are covered by the separate safety review; its open items must be closed
-before making a broader release-readiness claim.
+usage are covered by the [completed second safety review](safety-review.md), which
+reports no remaining confirmed P0/P1 in those inspected paths. Its maintenance
+follow-up owns the latest incremental evidence. Review completion does not grant
+funding, production exposure or release authority.
 
 ## Existing completed-Chat storage lifecycle
 
@@ -81,6 +87,33 @@ separately scrub Session/screenshot-derived Chat bodies. Direct administrative S
 updates are not equivalent to those normal product mutation paths. Submitted
 media deletion is currently rejected by the existing durable-task policy; this
 review does not claim that the upload-delete endpoint can remove submitted media.
+
+## Final native and feedback increment
+
+The follow-up read-only review covered `AnswerFeedbackClient`,
+`AnswerFeedbackSheet`, their ten tests, the Lab regression domain/store/views,
+private feedback rerun configuration, neutral history-source labels, and the
+backend feedback/regression links. No new P0/P1 finding was established in this
+increment. Source-unavailable feedback remains withdrawable; lost responses keep
+the same operation, and later revisions require authoritative reload.
+
+A private feedback case retains its single original configuration and exact
+execution/task binding. The candidate prompt starts unselected and cannot pass
+the admitted-configuration gate until the user chooses one. Regression reads and
+exports check the frozen known fields; definitive 410 source loss clears pending
+state, the displayed record and prepared export. A 404 during recovery of an
+unconfirmed save preserves that same save intent for an explicit retry. Exports require a separate explicit
+file-save action and identify private source material and proposal authority.
+The ordinary Job store persists source identifiers and a hash, not the frozen
+private input, in its recovery request.
+
+The backend now returns a regression link only for the same account, user,
+feedback revision and source execution with a live, unexpired snapshot.
+Deleting a case preserves the active feedback or bounded observation while
+removing that link. The updated PostgreSQL feedback suite independently passed
+all eleven tests, including deleted and mismatched-revision links. Native
+Simulator execution remains owned by root; this reviewer inspected the tests
+and did not launch a competing Xcode build.
 
 ## Verification scope and limits
 
@@ -126,6 +159,6 @@ and Lab calls and the barrier-controlled deletion races. `pnpm docs:check`
 also passed, including wiki and architecture diagram checks.
 
 These checks do not establish real-model semantic quality, funding authority,
-production exposure authorization, or a completed production deployment. A
-blanket claim of zero P0/P1 issues is premature while the separate safety review
-and final integration evidence remain open.
+production exposure authorization, or a completed production deployment. Both
+independent reviews report no remaining confirmed P0/P1 in their inspected paths;
+that scoped finding does not constitute release approval.

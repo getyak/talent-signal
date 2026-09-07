@@ -1,7 +1,7 @@
 # GET-11 second independent safety review
 
-Date: 2026-09-07. Status: confirmed findings repaired and independently retested;
-compiled-runtime identity proof is being completed.
+Date: 2026-09-07. Status: confirmed findings repaired and independently retested.
+No confirmed P0/P1 remains in this second review's inspected paths.
 This reviewer changed no implementation files. Review used the current isolated
 worktree, ADR 0015 and the [first independent review](independent-review.md).
 All reproductions used local synthetic sentinels or fake provider responses;
@@ -33,6 +33,15 @@ no business content, paid model request, deployment or release was involved.
 - The subsequent combined budget, judge, optimizer, source and final-command
   run passed all 79 tests, including the previously failing usage case,
   private-demonstration observation, offline expiry and interrupted input writes.
+- The final build/paired-evaluation suites passed 15 tests; CI-proof,
+  private-source and final-command suites passed 16 tests after the later changes.
+- A separate credential-free Node process loaded the real compiled backend
+  module and exercised its registered Fastify runtime-configuration route.
+  Its build digest matched all four emitted trees, and environment changes
+  could alter neither that digest nor the registered process snapshot. The
+  returned deployment-audience digest matched the captured scope and prompt
+  references exposed no prompt bodies. This was local route injection, with
+  zero provider calls and no deployed-server claim.
 - The private-freeze, retained-sentinel and actual-human-reviewer reproductions
   ran in a disposable owner-only directory, removed immediately afterward.
 - `pnpm docs:check` and `git diff --check` passed during the review.
@@ -44,3 +53,19 @@ service supervisor in an actual private deployment. Stopping that service is
 not proof of remote deletion. These checks establish implementation behavior;
 they do not certify paid semantic improvement, a production rollout or actual
 database migration state.
+
+The final narrow review of commit `59d6e11e` found no additional confirmed
+P0/P1 regression. Maintenance validates private source dependencies before
+starting asynchronous outbox retries, deduplicates overlapping flushes by
+controller directory and observation policy, and writes deletion tombstones
+and removes local content before retrying remote removal. Existing outbox
+write fencing prevents a late transport result from restoring deleted content.
+An independent rerun passed all 22 controller tests, including a held/offline
+transport that cannot block maintenance, no concurrent duplicate export, and
+successful idle recovery without another model request or budget-ledger run.
+
+Owning evidence is in [controller tests](../../../apps/eval-runner/src/optimization/controller.test.ts),
+[private-source checks](../../../apps/eval-runner/src/phaseOneSources.test.ts),
+[final-command tests](../../../apps/eval-runner/src/phaseOneCommand.test.ts),
+[build-identity tests](../../../packages/evaluation/src/phaseOneBuild.test.ts),
+and [deployment-audience tests](../../../apps/backend/src/modules/deploymentExposure.test.ts).
