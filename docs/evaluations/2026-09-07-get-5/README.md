@@ -18,6 +18,8 @@ All seven GET-5 requirements are implemented: continuous owner-scoped Sessions a
 
 ## Independent review trail
 
+The first PR CI run exposed a TypeScript error in the new tool-schema test. Running the complete backend CI script then found an existing prompt-preset test still expecting the previous single-function transport. Both test assertions were corrected without changing product runtime source. The complete script now passes 58 Agent tests and 366 backend tests, with 51 external-database cases skipped in that run; the earlier real PostgreSQL proof remains separate. [PR CI follow-up](ci-proof.pr.json) preserves failure hashes and the exact test-only delta from the frozen review artifact.
+
 Backend [v1](session-code-review.v1.md) and [v2](session-code-review.v2.md) exposed scope, revocation, concurrency, retention, size and identifier cases. Their fixes received real PostgreSQL regression coverage. Two platform rejections prevented a third independent backend code-review run; that run is not claimed as a pass.
 
 The iOS code review progressed through [v1](ios-code-review.v1.md), [v2](ios-code-review.v2.md), [v3](ios-code-review.v3.md) and [v4](ios-code-review.v4.md). The final reviewed delta had no actionable findings; source inspection alone is not native runtime proof.
@@ -39,6 +41,8 @@ The required `scripts/deploy/testflight-local.sh` completed with its default reb
 [Deployment proof](testflight-deployment-proof.json) records loopback readiness and private HTTPS live/readiness responses of 200, unauthenticated Session access of 401, Apple JWKS/challenge checks, and successful synthetic voice/chat provider probes. The API remains published only on Mac loopback; PostgreSQL has no host port; simulated authentication is disabled. Existing Tailscale Serve handlers are unchanged. This is a local backend deployment, not an iOS TestFlight upload.
 
 The isolated synthetic API, fixture, response-loss proxy and their PostgreSQL container were stopped after verification. Test database contents and logs were preserved; unrelated services were not stopped.
+
+After the PR test-only corrections, the required local rebuild/deploy was repeated. [PR deployment readback](testflight-deployment-proof.pr.json) matches 33 relevant container files against the frozen runtime source plus the two corrected tests; migration checksums, health/authentication probes and Serve configuration still pass.
 
 ## Evidence limits
 

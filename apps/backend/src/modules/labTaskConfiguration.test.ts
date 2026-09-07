@@ -113,7 +113,12 @@ describe("configured workspace Agent", () => {
         const system = body.messages[0].content as string;
         expect(system.match(/Return one JSON object:/gu)).toHaveLength(1);
         expect(system).not.toContain('"additionalProperties"');
-        expect(body.tools.map((item: { function: { name: string } }) => item.function.name)).toEqual(["contact_workspace"]);
+        expect(body.tools.map((item: { function: { name: string } }) => item.function.name)).toEqual([
+          "contact_workspace_search",
+          "contact_workspace_read",
+          "contact_workspace_propose_create",
+          "contact_workspace_propose_update",
+        ]);
         return new Response(JSON.stringify({ model: "glm-5.3", id: `synthetic-draft-${preset}`,
           choices: [{ message: { content: JSON.stringify({ outcome: "reply", title: "Draft", body: "Here is an unsent introduction template." }) } }],
           usage: { prompt_tokens: 12, completion_tokens: 8 } }));

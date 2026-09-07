@@ -27,8 +27,7 @@ describe("provider-neutral Agent capability catalog", () => {
       "contact_workspace_search", "contact_workspace_read", "contact_workspace_propose_create", "contact_workspace_propose_update",
     ]);
     const search = nativeTools[0]!.parameters;
-    expect(search.type).toBe("object");
-    expect(search.additionalProperties).toBe(false);
+    expect(search).toMatchObject({ type: "object", additionalProperties: false });
     expect(Object.keys(search.properties)).toEqual(["query", "maximum_results"]);
     expect(ContactWorkspaceInputSchema.safeParse({
       operation: "search", query: "nira.voss@example.com",
