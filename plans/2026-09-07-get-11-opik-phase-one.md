@@ -90,7 +90,11 @@ outbox/runtime integration respectively. Independent review follows integration.
    all targets and every security gate. No pre-resolution/cache or compiler-mode
    experiment is combined with it. Require updated independent review and
    actual exact-head hosted Swift extraction/analysis before
-   merging, then verify main again. See the [delivery recovery evidence](../docs/evaluations/2026-09-07-get-11-opik/delivery-recovery.md).
+   merging, then verify main again. The next PR CI exposed one private-source
+   lifecycle integration test exceeding its default five-second harness deadline;
+   only that test receives 30 seconds, with all product deadlines and assertions
+   preserved. Require complete runner verification and latest-head CI again.
+   See the [delivery recovery evidence](../docs/evaluations/2026-09-07-get-11-opik/delivery-recovery.md).
    GET-13/14/15/16/17/19 are Done with acceptance receipts read back in Linear;
    GET-18/20/21 and the parent retain their unobserved live acceptance criteria.
 5. **Pending:** funded real optimization and scoped release/rollback once GET-12

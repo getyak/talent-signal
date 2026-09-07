@@ -81,6 +81,16 @@ acknowledges additional toolchain tracing cost, but does not diagnose this
 project's exact pause. No pre-resolution, object-cache, runner or compiler-mode
 change is combined with this timeout adjustment.
 
+The subsequent PR CI on `d7d18c46` exposed a separate test harness deadline:
+the private-demonstration source-binding lifecycle case exceeded Vitest's
+default five seconds, while the other 200 runner tests passed. The case runs
+four trials with two repetitions, SQLite persistence, observation retries and
+source withdrawal using fake provider/backend/Opik transports. Its test-only
+deadline is increased to 30 seconds; product request deadlines, trial counts
+and all source-provenance, no-retransmission and deletion assertions remain.
+No test is skipped or retried. The complete runner suite and latest-head hosted
+checks must pass after this focused harness correction.
+
 Independent review must inspect the updated actual diff. Before merge, run the
 existing Security workflow explicitly on the exact branch head because Swift
 is intentionally ineligible on pull-request events. Require all three targets
