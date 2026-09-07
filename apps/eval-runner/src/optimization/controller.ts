@@ -146,15 +146,26 @@ const readSearch = readOptimizationSearch;
 function phaseOneSourceAuthorityTombstoned(directory: string): boolean {
   if (existsSync(join(directory, "phase-one-tombstone.json"))) return true;
   const path = join(directory, "phase-one-artifacts.sqlite");
-  if (!existsSync(path)) return false;
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-  try { if (!fstatSync(fd).isFile()) throw new Error("PHASE_ONE_CONTROLLER_FILE_PERMISSIONS_REQUIRED"); }
-  finally { closeSync(fd); }
-  const db = new DatabaseSync(path, { readOnly: true, timeout: 5000, allowExtension: false });
+  let fd: number;
+  try { fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
   try {
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'artifact_control'").get()) return false;
-    return db.prepare("SELECT tombstoned FROM artifact_control WHERE id = 1").get()?.tombstoned === 1;
-  } finally { db.close(); }
+    const file = fstatSync(fd);
+    if (!file.isFile() || (file.mode & 0o077) !== 0 || process.getuid !== undefined && file.uid !== process.getuid()) throw new Error("PHASE_ONE_CONTROLLER_FILE_PERMISSIONS_REQUIRED");
+    const parentFd = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    try {
+      const parent = fstatSync(parentFd);
+      if (!parent.isDirectory() || (parent.mode & 0o077) !== 0 || process.getuid !== undefined && parent.uid !== process.getuid()) throw new Error("PHASE_ONE_CONTROLLER_PERMISSIONS_REQUIRED");
+      // DatabaseSync accepts a path, not an existing fd. Its reopen is confined
+      // to the same owner-only controller directory; other users cannot replace
+      // its entries. Keep both validated descriptors open through the read.
+      const db = new DatabaseSync(path, { readOnly: true, timeout: 5000, allowExtension: false });
+      try {
+        if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'artifact_control'").get()) return false;
+        return db.prepare("SELECT tombstoned FROM artifact_control WHERE id = 1").get()?.tombstoned === 1;
+      } finally { db.close(); }
+    } finally { closeSync(parentFd); }
+  } finally { closeSync(fd); }
 }
 function runDirectory(directory: string, runId: string): string {
   return makeControllerDirectory(makeControllerDirectory(directory, "runs"), digestCanonicalJson(runId).slice(7));

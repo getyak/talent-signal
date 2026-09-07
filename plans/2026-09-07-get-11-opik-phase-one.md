@@ -94,7 +94,12 @@ outbox/runtime integration respectively. Independent review follows integration.
    20 tests. No confirmed P0/P1 remains open in these reviews. Readiness is bound
    to migration 057 and optional runtime/release
    configuration is wired into the existing internal TestFlight deployment.
-   Then require current-head
+   The PR CodeQL aggregate subsequently found a SQLite existence-check/open
+   race. The repair opens atomically with no-follow, accepts only ENOENT as
+   absence, and retains descriptor, owner and private-directory validation
+   while SQLite reads the authority. All 43 targeted lifecycle/controller
+   tests and TypeScript validation pass; the alert is not considered closed
+   until the final PR merge-ref analysis succeeds. Then require current-head
    hosted CI/CD, automatic merge, and baseline deployment readback. Historical
    signed implementation proof remains attached to `59d6e11e`.
 5. **Pending:** funded real optimization and scoped release/rollback once GET-12

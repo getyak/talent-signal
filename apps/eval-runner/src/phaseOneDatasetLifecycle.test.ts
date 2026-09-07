@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -151,6 +151,25 @@ describe("owner-controlled dataset lifecycle process", () => {
     expect(readback).toHaveBeenCalledTimes(marker === "during-readback" ? 1 : 0);
     expect(f.read("search.json").schemaVersion).toBe("optimization-search-tombstone.v1");
     expect(JSON.stringify(f.read("search.json"))).not.toContain("KNOWN-WITHDRAWN-PRIVATE");
+  });
+
+  it.each(["missing", "symlink", "directory", "public-directory", "public-database"])
+    ("opens the local SQLite authority without following links or weakening its private boundary (%s)", async state => {
+    const f = fixture(); await f.expose(); await f.replace();
+    await runPhaseOneDatasetLifecycleCommand("import-development", f.directory, f.request({ caseIds: ["case-2"] }));
+    const path = join(f.directory, "phase-one-artifacts.sqlite");
+    if (state === "missing" || state === "directory") {
+      unlinkSync(path); if (state === "directory") mkdirSync(path, { mode: 0o700 });
+    } else if (state === "symlink") {
+      const original = join(f.directory, "original-artifacts.sqlite"); renameSync(path, original); symlinkSync(original, path);
+    } else if (state === "public-directory") chmodSync(f.directory, 0o755);
+    else chmodSync(path, 0o644);
+    const readback = vi.fn<typeof fetch>(async () => { throw new Error("network forbidden"); });
+    const run = runOptimizationControllerCommand(["source-sweep", "--run-id", "lifecycle"], f.directory, { sourceFetcher: readback });
+    if (state === "missing") await expect(run).resolves.toMatchObject({ status: "sources_current" });
+    else if (state === "symlink") await expect(run).rejects.toMatchObject({ code: "ELOOP" });
+    else await expect(run).rejects.toThrow(state === "public-directory" ? "PHASE_ONE_CONTROLLER_PERMISSIONS_REQUIRED" : "PHASE_ONE_CONTROLLER_FILE_PERMISSIONS_REQUIRED");
+    expect(readback).not.toHaveBeenCalled();
   });
 
   it("sweeps a private lifecycle copy on native expiry even if its metadata digest is damaged", async () => {

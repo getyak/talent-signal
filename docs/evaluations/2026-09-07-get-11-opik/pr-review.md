@@ -253,3 +253,28 @@ proof database was not used.
 These conclusions cover implementation acceptance. They do not claim funded
 semantic improvement, calibrated human gold, candidate deployment, or an
 authorized release outside the recorded scope.
+
+## CodeQL 48 filesystem follow-up
+
+The independent review of the two-file increment over
+`8f4a4f03f270d826a72d9099cb783b9ec9d048a6` found no confirmed P0/P1 within the
+documented private-controller and dedicated-account boundary. Scope was
+`apps/eval-runner/src/optimization/controller.ts` and
+`apps/eval-runner/src/phaseOneDatasetLifecycle.test.ts`.
+
+The SQLite authority is opened directly with `O_NOFOLLOW`; only `ENOENT` means
+absent, while other errors propagate. Descriptor checks reject non-files,
+non-owner files and group/other permissions, and likewise validate the opened
+controller directory. All opened handles close on success or failure. Existing
+file/SQLite withdrawal and withdrawal-during-503 behavior remains intact.
+Independent lifecycle/controller execution passed **43/43** at 22:12:26
+Asia/Shanghai, including missing authority, symlink, directory and public-mode
+regressions. These failures make no source-network calls.
+
+Limit: `DatabaseSync` still reopens a pathname, not the validated descriptor.
+Holding descriptors does not itself prevent pathname replacement by a malicious
+same-UID process or an actor able to replace an ancestor directory. This review
+relies on the existing trusted private location and OS-account/container
+isolation; it does not establish security for an attacker-writable path ancestry.
+No hosted CodeQL run was performed by this reviewer, so this local result does
+not assert that alert 48 or the PR aggregate check has passed.
