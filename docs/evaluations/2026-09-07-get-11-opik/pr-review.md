@@ -101,3 +101,40 @@ still pass on the submitted revision before merge. It does not certify funded
 model quality, authorize missing budget or exposure parameters, or establish a
 completed deployment. Those outcomes require their own current execution and
 destination-readback evidence under the [operational playbook](../../operations/opik-phase-one.md).
+
+## First CI repair follow-up
+
+The independent review of the first CI repair increment over
+`0608d6794a579dee7263eb13476513aec34ed560` found no new confirmed P0/P1 in
+the following inspected changes. Native end-to-end fixtures and the separate
+judge outbound-authorization analysis were still owned by other reviewers and
+are not covered by this increment.
+
+- CI still runs the complete eval-runner `vitest run src` selection, with two
+  workers to bound competing subprocess startup. The controller timeout changes
+  no assertions. Projection deletion now waits for the actual durable deletion
+  marker; a `finally` release prevents the artificial network barrier remaining
+  blocked if that assertion fails. Verified deletion and late-resurrection
+  rejection assertions remain intact.
+- Budget subprocess tests now execute a static worker and receive JSON on stdin.
+  Paths containing quotes, a template marker, and a newline remain data. Real
+  concurrent admission, SIGKILL, retained issued reservation, and controller
+  ownership assertions remain intact; worker failures are not converted to passes.
+- Named-contact shortcut matching uses bounded scanning instead of ambiguous
+  backtracking. Oversized or disallowed clues take the ordinary Agent path with
+  the original objective. Tests preserve exact scoped search, no-match behavior,
+  and adversarial-whitespace handling without truncating a question into a clue.
+- The observation cache compares its transport's existing credential directly;
+  credential material no longer participates in the cache digest. Rotation and
+  disable dispose the old background timer. Policy, endpoint and outbox identity
+  remain bound, with no new export authorization.
+- Infisical additions declare credential-name ownership only. The GitHub OIDC
+  release path, contract and workflow credential injection are unchanged;
+  ordinary PR CI does not acquire the evaluation credentials.
+
+Independent execution at 20:39 Asia/Shanghai passed 43 Agent tests and 61 budget,
+controller-command and projection CLI tests. All used synthetic fixtures or
+local fake transport and issued no paid requests. The four Infisical manifest
+checks also passed independently. Owner-reported typecheck results were reused.
+The required GitHub checks must pass again on the submitted repair revision
+before merge.

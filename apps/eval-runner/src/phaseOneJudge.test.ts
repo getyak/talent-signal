@@ -28,7 +28,7 @@ function fixture() {
     output: { kind: "clarification", body: "Which source?" }, repetition: 1, criteria: [] };
   let response: unknown = { model: "glm-4.5", usage: { prompt_tokens: 10, completion_tokens: 8 },
     choices: [{ message: { content: JSON.stringify({ status: "pass", reason: "The answer explicitly asks for the missing source." }) } }] };
-  const fetcher = vi.fn(async () => new Response(JSON.stringify(response)));
+  const fetcher = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response(JSON.stringify(response)));
   const execute = (changes = {}) => evaluatePhaseOneModelJudgment(input, { config, assurance, rubricDigest: assurance.rubricDigest,
     run, ledger, apiKey: "unit-fixture-no-network", fetcher, ...changes });
   return { ledger, run, config, assurance, input, fetcher, execute, response: (value: unknown) => { response = value; } };
@@ -43,6 +43,16 @@ describe("budgeted semantic judge", () => {
     expect(state.ledger.snapshot(state.run.runId).operations[0]).toMatchObject({ kind: "judge", phase: "final_validation", state: "settled", actual: { calls: 1, tokens: 18 } });
     await expect(state.execute()).rejects.toThrow();
     expect(state.fetcher).toHaveBeenCalledTimes(1);
+    const [url, request] = state.fetcher.mock.calls[0]!;
+    expect(url).toBe("https://open.bigmodel.cn/api/paas/v4/chat/completions");
+    expect(request?.redirect).toBe("error");
+    const body = String(request?.body), payload = JSON.parse(body);
+    // The independent judge deliberately receives frozen evidence and oracle;
+    // execution credentials, calibration and budget configuration stay outside it.
+    expect(JSON.parse(payload.messages[1].content)).toEqual(state.input);
+    expect(body).not.toContain("unit-fixture-no-network");
+    expect(body).not.toContain(state.run.permit.permitId);
+    expect(body).not.toContain(state.config.assuranceFile);
   });
   it.each(["injectionProbe", "orderStability", "repeatStability"] as const)("refuses missing %s before spending", async field => {
     const state = fixture(), assurance = { ...state.assurance, [field]: "not_run" };

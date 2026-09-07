@@ -328,7 +328,7 @@ jobs:
           pnpm --filter @talent-signal/eval-runner typecheck
           pnpm --filter @talent-signal/evaluation test
           pnpm --filter @talent-signal/agent exec vitest run src/runtimeObservation.test.ts
-          pnpm --filter @talent-signal/eval-runner test
+          pnpm --filter @talent-signal/eval-runner exec vitest run src --maxWorkers=2
           pnpm --filter @talent-signal/eval-runner p0
           python3 -m unittest discover -s apps/eval-runner/optimizer -p '*_test.py'
 

@@ -27,10 +27,10 @@ function permit(): OptimizationBudgetPermit {
 
 const directories: string[] = [];
 const ledgers: FileOptimizationBudgetLedger[] = [];
-function path(): string {
+function path(filename = "budget.sqlite"): string {
   const directory = mkdtempSync(join(tmpdir(), "opik-budget-test-"));
   directories.push(directory);
-  return join(directory, "budget.sqlite");
+  return join(directory, filename);
 }
 function setup(authorization = permit(), options: { maxRuns?: number; maxOperations?: number; ledgerPath?: string } = {}) {
   let time = new Date(baseTime);
@@ -303,40 +303,40 @@ describe("durable optimization budget", () => {
   });
 });
 
-function worker(script: string): Promise<{ output: string; code: number | null; signal: NodeJS.Signals | null }> {
+type BudgetWorkerInput = { ledgerPath: string } & (
+  | { action: "register_candidate"; request: Parameters<FileOptimizationBudgetLedger["registerCandidate"]>[0] }
+  | { action: "reserve"; request: OptimizationBudgetReservationInput }
+  | { action: "acquire_controller_and_crash"; runId: string; ownerId: string }
+  | { action: "issue_and_crash"; request: OptimizationBudgetReservationInput }
+);
+
+function worker(input: BudgetWorkerInput): Promise<{ output: string; code: number | null; signal: NodeJS.Signals | null }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", script], {
-      cwd: fileURLToPath(new URL("../../", import.meta.url)), stdio: ["ignore", "pipe", "pipe"],
+    const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("./budgetWorker.testFixture.mjs", import.meta.url))], {
+      cwd: fileURLToPath(new URL("../../", import.meta.url)), stdio: ["pipe", "pipe", "pipe"],
     });
     let output = "";
     let errors = "";
     child.stdout.on("data", (chunk) => { output += String(chunk); });
     child.stderr.on("data", (chunk) => { errors += String(chunk); });
     child.on("error", reject);
-    child.on("close", (code, signal) => code && !output ? reject(new Error(errors)) : resolve({ output: output.trim(), code, signal }));
+    child.on("close", (code, signal) => code !== null && code !== 0 ? reject(new Error(errors)) : resolve({ output: output.trim(), code, signal }));
+    child.stdin.on("error", reject);
+    child.stdin.end(JSON.stringify({ ...input, now: baseTime }));
   });
 }
 
 describe("cross-process budget proof", () => {
   it("serializes candidate admissions and recovers a dead controller without stealing a live one", async () => {
     const authorization = permit(); authorization.runLimits.candidateCount = 2;
-    const { ledger, ledgerPath, run } = setup(authorization);
-    const moduleUrl = new URL("./budget.ts", import.meta.url).href;
-    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => worker(`
-      import { FileOptimizationBudgetLedger } from ${JSON.stringify(moduleUrl)};
-      const ledger = new FileOptimizationBudgetLedger({ path: ${JSON.stringify(ledgerPath)}, clock: () => new Date(${JSON.stringify(baseTime)}) });
-      try { ledger.registerCandidate(${JSON.stringify({ ...run, candidateId: `trial-${i}` })}); console.log("admitted"); }
-      catch (error) { console.log(error.code); }
-      finally { ledger.close(); }
-    `)));
+    // Quotes, a template marker, and a newline must remain ordinary path data.
+    const { ledger, ledgerPath, run } = setup(authorization, { ledgerPath: path("budget-'\"`-${literal}\n.sqlite") });
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => worker({
+      ledgerPath, action: "register_candidate", request: { ...run, candidateId: `trial-${i}` },
+    })));
     expect(results.filter(result => result.output === "admitted")).toHaveLength(2);
     expect(ledger.summarize(run.runId).spent.candidateCount).toBe(2);
-    const death = await worker(`
-      import { FileOptimizationBudgetLedger } from ${JSON.stringify(moduleUrl)};
-      const ledger = new FileOptimizationBudgetLedger({ path: ${JSON.stringify(ledgerPath)}, clock: () => new Date(${JSON.stringify(baseTime)}) });
-      ledger.acquireRunController(${JSON.stringify(run.runId)}, "worker-owner");
-      process.kill(process.pid, "SIGKILL");
-    `);
+    const death = await worker({ ledgerPath, action: "acquire_controller_and_crash", runId: run.runId, ownerId: "worker-owner" });
     expect(death.signal).toBe("SIGKILL");
     ledger.acquireRunController(run.runId, "recovered-owner");
     expect(() => ledger.acquireRunController(run.runId, "contending-owner")).toThrow("run_controller_active");
@@ -350,14 +350,9 @@ describe("cross-process budget proof", () => {
     const authorization = permit();
     authorization.runLimits.amountMicros = 300;
     const { ledger, ledgerPath, request } = setup(authorization);
-    const moduleUrl = new URL("./budget.ts", import.meta.url).href;
-    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => worker(`
-      import { FileOptimizationBudgetLedger } from ${JSON.stringify(moduleUrl)};
-      const ledger = new FileOptimizationBudgetLedger({ path: ${JSON.stringify(ledgerPath)}, clock: () => new Date(${JSON.stringify(baseTime)}) });
-      try { ledger.reserve(${JSON.stringify(request(`worker-${i}`))}); console.log("reserved"); }
-      catch (error) { console.log(error.code); }
-      finally { ledger.close(); }
-    `)));
+    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => worker({
+      ledgerPath, action: "reserve", request: request(`worker-${i}`),
+    })));
     expect(results.filter((result) => result.output === "reserved")).toHaveLength(2);
     expect(results.filter((result) => result.output === "run_limit_amountMicros")).toHaveLength(6);
     expect(ledger.snapshot("run-1").operations).toHaveLength(2);
@@ -365,13 +360,7 @@ describe("cross-process budget proof", () => {
 
   it("recovers SQLite locking after worker death while preserving its issued reservation", async () => {
     const { ledger, ledgerPath, run, request } = setup();
-    const result = await worker(`
-      import { FileOptimizationBudgetLedger } from ${JSON.stringify(new URL("./budget.ts", import.meta.url).href)};
-      const ledger = new FileOptimizationBudgetLedger({ path: ${JSON.stringify(ledgerPath)}, clock: () => new Date(${JSON.stringify(baseTime)}) });
-      ledger.reserve(${JSON.stringify(request())});
-      ledger.issue(${JSON.stringify({ ...run, operationId: "op-1" })});
-      process.kill(process.pid, "SIGKILL");
-    `);
+    const result = await worker({ ledgerPath, action: "issue_and_crash", request: request() });
     expect(result.signal).toBe("SIGKILL");
     expect(ledger.snapshot(run.runId).operations[0]).toMatchObject({ state: "issued", upperBound: cost });
     ledger.checkpoint(run.runId, "worker_lost");

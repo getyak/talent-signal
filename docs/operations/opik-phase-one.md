@@ -84,6 +84,12 @@ pnpm --filter @talent-signal/eval-runner optimization resume --controller-dir /p
 permit; `tombstone` stops admission and removes run artifacts. Unknown provider
 outcomes retain their reservation and cannot be paid-retried automatically.
 Every model request, candidate and final check consumes the shared ledger.
+The phase-one backend, source and runtime session tokens, plus the provider
+API key, are owned by the Infisical `/evaluation` group. Inject only the credentials needed
+by the trusted controller or release-readback process; ordinary PR CI receives
+none of them. This group records ownership and creates no credential or access
+grant by itself.
+
 Inject `TALENT_SIGNAL_PHASE_ONE_PROVIDER_API_KEY` only into the trusted
 controller, never the Python worker, a case, a report or command-line text.
 

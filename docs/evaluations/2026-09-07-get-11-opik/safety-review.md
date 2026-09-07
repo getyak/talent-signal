@@ -69,3 +69,54 @@ Owning evidence is in [controller tests](../../../apps/eval-runner/src/optimizat
 [final-command tests](../../../apps/eval-runner/src/phaseOneCommand.test.ts),
 [build-identity tests](../../../packages/evaluation/src/phaseOneBuild.test.ts),
 and [deployment-audience tests](../../../apps/backend/src/modules/deploymentExposure.test.ts).
+
+## CodeQL alert 47: independent adjudication
+
+[Alert 47](https://github.com/getyak/talent-signal/security/code-scanning/47)
+(`js/file-access-to-http`) correctly identifies local evaluation data entering
+the configured model request; it does not establish unauthorized disclosure.
+The original [GET-19](https://linear.app/getyak/issue/GET-19) requirement places
+final material with an independent executor and excludes the candidate generator
+from its inputs, gold and detailed failure reports. The initial alert assessment
+mistakenly treated this iteration's broader ADR/plan wording about all model
+judges as an upstream authorization restriction. That interpretation and the
+recommendation to disable the independent final model judge are withdrawn.
+The ADR and plan must distinguish development scorers from calibrated judges
+operating within the trusted final executor; this correction does not extend
+the generator's access or the user's monetary or release authorization.
+
+The inspected path supports an individual false-positive disposition for this
+alert, with the following concrete boundaries:
+
+- `phaseOneCommand.ts:79–85,122–136` reads owner-selected, bounded, non-symlink
+  final-case JSON in the private controller directory. `phaseOneEvaluation.ts:281`
+  supplies the frozen case input, oracle, subject output, repetition and criteria
+  to the evaluator. `phaseOneJudge.ts:56–73` deliberately sends these fields to
+  the fixed HTTPS BigModel endpoint with redirects disabled. The provider key
+  is used only in the authorization header; controller files, signing keys,
+  budget permits and source-access credentials are not serialized into the body.
+- The only production call to the model-judge function is
+  `phaseOneCommand.ts:494`. It requires independent actor configuration, frozen
+  study/build bindings, current calibration and stability assurance, the original
+  run's final-validation budget, and current private-source/lifecycle checks
+  before dispatch and before recording. Source withdrawal prevents retained
+  authority; missing GET-12 monetary configuration does not enable paid calls.
+- The generator has a separate fixed Python worker. `optimizer.ts:122–139,179`
+  passes only an allowlisted environment, candidate fields, development-example
+  identifiers and development `score`/`hardGate` feedback. Search admission
+  rejects non-development cases (`controller.ts:94–103`); final execution has no
+  feedback call into that worker. Judge prose is discarded
+  (`phaseOneJudge.ts:88–97`); structured judgments and digests enter the private
+  signed journal (`phaseOneCommand.ts:232–239,487–499`). The final CLI returns
+  aggregates, while detailed final artifacts remain controller-owned.
+- Neither judge output nor its verification report grants release authority.
+  `phaseOneReleaseCommand.ts:53–59` requires a separate release actor and key,
+  excluding the generator, verifier and configured evaluators.
+
+Independent checks passed: 5 model-judge tests, 13 paired-evaluation tests and
+4 Python worker tests. This adjudication is based on the implemented controlled
+code paths and private-controller trust model, not an OS sandbox guarantee
+against arbitrary malicious same-user code. It does not attest provider-side
+retention, a paid final evaluation or a deployed release. Keep the CodeQL rule
+and job enabled; any dismissal applies only to this reviewed authorized I/O
+path. This reviewer made no GitHub state change.

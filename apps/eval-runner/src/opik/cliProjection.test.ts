@@ -145,12 +145,14 @@ describe("real CLI local-first Opik projection", () => {
     const exporting = cli(args, output, remote.url);
     await pause.reached;
     const deleting = cli(["opik-delete", "--projection-id", `opik:${run.manifest.runId}`], output, remote.url);
-    for (let attempt = 0; attempt < 100; attempt++) {
-      if ((await readdir(directory)).includes("deletion_requested.json")) break;
-      await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    try {
+      // Wait for the observable deletion barrier, not a one-second assumption
+      // about a fresh TypeScript process starting on a shared CI runner.
+      await expect.poll(() => readdir(directory), { timeout: 15_000, interval: 50 })
+        .toContain("deletion_requested.json");
+    } finally {
+      pause.release();
     }
-    expect(await readdir(directory)).toContain("deletion_requested.json");
-    pause.release();
     expect((await exporting).code).toBe(0);
     const deleted = await deleting;
     expect(JSON.parse(deleted.stdout)).toMatchObject({ status: "deleted", readBackVerified: true });

@@ -76,7 +76,7 @@ describe("independent phase one controller process", () => {
     expect(JSON.stringify(state.read("phase-one-verification.json"))).not.toContain("Which source and reference time");
     expect(child("adjudicate")).toMatchObject({ liveCalls: 0, replayedCalls: 12 });
     expect(child("inspect")).toMatchObject({ status: "verified_signature", releaseAuthority: "none" });
-  });
+  }, 60_000);
 
   it("binds human reviews to exact output and rubric; fixture passes never become model quality", async () => {
     const state = fixture(); await state.command("freeze"); await state.command("verify");

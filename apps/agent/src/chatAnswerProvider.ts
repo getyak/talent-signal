@@ -271,18 +271,43 @@ function resolvedContactSelection(result: AgentToolResult): {
 }
 
 function explicitNamedRelationshipClue(objective: string): string | null {
-  const patterns = [
-    /^\s*what\s+(?:has\s+)?changed\s+with\s+(.+?)\s*[?!.]*\s*$/iu,
-    /^\s*what\s+do\s+we\s+know\s+about\s+(.+?)\s*[?!.]*\s*$/iu,
-    /^\s*(.+?)\s*(?:有什么变化|发生了什么变化|现在怎么样|目前怎么样)\s*[？?。!！]*\s*$/u,
-  ];
-  for (const pattern of patterns) {
-    const clue = pattern.exec(objective)?.[1]?.trim();
+  // This optional shortcut must never backtrack over an uncontrolled objective.
+  // Oversized questions continue through the ordinary Agent path, unmodified.
+  const question = objective.trim();
+  if (question.length > 1024) return null;
+  const withoutPunctuation = (text: string, punctuation: string): string => {
+    let end = text.length;
+    while (end > 0 && punctuation.includes(text[end - 1]!)) end--;
+    return text.slice(0, end).trimEnd();
+  };
+  const english = withoutPunctuation(question, "?!.");
+  const clues: string[] = [];
+  for (const words of [
+    ["what", "changed", "with"],
+    ["what", "has", "changed", "with"],
+    ["what", "do", "we", "know", "about"],
+  ]) {
+    let cursor = 0;
+    let matches = true;
+    for (const word of words) {
+      if (english.slice(cursor, cursor + word.length).toLowerCase() !== word) { matches = false; break; }
+      cursor += word.length;
+      if (cursor >= english.length || !/\s/u.test(english[cursor]!)) { matches = false; break; }
+      while (cursor < english.length && /\s/u.test(english[cursor]!)) cursor++;
+    }
+    if (matches) clues.push(english.slice(cursor));
+  }
+  const chinese = withoutPunctuation(question, "？?。!！");
+  for (const suffix of ["有什么变化", "发生了什么变化", "现在怎么样", "目前怎么样"]) {
+    if (chinese.endsWith(suffix)) clues.push(chinese.slice(0, -suffix.length));
+  }
+  for (const candidate of clues) {
+    const clue = candidate.trim();
     if (
       clue &&
       clue.length >= 2 &&
       clue.length <= 200 &&
-      !/[*%]/u.test(clue) &&
+      !/[*%\n\r\u2028\u2029]/u.test(clue) &&
       !new Set([
         "all contacts",
         "everyone",

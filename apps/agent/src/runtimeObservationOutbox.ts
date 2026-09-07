@@ -37,6 +37,7 @@ export class PrivateOpikRuntimeTransport implements RuntimeObservationTransport 
   constructor(policy: RuntimeObservationPolicy, private readonly apiKey?: string, private readonly fetcher: typeof fetch = fetch) {
     this.policy = RuntimeObservationPolicySchema.parse(policy);
   }
+  usesCredential(apiKey: string | undefined): boolean { return this.apiKey === apiKey; }
   private async request(path: string, method = "GET", body?: unknown): Promise<unknown> {
     const response = await this.fetcher(`${this.policy.endpoint.replace(/\/$/u, "")}/v1/private/${path}`, {
       method, redirect: "error", signal: AbortSignal.timeout(10_000),
@@ -448,19 +449,26 @@ export class RuntimeObserver {
     } catch { this.last_error_code = "RUNTIME_OBSERVATION_LOCAL_RECORD_UNAVAILABLE"; }
   }
 }
-let processObserver: { signature: string; observer: RuntimeObserver } | undefined;
+let processObserver: { signature: string; transport: PrivateOpikRuntimeTransport; observer: RuntimeObserver } | undefined;
 export function createEnvironmentRuntimeObserver(environment: NodeJS.ProcessEnv = process.env): RuntimeObserver | null {
   const configured = environment.TALENT_SIGNAL_OPIK_RUNTIME_POLICY?.trim();
-  if (!configured) return null;
+  if (!configured) {
+    if (environment === process.env) { processObserver?.observer.dispose(); processObserver = undefined; }
+    return null;
+  }
   const policy = RuntimeObservationPolicySchema.parse(JSON.parse(configured));
   const directory = environment.TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX?.trim();
   if (!directory) throw new Error("RUNTIME_OBSERVATION_OUTBOX_REQUIRED");
-  const signature = observationHash([configured, directory, environment.OPIK_API_KEY ?? null]);
-  if (environment === process.env && processObserver?.signature === signature) return processObserver.observer;
+  const signature = observationHash([configured, directory]);
+  // Credentials are transport state, never content-addressed identity. Compare
+  // the credential the existing transport already owns without storing a digest
+  // or a second credential copy in the process cache.
+  if (environment === process.env && processObserver?.signature === signature
+    && processObserver.transport.usesCredential(environment.OPIK_API_KEY)) return processObserver.observer;
   const secrets = Object.entries(environment).filter(([key]) => /(?:KEY|TOKEN|PASSWORD|SECRET)$/u.test(key))
     .flatMap(([, value]) => value ? [value] : []);
-  const observer = new RuntimeObserver(new RuntimeObservationOutbox(directory, policy,
-    new PrivateOpikRuntimeTransport(policy, environment.OPIK_API_KEY)), secrets);
-  if (environment === process.env) { processObserver?.observer.dispose(); processObserver = { signature, observer }; }
+  const transport = new PrivateOpikRuntimeTransport(policy, environment.OPIK_API_KEY);
+  const observer = new RuntimeObserver(new RuntimeObservationOutbox(directory, policy, transport), secrets);
+  if (environment === process.env) { processObserver?.observer.dispose(); processObserver = { signature, transport, observer }; }
   observer.startBackgroundExport(); return observer;
 }

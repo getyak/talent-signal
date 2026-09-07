@@ -9,9 +9,10 @@ Local execution remains authoritative when the optional Opik projection fails.
 Prompts continue to ship with code; an Opik label never changes running code.
 
 The issue permits private complete-content evaluation and Codex release review
-within the owner's delegated scope. This does not grant candidate generators or
-judges business-action authority, access to independent holdouts, credentials, or
-release signing authority. No per-case privacy gate is added. Credentials stay
+within the owner's delegated scope. Candidate generators and development scorers
+have no access to independent holdouts or release credentials. The separately
+calibrated final judge receives frozen evaluation material only through the
+trusted independent executor; it has no business-action or release authority. No per-case privacy gate is added. Credentials stay
 out of evaluation content. Monetary limits and environment/exposure scope are
 still missing in GET-12; funded optimization and candidate rollout depend on
 those parameters. Implementation, deterministic proof and the existing baseline
@@ -70,7 +71,16 @@ outbox/runtime integration respectively. Independent review follows integration.
    tombstone and provider dispatch after private-source withdrawal. Both were
    repaired with crash and PostgreSQL race regressions. Independent final
    PostgreSQL/runner verification passed 28 tests on `6601c575`; no confirmed
-   P0/P1 remains open in that review. PR creation now proceeds. Also bind
+   P0/P1 remains open in that review. [PR 153](https://github.com/getyak/talent-signal/pull/153)
+   is open. Its first hosted run exposed secret-name inventory omissions,
+   overloaded process-test timeouts and CodeQL findings. Repairs preserve the
+   complete test suite, replace dynamic child source with a static JSON-input
+   fixture, bound contact parsing and remove credential-derived cache hashes.
+   Independent review passed 43 Agent and 61 budget/controller/CLI tests.
+   The separately reviewed final-judge I/O alert is individually adjudicated;
+   its rule and CI job remain enabled. A new native UI-to-PostgreSQL proof is
+   in progress to verify correction persistence and a frozen rerun through the
+   actual app. Also bind
    readiness to migration 057 and wire optional runtime/release configuration
    into the existing internal TestFlight deployment. Then require current-head
    hosted CI/CD, automatic merge, and baseline deployment readback. Historical

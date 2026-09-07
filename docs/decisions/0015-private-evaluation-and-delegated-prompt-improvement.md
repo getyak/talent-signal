@@ -14,9 +14,14 @@ deterministic scenarios, quality-state isolation and business-action boundaries
 remain valid.
 
 Codex may review and approve exact prompt candidates within the owner's
-delegated release scope. Candidate generators and model judges cannot approve
-releases, change evaluation criteria or obtain final holdout material. The
-owner supplies monetary limits and environment/exposure scope; missing limits
+delegated release scope. Candidate generators and development scorers cannot
+obtain final holdout material. The trusted independent verification executor may
+supply its frozen input, expected-behavior proposal and output to a separately
+calibrated final judge, as required by [GET-19](https://linear.app/getyak/issue/GET-19).
+Final judge results remain signed verification evidence and are not returned to
+the generator as detailed optimization feedback. Neither generator nor judge can
+approve releases or change evaluation criteria. The owner supplies monetary
+limits and environment/exposure scope; missing limits
 do not become authorization by default. Release review does not confer contact,
 calendar, message or confirmed-fact write authority.
 

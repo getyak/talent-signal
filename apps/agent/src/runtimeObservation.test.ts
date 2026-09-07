@@ -34,6 +34,38 @@ describe("private runtime observation", () => {
     }
     expect(() => new RuntimeObservationSession(policy, { ...context, workspace_id: "another-account" }, {}, { enqueue: async () => {} })).toThrow("SCOPE_DENIED");
   });
+  it("reuses the process transport only for the same credential and stops its timer on rotation or disable", () => {
+    const flush = vi.spyOn(RuntimeObservationOutbox.prototype, "flush").mockResolvedValue(undefined);
+    const dispose = vi.spyOn(RuntimeObserver.prototype, "dispose");
+    vi.stubEnv("TALENT_SIGNAL_OPIK_RUNTIME_POLICY", JSON.stringify(policy));
+    vi.stubEnv("TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX", join(tmpdir(), "synthetic-cache-only"));
+    vi.stubEnv("OPIK_API_KEY", "synthetic-credential-one");
+    try {
+      const first = createEnvironmentRuntimeObserver()!;
+      expect(createEnvironmentRuntimeObserver()).toBe(first);
+      expect(flush).toHaveBeenCalledOnce();
+      vi.stubEnv("OPIK_API_KEY", "synthetic-credential-two");
+      const rotated = createEnvironmentRuntimeObserver()!;
+      expect(rotated).not.toBe(first);
+      expect(dispose).toHaveBeenCalledOnce();
+      expect(dispose.mock.instances[0]).toBe(first);
+      expect(createEnvironmentRuntimeObserver()).toBe(rotated);
+      vi.stubEnv("OPIK_API_KEY", undefined);
+      const noCredential = createEnvironmentRuntimeObserver()!;
+      expect(noCredential).not.toBe(rotated);
+      expect(dispose.mock.instances[1]).toBe(rotated);
+      expect(createEnvironmentRuntimeObserver()).toBe(noCredential);
+      vi.stubEnv("TALENT_SIGNAL_OPIK_RUNTIME_POLICY", "");
+      expect(createEnvironmentRuntimeObserver()).toBeNull();
+      expect(dispose.mock.instances[2]).toBe(noCredential);
+      vi.stubEnv("TALENT_SIGNAL_OPIK_RUNTIME_POLICY", JSON.stringify(policy));
+      expect(createEnvironmentRuntimeObserver()).not.toBe(noCredential);
+    } finally {
+      vi.stubEnv("TALENT_SIGNAL_OPIK_RUNTIME_POLICY", "");
+      createEnvironmentRuntimeObserver();
+      vi.unstubAllEnvs(); dispose.mockRestore(); flush.mockRestore();
+    }
+  });
   it("retains authorized business content but removes credentials and marks omitted media explicitly", () => {
     const value = captureObservationContent({ text: "salary discussion", api_key: "credential", nested: { authorization: "Bearer hidden" }, output: "known-api-key" }, 1024, ["known-api-key"]);
     expect(value.status).toBe("redacted");

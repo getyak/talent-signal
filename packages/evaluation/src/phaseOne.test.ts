@@ -56,7 +56,7 @@ describe("phase one frozen evaluation", () => {
     expect(phaseOneGeneratorInputs(state.items)).toEqual([]);
   });
 
-  it("executes repeatable paired requests with no gold or author identity in product/judge input", async () => {
+  it("executes repeatable paired product requests without gold and keeps private content out of reports", async () => {
     const state = setup(), report = await state.run();
     expect(state.requests).toHaveLength(12);
     expect(JSON.stringify(state.requests)).not.toContain("never-send");
