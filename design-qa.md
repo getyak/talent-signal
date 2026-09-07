@@ -2023,3 +2023,66 @@ final result: passed
 - [x] Verify default, dark, Chinese, reduced-motion, AX5, LTR, RTL, cancelled-swipe, and rapid-navigation states.
 
 final result: passed
+
+---
+
+# Design QA — adjacent-borrowing iOS navigation correction
+
+## Outcome and visual truth
+
+- Source screenshot: `/Users/cubxxw/Downloads/IMG_6984.PNG`
+- Source interaction recording: `/Users/cubxxw/Downloads/ScreenRecording_09-07-2026 21-57-59_1.MP4`
+- Final focused comparison: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v3/final-v4/focused-navigation-comparison.png`
+- Final motion recording: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v3/final-v4/navigation-breathing.mp4`
+- Final screenshots and export manifest: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v3/final-v4/validation-screens/`
+- Viewport: iPhone 17 Pro simulator, 402 × 874 points at 3×, light appearance for the primary comparison.
+
+The earlier fixed-slot overflow direction was functionally stable, but the user
+rejected it because selection still felt component-heavy and the visual change
+was too large. The corrected direction treats Today, Sessions, People, and
+Meetings as four equal base units. Selection expands one destination by taking
+width from one adjacent donor; the pair retains its total width and distant
+destinations stay in place.
+
+At the tested width the base unit is about 73.5 points, the selected control is
+104 points, and the adjacent donor remains 44 points. The selected visual is a
+40-point muted capsule inside the control. Selected symbols are 24 points,
+inactive symbols are 22 points, and the selected title is 16-point Medium. All
+four controls retain at least a 44-point target.
+
+## Motion inspection
+
+Selection uses a 0.28-second ease-in-out transition. One capsule moves between
+destinations while only the selected/donor pair redistributes width. The
+outgoing title clears at transition start; the destination title begins a
+0.12-second fade after 0.22 seconds, when the capsule is settling. Frame review
+of Today → Sessions and Sessions → People confirmed that the capsule stays
+fully rounded, no title appears outside it, no old and new titles overlap, and
+the distant destination remains stable. The temporary recording-only test was
+removed before final verification.
+
+Internal testing is absent from the primary header and remains reachable from
+Workspace Settings when enabled.
+
+## Verification
+
+- Five focused UI tests passed in
+  `/tmp/talent-signal-stable-navigation-v27/navigation.xcresult`: four-page
+  navigation and state preservation, AX5 LTR, AX5 RTL, reduced motion with
+  Chinese dark appearance, and the Workspace Settings internal-testing route.
+- Release simulator build passed with derived data at
+  `/tmp/talent-signal-stable-navigation-release-v3`.
+- `pnpm docs:check` passed, including canonical documentation, generated wiki,
+  localization boundaries, and architecture diagrams.
+- `git diff --check` passed.
+
+## Mobile UX rubric
+
+- Navigation clarity: 3 — one expanded destination carries icon and title.
+- Spatial stability: 3 — only the selected/donor pair changes width.
+- Motion quality: 3 — one continuous capsule and sequenced title reveal.
+- Accessibility: 3 — 44-point targets, selected traits, AX5, RTL, and Reduce Motion.
+- Product fit: 3 — quiet warm surface and no internal-testing destination.
+- Vetoes: none.
+
+final result: passed

@@ -1231,6 +1231,7 @@ private struct RelationshipArchiveHeader: View {
     @ObservedObject var motion: RelationshipPageMotion
     let onOpenCalendar: (RelationshipCalendarLaunchIntent) -> Void
     let onOpenAgentStudio: () -> Void
+    @State private var revealedTitlePage: RelationshipArchivePage? = .today
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
@@ -1253,51 +1254,65 @@ private struct RelationshipArchiveHeader: View {
                     let progress = reduceMotion ? CGFloat(selectedPage.pageIndex) : motion.progress
                     let slotWidth = geometry.size.width
                         / CGFloat(RelationshipArchivePage.allCases.count)
-                    let selectedPageIsAtEdge = selectedPage == .today || selectedPage == .meetings
-                    let desiredActiveWidth: CGFloat = selectedPageIsAtEdge
-                        ? (compact ? 88 : 96)
-                        : (compact ? 96 : 112)
-                    let activeWidth = max(
-                        44,
-                        min(
-                            desiredActiveWidth,
-                            slotWidth * 1.75
-                        )
+                    // The four destinations begin as equal units. Selection
+                    // borrows space from one adjacent unit, so the pair keeps
+                    // its total width and distant destinations stay still.
+                    let activeWidth = min(
+                        compact ? 96 : 104,
+                        slotWidth * 2 - 44
                     )
-                    HStack(spacing: 0) {
-                        ForEach(RelationshipArchivePage.allCases) { page in
-                            let emphasis = RelationshipPageMotion.emphasis(for: page, progress: progress)
-                            let isSelected = selectedPage == page
-                            if page == .meetings {
-                                pageButton(
-                                    page,
-                                    emphasis: emphasis,
-                                    isSelected: isSelected,
-                                    slotWidth: slotWidth,
-                                    activeWidth: activeWidth
-                                )
-                                    .zIndex(isSelected ? 1 : 0)
-                                    .contextMenu { calendarShortcuts }
-                                    .accessibilityAction(named: Text(appLanguage.text("This week"))) {
-                                        onOpenCalendar(.thisWeek)
-                                    }
-                                    .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
-                                        onOpenCalendar(.addActivity)
-                                    }
-                            } else {
-                                pageButton(
-                                    page,
-                                    emphasis: emphasis,
-                                    isSelected: isSelected,
-                                    slotWidth: slotWidth,
-                                    activeWidth: activeWidth
-                                )
-                                    .zIndex(isSelected ? 1 : 0)
+                    let compressedWidth = slotWidth * 2 - activeWidth
+                    let donorPage = adjacentDonor(for: selectedPage)
+                    let itemWidths = RelationshipArchivePage.allCases.map { page in
+                        if page == selectedPage { return activeWidth }
+                        if page == donorPage { return compressedWidth }
+                        return slotWidth
+                    }
+                    let selectedOffset = itemWidths
+                        .prefix(selectedPage.pageIndex)
+                        .reduce(CGFloat.zero, +)
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.tsSurfaceMuted.opacity(0.72))
+                            .frame(width: activeWidth - 4, height: 40)
+                            .offset(x: selectedOffset + 2)
+
+                        HStack(spacing: 0) {
+                            ForEach(RelationshipArchivePage.allCases) { page in
+                                let emphasis = RelationshipPageMotion.emphasis(for: page, progress: progress)
+                                let isSelected = selectedPage == page
+                                let itemWidth = itemWidths[page.pageIndex]
+                                if page == .meetings {
+                                    pageButton(
+                                        page,
+                                        emphasis: emphasis,
+                                        isSelected: isSelected,
+                                        showsTitle: isSelected && revealedTitlePage == page,
+                                        itemWidth: itemWidth
+                                    )
+                                        .zIndex(isSelected ? 1 : 0)
+                                        .contextMenu { calendarShortcuts }
+                                        .accessibilityAction(named: Text(appLanguage.text("This week"))) {
+                                            onOpenCalendar(.thisWeek)
+                                        }
+                                        .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
+                                            onOpenCalendar(.addActivity)
+                                        }
+                                } else {
+                                    pageButton(
+                                        page,
+                                        emphasis: emphasis,
+                                        isSelected: isSelected,
+                                        showsTitle: isSelected && revealedTitlePage == page,
+                                        itemWidth: itemWidth
+                                    )
+                                        .zIndex(isSelected ? 1 : 0)
+                                }
                             }
                         }
                     }
                     .animation(
-                        reduceMotion ? nil : .easeInOut(duration: 0.24),
+                        reduceMotion ? nil : .easeInOut(duration: 0.28),
                         value: selectedPage
                     )
                 }
@@ -1309,6 +1324,23 @@ private struct RelationshipArchiveHeader: View {
         }
         .frame(height: 52)
         .background(Color.tsSurface)
+        .task(id: selectedPage) {
+            let destination = selectedPage
+            if reduceMotion {
+                revealedTitlePage = destination
+                return
+            }
+            guard revealedTitlePage != destination else { return }
+            withAnimation(.easeOut(duration: 0.06)) {
+                revealedTitlePage = nil
+            }
+            do { try await Task.sleep(for: .milliseconds(220)) }
+            catch { return }
+            guard !Task.isCancelled, selectedPage == destination else { return }
+            withAnimation(.easeOut(duration: 0.12)) {
+                revealedTitlePage = destination
+            }
+        }
     }
 
     private var calendarShortcuts: some View {
@@ -1332,8 +1364,8 @@ private struct RelationshipArchiveHeader: View {
         _ page: RelationshipArchivePage,
         emphasis: CGFloat,
         isSelected: Bool,
-        slotWidth: CGFloat,
-        activeWidth: CGFloat
+        showsTitle: Bool,
+        itemWidth: CGFloat
     ) -> some View {
         Button {
             // PageTabViewStyle owns interactive travel. Do not layer another
@@ -1343,37 +1375,28 @@ private struct RelationshipArchiveHeader: View {
                 withAnimation(.easeInOut(duration: 0.28)) { selectedPage = page }
             }
         } label: {
-            ZStack {
-                if isSelected {
-                    Capsule()
-                        .fill(Color.tsSurfaceMuted)
-                        .frame(width: activeWidth, height: 44)
-                        .transition(.opacity)
-                }
+            HStack(spacing: showsTitle ? 6 : 0) {
+                Image(systemName: page.symbolName)
+                    .resizable()
+                    .scaledToFit()
+                    .fontWeight(isSelected ? .medium : .regular)
+                    .frame(
+                        width: isSelected ? 24 : 22,
+                        height: isSelected ? 24 : 22
+                    )
 
-                HStack(spacing: isSelected ? 7 : 0) {
-                    Image(systemName: page.symbolName)
-                        .resizable()
-                        .scaledToFit()
-                        .fontWeight(isSelected ? .medium : .regular)
-                        .frame(
-                            width: isSelected ? 25 : 24,
-                            height: isSelected ? 25 : 24
-                        )
-
-                    if isSelected {
-                        Text(page.title(in: appLanguage))
-                            .font(.callout.weight(.medium))
-                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                    }
+                if showsTitle {
+                    Text(page.title(in: appLanguage))
+                        .font(.system(size: 16, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                        .transition(.asymmetric(insertion: .opacity, removal: .identity))
                 }
-                .foregroundStyle(Color.tsInk.opacity(0.55 + emphasis * 0.45))
-                .frame(width: activeWidth, height: 44)
             }
-            .frame(width: slotWidth, height: 44)
+            .foregroundStyle(Color.tsInk.opacity(0.48 + emphasis * 0.42))
+            .padding(.horizontal, showsTitle ? 6 : 0)
+            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(width: itemWidth, height: 44)
             .frame(height: 48)
             .contentShape(Rectangle())
             .accessibilityHidden(true)
@@ -1383,6 +1406,16 @@ private struct RelationshipArchiveHeader: View {
         .accessibilityAddTraits(selectedPage == page ? .isSelected : [])
         .accessibilityIdentifier("archive-tab-\(page.accessibilityIdentifier)")
         .accessibilityShowsLargeContentViewer { Text(page.title(in: appLanguage)) }
+    }
+
+    private func adjacentDonor(
+        for page: RelationshipArchivePage
+    ) -> RelationshipArchivePage {
+        let pages = RelationshipArchivePage.allCases
+        let donorIndex = page.pageIndex == pages.count - 1
+            ? page.pageIndex - 1
+            : page.pageIndex + 1
+        return pages[donorIndex]
     }
 }
 

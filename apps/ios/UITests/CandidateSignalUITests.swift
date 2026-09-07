@@ -1503,22 +1503,126 @@ final class CandidateSignalUITests: XCTestCase {
 
     private func assertHeaderGeometry(
         _ baseline: [String: CGRect],
-        selected _: String,
+        selected: String,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        for (identifier, expected) in baseline {
-            let control = app.buttons[identifier]
-            let actual = control.frame
-            XCTAssertTrue(control.isHittable, identifier, file: file, line: line)
-            XCTAssertGreaterThanOrEqual(actual.width, 44, identifier, file: file, line: line)
-            XCTAssertGreaterThanOrEqual(actual.height, 44, identifier, file: file, line: line)
-            XCTAssertEqual(actual.minY, expected.minY, accuracy: 0.5, identifier, file: file, line: line)
-            XCTAssertEqual(actual.height, expected.height, accuracy: 0.5, identifier, file: file, line: line)
-
-            XCTAssertEqual(actual.midX, expected.midX, accuracy: 0.5, identifier, file: file, line: line)
-            XCTAssertEqual(actual.width, expected.width, accuracy: 0.5, identifier, file: file, line: line)
+        let identifiers = ["archive-tab-today", "archive-tab-sessions",
+                           "archive-tab-people", "archive-tab-meetings"]
+        let selectedIndex = identifiers.firstIndex(of: selected) ?? 0
+        let donorIndex = selectedIndex == identifiers.count - 1
+            ? selectedIndex - 1
+            : selectedIndex + 1
+        let unitWidth = baseline["archive-tab-people"]?.width ?? 0
+        let activeWidth = baseline["archive-tab-today"]?.width ?? 0
+        let compressedWidth = baseline["archive-tab-sessions"]?.width ?? 0
+        // PageTabViewStyle can still be presenting the last few points of an
+        // interrupted page animation after the selected trait changes. This
+        // tolerance rejects the old fixed-slot layout while accepting that
+        // bounded presentation state during rapid taps and swipes.
+        let geometryTolerance: CGFloat = 8
+        let isRTL = (baseline["archive-tab-today"]?.midX ?? 0)
+            > (baseline["archive-tab-sessions"]?.midX ?? 0)
+        let logicalWidths = identifiers.enumerated().map { index, _ in
+            if index == selectedIndex { return activeWidth }
+            if index == donorIndex { return compressedWidth }
+            return unitWidth
         }
+        var expectedGeometry: [String: (minX: CGFloat, width: CGFloat)] = [:]
+
+        if isRTL {
+            var expectedRight = baseline["archive-tab-today"]?.maxX ?? 0
+            for (identifier, width) in zip(identifiers, logicalWidths) {
+                expectedGeometry[identifier] = (expectedRight - width, width)
+                expectedRight -= width
+            }
+        } else {
+            var expectedLeft = baseline["archive-tab-today"]?.minX ?? 0
+            for (identifier, width) in zip(identifiers, logicalWidths) {
+                expectedGeometry[identifier] = (expectedLeft, width)
+                expectedLeft += width
+            }
+        }
+
+        if let expected = baseline["relationship-agent-studio"] {
+            let studio = app.buttons["relationship-agent-studio"]
+            XCTAssertEqual(studio.frame.minX, expected.minX, accuracy: 0.5, file: file, line: line)
+            XCTAssertEqual(studio.frame.minY, expected.minY, accuracy: 0.5, file: file, line: line)
+            XCTAssertEqual(studio.frame.width, expected.width, accuracy: 0.5, file: file, line: line)
+            XCTAssertEqual(studio.frame.height, expected.height, accuracy: 0.5, file: file, line: line)
+        }
+
+        let settled = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                expectedGeometry.allSatisfy { identifier, target in
+                    let frame = self.app.buttons[identifier].frame
+                    return abs(frame.minX - target.minX) <= geometryTolerance
+                        && abs(frame.width - target.width) <= geometryTolerance
+                }
+            },
+            object: app
+        )
+        let settleResult = XCTWaiter.wait(for: [settled], timeout: 2)
+        let observedGeometry = identifiers.map { identifier in
+            let frame = app.buttons[identifier].frame
+            return "\(identifier): x=\(frame.minX), width=\(frame.width)"
+        }.joined(separator: "; ")
+        let targetGeometry = identifiers.compactMap { identifier -> String? in
+            guard let target = expectedGeometry[identifier] else { return nil }
+            return "\(identifier): x=\(target.minX), width=\(target.width)"
+        }.joined(separator: "; ")
+        XCTAssertEqual(
+            settleResult,
+            .completed,
+            "The navigation did not settle into adjacent-borrowing units. "
+                + "Expected [\(targetGeometry)]; observed [\(observedGeometry)].",
+            file: file,
+            line: line
+        )
+
+        for identifier in identifiers {
+            let control = app.buttons[identifier]
+            let expected = expectedGeometry[identifier] ?? (control.frame.minX, control.frame.width)
+            XCTAssertTrue(control.isHittable, identifier, file: file, line: line)
+            let actual = control.frame
+            XCTAssertGreaterThanOrEqual(actual.width + 0.01, 44, identifier, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(actual.height + 0.01, 44, identifier, file: file, line: line)
+            XCTAssertEqual(
+                actual.minY,
+                baseline[identifier]?.minY ?? actual.minY,
+                accuracy: 0.5,
+                identifier,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                actual.minX,
+                expected.minX,
+                accuracy: geometryTolerance,
+                identifier,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                actual.width,
+                expected.width,
+                accuracy: geometryTolerance,
+                identifier,
+                file: file,
+                line: line
+            )
+        }
+
+        let totalWidth = identifiers.reduce(CGFloat.zero) {
+            $0 + app.buttons[$1].frame.width
+        }
+        XCTAssertEqual(
+            totalWidth,
+            unitWidth * CGFloat(identifiers.count),
+            accuracy: 0.75,
+            file: file,
+            line: line
+        )
     }
 
     func testSessionVisibleAndLongPressMenusExposeTheSameCommands() {
