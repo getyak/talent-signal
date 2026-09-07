@@ -40,9 +40,9 @@ target only entered compilation after 15:20Z. The earlier
 also timed out during duplicate architecture compilation. The intervening
 successful Security run skipped Swift and is not a passing Swift baseline.
 
-## Narrow repair and proof required
+## Repair and proof required
 
-The follow-up adds only `ARCHS=arm64` to the existing CodeQL `xcodebuild` command.
+The first follow-up added only `ARCHS=arm64` to the existing CodeQL `xcodebuild` command.
 [GitHub recommends a single architecture for Swift analysis](https://docs.github.com/en/code-security/reference/code-scanning/codeql/build-options-for-compiled-languages#customizing-swift-compilation-in-a-codeql-analysis-workflow).
 Use Apple's `ARCHS` build setting, confirmed by local resolved settings, rather
 than relying on `ONLY_ACTIVE_ARCH`, which generic destinations ignore.
@@ -55,12 +55,36 @@ unchanged. The source scan found no architecture conditional directives in
 project Swift files. Debug would change authentication branches, so it is not
 an equivalent analysis configuration. This keeps the existing simulator
 coverage boundary; it does not claim device-only or x86-specific dependency
-coverage. No numerical speedup is established before a hosted run.
+coverage. The first single-architecture run did not establish successful completion.
 
-Independent review must inspect the actual diff. Before merge, run the existing
-Security workflow explicitly on the branch because Swift is intentionally
-ineligible on pull-request events. Require all three targets to compile for
-arm64, successful build and extraction, successful Analyze and processing of
-the real `/language:swift` result, plus the required Security gate. Repeat the
-eligible security check on main after merge. A skipped job, failed-run SARIF or
-local build alone cannot satisfy that evidence.
+[The single-architecture dispatch](https://github.com/getyak/talent-signal/actions/runs/34139666155)
+ran on reviewed head `bda5b7a8843d9748a858d5dfe3e9f7a50ee4842b`. Its full
+Release build again reached the 45-minute job limit: Build was cancelled at
+16:27:55Z, Analyze was skipped and Security required failed. Live logs showed
+arm64 compilation progressing through Markdown, Live Activity, Share and the
+main app; there is no successful analysis to infer. All ordinary PR checks,
+including iOS smoke, passed, but they did not satisfy this separate requirement.
+
+The next change raises only the Swift job's bounded timeout from 45 to 90
+minutes. The completed runs establish that 45 minutes is insufficient; 90 is a
+maximum allowance for completing the current build and analysis, not a predicted
+completion time. This preserves the original compiler optimization and source
+conditions. It costs additional hosted macOS time if the scan needs it, and a
+continued stall can still exhaust the new bound. Independent review and a new
+exact-head dispatch remain mandatory; the timeout change itself is no proof.
+
+Investigation also found a reported traced package-resolution pause on the same
+runner/Xcode family, with an explicit counterexample to pre-resolving packages.
+[Upstream report](https://github.com/github/codeql/issues/22121).
+The [macOS tracer discussion](https://github.com/github/codeql/issues/22275)
+acknowledges additional toolchain tracing cost, but does not diagnose this
+project's exact pause. No pre-resolution, object-cache, runner or compiler-mode
+change is combined with this timeout adjustment.
+
+Independent review must inspect the updated actual diff. Before merge, run the
+existing Security workflow explicitly on the exact branch head because Swift
+is intentionally ineligible on pull-request events. Require all three targets
+to compile for arm64, successful build and extraction, successful Analyze and
+processing of the real `/language:swift` result, plus the required Security gate.
+Repeat the eligible security check on main after merge. A skipped job, failed-run
+SARIF or local build alone cannot satisfy that evidence.

@@ -82,9 +82,14 @@ outbox/runtime integration respectively. Independent review follows integration.
    build exceeded its 45-minute job limit while compiling both simulator
    architectures; Analyze was skipped, so security delivery is incomplete.
    Follow-up branch `codex/get-11-swift-codeql` starts from freshly updated
-   `main` at `5dffa3d3`. It limits only the CodeQL build to `ARCHS=arm64`,
-   retaining Release conditions, all targets and every security gate. Require
-   independent review and actual hosted Swift extraction/analysis before
+   `main` at `5dffa3d3`. The first `ARCHS=arm64`-only
+   dispatch also reached 45 minutes while the full Release build progressed
+   into the main app; Analyze was skipped. All ordinary PR 155 CI passed. The
+   next repair retains that architecture change and raises only the bounded
+   Swift job allowance to 90 minutes, preserving optimization, Release conditions,
+   all targets and every security gate. No pre-resolution/cache or compiler-mode
+   experiment is combined with it. Require updated independent review and
+   actual exact-head hosted Swift extraction/analysis before
    merging, then verify main again. See the [delivery recovery evidence](../docs/evaluations/2026-09-07-get-11-opik/delivery-recovery.md).
    GET-13/14/15/16/17/19 are Done with acceptance receipts read back in Linear;
    GET-18/20/21 and the parent retain their unobserved live acceptance criteria.
