@@ -261,6 +261,12 @@ jobs:
             --run "$LAB_REGRESSION_PROOF_OUTPUT_DIR/run.json" \
             --output "$GITHUB_WORKSPACE/build/lab-regression-report.json"
 
+      - name: Verify feedback and observation deletion across database connections
+        env:
+          FEEDBACK_TEST_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
+        run: |
+          pnpm --filter @talent-signal/backend exec vitest run src/modules/feedback.integration.test.ts src/modules/runtimeObservationLifecycle.integration.test.ts
+
       - name: Preserve Lab regression fixture metadata
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -295,6 +301,48 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  phase-one:
+    name: Phase one control plane (no model credentials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.18.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify frozen execution, budgets, replay and release boundaries
+        run: |
+          pnpm --filter @talent-signal/eval-runner typecheck
+          pnpm --filter @talent-signal/evaluation test
+          pnpm --filter @talent-signal/agent exec vitest run src/runtimeObservation.test.ts
+          pnpm --filter @talent-signal/eval-runner test
+          pnpm --filter @talent-signal/eval-runner p0
+          python3 -m unittest discover -s apps/eval-runner/optimizer -p '*_test.py'
+
+      - name: Record what this credential-free job proves
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; fs.mkdirSync("build", {recursive:true}); fs.writeFileSync("build/phase-one-ci.json", JSON.stringify({schemaVersion:"phase-one-ci-proof.v1", execution_integrity:"pass", deterministic_boundary:"pass", semantic_quality:"not_run", release_conditions:"not_run", providerKind:"deterministic_fake", releaseAuthority:"none", revision:process.env.GITHUB_SHA}));'
+
+      - name: Preserve control-plane verification status
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: phase-one-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/phase-one-ci.json
+          retention-days: 7
+
   ios:
     name: iOS release smoke
     needs: changes
@@ -322,7 +370,7 @@ jobs:
 
   required:
     name: CI required
-    needs: [changes, repository, web, backend, ios]
+    needs: [changes, repository, web, backend, phase-one, ios]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -331,6 +379,7 @@ jobs:
       REPOSITORY_RESULT: ${{ needs.repository.result }}
       WEB_RESULT: ${{ needs.web.result }}
       BACKEND_RESULT: ${{ needs.backend.result }}
+      PHASE_ONE_RESULT: ${{ needs.phase-one.result }}
       IOS_RESULT: ${{ needs.ios.result }}
     steps:
       - name: Enforce required job results
@@ -339,4 +388,5 @@ jobs:
           test "$REPOSITORY_RESULT" = "success"
           test "$WEB_RESULT" = "success"
           test "$BACKEND_RESULT" = "success"
+          test "$PHASE_ONE_RESULT" = "success"
           test "$IOS_RESULT" = "success" || test "$IOS_RESULT" = "skipped"

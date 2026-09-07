@@ -15,8 +15,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/evaluation build && tsc6 -p tsconfig.build.json",
-    "typecheck": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/evaluation build && tsc6 -p tsconfig.json --noEmit",
+    "build": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && pnpm --filter @talent-signal/evaluation build && tsc6 -p tsconfig.build.json",
+    "typecheck": "pnpm --filter @talent-signal/contracts build && pnpm --filter @talent-signal/agent build && pnpm --filter @talent-signal/evaluation build && tsc6 -p tsconfig.json --noEmit",
     "test": "vitest run src",
     "check": "pnpm typecheck && pnpm test",
     "validate": "tsx src/cli.ts validate",
@@ -26,13 +26,17 @@
     "opik:check": "tsx src/cli.ts opik-check",
     "opik:sync": "tsx src/cli.ts opik-sync",
     "opik:annotations": "tsx src/cli.ts opik-annotation-bootstrap",
-    "opik:delete": "tsx src/cli.ts opik-delete"
+    "opik:delete": "tsx src/cli.ts opik-delete",
+    "opik:export": "tsx src/cli.ts opik-export",
+    "optimization": "tsx src/cli.ts optimization",
+    "phase-one": "tsx src/cli.ts phase-one"
   },
   "dependencies": {
-    "@talent-signal/evaluation": "workspace:*",
-    "opik": "2.2.45",
+    "@sinclair/typebox": "^0.34.41",
+    "@talent-signal/agent": "workspace:*",
     "@talent-signal/contracts": "workspace:*",
-    "@sinclair/typebox": "^0.34.41"
+    "@talent-signal/evaluation": "workspace:*",
+    "opik": "2.2.45"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

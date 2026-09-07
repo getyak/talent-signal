@@ -63,6 +63,7 @@ const MIGRATIONS = [
   "054_agent_session_identifier_canonicalization",
   "055_agent_session_chat_sources",
   "056_agent_session_chat_lifecycle",
+  "057_feedback_learning",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

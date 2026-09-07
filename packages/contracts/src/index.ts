@@ -16,3 +16,4 @@ export * from "./labCISchemas.js";
 export * from "./labWorkspaceSchemas.js";
 export * from "./labFeatureSchemas.js";
 export * from "./agentSessionSchemas.js";
+export * from "./feedbackSchemas.js";

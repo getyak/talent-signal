@@ -46,6 +46,9 @@ import {
   telemetrySpanId,
 } from "./telemetry.js";
 import { loadSnapshot } from "./wiki.js";
+import { recordFeedbackExecution } from "./feedbackExecutions.js";
+import { productObservationContext } from "./runtimeObservationSources.js";
+import { lockChatCompletionSources } from "./chatCompletionSources.js";
 
 const CHAT_POLICY_VERSION = "chat-context.v3";
 
@@ -966,6 +969,7 @@ export async function createChatTask(
       | "fallback"
       | "media_not_sent" = "disabled";
     let remoteChatResult: RemoteChatAnswerResult | null = null;
+    let feedbackInput: Parameters<typeof recordFeedbackExecution>[2]["input"] | null = null;
     let remoteStartedAt: string | null = null;
     let remoteEndedAt: string | null = null;
     let remoteFailed = false;
@@ -991,14 +995,22 @@ export async function createChatTask(
                 data: stored.body,
               };
             }));
-        remoteChatResult = await measureLabServerStage("model_adapter", () => remoteChatProvider!.answer({
+        feedbackInput = {
           objective: request.objective,
+          reference_time: createdAt.toISOString(),
           ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           ...(sessionConversation.sources?.length ? { permits_unconfirmed_session_context_answer: true } : {}),
           context_blocks: selectedBlocks.map(remoteContextBlock),
           allowed_citation_ids: evidenceFragmentIds,
           images,
-        }));
+          observation: await productObservationContext(client, auth, taskId,
+            mediaIds.length ? "relationship_image" : "relationship_text", {
+              sessionID: request.session_id, personID: request.person_id, contextID: request.relationship_context_id,
+              fragmentIDs: evidenceFragmentIds, mediaIDs: mediaIds,
+              screenshotTaskIDs: sessionConversation.sources?.map((source) => source.taskID) ?? [],
+            }),
+        };
+        remoteChatResult = await measureLabServerStage("model_adapter", () => remoteChatProvider!.answer(feedbackInput!));
         remoteEndedAt = new Date().toISOString();
         const nextBlocks = insertAfterPersonBrief(
           blocks,
@@ -1143,6 +1155,17 @@ export async function createChatTask(
       },
     );
     await recordSessionChatSources(client, auth, request.session_id, taskId, sessionConversation.sources ?? [], conversationHistory.filter((message) => message.role === "assistant").map((message) => message.message_id));
+    if (!await lockChatCompletionSources(client, auth, { task_id: taskId, session_id: request.session_id, manifest_id: manifestId,
+      person_id: request.person_id, relationship_context_id: request.relationship_context_id }))
+      throw new ApiError(409, "CHAT_COMPLETION_SOURCE_CHANGED", "The source changed while this answer was being prepared. Reload its current state before trying again.");
+    if (remoteChatStatus === "completed" && feedbackInput && remoteChatResult && remoteStartedAt && remoteEndedAt) {
+      await recordFeedbackExecution(client, auth, {
+        task_id: taskId, ...(request.session_id ? { session_id: request.session_id } : {}), manifest_id: manifestId,
+        person_id: request.person_id, relationship_context_id: request.relationship_context_id,
+        input: feedbackInput, result: remoteChatResult, started_at: remoteStartedAt, finished_at: remoteEndedAt,
+        reference_time: createdAt.toISOString(), policy_version: CHAT_POLICY_VERSION,
+      });
+    }
     await completeIdempotency(client, idempotency, 201, response);
     return {
       body: response,

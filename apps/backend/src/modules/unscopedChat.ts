@@ -23,6 +23,7 @@ import type {
 } from "./chatAnswerProvider.js";
 import { boundedConversationHistory } from "./chatAnswerProvider.js";
 import { readAgentSessionConversation } from "./agentSessions.js";
+import { productObservationContext } from "./runtimeObservationSources.js";
 import { assertSessionChatSourcesAvailable, assertSessionForChat, purgeUnavailableSessionChatSources, recordSessionChatSources, markSessionContextAnswer, type AgentSessionChatSource } from "./agentSessionSources.js";
 import {
   executeWorkspaceConversationAgent,
@@ -92,6 +93,7 @@ export async function executeUnscopedChatTask(input: {
   auth?: AuthContext;
   createdAt?: Date;
 }): Promise<UnscopedChatExecution> {
+  const taskID = randomUUID();
   // Scope failures must escape before provider fallbacks; they are not model errors.
   const sessionConversation = input.request.session_id && input.database && input.auth
     ? await readAgentSessionConversation(
@@ -100,6 +102,9 @@ export async function executeUnscopedChatTask(input: {
       )
     : { messages: [] };
   const conversationHistory = boundedConversationHistory(sessionConversation.messages, input.request.message_id);
+  const observation = input.database && input.auth ? await productObservationContext(input.database, input.auth, taskID,
+    "unscoped_conversation", { sessionID: input.request.session_id,
+      screenshotTaskIDs: sessionConversation.sources?.map((source) => source.taskID) ?? [] }) : undefined;
   if (sessionConversation.unavailableScreenshotContext && !sessionConversation.sources?.length)
     throw new ApiError(409, "AGENT_SESSION_CONTEXT_UNAVAILABLE", "The screenshot summary is not currently available. Review its current task before continuing from it.");
   let providerResult: RemoteChatAnswerResult | null = null;
@@ -124,6 +129,8 @@ export async function executeUnscopedChatTask(input: {
           sessionID: input.request.session_id ?? null,
           ...(input.request.message_id ? { messageID: input.request.message_id } : {}),
           conversationHistory,
+          runID: taskID,
+          ...(observation ? { observation: { ...observation, authorization_scope: "workspace_conversation" } } : {}),
         });
         block = execution.block;
         agentEvent = execution.event;
@@ -144,6 +151,7 @@ export async function executeUnscopedChatTask(input: {
           context_blocks: [],
           allowed_citation_ids: [],
           images: [],
+          ...(observation ? { observation } : {}),
         }));
         if (providerResult.kind === "question_set") {
           throw new Error("Unscoped Chat cannot return an evidence question set.");
@@ -162,6 +170,7 @@ export async function executeUnscopedChatTask(input: {
           context_blocks: [],
           allowed_citation_ids: [],
           images: [],
+          ...(observation ? { observation } : {}),
         }));
         if (providerResult.kind === "question_set") {
           throw new Error("Unscoped Chat cannot return an evidence question set.");
@@ -183,7 +192,7 @@ export async function executeUnscopedChatTask(input: {
     ...(sessionConversation.sources ? { conversationSources: sessionConversation.sources } : {}),
     body: {
       contract_version: CONTRACT_VERSION,
-      task_id: randomUUID(),
+      task_id: taskID,
       disposition: block.kind === "clarification" ? "clarify" : "answer",
       blocks: [sessionConversation.sources?.length ? markSessionContextAnswer(block, input.request.objective) : block],
       agent_event: agentEvent,

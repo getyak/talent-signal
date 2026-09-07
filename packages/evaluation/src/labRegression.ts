@@ -71,7 +71,8 @@ export function consumeLabRegression(input: {
     suiteIds: ["lab-saved-regressions"], riskTier: "p1_core", lifecycle: "draft", adjudication: "unreviewed",
     // An inspected failure is development evidence, even if its original case came from a held-out partition.
     partition: "dev", compatibleProfileIds: ["lab-product-run-readback"], criterionAdjudications: [],
-    dataPolicy: { dataClass: "synthetic_restricted", containsRealCandidateData: false, projection: "metadata_only" },
+    dataPolicy: { dataClass: bundle.snapshot.data_class === "private_business" ? "private_reference_only" : "synthetic_restricted",
+      containsRealCandidateData: bundle.snapshot.data_class === "private_business", projection: "metadata_only" },
     modelInputRef: fixture("input", JSON.parse(bundle.snapshot.case.input_json)), initialStateRef: fixture("context", { reference_time: bundle.snapshot.reference_time }),
     oracleRef: fixture("review", { expected: bundle.snapshot.expected_behavior, note: bundle.snapshot.review_note }),
     evaluatorBindings: [{ evaluatorId: evaluator.identityId, version: evaluator.version, contentDigest: evaluator.contentDigest,

@@ -13,6 +13,7 @@ import {
   type AgentProviderResult,
   type AgentToolResult,
   type ConversationMessage,
+  type RuntimeObservationContext,
 } from "@talent-signal/agent";
 import type {
   ChatResponseBlock,
@@ -173,6 +174,8 @@ export async function executeWorkspaceConversationAgentCore(input: {
   messageID?: string;
   conversationHistory?: readonly ConversationMessage[];
   promptSnapshot?: PromptSnapshot;
+  runID?: string;
+  observation?: RuntimeObservationContext;
 }): Promise<WorkspaceConversationAgentExecution> {
   const searchResults = new Map<string, WorkspaceContactSearchResult>();
   const readableScopes = new Set<string>();
@@ -460,7 +463,8 @@ export async function executeWorkspaceConversationAgentCore(input: {
     const snapshot = input.promptSnapshot ?? await resolveProductPrompt("assistant/workspace");
     const providerResult = await measureLabServerStage("model_adapter", () => input.provider.run(
       {
-        runID: randomUUID(),
+        runID: input.runID ?? randomUUID(),
+        ...(input.observation ? { observation: input.observation } : {}),
         objective: input.objective,
         conversationHistory: input.conversationHistory ?? [],
         systemPrompt: snapshot.text,
@@ -606,10 +610,19 @@ export async function executeWorkspaceConversationAgent(input: {
   sessionID?: string | null;
   messageID?: string;
   conversationHistory?: readonly ConversationMessage[];
+  runID?: string;
+  observation?: RuntimeObservationContext;
 }): Promise<WorkspaceConversationAgentExecution> {
+  const refs = input.observation?.source_refs;
+  const recordScope = (personID: string, contextIDs: string[]) => {
+    if (refs?.kind !== "product") return;
+    if (!refs.person_ids.includes(personID)) refs.person_ids.push(personID);
+    for (const id of contextIDs) if (!refs.relationship_context_ids.includes(id)) refs.relationship_context_ids.push(id);
+  };
   const contacts: WorkspaceContactLookup = {
     search: async (query) => {
       const response = await searchPeople(input.database, input.auth, query);
+      for (const person of response.people) recordScope(person.id, person.contexts.map((context) => context.id));
       return response.people.map((person) => ({
         personID: person.id,
         displayLabel: person.display_label,
@@ -623,6 +636,7 @@ export async function executeWorkspaceConversationAgent(input: {
     },
     read: async (personID, contextID) => {
       const scope = await getRelationshipScope(input.database, input.auth, personID, contextID);
+      recordScope(scope.person.id, [scope.relationship_context.id]);
       return {
         person: {
           id: scope.person.id,
@@ -641,6 +655,8 @@ export async function executeWorkspaceConversationAgent(input: {
     provider: input.provider,
     workspaceID: input.auth.accountId,
     contacts,
+    ...(input.runID ? { runID: input.runID } : {}),
+    ...(input.observation ? { observation: input.observation } : {}),
     ...(input.messageID === undefined ? {} : { messageID: input.messageID }),
     ...(input.conversationHistory === undefined ? {} : { conversationHistory: input.conversationHistory }),
     ...(input.sessionID === undefined ? {} : { sessionID: input.sessionID }),

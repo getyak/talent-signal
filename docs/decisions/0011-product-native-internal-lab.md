@@ -4,6 +4,11 @@
 
 Accepted.
 
+The synthetic-only input restriction is extended by
+[ADR 0015](0015-private-evaluation-and-delegated-prompt-improvement.md). The
+original deterministic scenarios and explicit human-gold promotion remain
+valid; real feedback proposals do not automatically become human gold.
+
 ## Context
 
 A conventional debug menu makes environment and feature controls accessible,

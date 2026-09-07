@@ -88,7 +88,7 @@ Fact confirmation and action approval remain independent. Rejecting an action
 does not erase the evidence that motivated it. Confirming a fact does not grant
 permission to act.
 
-The internal Lab replays only versioned synthetic evidence and writes only quality-control state; its isolation and human-promotion decision are recorded in [ADR 0011](decisions/0011-product-native-internal-lab.md).
+The internal Lab writes quality-control state, separate from product truth; authorized frozen real or synthetic evaluation follows the independent-validation and delegated-release boundaries in [ADR 0015](decisions/0015-private-evaluation-and-delegated-prompt-improvement.md).
 
 ### Mobile capture boundary
 

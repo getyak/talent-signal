@@ -1,4 +1,5 @@
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
+import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
 import { LabTaskTrialService } from "./modules/labTaskTrials.js";
@@ -11,6 +12,7 @@ import { LabExperimentJobService } from "./modules/labExperimentJobs.js";
 import { registerLabJobRoutes } from "./modules/labJobRoutes.js";
 import { environmentLabCIVerifier, type LabCIVerifying } from "./modules/labCIVerifier.js";
 import { randomUUID } from "node:crypto";
+import { sweepRuntimeObservationSources } from "./modules/runtimeObservationLifecycle.js";
 
 import {
   AgentRunResponseSchema,
@@ -179,7 +181,8 @@ import { Type } from "@sinclair/typebox";
 import type { Pool } from "pg";
 import { LabExperimentService, labModelProviders } from "./modules/labExperiments.js";
 import { registerLabExperimentRoutes } from "./modules/labExperimentRoutes.js";
-import { registerRuntimeManifest } from "./modules/runtimeManifest.js";
+import { registerRuntimeManifest, registerLoadedRuntimeConfiguration } from "./modules/runtimeManifest.js";
+import { captureDeploymentExposure, assertCandidateDeploymentExposure } from "./modules/deploymentExposure.js";
 
 import type { BackendConfig } from "./config.js";
 import { ApiError } from "./lib/apiError.js";
@@ -475,6 +478,8 @@ export async function buildApp(
   const remoteChatProvider = dependencies.remoteChatProvider === undefined
     ? createEnvironmentChatAnswerProvider()
     : dependencies.remoteChatProvider;
+  const deploymentExposure = captureDeploymentExposure();
+  assertCandidateDeploymentExposure(deploymentExposure, remoteChatProvider?.loadedTaskConfiguration);
   const personResearchProvider =
     dependencies.personResearchProvider === undefined
       ? createEnvironmentPersonResearchAgentClient()
@@ -521,6 +526,18 @@ export async function buildApp(
   });
 
   registerLabDiagnostics(app, config.internalLabEnabled === true);
+  app.addHook("onReady", async () => {
+    await sweepRuntimeObservationSources(pool).catch(() => {
+      app.log.error({ code: "RUNTIME_OBSERVATION_SOURCE_RECONCILIATION_PENDING" }, "Private observation source reconciliation will retry.");
+    });
+  });
+  app.addHook("onResponse", async (request, reply) => {
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && reply.statusCode < 400) {
+      await sweepRuntimeObservationSources(pool).catch(() => {
+        request.log.error({ code: "RUNTIME_OBSERVATION_SOURCE_RECONCILIATION_PENDING" }, "Private observation source reconciliation will retry.");
+      });
+    }
+  });
 
   app.addContentTypeParser(
     /^image\//,
@@ -767,10 +784,12 @@ export async function buildApp(
   );
 
   registerGoogleAuth(app, pool, config);
-  const authenticate = createAuthGuard(pool);
+  const authenticate = createAuthGuard(pool, deploymentExposure?.workspaceIds);
   registerAgentSessionRoutes(app, pool, authenticate);
+  registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
   registerRuntimeManifest(app, config);
+  registerLoadedRuntimeConfiguration(app, config, authenticate, remoteChatProvider?.loadedTaskConfiguration, deploymentExposure);
   registerLabWorkspaceRoutes(app,new LabWorkspaceService(pool,chatMediaStorage,config.sessionTtlSeconds),authenticate,config.internalLabEnabled===true);
 
   const labProviders = dependencies.labProviders ?? labModelProviders(remoteChatProvider);

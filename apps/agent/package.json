@@ -17,6 +17,10 @@
     "./prompt-registry": {
       "types": "./dist/promptRegistry.d.ts",
       "import": "./dist/promptRegistry.js"
+    },
+    "./chat-answer-provider": {
+      "types": "./dist/chatAnswerProvider.d.ts",
+      "import": "./dist/chatAnswerProvider.js"
     }
   },
   "files": [

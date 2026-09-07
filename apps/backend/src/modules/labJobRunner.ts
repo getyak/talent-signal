@@ -1,4 +1,4 @@
-import type { AgentProvider } from "@talent-signal/agent";
+import type { AgentProvider, RuntimeObservationContext } from "@talent-signal/agent";
 import type { LabJobAttempt, LabJobCase, LabJobDefinition } from "@talent-signal/contracts";
 import { randomUUID } from "node:crypto";
 import type { RemoteChatAnswerProviding, RemoteChatAnswerRequest } from "./chatAnswerProvider.js";
@@ -73,7 +73,8 @@ function fixtureContacts(input: LabAgentJobInput): WorkspaceContactLookup {
 }
 
 export async function executeJobAttempt(attempt: LabJobAttempt, sample: LabJobCase,
-  definition: LabJobDefinition, provider: RemoteChatAnswerProviding | undefined): Promise<LabJobAttempt> {
+  definition: LabJobDefinition, provider: RemoteChatAnswerProviding | undefined,
+  observation?: RuntimeObservationContext): Promise<LabJobAttempt> {
   const configuration = definition.configurations[attempt.configuration_index]!;
   let measurement: TrialRunMeasurement | undefined;
   const start = performance.now();
@@ -91,12 +92,13 @@ export async function executeJobAttempt(attempt: LabJobAttempt, sample: LabJobCa
       if (!Array.isArray(input.contact_fixture) || input.context_blocks.length !== 0 || input.allowed_citation_ids.length !== 0) throw new Error("Invalid Agent fixture");
       const result = await executeWorkspaceConversationAgentCore({ objective: input.objective, provider: configured,
         ...(configuration.prompt_snapshot ? { promptSnapshot: configuration.prompt_snapshot } : {}),
-        workspaceID: "registered-synthetic-lab", sessionID: null, contacts: fixtureContacts(input) });
+        workspaceID: observation?.workspace_id ?? "registered-synthetic-lab", sessionID: null, contacts: fixtureContacts(input),
+        ...(observation ? { runID: attempt.id, observation } : {}) });
       title = result.block.title; answer = result.block.body; citationIDs = result.block.citation_dependency_ids;
       validCitations = citationIDs.length === 0;
     } else {
       const input = materializeChatInput(frozen, definition.task);
-      const result = await configured.answer(input);
+      const result = await configured.answer({ ...input, ...(observation ? { observation } : {}) });
       title = result.title; answer = result.body; citationIDs = result.citation_ids;
       validCitations = citationIDs.every((id) => input.allowed_citation_ids.includes(id));
     }

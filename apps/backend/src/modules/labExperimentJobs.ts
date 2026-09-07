@@ -10,6 +10,9 @@ import { taskModelCatalog, taskPromptRevision } from "./labTaskConfiguration.js"
 import { labHash, labJobCases } from "./labJobCases.js";
 import { createJobAttempts, executeJobAttempt, LAB_JOB_INSTRUMENT_REVISION } from "./labJobRunner.js";
 import { regressionForRun, regressionLineageCurrent, scrubExpiredRegressions } from "./labRegressions.js";
+import type { RuntimeObservationContext } from "@talent-signal/agent";
+import type { FeedbackExecutionRow } from "./feedbackExecutions.js";
+import { productObservationContext } from "./runtimeObservationSources.js";
 
 interface JobRow {
   id: string; account_id: string; user_id: string; request_hash: string; definition_hash: string; definition: LabJobDefinition;
@@ -84,9 +87,10 @@ export class LabExperimentJobService {
       const referenceTime = regression?.reference_time ?? new Date().toISOString();
       const frozenCases = (cases as LabJobDefinition["cases"]).map((sample) => {
         if (regression) return sample; // Do not append today's clock, expected behavior, or review notes to a regression input.
-        const input = JSON.parse(sample.input_json) as { objective?: unknown };
+        const input = JSON.parse(sample.input_json) as { objective?: unknown; reference_time?: string };
         if (typeof input.objective !== "string") throw new ApiError(422, "LAB_CASE_UNAVAILABLE", "The registered synthetic case is not executable.");
         input.objective += ` Reference time for this experiment: ${referenceTime}.`;
+        input.reference_time = referenceTime;
         return { ...sample, input_json: JSON.stringify(input), input_hash: labHash(input) };
       });
       const definition: LabJobDefinition = { task, cases: frozenCases,
@@ -116,13 +120,17 @@ export class LabExperimentJobService {
     const row = result.rows[0];
     if (!row) throw new ApiError(404, "LAB_JOB_NOT_FOUND", "This experiment batch was not found.");
     if (row.expired) throw new ApiError(410, "LAB_JOB_EXPIRED", "This batch has expired.");
+    if (row.definition.regression_source && !await regressionLineageCurrent(this.pool, row.definition.regression_source.id))
+      throw new ApiError(410, "LAB_REGRESSION_GONE", "This batch's frozen source is no longer available.");
     return this.project(row);
   }
 
   async list(auth: AuthContext, regressionID: string | null = null): Promise<LabJobSummary[]> {
     const result = await this.pool.query<JobRow>(`SELECT * FROM lab_experiment_jobs WHERE account_id=$1 AND user_id=$2 AND expires_at > now()
       AND ($4::uuid IS NULL OR regression_id=$4) ORDER BY (status=ANY($3::text[])) DESC, created_at DESC LIMIT 10`, [auth.accountId, auth.userId, activeStatuses, regressionID]);
-    return result.rows.map((row) => ({ id: row.id, status: row.status, created_at: row.created_at.toISOString(), expires_at: row.expires_at.toISOString(),
+    const current = await Promise.all(result.rows.map(async (row) => !row.definition.regression_source
+      || await regressionLineageCurrent(this.pool, row.definition.regression_source.id)));
+    return result.rows.filter((_row, index) => current[index]).map((row) => ({ id: row.id, status: row.status, created_at: row.created_at.toISOString(), expires_at: row.expires_at.toISOString(),
       case_count: row.definition.cases.length, repetitions: row.definition.repetitions,
       planned_calls: row.definition.cases.length * 2 * row.definition.repetitions, calls_reserved: row.calls_reserved,
       task: row.definition.task, models: row.definition.configurations.map((value) => value.model), review: row.review }));
@@ -224,13 +232,33 @@ export class LabExperimentJobService {
       while (!this.closed) {
         const attempt = await this.reserveAttempt(row); if (!attempt) break;
         const sample = row.definition.cases.find((value) => value.id === attempt.case_id)!;
-        const result = await executeJobAttempt(attempt, sample, row.definition, this.modelEntry(row.definition.task, attempt.requested_model)?.provider);
+        const observation = await this.attemptObservation(row, attempt);
+        const result = await executeJobAttempt(attempt, sample, row.definition, this.modelEntry(row.definition.task, attempt.requested_model)?.provider, observation);
         await this.pool.query(`UPDATE lab_experiment_attempts SET status=$3,record=$4::jsonb WHERE id=$1 AND status='dispatching'
           AND EXISTS(SELECT 1 FROM lab_experiment_jobs WHERE id=$2 AND lease_id=$5 AND expires_at > now() AND status IN ('running','cancelling'))`,
         [attempt.id, row.id, result.status, JSON.stringify(result), row.lease_id]);
       }
       await this.finish(row);
     } finally { clearInterval(heartbeat); }
+  }
+
+  private async attemptObservation(row: JobRow, attempt: LabJobAttempt): Promise<RuntimeObservationContext> {
+    const scope = row.definition.task === "unscoped_chat" ? "workspace_conversation" : row.definition.task;
+    const context: RuntimeObservationContext = { run_id: attempt.id, workspace_id: row.account_id,
+      authorization_scope: scope, source_lab_job_id: row.id };
+    const source = row.definition.regression_source ? (await this.pool.query<FeedbackExecutionRow & { data_class: string }>(
+      `SELECT e.*,r.snapshot->>'data_class' AS data_class FROM lab_regressions r LEFT JOIN feedback_execution_snapshots e
+        ON e.id=r.source_execution_id WHERE r.account_id=$1 AND r.user_id=$2 AND r.id=$3`,
+    [row.account_id, row.user_id, row.definition.regression_source.id])).rows[0] : null;
+    if (!row.definition.regression_source || source?.data_class === "registered_synthetic")
+      return { ...context, source_refs: { kind: "synthetic" } };
+    if (!source?.snapshot) return context; // Private lineage unavailable: observer fails closed.
+    const product = await productObservationContext(this.pool, { accountId: row.account_id, userId: row.user_id }, attempt.id, scope,
+      { sessionID: source.session_id, personID: source.person_id, contextID: source.relationship_context_id,
+        fragmentIDs: source.snapshot.input.allowed_citation_ids });
+    if (product.source_refs?.kind === "product") product.source_refs.expires_at =
+      new Date(Math.min(Date.parse(product.source_refs.expires_at), source.expires_at.valueOf(), row.expires_at.valueOf())).toISOString();
+    return { ...product, source_lab_job_id: row.id };
   }
 
   private async finish(row: JobRow) {

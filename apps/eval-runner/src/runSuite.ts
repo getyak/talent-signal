@@ -44,6 +44,8 @@ export interface RunEvaluationCaseInputV1 {
   dispatcher: ModeDispatcher;
   localReporter: EvaluationReporter;
   projectionReporters?: readonly EvaluationReporter[];
+  /** Projection setup is deferred until the immutable local completion exists. */
+  createProjectionReporters?: () => readonly EvaluationReporter[];
   evaluators?: readonly DeterministicEvaluator[];
   runtime?: EvaluationRuntimeDependencies;
   trialNumber?: number;
@@ -255,22 +257,42 @@ export async function runEvaluationCase(
 
   const projectionReceipts: ProjectionReceiptV1[] = [];
   const projectionErrors: Array<{ reporterId: string; reasonCode: string }> = [];
-  for (const reporter of input.projectionReporters ?? []) {
+  let reporters = input.projectionReporters ?? [];
+  try {
+    reporters = [...reporters, ...(input.createProjectionReporters?.() ?? [])];
+  } catch {
+    projectionErrors.push({ reporterId: "projection-setup", reasonCode: "PROJECTION_SETUP_FAILED" });
+  }
+  for (const reporter of reporters) {
     const reporterId = reporter.constructor.name;
     try {
-      if ("setLocalArtifactDigest" in reporter && typeof reporter.setLocalArtifactDigest === "function") {
-        reporter.setLocalArtifactDigest(localReceipt.localArtifactDigest);
+      const project = async () => {
+        if ("setLocalArtifactDigest" in reporter && typeof reporter.setLocalArtifactDigest === "function") {
+          reporter.setLocalArtifactDigest(localReceipt.localArtifactDigest);
+        }
+        if ("prepareProjection" in reporter && typeof reporter.prepareProjection === "function") {
+          reporter.prepareProjection({
+            trace: observation.trace,
+            gate,
+            terminal: { status: observation.terminalStatus, reasonCode: observation.terminalReasonCode },
+          });
+        }
+        await reporter.beginRun(manifest);
+        if ("setTerminal" in reporter && typeof reporter.setTerminal === "function") {
+          reporter.setTerminal({
+            status: observation.terminalStatus,
+            reasonCode: observation.terminalReasonCode,
+          });
+        }
+        for (const trace of observation.trace) await reporter.recordTrace(trace);
+        await reporter.recordScores(scores);
+        projectionReceipts.push(await reporter.completeRun(gate));
+      };
+      if ("withProjectionLock" in reporter && typeof reporter.withProjectionLock === "function") {
+        await reporter.withProjectionLock(manifest.runId, project);
+      } else {
+        await project();
       }
-      await reporter.beginRun(manifest);
-      if ("setTerminal" in reporter && typeof reporter.setTerminal === "function") {
-        reporter.setTerminal({
-          status: observation.terminalStatus,
-          reasonCode: observation.terminalReasonCode,
-        });
-      }
-      for (const trace of observation.trace) await reporter.recordTrace(trace);
-      await reporter.recordScores(scores);
-      projectionReceipts.push(await reporter.completeRun(gate));
     } catch {
       projectionErrors.push({ reporterId, reasonCode: "PROJECTION_REPORTER_FAILED" });
     }
