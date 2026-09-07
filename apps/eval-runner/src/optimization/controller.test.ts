@@ -202,6 +202,8 @@ describe("optimization controller", () => {
     expect(readdirSync(join(f.directory, "runs"))).toHaveLength(0);
     expect((await f.command("status")).status).toBe("tombstoned");
   });
+  // Four trials with two repeats, durable source checks, and withdrawal/outbox
+  // cleanup share this deadline, including filesystem scheduling on shared CI.
   it("binds private demonstrations on synthetic cases to the real source before retaining or retrying observations", async () => {
     const f = fixture(), bundle = feedbackBundle(); let withdrawn = false;
     const demonstration = optimizationDemonstrationFromFeedback(bundle);
@@ -229,7 +231,7 @@ describe("optimization controller", () => {
     await expect(f.command("source-sweep", sources)).rejects.toThrow("READBACK_410");
     expect(readFileSync(join(f.directory, "search.json"), "utf8")).not.toContain("PRIVATE-EXECUTION-INPUT");
     observer.dispose();
-  });
+  }, 30_000);
   it("blocks paid work without money authorization, and reports no release or semantic authority", async () => {
     const f = fixture(false), network = vi.fn<typeof fetch>(); vi.stubGlobal("fetch", network);
     expect((await f.command("start")).status).toBe("unconfigured");

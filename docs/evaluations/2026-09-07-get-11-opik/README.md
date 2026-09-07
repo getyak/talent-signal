@@ -66,6 +66,10 @@ including two different native executions from one Session and historical Lab
 snapshot compatibility. Current hosted checks on the final PR revision remain
 the merge gate; these local results do not replace them.
 
+The subsequent merge, baseline deployment and main Swift CodeQL recovery are
+tracked in [delivery recovery](delivery-recovery.md). Its linked external
+receipts supersede the earlier pending-delivery state below.
+
 ## Execution boundary
 
 The proof captured in this directory used no paid model request, business
