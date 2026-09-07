@@ -68,8 +68,9 @@ outbox/runtime integration respectively. Independent review follows integration.
    to `11984f15` and merged it into the isolated task branch. A fresh independent
    review reproduced incomplete cleanup after a persisted final-controller
    tombstone and provider dispatch after private-source withdrawal. Both were
-   repaired with crash and PostgreSQL race regressions; final independent
-   verification precedes PR creation. Also bind
+   repaired with crash and PostgreSQL race regressions. Independent final
+   PostgreSQL/runner verification passed 28 tests on `6601c575`; no confirmed
+   P0/P1 remains open in that review. PR creation now proceeds. Also bind
    readiness to migration 057 and wire optional runtime/release configuration
    into the existing internal TestFlight deployment. Then require current-head
    hosted CI/CD, automatic merge, and baseline deployment readback. Historical

@@ -17,7 +17,7 @@ model improved or a candidate was deployed.
 | Budget and search | SQLite tests cover atomic per-scope resources, multiple processes, unknown billed outcomes, candidate admission, owner recovery, stop and tombstones. The isolated Python search and production serializer use fake transport in tests. |
 | Independent controller | [CLI proof](offline-controller-proof.json): freeze → verify → adjudicate → inspect executed twelve paired product attempts; reassessment replayed signed recordings with zero new calls. Semantic quality remains `needs_review`, release `not_run`. |
 | Loaded configuration | Backend tests verify the captured task digest, actual timeout, model capabilities, bundled catalogue, immutable workspace scope and authentication. Independent compiled-module/route readback matched all four emitted build trees; source execution reports no deployment build proof. A fresh-process test installs and restores selections in disposable compiled copies. |
-| Independent review | [Correctness review](independent-review.md) and [second safety review](safety-review.md) record reproducible findings, repairs and independent retests. No confirmed P0/P1 remains open in the reviewed implementation. |
+| Independent review | [Correctness review](independent-review.md) and [second safety review](safety-review.md) and [fresh PR review](pr-review.md) record reproducible findings, repairs and independent retests. No confirmed P0/P1 remains open in the reviewed implementation. |
 
 The existing Opik backend returned readiness failures for Redis/database and
 was unhealthy before recovery. Restarting that backend process preserved all
@@ -38,12 +38,18 @@ Maintenance now also retries queued runtime export and remote deletion without
 blocking source validation. Its 22 controller tests passed, followed by the
 final eight-group CI run. Evidence-only documentation commits may follow this
 recorded implementation revision; a real release requires a new proof against
-its exact candidate checkout and current revision.
+its exact candidate checkout and current revision. The fresh pre-PR review
+independently passed 28 PostgreSQL/runner tests on `6601c575`, including
+source withdrawal before dispatch, deletion during an in-flight provider call,
+lease expiry and disabled Opik observation. It also verified persisted-tombstone
+recovery after a real process crash. Both additional P1 findings are closed.
 
 ## Execution boundary
 
-No paid model request, business action, deployment or production prompt
-promotion was performed. GET-12 still requires currency and monetary limits
+The proof captured in this directory used no paid model request, business
+action, deployment or production prompt promotion. The authorized PR delivery
+continues with hosted checks, merge and the existing baseline TestFlight backend
+update; its actual deployment result will be read back in the linked PR. GET-12 still requires currency and monetary limits
 per run/month, plus target environment and exposure scope. Those missing
 parameters do not prevent implementation or isolated proof, and are not
 filled with invented defaults.
