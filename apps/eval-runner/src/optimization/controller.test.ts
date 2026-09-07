@@ -88,6 +88,41 @@ afterEach(async () => {
 });
 
 describe("optimization controller", () => {
+  it("maintenance retries queued private observations without awaiting Opik or dispatching another model", async () => {
+    const f = fixture(), bundle = feedbackBundle(), demonstration = optimizationDemonstrationFromFeedback(bundle);
+    f.search.examples = [{ exampleId: "private-dev", partition: "dev", dataClass: "private_business", demonstration, contentDigest: digestCanonicalJson(demonstration) }];
+    f.search.feedbackSources = [feedbackBindingFromBundle(bundle, "private-dev", "example")];
+    f.write("search.json", f.search); f.write("bindings.json", { ...f.bindings, datasetDigest: digestCanonicalJson(f.search) });
+    f.write("controller.json", { ...f.configuration, sourceBackendURL: "http://127.0.0.1:4329", observationScope: { workspaceId: "workspace-1", authorizationScope: "optimization" } });
+    const policy: RuntimeObservationPolicy = { version: "private_full_content.v1", mode: "private_full_content", endpoint: "http://127.0.0.1:5173/api",
+      workspace: "fixture", project: "fixture", source_workspace_ids: ["workspace-1"], authorization_scopes: ["optimization"], retention_days: 1, max_content_bytes: 1000000 };
+    let release!: () => void, entered!: () => void, online = false, calls = 0;
+    const enteredTransport = new Promise<void>(resolve => { entered = resolve; });
+    const transport = { retain: async () => { calls++; if (calls === 1) { entered(); await new Promise<void>(resolve => { release = resolve; }); } if (!online) throw new Error("opik-offline"); }, remove: async () => {} };
+    const outbox = new RuntimeObservationOutbox(join(f.directory, "observer"), policy, transport), observer = new RuntimeObserver(outbox);
+    const context = { run_id: "optimization:run-1:queued", workspace_id: "workspace-1", authorization_scope: "optimization",
+      source_regression_ids: [bundle.id], source_refs: { kind: "product" as const, capture_ids: [], fragment_ids: [], media_ids: [], person_ids: [], relationship_context_ids: [], expires_at: bundle.expires_at } };
+    await observer.start(context, { input: demonstration })!.complete({ answer: "Already generated" }, "ok");
+    const sources = { backendToken: "scoped", sourceFetcher: vi.fn<typeof fetch>(async () => Response.json(bundle)), observer };
+    const first = await runOptimizationControllerCommand(["maintain", "--run-id", "lifecycle", "--once"], f.directory, sources);
+    expect(first.status).toBe("swept_once"); // The held remote transport cannot block maintenance.
+    await enteredTransport; expect(calls).toBe(1);
+    await f.command("source-sweep", sources); expect(calls).toBe(1); // No parallel export of the same queue.
+    release();
+    for (let i = 0; i < 100; i++) {
+      const status = await outbox.status();
+      if (status.pending === 1 && status.locks === 0) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    expect(await outbox.status()).toMatchObject({ pending: 1, locks: 0 });
+    online = true;
+    await runOptimizationControllerCommand(["maintain", "--run-id", "lifecycle", "--once"], f.directory, sources);
+    for (let i = 0; i < 100 && (await outbox.status()).retained === 0; i++) await new Promise(resolve => setTimeout(resolve, 10));
+    expect((await outbox.status()).retained).toBe(1); expect(calls).toBe(2);
+    const owned = readOptimizationBudgetController(f.directory, "run-1");
+    try { expect(owned.ledger.listRuns()).toEqual([]); } finally { owned.ledger.close(); }
+    observer.dispose();
+  });
   it("imports exact authenticated feedback input without promoting expectation prose, then retracts every derived private artifact when withdrawn", async () => {
     const f = fixture(), bundle = feedbackBundle(); let withdrawn = false;
     f.write("controller.json", { ...f.configuration, sourceBackendURL: "http://127.0.0.1:4329" });

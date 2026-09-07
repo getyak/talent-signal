@@ -16,6 +16,9 @@ import { OPTIMIZER_VERSION, createOptimizationProductTaskAdapter, optimizationCo
   type OptimizationRelationshipInput, type ProductTaskRecording } from "./productTask.js";
 
 export const OPTIMIZATION_SEARCH_EVALUATOR = "relationship-boundary-search.v1";
+// Maintenance keeps the process alive; an export failure never delays source
+// validation or changes its heartbeat. Durable outbox locks fence other processes.
+const observationFlushes = new Map<string, Promise<void>>();
 export interface OptimizationControllerConfiguration {
   schemaVersion: "optimization-controller.v1";
   ledgerFile: string;
@@ -182,6 +185,31 @@ export async function runOptimizationControllerCommand(argv: readonly string[], 
     return readOptimizationFeedbackSource({ baseURL: configuration.sourceBackendURL, token: dependencies.backendToken, regressionId,
       ...(dependencies.signal ? { signal: dependencies.signal } : {}) }, dependencies.sourceFetcher);
   };
+  const configureObserver = (search: OptimizationSearchInput | null) => {
+    ensureObserver();
+    if (!configuration.observationScope) return;
+    runtimeObserver?.outbox.setSourceValidator(async context => {
+      const ids = [...new Set([...(context.source_regression_ids ?? []), ...(context.source_regression_id ? [context.source_regression_id] : [])])];
+      if (!ids.length) return search !== null && context.source_refs?.kind === "synthetic";
+      for (const id of ids) {
+        const source = search?.feedbackSources?.find(source => source.regressionId === id);
+        if (!source) return false;
+        if (Date.parse(source.expiresAt) <= Date.now()) return false;
+        try { assertFeedbackBindingCurrent(source, await readSource(id)); }
+        catch (error) { if (isOptimizationFeedbackSourceInvalidated(error)) return false; throw error; }
+      }
+      return true;
+    });
+  };
+  const flushObservations = () => {
+    if (!runtimeObserver) return;
+    const key = directory + ":" + digestCanonicalJson(runtimeObserver.outbox.policy);
+    if (observationFlushes.has(key)) return;
+    const observer = runtimeObserver;
+    const pending = observer.outbox.flush().catch(() => { observer.last_error_code = "RUNTIME_OBSERVATION_EXPORT_UNAVAILABLE"; })
+      .finally(() => { if (observationFlushes.get(key) === pending) observationFlushes.delete(key); });
+    observationFlushes.set(key, pending);
+  };
   const purge = async (search: OptimizationSearchInput) => {
     ensureObserver();
     const actualDatasetDigest = digestCanonicalJson(search);
@@ -195,8 +223,9 @@ export async function runOptimizationControllerCommand(argv: readonly string[], 
     }
     if (runtimeObserver && configuration.observationScope) {
       for (const context of await runtimeObserver.outbox.sourceRuns()) {
-        if (context.workspace_id === configuration.observationScope.workspaceId && affected.some(item => context.run_id.startsWith("optimization:" + item.runId + ":"))) await runtimeObserver.outbox.deleteRun(context);
+        if (context.workspace_id === configuration.observationScope.workspaceId && affected.some(item => context.run_id.startsWith("optimization:" + item.runId + ":"))) await runtimeObserver.outbox.deleteRun(context, true);
       }
+      flushObservations();
     }
   };
   const assertSources = async (search: OptimizationSearchInput) => {
@@ -250,9 +279,21 @@ export async function runOptimizationControllerCommand(argv: readonly string[], 
     }
     if (command === "source-sweep") {
       const raw = readControllerJson(directory, configuration.searchFile) as { schemaVersion?: string };
-      if (raw.schemaVersion === "optimization-search-tombstone.v1") return result("tombstoned", { datasetDigest: null });
+      if (raw.schemaVersion === "optimization-search-tombstone.v1") {
+        configureObserver(null);
+        // Retry deletion of already tombstoned runs even if Opik was offline
+        // or observation configuration was unavailable during source cleanup.
+        const deleted = ledger.listRuns().filter(item => item.status === "tombstoned");
+        if (runtimeObserver && configuration.observationScope) for (const context of await runtimeObserver.outbox.sourceRuns()) {
+          if (context.workspace_id === configuration.observationScope.workspaceId && deleted.some(item => context.run_id.startsWith("optimization:" + item.runId + ":"))) await runtimeObserver.outbox.deleteRun(context, true);
+        }
+        flushObservations();
+        return result("tombstoned", { datasetDigest: null });
+      }
       const search = readSearch(directory, configuration, run.bindings, false);
+      configureObserver(search);
       await assertSources(search);
+      flushObservations();
       return result("sources_current", { datasetDigest: digestCanonicalJson(search) });
     }
     if (command === "import-feedback") {
@@ -311,20 +352,7 @@ export async function runOptimizationControllerCommand(argv: readonly string[], 
       executorOwner = owner;
     }
     const search = readSearch(directory, configuration, run.bindings);
-    ensureObserver();
-    if (configuration.observationScope) {
-      runtimeObserver?.outbox.setSourceValidator(async context => {
-        const ids = [...new Set([...(context.source_regression_ids ?? []), ...(context.source_regression_id ? [context.source_regression_id] : [])])];
-        if (!ids.length) return context.source_refs?.kind === "synthetic";
-        for (const id of ids) {
-          const source = search.feedbackSources?.find(source => source.regressionId === id);
-          if (!source) return false;
-          try { assertFeedbackBindingCurrent(source, await readSource(id)); }
-          catch (error) { if (isOptimizationFeedbackSourceInvalidated(error)) return false; throw error; }
-        }
-        return true;
-      });
-    }
+    configureObserver(search);
     await assertSources(search);
     runtimeObserver?.startBackgroundExport();
     const output = runDirectory(directory, runId);

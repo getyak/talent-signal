@@ -175,3 +175,9 @@ synthetic cases. Export and retry revalidate those sources, and source
 retraction deletes local content and requests remote deletion. Unknown or
 missing configuration is reported as unavailable/unconfigured, never as a
 verified export.
+
+Maintenance also retries the durable observation queue after Opik recovers,
+including remote deletion receipts. It installs the same source validator
+before retrying and runs export separately from source checks; a slow or
+unreachable Opik does not delay source cleanup or the maintenance heartbeat.
+No product/model request is repeated to repair an observation export.
