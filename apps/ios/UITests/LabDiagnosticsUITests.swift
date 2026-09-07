@@ -175,8 +175,7 @@ final class LabDiagnosticsUITests: XCTestCase {
     }
 
     private func openLab(_ app: XCUIApplication) {
-        let entry = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 12)); entry.tap()
+        app.openProductLabFromSettings()
         let diagnostics = app.buttons["product-lab-diagnostics"]
         reveal(diagnostics, app); diagnostics.tap()
     }

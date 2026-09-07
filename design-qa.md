@@ -1971,3 +1971,195 @@ confirmed state.
 - Vetoes: none.
 
 final result: passed
+
+---
+
+# Stable iOS navigation design QA
+
+## Comparison target
+
+- Source visual truth: `/Users/cubxxw/Downloads/IMG_6984.PNG`
+- Implementation screenshot: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/6053BAE1-8579-44D8-BA73-C6934B6D9DAF.png`
+- Viewport: iPhone 17 Pro simulator, 402 x 874 points, light appearance, Sessions selected
+- Source pixels: 1206 x 2622; implementation pixels: 1206 x 2622
+- Logical size and density: both normalized to a 402 x 874 point viewport at 3x. CSS size is not applicable to this native SwiftUI surface. The source's 144 DPI file metadata was normalized when composing the comparison and did not change its pixel dimensions.
+- State: signed-in synthetic preview with Sessions selected. The reference provides interaction and navigation-state direction; its app content, Dynamic Island, avatar, and product-specific destinations are not implementation targets.
+
+## Evidence
+
+- Full-view comparison: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/full-view-comparison.png`
+- Focused navigation comparison: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/focused-navigation-comparison.png`
+- Additional final states:
+  - Today: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/F2841851-9A01-4037-B10B-888C0B496297.png`
+  - People: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/6A5EDBE2-62AD-4C01-99E8-3C26A30FE33B.png`
+  - Meetings: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/B7BBF61F-9448-4938-B937-EF906F4A8F88.png`
+  - Chinese dark mode with reduced motion: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/E684098B-0544-454B-9A78-45FE4B77C9F1.png`
+  - AX5 LTR: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/C9123A3C-150A-45B5-A61F-ABE3CD2D8B08.png`
+  - AX5 RTL: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/711125EC-E2D9-46C7-8CBB-CD543DAE4486.png`
+  - Internal testing in Workspace settings: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/BBCE483E-80AB-41AF-8A51-6D6A99C905A6.png`
+
+## Findings
+
+- No actionable P0, P1, or P2 mismatch remains.
+- Typography: the implementation uses the native system family, 16-point Medium weight for the selected label, regular weight for inactive symbols, and one-line scaling for localized or enlarged text. The hierarchy is quieter than the reference while preserving the requested icon-plus-label selected state; no clipping or awkward wrapping appears in default, Chinese, dark, AX5, or RTL evidence.
+- Spacing and layout: the logo and four destination controls keep fixed accessibility frames and fixed center positions while the selected visual capsule overflows its slot. The middle capsule is 112 points and edge capsules are 96 points at the tested width. The selected visual grows without reflowing the navigation skeleton or page content.
+- Colors and tokens: one existing muted warm surface token supplies the selected fill, inactive controls share one muted foreground treatment, and the selected foreground gains contrast. The result retains Talent Signal's quiet warm surface rather than copying the reference app's cooler component styling.
+- Image quality and assets: SF Symbols remain sharp at native resolution. The reference avatar is intentionally replaced by the existing Talent Signal brand mark because identity and app-specific imagery are outside the target behavior; no placeholder, raster substitute, or custom-drawn icon was introduced.
+- Copy and content: `Sessions`, `People`, and `Meetings` preserve the product's established taxonomy while matching the reference's active-label behavior. Internal testing is absent from primary navigation and appears only in Workspace settings when the build or workspace enables it.
+- Interaction and accessibility: selected state changes only after the destination changes; swipe progress changes bounded symbol emphasis without resizing controls. Tests cover exact frame stability, 44-point targets, cancelled and rapid paging, RTL, AX5 text, reduced motion, Chinese dark mode, and the internal-settings route.
+
+## Comparison history
+
+1. Iteration 1 found a P2 stability defect: the active item participated in the horizontal layout and moved neighboring controls by as much as 37.9 points. The fix gave every destination a fixed slot and drew the active capsule as an overflowing visual layer. Post-fix UI assertions hold every control's `midX`, width, vertical position, and height within 0.5 points across selection changes.
+2. Iteration 2 found a P2 edge-spacing defect: the 112-point Meetings capsule crowded the trailing edge. The fix uses 96-point capsules for Today and Meetings while preserving 112 points for Sessions and People. The final Meetings screenshot shows the label and icon fully visible without moving the other controls.
+3. Final comparison found no actionable P0, P1, or P2 issue. The focused comparison confirms the intended stable shell, one enlarged selected capsule, consistent icon family, and lower-noise brand treatment.
+
+## Implementation checklist
+
+- [x] Keep destination frames and centers fixed across all selected states.
+- [x] Show the selected icon and text in one 44-point muted capsule.
+- [x] Keep inactive symbols at 24 points with uniform weight and color.
+- [x] Remove the flask from primary navigation and expose internal testing from Workspace settings only when enabled.
+- [x] Verify default, dark, Chinese, reduced-motion, AX5, LTR, RTL, cancelled-swipe, and rapid-navigation states.
+
+final result: passed
+
+---
+
+# Design QA — adjacent-borrowing iOS navigation correction
+
+## Outcome and visual truth
+
+- Source screenshot: `/Users/cubxxw/Downloads/IMG_6984.PNG`
+- Source interaction recording: `/Users/cubxxw/Downloads/ScreenRecording_09-07-2026 21-57-59_1.MP4`
+- Final focused comparison: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v3/final-v4/focused-navigation-comparison.png`
+- Final motion recording: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v3/final-v4/navigation-breathing.mp4`
+- Final screenshots and export manifest: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v3/final-v4/validation-screens/`
+- Viewport: iPhone 17 Pro simulator, 402 × 874 points at 3×, light appearance for the primary comparison.
+
+The earlier fixed-slot overflow direction was functionally stable, but the user
+rejected it because selection still felt component-heavy and the visual change
+was too large. The corrected direction treats Today, Sessions, People, and
+Meetings as four equal base units. Selection expands one destination by taking
+width from one adjacent donor; the pair retains its total width and distant
+destinations stay in place.
+
+At the tested width the base unit is about 73.5 points, the selected control is
+104 points, and the adjacent donor remains 44 points. The selected visual is a
+40-point muted capsule inside the control. Selected symbols are 24 points,
+inactive symbols are 22 points, and the selected title is 16-point Medium. All
+four controls retain at least a 44-point target.
+
+## Motion inspection
+
+Selection uses a 0.28-second ease-in-out transition. One capsule moves between
+destinations while only the selected/donor pair redistributes width. The
+outgoing title clears at transition start; the destination title begins a
+0.12-second fade after 0.22 seconds, when the capsule is settling. Frame review
+of Today → Sessions and Sessions → People confirmed that the capsule stays
+fully rounded, no title appears outside it, no old and new titles overlap, and
+the distant destination remains stable. The temporary recording-only test was
+removed before final verification.
+
+Internal testing is absent from the primary header and remains reachable from
+Workspace Settings when enabled.
+
+## Verification
+
+- Five focused UI tests passed in
+  `/tmp/talent-signal-stable-navigation-v27/navigation.xcresult`: four-page
+  navigation and state preservation, AX5 LTR, AX5 RTL, reduced motion with
+  Chinese dark appearance, and the Workspace Settings internal-testing route.
+- Release simulator build passed with derived data at
+  `/tmp/talent-signal-stable-navigation-release-v3`.
+- `pnpm docs:check` passed, including canonical documentation, generated wiki,
+  localization boundaries, and architecture diagrams.
+- `git diff --check` passed.
+
+## Mobile UX rubric
+
+- Navigation clarity: 3 — one expanded destination carries icon and title.
+- Spatial stability: 3 — only the selected/donor pair changes width.
+- Motion quality: 3 — one continuous capsule and sequenced title reveal.
+- Accessibility: 3 — 44-point targets, selected traits, AX5, RTL, and Reduce Motion.
+- Product fit: 3 — quiet warm surface and no internal-testing destination.
+- Vetoes: none.
+
+final result: passed
+
+
+---
+
+# Design QA — reciprocal local navigation morph
+
+## Outcome and visual truth
+
+- Source interaction recording: `/Users/cubxxw/Downloads/ScreenRecording_09-07-2026 21-57-59_1.MP4`
+- Same-state motion comparison: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v4/notion-motion-comparison.png`
+- Final executable recording: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v4/final/notion-local-morph.mp4`
+- Final screenshots and manifest: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v4/final/validation/`
+- Decision contract and comparative result: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v4/motion-study.md`
+- Viewport: iPhone 17 Pro simulator, 402 × 874 points at 3×.
+
+The prior implementation preserved adjacent-borrowing geometry but moved one
+shared capsule between destinations and hid both names through most of the
+transition. The user rejected that motion because it lacked the reciprocal,
+contained breathing visible in the Notion reference.
+
+The final implementation gives every destination its own faint rounded
+surface. On selection, the outgoing capsule contracts where it is while the
+destination capsule expands where it is. Both labels stay mounted, so the old
+name is progressively clipped and the new name is progressively revealed by
+the animated capsule boundary. The selected icon gains fill and contrast
+without changing its 24-point layout frame. A selected 104-point control still
+borrows only from its adjacent donor; all controls retain at least 44-point
+targets.
+
+## Motion inspection
+
+The width and layout changes share a 0.22-response interactive spring with 0.82
+damping and 0.08 blending. The selected/donor pair therefore preserves motion
+when the user retargets before settlement. Pressing scales only that control to
+0.965 with a shorter spring and a selection haptic. Reduce Motion applies the
+new geometry directly.
+
+Frame comparison of Today → Sessions shows the same interaction structure as
+the source: early destination emphasis, local reciprocal width change, two
+briefly coexisting names, rounded clipping, and a settled destination in about
+a quarter second. Sessions → People and the rapid four-destination pass settle
+without detached text, residual glyphs, rectangular clipping, or a shifted
+far-edge destination. The temporary recording-only test was removed before
+the final suite.
+
+## Verification
+
+- Five focused UI tests passed in
+  `/tmp/talent-signal-notion-motion-final-ui.xcresult`: four-page navigation and
+  retained state, AX5 LTR, AX5 RTL, Chinese dark Reduce Motion, and internal
+  testing in Workspace Settings.
+- Same-reference comparison was inspected at six 0.05-second intervals.
+- The final executable recording includes ordinary adjacent transitions and a
+  rapid interrupted sequence.
+- Release simulator build passed with derived data at
+  `/tmp/talent-signal-notion-motion-release`.
+- `pnpm docs:check` passed across 11 canonical documents, 495 Markdown files,
+  three published wiki pages, and all architecture diagrams.
+- `git diff --check` passed.
+
+## Mobile UX review
+
+- Evidence level: 1 — executable Simulator build with direct interaction,
+  geometry assertions, accessibility traits, and captured transitions.
+- Platform interaction: 3 — local press acknowledgement, interruptible spring,
+  page swipe/tap continuity, and stable final selection.
+- Accessibility: 3 — 44-point targets, full labels and selected traits, AX5,
+  RTL, Chinese, dark appearance, and Reduce Motion are verified.
+- Visual craft: 3 — one focus, continuous rounded boundaries, no stale text,
+  and low-noise inactive states across the tested variants.
+- Performance feel: 3 — immediate press response and continuous captured
+  frames; no visible header jump in ordinary or interrupted transitions.
+- Vetoes: none.
+- Remaining limit: Simulator evidence cannot judge the physical strength of
+  the UIKit selection haptic.
+
+final result: passed

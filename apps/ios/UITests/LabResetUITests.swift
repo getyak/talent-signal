@@ -43,8 +43,7 @@ final class LabResetUITests: XCTestCase {
         app.launchArguments = ["--show-login", "--auth-backend-url", "http://127.0.0.1:4341", "-talent-signal.interface-language", "en"]
         app.launchEnvironment["TS_IOS_UI_TEST_AUTHENTICATED_SESSION"] = try JSONSerialization.data(withJSONObject: fixture).base64EncodedString()
         app.launch()
-        let entry = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 15)); entry.tap()
+        app.openProductLabFromSettings()
         reveal(app.buttons["product-lab-maintenance"], app); app.buttons["product-lab-maintenance"].tap()
         reveal(app.buttons["lab-ending-open"], app); app.buttons["lab-ending-open"].tap()
         XCTAssertTrue(app.buttons["lab-ending-sign-out"].waitForExistence(timeout: 5))

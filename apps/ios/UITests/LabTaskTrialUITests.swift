@@ -126,8 +126,7 @@ final class LabTaskTrialUITests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
     private func openTrials(_ app: XCUIApplication) {
-        XCTAssertTrue(app.buttons["talent-signal-lab-capsule"].waitForExistence(timeout: 15))
-        app.buttons["talent-signal-lab-capsule"].tap()
+        app.openProductLabFromSettings()
         app.buttons["product-lab-task-trials"].tap()
         XCTAssertTrue(app.buttons["lab-trial-task"].firstMatch.waitForExistence(timeout: 10))
     }

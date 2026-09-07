@@ -130,8 +130,7 @@ final class LabRegressionUITests: XCTestCase {
         let attachment = XCTAttachment(data: evidence, uniformTypeIdentifier: "public.json"); attachment.name = "regression-native-proof"; attachment.lifetime = .keepAlways; add(attachment)
     }
     private func openLab(_ app: XCUIApplication) throws {
-        _ = try XCTUnwrap(app.buttons["talent-signal-lab-capsule"].waitForExistence(timeout: 15) ? true : nil)
-        app.buttons["talent-signal-lab-capsule"].tap()
+        app.openProductLabFromSettings()
     }
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication, up: Bool = true) throws {
         for index in 0..<32 {
