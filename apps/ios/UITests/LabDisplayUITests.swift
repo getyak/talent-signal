@@ -8,11 +8,10 @@ final class LabDisplayUITests: XCTestCase {
         if accessibility { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launchEnvironment["TS_IOS_UI_TEST_DISPLAY_PROBE"] = "true"
         app.launch()
-        XCTAssertTrue(app.buttons["talent-signal-lab-capsule"].waitForExistence(timeout: 12))
         return app
     }
     private func openAppearance(_ app: XCUIApplication) {
-        app.buttons["talent-signal-lab-capsule"].tap()
+        app.openProductLabFromSettings()
         let entry = app.buttons["product-lab-appearance"]
         reveal(entry, app)
         entry.tap()

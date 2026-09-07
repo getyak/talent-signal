@@ -1273,16 +1273,21 @@ final class CandidateSignalUITests: XCTestCase {
         app.launch()
         let today = app.buttons["archive-tab-today"]
         XCTAssertTrue(today.waitForExistence(timeout: 8))
+        let headerFrames = captureHeaderFrames()
+        preserveScreenshot("Stable navigation - Today")
         let content = element("editorial-today")
         let start = content.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.45))
         let nearby = content.coordinate(withNormalizedOffset: CGVector(dx: 0.58, dy: 0.45))
         start.press(forDuration: 0.05, thenDragTo: nearby, withVelocity: .slow, thenHoldForDuration: 0.35)
         XCTAssertTrue(today.isSelected, "A cancelled drag must not commit another destination.")
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-today")
         for (surface, next) in [("editorial-today", "sessions"),
                                  ("agent-session-list", "people"),
                                  ("workspace-people-list", "meetings")] {
             element(surface).swipeLeft()
             XCTAssertTrue(app.buttons["archive-tab-\(next)"].isSelected)
+            assertHeaderGeometry(headerFrames, selected: "archive-tab-\(next)")
+            preserveScreenshot("Stable navigation - \(next)")
         }
         XCTAssertTrue(element("relationship-calendar").waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["close-relationship-calendar"].exists)
@@ -1298,6 +1303,7 @@ final class CandidateSignalUITests: XCTestCase {
         for name in ["sessions", "meetings", "today", "people", "today"] {
             app.buttons["archive-tab-\(name)"].tap()
             XCTAssertTrue(app.buttons["archive-tab-\(name)"].isSelected)
+            assertHeaderGeometry(headerFrames, selected: "archive-tab-\(name)")
         }
         let settled = expectation(for: NSPredicate { _, _ in
             abs(content.frame.minX - self.app.frame.minX) < 1
@@ -1374,6 +1380,7 @@ final class CandidateSignalUITests: XCTestCase {
         let selectorViewport = app.windows.firstMatch
         XCTAssertTrue(today.waitForExistence(timeout: 8))
         XCTAssertTrue(selectorViewport.exists)
+        let headerFrames = captureHeaderFrames()
 
         for control in [studio, calendar, today, sessions, people] {
             XCTAssertGreaterThanOrEqual(control.frame.width, 44)
@@ -1392,12 +1399,14 @@ final class CandidateSignalUITests: XCTestCase {
 
         sessions.tap()
         XCTAssertTrue(sessions.isSelected)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-sessions")
         XCTAssertTrue(sessions.isHittable)
         XCTAssertGreaterThanOrEqual(sessions.frame.minX, selectorViewport.frame.minX)
         XCTAssertLessThanOrEqual(sessions.frame.maxX, selectorViewport.frame.maxX)
 
         people.tap()
         XCTAssertTrue(people.isSelected)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-people")
         XCTAssertTrue(people.isHittable)
         XCTAssertGreaterThanOrEqual(people.frame.minX, selectorViewport.frame.minX)
         XCTAssertLessThanOrEqual(people.frame.maxX, selectorViewport.frame.maxX)
@@ -1417,6 +1426,7 @@ final class CandidateSignalUITests: XCTestCase {
         let sessions = app.buttons["archive-tab-sessions"]
         let people = app.buttons["archive-tab-people"]
         XCTAssertTrue(today.waitForExistence(timeout: 8))
+        let headerFrames = captureHeaderFrames()
         XCTAssertLessThan(people.frame.midX, sessions.frame.midX)
         XCTAssertLessThan(sessions.frame.midX, today.frame.midX)
         XCTAssertTrue(today.isHittable)
@@ -1425,12 +1435,14 @@ final class CandidateSignalUITests: XCTestCase {
 
         sessions.tap()
         XCTAssertTrue(sessions.isSelected)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-sessions")
         XCTAssertTrue(sessions.isHittable)
         XCTAssertGreaterThanOrEqual(sessions.frame.minX, selectorViewport.frame.minX)
         XCTAssertLessThanOrEqual(sessions.frame.maxX, selectorViewport.frame.maxX)
 
         people.tap()
         XCTAssertTrue(people.isSelected)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-people")
         XCTAssertTrue(people.isHittable)
         XCTAssertGreaterThanOrEqual(people.frame.minX, selectorViewport.frame.minX)
         XCTAssertLessThanOrEqual(people.frame.maxX, selectorViewport.frame.maxX)
@@ -1443,17 +1455,174 @@ final class CandidateSignalUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(element("editorial-today").waitForExistence(timeout: 8))
+        let headerFrames = captureHeaderFrames()
         app.buttons["archive-tab-sessions"].tap()
         XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-sessions")
+        preserveScreenshot("Expanded navigation - Chinese dark Sessions")
 
         app.buttons["archive-tab-people"].tap()
         XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-people"].isSelected)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-people")
         app.buttons["archive-tab-meetings"].tap()
         XCTAssertTrue(element("relationship-calendar").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-meetings"].isSelected)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-meetings")
         preserveScreenshot("GET-8 Chinese dark Meetings with reduced motion")
+    }
+
+    func testInternalTestingLivesInWorkspaceSettingsInsteadOfPrimaryNavigation() {
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["archive-tab-today"].waitForExistence(timeout: 8)
+        )
+        XCTAssertFalse(app.buttons["talent-signal-lab-capsule"].exists)
+        app.buttons["relationship-agent-studio"].tap()
+        XCTAssertTrue(app.buttons["agent-settings"].waitForExistence(timeout: 5))
+        app.buttons["agent-settings"].tap()
+
+        let internalTesting = app.buttons["open-internal-testing"]
+        scrollToVisible(internalTesting, maxSwipes: 18)
+        XCTAssertTrue(internalTesting.isHittable)
+        XCTAssertGreaterThanOrEqual(internalTesting.frame.height, 44)
+        preserveScreenshot("Internal testing in workspace settings")
+        internalTesting.tap()
+        XCTAssertTrue(
+            app.buttons["product-lab-done"].waitForExistence(timeout: 10)
+        )
+    }
+
+    private func captureHeaderFrames() -> [String: CGRect] {
+        let identifiers = ["relationship-agent-studio", "archive-tab-today",
+                           "archive-tab-sessions", "archive-tab-people", "archive-tab-meetings"]
+        return Dictionary(uniqueKeysWithValues: identifiers.map { ($0, app.buttons[$0].frame) })
+    }
+
+    private func assertHeaderGeometry(
+        _ baseline: [String: CGRect],
+        selected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let identifiers = ["archive-tab-today", "archive-tab-sessions",
+                           "archive-tab-people", "archive-tab-meetings"]
+        let selectedIndex = identifiers.firstIndex(of: selected) ?? 0
+        let donorIndex = selectedIndex == identifiers.count - 1
+            ? selectedIndex - 1
+            : selectedIndex + 1
+        let unitWidth = baseline["archive-tab-people"]?.width ?? 0
+        let activeWidth = baseline["archive-tab-today"]?.width ?? 0
+        let compressedWidth = baseline["archive-tab-sessions"]?.width ?? 0
+        // PageTabViewStyle can still be presenting the last few points of an
+        // interrupted page animation after the selected trait changes. This
+        // tolerance rejects the old fixed-slot layout while accepting that
+        // bounded presentation state during rapid taps and swipes.
+        let geometryTolerance: CGFloat = 8
+        let isRTL = (baseline["archive-tab-today"]?.midX ?? 0)
+            > (baseline["archive-tab-sessions"]?.midX ?? 0)
+        let logicalWidths = identifiers.enumerated().map { index, _ in
+            if index == selectedIndex { return activeWidth }
+            if index == donorIndex { return compressedWidth }
+            return unitWidth
+        }
+        var expectedGeometry: [String: (minX: CGFloat, width: CGFloat)] = [:]
+
+        if isRTL {
+            var expectedRight = baseline["archive-tab-today"]?.maxX ?? 0
+            for (identifier, width) in zip(identifiers, logicalWidths) {
+                expectedGeometry[identifier] = (expectedRight - width, width)
+                expectedRight -= width
+            }
+        } else {
+            var expectedLeft = baseline["archive-tab-today"]?.minX ?? 0
+            for (identifier, width) in zip(identifiers, logicalWidths) {
+                expectedGeometry[identifier] = (expectedLeft, width)
+                expectedLeft += width
+            }
+        }
+
+        if let expected = baseline["relationship-agent-studio"] {
+            let studio = app.buttons["relationship-agent-studio"]
+            XCTAssertEqual(studio.frame.minX, expected.minX, accuracy: 0.5, file: file, line: line)
+            XCTAssertEqual(studio.frame.minY, expected.minY, accuracy: 0.5, file: file, line: line)
+            XCTAssertEqual(studio.frame.width, expected.width, accuracy: 0.5, file: file, line: line)
+            XCTAssertEqual(studio.frame.height, expected.height, accuracy: 0.5, file: file, line: line)
+        }
+
+        let settled = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                expectedGeometry.allSatisfy { identifier, target in
+                    let frame = self.app.buttons[identifier].frame
+                    return abs(frame.minX - target.minX) <= geometryTolerance
+                        && abs(frame.width - target.width) <= geometryTolerance
+                }
+            },
+            object: app
+        )
+        let settleResult = XCTWaiter.wait(for: [settled], timeout: 2)
+        let observedGeometry = identifiers.map { identifier in
+            let frame = app.buttons[identifier].frame
+            return "\(identifier): x=\(frame.minX), width=\(frame.width)"
+        }.joined(separator: "; ")
+        let targetGeometry = identifiers.compactMap { identifier -> String? in
+            guard let target = expectedGeometry[identifier] else { return nil }
+            return "\(identifier): x=\(target.minX), width=\(target.width)"
+        }.joined(separator: "; ")
+        XCTAssertEqual(
+            settleResult,
+            .completed,
+            "The navigation did not settle into adjacent-borrowing units. "
+                + "Expected [\(targetGeometry)]; observed [\(observedGeometry)].",
+            file: file,
+            line: line
+        )
+
+        for identifier in identifiers {
+            let control = app.buttons[identifier]
+            let expected = expectedGeometry[identifier] ?? (control.frame.minX, control.frame.width)
+            XCTAssertTrue(control.isHittable, identifier, file: file, line: line)
+            let actual = control.frame
+            XCTAssertGreaterThanOrEqual(actual.width + 0.01, 44, identifier, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(actual.height + 0.01, 44, identifier, file: file, line: line)
+            XCTAssertEqual(
+                actual.minY,
+                baseline[identifier]?.minY ?? actual.minY,
+                accuracy: 0.5,
+                identifier,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                actual.minX,
+                expected.minX,
+                accuracy: geometryTolerance,
+                identifier,
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                actual.width,
+                expected.width,
+                accuracy: geometryTolerance,
+                identifier,
+                file: file,
+                line: line
+            )
+        }
+
+        let totalWidth = identifiers.reduce(CGFloat.zero) {
+            $0 + app.buttons[$1].frame.width
+        }
+        XCTAssertEqual(
+            totalWidth,
+            unitWidth * CGFloat(identifiers.count),
+            accuracy: 0.75,
+            file: file,
+            line: line
+        )
     }
 
     func testSessionVisibleAndLongPressMenusExposeTheSameCommands() {

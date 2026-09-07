@@ -573,6 +573,8 @@ struct RelationshipMenuView: View {
     let proposals: [WorkspaceProposal]
     let signOutNotice: String?
     let onOpenProposal: (WorkspaceProposal) -> Void
+    let internalTestingStatus: String?
+    let onOpenInternalTesting: (() -> Void)?
     let onSignOut: (() async -> Bool)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var appLanguage
@@ -723,6 +725,41 @@ struct RelationshipMenuView: View {
                 } header: {
                     Text(appLanguage.text("Workspace tools"))
                 }
+
+                if onOpenInternalTesting != nil {
+                    Section {
+                        Button(action: openInternalTesting) {
+                            RelationshipMenuUtilityRow(
+                                systemImage: "flask",
+                                title: appLanguage.text(
+                                    "Internal testing",
+                                    zhHans: "内部测试"
+                                ),
+                                detail: appLanguage.text(
+                                    "Experiments, diagnostics, and isolated test worlds.",
+                                    zhHans: "实验、诊断与隔离测试环境。"
+                                ),
+                                value: internalTestingStatus
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("open-internal-testing")
+                    } header: {
+                        Text(
+                            appLanguage.text(
+                                "Internal build",
+                                zhHans: "内部版本"
+                            )
+                        )
+                    } footer: {
+                        Text(
+                            appLanguage.text(
+                                "Available only when this build or workspace enables internal tools.",
+                                zhHans: "仅在内部版本或工作区启用测试工具时显示。"
+                            )
+                        )
+                    }
+                }
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
@@ -772,6 +809,15 @@ struct RelationshipMenuView: View {
         Task { @MainActor in
             await Task.yield()
             onOpenProposal(proposal)
+        }
+    }
+
+    private func openInternalTesting() {
+        guard let onOpenInternalTesting else { return }
+        dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            onOpenInternalTesting()
         }
     }
 

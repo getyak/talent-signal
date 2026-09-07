@@ -159,8 +159,8 @@ final class LabJobUITests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
     private func openBatches(_ app: XCUIApplication) throws {
-        _ = try XCTUnwrap(app.buttons["talent-signal-lab-capsule"].waitForExistence(timeout: 15) ? true : nil)
-        app.buttons["talent-signal-lab-capsule"].tap(); app.buttons["product-lab-experiments"].tap()
+        app.openProductLabFromSettings()
+        app.buttons["product-lab-experiments"].tap()
         _ = try XCTUnwrap(app.buttons["lab-job-cases"].waitForExistence(timeout: 10) ? true : nil)
     }
     private func start(_ app: XCUIApplication) throws {

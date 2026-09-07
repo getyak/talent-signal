@@ -169,6 +169,7 @@
 		9D64EB92553A74B50DE62234 /* LabRuntimeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 805C5A79D87ACC915D2C7DB8 /* LabRuntimeStore.swift */; };
 		9E9FCCE762A1387B509C2685 /* PursuitProposalReviewStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0601AA0B235C97BD7D77987F /* PursuitProposalReviewStore.swift */; };
 		9F4ECEB9B5EB3201E4987926 /* AgentTaskClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96782C69AE43C6EF3F999F7A /* AgentTaskClient.swift */; };
+		9F94A5867738548F950A8BA7 /* WorkspaceSettingsTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B094FF34C3A2B12DC269364A /* WorkspaceSettingsTestSupport.swift */; };
 		9FB627ED726DA10B9878C338 /* ProductLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB87A075089AF37BF5A926CC /* ProductLabView.swift */; };
 		A10F166B4C14BC14F9581C47 /* LabPagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3019273F20235D30EE3DC0 /* LabPagePreview.swift */; };
 		A1C51669B698D01638AEF485 /* LabRegression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84445A7CD0A2855DDFD529A8 /* LabRegression.swift */; };
@@ -462,6 +463,7 @@
 		AE3ABCAB879646B50E6D13A3 /* LabWorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabWorkspaceStore.swift; sourceTree = "<group>"; };
 		AEC3F58B55D23FBF07C26F9F /* LabWorkspaceJourneyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabWorkspaceJourneyStore.swift; sourceTree = "<group>"; };
 		B0595635496A42C62406F044 /* ConversationContactIntentInterpreter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationContactIntentInterpreter.swift; sourceTree = "<group>"; };
+		B094FF34C3A2B12DC269364A /* WorkspaceSettingsTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSettingsTestSupport.swift; sourceTree = "<group>"; };
 		B14669B3FB6444D56A491DD8 /* LabFaultStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabFaultStore.swift; sourceTree = "<group>"; };
 		B14FA8DE867E34B69742FBF6 /* LabDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabDisplayTests.swift; sourceTree = "<group>"; };
 		B3E84A63B36E5BE3C1CDAB73 /* LabPresentationDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabPresentationDiagnostics.swift; sourceTree = "<group>"; };
@@ -698,6 +700,7 @@
 				31807D07BD9324DED4296DA1 /* ResearchShowcaseUITests.swift */,
 				53BCE51454FF92655D32B728 /* StandaloneOnboardingUITests.swift */,
 				4D0D17A850F270F01F6334DB /* TalentSignalLabUITests.swift */,
+				B094FF34C3A2B12DC269364A /* WorkspaceSettingsTestSupport.swift */,
 			);
 			path = UITests;
 			sourceTree = "<group>";
@@ -1179,6 +1182,7 @@
 				0F8D18B808D421BAE3C3FB49 /* ResearchShowcaseUITests.swift in Sources */,
 				AA99245C7C678EA2D4C35023 /* StandaloneOnboardingUITests.swift in Sources */,
 				C8D79CCADC370EF59FC0F395 /* TalentSignalLabUITests.swift in Sources */,
+				9F94A5867738548F950A8BA7 /* WorkspaceSettingsTestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

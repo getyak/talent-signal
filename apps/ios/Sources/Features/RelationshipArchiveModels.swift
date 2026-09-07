@@ -34,7 +34,7 @@ enum RelationshipArchivePage: String, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .today: return "house"
-        case .sessions: return "bubble.left.and.bubble.right"
+        case .sessions: return "bubble.left"
         case .people: return "person.2"
         case .meetings: return "calendar"
         }
@@ -3230,6 +3230,7 @@ enum RelationshipArchiveSheet: Identifiable {
     case proposal(WorkspaceProposal)
     case agentStudio
     case menu
+    case internalTesting
 
     var id: String {
         switch self {
@@ -3249,6 +3250,8 @@ enum RelationshipArchiveSheet: Identifiable {
             return "agent-studio"
         case .menu:
             return "menu"
+        case .internalTesting:
+            return "internal-testing"
         }
     }
 }

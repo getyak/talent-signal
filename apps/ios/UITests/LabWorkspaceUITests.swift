@@ -65,7 +65,7 @@ final class LabWorkspaceUITests: XCTestCase {
         XCTAssertTrue(end.waitForExistence(timeout: 8)); end.tap()
         let confirm = app.buttons["lab-workspace-confirm-end-current"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
-        XCTAssertTrue(app.buttons["talent-signal-lab-capsule"].waitForExistence(timeout: 20), app.debugDescription)
+        XCTAssertTrue(app.buttons["relationship-agent-studio"].waitForExistence(timeout: 20), app.debugDescription)
 
         let deleted = try await waitForDeleted(baseURL, token: token, id: workspaceID)
         XCTAssertEqual(deleted["state"] as? String, "deleted")
@@ -105,8 +105,7 @@ final class LabWorkspaceUITests: XCTestCase {
     }
 
     private func openWorkspaceLab(_ app: XCUIApplication) throws {
-        let entry = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 15)); entry.tap()
+        app.openProductLabFromSettings()
         let workspace = app.buttons["product-lab-workspace"]
         scrollTo(workspace, app)
         XCTAssertTrue(workspace.exists); workspace.tap()

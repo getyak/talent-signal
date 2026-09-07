@@ -17,6 +17,8 @@ struct RelationshipAgentStudioView: View {
     let proposals: [WorkspaceProposal]
     let signOutNotice: String?
     let onOpenProposal: (WorkspaceProposal) -> Void
+    let internalTestingStatus: String?
+    let onOpenInternalTesting: (() -> Void)?
     let onSignOut: (() async -> Bool)?
 
     @Environment(\.dismiss) private var dismiss
@@ -46,6 +48,8 @@ struct RelationshipAgentStudioView: View {
         proposals: [WorkspaceProposal],
         signOutNotice: String?,
         onOpenProposal: @escaping (WorkspaceProposal) -> Void,
+        internalTestingStatus: String? = nil,
+        onOpenInternalTesting: (() -> Void)? = nil,
         onSignOut: (() async -> Bool)?
     ) {
         self.workspaceStore = workspaceStore
@@ -58,6 +62,8 @@ struct RelationshipAgentStudioView: View {
         self.proposals = proposals
         self.signOutNotice = signOutNotice
         self.onOpenProposal = onOpenProposal
+        self.internalTestingStatus = internalTestingStatus
+        self.onOpenInternalTesting = onOpenInternalTesting
         self.onSignOut = onSignOut
         _profileReferenceStore = StateObject(
             wrappedValue: AgentProfileReferenceStore(workspaceID: workspaceID, runtimeScope: runtimeScope)
@@ -140,6 +146,8 @@ struct RelationshipAgentStudioView: View {
                             onOpenProposal(proposal)
                         }
                     },
+                    internalTestingStatus: internalTestingStatus,
+                    onOpenInternalTesting: onOpenInternalTesting,
                     onSignOut: onSignOut
                 )
             }

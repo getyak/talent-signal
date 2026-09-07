@@ -34,7 +34,6 @@ struct RelationshipArchiveView: View {
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
     @State private var deferredAskPresentation: RelationshipAskPresentation?
     @State private var deferredCapturePresentation: RelationshipCapturePresentation?
-    @State private var isLabPresented = false
     private let reviewBaseURL: URL?
     private let authenticatedAccessToken: String?
     private let accountEmail: String?
@@ -187,26 +186,8 @@ struct RelationshipArchiveView: View {
                         onOpenAgentStudio: {
                             clearTransientRetrievalIntent()
                             presentedSheet = .agentStudio
-                        },
-                        labAccessory: (labStore.isEnabled || DeviceLabAvailability.enabled)
-                            ? AnyView(TalentSignalLabCapsule(store: labStore, action: {
-                                clearTransientRetrievalIntent()
-                                isLabPresented = true
-                            }, compact: true))
-                            : nil
-                    )
-                    if labStore.session != nil {
-                        HStack {
-                            Spacer(minLength: 0)
-                            TalentSignalLabCapsule(store: labStore) {
-                                clearTransientRetrievalIntent()
-                                isLabPresented = true
-                            }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 4)
-                        .background(Color.tsSurface)
-                    }
+                    )
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -315,6 +296,8 @@ struct RelationshipArchiveView: View {
                             presentedSheet = .proposal(proposal)
                         }
                     },
+                    internalTestingStatus: internalTestingStatus,
+                    onOpenInternalTesting: internalTestingAction,
                     // Protected drafts and operation IDs remain owned by this
                     // account. Closing a session is not a request to delete them.
                     onSignOut: onSignOut
@@ -334,9 +317,24 @@ struct RelationshipArchiveView: View {
                             presentedSheet = .proposal(proposal)
                         }
                     },
+                    internalTestingStatus: internalTestingStatus,
+                    onOpenInternalTesting: internalTestingAction,
                     // Protected drafts and operation IDs remain owned by this
                     // account. Closing a session is not a request to delete them.
                     onSignOut: onSignOut
+                )
+            case .internalTesting:
+                ProductLabView(
+                    deterministic: labStore,
+                    service: labExperimentService,
+                    baseURL: reviewBaseURL,
+                    workspace: workspaceLabel,
+                    userScope: accountEmail,
+                    runtimeScope: runtimeScope,
+                    onSignOut: onSignOut,
+                    refreshWorkspace: workspaceStore.isCanonical
+                        ? { await workspaceStore.refreshForLab() }
+                        : nil
                 )
             }
         }
@@ -351,12 +349,6 @@ struct RelationshipArchiveView: View {
                RuntimeLegacyBindings.authorizes(accountID: legacyAccountID, scope: runtimeScope) {
                 RuntimeLegacyBindings.bindAlias(workspaceID, scope: runtimeScope)
             }
-        }
-        .sheet(isPresented: $isLabPresented) {
-            ProductLabView(deterministic: labStore, service: labExperimentService,
-                baseURL: reviewBaseURL, workspace: workspaceLabel, userScope: accountEmail, runtimeScope: runtimeScope,
-                onSignOut: onSignOut,
-                refreshWorkspace: workspaceStore.isCanonical ? { await workspaceStore.refreshForLab() } : nil)
         }
         .fullScreenCover(
             item: $capturePresentation,
@@ -525,6 +517,27 @@ struct RelationshipArchiveView: View {
                 )
             }
         }
+    }
+
+    private var internalTestingAvailable: Bool {
+        labStore.isEnabled || DeviceLabAvailability.enabled
+    }
+
+    private var internalTestingStatus: String? {
+        if labStore.session != nil {
+            return appLanguage.text("Active", zhHans: "进行中")
+        }
+        return appLanguage.text("Internal", zhHans: "内部")
+    }
+
+    private var internalTestingAction: (() -> Void)? {
+        guard internalTestingAvailable else { return nil }
+        return { openInternalTesting() }
+    }
+
+    private func openInternalTesting() {
+        clearTransientRetrievalIntent()
+        presentedSheet = .internalTesting
     }
 
     private var captureProcessingService: (any RelationshipCaptureServing)? {
@@ -1221,48 +1234,97 @@ private struct RelationshipArchiveHeader: View {
     @ObservedObject var motion: RelationshipPageMotion
     let onOpenCalendar: (RelationshipCalendarLaunchIntent) -> Void
     let onOpenAgentStudio: () -> Void
-    let labAccessory: AnyView?
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
-    var body: some View {
-        HStack(spacing: 6) {
-            Button(action: onOpenAgentStudio) {
-                RelationshipSignalOrb()
-                    .frame(width: 26, height: 26)
-                    .frame(width: 44, height: 48)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(appLanguage.text("Open Agent Studio"))
-            .accessibilityIdentifier("relationship-agent-studio")
+    private var selectionAnimation: Animation {
+        .interactiveSpring(
+            response: 0.22,
+            dampingFraction: 0.82,
+            blendDuration: 0.08
+        )
+    }
 
-            GeometryReader { geometry in
-                let progress = reduceMotion ? CGFloat(selectedPage.pageIndex) : motion.progress
-                let labelSpace = max(0, geometry.size.width - 44 * CGFloat(RelationshipArchivePage.allCases.count))
-                HStack(spacing: 0) {
-                    ForEach(RelationshipArchivePage.allCases) { page in
-                        let emphasis = RelationshipPageMotion.emphasis(for: page, progress: progress)
-                        if page == .meetings {
-                            pageButton(page, emphasis: emphasis, labelSpace: labelSpace)
-                                .contextMenu { calendarShortcuts }
-                                .accessibilityAction(named: Text(appLanguage.text("This week"))) {
-                                    onOpenCalendar(.thisWeek)
-                                }
-                                .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
-                                    onOpenCalendar(.addActivity)
-                                }
-                        } else {
-                            pageButton(page, emphasis: emphasis, labelSpace: labelSpace)
+    var body: some View {
+        GeometryReader { headerGeometry in
+            let compact = headerGeometry.size.width < 360
+            HStack(spacing: compact ? 8 : 16) {
+                Button(action: onOpenAgentStudio) {
+                    RelationshipSignalOrb()
+                        .frame(width: 22, height: 22)
+                        .opacity(0.8)
+                        .frame(width: 44, height: 48)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(appLanguage.text("Open Agent Studio"))
+                .accessibilityIdentifier("relationship-agent-studio")
+
+                GeometryReader { geometry in
+                    let progress = reduceMotion ? CGFloat(selectedPage.pageIndex) : motion.progress
+                    let slotWidth = geometry.size.width
+                        / CGFloat(RelationshipArchivePage.allCases.count)
+                    // The four destinations begin as equal units. Selection
+                    // borrows space from one adjacent unit, so the pair keeps
+                    // its total width and distant destinations stay still.
+                    let activeWidth = min(
+                        compact ? 96 : 104,
+                        slotWidth * 2 - 44
+                    )
+                    let compressedWidth = slotWidth * 2 - activeWidth
+                    let donorPage = adjacentDonor(for: selectedPage)
+                    let itemWidths = RelationshipArchivePage.allCases.map { page in
+                        if page == selectedPage { return activeWidth }
+                        if page == donorPage { return compressedWidth }
+                        return slotWidth
+                    }
+                    HStack(spacing: 0) {
+                        ForEach(RelationshipArchivePage.allCases) { page in
+                            let emphasis = RelationshipPageMotion.emphasis(
+                                for: page,
+                                progress: progress
+                            )
+                            let isSelected = selectedPage == page
+                            let itemWidth = itemWidths[page.pageIndex]
+                            if page == .meetings {
+                                pageButton(
+                                    page,
+                                    emphasis: emphasis,
+                                    isSelected: isSelected,
+                                    activeVisualWidth: activeWidth - 4,
+                                    itemWidth: itemWidth
+                                )
+                                    .zIndex(isSelected ? 1 : 0)
+                                    .contextMenu { calendarShortcuts }
+                                    .accessibilityAction(named: Text(appLanguage.text("This week"))) {
+                                        onOpenCalendar(.thisWeek)
+                                    }
+                                    .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
+                                        onOpenCalendar(.addActivity)
+                                    }
+                            } else {
+                                pageButton(
+                                    page,
+                                    emphasis: emphasis,
+                                    isSelected: isSelected,
+                                    activeVisualWidth: activeWidth - 4,
+                                    itemWidth: itemWidth
+                                )
+                                    .zIndex(isSelected ? 1 : 0)
+                            }
                         }
                     }
+                    .animation(
+                        reduceMotion ? nil : selectionAnimation,
+                        value: selectedPage
+                    )
                 }
+                .frame(height: 48)
+                .accessibilityElement(children: .contain)
             }
-            .frame(height: 48)
-            .accessibilityElement(children: .contain)
-            if let labAccessory { labAccessory.frame(width: 44, height: 48) }
+            .padding(.horizontal, compact ? 16 : 24)
+            .frame(height: 52)
         }
-        .padding(.horizontal, 14)
         .frame(height: 52)
         .background(Color.tsSurface)
     }
@@ -1287,42 +1349,91 @@ private struct RelationshipArchiveHeader: View {
     private func pageButton(
         _ page: RelationshipArchivePage,
         emphasis: CGFloat,
-        labelSpace: CGFloat
+        isSelected: Bool,
+        activeVisualWidth: CGFloat,
+        itemWidth: CGFloat
     ) -> some View {
-        Button {
-            // PageTabViewStyle owns interactive travel. Do not layer another
-            // spring onto geometry-driven labels during a finger gesture.
+        let inactiveVisualWidth = min(42, itemWidth - 2)
+        let capsuleWidth = isSelected ? activeVisualWidth : inactiveVisualWidth
+
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
             if reduceMotion { selectedPage = page }
             else {
-                withAnimation(.easeInOut(duration: 0.28)) { selectedPage = page }
+                withAnimation(selectionAnimation) { selectedPage = page }
             }
         } label: {
-            HStack(spacing: 0) {
+            HStack(spacing: 10.5) {
                 Image(systemName: page.symbolName)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Color.tsInk.opacity(0.55 + emphasis * 0.45))
-                    .frame(width: 44, height: 44)
+                    .resizable()
+                    .scaledToFit()
+                    .symbolVariant(isSelected ? .fill : .none)
+                    .fontWeight(isSelected ? .medium : .regular)
+                    .frame(width: 24, height: 24)
+                    .scaleEffect(0.92 + emphasis * 0.08)
+                    .layoutPriority(2)
+
                 Text(page.title(in: appLanguage))
-                    .font(.subheadline.weight(.semibold))
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                    .foregroundStyle(Color.tsInk)
+                    .font(.system(size: 16, weight: .medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                    .frame(width: max(0, labelSpace - 8), alignment: .leading)
-                    .padding(.trailing, min(8, labelSpace))
-                    .opacity(emphasis)
-                    .frame(width: labelSpace * emphasis, alignment: .leading)
-                    .clipped()
+                    .allowsTightening(true)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
             }
+            .foregroundStyle(Color.tsInk.opacity(0.48 + emphasis * 0.42))
+            .padding(.leading, 9)
+            .padding(.trailing, 4)
+            // Keep every title mounted. The rounded boundary reveals the new
+            // title and truncates the old one while their local capsules morph.
+            .frame(width: activeVisualWidth, height: 40, alignment: .leading)
+            .frame(width: capsuleWidth, height: 40, alignment: .leading)
+            .background(
+                Color.tsSurfaceMuted.opacity(0.38 + emphasis * 0.50),
+                in: Capsule()
+            )
+            .clipShape(Capsule())
+            .frame(width: itemWidth, height: 44)
             .frame(height: 48)
             .contentShape(Rectangle())
             .accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RelationshipNavigationButtonStyle(reduceMotion: reduceMotion))
         .accessibilityLabel(page.title(in: appLanguage))
         .accessibilityAddTraits(selectedPage == page ? .isSelected : [])
         .accessibilityIdentifier("archive-tab-\(page.accessibilityIdentifier)")
         .accessibilityShowsLargeContentViewer { Text(page.title(in: appLanguage)) }
+    }
+
+    private func adjacentDonor(
+        for page: RelationshipArchivePage
+    ) -> RelationshipArchivePage {
+        let pages = RelationshipArchivePage.allCases
+        let donorIndex = page.pageIndex == pages.count - 1
+            ? page.pageIndex - 1
+            : page.pageIndex + 1
+        return pages[donorIndex]
+    }
+}
+
+private struct RelationshipNavigationButtonStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.965 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .interactiveSpring(
+                        response: 0.18,
+                        dampingFraction: 0.78,
+                        blendDuration: 0.04
+                    ),
+                value: configuration.isPressed
+            )
     }
 }
 
