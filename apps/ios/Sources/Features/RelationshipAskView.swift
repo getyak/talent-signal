@@ -396,6 +396,7 @@ struct RelationshipAskView: View {
     ) async throws -> PursuitEvidenceReviewResult
     let revalidateSessions: () async -> Void
     var synchronizeSessions: (_ requiredSessionID: UUID?) async -> Bool = { _ in true }
+    var answerFeedbackClient: (any AnswerFeedbackServing)? = nil
     let onOpenProposal: (WorkspaceProposal) -> Void
     let onCapture: (RelationshipAskCaptureAction) -> Void
     let onOpenPerson: (String) -> Void
@@ -473,6 +474,7 @@ struct RelationshipAskView: View {
     @State private var voiceQuickControlFrame = CGRect.zero
     @State private var voiceTextInputFrame = CGRect.zero
     @State private var sessionActionError: String?
+    @State private var answerFeedbackSelection: AnswerFeedbackSelection?
     @State private var voiceReleasePending = false
     @State private var voiceTapSuppressed = false
     @State private var voiceStopRequested = false
@@ -551,6 +553,13 @@ struct RelationshipAskView: View {
         }
         .sheet(isPresented: $showScreenshotHistory) {
             ScreenshotContactHistoryView(workspaceStore: workspaceStore, onOpenPerson: onOpenPerson)
+        }
+        .sheet(item: $answerFeedbackSelection) { selection in
+            if let answerFeedbackClient {
+                AnswerFeedbackSheet(selection: selection, client: answerFeedbackClient) {
+                    await synchronizeSessions(selection.sessionID)
+                }
+            }
         }
         .photosPicker(
             isPresented: $isPhotoLibraryPresented,
@@ -1287,6 +1296,10 @@ struct RelationshipAskView: View {
                                         sessionActionError = appLanguage.text("Feedback could not be saved. Try again.")
                                         return
                                     }
+                                },
+                                onCorrect: answerFeedbackClient == nil ? nil : {
+                                    guard let activeSessionID else { return }
+                                    answerFeedbackSelection = AnswerFeedbackSelection(sessionID: activeSessionID, turn: turn)
                                 }
                             )
                                 .id(item.id)
@@ -7292,6 +7305,7 @@ private struct AskTurnView: View {
     let canRegenerate: Bool
     let onRegenerate: () -> Void
     let onFeedback: (AgentSessionFeedback) -> Void
+    let onCorrect: (() -> Void)?
     @State private var didCopy = false
 
     var body: some View {
@@ -7525,6 +7539,10 @@ private struct AskTurnView: View {
                 identifier: "ask-feedback-unhelpful"
             ) { onFeedback(.unhelpful) }
             .accessibilityValue(turn.feedback == .unhelpful ? language.text("Selected") : "")
+            if let onCorrect {
+                responseControl(symbol: "text.bubble", title: language.text("Correct answer"),
+                    identifier: "ask-feedback-correct", action: onCorrect)
+            }
             Spacer(minLength: 0)
         }
         .foregroundStyle(Color.tsMutedInk)

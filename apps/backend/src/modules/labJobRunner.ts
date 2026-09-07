@@ -1,4 +1,4 @@
-import type { AgentProvider } from "@talent-signal/agent";
+import type { AgentProvider, RuntimeObservationContext } from "@talent-signal/agent";
 import type { LabJobAttempt, LabJobCase, LabJobDefinition } from "@talent-signal/contracts";
 import { randomUUID } from "node:crypto";
 import type { RemoteChatAnswerProviding, RemoteChatAnswerRequest } from "./chatAnswerProvider.js";
@@ -9,6 +9,9 @@ import { taskModelCatalog, taskPromptRevision, trialProvider, type TrialRunMeasu
 import { executeWorkspaceConversationAgentCore, type WorkspaceContactLookup } from "./workspaceConversationAgent.js";
 
 export const LAB_JOB_INSTRUMENT_REVISION = "lab-ai-job/2";
+
+export class LabAttemptAuthorizationChanged extends Error {}
+export type LabAttemptDispatch = <T>(invoke: () => Promise<T>) => Promise<T>;
 
 export function createJobAttempts(definition: LabJobDefinition): LabJobAttempt[] {
   const attempts: LabJobAttempt[] = [];
@@ -73,7 +76,14 @@ function fixtureContacts(input: LabAgentJobInput): WorkspaceContactLookup {
 }
 
 export async function executeJobAttempt(attempt: LabJobAttempt, sample: LabJobCase,
-  definition: LabJobDefinition, provider: RemoteChatAnswerProviding | undefined): Promise<LabJobAttempt> {
+  definition: LabJobDefinition, provider: RemoteChatAnswerProviding | undefined,
+  observation?: RuntimeObservationContext, authorizedDispatch?: LabAttemptDispatch): Promise<LabJobAttempt> {
+  // Every saved regression needs live backend authority, even if a caller omits
+  // observation. Standalone runner fixtures contain registered synthetic cases.
+  const dispatch: LabAttemptDispatch = authorizedDispatch ?? (definition.regression_source
+    ? async () => { throw new LabAttemptAuthorizationChanged(); } : (invoke) => invoke());
+  let providerEntered = false;
+  const enterProvider: LabAttemptDispatch = (invoke) => dispatch(() => { providerEntered = true; return invoke(); });
   const configuration = definition.configurations[attempt.configuration_index]!;
   let measurement: TrialRunMeasurement | undefined;
   const start = performance.now();
@@ -89,14 +99,16 @@ export async function executeJobAttempt(attempt: LabJobAttempt, sample: LabJobCa
       if (!isAgentProvider(configured)) throw new Error("Workspace Agent capability unavailable");
       const input = frozen as LabAgentJobInput;
       if (!Array.isArray(input.contact_fixture) || input.context_blocks.length !== 0 || input.allowed_citation_ids.length !== 0) throw new Error("Invalid Agent fixture");
-      const result = await executeWorkspaceConversationAgentCore({ objective: input.objective, provider: configured,
+      const gated = { ...configured, run: (...args: Parameters<AgentProvider["run"]>) => enterProvider(() => configured.run(...args)) };
+      const result = await executeWorkspaceConversationAgentCore({ objective: input.objective, provider: gated,
         ...(configuration.prompt_snapshot ? { promptSnapshot: configuration.prompt_snapshot } : {}),
-        workspaceID: "registered-synthetic-lab", sessionID: null, contacts: fixtureContacts(input) });
+        workspaceID: observation?.workspace_id ?? "registered-synthetic-lab", sessionID: null, contacts: fixtureContacts(input),
+        ...(observation ? { runID: attempt.id, observation } : {}) });
       title = result.block.title; answer = result.block.body; citationIDs = result.block.citation_dependency_ids;
       validCitations = citationIDs.length === 0;
     } else {
       const input = materializeChatInput(frozen, definition.task);
-      const result = await configured.answer(input);
+      const result = await enterProvider(() => configured.answer({ ...input, ...(observation ? { observation } : {}) }));
       title = result.title; answer = result.body; citationIDs = result.citation_ids;
       validCitations = citationIDs.every((id) => input.allowed_citation_ids.includes(id));
     }
@@ -113,7 +125,17 @@ export async function executeJobAttempt(attempt: LabJobAttempt, sample: LabJobCa
       input_tokens: measurement?.input_tokens ?? null, output_tokens: measurement?.output_tokens ?? null,
       title: validShape ? title : null, answer: validShape ? answer : null, citation_ids: citationIDs,
       checks, error_code: validShape && validCitations ? null : "OUTPUT_HARD_CHECK_FAILED" };
-  } catch {
+  } catch (error) {
+    if (error instanceof LabAttemptAuthorizationChanged) return { ...attempt,
+      status: providerEntered && measurement?.remote_requests_started !== 0 ? "unknown" : "cancelled", finished_at: new Date().toISOString(),
+      actual_model: measurement?.actual_model ?? null, actual_prompt_revision: measurement?.actual_prompt_revision ?? null,
+      execution: measurement?.execution ?? (providerEntered ? "unknown" : "local_only"),
+      remote_requests_started: measurement?.remote_requests_started ?? (providerEntered ? null : 0),
+      provider_request_id: measurement?.provider_request_id ?? null, duration_ms: Math.round(performance.now() - start),
+      input_tokens: measurement?.input_tokens ?? null, output_tokens: measurement?.output_tokens ?? null,
+      title: null, answer: null, citation_ids: [],
+      error_code: "LAB_ATTEMPT_AUTHORIZATION_CHANGED",
+      checks: [{ id: "source_authority", verdict: "fail", summary: "The current batch lease or source authorization no longer permits dispatch." }] };
     return { ...attempt, status: "failed", finished_at: new Date().toISOString(),
       actual_model: measurement?.actual_model ?? null, actual_prompt_revision: measurement?.actual_prompt_revision ?? null,
       execution: measurement?.execution ?? "unknown", remote_requests_started: measurement?.remote_requests_started ?? null,

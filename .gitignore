@@ -21,6 +21,8 @@ playwright-report/
 output/
 tmp/
 *.tsbuildinfo
+__pycache__/
+*.pyc
 dist/
 coverage/
 *.profraw

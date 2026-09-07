@@ -28941,6 +28941,486 @@
           }
         }
       }
+    },
+    "Tell us what needs correcting in this answer. Your note is a proposal for review; it does not change contact facts.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "指出这条回答需要纠正的地方。你的说明会作为待审核建议保存，不会直接修改联系人事实。"
+          }
+        }
+      }
+    },
+    "Reason": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原因"
+          }
+        }
+      }
+    },
+    "What should the answer say? (optional)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你期望怎样回答？（选填）"
+          }
+        }
+      }
+    },
+    "Use 2,000 characters or fewer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请将说明缩短至 2,000 字符以内。"
+          }
+        }
+      }
+    },
+    "The original answer context is no longer available for correction. Saved feedback can still be withdrawn.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条回答的原始上下文已无法用于纠错。已保存的反馈仍可撤回。"
+          }
+        }
+      }
+    },
+    "Saved state verified with the server.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已向服务器核对保存结果。"
+          }
+        }
+      }
+    },
+    "Withdraw feedback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤回反馈"
+          }
+        }
+      }
+    },
+    "Correct answer": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "纠正回答"
+          }
+        }
+      }
+    },
+    "Leave feedback?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "离开反馈？"
+          }
+        }
+      }
+    },
+    "Keep editing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续编辑"
+          }
+        }
+      }
+    },
+    "Leave": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "离开"
+          }
+        }
+      }
+    },
+    "Incorrect fact": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "事实错误"
+          }
+        }
+      }
+    },
+    "Wrong person": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人物对应错误"
+          }
+        }
+      }
+    },
+    "Wrong time": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间错误"
+          }
+        }
+      }
+    },
+    "Unsupported suggestion": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "建议缺少依据"
+          }
+        }
+      }
+    },
+    "My preference": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人偏好"
+          }
+        }
+      }
+    },
+    "Something changed later": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后来发生了变化"
+          }
+        }
+      }
+    },
+    "Opened": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已打开"
+          }
+        }
+      }
+    },
+    "Feedback withdrawn": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈已撤回"
+          }
+        }
+      }
+    },
+    "Saved · pending review": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存 · 待审核"
+          }
+        }
+      }
+    },
+    "Save feedback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存反馈"
+          }
+        }
+      }
+    },
+    "Save changes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存修改"
+          }
+        }
+      }
+    },
+    "Reload": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新读取"
+          }
+        }
+      }
+    },
+    "The save could not be confirmed. Retry continues the same submission.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法确认保存结果。重试会继续同一次提交。"
+          }
+        }
+      }
+    },
+    "The answer or feedback may have changed. Reload before editing.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回答或反馈可能已变化，请重新读取后再编辑。"
+          }
+        }
+      }
+    },
+    "Saving has not been confirmed. Reopening will read the server state; your local draft will be discarded.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未确认保存结果。再次打开会读取服务器状态，本地草稿将丢弃。"
+          }
+        }
+      }
+    },
+    "Your unsaved edits will be discarded.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未保存的修改将被丢弃。"
+          }
+        }
+      }
+    },
+    "Experiment outputs and response feedback become development cases. Rerun the frozen input after a change.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实验输出和回答反馈可形成开发案例。修改后重跑同一份冻结输入。"
+          }
+        }
+      }
+    },
+    "Flag an answer or save an experiment output to create a development case.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标记回答问题或保存实验输出，即可创建开发案例。"
+          }
+        }
+      }
+    },
+    "This case contains private source material. Its availability follows the original feedback and source. Notes are never sent as model input.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此案例包含私有来源内容；可用状态随原始反馈和来源变化。备注不会作为模型输入。"
+          }
+        }
+      }
+    },
+    "From response feedback · Development proposal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自回答反馈 · 开发提议"
+          }
+        }
+      }
+    },
+    "Expected behavior proposal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "期待行为提议"
+          }
+        }
+      }
+    },
+    "Feedback supplies a development proposal. Independent semantic review is still required.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈提供的是开发提议，仍需独立语义审核。"
+          }
+        }
+      }
+    },
+    "Original product task": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始产品任务"
+          }
+        }
+      }
+    },
+    "Feedback revision": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈版本"
+          }
+        }
+      }
+    },
+    "Original output hash": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原始输出哈希"
+          }
+        }
+      }
+    },
+    "This file includes private source input, model output and feedback. Inspect it before saving a separate copy.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文件包含私有来源输入、模型输出和反馈。保存独立副本前请检查内容。"
+          }
+        }
+      }
+    },
+    "Private source input · Real model calls · No business-write tools": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "私有来源输入 · 真实模型调用 · 无业务写入工具"
+          }
+        }
+      }
+    },
+    "The original private input is replayed. Feedback expectations remain outside the model input.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重放原始私有输入，反馈中的期待不会加入模型输入。"
+          }
+        }
+      }
+    },
+    "Baseline configuration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基线配置"
+          }
+        }
+      }
+    },
+    "Candidate configuration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候选配置"
+          }
+        }
+      }
+    },
+    "Choose a candidate prompt preset before reviewing this rerun.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先选择候选提示词预设，再检查本次重跑。"
+          }
+        }
+      }
+    },
+    "Choose a prompt preset": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择提示词预设"
+          }
+        }
+      }
+    },
+    "Feedback development case": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈开发案例"
+          }
+        }
+      }
+    },
+    "Feedback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈"
+          }
+        }
+      }
+    },
+    "Frozen source input · Real model calls · No business-write tools": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冻结来源输入 · 真实模型调用 · 无业务写入工具"
+          }
+        }
+      }
+    },
+    "Frozen source input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冻结来源输入"
+          }
+        }
+      }
+    },
+    "This case reuses frozen source material. Its availability follows the source. Notes are never sent as model input.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此案例复用冻结来源内容；可用状态随来源变化。备注不会作为模型输入。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -32,6 +32,7 @@ import type {
   OpikProjectionDeletionTarget,
   OpikProjectionTransport,
 } from "./opikTransport.js";
+import { opikFailureReason } from "./opikTransport.js";
 
 export interface OpikReporterOptions {
   projectName: string;
@@ -62,8 +63,18 @@ interface ActiveProjection {
 export class OpikReporter implements EvaluationReporter {
   private active: ActiveProjection | null = null;
   private localArtifactDigest: Sha256Digest | undefined;
+  private prepared: Pick<Parameters<typeof buildSafeProjectionEnvelope>[0], "trace" | "gate" | "terminal"> = {};
 
   constructor(private readonly options: OpikReporterOptions) {}
+
+  withProjectionLock<T>(runId: string, action: () => Promise<T>): Promise<T> {
+    return this.options.ledger.withProjectionLock(`opik:${runId}`, action);
+  }
+
+  prepareProjection(input: typeof this.prepared): void {
+    if (this.active) throw new Error("Projection content must be prepared before beginRun");
+    this.prepared = input;
+  }
 
   setLocalArtifactDigest(digest: Sha256Digest): void {
     if (this.active) throw new Error("Local artifact digest must be bound before Opik beginRun");
@@ -111,19 +122,29 @@ export class OpikReporter implements EvaluationReporter {
         datasetDigest: this.options.datasetDigest,
         projectName: this.options.projectName,
         ownerControlledInstance: this.options.ownerControlledInstance,
+        ...this.prepared,
       });
       this.active.envelope = envelope;
       await this.options.ledger.initialize(provisionalProjectionId, envelope);
+      if (await this.options.ledger.hasDeletionReceipt(provisionalProjectionId)) {
+        throw new Error("OPIK_RETRY_DELETED_PROJECTION");
+      }
       await this.append("pending", "PROJECTION_PENDING");
-      const started = await this.options.transport.beginProjection(envelope);
+      const started = await this.options.transport.beginProjection(envelope, async (target) => {
+        this.active!.externalId = target.externalId;
+        this.active!.remoteDatasetVersionId = target.datasetVersionId;
+        this.active!.experimentId = target.experimentId;
+        this.active!.experimentItemId = target.experimentItemId;
+        await this.append("pending", "PROJECTION_TARGET_RESERVED");
+      });
       this.active.externalId = started.externalId;
       this.active.remoteDatasetVersionId = started.datasetVersionId;
       this.active.experimentId = started.experimentId;
       this.active.experimentItemId = started.experimentItemId;
-      await this.append("succeeded", "PROJECTION_STARTED");
+      await this.append("pending", "PROJECTION_STARTED");
     } catch (error) {
       const reasonCode =
-        error instanceof ExportPolicyError ? error.reasonCode : "OPIK_BEGIN_FAILED";
+        error instanceof ExportPolicyError ? error.reasonCode : opikFailureReason(error, "OPIK_BEGIN_FAILED");
       this.active.failedReasonCode = reasonCode;
       if (this.active.envelope) await this.append("failed", reasonCode);
     }
@@ -142,8 +163,8 @@ export class OpikReporter implements EvaluationReporter {
     try {
       const safeTrace = projectSafeTrace(trace);
       await this.options.transport.recordTrace(active.externalId ?? active.projectionId, safeTrace);
-    } catch {
-      active.failedReasonCode = "OPIK_TRACE_FAILED";
+    } catch (error) {
+      active.failedReasonCode = opikFailureReason(error, "OPIK_TRACE_FAILED");
       await this.append("failed", active.failedReasonCode);
     }
   }
@@ -154,8 +175,8 @@ export class OpikReporter implements EvaluationReporter {
     try {
       const safeScores = scores.map(projectSafeScore);
       await this.options.transport.recordScores(active.externalId ?? active.projectionId, safeScores);
-    } catch {
-      active.failedReasonCode = "OPIK_SCORE_FAILED";
+    } catch (error) {
+      active.failedReasonCode = opikFailureReason(error, "OPIK_SCORE_FAILED");
       await this.append("failed", active.failedReasonCode);
     }
   }
@@ -173,8 +194,8 @@ export class OpikReporter implements EvaluationReporter {
         return this.options.ledger.toProjectionReceipt(
           await this.append("succeeded", "PROJECTION_COMPLETE"),
         );
-      } catch {
-        active.failedReasonCode = "OPIK_COMPLETE_FAILED";
+      } catch (error) {
+        active.failedReasonCode = opikFailureReason(error, "OPIK_COMPLETE_FAILED");
         if (active.envelope) {
           return this.options.ledger.toProjectionReceipt(
             await this.append("failed", active.failedReasonCode),
@@ -232,7 +253,15 @@ export async function deleteOpikProjection(input: {
   ledger: ProjectionLedger;
   transport: OpikProjectionTransport;
 }): Promise<DeletionReceiptV1> {
-  const ledgerEvent = await input.ledger.latestEvent(input.ref.projectionId);
+  // Admission closes before waiting for an in-flight export. Its final remote
+  // writes complete under the same process lock before deletion/readback.
+  await input.ledger.requestDeletion(input.ref.projectionId);
+  return input.ledger.withProjectionLock(input.ref.projectionId, () => deleteUnlocked(input));
+}
+
+async function deleteUnlocked(input: Parameters<typeof deleteOpikProjection>[0]): Promise<DeletionReceiptV1> {
+  const ledgerEvent = (await input.ledger.readEvents(input.ref.projectionId)).reverse().find((event) =>
+    event.externalId && event.experimentId && event.experimentItemId);
   const remoteTraceId = ledgerEvent?.externalId;
   const experimentId = ledgerEvent?.experimentId;
   const experimentItemId = ledgerEvent?.experimentItemId;

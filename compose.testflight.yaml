@@ -62,6 +62,13 @@ services:
       NODE_ENV: production
       SIMULATED_AUTH_ENABLED: "false"
       TALENT_SIGNAL_INTERNAL_LAB_ENABLED: ${TALENT_SIGNAL_INTERNAL_LAB_ENABLED:-true}
+      TALENT_SIGNAL_BACKEND_REVISION: ${TALENT_SIGNAL_BACKEND_REVISION:-}
+      TALENT_SIGNAL_DEPLOYMENT_ID: ${TALENT_SIGNAL_DEPLOYMENT_ID:-talent-signal-testflight-local}
+      TALENT_SIGNAL_DATA_DOMAIN: ${TALENT_SIGNAL_DATA_DOMAIN:-internal-testflight}
+      TALENT_SIGNAL_DEPLOYMENT_EXPOSURE: ${TALENT_SIGNAL_DEPLOYMENT_EXPOSURE:-}
+      TALENT_SIGNAL_OPIK_RUNTIME_POLICY: ${TALENT_SIGNAL_OPIK_RUNTIME_POLICY:-}
+      TALENT_SIGNAL_OPIK_RUNTIME_OUTBOX: /var/lib/talent-signal/runtime-observation
+      OPIK_API_KEY: ${OPIK_API_KEY:-}
       PASSWORD_AUTH_ENABLED: ${PASSWORD_AUTH_ENABLED:-false}
       PASSWORD_REGISTRATION_ENABLED: ${PASSWORD_REGISTRATION_ENABLED:-false}
       GOOGLE_SIGN_IN_AUDIENCES: ${GOOGLE_SIGN_IN_AUDIENCES:-}
@@ -103,6 +110,7 @@ services:
     init: true
     volumes:
       - talent_signal_testflight_chat_media:/var/lib/talent-signal/chat-media
+      - talent_signal_testflight_runtime_observation:/var/lib/talent-signal/runtime-observation
       - talent_signal_testflight_agent_ipc:/var/run/talent-signal-agent
     dns:
       - ${TS_TESTFLIGHT_DNS_PRIMARY:-100.100.100.100}
@@ -172,5 +180,6 @@ services:
 volumes:
   talent_signal_testflight_postgres:
   talent_signal_testflight_chat_media:
+  talent_signal_testflight_runtime_observation:
   talent_signal_testflight_agent_ipc:
   talent_signal_testflight_agent_state:

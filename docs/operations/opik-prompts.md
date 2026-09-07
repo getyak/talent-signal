@@ -10,6 +10,10 @@ Opik is the version mirror and experiment workspace. Its publications do not
 change running services. This supersedes the earlier dynamic registry design;
 see [the decision](../decisions/0013-bundle-prompts-with-code.md).
 
+For private runtime observation, feedback-driven comparisons and delegated
+candidate releases, use the [phase-one playbook](opik-phase-one.md). Those
+explicit controller settings are separate from the prompt-mirroring commands.
+
 ## Edit, compare and release
 
 1. Edit the relevant source file, or import an explicitly selected Opik draft.

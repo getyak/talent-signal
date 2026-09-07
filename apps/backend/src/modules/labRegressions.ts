@@ -7,24 +7,38 @@ import type { AuthContext } from "./auth.js";
 import type { LabExperimentJobService } from "./labExperimentJobs.js";
 import { labHash } from "./labJobCases.js";
 import type { LabCIVerificationService } from "./labCIVerifications.js";
+import { lockFeedbackExecutions } from "./feedbackExecutions.js";
 
 interface RegressionRow {
   id: string; account_id: string; user_id: string; request_hash: string; content_hash: string;
   snapshot: LabRegressionSnapshot | null; created_at: Date; expires_at: Date;
   expired: boolean; deleted_at: Date | null; deleted_job_ids: string[];
+  source_execution_id: string | null; source_feedback_id: string | null;
 }
 const scoped = (auth: Pick<AuthContext, "accountId" | "userId">, id: string) => [auth.accountId, auth.userId, id];
 
 export async function regressionLineageCurrent(client: DatabaseClient, id: string): Promise<boolean> {
   const result = await client.query<{ valid: boolean | null }>(`WITH RECURSIVE lineage AS (
-    SELECT id,parent_id,deleted_at,expires_at FROM lab_regressions WHERE id=$1
-    UNION ALL SELECT r.id,r.parent_id,r.deleted_at,r.expires_at FROM lab_regressions r JOIN lineage ON r.id=lineage.parent_id
-  ) SELECT bool_and(deleted_at IS NULL AND expires_at > now()) AS valid FROM lineage`, [id]);
+    SELECT id,parent_id,deleted_at,expires_at,source_execution_id,source_feedback_id,snapshot FROM lab_regressions WHERE id=$1
+    UNION ALL SELECT r.id,r.parent_id,r.deleted_at,r.expires_at,r.source_execution_id,r.source_feedback_id,r.snapshot
+      FROM lab_regressions r JOIN lineage ON r.id=lineage.parent_id
+  ) SELECT bool_and(deleted_at IS NULL AND expires_at > now() AND (source_execution_id IS NULL OR
+    (feedback_execution_source_state(source_execution_id)='available' AND EXISTS (SELECT 1 FROM product_feedback f
+      WHERE f.id=lineage.source_feedback_id AND f.status='active'
+        AND feedback_execution_source_state(f.execution_id)='available'
+        AND f.revision=(lineage.snapshot->'feedback_source'->>'feedback_revision')::integer)))) AS valid FROM lineage`, [id]);
   return result.rows[0]?.valid === true;
 }
 
-export async function regressionForRun(client: DatabaseClient, auth: AuthContext,
+export async function regressionForRun(client: DatabaseClient, auth: Pick<AuthContext, "accountId" | "userId">,
   source: { id: string; content_hash: string }): Promise<LabRegressionSnapshot> {
+  // Source retraction locks executions before descendants. Follow the same order;
+  // locking the parent first could deadlock against a concurrent source deletion.
+  const feedbackSources = await client.query<{ id: string }>(`SELECT e.id FROM lab_regressions r
+    JOIN product_feedback f ON f.id=r.source_feedback_id
+    JOIN feedback_execution_snapshots e ON e.id IN (r.source_execution_id,f.execution_id)
+    WHERE r.account_id=$1 AND r.user_id=$2 AND r.id=$3`, scoped(auth, source.id));
+  await lockFeedbackExecutions(client, auth, feedbackSources.rows.map((row) => row.id));
   const result = await client.query<RegressionRow>(`SELECT *,expires_at <= now() AS expired FROM lab_regressions
     WHERE account_id=$1 AND user_id=$2 AND id=$3 FOR SHARE`, scoped(auth, source.id));
   const row = result.rows[0];
@@ -61,6 +75,9 @@ async function tombstone(client: DatabaseClient, auth: Pick<AuthContext, "accoun
 }
 
 export async function scrubExpiredRegressions(pool: Pool): Promise<void> {
+  const feedbackOwners = await pool.query<{ account_id: string }>(`SELECT DISTINCT account_id FROM feedback_execution_snapshots
+    WHERE snapshot IS NOT NULL AND feedback_execution_source_state(id)<>'available' LIMIT 100`);
+  for (const { account_id } of feedbackOwners.rows) await pool.query("SELECT retract_feedback_learning($1)", [account_id]);
   const expired = await pool.query<RegressionRow>("SELECT id,account_id,user_id FROM lab_regressions WHERE deleted_at IS NULL AND expires_at <= now() ORDER BY created_at LIMIT 100");
   for (const row of expired.rows) await inTransaction(pool, async (client) => {
     await tombstone(client, { accountId: row.account_id, userId: row.user_id }, row.id);
@@ -71,7 +88,7 @@ export class LabRegressionService {
   constructor(readonly pool: Pool, readonly jobs: LabExperimentJobService, readonly ci?: LabCIVerificationService) {}
 
   async save(auth: AuthContext, request: LabRegressionRequest): Promise<LabRegression> {
-    if (!["apple_human", "password_human", "simulated_human", "lab_human"].includes(auth.userKind)) {
+    if (!["apple_human", "google_human", "password_human", "simulated_human", "lab_human"].includes(auth.userKind)) {
       throw new ApiError(403, "LAB_HUMAN_REVIEW_REQUIRED", "A signed-in human must choose the failure and expected behavior.");
     }
     const requestHash = labHash(request);
@@ -84,6 +101,10 @@ export class LabRegressionService {
       }
       const count = await client.query<{ count: string }>("SELECT count(*) FROM lab_regressions WHERE account_id=$1 AND user_id=$2 AND deleted_at IS NULL AND expires_at > now()", [auth.accountId, auth.userId]);
       if (Number(count.rows[0]!.count) >= 100) throw new ApiError(409, "LAB_REGRESSION_LIMIT", "Delete an obsolete regression before saving another.");
+      const preview = (await client.query<{ definition: LabJobDefinition }>(
+        "SELECT definition FROM lab_experiment_jobs WHERE account_id=$1 AND user_id=$2 AND id=$3", scoped(auth, request.source_job_id))).rows[0];
+      const parent = preview?.definition.regression_source
+        ? await regressionForRun(client, auth, preview.definition.regression_source) : null;
       const source = await client.query<{ definition: LabJobDefinition; definition_hash: string; record: LabJobAttempt; status: string; expired: boolean; regression_id: string | null; now: Date }>(
         `SELECT j.definition,j.definition_hash,j.status,j.expires_at <= now() AS expired,j.regression_id,a.record,now()
          FROM lab_experiment_jobs j JOIN lab_experiment_attempts a ON a.job_id=j.id
@@ -98,20 +119,21 @@ export class LabRegressionService {
       if (row.definition_hash !== request.source_definition_hash || labHash(row.definition) !== row.definition_hash) {
         throw new ApiError(409, "LAB_REGRESSION_CHANGED", "Refresh the source before saving this failure.");
       }
-      if (row.definition.regression_source) await regressionForRun(client, auth, row.definition.regression_source);
       const sample = row.definition.cases.find((value) => value.id === row.record.case_id);
       if (!sample || labHash(JSON.parse(sample.input_json)) !== sample.input_hash || !request.expected_behavior.trim()) {
-        throw new ApiError(422, "LAB_REGRESSION_INVALID", "An intact synthetic case and expected behavior are required.");
+        throw new ApiError(422, "LAB_REGRESSION_INVALID", "An intact authorized case and expected behavior are required.");
       }
-      const snapshot: LabRegressionSnapshot = { schema_version: "lab-regression.v1", data_class: "registered_synthetic",
+      const snapshot: LabRegressionSnapshot = { schema_version: "lab-regression.v1", data_class: parent?.data_class ?? "registered_synthetic",
+        ...(parent?.feedback_source ? { feedback_source: parent.feedback_source } : {}),
         task: row.definition.task,
         source_job_id: request.source_job_id, source_definition_hash: row.definition_hash, source_attempt: row.record,
         case: sample, configurations: row.definition.configurations, reference_time: row.definition.reference_time,
         backend_revision: row.definition.backend_revision, instrument_revision: row.definition.instrument_revision,
         failure_categories: request.failure_categories, expected_behavior: request.expected_behavior.trim(), review_note: request.review_note.trim(),
         reviewer_id: auth.userId, reviewed_at: row.now.toISOString() };
-      await client.query(`INSERT INTO lab_regressions(id,account_id,user_id,request_hash,content_hash,snapshot,parent_id)
-        VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`, [request.id, auth.accountId, auth.userId, requestHash, labHash(snapshot), JSON.stringify(snapshot), row.regression_id]);
+      await client.query(`INSERT INTO lab_regressions(id,account_id,user_id,request_hash,content_hash,snapshot,parent_id,source_execution_id,source_feedback_id)
+        VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9)`, [request.id, auth.accountId, auth.userId, requestHash, labHash(snapshot), JSON.stringify(snapshot), row.regression_id,
+        parent?.feedback_source?.execution_id ?? null, parent?.feedback_source?.feedback_id ?? null]);
     });
     return this.read(auth, request.id);
   }
@@ -129,6 +151,7 @@ export class LabRegressionService {
   }
 
   async list(auth: AuthContext): Promise<LabRegressionSummary[]> {
+    await this.pool.query("SELECT retract_feedback_learning($1)", [auth.accountId]);
     const result = await this.pool.query<RegressionRow>(`WITH RECURSIVE gone AS (
       SELECT id FROM lab_regressions WHERE account_id=$1 AND user_id=$2 AND (deleted_at IS NOT NULL OR expires_at <= now())
       UNION SELECT r.id FROM lab_regressions r JOIN gone ON r.parent_id=gone.id WHERE r.account_id=$1 AND r.user_id=$2

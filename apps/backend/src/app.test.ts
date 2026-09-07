@@ -30,7 +30,7 @@ describe("readiness rate limiting", () => {
     const query = vi.fn().mockResolvedValue({
       rows: [
         {
-          version: "032_eval_observability",
+          version: "057_feedback_learning",
         },
       ],
     });
@@ -56,9 +56,20 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("056_agent_session_chat_lifecycle"),
+      expect.stringContaining("057_feedback_learning"),
     );
   }, 10_000);
+
+  it("stays unavailable until the feedback migration is applied", async () => {
+    const query = vi.fn().mockImplementation(async (sql: string) => ({
+      rows: sql.includes("057_feedback_learning") ? [] : [{ version: "056_agent_session_chat_lifecycle" }],
+    }));
+    const app = await buildApp({ config, pool: { query } as unknown as Pool });
+    apps.push(app);
+    const response = await app.inject({ method: "GET", url: "/health/ready" });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ status: "not_ready", database: "unavailable" });
+  });
 });
 
 describe("Talent Signal Lab capability policy", () => {

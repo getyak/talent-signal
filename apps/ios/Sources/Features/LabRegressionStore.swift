@@ -115,13 +115,13 @@ final class LabRegressionStore: ObservableObject {
     }
     private func accept(_ value: LabRegressionRecord) throws {
         let source = value.snapshot
-        guard UUID(uuidString: value.id) != nil, value.content_hash.count == 64, LabCIInput.releaseStatusIsValid(value),
-              source.schema_version == "lab-regression.v1", source.data_class == "registered_synthetic",
-              source.source_definition_hash.count == 64, source.sample.input_hash.count == 64,
-              source.source_attempt.case_id == source.sample.id, source.configurations.count == 2,
+        guard UUID(uuidString: value.id) != nil, LabRegressionSnapshot.isHash(value.content_hash), LabCIInput.releaseStatusIsValid(value),
+              source.schema_version == "lab-regression.v1", source.hasValidSource,
               ["completed", "failed", "unknown"].contains(source.source_attempt.status),
               !source.failure_categories.isEmpty, source.failure_categories.allSatisfy({ LabJobCopy.failures.contains($0) }),
-              value.id == (pending?.id ?? selectedID), record?.id != value.id || record?.content_hash == value.content_hash else {
+              value.id == (pending?.id ?? selectedID),
+              items.first(where: { $0.id == value.id }).map({ $0.content_hash == value.content_hash }) ?? true,
+              record?.id != value.id || (record?.content_hash == value.content_hash && record?.snapshot.matchesFrozenSnapshot(source) == true) else {
             throw TalentSignalLabClientError.invalidResponse
         }
         if let request = pending?.save {
@@ -162,7 +162,8 @@ final class LabRegressionStore: ObservableObject {
             let data = try await service.exportRegression(id: record.id)
             let value = try JSONDecoder().decode(LabRegressionExport.self, from: data)
             guard value.id == record.id, value.content_hash == record.content_hash,
-                  value.execution_authority == "none", value.schema_version == "lab-regression-bundle.v1" else { throw TalentSignalLabClientError.invalidResponse }
+                  value.execution_authority == "none", value.schema_version == "lab-regression-bundle.v1",
+                  value.snapshot.hasValidSource, value.snapshot.matchesFrozenSnapshot(record.snapshot) else { throw TalentSignalLabClientError.invalidResponse }
             exportData = data
         } catch { handle(error) }
     }

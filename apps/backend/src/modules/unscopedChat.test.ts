@@ -22,7 +22,8 @@ describe("unscoped Agent conversation", () => {
     vi.mocked(readAgentSessionConversation).mockResolvedValueOnce({ messages });
     const answer = vi.fn(async () => ({ kind: "answer" as const, title: "Email", body: "A suggested draft.", citation_ids: [],
       provider_id: "zhipu-chat-completions" as const, model: "glm-5.3", provider_request_id: null, input_tokens: 0, output_tokens: 0 }));
-    const database = {} as DatabaseClient;
+    const database = { query: vi.fn(async (sql: string) => ({ rows: sql.includes("FROM agent_sessions")
+      ? [{ expires_at: new Date(Date.now() + 86_400_000) }] : [] })) } as unknown as DatabaseClient;
     await executeUnscopedChatTask({
       request: { ...request, session_id: "session", message_id: "current", objective: "Expand option two." }, database, auth,
       provider: { providerId: "zhipu-chat-completions", model: "glm-5.3", supportsImageInput: false, answer },
