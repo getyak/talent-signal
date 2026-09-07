@@ -12,6 +12,7 @@ import { createPhaseOneHttpRuntimeReader, phaseOneJudgmentContext, type FrozenSt
 import { eligiblePhaseOneJudgeAssurance } from "./phaseOneJudge.js";
 import { assertOptimizationControllerBinding, readOptimizationBudgetController } from "./optimization/controller.js";
 import { validateOptimizationCandidate, type OptimizationDevExample } from "./optimization/productTask.js";
+import { readPhaseOneControllerDataset } from "./phaseOneDatasetLifecycle.js";
 
 interface ReleaseController {
   schemaVersion: "phase-one-release-controller.v1";
@@ -72,7 +73,7 @@ export async function runPhaseOneReleaseCommand(command: string, context: Contex
       const value = context.readJson(settings.authorizationFile) as PhaseOneReleaseAuthorization;
       return value.authorizationId === id ? value : null;
     },
-    async readExposureDigest() { return phaseOneExposureDigest(context.readJson(context.config.exposuresFile) as PhaseOneExposure[]); },
+    async readExposureDigest() { return phaseOneExposureDigest(readPhaseOneControllerDataset(context.config, context.readJson).exposures); },
     async readJudgmentContextDigest() {
       const current = phaseOneJudgmentContext(context.config, context.readJson);
       if (context.config.semanticEvaluation.kind === "model") phaseOneAssert(eligiblePhaseOneJudgeAssurance(current.assurance,
@@ -89,7 +90,7 @@ export async function runPhaseOneReleaseCommand(command: string, context: Contex
     phaseOneAssert(digestCanonicalJson(context.readJson(settings.authorizationFile)) === digestCanonicalJson(authorization)
       && authorization.revokedAt === null && phaseOneTime(authorization.expiresAt) > Date.now(), "PHASE_ONE_AUTHORIZATION_STALE");
     phaseOneAssert(phaseOneJudgmentContext(context.config, context.readJson).digest === judgmentDigest, "PHASE_ONE_JUDGMENT_CONTEXT_STALE");
-    phaseOneAssert(phaseOneExposureDigest(context.readJson(context.config.exposuresFile) as PhaseOneExposure[]) === binding.exposureDigest, "PHASE_ONE_EXPOSURE_CHANGED");
+    phaseOneAssert(phaseOneExposureDigest(readPhaseOneControllerDataset(context.config, context.readJson).exposures) === binding.exposureDigest, "PHASE_ONE_EXPOSURE_CHANGED");
   };
   if (command.startsWith("rollback-")) {
     const grant = context.readJson(settings.rehearsalAuthorizationFile) as RehearsalAuthorization;

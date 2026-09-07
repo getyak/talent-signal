@@ -81,7 +81,7 @@ async function deriveRegression(client: DatabaseClient, auth: AuthContext, feedb
     instrument_revision: LAB_JOB_INSTRUMENT_REVISION, failure_categories: [issue.category],
     expected_behavior: feedback.expected_behavior_proposal?.trim() || issue.expected, review_note: "Feedback-derived expectation proposal; requires independent semantic adjudication.",
     reviewer_id: auth.userId, reviewed_at: feedback.updated_at.toISOString(),
-    feedback_source: { feedback_id: feedback.id, feedback_revision: feedback.revision, execution_id: execution.id,
+    feedback_source: { feedback_id: feedback.id, feedback_revision: feedback.revision, execution_id: execution.id, session_id: execution.session_id,
       original_task_id: execution.task_id, original_output_hash: execution.output_hash,
       expectation_authority: "proposal", execution_authority: "none" },
   };

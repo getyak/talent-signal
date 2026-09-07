@@ -118,6 +118,22 @@ Repeated paired comparisons preserve exact inputs, reference time, candidate,
 baseline and rubric. Exposed holdouts lose independent status. Critical
 regressions veto promotion regardless of average score.
 
+The report separates evidence support, ambiguity handling, temporal correctness,
+valid completion and correction burden. Each dimension and slice has its own
+numerator, denominator, unknown count and paired regressions. Usage reports
+input/output tokens, elapsed time and cost for each arm and the judge. Missing
+measurements remain unknown. Human reviews and calibrated model judgments bind
+to an individual criterion; an overall score cannot pass all dimensions.
+Correction burden is the evaluator's assessment of necessary output corrections,
+not a measurement of a user's editing time or number of edits.
+
+Register every holdout exposure in the owner-controlled dataset lifecycle. Before
+using that source for development, retire its complete connected source group
+and supply a fresh independent replacement in the original partition. The
+[dataset lifecycle commands](../../evals/contracts/phase-one-controller.md#retire-exposed-holdouts-and-replenish-their-source-groups)
+preserve original provenance, record repeated access and invalidate old reports;
+they do not copy final gold into candidate-generator input.
+
 ```sh
 pnpm --filter @talent-signal/eval-runner phase-one freeze --controller-dir /private/controller
 pnpm --filter @talent-signal/eval-runner phase-one verify --controller-dir /private/controller

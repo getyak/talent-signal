@@ -120,3 +120,116 @@ against arbitrary malicious same-user code. It does not attest provider-side
 retention, a paid final evaluation or a deployed release. Keep the CodeQL rule
 and job enabled; any dismissal applies only to this reviewed authorized I/O
 path. This reviewer made no GitHub state change.
+
+The subsequent judge assertions passed all 5 tests and now explicitly check
+the intended evidence/oracle payload, fixed destination, disabled redirects,
+and absence of provider credentials, budget permit identifiers and assurance
+filenames. The aligned ADR/plan preserves the independent executor, calibration,
+source, monetary and release boundaries. A separate read-only review of the
+native feedback proof fixture found that PostgreSQL's `?host=` parameter could
+override its initial URL hostname guard. Constructing a client without connecting
+independently reproduced the mismatch. The repair rejects query strings,
+fragments and non-PostgreSQL URLs; running the actual entry point with the
+override in a clean environment now fails before pool creation. Screenshot and
+voice providers are also explicitly disabled rather than inherited from the
+environment. PBX registration is limited to the UI-test target and passes
+`plutil -lint`. These checks certify the inspected fixture boundaries, not the
+native E2E outcome, which requires its separate completed xcresult.
+
+## GET-16 lifecycle: second independent safety review
+
+The lifecycle review covered source withdrawal, crash recovery, retired-case
+provenance, final-material isolation, and the current exposure used for release.
+It found and independently closed two additional P1 retention failures after
+the implementer repaired the new nested-document erasure path:
+
+- A later exposure made a retired private case's development proof stale.
+  Maintenance rejected that proof before checking native-source expiry, leaving
+  the expired private search body on disk. A disposable synthetic reproduction
+  initially returned `PHASE_ONE_RETIREMENT_PROVENANCE_STALE` with its private
+  sentinel retained. After repair, the same source sweep removed the body and
+  wrote `optimization-search-tombstone.v1`. Cleanup may inspect stale proof;
+  ordinary start, run and resume still require current retirement authority.
+- With an already committed local final-controller tombstone, an unexpired
+  imported private source and native HTTP 503, maintenance initially returned
+  the transport error and retained the withdrawn copy. The independent exact
+  reproduction now returns `PHASE_ONE_RUN_TOMBSTONED`, makes zero native
+  readbacks and removes the sentinel. The repair prioritizes both the local
+  tombstone file and the durable SQLite tombstone, and rechecks after an awaited
+  readback so a concurrent withdrawal cannot be hidden by its HTTP 503 result.
+
+The new primary lifecycle document keeps current case bodies once; event history
+contains metadata and digests rather than former inputs or gold. Retirement
+preserves the original partition, replaces an entire connected source group
+with fresh material in that partition, and requires current provenance before
+development import. Imported retired cases receive the fixed generic search
+oracle, not their former final oracle. A separate synthetic invocation confirmed
+that a private import without a live maintenance owner fails with
+`OPTIMIZATION_SOURCE_MAINTENANCE_REQUIRED` before writing the search copy.
+
+The primary document and artifact invalidation use the existing SQLite write
+boundary. Interrupted derived search/binding writes fail their current digest
+and require explicit repair. Exposure can invalidate an active final run;
+retirement and import cannot mutate its running dataset. Final consumers and
+release checks use current lifecycle exposure, and the versioned judge/report
+changes do not give old reports new authority. The five atomic semantic
+criteria remain confined to the calibrated independent evaluator and its
+existing budget and source checks.
+
+Independent checks passed 22 package lifecycle/report-compatibility tests and
+34 runner lifecycle/final-command/judge tests. After the final withdrawal repair,
+the runner lifecycle suite passed all 11 tests, including unexpired sources
+with file-only, SQLite-only and during-readback withdrawal under HTTP 503.
+The nested private body, damaged metadata digest and interrupted-write cleanup
+regressions also passed. All reproductions used disposable synthetic fixtures
+and fake transports, with no business-data access or paid request. Arbitrarily
+corrupted primary JSON or manually removed data classifications were not
+presented as independently reproduced production failures; the inspected
+writer replaces complete documents atomically.
+
+The subsequent native Session-group review confirmed that the server exports
+`execution.session_id` inside the hashed feedback snapshot. New admission
+requires that authenticated identity in the binding and case source group;
+different turns, executions or inputs from the same Session cannot cross
+partitions, including a private demonstration paired with a final case.
+Checking only the currently executing case does not bypass the global binding
+check. Optional Session metadata in the native historical-read schema does not
+admit legacy snapshots or allow a caller to invent their grouping authority.
+
+The new mandatory field initially also blocked cleanup of older bindings.
+The final repair confines legacy-shape compatibility to optimizer source sweeps
+and the final-controller source sweeper. Ordinary start, resume, execution,
+freeze and import retain strict admission. Independent disposable invocations
+of the actual final sweeper confirmed that an expired legacy copy is erased
+without a readback, an unexpired copy with HTTP 404 is erased after one readback,
+HTTP 503 alone preserves the copy and reports unavailability, and a known local
+tombstone erases it before any readback. A separate actual optimizer sweep
+erased an expired legacy search copy without credentials or network calls.
+The repaired native-source, optimizer, lifecycle and final-command suites
+passed all 64 tests, including legacy and current bindings under file, SQLite
+and during-readback withdrawal. This reviewer did not repeat the separate
+PostgreSQL integration run or access the native UI proof database.
+
+An additional implementation review found a separate historical-checkpoint
+entry into paid final verification: a private example removed from the final
+candidate could leave an older search binding without Session metadata outside
+the current final-source admission checks. This reviewer independently checked
+the repair in `phaseOneCommand.ts`: historical `feedbackSources` must be absent
+or an array of at most 116 entries, and every entry passes the default strict
+admission validator before source/Session exclusion and before budget resume.
+Cleanup compatibility is not enabled at this entry. All 6 focused direct-verify
+regressions passed for missing Session, null, object, string, invalid entry and
+the same Session with different feedback/execution identities. Each preserves
+the checkpoint and empty operation ledger, makes zero provider requests, and
+writes no execution journal or verification report. These tests stub only the
+independent CI-attestation check; freeze, checkpoint persistence and this
+admission path remain real. The other 14 command tests were intentionally
+outside this focused rerun.
+
+There is no remaining confirmed P0/P1 in these reviewed lifecycle and Session
+binding changes. These checks do not claim a live semantic evaluation or a
+deployed release.
+
+Owning checks: [dataset lifecycle tests](../../../packages/evaluation/src/phaseOneDatasetLifecycle.test.ts),
+[report compatibility tests](../../../packages/evaluation/src/phaseOneReportCompatibility.test.ts),
+and [controller lifecycle tests](../../../apps/eval-runner/src/phaseOneDatasetLifecycle.test.ts).

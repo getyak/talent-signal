@@ -15,6 +15,9 @@ export const LabRegressionSnapshotSchema = Type.Object({
   schema_version: Type.Literal("lab-regression.v1"), data_class: Type.Union([Type.Literal("registered_synthetic"), Type.Literal("private_business")]),
   feedback_source: Type.Optional(Type.Object({
     feedback_id: ID, feedback_revision: Type.Integer({ minimum: 1 }), execution_id: ID,
+    // Older frozen snapshots remain readable; optimizer admission requires this
+    // server-derived group instead of inventing one for a historical snapshot.
+    session_id: Type.Optional(ID),
     original_task_id: ID, original_output_hash: Hash,
     expectation_authority: Type.Literal("proposal"), execution_authority: Type.Literal("none"),
   }, { additionalProperties: false })),

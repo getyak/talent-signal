@@ -138,3 +138,118 @@ local fake transport and issued no paid requests. The four Infisical manifest
 checks also passed independently. Owner-reported typecheck results were reused.
 The required GitHub checks must pass again on the submitted repair revision
 before merge.
+
+## Native recovery and acceptance follow-up
+
+This review inspected the frozen follow-up increment over
+`7f66d65b5b20d29ce620e2a268b067736729b435`. **No unresolved confirmed P0/P1
+remains in the reviewed follow-up increment.** This includes the native terminal
+race, metrics, behavioral fixtures, signed-report compatibility, dataset
+lifecycle, Session source binding, and direct-checkpoint final admission. The
+Session-grouping P1 below was independently verified closed before this result.
+
+### P1 closed: native feedback sources did not bind the original Session group
+
+Previously, `LabRegressionSnapshot.feedback_source` exposed feedback and execution
+identity, but no original Session identity. `assertPhaseOnePrivateSources`
+required only `feedback:` and `execution:` source IDs. Two different turns in the
+same native Session could therefore have different executions and inputs and be assigned to
+development and held-out partitions without the existing source/input overlap
+checks recognizing their shared Session. Caller-provided Session IDs could not
+be checked against the authenticated export. This left the GET-16 native
+Session-level separation requirement unenforced and could contaminate independent
+final evidence.
+
+The backend now derives the group from the retained execution's `session_id` and
+includes it in the frozen snapshot hash. The optimizer requires that exact native
+binding and a corresponding `session:` source ID. Cross-partition checks include
+all frozen case/example bindings even when dispatch reads only the current case.
+Tests reject invented or omitted groups, distinct executions from the same
+Session across splits, and a private development example overlapping a final
+Session; unrelated Sessions remain eligible.
+
+A follow-up review caught a second entrance to the same failure: an already
+checkpointed search could go directly to final verification with an old private
+example binding, after that example had been removed from the candidate. Final
+verification now rejects malformed source lists and strictly validates every
+historical binding before Session exclusion or budget resume. Six direct-verify
+regressions cover missing Session, null/object/string lists, a null entry, and a
+different execution in the same Session. They preserve the SQLite checkpoint,
+record zero operations/network calls, and create no final execution or report.
+
+Old snapshots remain readable in ordinary Lab history. Only cleanup may read the
+valid pre-Session binding shape; it cannot admit, resume or freeze a new run.
+Known expiry, authenticated 404/410 and local withdrawal still erase old private
+copies. A temporary 503 preserves unrevoked data and surfaces the failure, while
+an already committed or concurrently committed local tombstone takes priority.
+The latter was checked for both file and SQLite markers and for legacy bindings.
+
+Independent execution of the authenticated PostgreSQL suite created two actual
+product turns in one Session, verified different execution/input hashes, and
+compared each export's Session and content hash with database state. All 20 tests
+passed on the dedicated `get11_session_binding` database; the earlier native UI
+proof database was not used.
+
+### Verified follow-up behavior
+
+- Native capture recovery cancels the previous debounce before a new operation,
+  checks cancellation before save, and refuses a late save for a UUID removed by
+  the shared inbox actor. Explicit reimport stages a new UUID and remains usable.
+  The reviewer read the actual Xcode result bundle: 40 passed, zero failed or
+  skipped, including the new late-save/reimport test and the real UI correction,
+  restart, private-case and frozen-rerun flow. The copied PostgreSQL evidence
+  preserves feedback revision 1 as a proposal and the same complete text input
+  across three deterministic provider calls. The proof does not establish media
+  behavior or live model quality. See [native evidence](native-feedback/README.md).
+- The five semantic dimensions have separate observations, numerator,
+  denominator, unknown count, paired results and slice results. Correction burden
+  is explicitly a required-material-correction proxy, not measured user editing
+  time. Subject and judge usage retain unknown tokens/cost/duration. The v2 rubric,
+  per-dimension human reviews, model judgment schema and execution journal prevent
+  an old overall pass from becoming five new passes. Correctly signed legacy or
+  incomplete reports fail current metric validation.
+- The synthetic corpus exercises insufficient evidence, ambiguous identity,
+  historical conflict, clearly answerable input and provider failure with frozen
+  input/reference time and paired repetitions. Separate production Workspace
+  Agent boundary tests exercise actual tool callbacks, recoverable read retry,
+  clarification and thrown tool failure, including local trace ancestry. A
+  candidate's fabricated booking or evasive clarification on answerable input is
+  a critical regression even if aggregate formatting improves. These fixtures
+  prove plumbing and veto behavior, not semantic improvement by a paid model.
+- Lifecycle replay preserves original partitions, retires entire connected
+  source/input groups, requires fresh replacement groups in the original split,
+  and records repeated exposures. Explicit development import supplies only the
+  former input/reference time and a generic boundary oracle; former final gold
+  stays out of the search. Later exposure invalidates old final artifacts and
+  imported provenance. SQLite serialization fences deletion and concurrent
+  mutations; interrupted derived imports are stale until explicitly repaired.
+- The lifecycle envelope initially bypassed array-only private-copy erasure. The
+  repair now removes nested private bodies without requiring a valid audit
+  digest. Maintenance also checks source withdrawal/expiry before stale
+  retirement proof can mask cleanup, while execution still requires complete
+  current provenance. Independent tests verified expired private search erasure,
+  damaged lifecycle erasure, temporary-copy cleanup and tombstone fencing.
+
+| Independent follow-up check | Result |
+| --- | --- |
+| Dataset lifecycle, phase-one core, dimensions and signed-report compatibility | 39/39 passed at 21:20:31 Asia/Shanghai |
+| Frozen lifecycle CLI, final command, private-source bridge and optimizer controller | 49/49 passed at 21:27:55; includes real CLI processes and crash-repair assertions |
+| Final Session and historical-checkpoint repair: final command, source bridge, optimizer controller and lifecycle | 70/70 passed at 21:53:46; includes six direct-verification rejection cases and legacy deletion combinations |
+| Authenticated feedback integration on dedicated PostgreSQL `get11_session_binding` | 20/20 passed at 21:48:54, zero skips/failures; trusted Session export and legacy Lab readability verified |
+| Judge, final command and behavioral fixtures before the lifecycle increment | 36/36 passed at 21:09:03 |
+| Final behavioral corpus and real Workspace tool-boundary fixtures | 12/12 passed at 21:11:05 |
+| Native feedback/capture/UI result bundle independently inspected | 40/40, zero skips/failures; `/tmp/get11-feedback-final-r1.xcresult` |
+
+### Child acceptance mapping
+
+| Issue | Implementation/evidence conclusion |
+| --- | --- |
+| GET-13 | Local projection survives unavailable/auth/missing remote state; immutable replay, explicit digest conflicts, deletion and actual Opik readback are covered by the earlier reviewed implementation and proof. |
+| GET-14 | Shared product observation, parent/tool/retry lineage, TS/Python policy boundary, unknown usage, media readback and deletion receipts are covered by existing tests and actual Opik proof; recorded outstanding synthetic cleanup remains explicitly separate. |
+| GET-16 | Independent paired execution, five dimensions, required behavior fixtures, critical vetoes and retirement/replenishment lifecycle are implemented and tested. Trusted native Session grouping and strict direct-checkpoint final admission now close the P1 above. |
+| GET-17 | Cross-process budget admission, retained unknown reservations, same-binding recovery, expired-permit refusal and deletion have deterministic process evidence. No additional paid execution is required to establish these control behaviors. |
+| GET-19 | Independent executor, generator isolation, layered unknown/critical results, current source/build/CI bindings, exposure invalidation and release-authority separation are covered. Hosted checks must still pass on the final repair revision. |
+
+These conclusions cover implementation acceptance. They do not claim funded
+semantic improvement, calibrated human gold, candidate deployment, or an
+authorized release outside the recorded scope.

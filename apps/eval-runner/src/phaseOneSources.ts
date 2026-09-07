@@ -11,19 +11,32 @@ export async function assertPhaseOnePrivateSources(input: {
   baseURL: string | null;
   token: string | undefined;
   currentCaseId?: string;
+  cleanupOnly?: boolean;
 }, fetcher?: typeof fetch): Promise<void> {
   phaseOneAssert(Array.isArray(input.bindings) && input.bindings.length <= 600, "PHASE_ONE_SOURCE_BINDINGS_INVALID");
+  // A known local expiry wins even for a pre-Session binding. Stricter new
+  // admission metadata must not become a new retention authority for old data.
+  if (input.bindings.some(binding => binding && typeof binding.expiresAt === "string"
+    && Date.parse(binding.expiresAt) <= Date.now())) throw new Error("OPTIMIZATION_FEEDBACK_SOURCE_UNAVAILABLE");
   const privateCases = input.cases.filter(item => (item.modelInput as { dataClass?: string }).dataClass === "private_business");
   const privateExamples = input.examples.filter(item => item.dataClass === "private_business");
   const required = [...privateCases.map(item => `case:${item.caseId}`), ...privateExamples.map(item => `example:${item.exampleId}`)];
-  const actual = input.bindings.map(item => { validateOptimizationFeedbackBinding(item); return `${item.target}:${item.targetId}`; });
+  const actual = input.bindings.map(item => { validateOptimizationFeedbackBinding(item, input.cleanupOnly ? "cleanup" : "admission"); return `${item.target}:${item.targetId}`; });
   phaseOneAssert(new Set(actual).size === actual.length && required.length === actual.length && required.every(key => actual.includes(key)), "PHASE_ONE_PRIVATE_SOURCE_BINDING_REQUIRED");
-  for (const binding of input.bindings.filter(item => item.target === "example")) {
+  // Different turns and executions still belong to one real Session. Check all
+  // frozen bindings even when the provider only needs the current case readback.
+  const sessionPartitions = new Map<string, string>();
+  for (const binding of input.cleanupOnly ? [] : input.bindings) {
+    const partition = binding.target === "example" ? "dev" : privateCases.find(item => item.caseId === binding.targetId)!.sourcePartition;
+    phaseOneAssert(!sessionPartitions.has(binding.sessionId) || sessionPartitions.get(binding.sessionId) === partition,
+      "PHASE_ONE_SOURCE_PARTITION_CONTAMINATION");
+    sessionPartitions.set(binding.sessionId, partition);
+  }
+  for (const binding of input.cleanupOnly ? [] : input.bindings.filter(item => item.target === "example")) {
     phaseOneAssert(!input.cases.some(item => item.sourcePartition !== "dev" && (item.sourceIds.includes(`feedback:${binding.feedbackId}`)
-      || item.sourceIds.includes(`execution:${binding.executionId}`))),
+      || item.sourceIds.includes(`execution:${binding.executionId}`) || item.sourceIds.includes(`session:${binding.sessionId}`))),
       "PHASE_ONE_SOURCE_PARTITION_CONTAMINATION");
   }
-  if (input.bindings.some(binding => Date.parse(binding.expiresAt) <= Date.now())) throw new Error("OPTIMIZATION_FEEDBACK_SOURCE_UNAVAILABLE");
   if (required.length === 0) return;
   phaseOneAssert(input.baseURL && input.token, "PHASE_ONE_PRIVATE_SOURCE_READBACK_UNCONFIGURED");
   const baseURL = input.baseURL, token = input.token;
@@ -37,7 +50,8 @@ export async function assertPhaseOnePrivateSources(input: {
       const item = privateCases.find(item => item.caseId === binding.targetId)!;
       phaseOneAssert(digestCanonicalJson(item.modelInput) === digestCanonicalJson(optimizationInputFromFeedback(bundle))
         && item.referenceTime === bundle.snapshot.reference_time, "PHASE_ONE_PRIVATE_SOURCE_INPUT_CHANGED");
-      phaseOneAssert(item.sourceIds.includes(`feedback:${binding.feedbackId}`) && item.sourceIds.includes(`execution:${binding.executionId}`), "PHASE_ONE_PRIVATE_SOURCE_GROUP_REQUIRED");
+      phaseOneAssert(item.sourceIds.includes(`feedback:${binding.feedbackId}`) && item.sourceIds.includes(`execution:${binding.executionId}`)
+        && item.sourceIds.includes(`session:${binding.sessionId}`), "PHASE_ONE_PRIVATE_SOURCE_GROUP_REQUIRED");
       if (item.purpose === "final_verification") {
         const oracle = item.oracle as { expectedBehaviorProposal?: string; expectationAuthority?: string };
         phaseOneAssert(oracle.expectationAuthority === "proposal" && oracle.expectedBehaviorProposal === bundle.snapshot.expected_behavior,

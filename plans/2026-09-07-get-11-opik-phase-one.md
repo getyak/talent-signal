@@ -78,11 +78,23 @@ outbox/runtime integration respectively. Independent review follows integration.
    fixture, bound contact parsing and remove credential-derived cache hashes.
    Independent review passed 43 Agent and 61 budget/controller/CLI tests.
    The separately reviewed final-judge I/O alert is individually adjudicated;
-   its rule and CI job remain enabled. A new native UI-to-PostgreSQL proof is
-   in progress to verify correction persistence and a frozen rerun through the
-   actual app. Also bind
-   readiness to migration 057 and wire optional runtime/release configuration
-   into the existing internal TestFlight deployment. Then require current-head
+   its rule and CI job remain enabled. Native UI-to-PostgreSQL verification
+   passed 40 tests with zero failures/skips, including process restart and the
+   frozen rerun. Terminal receipt deletion now rejects a late autosave, with
+   independent review and Simulator regression proof. A fresh GET-16 acceptance
+   audit found missing atomic metrics, varied behavior/tool-failure proof and
+   an explicit holdout retirement/replacement bridge. All three are implemented
+   and independently tested. Two cleanup findings are closed, including known
+   local withdrawal winning a native 503. A final source review found that
+   different executions from one native Session could cross dataset partitions;
+   the trusted Session binding, legacy cleanup compatibility and direct
+   checkpoint-to-final verification now pass both independent reviews. Final
+   local verification passed all 196 runner tests, 63 evaluation tests and the
+   backend build/type/test suite; independent PostgreSQL verification passed
+   20 tests. No confirmed P0/P1 remains open in these reviews. Readiness is bound
+   to migration 057 and optional runtime/release
+   configuration is wired into the existing internal TestFlight deployment.
+   Then require current-head
    hosted CI/CD, automatic merge, and baseline deployment readback. Historical
    signed implementation proof remains attached to `59d6e11e`.
 5. **Pending:** funded real optimization and scoped release/rollback once GET-12

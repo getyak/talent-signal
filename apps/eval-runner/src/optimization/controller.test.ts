@@ -54,7 +54,7 @@ function feedbackBundle(): LabRegressionExport {
   const sample = { task: "relationship_text" as const, id: "feedback-source", title: "Private feedback", revision: hash(input), partition: "development" as const,
     input_json: JSON.stringify(input), input_hash: hash(input), expected: "EXPECTED-PROPOSAL-ONLY" };
   const snapshot: LabRegressionExport["snapshot"] = { schema_version: "lab-regression.v1", data_class: "private_business", task: "relationship_text",
-    feedback_source: { feedback_id: uuid(3), feedback_revision: 1, execution_id: uuid(4), original_task_id: uuid(5), original_output_hash: hash("old-answer"), expectation_authority: "proposal", execution_authority: "none" },
+    feedback_source: { feedback_id: uuid(3), feedback_revision: 1, execution_id: uuid(4), session_id: uuid(6), original_task_id: uuid(5), original_output_hash: hash("old-answer"), expectation_authority: "proposal", execution_authority: "none" },
     source_job_id: uuid(5), source_definition_hash: hash(input), source_attempt: { id: uuid(4), ordinal: 0, case_id: sample.id, configuration_index: 0, repetition: 1,
       status: "completed", started_at: now, finished_at: now, requested_model: model, actual_model: model, prompt_revision: "original", actual_prompt_revision: "original",
       provider_request_id: "fixture", duration_ms: 1, input_tokens: 1, output_tokens: 1, title: "Known", answer: "Original answer", citation_ids: ["evidence-1"], error_code: null, checks: [] },

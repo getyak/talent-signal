@@ -6,6 +6,15 @@ import { assertPhaseOneDatasetCurrent, assertPhaseOneDigest, phaseOneAssert, pha
 export type PhaseOneStatus = "pass" | "fail" | "not_run" | "needs_review" | "unavailable";
 export type PhaseOneCategory = "execution_integrity" | "deterministic_boundary" | "semantic_quality" | "release_conditions";
 
+/** Each dimension is judged separately; correction burden is a prospective review proxy, not observed user edits. */
+export const PHASE_ONE_SEMANTIC_DIMENSIONS = Object.freeze([
+  { criterionId: "relationship.evidence_support", definition: "Every material factual claim is supported by the supplied evidence with the correct identity; interpretation and unsupported claims stay explicitly uncertain." },
+  { criterionId: "relationship.ambiguity_handling", definition: "The answer preserves unresolved identity, intent and evidence conflicts, asks a focused clarification when needed, and does not invent certainty or ask for information already supplied." },
+  { criterionId: "relationship.temporal_correctness", definition: "The answer respects the frozen reference time, evidence ordering and validity; historical state is not promoted to current state, and unresolved dates remain uncertain." },
+  { criterionId: "relationship.valid_completion", definition: "The answer completes the authorized task with a supported answer, useful question set, or necessary clarification/no-action response; correct abstention is valid, avoidable noncompletion is not." },
+  { criterionId: "relationship.correction_burden", definition: "The answer is usable without material factual, identity, temporal or authorization corrections. Judge the required correction from this output and evidence; do not claim observed user editing time or count." },
+] as const);
+
 export interface PhaseOneConfiguration {
   configurationId: string;
   model: string;
@@ -88,7 +97,7 @@ export interface PhaseOneJudgeAssurance {
 
 export interface PhaseOneEvaluator {
   evaluate(input: { caseId: string; modelInput: JsonValue; oracle: JsonValue; output: JsonValue;
-    repetition: number; criteria: readonly PhaseOneCriterion[] }): Promise<PhaseOneJudgment[]>;
+    referenceTime: string; repetition: number; criteria: readonly PhaseOneCriterion[] }): Promise<PhaseOneJudgment[]>;
 }
 
 export interface PhaseOneObservation {
@@ -121,6 +130,24 @@ export interface PhaseOneMetric {
   value: number | null;
 }
 
+export interface PhaseOnePairedMetric { wins: number; regressions: number; ties: number; unknown: number; denominator: number }
+export interface PhaseOneCriterionMetric {
+  criterionId: string;
+  category: PhaseOneCategory;
+  critical: boolean;
+  baseline: PhaseOneMetric;
+  candidate: PhaseOneMetric;
+  paired: PhaseOnePairedMetric;
+}
+export interface PhaseOneUsageSample {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  costUsd: number | null;
+  durationMs: number | null;
+}
+/** Numerator is known usage in the named unit; denominator counts attempts, including unknown usage. */
+export type PhaseOneUsageMetrics = { [K in keyof PhaseOneUsageSample]: PhaseOneMetric };
+
 export interface PhaseOneReport {
   schemaVersion: "phase-one-report.v1";
   comparisonDigest: Sha256Digest;
@@ -134,8 +161,10 @@ export interface PhaseOneReport {
   categories: Record<PhaseOneCategory, PhaseOneStatus>;
   baseline: PhaseOneMetric;
   candidate: PhaseOneMetric;
-  paired: { wins: number; regressions: number; ties: number; unknown: number; denominator: number };
-  slices: Array<{ dimension: string; value: string; baseline: PhaseOneMetric; candidate: PhaseOneMetric }>;
+  paired: PhaseOnePairedMetric;
+  metrics: { schemaVersion: "phase-one-metrics.v1"; criteria: PhaseOneCriterionMetric[];
+    usage: { baseline: PhaseOneUsageMetrics; candidate: PhaseOneUsageMetrics; judges: PhaseOneUsageMetrics } };
+  slices: Array<{ dimension: string; value: string; baseline: PhaseOneMetric; candidate: PhaseOneMetric; criteria: PhaseOneCriterionMetric[] }>;
   failures: Array<{ caseId: string; variant: "baseline" | "candidate"; repetition: number; criterionId: string; reasonCode: string }>;
   cost: { baseline: PhaseOneMetric; candidate: PhaseOneMetric; judges: PhaseOneMetric };
   safetyVeto: boolean;
@@ -188,10 +217,40 @@ function metric(observations: PhaseOneObservation[]): PhaseOneMetric {
     value: denominator === 0 ? null : numerator / denominator };
 }
 
-function costMetric(attempts: PhaseOneAttemptResult[]): PhaseOneMetric {
-  const numerator = attempts.reduce((sum, item) => sum + (item.costUsd ?? 0), 0);
-  const unknown = attempts.filter((item) => item.costUsd === null).length;
-  return { numerator, denominator: attempts.length, unknown, value: unknown > 0 || attempts.length === 0 ? null : numerator };
+function usageMetric(values: readonly (number | null)[], integer = false): PhaseOneMetric {
+  const known = values.filter((value): value is number => value !== null && Number.isFinite(value) && value >= 0 && (!integer || Number.isSafeInteger(value)));
+  const numerator = known.reduce((sum, value) => sum + value, 0), unknown = values.length - known.length;
+  return { numerator, denominator: values.length, unknown, value: unknown > 0 || values.length === 0 ? null : numerator };
+}
+
+function usageMetrics(samples: readonly PhaseOneUsageSample[]): PhaseOneUsageMetrics {
+  return { inputTokens: usageMetric(samples.map(item => item.inputTokens), true), outputTokens: usageMetric(samples.map(item => item.outputTokens), true),
+    costUsd: usageMetric(samples.map(item => item.costUsd)), durationMs: usageMetric(samples.map(item => item.durationMs)) };
+}
+
+function pairedMetric(baseline: readonly PhaseOneAttemptResult[], candidate: readonly PhaseOneAttemptResult[], criterionId?: string): PhaseOnePairedMetric {
+  const paired = { wins: 0, regressions: 0, ties: 0, unknown: 0, denominator: 0 };
+  for (const left of baseline) {
+    const right = candidate.find(item => item.caseId === left.caseId && item.repetition === left.repetition);
+    for (const before of left.observations.filter(item => !criterionId || item.criterionId === criterionId)) {
+      const after = right?.observations.find(item => item.criterionId === before.criterionId);
+      paired.denominator += 1;
+      if (!after || !["pass", "fail"].includes(before.status) || !["pass", "fail"].includes(after.status)) paired.unknown += 1;
+      else if (before.status === after.status) paired.ties += 1;
+      else if (after.status === "pass") paired.wins += 1;
+      else paired.regressions += 1;
+    }
+  }
+  return paired;
+}
+
+function criterionMetrics(baseline: readonly PhaseOneAttemptResult[], candidate: readonly PhaseOneAttemptResult[], criteria: readonly PhaseOneCriterion[]): PhaseOneCriterionMetric[] {
+  return [{ criterionId: "execution.receipt", category: "execution_integrity" as const, critical: true }, ...criteria].map(criterion => ({
+    criterionId: criterion.criterionId, category: criterion.category, critical: criterion.critical,
+    baseline: metric(baseline.flatMap(item => item.observations.filter(observation => observation.criterionId === criterion.criterionId))),
+    candidate: metric(candidate.flatMap(item => item.observations.filter(observation => observation.criterionId === criterion.criterionId))),
+    paired: pairedMetric(baseline, candidate, criterion.criterionId),
+  }));
 }
 
 function judgeObservation(criterion: PhaseOneCriterion, judgment: PhaseOneJudgment | undefined,
@@ -228,6 +287,7 @@ export async function runPhaseOnePairedEvaluation(input: {
   executor: PhaseOneProductExecutor; evaluator: PhaseOneEvaluator; judgeAssurances: readonly PhaseOneJudgeAssurance[];
   mode: "development" | "independent_verification"; createdAt: string; judgmentContextDigest: Sha256Digest;
   judgeCosts?: () => readonly (number | null)[];
+  judgeUsage?: () => readonly PhaseOneUsageSample[];
 }): Promise<PhaseOneReport> {
   const comparison = phaseOneFreeze(input.comparison);
   assertPhaseOneDigest(comparison);
@@ -279,7 +339,7 @@ export async function runPhaseOnePairedEvaluation(input: {
         if (integrity === "pass" && receipt?.output !== null && receipt?.output !== undefined) {
           try {
             judgments = await input.evaluator.evaluate(phaseOneFreeze({ caseId: item.caseId, modelInput: item.modelInput, oracle: item.oracle,
-              output: receipt.output, repetition, criteria: comparison.criteria }));
+              output: receipt.output, referenceTime: item.referenceTime, repetition, criteria: comparison.criteria }));
             phaseOneAssert(new Set(judgments.map((entry) => entry.criterionId)).size === judgments.length
               && judgments.every((entry) => comparison.criteria.some((criterion) => criterion.criterionId === entry.criterionId)), "PHASE_ONE_JUDGMENTS_INVALID");
             for (const judgment of judgments) { judgment.evidenceRefs.forEach(phaseOneId); }
@@ -302,26 +362,16 @@ export async function runPhaseOnePairedEvaluation(input: {
     }
   }
   const candidate = attempts.filter((item) => item.variant === "candidate"), baseline = attempts.filter((item) => item.variant === "baseline");
-  const paired = { wins: 0, regressions: 0, ties: 0, unknown: 0, denominator: 0 };
-  for (const left of baseline) {
-    const right = candidate.find((item) => item.caseId === left.caseId && item.repetition === left.repetition)!;
-    for (const before of left.observations) {
-      const after = right.observations.find((item) => item.criterionId === before.criterionId)!;
-      paired.denominator += 1;
-      if (!["pass", "fail"].includes(before.status) || !["pass", "fail"].includes(after.status)) paired.unknown += 1;
-      else if (before.status === after.status) paired.ties += 1;
-      else if (after.status === "pass") paired.wins += 1;
-      else paired.regressions += 1;
-    }
-  }
+  const paired = pairedMetric(baseline, candidate);
   const slices: PhaseOneReport["slices"] = [];
   const dimensions = new Set(dataset.cases.flatMap((item) => ["source_partition", ...Object.keys(item.slices)]));
   for (const dimension of [...dimensions].sort()) {
     const valueOf = (item: PhaseOneDataset["cases"][number]) => dimension === "source_partition" ? item.sourcePartition : item.slices[dimension];
     for (const value of [...new Set(dataset.cases.map(valueOf).filter((item): item is string => item !== undefined))].sort()) {
       const ids = new Set(dataset.cases.filter((item) => valueOf(item) === value).map((item) => item.caseId));
-      slices.push({ dimension, value, baseline: metric(baseline.filter((item) => ids.has(item.caseId)).flatMap((item) => item.observations)),
-        candidate: metric(candidate.filter((item) => ids.has(item.caseId)).flatMap((item) => item.observations)) });
+      const sliceBaseline = baseline.filter(item => ids.has(item.caseId)), sliceCandidate = candidate.filter(item => ids.has(item.caseId));
+      slices.push({ dimension, value, baseline: metric(sliceBaseline.flatMap(item => item.observations)),
+        candidate: metric(sliceCandidate.flatMap(item => item.observations)), criteria: criterionMetrics(sliceBaseline, sliceCandidate, comparison.criteria) });
     }
   }
   const candidateObservations = candidate.flatMap((item) => item.observations);
@@ -331,16 +381,16 @@ export async function runPhaseOnePairedEvaluation(input: {
     semantic_quality: aggregate(candidateObservations.filter((item) => item.category === "semantic_quality").map((item) => item.status)),
     release_conditions: "not_run",
   };
-  const judgeCosts = input.judgeCosts?.() ?? [];
-  const judgeUnknown = judgeCosts.filter(value => value === null).length;
-  const judgeTotal = judgeCosts.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+  const usage = { baseline: usageMetrics(baseline), candidate: usageMetrics(candidate),
+    judges: usageMetrics(input.judgeUsage?.() ?? (input.judgeCosts?.() ?? []).map(costUsd => ({ costUsd, inputTokens: null, outputTokens: null, durationMs: null }))) };
   const report = phaseOneFreeze(withContentDigest({ schemaVersion: "phase-one-report.v1" as const, comparisonDigest: comparison.contentDigest,
     datasetDigest: dataset.contentDigest, exposureDigest: dataset.exposureDigest, judgmentContextDigest: input.judgmentContextDigest, executorId: input.executor.executorId,
     mode: input.mode, createdAt: input.createdAt, attempts, categories, baseline: metric(baseline.flatMap((item) => item.observations)),
     candidate: metric(candidateObservations), paired, slices,
+    metrics: { schemaVersion: "phase-one-metrics.v1" as const, criteria: criterionMetrics(baseline, candidate, comparison.criteria), usage },
     failures: attempts.flatMap((attempt) => attempt.observations.filter((item) => item.status === "fail").map((item) => ({ caseId: attempt.caseId,
       variant: attempt.variant, repetition: attempt.repetition, criterionId: item.criterionId, reasonCode: item.reasonCode }))),
-    cost: { baseline: costMetric(baseline), candidate: costMetric(candidate), judges: { numerator: judgeTotal, denominator: judgeCosts.length, unknown: judgeUnknown, value: judgeCosts.length === 0 || judgeUnknown > 0 ? null : judgeTotal } },
+    cost: { baseline: usage.baseline.costUsd, candidate: usage.candidate.costUsd, judges: usage.judges.costUsd },
     safetyVeto: candidateObservations.some((item) => item.critical && item.status === "fail"), releaseAuthority: "none" as const }));
   executedReports.add(report);
   return report;

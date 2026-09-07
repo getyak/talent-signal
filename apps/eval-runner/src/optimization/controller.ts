@@ -1,4 +1,5 @@
-import { existsSync, rmSync } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, openSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { renderRelationshipTaskSelectionModule, RuntimeObserver, RuntimeObservationOutbox, RuntimeObservationPolicySchema,
@@ -6,7 +7,8 @@ import { renderRelationshipTaskSelectionModule, RuntimeObserver, RuntimeObservat
 import { labReadbackURL } from "../labRegressionReadback.js";
 import { assertFeedbackBindingCurrent, feedbackBindingFromBundle, isOptimizationFeedbackSourceInvalidated, optimizationDemonstrationFromFeedback, optimizationInputFromFeedback, readOptimizationFeedbackSource,
   validateOptimizationFeedbackBinding, type OptimizationFeedbackBinding, type OptimizationFeedbackProposal } from "./feedbackSource.js";
-import { digestCanonicalJson, type JsonValue, type PhaseOneProductRequest } from "@talent-signal/evaluation";
+import { assertPhaseOneRetiredDevelopment, digestCanonicalJson, type DatasetPartition, type JsonValue, type PhaseOneDevelopmentProvenance, type PhaseOneProductRequest } from "@talent-signal/evaluation";
+import { readOwnedPhaseOneDataset } from "../phaseOneDatasetLifecycle.js";
 import { FileOptimizationBudgetLedger, type OptimizationBudgetBindings, type OptimizationBudgetPermit, type OptimizationBudgetRunInput } from "./budget.js";
 import { controllerBasename, controllerDirectory, makeControllerDirectory, readControllerJson, writeControllerArtifact } from "./controllerFiles.js";
 import { replayOptimizerSearch, runOptimizerSearch, type OptimizerSearchReport } from "./optimizer.js";
@@ -32,11 +34,12 @@ export interface OptimizationControllerConfiguration {
 }
 export interface OptimizationSearchCase {
   caseId: string;
-  sourcePartition: "dev";
+  sourcePartition: DatasetPartition;
   purpose: "development";
   referenceTime: string;
   modelInput: OptimizationRelationshipInput;
   oracle: { allowedKinds: string[]; requiredCitationIds: string[] };
+  developmentProvenance?: PhaseOneDevelopmentProvenance;
 }
 export interface OptimizationSearchInput {
   schemaVersion: "optimization-search-input.v1";
@@ -81,7 +84,7 @@ export function readOptimizationBudgetController(directory: string, runId: strin
   const ledger = new FileOptimizationBudgetLedger({ path: join(path, configuration.ledgerFile) });
   return { configuration, ledger, run: { runId, bindings, ...(permit ? { permit } : {}) }, model: configuration.model, pricing: configuration.pricing };
 }
-function readSearch(directory: string, configuration: OptimizationControllerConfiguration, bindings: OptimizationBudgetBindings, verifyFrozen = true): OptimizationSearchInput {
+export function readOptimizationSearch(directory: string, configuration: OptimizationControllerConfiguration, bindings: OptimizationBudgetBindings, verifyFrozen = true, allowStaleRetirementProof = false, allowLegacySourceCleanup = false): OptimizationSearchInput {
   const raw = record(readControllerJson(directory, configuration.searchFile), ["schemaVersion", "baseline", "examples", "cases", "maximumTrials", "repetitions", "timeoutMs"], "OPTIMIZATION_SEARCH_INVALID", ["feedbackSources", "feedbackProposals"]);
   if (raw.schemaVersion !== "optimization-search-input.v1" || !Array.isArray(raw.examples) || raw.examples.length > 16
     || !Array.isArray(raw.cases) || raw.cases.length < 1 || raw.cases.length > 100
@@ -92,9 +95,19 @@ function readSearch(directory: string, configuration: OptimizationControllerConf
   validateOptimizationCandidate(search.baseline, search.examples);
   const ids = new Set<string>();
   for (const value of search.cases) {
-    record(value, ["caseId", "sourcePartition", "purpose", "referenceTime", "modelInput", "oracle"], "OPTIMIZATION_CASE_INVALID");
-    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(value.caseId) || ids.has(value.caseId) || value.sourcePartition !== "dev" || value.purpose !== "development"
+    record(value, ["caseId", "sourcePartition", "purpose", "referenceTime", "modelInput", "oracle"], "OPTIMIZATION_CASE_INVALID", ["developmentProvenance"]);
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/.test(value.caseId) || ids.has(value.caseId) || !["dev", "p0", "held_out", "red_team"].includes(value.sourcePartition) || value.purpose !== "development"
       || !Number.isFinite(Date.parse(value.referenceTime))) throw new Error("OPTIMIZATION_DEVELOPMENT_CASE_REQUIRED");
+    if (value.sourcePartition !== "dev") {
+      // Cleanup and explicit import repair still inspect native expiry/revocation
+      // when final authority has already changed or been tombstoned.
+      if (!allowStaleRetirementProof) {
+        if (!value.developmentProvenance) throw new Error("OPTIMIZATION_DEVELOPMENT_CASE_REQUIRED");
+        const owned = readOwnedPhaseOneDataset(directory);
+        if (!owned.lifecycle) throw new Error("PHASE_ONE_RETIREMENT_PROVENANCE_REQUIRED");
+        assertPhaseOneRetiredDevelopment(owned.lifecycle, value);
+      }
+    } else if (value.developmentProvenance) throw new Error("PHASE_ONE_SOURCE_PARTITION_CONTAMINATION");
     ids.add(value.caseId);
     validateOptimizationRelationshipInput(value.modelInput);
     const oracle = record(value.oracle, ["allowedKinds", "requiredCitationIds"], "OPTIMIZATION_ORACLE_INVALID");
@@ -105,7 +118,7 @@ function readSearch(directory: string, configuration: OptimizationControllerConf
   if (search.feedbackSources !== undefined && (!Array.isArray(search.feedbackSources) || search.feedbackSources.length > 116)) throw new Error("OPTIMIZATION_FEEDBACK_BINDING_INVALID");
   const targets = new Set<string>();
   for (const source of search.feedbackSources ?? []) {
-    validateOptimizationFeedbackBinding(source);
+    validateOptimizationFeedbackBinding(source, allowLegacySourceCleanup ? "cleanup" : "admission");
     const key = source.target + ":" + source.targetId;
     const item = source.target === "case" ? search.cases.find(item => item.caseId === source.targetId)?.modelInput : search.examples.find(item => item.exampleId === source.targetId);
     if (targets.has(key) || item?.dataClass !== "private_business") throw new Error("OPTIMIZATION_FEEDBACK_BINDING_INVALID");
@@ -125,6 +138,23 @@ function readSearch(directory: string, configuration: OptimizationControllerConf
   if (verifyFrozen && (bindings.optimizerVersion !== OPTIMIZER_VERSION || bindings.evaluatorVersion !== OPTIMIZATION_SEARCH_EVALUATOR
     || bindings.datasetDigest !== digestCanonicalJson(search) || bindings.baselineDigest !== digestCanonicalJson(optimizationConfiguration(configuration.model, search.baseline, search.examples)))) throw new Error("OPTIMIZATION_FROZEN_INPUT_MISMATCH");
   return search;
+}
+const readSearch = readOptimizationSearch;
+
+/** Cleanup honors an already committed local withdrawal without depending on
+ * native availability or the integrity of an obsolete dataset document. */
+function phaseOneSourceAuthorityTombstoned(directory: string): boolean {
+  if (existsSync(join(directory, "phase-one-tombstone.json"))) return true;
+  const path = join(directory, "phase-one-artifacts.sqlite");
+  if (!existsSync(path)) return false;
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try { if (!fstatSync(fd).isFile()) throw new Error("PHASE_ONE_CONTROLLER_FILE_PERMISSIONS_REQUIRED"); }
+  finally { closeSync(fd); }
+  const db = new DatabaseSync(path, { readOnly: true, timeout: 5000, allowExtension: false });
+  try {
+    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'artifact_control'").get()) return false;
+    return db.prepare("SELECT tombstoned FROM artifact_control WHERE id = 1").get()?.tombstoned === 1;
+  } finally { db.close(); }
 }
 function runDirectory(directory: string, runId: string): string {
   return makeControllerDirectory(makeControllerDirectory(directory, "runs"), digestCanonicalJson(runId).slice(7));
@@ -229,7 +259,10 @@ export async function runOptimizationControllerCommand(argv: readonly string[], 
     }
   };
   const assertSources = async (search: OptimizationSearchInput) => {
+    const locallyWithdrawn = () => command === "source-sweep" && search.cases.some(item => item.sourcePartition !== "dev")
+      && phaseOneSourceAuthorityTombstoned(directory);
     try {
+      if (locallyWithdrawn()) throw new Error("PHASE_ONE_RUN_TOMBSTONED");
       const checks = await Promise.allSettled((search.feedbackSources ?? []).map(async source => {
         if (Date.parse(source.expiresAt) <= Date.now()) throw new Error("OPTIMIZATION_FEEDBACK_SOURCE_UNAVAILABLE");
         const bundle = await readSource(source.regressionId);
@@ -251,13 +284,22 @@ export async function runOptimizationControllerCommand(argv: readonly string[], 
       const invalidated = rejected.find(check => isOptimizationFeedbackSourceInvalidated(check.reason));
       if (invalidated) throw invalidated.reason;
       if (rejected.length) throw rejected[0]!.reason;
+      for (const item of search.cases.filter(item => item.sourcePartition !== "dev")) {
+        const owned = readOwnedPhaseOneDataset(directory);
+        if (!owned.lifecycle) throw new Error("PHASE_ONE_RETIREMENT_PROVENANCE_REQUIRED");
+        assertPhaseOneRetiredDevelopment(owned.lifecycle, item);
+      }
     } catch (error) {
-      if (isOptimizationFeedbackSourceInvalidated(error)) await purge(search);
+      // Withdrawal can also commit while native readback is in flight. A 503
+      // must not mask that now-known revocation or strand its private copies.
+      const withdrawn = locallyWithdrawn();
+      if (isOptimizationFeedbackSourceInvalidated(error)
+        || withdrawn || error instanceof Error && error.message === "PHASE_ONE_RUN_TOMBSTONED" && search.cases.some(item => item.sourcePartition !== "dev")) await purge(search);
       else {
         const current = ledger.listRuns().find(item => item.runId === runId);
         if (current?.status === "running") ledger.checkpoint(runId, "source_readback_unavailable");
       }
-      throw error;
+      throw withdrawn ? new Error("PHASE_ONE_RUN_TOMBSTONED") : error;
     }
   };
   try {
@@ -290,7 +332,9 @@ export async function runOptimizationControllerCommand(argv: readonly string[], 
         flushObservations();
         return result("tombstoned", { datasetDigest: null });
       }
-      const search = readSearch(directory, configuration, run.bindings, false);
+      // Historical metadata may still prove expiry or revocation; it cannot
+      // grant Session grouping authority to start, resume, or execute a run.
+      const search = readSearch(directory, configuration, run.bindings, false, true, true);
       configureObserver(search);
       await assertSources(search);
       flushObservations();

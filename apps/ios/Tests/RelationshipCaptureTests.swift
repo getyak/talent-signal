@@ -1261,6 +1261,41 @@ final class RelationshipCaptureTests: XCTestCase {
         XCTAssertNil(removedDraft)
     }
 
+    func testLateReviewSaveCannotRestoreRemovedCaptureButExplicitReimportCan() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "capture-terminal-write-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = PendingCaptureInbox(directoryURL: directory)
+        let image = Data([1, 2, 3])
+        let seed = try await inbox.stage(imageData: image, fileName: "fixture.png", mediaType: "image/png", origin: .deterministicTest)
+        var draft = RecognizedCaptureDraft.empty
+        draft.reviewedText = "Work mode: Hybrid"
+        draft.keepOriginalForReview = false
+        try await inbox.saveReview(seed: seed, draft: draft, recovery: .init(), scope: nil)
+        try await inbox.remove(id: seed.id)
+
+        // Replay the write a previous view already prepared, after the terminal
+        // removal has committed. Cancellation timing cannot protect this boundary.
+        do {
+            try await inbox.saveReview(seed: seed, draft: draft, recovery: .init(), scope: nil)
+            XCTFail("A stale review must not recreate an explicitly removed capture.")
+        } catch let error as CocoaError {
+            XCTAssertEqual(error.code, .fileNoSuchFile)
+        }
+        let remaining = try await inbox.count()
+        XCTAssertEqual(remaining, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appending(path: "captures/\(seed.id.uuidString).metadata.json").path))
+        let restoredDraft = try await inbox.loadDraft(for: seed.id)
+        XCTAssertNil(restoredDraft)
+
+        let reimported = try await inbox.stage(imageData: image, fileName: "fixture.png", mediaType: "image/png", origin: .deterministicTest)
+        XCTAssertNotEqual(reimported.id, seed.id)
+        try await inbox.saveReview(seed: reimported, draft: draft, recovery: .init(), scope: nil)
+        let reimportedDraft = try await inbox.loadDraft(for: reimported.id)
+        XCTAssertEqual(reimportedDraft?.reviewedText, draft.reviewedText)
+        let reimportCount = try await inbox.count()
+        XCTAssertEqual(reimportCount, 1)
+    }
+
     private static let currentPersonID = "11111111-1111-4111-8111-111111111111"
     private static let historicalPersonID = "22222222-2222-4222-8222-222222222222"
     private static let currentContextID = "33333333-3333-4333-8333-333333333333"

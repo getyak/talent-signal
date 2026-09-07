@@ -12,6 +12,7 @@ import { LabExperimentJobService } from "./labExperimentJobs.js";
 import { LabRegressionService } from "./labRegressions.js";
 import { FeedbackService, observationAssessment } from "./feedback.js";
 import { feedbackExecution } from "./feedbackExecutions.js";
+import { labHash } from "./labJobCases.js";
 
 // Explicit opt-in: the suite creates only its own synthetic business fixtures.
 const database = process.env.FEEDBACK_TEST_DATABASE_URL;
@@ -192,6 +193,43 @@ async function revokeWhilePaused(capture: string, gate: ReturnType<typeof paused
 }
 
 describe.skipIf(!pool)("Authenticated product feedback learning PostgreSQL loop", () => {
+  it("exports the same trusted Session group for distinct product turns and preserves legacy Lab readability", async () => {
+    const submit = async (source: FeedbackSource) => {
+      // This independent synthetic client has its own route quota; the shared
+      // lifecycle suite intentionally issues many other feedback mutations.
+      const response = await app.inject({ method: "PUT", url: `/v1/feedback/${randomUUID()}`, headers,
+        remoteAddress: "127.0.0.2", payload: mutation(source) });
+      expect(response.statusCode, response.body).toBe(200); return response.json().feedback;
+    };
+    const f = await fixture(), firstTurn = await turn(f, "Clarify the first tentative meeting date.");
+    const first = await submit(firstTurn.source);
+    const secondTurn = await turn(f, "What still needs confirming for the second meeting?");
+    const second = await submit(secondTurn.source);
+    const exported = [];
+    for (const feedback of [first, second]) {
+      const response = await app.inject({ method: "GET", url: `/v1/lab/regressions/${feedback.regression_id}/export`, headers });
+      expect(response.statusCode, response.body).toBe(200);
+      const bundle = response.json(), source = bundle.snapshot.feedback_source;
+      const execution = (await pool!.query("SELECT session_id FROM feedback_execution_snapshots WHERE account_id=$1 AND user_id=$2 AND id=$3",
+        [auth.accountId, auth.userId, source.execution_id])).rows[0];
+      expect(source.session_id).toBe(f.value.id);
+      expect(source.session_id).toBe(execution.session_id);
+      expect(bundle.content_hash).toBe(labHash(bundle.snapshot));
+      exported.push(bundle);
+    }
+    expect(exported[0].snapshot.feedback_source.execution_id).not.toBe(exported[1].snapshot.feedback_source.execution_id);
+    expect(exported[0].snapshot.case.input_hash).not.toBe(exported[1].snapshot.case.input_hash);
+    // Simulate a pre-field frozen snapshot. Generic Lab history still reads it;
+    // the optimizer's authenticated source adapter must reject its missing group.
+    const legacy = exported[0].snapshot;
+    delete legacy.feedback_source.session_id;
+    await pool!.query("UPDATE lab_regressions SET snapshot=$2::jsonb,content_hash=$3 WHERE id=$1",
+      [first.regression_id, JSON.stringify(legacy), labHash(legacy)]);
+    const historical = await app.inject({ method: "GET", url: `/v1/lab/regressions/${first.regression_id}/export`, headers });
+    expect(historical.statusCode, historical.body).toBe(200);
+    expect(historical.json().snapshot.feedback_source.session_id).toBeUndefined();
+  }, 30_000);
+
   it("captures the original product request, isolates its owner, handles edit/CAS/idempotency/withdrawal and replays the frozen private input", async () => {
     const f = await fixture(), original = await turn(f), id = randomUUID(), body = mutation(original.source);
     const before = await feedbackExecution(pool!, auth, original.source.execution_id!);

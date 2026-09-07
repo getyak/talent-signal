@@ -45,7 +45,46 @@ export function verifyPhaseOneVerificationReport(envelope: PhaseOneVerificationE
   phaseOneAssert(verify(null, verificationPayload(payload), trusted.publicKeyPem, Buffer.from(signature, "base64")), "PHASE_ONE_SIGNATURE_INVALID");
   assertPhaseOneDigest(envelope.report);
   phaseOneAssert(envelope.report.executorId === trusted.executorId && envelope.report.mode === "independent_verification", "PHASE_ONE_VERIFICATION_MODE_INVALID");
+  assertCurrentReportMetrics(envelope.report);
   return phaseOneFreeze(envelope.report);
+}
+
+/** A valid old signature cannot supply the atomic metrics required by this release contract. */
+function assertCurrentReportMetrics(report: PhaseOneReport): void {
+  const fail = "PHASE_ONE_REPORT_METRICS_INVALID";
+  phaseOneAssert(report.schemaVersion === "phase-one-report.v1" && report.metrics?.schemaVersion === "phase-one-metrics.v1"
+    && Array.isArray(report.metrics.criteria) && Array.isArray(report.attempts) && report.attempts.length > 0, fail);
+  const ids = new Set(report.attempts.flatMap(attempt => attempt.observations.map(item => item.criterionId)));
+  phaseOneAssert(ids.size > 0 && report.metrics.criteria.length === ids.size
+    && new Set(report.metrics.criteria.map(item => item.criterionId)).size === ids.size
+    && report.metrics.criteria.every(item => ids.has(item.criterionId)), fail);
+  const count = (value: number) => Number.isSafeInteger(value) && value >= 0;
+  for (const criterion of report.metrics.criteria) {
+    for (const variant of ["baseline", "candidate"] as const) {
+      const observations = report.attempts.filter(attempt => attempt.variant === variant)
+        .flatMap(attempt => attempt.observations.filter(item => item.criterionId === criterion.criterionId));
+      const metric = criterion[variant];
+      const passed = observations.filter(item => item.status === "pass").length;
+      const unknown = observations.filter(item => !["pass", "fail"].includes(item.status)).length;
+      phaseOneAssert(observations.every(item => item.category === criterion.category && item.critical === criterion.critical)
+        && metric?.numerator === passed && metric.denominator === observations.length && metric.unknown === unknown
+        && metric.value === (observations.length ? passed / observations.length : null), fail);
+    }
+    const paired = criterion.paired;
+    phaseOneAssert(paired && [paired.wins, paired.regressions, paired.ties, paired.unknown, paired.denominator].every(count)
+      && paired.denominator === criterion.baseline.denominator
+      && paired.wins + paired.regressions + paired.ties + paired.unknown === paired.denominator, fail);
+  }
+  for (const variant of ["baseline", "candidate", "judges"] as const) {
+    const usage = report.metrics.usage?.[variant];
+    for (const name of ["inputTokens", "outputTokens", "costUsd", "durationMs"] as const) {
+      const metric = usage?.[name];
+      phaseOneAssert(metric && Number.isFinite(metric.numerator) && metric.numerator >= 0
+        && count(metric.denominator) && count(metric.unknown) && metric.unknown <= metric.denominator
+        && (variant === "judges" || metric.denominator === report.attempts.filter(attempt => attempt.variant === variant).length)
+        && metric.value === (metric.unknown > 0 || metric.denominator === 0 ? null : metric.numerator), fail);
+    }
+  }
 }
 
 export interface PhaseOneReleaseBinding {

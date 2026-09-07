@@ -1,12 +1,14 @@
 import { generateKeyPairSync } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { digestCanonicalJson, type PhaseOneCase } from "@talent-signal/evaluation";
+import { digestCanonicalJson, PHASE_ONE_SEMANTIC_DIMENSIONS, type PhaseOneCase } from "@talent-signal/evaluation";
 import { createPhaseOneHttpRuntimeReader, runPhaseOneCommand, sweepPhaseOneControllerSources } from "./phaseOneCommand.js";
 import { FileOptimizationBudgetLedger, type OptimizationBudgetPermit } from "./optimization/budget.js";
+import { loadedRelationshipTaskConfiguration } from "@talent-signal/agent";
+import * as phaseOneCI from "./phaseOneCI.js";
 
 const directories: string[] = [];
 const hash = digestCanonicalJson;
@@ -60,6 +62,65 @@ function runningBudget(state: ReturnType<typeof fixture>) {
 afterEach(() => { for (const path of directories.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
 describe("independent phase one controller process", () => {
+  it.each(["legacy", "null", "object", "string", "invalid-entry", "same-session"] as const)(
+    "rejects %s historical feedback sources before resuming a checkpoint for direct paid verification", async shape => {
+      const state = fixture(), sessionId = "10000000-0000-4000-8000-000000000001";
+      const binding = { target: "example", targetId: "removed-private-example", regressionId: "10000000-0000-4000-8000-000000000002",
+        contentHash: "a".repeat(64), feedbackId: "10000000-0000-4000-8000-000000000003", feedbackRevision: 1,
+        executionId: "10000000-0000-4000-8000-000000000004", sessionId, expiresAt: state.config.expiresAt, expectationAuthority: "proposal" };
+      const { sessionId: _sessionId, ...legacyBinding } = binding;
+      const sources = shape === "legacy" ? [legacyBinding] : shape === "null" ? null : shape === "object" ? {} : shape === "string" ? "invalid"
+        : shape === "invalid-entry" ? [null] : [binding];
+      // The search used a private example that the final candidate no longer contains.
+      // The final case has a different feedback/execution identity from the same Session.
+      state.cases[0]!.oracle = { allowedKinds: ["answer"], requiredCitationIds: [] };
+      state.cases[2]!.sourceIds.push(`session:${sessionId}`, "feedback:10000000-0000-4000-8000-000000000005", "execution:10000000-0000-4000-8000-000000000006");
+      state.write("cases.json", state.cases);
+      state.write("baseline.json", state.read("candidate.json"));
+      const demonstration = "Disposable historical private example fixture";
+      const search = { schemaVersion: "optimization-search-input.v1", baseline: state.read("baseline.json"), cases: [state.cases[0]],
+        examples: [{ exampleId: binding.targetId, partition: "dev", dataClass: "private_business", demonstration, contentDigest: hash(demonstration) }],
+        maximumTrials: 1, repetitions: 1, timeoutMs: 5000, feedbackSources: sources };
+      state.write("search.json", search);
+      state.write("phase-one-controller.json", { ...state.config, providerKind: "real_model", budgetDatasetDigest: hash(search) });
+      state.write("candidate.json", loadedRelationshipTaskConfiguration(state.config.model).configuration.parameters);
+      // CI attestation is an independent boundary; only its verification is stubbed.
+      // Controller freeze, checkpoint persistence, strict source admission and resume remain real.
+      const proof: phaseOneCI.PhaseOneCIProof = { schemaVersion: "phase-one-ci-proof.v1", applicationRevision: "a".repeat(40),
+        sourceDigest: hash("fixture-source"), runtimeBuildDigest: hash("fixture-build"), checkPolicyDigest: hash("fixture-checks"), checks: [],
+        verifiedAt: new Date().toISOString(), keyId: state.config.keyId, executorId: state.config.executorId,
+        semanticQuality: "not_run", releaseAuthority: "none", signature: "fixture" };
+      state.write("phase-one-ci-proof.json", proof);
+      const ci = vi.spyOn(phaseOneCI, "verifyPhaseOneCIProof").mockImplementation(value => value);
+      const network = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("UNEXPECTED_FIXTURE_NETWORK"));
+      try {
+        await state.command("freeze");
+        const bindings = { baselineDigest: hash(state.read("phase-one-frozen.json").comparison.baseline), datasetDigest: hash(search), evaluatorVersion: "1", optimizerVersion: "1" };
+        const permit: OptimizationBudgetPermit = { permitId: "permit-1", budgetScopeId: "scope-1", status: "active", currency: "USD",
+          issuedAt: new Date(Date.now() - 1000).toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          runLimits: { amountMicros: 1000, calls: 10, tokens: 1000, elapsedMs: 100000, candidateCount: 10, concurrency: 3 },
+          monthlyLimits: { amountMicros: 3000, calls: 30, tokens: 3000, elapsedMs: 300000, candidateCount: 30, concurrency: 9 },
+          finalValidationReserve: { amountMicros: 100, calls: 1, tokens: 100, elapsedMs: 1000, candidateCount: 0 } };
+        const configuration = { schemaVersion: "optimization-controller.v1", ledgerFile: "budget.sqlite", permitFile: "permit.json", bindingsFile: "bindings.json",
+          model: state.config.model, pricing: { currency: "USD", inputMicrosPerMillionTokens: 1, outputMicrosPerMillionTokens: 1 }, searchFile: "search.json" };
+        state.write("bindings.json", bindings); state.write("permit.json", permit); state.write("controller.json", configuration);
+        const runDirectory = `runs/${hash(state.config.runId).slice(7)}`;
+        mkdirSync(join(state.directory, runDirectory), { recursive: true, mode: 0o700 });
+        state.write(`${runDirectory}/run-control.json`, { schemaVersion: "optimization-run-control.v1", runId: state.config.runId,
+          controllerDigest: hash({ configuration, bindings, permit }) });
+        const ledger = new FileOptimizationBudgetLedger({ path: join(state.directory, "budget.sqlite") });
+        try { ledger.startRun({ runId: state.config.runId, bindings, permit }); ledger.checkpoint(state.config.runId, "search_finished_pending_independent_validation"); }
+        finally { ledger.close(); }
+        await expect(state.command("verify")).rejects.toThrow(shape === "same-session" ? "PHASE_ONE_SOURCE_PARTITION_CONTAMINATION" : "OPTIMIZATION_FEEDBACK_BINDING_INVALID");
+        const persisted = new FileOptimizationBudgetLedger({ path: join(state.directory, "budget.sqlite") });
+        try { expect(persisted.snapshot(state.config.runId)).toMatchObject({ status: "checkpointed", reason: "search_finished_pending_independent_validation", operations: [] }); }
+        finally { persisted.close(); }
+        expect(network).not.toHaveBeenCalled();
+        expect(existsSync(join(state.directory, "phase-one-executions.json"))).toBe(false);
+        expect(existsSync(join(state.directory, "phase-one-verification.json"))).toBe(false);
+      } finally { ci.mockRestore(); network.mockRestore(); }
+    });
+
   it("executes the real product serializer/parser in another process and preserves layered uncertainty", async () => {
     const state = fixture();
     const child = (command: string) => JSON.parse(execFileSync(process.execPath,
@@ -82,16 +143,44 @@ describe("independent phase one controller process", () => {
     const state = fixture(); await state.command("freeze"); await state.command("verify");
     const frozen = state.read("phase-one-frozen.json"), journal = state.read("phase-one-executions.json");
     // Identical deterministic outputs intentionally deduplicate into one decision per case/repeat.
-    state.write("reviews.json", state.cases.slice(1).flatMap(item => [1, 2].flatMap(repetition => [...new Set(journal.records.map((record: any) => hash(record.recording.receipt.output)))].map(outputDigest => ({
-      caseId: item.caseId, repetition, outputDigest,
+    state.write("reviews.json", state.cases.slice(1).flatMap(item => [1, 2].flatMap(repetition => [...new Set(journal.records.map((record: any) => hash(record.recording.receipt.output)))].flatMap(outputDigest => PHASE_ONE_SEMANTIC_DIMENSIONS.map(dimension => ({
+      schemaVersion: "phase-one-human-review.v2", criterionId: dimension.criterionId, caseId: item.caseId, repetition, outputDigest,
       comparisonDigest: frozen.comparison.contentDigest, rubricDigest: frozen.comparison.rubricDigest,
-      reviewerId: "human-1", decisionRef: `review-${item.caseId}-${repetition}`, status: "pass", evidenceRefs: ["source:review"], revokedAt: null,
-    })))));
+      reviewerId: "human-1", decisionRef: `review-${item.caseId}-${repetition}-${dimension.criterionId}`, status: "pass", evidenceRefs: ["source:review"], revokedAt: null,
+    }))))));
     const result = await state.command("adjudicate") as any;
     expect(result.categories.semantic_quality).toBe("needs_review");
     expect(result.liveCalls).toBe(0);
-    expect(state.read("phase-one-verification.json").report.attempts.every((item: any) =>
-      item.observations.find((observation: any) => observation.category === "semantic_quality").reasonCode === "FIXTURE_CANNOT_PROVE_MODEL_QUALITY")).toBe(true);
+    const report = state.read("phase-one-verification.json").report;
+    expect(report.attempts.every((item: any) => item.observations.filter((observation: any) => observation.category === "semantic_quality")
+      .every((observation: any) => observation.reasonCode === "FIXTURE_CANNOT_PROVE_MODEL_QUALITY"))).toBe(true);
+    expect(report.metrics.criteria.filter((item: any) => item.category === "semantic_quality")).toHaveLength(5);
+    expect(result.metrics.usage.candidate.inputTokens).toMatchObject({ numerator: 60, denominator: 6, unknown: 0 });
+  });
+
+  it("keeps legacy, missing and duplicate human dimension reviews unknown while retaining valid per-dimension failures", async () => {
+    const state = fixture(); await state.command("freeze"); await state.command("verify");
+    const frozen = state.read("phase-one-frozen.json"), journal = state.read("phase-one-executions.json");
+    const common = { caseId: "case-1", repetition: 1, outputDigest: hash(journal.records[0].recording.receipt.output),
+      comparisonDigest: frozen.comparison.contentDigest, rubricDigest: frozen.comparison.rubricDigest,
+      reviewerId: "human-1", decisionRef: "review-1", status: "fail", evidenceRefs: ["source:review"], revokedAt: null };
+    const evidence = { ...common, schemaVersion: "phase-one-human-review.v2", criterionId: "relationship.evidence_support" };
+    state.write("reviews.json", [
+      { ...common, status: "pass" }, // Old blanket reviews do not apply to any new dimension.
+      evidence,
+      { ...evidence, criterionId: "relationship.ambiguity_handling" },
+      { ...evidence, criterionId: "relationship.ambiguity_handling", decisionRef: "conflicting-review" },
+      { ...evidence, criterionId: "relationship.temporal_correctness", revokedAt: new Date().toISOString() },
+    ]);
+    await state.command("adjudicate");
+    const report = state.read("phase-one-verification.json").report;
+    const attempt = report.attempts.find((item: any) => item.caseId === "case-1" && item.repetition === 1 && item.variant === "candidate");
+    expect(attempt.observations.find((item: any) => item.criterionId === "relationship.output_boundary").status).toBe("pass");
+    expect(attempt.observations.find((item: any) => item.criterionId === "relationship.evidence_support").status).toBe("fail");
+    for (const dimension of PHASE_ONE_SEMANTIC_DIMENSIONS.slice(1)) {
+      expect(attempt.observations.find((item: any) => item.criterionId === dimension.criterionId).status).toBe("needs_review");
+    }
+    expect(report.safetyVeto).toBe(true);
   });
 
   it("rejects changed input, global source overlap, exposed holdouts and forged execution journals", async () => {

@@ -146,8 +146,13 @@ final class AnswerFeedbackTests: XCTestCase {
             .environment(\.appLanguage, .simplifiedChinese).dynamicTypeSize(.accessibility2))
         window.makeKeyAndVisible()
         defer { window.isHidden = true; previous?.makeKeyAndVisible() }
-        try await Task.sleep(for: .milliseconds(700))
-        XCTAssertTrue(editor.canEdit)
+        // Hosting and SwiftUI's .task are scheduled asynchronously. Wait for
+        // the canonical source, rather than assuming a CI frame-time budget.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while !editor.canEdit, editor.error == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertTrue(editor.canEdit, editor.error?.localizedDescription ?? "The hosted feedback sheet did not load its source.")
         let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
             window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
         }

@@ -5,6 +5,7 @@ import { randomUUID, sign, verify } from "node:crypto";
 import {
   assertPhaseOneDatasetCurrent, canonicalJson, digestCanonicalJson, freezePhaseOneComparison,
   freezePhaseOneDataset, phaseOneAssert, phaseOneId, phaseOneTime, readPhaseOneRuntime,
+  PHASE_ONE_SEMANTIC_DIMENSIONS,
   runPhaseOnePairedEvaluation, signPhaseOneVerificationReport, verifyPhaseOneVerificationReport,
   type PhaseOneCase, type PhaseOneComparison, type PhaseOneCriterion, type PhaseOneDataset,
   type PhaseOneEvaluator, type PhaseOneExposure, type PhaseOneJudgment, type PhaseOneRuntimeReader,
@@ -15,10 +16,13 @@ import { assertOptimizationControllerBinding, readOptimizationBudgetController }
 import { eligiblePhaseOneJudgeAssurance, evaluatePhaseOneModelJudgment, type PhaseOneCalibratedJudgeAssurance,
   type PhaseOneJudgeRecording, type PhaseOneModelJudgeConfiguration } from "./phaseOneJudge.js";
 import { assertPhaseOnePrivateSources, isPhaseOneSourceInvalidated } from "./phaseOneSources.js";
-import type { OptimizationFeedbackBinding } from "./optimization/feedbackSource.js";
+import { readPhaseOneControllerDataset, readPhaseOneControllerSourceCases } from "./phaseOneDatasetLifecycle.js";
+import { assertPhaseOneRetiredDevelopment } from "@talent-signal/evaluation";
+import { validateOptimizationFeedbackBinding, type OptimizationFeedbackBinding } from "./optimization/feedbackSource.js";
 import { assertOptimizationLifecycleCurrent } from "./optimization/lifecycle.js";
 import { runPhaseOneCIVerification, verifyPhaseOneCIProof, type PhaseOneCIProof } from "./phaseOneCI.js";
 import { loadedRelationshipTaskConfiguration } from "@talent-signal/agent";
+import { createPhaseOneFixtureFetcher } from "./evaluation/phaseOneFixture.js";
 import {
   createOptimizationProductTaskAdapter, optimizationConfiguration, replayOptimizationProductTask,
   validateOptimizationCandidate, validateOptimizationRelationshipInput,
@@ -59,9 +63,11 @@ const CONTROLLER_KEYS = ["schemaVersion", "runId", "datasetId", "generatorActorI
   "reviewsFile", "reviewers", "environmentDigest", "budgetDatasetDigest", "semanticEvaluation", "sourceBindingsFile", "sourceBackendURL", "repetitions", "seed", "expiresAt"];
 export const PHASE_ONE_CRITERIA: readonly PhaseOneCriterion[] = Object.freeze([
   { criterionId: "relationship.output_boundary", category: "deterministic_boundary", evaluatorId: "relationship-boundary.v1", evaluatorKind: "deterministic", critical: true },
-  { criterionId: "relationship.evidence_and_usefulness", category: "semantic_quality", evaluatorId: "controller-human-review.v1", evaluatorKind: "human", critical: true },
+  ...PHASE_ONE_SEMANTIC_DIMENSIONS.map(dimension => ({ criterionId: dimension.criterionId, category: "semantic_quality" as const,
+    evaluatorId: "controller-human-review.v2", evaluatorKind: "human" as const, critical: true })),
 ]);
-export const PHASE_ONE_RUBRIC_DIGEST = digestCanonicalJson({ version: "relationship-independent-rubric.v1", criteria: PHASE_ONE_CRITERIA,
+export const PHASE_ONE_RUBRIC_DIGEST = digestCanonicalJson({ version: "relationship-independent-rubric.v2", criteria: PHASE_ONE_CRITERIA,
+  dimensions: PHASE_ONE_SEMANTIC_DIMENSIONS,
   semanticRule: "Judge the actual answer against frozen source, identity, time, ambiguity, authorization and useful next step. A preference or later outcome is not factual gold." });
 
 function object(value: unknown): Record<string, unknown> {
@@ -120,11 +126,9 @@ function keys(directory: string, config: PhaseOneController) {
 }
 
 function study(directory: string, config: PhaseOneController) {
-  const allCases = privateJson(directory, config.casesFile) as PhaseOneCase[];
-  const exposures = privateJson(directory, config.exposuresFile) as PhaseOneExposure[];
+  const { cases: allCases, exposures, universe } = readPhaseOneControllerDataset(config, name => privateJson(directory, name));
   phaseOneAssert(Array.isArray(allCases) && allCases.length <= 500 && Array.isArray(exposures), "PHASE_ONE_CASES_INVALID");
   // The controller owns the complete study, including dev source groups. Validate before selecting final cases.
-  const universe = freezePhaseOneDataset({ datasetId: `${config.datasetId}:study`, cases: allCases, exposures });
   for (const item of allCases) {
     const input = validateOptimizationRelationshipInput(item.modelInput);
     phaseOneAssert(config.providerKind !== "deterministic_fake" || input.dataClass === "synthetic", "PHASE_ONE_FIXTURE_REQUIRES_SYNTHETIC_DATA");
@@ -172,6 +176,8 @@ function currentFrozen(directory: string, config: PhaseOneController): FrozenStu
 }
 
 interface HumanReview {
+  schemaVersion: "phase-one-human-review.v2";
+  criterionId: string;
   caseId: string;
   repetition: number;
   outputDigest: Sha256Digest;
@@ -190,7 +196,7 @@ export function phaseOneJudgmentContext(config: PhaseOneController, read: (name:
 }
 
 function evaluator(directory: string, config: PhaseOneController, frozen: FrozenStudy,
-  judgeModel: (input: Parameters<PhaseOneEvaluator["evaluate"]>[0]) => Promise<PhaseOneJudgment>): PhaseOneEvaluator {
+  judgeModel: (input: Parameters<PhaseOneEvaluator["evaluate"]>[0]) => Promise<PhaseOneJudgment[]>): PhaseOneEvaluator {
   return { async evaluate(input) {
     const source = validateOptimizationRelationshipInput(input.modelInput), output = object(input.output);
     const citations = output.citation_ids;
@@ -202,23 +208,26 @@ function evaluator(directory: string, config: PhaseOneController, frozen: Frozen
       && (output.kind === "clarification" || source.permits_unconfirmed_session_context_answer === true || citations.length > 0);
     const judgments: PhaseOneJudgment[] = [{ criterionId: "relationship.output_boundary", status: valid ? "pass" : "fail",
       evidenceRefs: [`output:${digestCanonicalJson(input.output)}`] }];
-    if (config.semanticEvaluation.kind === "model") { judgments.push(await judgeModel(input)); return judgments; }
+    if (config.semanticEvaluation.kind === "model") { judgments.push(...await judgeModel(input)); return judgments; }
     const reviews = privateJson(directory, config.reviewsFile) as HumanReview[];
     phaseOneAssert(Array.isArray(reviews) && reviews.length <= 10000, "PHASE_ONE_HUMAN_REVIEW_INVALID");
-    const matching = reviews.filter(review => review.caseId === input.caseId && review.repetition === input.repetition
-      && review.outputDigest === digestCanonicalJson(input.output) && review.comparisonDigest === frozen.comparison.contentDigest
-      && review.rubricDigest === frozen.comparison.rubricDigest && config.reviewers.includes(review.reviewerId) && review.revokedAt === null);
-    if (matching.length === 1 && ["pass", "fail"].includes(matching[0]!.status)) {
-      const review = matching[0]!;
-      judgments.push({ criterionId: "relationship.evidence_and_usefulness", status: review.status, evidenceRefs: review.evidenceRefs,
-        humanReviewerId: review.reviewerId, humanDecisionRef: review.decisionRef });
-    } else judgments.push({ criterionId: "relationship.evidence_and_usefulness", status: "needs_review", evidenceRefs: [] });
+    for (const criterion of input.criteria.filter(item => item.category === "semantic_quality")) {
+      const matching = reviews.filter(review => review && review.schemaVersion === "phase-one-human-review.v2" && review.criterionId === criterion.criterionId
+        && review.caseId === input.caseId && review.repetition === input.repetition
+        && review.outputDigest === digestCanonicalJson(input.output) && review.comparisonDigest === frozen.comparison.contentDigest
+        && review.rubricDigest === frozen.comparison.rubricDigest && config.reviewers.includes(review.reviewerId) && review.revokedAt === null);
+      if (matching.length === 1 && ["pass", "fail"].includes(matching[0]!.status)) {
+        const review = matching[0]!;
+        judgments.push({ criterionId: criterion.criterionId, status: review.status, evidenceRefs: review.evidenceRefs,
+          humanReviewerId: review.reviewerId, humanDecisionRef: review.decisionRef });
+      } else judgments.push({ criterionId: criterion.criterionId, status: "needs_review", evidenceRefs: [] });
+    }
     return judgments;
   } };
 }
 
 interface ExecutionJournal {
-  schemaVersion: "phase-one-execution-journal.v1";
+  schemaVersion: "phase-one-execution-journal.v2";
   comparisonDigest: Sha256Digest;
   studyDigest: Sha256Digest;
   executorId: string;
@@ -233,7 +242,7 @@ function readJournal(directory: string, config: PhaseOneController, frozen: Froz
   let journal: ExecutionJournal;
   try { journal = privateJson(directory, "phase-one-executions.json") as ExecutionJournal; }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
-  phaseOneAssert(journal.schemaVersion === "phase-one-execution-journal.v1" && journal.comparisonDigest === frozen.comparison.contentDigest
+  phaseOneAssert(journal.schemaVersion === "phase-one-execution-journal.v2" && journal.comparisonDigest === frozen.comparison.contentDigest
     && journal.studyDigest === frozen.studyDigest && journal.executorId === config.executorId && journal.keyId === config.keyId
     && Array.isArray(journal.records) && journal.records.length <= 10000 && Array.isArray(journal.judgeRecords) && journal.judgeRecords.length <= 10000
     && verify(null, Buffer.from(canonicalJson(journalPayload(journal))), publicKeyPem, Buffer.from(journal.signature, "base64")), "PHASE_ONE_EXECUTION_JOURNAL_INVALID");
@@ -305,7 +314,11 @@ function erasePhaseOnePrivateCopies(directory: string): void {
     let contents: unknown;
     try { contents = privateJson(directory, name); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-    if (Array.isArray(contents) && contents.some(item => field === "casesFile" ? item?.modelInput?.dataClass === "private_business" : item?.dataClass === "private_business")) {
+    // Erasure must also work for an interrupted or corrupted lifecycle journal;
+    // validating its digest before finding private bodies would strand them.
+    const entries = field === "casesFile" && contents && typeof contents === "object" && !Array.isArray(contents)
+      ? (contents as { cases?: unknown }).cases : contents;
+    if (Array.isArray(entries) && entries.some(item => field === "casesFile" ? item?.modelInput?.dataClass === "private_business" : item?.dataClass === "private_business")) {
       writeControllerArtifact(directory, name, { schemaVersion: "phase-one-private-copy-tombstone.v1", previousDigest: digestCanonicalJson(contents), reason: "source_or_run_tombstoned" });
     }
     for (const temporary of readdirSync(directory).filter(file => file.startsWith(`${name}.`) && file.endsWith(".tmp"))) unlinkSync(join(directory, temporary));
@@ -342,10 +355,11 @@ export async function sweepPhaseOneControllerSources(path: string, dependencies:
   }
   try {
     const config = loadController(directory);
-    await assertPhaseOnePrivateSources({ cases: privateJson(directory, config.casesFile) as PhaseOneCase[],
+    await assertPhaseOnePrivateSources({ cases: readPhaseOneControllerSourceCases(config, name => privateJson(directory, name)),
       examples: privateJson(directory, config.examplesFile) as OptimizationDevExample[],
       bindings: config.sourceBindingsFile ? privateJson(directory, config.sourceBindingsFile) as OptimizationFeedbackBinding[] : [],
-      baseURL: config.sourceBackendURL, token: dependencies.backendToken ?? process.env.TALENT_SIGNAL_PHASE_ONE_SOURCE_TOKEN }, dependencies.sourceFetcher);
+      baseURL: config.sourceBackendURL, token: dependencies.backendToken ?? process.env.TALENT_SIGNAL_PHASE_ONE_SOURCE_TOKEN,
+      cleanupOnly: true }, dependencies.sourceFetcher);
     return { status: "current" };
   } catch (error) {
     if (isPhaseOneSourceInvalidated(error) || error instanceof Error && error.message === "PHASE_ONE_CONTROLLER_EXPIRED") {
@@ -386,7 +400,7 @@ export async function runPhaseOneCommand(argv: readonly string[], path: string):
   const config = loadController(directory), key = keys(directory, config);
   const validateSources = async (currentCaseId?: string, requireLifecycle = false) => {
     try {
-      const cases = privateJson(directory, config.casesFile) as PhaseOneCase[], examples = privateJson(directory, config.examplesFile) as OptimizationDevExample[];
+      const cases = readPhaseOneControllerSourceCases(config, name => privateJson(directory, name)), examples = privateJson(directory, config.examplesFile) as OptimizationDevExample[];
       if (requireLifecycle && (cases.some(item => (item.modelInput as { dataClass?: string }).dataClass === "private_business")
         || examples.some(item => item.dataClass === "private_business"))) assertOptimizationLifecycleCurrent(directory);
       await assertPhaseOnePrivateSources({ cases, examples,
@@ -427,13 +441,13 @@ export async function runPhaseOneCommand(argv: readonly string[], path: string):
     phaseOneAssert(report.comparisonDigest === frozen.comparison.contentDigest, "PHASE_ONE_VERIFICATION_BINDING_MISMATCH");
     phaseOneAssert(report.judgmentContextDigest === phaseOneJudgmentContext(config, name => privateJson(directory, name)).digest, "PHASE_ONE_JUDGMENT_CONTEXT_STALE");
     return { status: "verified_signature", reportDigest: report.contentDigest, categories: report.categories,
-      candidate: report.candidate, paired: report.paired, cost: report.cost, releaseAuthority: "none" };
+      candidate: report.candidate, paired: report.paired, cost: report.cost, metrics: report.metrics, releaseAuthority: "none" };
   }
   const source = study(directory, config), examples = privateJson(directory, config.examplesFile) as OptimizationDevExample[];
   const releaseLease = acquireExecutionLease(directory);
   try {
   const journal = readJournal(directory, config, frozen, key.trusted[0]!.publicKeyPem) ?? {
-    schemaVersion: "phase-one-execution-journal.v1" as const, comparisonDigest: frozen.comparison.contentDigest,
+    schemaVersion: "phase-one-execution-journal.v2" as const, comparisonDigest: frozen.comparison.contentDigest,
     studyDigest: frozen.studyDigest, executorId: config.executorId, keyId: config.keyId, records: [], judgeRecords: [], signature: "",
   };
   const judgmentContext = phaseOneJudgmentContext(config, name => privateJson(directory, name));
@@ -457,15 +471,26 @@ export async function runPhaseOneCommand(argv: readonly string[], path: string):
         && budget.run.bindings.datasetDigest === config.budgetDatasetDigest && budget.pricing && budget.run.permit, "PHASE_ONE_FINAL_BUDGET_BINDING_MISMATCH");
       const search = object(privateJson(directory, budget.configuration.searchFile));
       phaseOneAssert(digestCanonicalJson(search) === config.budgetDatasetDigest && Array.isArray(search.cases), "PHASE_ONE_SEARCH_BINDING_STALE");
-      const allCases = privateJson(directory, config.casesFile) as PhaseOneCase[];
+      const { cases: allCases, lifecycle } = readPhaseOneControllerDataset(config, name => privateJson(directory, name));
       for (const raw of search.cases) {
-        const item = object(raw), match = allCases.find(value => value.caseId === item.caseId && value.sourcePartition === "dev");
+        const item = object(raw);
+        if (item.sourcePartition !== "dev") {
+          phaseOneAssert(lifecycle, "PHASE_ONE_RETIREMENT_PROVENANCE_REQUIRED");
+          assertPhaseOneRetiredDevelopment(lifecycle, item as unknown as Parameters<typeof assertPhaseOneRetiredDevelopment>[1]); continue;
+        }
+        const match = allCases.find(value => value.caseId === item.caseId && value.sourcePartition === "dev");
         phaseOneAssert(match && digestCanonicalJson(match.modelInput) === digestCanonicalJson(item.modelInput)
           && match.referenceTime === item.referenceTime && digestCanonicalJson(match.oracle) === digestCanonicalJson(item.oracle), "PHASE_ONE_GLOBAL_SOURCE_STUDY_INCOMPLETE");
       }
+      phaseOneAssert(search.feedbackSources === undefined || Array.isArray(search.feedbackSources) && search.feedbackSources.length <= 116,
+        "OPTIMIZATION_FEEDBACK_BINDING_INVALID");
       for (const binding of (search.feedbackSources as OptimizationFeedbackBinding[] | undefined) ?? []) {
+        // A checkpoint may predate Session binding, even when its private example
+        // has been removed from the final candidate. Resuming is strict admission.
+        validateOptimizationFeedbackBinding(binding);
         phaseOneAssert(!source.cases.some(item => item.sourceIds.includes(`feedback:${binding.feedbackId}`)
-          || item.sourceIds.includes(`execution:${binding.executionId}`)), "PHASE_ONE_SOURCE_PARTITION_CONTAMINATION");
+          || item.sourceIds.includes(`execution:${binding.executionId}`)
+          || item.sourceIds.includes(`session:${binding.sessionId}`)), "PHASE_ONE_SOURCE_PARTITION_CONTAMINATION");
       }
       const snapshot = budget.ledger.snapshot(config.runId);
       if (snapshot.status === "checkpointed" && snapshot.reason === "search_finished_pending_independent_validation") budget.ledger.resume(budget.run);
@@ -481,15 +506,14 @@ export async function runPhaseOneCommand(argv: readonly string[], path: string):
       ? createOptimizationProductTaskAdapter({ model: config.model, examples, onRecording, beforeDispatch: () => validateSources(activeCaseId, true), signal: cancellation.signal, providerKind: "real_model", apiKey: apiKey!,
         budget: { ledger: budget!.ledger, run: budget!.run, phase: "final_validation", pricing: budget!.pricing! } })
       : createOptimizationProductTaskAdapter({ model: config.model, examples, onRecording, providerKind: "deterministic_fake",
-        fetcher: async () => new Response(JSON.stringify({ id: "phase-one-offline", model: config.model,
-          choices: [{ message: { content: JSON.stringify({ kind: "clarification", title: "Clarify the evidence", body: "Which source and reference time should guide this answer?", citation_ids: [] }) } }],
-          usage: { prompt_tokens: 10, completion_tokens: 12 } }), { status: 200 }) });
-    const judgeModel = async (input: Parameters<PhaseOneEvaluator["evaluate"]>[0]): Promise<PhaseOneJudgment> => {
-      const unreviewed: PhaseOneJudgment = { criterionId: "relationship.evidence_and_usefulness", status: "needs_review", evidenceRefs: [] };
+        fetcher: createPhaseOneFixtureFetcher() });
+    const judgeModel = async (input: Parameters<PhaseOneEvaluator["evaluate"]>[0]): Promise<PhaseOneJudgment[]> => {
+      const unreviewed: PhaseOneJudgment[] = input.criteria.filter(criterion => criterion.category === "semantic_quality")
+        .map(criterion => ({ criterionId: criterion.criterionId, status: "needs_review", evidenceRefs: [] }));
       if (config.semanticEvaluation.kind !== "model" || !eligiblePhaseOneJudgeAssurance(judgmentContext.assurance, config.semanticEvaluation, frozen.comparison.rubricDigest)) return unreviewed;
       const matchingDigest = digestCanonicalJson(input);
       const prior = journal.judgeRecords.find(item => item.inputDigest === matchingDigest && item.assuranceDigest === digestCanonicalJson(judgmentContext.assurance));
-      if (prior) return prior.judgment;
+      if (prior?.schemaVersion === "phase-one-judge-recording.v2") return prior.judgments;
       if (command === "adjudicate" || !budget || !apiKey || config.providerKind !== "real_model") return unreviewed;
       const result = await evaluatePhaseOneModelJudgment(input, { config: config.semanticEvaluation, assurance: judgmentContext.assurance,
         rubricDigest: frozen.comparison.rubricDigest, ledger: budget.ledger, run: budget.run, apiKey, signal: cancellation.signal, beforeDispatch: () => validateSources(input.caseId, true) });
@@ -497,11 +521,11 @@ export async function runPhaseOneCommand(argv: readonly string[], path: string):
       journal.judgeRecords.push({ ...result, inputDigest: matchingDigest });
       journal.signature = sign(null, Buffer.from(canonicalJson(journalPayload(journal))), key.signer.privateKeyPem).toString("base64");
       budget.ledger.withRunArtifactWrite(config.runId, () => artifactTransaction(directory, () => writeControllerArtifact(directory, "phase-one-executions.json", journal)));
-      return result.judgment;
+      return result.judgments;
     };
     const assurances = config.semanticEvaluation.kind === "model" && eligiblePhaseOneJudgeAssurance(judgmentContext.assurance, config.semanticEvaluation, frozen.comparison.rubricDigest)
       ? [judgmentContext.assurance] : [];
-    const report = await runPhaseOnePairedEvaluation({ comparison: frozen.comparison, dataset: frozen.dataset, judgmentContextDigest: judgmentContext.digest, judgeCosts: () => journal.judgeRecords.map(item => item.costUsd),
+    const report = await runPhaseOnePairedEvaluation({ comparison: frozen.comparison, dataset: frozen.dataset, judgmentContextDigest: judgmentContext.digest, judgeUsage: () => journal.judgeRecords,
       cases: source.cases, exposures: source.exposures, executor: { executorId: config.executorId, async execute(request) {
         activeCaseId = request.caseId;
         assertNotTombstoned(directory); currentFrozen(directory, config);
@@ -523,7 +547,7 @@ export async function runPhaseOneCommand(argv: readonly string[], path: string):
     const writeReport = () => artifactTransaction(directory, () => writeControllerArtifact(directory, "phase-one-verification.json", envelope));
     if (budget) budget.ledger.withRunArtifactWrite(config.runId, writeReport); else writeReport();
     return { status: "recorded", reportDigest: report.contentDigest, categories: report.categories, liveCalls, replayedCalls,
-      cost: report.cost, releaseAuthority: "none" };
+      cost: report.cost, metrics: report.metrics, releaseAuthority: "none" };
   } finally {
     if (polling) clearInterval(polling);
     if (budget) { try { if (ownsBudget) budget.ledger.releaseRunController(config.runId, budgetOwner); } finally { budget.ledger.close(); } }

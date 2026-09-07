@@ -44,6 +44,7 @@
 		182562E4D458AEE0F8DC958E /* AgentSessionContextPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D190C3B7758265FCB362A38B /* AgentSessionContextPolicy.swift */; };
 		1849516A412CE2505F888D1D /* LabTaskTrialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86BA51472BCE0B5236D63183 /* LabTaskTrialView.swift */; };
 		19879CA4D7C15E17BD4FAAD2 /* RelationshipArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8740830A52A1650A3FF8B41A /* RelationshipArchiveView.swift */; };
+		1CFA22DC835C2B81F5C30D61 /* AnswerFeedbackUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1F8C36E2E0CF93344A8BE71 /* AnswerFeedbackUITests.swift */; };
 		1E3CA18B2F6F1443CBB61725 /* StandaloneOnboardingPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477706244A63791F58675F88 /* StandaloneOnboardingPersistence.swift */; };
 		1E7F9D920A9D98FF2679F24B /* LabPresentationDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3E84A63B36E5BE3C1CDAB73 /* LabPresentationDiagnostics.swift */; };
 		1F026D22636BADFB28C6ED7F /* AudioSignalCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08F6E4EC1E24E8888C85C5A /* AudioSignalCaptureView.swift */; };
@@ -495,6 +496,7 @@
 		D08F6E4EC1E24E8888C85C5A /* AudioSignalCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSignalCaptureView.swift; sourceTree = "<group>"; };
 		D137439B29C6808B301FD14C /* ReleaseBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseBoundaryTests.swift; sourceTree = "<group>"; };
 		D190C3B7758265FCB362A38B /* AgentSessionContextPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionContextPolicy.swift; sourceTree = "<group>"; };
+		D1F8C36E2E0CF93344A8BE71 /* AnswerFeedbackUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerFeedbackUITests.swift; sourceTree = "<group>"; };
 		D31393B212BA4B3E67630341 /* LabRegressionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabRegressionStore.swift; sourceTree = "<group>"; };
 		D48BDD93D1E228A24D59741B /* LabDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabDisplay.swift; sourceTree = "<group>"; };
 		D53009CC49DC5605049F9E6A /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
@@ -674,6 +676,7 @@
 				9DCF08378478F3EB4965310B /* AgentAskLiveActivityUITests.swift */,
 				CAAB9035F34B0E674E37ED2C /* AgentSourceImportUITests.swift */,
 				8284F66591A57487F14F964F /* AgentWorkShowcaseUITests.swift */,
+				D1F8C36E2E0CF93344A8BE71 /* AnswerFeedbackUITests.swift */,
 				FBE09192F33FB568C5DDD402 /* AuthenticationWelcomeUITests.swift */,
 				59ABD7E7EC7EB412FF62B6B2 /* CandidateSignalUITests.swift */,
 				9D8A94D073512E68DFFB1E02 /* Get5CanonicalSessionUITests.swift */,
@@ -1154,6 +1157,7 @@
 				D2D82942CCD916156DBE1562 /* AgentAskLiveActivityUITests.swift in Sources */,
 				65DFBB837BC3BA748724FC37 /* AgentSourceImportUITests.swift in Sources */,
 				5F4C0601B701323F55D5FC2A /* AgentWorkShowcaseUITests.swift in Sources */,
+				1CFA22DC835C2B81F5C30D61 /* AnswerFeedbackUITests.swift in Sources */,
 				F1EB74C6F817F7F51EAD22AB /* AuthenticationWelcomeUITests.swift in Sources */,
 				5AB53512D99F0073F3911B6E /* CandidateSignalUITests.swift in Sources */,
 				42E1A2ADF8BAC33392BB9537 /* Get5CanonicalSessionUITests.swift in Sources */,

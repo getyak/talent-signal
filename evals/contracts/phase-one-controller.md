@@ -23,12 +23,15 @@ pnpm --filter @talent-signal/eval-runner exec tsx src/cli.ts phase-one adjudicat
 pnpm --filter @talent-signal/eval-runner exec tsx src/cli.ts phase-one inspect --controller-dir /tmp/talent-signal-phase-one-proof
 ```
 
-`verify` performs twelve requests through the shared production serializer and
-parser with an offline transport: two variants × two repeats × three final
-partitions. The fixture permits only synthetic inputs. Expected categories are
-`execution_integrity: pass`, `deterministic_boundary: pass`,
-`semantic_quality: needs_review`, `release_conditions: not_run`. This proves
-control flow, not model quality or deployment. `adjudicate` verifies and reuses
+`verify` performs sixty requests through the shared production serializer and
+parser with an offline transport: two variants × two repeats × five behaviors
+in each of three final partitions. The synthetic corpus distinguishes missing
+evidence, ambiguous identity, historical conflict, an answerable question and
+provider failure. Twelve injected provider failures deliberately prevent an
+execution-integrity pass; missing semantic judgments remain unknown and release
+conditions remain `not_run`. Provider failure is distinct from a Workspace
+Agent tool failure. This proves control flow, not model quality or deployment.
+`adjudicate` verifies and reuses
 the signed original product recordings with zero new subject/judge calls.
 
 Each invocation is a separate process. The generator never receives holdout
@@ -61,15 +64,21 @@ freezing a new authorized run; frozen state is immutable. Every run requires:
 - `sourceBindingsFile` and `sourceBackendURL` for every private case or
   demonstration; both are `null` for an entirely synthetic corpus. The binding
   array uses `OptimizationFeedbackBinding`: `target`, `targetId`,
-  `regressionId`, `contentHash`, `feedbackId`, `feedbackRevision`, `executionId`,
+  `regressionId`, `contentHash`, `feedbackId`, `feedbackRevision`, `executionId`, `sessionId`,
   `expiresAt`, and `expectationAuthority: proposal`. Source authentication comes
   from `TALENT_SIGNAL_PHASE_ONE_SOURCE_TOKEN`. Every private case must include
-  `feedback:<feedbackId>` and `execution:<executionId>` in its `sourceIds` and
+  `feedback:<feedbackId>`, `execution:<executionId>` and `session:<sessionId>` in its `sourceIds` and
   match the authenticated native export's input and reference time. Final
   private `oracle` contains `expectationAuthority: proposal` and the exact
   `expectedBehaviorProposal`; it is not relabeled as human gold. Development
   demonstrations and historical search sources cannot reappear as independent
-  final sources, including different feedback records from one execution.
+  final sources, including different turns or executions from one Session.
+  The server derives the Session identifier from the original execution;
+  caller-supplied grouping alone cannot establish independence. Historical Lab
+  snapshots without this field remain readable, but cannot enter the optimizer
+  or independent evaluation until a new trusted export supplies the binding.
+  Final verification validates historical search bindings again, including
+  examples removed from the selected candidate and runs resumed from a checkpoint.
 - The original optimization `controller.json`, bindings, permit, shared
   SQLite ledger, and the **same run ID**. `budgetDatasetDigest` equals the
   original frozen `search.json` digest. The independently signed final study
@@ -78,13 +87,59 @@ freezing a new authorized run; frozen state is immutable. Every run requires:
   complete study. The search controller configuration, model, pricing, and
   permit must match the values admitted at run start.
 
+### Retire exposed holdouts and replenish their source groups
+
+Use the owner-only lifecycle entry rather than changing a case's original
+partition by hand:
+
+```sh
+pnpm --filter @talent-signal/eval-runner exec tsx src/phaseOneDatasetCommand.ts inspect --controller-dir /private/controller
+pnpm --filter @talent-signal/eval-runner exec tsx src/phaseOneDatasetCommand.ts expose --controller-dir /private/controller < /private/exposure-request.json
+pnpm --filter @talent-signal/eval-runner exec tsx src/phaseOneDatasetCommand.ts retire-replace --controller-dir /private/controller < /private/replacement-request.json
+pnpm --filter @talent-signal/eval-runner exec tsx src/phaseOneDatasetCommand.ts import-development --controller-dir /private/controller < /private/import-request.json
+```
+
+Every mutation supplies `expectedStudyDigest` from the latest inspection and
+the registering `actorId`; `eventId` may be supplied for a stable audit identity.
+An exposure request contains `exposure` with the fields above. Repeated readings
+are separate events. A replacement request contains full new `replacements`
+and `groups`, each naming `retiredCaseIds`, `exposureEventIds` and
+`replacementCaseIds`. Retire the entire connected source/input group and supply
+a fresh group in the same original partition. Reused sources or inputs,
+partial groups, missing replacements and stale writes fail validation.
+
+The first mutation upgrades `casesFile` into a
+`phase-one-dataset-lifecycle.v1` document. It is the single atomic home for live
+cases and exposure history; the old `exposuresFile` remains a checked migration
+anchor. History retains IDs and digests. Within the lifecycle document, raw
+inputs and oracles exist only in current case bodies and remain covered by
+source deletion. Original
+`sourcePartition` is unchanged; retired cases switch to development purpose.
+An exposure invalidates prior verification and release evidence immediately.
+Replacement and import require the final executor to be idle. Private-source
+replacement and import also require active source maintenance.
+
+Import requests name retired `caseIds`. The search controller must have no
+active or completed run requiring its old bindings; only tombstoned history is
+eligible. Imports preserve original partition and current lifecycle provenance,
+use a generic boundary oracle, and never copy former final gold to the generator.
+The complete study, sources, budget bindings and fresh independent replacements
+must be frozen again before another run. A crash during derived search updates
+leaves stale bindings that cannot execute; explicitly re-import to repair them.
+The lifecycle command constructs no model provider and spends no experiment
+budget.
+
 The native source is checked before freezing or inspecting a study, before
 subject/judge dispatch, before private result persistence, and before release
 evidence is written. A definite withdrawal, changed revision, deletion, or
 known local expiry tombstones the run and erases its copied private corpus,
 examples, reviews, outputs and temporary files. Known expiry is checked before
-credentials/network access. Temporary service failures block use without
-claiming the source was withdrawn. Multiple readbacks prioritize any confirmed
+credentials/network access. A committed local withdrawal also takes precedence
+over remote availability. Cleanup can read recognized legacy binding formats;
+new admission metadata cannot authorize longer retention of old private copies.
+This cleanup compatibility grants no search or verification authority.
+Temporary service failures block use without claiming the source was withdrawn.
+Multiple readbacks prioritize any confirmed
 invalidation over an unrelated unavailable service response.
 
 Private execution also requires the original optimization controller's live
@@ -145,12 +200,16 @@ Both paths produce judgments rather than new confirmed candidate facts.
 
 For actual human judgments, use `{ "kind": "human" }`. `reviewsFile` is an
 array of trusted decisions containing `caseId`, `repetition`, `outputDigest`,
-`comparisonDigest`, `rubricDigest`, `reviewerId`, `decisionRef`, `status`
+`comparisonDigest`, `rubricDigest`, `reviewerId`, `decisionRef`, `status`,
+`schemaVersion: phase-one-human-review.v2`, `criterionId`
 (`pass`/`fail`), `evidenceRefs`, and `revokedAt` (`null` when active). The reviewer
 must appear in `reviewers` and differ from generator/executor. Bind to the exact
 recorded output, not a candidate's name or average score. Missing/conflicting
 reviews mean `needs_review`. Run `adjudicate` after review changes; it makes no
-paid calls. Never write a Codex judgment as a human decision.
+paid calls. Never write a Codex judgment as a human decision. Each of evidence
+support, ambiguity handling, temporal correctness, valid completion and
+correction burden needs its own decision. An old overall review cannot pass
+the new dimensions.
 
 For automatic semantic assessment, use:
 
@@ -170,10 +229,13 @@ For automatic semantic assessment, use:
 
 The numeric rates above illustrate units only; replace them with the verified
 contracted rates before any real run. The judge uses a fixed system policy,
-temperature zero, 600 output tokens, no tools, a bounded response, and a
+temperature zero, 1600 output tokens, no tools, a bounded response, and a
 separately accounted inner call. It sees the frozen input, reference context,
 expected-behavior proposal and actual output; no candidate author identity is
-provided. The exact model returned by the provider must match.
+provided. The exact model returned by the provider must match. The response
+uses `phase-one-model-judgments.v2` with one judgment per exact semantic
+criterion. Missing, duplicate or unexpected dimensions yield `needs_review`;
+one overall score cannot stand in for all five judgments.
 
 `judge-assurance.json` is controller-owned evidence with
 `schemaVersion: phase-one-judge-assurance.v1`, `evaluatorId`, `model`,
@@ -192,7 +254,13 @@ The signed report binds the current review/assurance snapshot. Withdrawals or
 changes invalidate inspection, release review, and deployment readback until a
 fresh local adjudication. Model judgments are cached only under the same input
 and assurance digest. Unknown judge usage remains reserved in the shared
-ledger. Reports expose known/unknown subject and judge cost separately.
+ledger. Reports expose known/unknown subject and judge cost separately. Their
+required `phase-one-metrics.v1` block reports each criterion and slice with its
+own numerator, denominator, unknown count and paired wins/regressions. Token,
+duration and cost totals distinguish subject arms and judge calls. A valid
+signature on a historical report does not waive this current metric contract.
+The rubric, judge policy and execution journal versions invalidate older
+calibration or overall-score recordings; freeze and evaluate a new study.
 
 ## Scoped release and live readback
 
