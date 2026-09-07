@@ -150,6 +150,9 @@ observed evidence; this is not a TestFlight release approval.
 
 ## Boundaries
 
+The later user-authorized [TestFlight release](release.md) records the merged
+source, required CI, processed build and internal access readback separately.
+
 People and relationship contexts remain canonical. Meetings is a time view of
 existing activities, not a new record system. Preparation and notes open a
 scoped editable Session draft; existing drafts and pending work take precedence.
