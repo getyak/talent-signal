@@ -66,19 +66,21 @@ including two different native executions from one Session and historical Lab
 snapshot compatibility. Current hosted checks on the final PR revision remain
 the merge gate; these local results do not replace them.
 
-The subsequent merge, baseline deployment and main Swift CodeQL recovery are
-tracked in [delivery recovery](delivery-recovery.md). Its linked external
-receipts supersede the earlier pending-delivery state below.
+The subsequent implementation and CI repair merges, baseline deployment,
+processed TestFlight build and Swift CodeQL results are recorded in
+[delivery recovery](delivery-recovery.md). Its dated receipts own the later
+delivery evidence; the tests above retain their original scope.
 
 ## Execution boundary
 
-The proof captured in this directory used no paid model request, business
-action, deployment or production prompt promotion. The authorized PR delivery
-continues with hosted checks, merge and the existing baseline TestFlight backend
-update; its actual deployment result will be read back in the linked PR. GET-12 still requires currency and monetary limits
-per run/month, plus target environment and exposure scope. Those missing
-parameters do not prevent implementation or isolated proof, and are not
-filled with invented defaults.
+The original synthetic proofs used no paid model request, business action,
+deployment or production prompt promotion. The later baseline deployment
+included synthetic provider health probes and is separately recorded in the
+delivery receipt; those probes do not establish candidate quality or exposure.
+GET-12 still requires currency and monetary limits per run/month, plus target
+environment and workspace exposure scope. Those missing parameters do not
+prevent the delivered implementation and isolated proof, and are not filled
+with invented defaults.
 
 Relationship-text quality is the first supported comparison scope. Synthetic
 provider checks cannot certify screenshot recognition, all Agent tasks,
