@@ -59,8 +59,7 @@ without becoming several unrelated identities. Cards, lists, timelines,
 graphs, Today, Pursuit rooms, and living person pages are views of the same
 governed state, not competing records.
 
-Today, Sessions, and People are the primary mobile retrieval surfaces. A
-Session groups recruiter-initiated Agent tasks around a continuing objective;
+Today, Sessions, People, and Meetings are the primary mobile retrieval surfaces. A Session groups recruiter-initiated Agent tasks around a continuing objective;
 it may begin without a relationship and bind one only when the Agent resolves
 an exact account-scoped Person and context or the recruiter chooses one.
 This lets a recent conversation resume without making contact selection a
@@ -72,6 +71,8 @@ become a top-level library that asks the recruiter to browse sources before
 understanding the goal. Pursuits remain directly reachable from Today, a
 Session, a person, and review context rather than consuming a higher-frequency
 mobile retrieval position.
+
+Meetings views existing relationship activities by time. Preparation and recollection open a scoped editable Session draft; existing drafts and pending work take precedence. The handoff never sends or confirms facts, and calendar effects retain explicit review.
 
 Today continues unread Sessions and gives one supported dependency or
 reviewable Agent insight a clear visual lead. Remaining attention-bearing

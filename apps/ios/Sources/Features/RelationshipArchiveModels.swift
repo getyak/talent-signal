@@ -6,6 +6,7 @@ enum RelationshipArchivePage: String, CaseIterable, Identifiable {
     case today = "Today"
     case sessions = "Sessions"
     case people = "People"
+    case meetings = "Meetings"
 
     var id: String { rawValue }
 
@@ -25,6 +26,17 @@ enum RelationshipArchivePage: String, CaseIterable, Identifiable {
             return language.text("Sessions", zhHans: "会话")
         case .people:
             return language.text("People", zhHans: "人物")
+        case .meetings:
+            return language.text("Meetings", zhHans: "会面")
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .today: return "house"
+        case .sessions: return "bubble.left.and.bubble.right"
+        case .people: return "person.2"
+        case .meetings: return "calendar"
         }
     }
 }

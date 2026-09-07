@@ -16,7 +16,9 @@ struct RelationshipArchiveView: View {
     @StateObject private var sessionStore: AgentSessionStore
     @StateObject private var labStore: TalentSignalLabStore
     @State private var selectedPage: RelationshipArchivePage = .today
-    @State private var pageSwipeProgress: CGFloat = 0
+    // Published changes update only the header, not the workspace.
+    // https://developer.apple.com/documentation/swiftui/state#Store-observable-objects
+    @State private var pageMotion = RelationshipPageMotion()
     @State private var sessionScrollPosition: UUID?
     @State private var peopleScrollPosition: String?
     @State private var sessionRestorationPosition: UUID?
@@ -26,8 +28,7 @@ struct RelationshipArchiveView: View {
     @State private var capturePresentation: RelationshipCapturePresentation?
     @State private var intakePresentation: AgentIntakePresentation?
     @State private var isCaptureInboxPresented = false
-    @State private var relationshipCalendarPresentation:
-        RelationshipCalendarLaunchIntent?
+    @State private var calendarLaunchRequest: RelationshipCalendarLaunchRequest?
     @State private var relationshipCalendarActivities: [RelationshipCalendarActivity] = []
     @State private var deferredIntakePresentation: AgentIntakePresentation?
     @State private var deferredArchiveSheet: RelationshipArchiveSheet?
@@ -181,16 +182,20 @@ struct RelationshipArchiveView: View {
                             get: { selectedPage },
                             set: { selectPage($0) }
                         ),
-                        pageProgress: pageSwipeProgress,
+                        motion: pageMotion,
+                        onOpenCalendar: openRelationshipCalendar,
                         onOpenAgentStudio: {
                             clearTransientRetrievalIntent()
                             presentedSheet = .agentStudio
                         },
-                        onOpenCalendar: openRelationshipCalendar
+                        labAccessory: (labStore.isEnabled || DeviceLabAvailability.enabled)
+                            ? AnyView(TalentSignalLabCapsule(store: labStore, action: {
+                                clearTransientRetrievalIntent()
+                                isLabPresented = true
+                            }, compact: true))
+                            : nil
                     )
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                    if (labStore.isEnabled || DeviceLabAvailability.enabled)
-                        && (selectedPage == .today || labStore.session != nil) {
+                    if labStore.session != nil {
                         HStack {
                             Spacer(minLength: 0)
                             TalentSignalLabCapsule(store: labStore) {
@@ -368,32 +373,6 @@ struct RelationshipArchiveView: View {
                     onClose: { capturePresentation = nil },
                     onContinueInAgent: continueCaptureInAgent
                 )
-            }
-        }
-        .fullScreenCover(
-            item: $relationshipCalendarPresentation,
-            onDismiss: {
-                reloadRelationshipCalendarActivities()
-                completeDeferredTransition()
-            }
-        ) { launchIntent in
-            if let snapshot = workspaceStore.snapshot {
-                RelationshipCalendarView(
-                    snapshot: snapshot,
-                    isPreview: !workspaceStore.isCanonical,
-                    initialActivities: relationshipCalendarActivities,
-                    launchIntent: launchIntent,
-                    personDetail: { personID in
-                        guard let current = workspaceStore.snapshot,
-                              let person = current.person(id: personID) else { return nil }
-                        return AnyView(WorkspacePersonDetailView(
-                            person: person, roles: roles(for: person.id, in: current), workspaceStore: workspaceStore
-                        ))
-                    },
-                    onPrepare: stageCalendarPreparation
-                )
-            } else {
-                PursuitWorkspaceLoadingView()
             }
         }
         .onChange(of: scenePhase) { phase in
@@ -728,6 +707,30 @@ struct RelationshipArchiveView: View {
                 },
                 onAsk: askAboutPerson
             )
+        case .meetings:
+            RelationshipCalendarView(
+                snapshot: snapshot,
+                isPreview: !workspaceStore.isCanonical,
+                initialActivities: relationshipCalendarActivities,
+                isEmbedded: true,
+                isActive: selectedPage == .meetings,
+                launchRequest: calendarLaunchRequest,
+                onActivitiesChange: { activities in
+                    if relationshipCalendarActivities != activities {
+                        relationshipCalendarActivities = activities
+                    }
+                },
+                personDetail: { personID in
+                    guard let current = workspaceStore.snapshot,
+                          let person = current.person(id: personID) else { return nil }
+                    return AnyView(WorkspacePersonDetailView(
+                        person: person, roles: roles(for: person.id, in: current),
+                        workspaceStore: workspaceStore
+                    ))
+                },
+                onRecordNotes: { stageCalendarSession($0, intent: .notes) },
+                onPrepare: { stageCalendarSession($0, intent: .preparation) }
+            )
         }
     }
 
@@ -790,21 +793,7 @@ struct RelationshipArchiveView: View {
     private func updatePageProgress(
         from measurements: [String: RelationshipPageMeasurement]
     ) {
-        guard let nearest = measurements.min(by: {
-            abs($0.value.minX) < abs($1.value.minX)
-        }), nearest.value.width > 0,
-              let index = RelationshipArchivePage.allCases.firstIndex(where: {
-                  $0.id == nearest.key
-              }) else { return }
-
-        let direction: CGFloat = pageLayoutDirection == .rightToLeft ? -1 : 1
-        let rawProgress = CGFloat(index)
-            - direction * nearest.value.minX / nearest.value.width
-        let maximum = CGFloat(RelationshipArchivePage.allCases.count - 1)
-        let resolved = min(max(rawProgress, 0), maximum)
-        if abs(resolved - pageSwipeProgress) > 0.001 {
-            pageSwipeProgress = resolved
-        }
+        pageMotion.update(from: measurements, layoutDirection: pageLayoutDirection)
     }
 
     private func clearTransientRetrievalIntent() {
@@ -816,36 +805,27 @@ struct RelationshipArchiveView: View {
         peopleRestorationPosition = peopleScrollPosition
     }
 
-    private func stageCalendarPreparation(
-        _ activity: RelationshipCalendarActivity
+    private func stageCalendarSession(
+        _ activity: RelationshipCalendarActivity,
+        intent: RelationshipMeetingIntent
     ) {
-        let objective = String(
-            format: appLanguage.text(
-                "Prepare for the %1$@ %2$@ with %3$@. Clarify the objective, unresolved evidence, and the three questions that matter most."
-            ),
-            locale: appLanguage.locale,
-            timeText(activity.startDate),
-            activity.kind.title(in: appLanguage).lowercased(),
-            activity.personDisplayLabel
-        )
-        let existingDraft = sessionStore.draft(
-            personID: activity.personID,
-            relationshipContextID: activity.relationshipContextID
-        )
-        if existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            sessionStore.saveDraft(
-                objective,
-                personID: activity.personID,
-                relationshipContextID: activity.relationshipContextID
-            )
-        }
-
+        // Calendar labels alone never authorize a different Person or context.
+        guard let snapshot = workspaceStore.snapshot,
+              let person = snapshot.person(id: activity.personID),
+              person.contexts.contains(where: { $0.id == activity.relationshipContextID }) else { return }
+        let objective = intent.draft(for: activity, language: appLanguage)
         let matchingSession = sessionStore.sessions.first {
             $0.personID == activity.personID
                 && $0.relationshipContextID == activity.relationshipContextID
         }
         if let matchingSession {
-            deferredAskPresentation = .init(
+            let existingDraft = sessionStore.draft(sessionID: matchingSession.id)
+            if existingDraft.isEmpty, matchingSession.pendingObjective == nil {
+                guard sessionStore.saveDraft(objective, sessionID: matchingSession.id) else {
+                    return
+                }
+            }
+            askPresentation = .init(
                 sessionID: matchingSession.id,
                 seed: nil,
                 preferredPersonID: nil,
@@ -853,7 +833,7 @@ struct RelationshipArchiveView: View {
                 entryMode: .text
             )
         } else {
-            deferredAskPresentation = .init(
+            askPresentation = .init(
                 sessionID: nil,
                 seed: .meetingPreparation(
                     personID: activity.personID,
@@ -865,15 +845,6 @@ struct RelationshipArchiveView: View {
                 entryMode: .text
             )
         }
-    }
-
-    private func timeText(_ date: Date) -> String {
-        date.formatted(
-            Date.FormatStyle()
-                .hour()
-                .minute()
-                .locale(appLanguage.locale)
-        )
     }
 
     private func reloadRelationshipCalendarActivities() {
@@ -1128,7 +1099,12 @@ struct RelationshipArchiveView: View {
         _ intent: RelationshipCalendarLaunchIntent
     ) {
         clearTransientRetrievalIntent()
-        relationshipCalendarPresentation = intent
+        calendarLaunchRequest = .init(intent: intent)
+        if accessibilityReduceMotion {
+            selectPage(.meetings)
+        } else {
+            withAnimation(.easeInOut(duration: 0.28)) { selectPage(.meetings) }
+        }
     }
 
     private var pageLayoutDirection: LayoutDirection {
@@ -1145,7 +1121,7 @@ struct RelationshipArchiveView: View {
     private static let pageCoordinateSpace = "relationship-page-space"
 }
 
-private struct RelationshipPageMeasurement: Equatable {
+struct RelationshipPageMeasurement: Equatable {
     let minX: CGFloat
     let width: CGFloat
 }
@@ -1212,362 +1188,138 @@ struct PursuitWorkspaceRefreshNotice: View {
     }
 }
 
+/// Only the navigation observes continuous progress. Relationship content does not.
+@MainActor
+final class RelationshipPageMotion: ObservableObject {
+    @Published private(set) var progress: CGFloat = 0
+
+    func update(
+        from measurements: [String: RelationshipPageMeasurement],
+        layoutDirection: LayoutDirection
+    ) {
+        guard let nearest = measurements.filter({
+            $0.value.width > 0 && $0.value.width.isFinite && $0.value.minX.isFinite
+                && RelationshipArchivePage(rawValue: $0.key) != nil
+        }).min(by: { abs($0.value.minX) < abs($1.value.minX) }),
+              let page = RelationshipArchivePage(rawValue: nearest.key) else { return }
+        let direction: CGFloat = layoutDirection == .rightToLeft ? -1 : 1
+        let raw = CGFloat(page.pageIndex) - direction * nearest.value.minX / nearest.value.width
+        let resolved = min(max(raw, 0), CGFloat(RelationshipArchivePage.allCases.count - 1))
+        if abs(resolved - progress) > 0.001 { progress = resolved }
+    }
+
+    static func emphasis(for page: RelationshipArchivePage, progress: CGFloat) -> CGFloat {
+        max(0, 1 - abs(CGFloat(page.pageIndex) - progress))
+    }
+}
+
 private struct RelationshipArchiveHeader: View {
     @Binding var selectedPage: RelationshipArchivePage
-    let pageProgress: CGFloat
-    let onOpenAgentStudio: () -> Void
+    @ObservedObject var motion: RelationshipPageMotion
     let onOpenCalendar: (RelationshipCalendarLaunchIntent) -> Void
+    let onOpenAgentStudio: () -> Void
+    let labAccessory: AnyView?
     @Environment(\.appLanguage) private var appLanguage
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.talentSignalReduceMotion) private var reduceMotion
-    @State private var pageCenters: [String: CGFloat] = [:]
-    @State private var pageWidths: [String: CGFloat] = [:]
-    @State private var selectorViewportWidth: CGFloat = 0
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 2) {
-                    HStack(spacing: 12) {
-                        agentStudioButton
-                        Spacer(minLength: 0)
-                        calendarButton
+        HStack(spacing: 6) {
+            Button(action: onOpenAgentStudio) {
+                RelationshipSignalOrb()
+                    .frame(width: 26, height: 26)
+                    .frame(width: 44, height: 48)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(appLanguage.text("Open Agent Studio"))
+            .accessibilityIdentifier("relationship-agent-studio")
+
+            GeometryReader { geometry in
+                let progress = reduceMotion ? CGFloat(selectedPage.pageIndex) : motion.progress
+                let labelSpace = max(0, geometry.size.width - 44 * CGFloat(RelationshipArchivePage.allCases.count))
+                HStack(spacing: 0) {
+                    ForEach(RelationshipArchivePage.allCases) { page in
+                        let emphasis = RelationshipPageMotion.emphasis(for: page, progress: progress)
+                        if page == .meetings {
+                            pageButton(page, emphasis: emphasis, labelSpace: labelSpace)
+                                .contextMenu { calendarShortcuts }
+                                .accessibilityAction(named: Text(appLanguage.text("This week"))) {
+                                    onOpenCalendar(.thisWeek)
+                                }
+                                .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
+                                    onOpenCalendar(.addActivity)
+                                }
+                        } else {
+                            pageButton(page, emphasis: emphasis, labelSpace: labelSpace)
+                        }
                     }
-                    accessibilityPageSelector
-                }
-                .padding(.vertical, 4)
-            } else {
-                HStack(spacing: 6) {
-                    agentStudioButton
-                    pageSelector(expands: true)
-                    calendarButton
                 }
             }
+            .frame(height: 48)
+            .accessibilityElement(children: .contain)
+            if let labAccessory { labAccessory.frame(width: 44, height: 48) }
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: 52)
+        .frame(height: 52)
         .background(Color.tsSurface)
     }
 
-    private var agentStudioButton: some View {
-        Button(action: onOpenAgentStudio) {
-            RelationshipSignalOrb()
-                .frame(width: 30, height: 30)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+    private var calendarShortcuts: some View {
+        Group {
+            Button { onOpenCalendar(.overview) } label: {
+                Label(appLanguage.text("Open calendar"), systemImage: "calendar")
+            }.accessibilityIdentifier("calendar-shortcut-open")
+            Button { onOpenCalendar(.today) } label: {
+                Label(appLanguage.text("Today"), systemImage: "calendar.badge.clock")
+            }.accessibilityIdentifier("calendar-shortcut-today")
+            Button { onOpenCalendar(.thisWeek) } label: {
+                Label(appLanguage.text("This week"), systemImage: "calendar")
+            }.accessibilityIdentifier("calendar-shortcut-this-week")
+            Button { onOpenCalendar(.addActivity) } label: {
+                Label(appLanguage.text("Add activity"), systemImage: "plus")
+            }.accessibilityIdentifier("calendar-shortcut-add-activity")
         }
-        .buttonStyle(.plain)
-        .frame(width: 44, height: 44)
-        .accessibilityLabel(
-            appLanguage.text(
-                "Open Agent Studio",
-                zhHans: "打开 Agent Studio"
-            )
-        )
-        .accessibilityIdentifier("relationship-agent-studio")
-    }
-
-    private var calendarButton: some View {
-        Menu {
-            Button {
-                onOpenCalendar(.overview)
-            } label: {
-                Label(
-                    appLanguage.text("Open calendar", zhHans: "打开日历"),
-                    systemImage: "calendar"
-                )
-            }
-            .accessibilityIdentifier("calendar-shortcut-open")
-
-            Section(appLanguage.text("Go to")) {
-                Button {
-                    onOpenCalendar(.today)
-                } label: {
-                    Label(
-                        appLanguage.text("Today"),
-                        systemImage: "calendar.badge.clock"
-                    )
-                }
-                .accessibilityIdentifier("calendar-shortcut-today")
-
-                Button {
-                    onOpenCalendar(.thisWeek)
-                } label: {
-                    Label(
-                        appLanguage.text("This week"),
-                        systemImage: "calendar"
-                    )
-                }
-                .accessibilityIdentifier("calendar-shortcut-this-week")
-            }
-
-            Button {
-                onOpenCalendar(.addActivity)
-            } label: {
-                Label(
-                    appLanguage.text("Add activity"),
-                    systemImage: "plus"
-                )
-            }
-            .accessibilityIdentifier("calendar-shortcut-add-activity")
-        } label: {
-            Image(systemName: "calendar")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(Color.tsInk)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        } primaryAction: {
-            onOpenCalendar(.overview)
-        }
-        .buttonStyle(.plain)
-        .frame(width: 44, height: 44)
-        .accessibilityLabel(
-            appLanguage.text(
-                "Open relationship calendar",
-                zhHans: "打开关系日历"
-            )
-        )
-        .accessibilityHint(
-            appLanguage.text(
-                "Opens the calendar. More actions jump to today, this week, or add an activity.",
-                zhHans: "打开日历；更多操作可前往今天、本周或添加日程。"
-            )
-        )
-        .accessibilityAction(named: Text(appLanguage.text("Today"))) {
-            onOpenCalendar(.today)
-        }
-        .accessibilityAction(named: Text(appLanguage.text("This week"))) {
-            onOpenCalendar(.thisWeek)
-        }
-        .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
-            onOpenCalendar(.addActivity)
-        }
-        .accessibilityIdentifier("today-calendar-peek")
-    }
-
-    private var accessibilityPageSelector: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    Color.clear
-                        .frame(width: edgePadding(for: .today))
-                    pageSelector(expands: false)
-                    Color.clear
-                        .frame(width: edgePadding(for: .people))
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .background {
-                GeometryReader { geometry in
-                    Color.clear.preference(
-                        key: RelationshipSelectorViewportWidthKey.self,
-                        value: geometry.size.width
-                    )
-                }
-            }
-            .onAppear {
-                center(selectedPage, using: proxy, animated: false)
-            }
-            .onChange(of: selectedPage) { page in
-                center(page, using: proxy, animated: true)
-            }
-            .onPreferenceChange(RelationshipSelectorViewportWidthKey.self) { width in
-                if abs(selectorViewportWidth - width) > 0.5 {
-                    selectorViewportWidth = width
-                }
-            }
-            .onChange(of: selectorViewportWidth) { _ in
-                center(selectedPage, using: proxy, animated: false)
-            }
-            .onChange(of: pageWidths) { _ in
-                center(selectedPage, using: proxy, animated: false)
-            }
-        }
-        .frame(minHeight: 44)
-    }
-
-    private func edgePadding(for page: RelationshipArchivePage) -> CGFloat {
-        let pageWidth = pageWidths[page.id] ?? 44
-        return max(0, (selectorViewportWidth - pageWidth) / 2)
-    }
-
-    private func center(
-        _ page: RelationshipArchivePage,
-        using proxy: ScrollViewProxy,
-        animated: Bool
-    ) {
-        if reduceMotion || !animated {
-            proxy.scrollTo(page.id, anchor: .center)
-        } else {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                proxy.scrollTo(page.id, anchor: .center)
-            }
-        }
-    }
-
-    private func pageSelector(expands: Bool) -> some View {
-        HStack(spacing: 0) {
-            ForEach(RelationshipArchivePage.allCases) { page in
-                pageButton(page, expands: expands)
-            }
-        }
-        .frame(maxWidth: expands ? .infinity : nil)
-        .coordinateSpace(name: Self.tabCoordinateSpace)
-        .onPreferenceChange(RelationshipTabCenterKey.self) { centers in
-            if pageCenters != centers {
-                pageCenters = centers
-            }
-        }
-        .onPreferenceChange(RelationshipTabWidthKey.self) { widths in
-            if pageWidths != widths {
-                pageWidths = widths
-            }
-        }
-        .overlay(alignment: .bottomLeading) {
-            pageIndicator
-        }
-        .accessibilityElement(children: .contain)
     }
 
     private func pageButton(
         _ page: RelationshipArchivePage,
-        expands: Bool
+        emphasis: CGFloat,
+        labelSpace: CGFloat
     ) -> some View {
         Button {
-            if reduceMotion {
-                selectedPage = page
-            } else {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
-                    selectedPage = page
-                }
+            // PageTabViewStyle owns interactive travel. Do not layer another
+            // spring onto geometry-driven labels during a finger gesture.
+            if reduceMotion { selectedPage = page }
+            else {
+                withAnimation(.easeInOut(duration: 0.28)) { selectedPage = page }
             }
         } label: {
-            VStack(spacing: 2) {
+            HStack(spacing: 0) {
+                Image(systemName: page.symbolName)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Color.tsInk.opacity(0.55 + emphasis * 0.45))
+                    .frame(width: 44, height: 44)
                 Text(page.title(in: appLanguage))
-                    .font(.subheadline.weight(
-                        selectedPage == page ? .semibold : .regular
-                    ))
-                    .foregroundStyle(
-                        selectedPage == page ? Color.tsInk : Color.tsMutedInk
-                    )
+                    .font(.subheadline.weight(.semibold))
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .foregroundStyle(Color.tsInk)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                    .fixedSize(horizontal: !expands, vertical: false)
-                    .layoutPriority(1)
-                    .accessibilityHidden(true)
-                Color.clear.frame(height: 2)
+                    .frame(width: max(0, labelSpace - 8), alignment: .leading)
+                    .padding(.trailing, min(8, labelSpace))
+                    .opacity(emphasis)
+                    .frame(width: labelSpace * emphasis, alignment: .leading)
+                    .clipped()
             }
-            .padding(.horizontal, expands ? 0 : 14)
-            .frame(
-                minWidth: page == .sessions ? 70 : 58,
-                maxWidth: expands ? .infinity : nil
-            )
-            .frame(minHeight: 44)
+            .frame(height: 48)
             .contentShape(Rectangle())
+            .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(selectedPage == page ? .isSelected : [])
         .accessibilityLabel(page.title(in: appLanguage))
+        .accessibilityAddTraits(selectedPage == page ? .isSelected : [])
         .accessibilityIdentifier("archive-tab-\(page.accessibilityIdentifier)")
         .accessibilityShowsLargeContentViewer { Text(page.title(in: appLanguage)) }
-        .id(page.id)
-        .background {
-            GeometryReader { geometry in
-                Color.clear.preference(
-                    key: RelationshipTabCenterKey.self,
-                    value: [
-                        page.id: geometry.frame(
-                            in: .named(Self.tabCoordinateSpace)
-                        ).midX,
-                    ]
-                )
-                .preference(
-                    key: RelationshipTabWidthKey.self,
-                    value: [page.id: geometry.size.width]
-                )
-            }
-        }
-    }
-
-    private var pageIndicator: some View {
-        GeometryReader { geometry in
-            let count = CGFloat(RelationshipArchivePage.allCases.count)
-            let resolvedProgress = reduceMotion
-                ? CGFloat(selectedPage.pageIndex)
-                : min(max(pageProgress, 0), count - 1)
-            let lowerIndex = Int(resolvedProgress.rounded(.down))
-            let upperIndex = min(
-                lowerIndex + 1,
-                RelationshipArchivePage.allCases.count - 1
-            )
-            let travel = resolvedProgress - CGFloat(lowerIndex)
-            let lowerCenter = tabCenter(
-                at: lowerIndex,
-                availableWidth: geometry.size.width
-            )
-            let upperCenter = tabCenter(
-                at: upperIndex,
-                availableWidth: geometry.size.width
-            )
-            let indicatorCenter = lowerCenter + (upperCenter - lowerCenter) * travel
-            let stretch = reduceMotion ? 0 : sin(travel * .pi) * 14
-            let indicatorWidth = 22 + stretch
-
-            Capsule(style: .continuous)
-                .fill(Color.tsInk)
-                .frame(width: indicatorWidth, height: 2)
-                .offset(
-                    x: indicatorCenter - indicatorWidth / 2,
-                    y: geometry.size.height - 2
-                )
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    private func tabCenter(at index: Int, availableWidth: CGFloat) -> CGFloat {
-        let page = RelationshipArchivePage.allCases[index]
-        if let measuredCenter = pageCenters[page.id] {
-            return measuredCenter
-        }
-        let count = CGFloat(RelationshipArchivePage.allCases.count)
-        let physicalIndex = layoutDirection == .rightToLeft
-            ? count - 1 - CGFloat(index)
-            : CGFloat(index)
-        return availableWidth / count * (physicalIndex + 0.5)
-    }
-
-    private static let tabCoordinateSpace = "relationship-tab-space"
-}
-
-private struct RelationshipTabCenterKey: PreferenceKey {
-    static let defaultValue: [String: CGFloat] = [:]
-
-    static func reduce(
-        value: inout [String: CGFloat],
-        nextValue: () -> [String: CGFloat]
-    ) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
-
-private struct RelationshipTabWidthKey: PreferenceKey {
-    static let defaultValue: [String: CGFloat] = [:]
-
-    static func reduce(
-        value: inout [String: CGFloat],
-        nextValue: () -> [String: CGFloat]
-    ) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
-
-private struct RelationshipSelectorViewportWidthKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
 
@@ -1623,25 +1375,20 @@ struct PursuitTodayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    RelationshipEyebrow(formattedToday, color: .tsInk)
+                    Text(formattedToday)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.tsMutedInk)
+                        .accessibilityAddTraits(.isHeader)
                     Spacer(minLength: 8)
                     if isPreview {
                         PursuitPreviewBoundary(compact: true)
                     }
                 }
-                Text(appLanguage.text("Today", zhHans: "今天"))
-                    .font(.custom("Georgia", size: 38, relativeTo: .largeTitle))
-                    .foregroundStyle(Color.tsInk)
-                    .tracking(-1.1)
-                    .padding(.top, 5)
-
-                if !calendarActivities.isEmpty {
-                    TodayRelationshipCalendarPeek(
-                        activities: calendarActivities,
-                        onOpen: onOpenCalendar
-                    )
-                    .padding(.top, 14)
-                }
+                TodayRelationshipCalendarPeek(
+                    activities: calendarActivities,
+                    onOpen: onOpenCalendar
+                )
+                .padding(.top, 14)
 
                 if pendingCaptureCount > 0 {
                     TodayCaptureInboxRow(
@@ -1751,14 +1498,6 @@ struct PursuitTodayView: View {
 
     @ViewBuilder
     private var canonicalAttentionContent: some View {
-        if !attentionItems.isEmpty || actionRecovery != nil {
-                    Text(summary)
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .padding(.top, 6)
-                        .accessibilityIdentifier("today-attention-summary")
-        }
-
         if let unread = unreadSessions.first {
                     Text(
                         appLanguage.text(
@@ -1814,8 +1553,8 @@ struct PursuitTodayView: View {
         } else if let focus = attentionItems.first {
                     Text(
                         appLanguage.text(
-                            "People needing attention",
-                            zhHans: "需要关注的人"
+                            "Needs your decision",
+                            zhHans: "待处理"
                         )
                     )
                     .font(.caption.weight(.bold))
@@ -1884,19 +1623,6 @@ struct PursuitTodayView: View {
         previewDecisions.filter {
             (decisionStates[$0.id] ?? .pending) == .pending
         }.count
-    }
-
-    private var summary: String {
-        let total = attentionItems.count
-            + unreadSessions.count
-            + (attentionRecovery == nil ? 0 : 1)
-        if total == 0 {
-            return ""
-        }
-        return appLanguage.text(
-            "\(total) to consider",
-            zhHans: "\(total) 件待判断"
-        )
     }
 
     private var topWorkSpacing: CGFloat {
@@ -2122,13 +1848,12 @@ private struct TodayInlineDecisionCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Text(decision.kind.title(in: appLanguage))
                 .font(.caption.weight(.bold))
-                .tracking(0.8)
-                .foregroundStyle(Color.tsVermilion)
+                .tracking(0.2)
+                .foregroundStyle(Color.tsMutedInk)
 
             Text(decision.question)
-                .font(.custom("Georgia", size: 23, relativeTo: .title3))
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
-                .tracking(-0.35)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 8)
 
@@ -2255,14 +1980,7 @@ private struct TodayInlineDecisionCard: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
                 .frame(maxWidth: .infinity, minHeight: 44)
-                .background(
-                    Color.tsCanvas,
-                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .stroke(Color.tsInk.opacity(0.72), lineWidth: 1)
-                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("today-decision-edit-\(decision.id)")
@@ -2547,7 +2265,7 @@ private struct TodayFocusCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 RelationshipEyebrow(
                     item.kind == .review
-                        ? appLanguage.text("AI insight · Needs review", zhHans: "AI 洞察 · 需要审阅")
+                        ? appLanguage.text("Review proposal")
                         : appLanguage.workspaceTerm(item.eyebrow)
                 )
                 Spacer(minLength: 10)
@@ -2562,7 +2280,7 @@ private struct TodayFocusCard: View {
                     ?? pursuit?.title
                     ?? appLanguage.text("Pursuit", zhHans: "目标")
             )
-                .font(.custom("Georgia", size: 27, relativeTo: .title2))
+                .font(.title2.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
@@ -4303,7 +4021,7 @@ private extension GeometryProxy {
     }
 }
 
-private extension View {
+extension View {
     @ViewBuilder
     func relationshipContentBounce() -> some View {
         if #available(iOS 16.4, *) {
@@ -4369,29 +4087,11 @@ private struct PursuitNoActionView: View {
     @Environment(\.appLanguage) private var appLanguage
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "checkmark.circle")
-                .font(.title2)
-                .foregroundStyle(Color.tsMutedInk)
-            Text(
-                appLanguage.text(
-                    "Nothing needs your judgment.",
-                    zhHans: "当前无需你作出判断。"
-                )
-            )
-                .font(.custom("Georgia", size: 27, relativeTo: .title2))
-                .foregroundStyle(Color.tsInk)
-            Text(
-                appLanguage.text(
-                    "No pending Proposal, owned due action, or reviewed-evidence gap is asking for attention.",
-                    zhHans: "目前没有待审提议、已负责的到期行动或经审阅证据支持的缺口需要关注。"
-                )
-            )
-                .font(.subheadline)
-                .foregroundStyle(Color.tsMutedInk)
-        }
-        .padding(.vertical, 28)
-        .accessibilityIdentifier("today-no-action")
+        Label(appLanguage.text("Nothing needs attention"), systemImage: "checkmark.circle")
+            .font(.headline)
+            .foregroundStyle(Color.tsMutedInk)
+            .padding(.vertical, 20)
+            .accessibilityIdentifier("today-no-action")
     }
 }
 
@@ -4563,6 +4263,8 @@ struct PursuitWorkspaceEmptyView: View {
             return appLanguage.text("No sessions yet", zhHans: "还没有会话")
         case .people:
             return appLanguage.text("No people yet", zhHans: "还没有人物")
+        case .meetings:
+            return appLanguage.text("No meetings yet")
         }
     }
 }

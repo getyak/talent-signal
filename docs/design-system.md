@@ -94,6 +94,7 @@ The primary surfaces answer different questions:
 | Sessions | Which recent Agent conversation should I resume? |
 | Pursuits | Which outcome am I trying to advance? |
 | People | Who or what am I looking for? |
+| Meetings | Who am I meeting next, and what should I prepare or record? |
 | Pursuit page | What outcome, milestone, gap, and action are current? |
 | Candidate page | What is currently true for this person in this Pursuit? |
 | Timeline | How did understanding and action change? |
@@ -261,13 +262,12 @@ or turn weak associations into authoritative relationships.
 
 Optimize for capture, one-thumb review, Today, interruption, and device-owned action.
 
-Today, Sessions, and People form one horizontal pager. Pages follow the finger
-while the measured top indicator tracks real label positions in LTR and RTL;
-navigation preserves each page's search, filter, and scroll state. Rows reserve
-horizontal movement for paging: tap opens, while a 44-point menu, native context
-menu, and accessibility actions expose the same secondary commands. See the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#sixth-iteration-pages-own-the-horizontal-axis). Calendar follows the same gesture rule and leads with the selected time horizon and relationship agenda. Its menus expose edit, open, preparation, and Person; editing fixes relationship scope and reviews changed fields plus external effect. A linked EventKit event updates by saved identifier only; missing never creates a replacement.
-Treat screenshot intake as one progressive decision, not a miniature contact
-form or a success toast:
+Today, Sessions, People, and Meetings form one horizontal pager. Persistent symbols reveal only the current name, following actual progress in LTR and RTL, including cancellation. Reduced motion uses selection directly; full accessibility names, selected states and 44-point targets remain available. Only the header observes continuous motion; page search, filters, scroll and calendar disclosure persist.
+Rows reserve horizontal movement for paging: tap opens, while visible menus, context menus and accessibility actions expose the same commands. See the [iOS gesture research](research/ios-relationship-library-design-benchmark.md#sixth-iteration-pages-own-the-horizontal-axis).
+Calendar leads with the selected time horizon and relationship agenda. Menus expose edit, open, preparation and Person; editing fixes relationship scope and reviews changed fields plus external effect. A linked EventKit event updates by saved identifier only; missing never creates a replacement.
+Today uses one page identity and leads with its date, the next meeting's day and time, and reviewable decisions. Avoid duplicate titles, generic attention slogans and decorative urgency; keep preview and external-effect disclosures where they affect judgment.
+
+Treat screenshot intake as one progressive decision, not a miniature contact form or a success toast:
 
 1. show the device-owned source and editable recognized text;
 2. mark unsupported speaker attribution explicitly;

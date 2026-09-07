@@ -3,6 +3,7 @@ import SwiftUI
 struct TalentSignalLabCapsule: View {
     @ObservedObject var store: TalentSignalLabStore
     let action: () -> Void
+    var compact = false
 
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -12,19 +13,20 @@ struct TalentSignalLabCapsule: View {
             Button(action: action) {
                 HStack(spacing: 7) {
                     Image(systemName: "flask.fill")
-                        .font(.caption.weight(.semibold))
+                        .font(compact ? .system(size: 16, weight: .medium) : .caption.weight(.semibold))
                         .accessibilityHidden(true)
-                    Text(shortLabel)
+                    if !compact { Text(shortLabel)
                         .font(.caption.weight(.semibold))
                         .lineLimit(1)
+                    }
                 }
                 .foregroundStyle(Color.tsInk)
-                .padding(.horizontal, 13)
-                .frame(minHeight: 44)
+                .padding(.horizontal, compact ? 0 : 13)
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
-            .modifier(TalentSignalLabCapsuleMaterial())
+            .modifier(TalentSignalLabCapsuleMaterial(compact: compact))
             .accessibilityLabel(
                 appLanguage.text("Open Talent Signal Lab")
             )
@@ -48,11 +50,14 @@ struct TalentSignalLabCapsule: View {
 }
 
 private struct TalentSignalLabCapsuleMaterial: ViewModifier {
+    var compact = false
     @Environment(\.talentSignalReduceTransparency) private var reduceTransparency
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if reduceTransparency {
+        if compact {
+            content
+        } else if reduceTransparency {
             content
                 .background(Color.tsCanvas, in: Capsule())
                 .overlay { Capsule().stroke(Color.tsLine, lineWidth: 1) }

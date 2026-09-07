@@ -695,6 +695,38 @@ enum RelationshipCalendarLaunchIntent: String, Identifiable {
     var id: String { rawValue }
 }
 
+struct RelationshipCalendarLaunchRequest: Equatable {
+    let id = UUID()
+    let intent: RelationshipCalendarLaunchIntent
+}
+
+enum RelationshipMeetingIntent {
+    case preparation
+    case notes
+
+    func draft(for activity: RelationshipCalendarActivity, language: AppLanguage) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = language.locale
+        formatter.timeZone = TimeZone(identifier: activity.timeZoneIdentifier) ?? .current
+        formatter.setLocalizedDateFormatFromTemplate("yMMMdjmm")
+        let date = "\(formatter.string(from: activity.startDate)) · \(activity.timeZoneIdentifier)"
+        switch self {
+        case .preparation:
+            return String(
+                format: language.text("Prepare for the %1$@ %2$@ with %3$@. Clarify the objective, unresolved evidence, and the three questions that matter most."),
+                locale: language.locale, date, activity.kind.title(in: language).lowercased(),
+                activity.personDisplayLabel
+            )
+        case .notes:
+            return String(
+                format: language.text("Notes from %1$@ with %2$@ (%3$@):"),
+                locale: language.locale, activity.displayTitle(in: language),
+                activity.personDisplayLabel, date
+            ) + "\n\n"
+        }
+    }
+}
+
 struct TodayRelationshipCalendarPeek: View {
     let activities: [RelationshipCalendarActivity]
     let onOpen: () -> Void
@@ -742,22 +774,28 @@ struct TodayRelationshipCalendarPeek: View {
     }
 
     private var timeMark: some View {
-        HStack(spacing: 9) {
-            VStack(spacing: 0) {
-                Circle()
-                    .fill(Color.tsVermilion)
-                    .frame(width: 7, height: 7)
-                Rectangle()
-                    .fill(Color.tsVermilion)
-                    .frame(width: 1, height: 35)
-            }
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(nextActivity.map { dayText($0) } ?? "")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.tsMutedInk)
             Text(nextActivity.map { timeText($0.startDate, in: $0) } ?? "—")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(Color.tsVermilion)
-                .fixedSize()
+                .foregroundStyle(Color.tsInk)
         }
-        .frame(minWidth: dynamicTypeSize.isAccessibilitySize ? nil : 96, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityHidden(true)
+    }
+
+    private func dayText(_ activity: RelationshipCalendarActivity) -> String {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: activity.timeZoneIdentifier) ?? .current
+        if calendar.isDateInToday(activity.startDate) { return appLanguage.text("Today") }
+        if calendar.isDateInTomorrow(activity.startDate) { return appLanguage.text("Tomorrow") }
+        let formatter = DateFormatter()
+        formatter.locale = appLanguage.locale
+        formatter.timeZone = calendar.timeZone
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter.string(from: activity.startDate)
     }
 
     @ViewBuilder
@@ -795,13 +833,6 @@ struct TodayRelationshipCalendarPeek: View {
             Text(appLanguage.text("Nothing scheduled today"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.tsInk)
-            Text(
-                appLanguage.text(
-                    "Open Calendar to plan the next relationship moment."
-                )
-            )
-                .font(.caption)
-                .foregroundStyle(Color.tsMutedInk)
         }
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -901,6 +932,11 @@ struct RelationshipCalendarView: View {
     let isPreview: Bool
     let initialActivities: [RelationshipCalendarActivity]
     let onPrepare: (RelationshipCalendarActivity) -> Void
+    let onRecordNotes: ((RelationshipCalendarActivity) -> Void)?
+    let isEmbedded: Bool
+    let isActive: Bool
+    let launchRequest: RelationshipCalendarLaunchRequest?
+    let onActivitiesChange: (([RelationshipCalendarActivity]) -> Void)?
     let personDetail: ((String) -> AnyView?)?
 
     @Environment(\.appLanguage) private var appLanguage
@@ -917,6 +953,9 @@ struct RelationshipCalendarView: View {
     @State private var destination: CalendarSheetDestination?
     @State private var calendarNotice: String?
     @State private var syncingActivityIDs: Set<String> = []
+    @State private var lastLaunchRequestID: UUID?
+    @State private var hasEstablishedAgendaDate: Bool
+    @State private var pendingSessionIntent: (RelationshipCalendarActivity, RelationshipMeetingIntent)?
 
     private let activityStore: (any RelationshipCalendarActivityPersisting)?
     private let calendarSync: any DeviceCalendarSyncing
@@ -926,14 +965,24 @@ struct RelationshipCalendarView: View {
         isPreview: Bool,
         initialActivities: [RelationshipCalendarActivity],
         launchIntent: RelationshipCalendarLaunchIntent = .overview,
+        isEmbedded: Bool = false,
+        isActive: Bool = true,
+        launchRequest: RelationshipCalendarLaunchRequest? = nil,
+        onActivitiesChange: (([RelationshipCalendarActivity]) -> Void)? = nil,
         activityStore: (any RelationshipCalendarActivityPersisting)? = nil,
         calendarSync: (any DeviceCalendarSyncing)? = nil,
         personDetail: ((String) -> AnyView?)? = nil,
+        onRecordNotes: ((RelationshipCalendarActivity) -> Void)? = nil,
         onPrepare: @escaping (RelationshipCalendarActivity) -> Void
     ) {
         self.snapshot = snapshot
         self.isPreview = isPreview
         self.onPrepare = onPrepare
+        self.onRecordNotes = onRecordNotes
+        self.isEmbedded = isEmbedded
+        self.isActive = isActive
+        self.launchRequest = launchRequest
+        self.onActivitiesChange = onActivitiesChange
         self.personDetail = personDetail
         let resolvedStore = activityStore ?? (isPreview
             ? nil
@@ -953,6 +1002,7 @@ struct RelationshipCalendarView: View {
         combined.sort { $0.startDate < $1.startDate }
         self.initialActivities = combined
         _activities = State(initialValue: combined)
+        _hasEstablishedAgendaDate = State(initialValue: !combined.isEmpty)
         let next = RelationshipCalendarProjection.next(in: combined)
         let startsAtToday = launchIntent != .overview
         _selectedDate = State(
@@ -969,47 +1019,26 @@ struct RelationshipCalendarView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    calendarPicker
-                    if selectedPersonID != nil { agendaControls.padding(.top, 4) }
-                    agendaHeader
-                        .padding(.top, 12)
-                    agenda
-                        .padding(.top, 12)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 44)
-            }
-            .scrollIndicators(.hidden)
-            .background(Color.tsSurface.ignoresSafeArea())
-            .navigationTitle(appLanguage.text("Calendar"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(appLanguage.text("Close")) {
-                        dismiss()
-                    }
-                    .accessibilityIdentifier("close-relationship-calendar")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        destination = .create
-                    } label: {
-                        Image(systemName: "plus")
-                            .frame(width: 44, height: 44)
-                    }
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-                    .accessibilityLabel(appLanguage.text("Add activity"))
-                    .accessibilityIdentifier("calendar-add-activity")
+        Group {
+            if isEmbedded {
+                calendarContent
+            } else {
+                NavigationStack {
+                    calendarContent
+                        .navigationTitle(appLanguage.text("Calendar"))
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button(appLanguage.text("Close")) { dismiss() }
+                                    .accessibilityIdentifier("close-relationship-calendar")
+                            }
+                            ToolbarItem(placement: .topBarTrailing) { addActivityButton }
+                        }
                 }
             }
         }
         .tint(.tsInk)
-        .sheet(item: $destination) { destination in
+        .sheet(item: $destination, onDismiss: completeSessionHandoff) { destination in
             switch destination {
             case let .detail(activity):
                 RelationshipCalendarActivityDetail(
@@ -1028,8 +1057,9 @@ struct RelationshipCalendarView: View {
                         )
                         ? { syncToCalendar(activityID: activity.id) }
                         : nil,
-                    onPrepare: {
-                        prepare(activity)
+                    onPrepare: { prepare(activity) },
+                    onRecordNotes: onRecordNotes == nil ? nil : {
+                        openSession(activity, intent: .notes)
                     }
                 )
             case .create:
@@ -1072,13 +1102,94 @@ struct RelationshipCalendarView: View {
             }
         }
         .accessibilityIdentifier("relationship-calendar")
-        .task { resumePendingCalendarSync() }
+        .task(id: isActive) {
+            guard isActive else { return }
+            applyLaunchRequest()
+            resumePendingCalendarSync()
+        }
+        .onChange(of: launchRequest) { _ in
+            if isActive { applyLaunchRequest() }
+        }
+        .onChange(of: initialActivities) { incoming in
+            if !hasEstablishedAgendaDate, !incoming.isEmpty {
+                selectedDate = Calendar.current.startOfDay(for:
+                    RelationshipCalendarProjection.next(in: incoming)?.startDate ?? Date())
+                hasEstablishedAgendaDate = true
+            }
+            if activities != incoming { activities = incoming }
+        }
+        .onChange(of: selectedDate) { _ in hasEstablishedAgendaDate = true }
+        .onChange(of: activities) { onActivitiesChange?($0) }
+    }
+
+    private var calendarContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                calendarPicker
+                if selectedPersonID != nil { agendaControls.padding(.top, 4) }
+                agendaHeader.padding(.top, 12)
+                agenda.padding(.top, 12)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, isEmbedded ? 16 : 8)
+            .padding(.bottom, 28)
+        }
+        .scrollIndicators(.hidden)
+        .relationshipContentBounce()
+        .background(Color.tsSurface)
+    }
+
+    private var addActivityButton: some View {
+        Button { destination = .create } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .medium))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(appLanguage.text("Add activity"))
+        .accessibilityIdentifier("calendar-add-activity")
+    }
+
+    private func applyLaunchRequest() {
+        guard let request = launchRequest, lastLaunchRequestID != request.id else { return }
+        lastLaunchRequestID = request.id
+        hasEstablishedAgendaDate = true
+        switch request.intent {
+        case .overview:
+            selectedDate = Calendar.current.startOfDay(for:
+                RelationshipCalendarProjection.next(in: activities)?.startDate ?? Date())
+            agendaMode = .day
+            selectedPersonID = nil
+        case .today:
+            selectedDate = Calendar.current.startOfDay(for: Date())
+            agendaMode = .day
+        case .thisWeek:
+            selectedDate = Calendar.current.startOfDay(for: Date())
+            agendaMode = .week
+        case .addActivity:
+            destination = .create
+        }
     }
 
     private func prepare(_ activity: RelationshipCalendarActivity) {
-        destination = nil
-        onPrepare(activity)
-        dismiss()
+        openSession(activity, intent: .preparation)
+    }
+
+    private func openSession(_ activity: RelationshipCalendarActivity, intent: RelationshipMeetingIntent) {
+        pendingSessionIntent = (activity, intent)
+        if destination != nil { destination = nil }
+        else { completeSessionHandoff() }
+    }
+
+    private func completeSessionHandoff() {
+        guard let (activity, intent) = pendingSessionIntent else { return }
+        pendingSessionIntent = nil
+        if !isEmbedded { dismiss() }
+        switch intent {
+        case .preparation: onPrepare(activity)
+        case .notes: onRecordNotes?(activity)
+        }
     }
 
     private func confirm(
@@ -1235,7 +1346,12 @@ struct RelationshipCalendarView: View {
                     "Calendar sync finished, but its receipt could not be saved in Talent Signal."
                 )
             }
-            destination = .detail(activities[index])
+            // A receipt updates an open detail; it must not reopen a dismissed
+            // sheet or replace another activity after the recruiter moves on.
+            if case let .detail(visibleActivity) = destination,
+               visibleActivity.id == activityID {
+                destination = .detail(activities[index])
+            }
         }
     }
 
@@ -1300,6 +1416,7 @@ struct RelationshipCalendarView: View {
                         weekNavigationButton(offset: 1)
                     }
                 }
+                if isEmbedded { addActivityButton }
             }
             if agendaMode == .day || isMonthExpanded || usesWeekList { calendarGrid }
         }
@@ -1340,8 +1457,13 @@ struct RelationshipCalendarView: View {
             }
         } label: {
             HStack(spacing: 5) {
-                Text(appLanguage.text(agendaMode == .day ? "Day agenda" : "Week view"))
-                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                if isEmbedded {
+                    Image(systemName: agendaMode == .day ? "list.bullet" : "calendar")
+                        .font(.system(size: 18, weight: .medium))
+                } else {
+                    Text(appLanguage.text(agendaMode == .day ? "Day agenda" : "Week view"))
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                }
             }
             .font(.subheadline.weight(.medium))
             .frame(minWidth: 44, minHeight: 44)
@@ -2338,6 +2460,7 @@ private struct RelationshipCalendarActivityDetail: View {
     let onOpenPerson: (() -> Void)?
     let onRetryCalendarSync: (() -> Void)?
     let onPrepare: () -> Void
+    let onRecordNotes: (() -> Void)?
 
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.dismiss) private var dismiss
@@ -2440,16 +2563,17 @@ private struct RelationshipCalendarActivityDetail: View {
                     )
                     .accessibilityIdentifier("calendar-prepare-agent")
 
-                    Label(
-                        appLanguage.text(
-                            "Opens an editable Session draft · no automatic action"
-                        ),
-                        systemImage: "lock.shield"
-                    )
-                        .font(.caption)
-                        .foregroundStyle(Color.tsMutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 12)
+                    if let onRecordNotes {
+                        Button(action: onRecordNotes) {
+                            Label(appLanguage.text("Add meeting notes"), systemImage: "square.and.pencil")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(appLanguage.text("Returns to the linked Session with an editable draft. Nothing is sent yet."))
+                        .accessibilityIdentifier("calendar-record-notes")
+                        .padding(.top, 8)
+                    }
 
                     DisclosureGroup {
                         VStack(alignment: .leading, spacing: 14) {
