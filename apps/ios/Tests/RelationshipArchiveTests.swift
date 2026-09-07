@@ -4487,3 +4487,51 @@ private final class RecordingDeviceCalendarSyncService: DeviceCalendarSyncing {
         )
     }
 }
+
+
+final class RetrievalNavigationTests: XCTestCase {
+    @MainActor
+    func testProgressReturnsToOriginAfterCancelledSwipeAndCrossesAllFourPages() {
+        let motion = RelationshipPageMotion()
+        for index in 0..<RelationshipArchivePage.allCases.count - 1 {
+            let current = RelationshipArchivePage.allCases[index]
+            let next = RelationshipArchivePage.allCases[index + 1]
+            motion.update(from: [current.id: .init(minX: -120, width: 400),
+                                 next.id: .init(minX: 280, width: 400)], layoutDirection: .leftToRight)
+            XCTAssertEqual(motion.progress, CGFloat(index) + 0.3, accuracy: 0.001)
+            motion.update(from: [current.id: .init(minX: 0, width: 400)], layoutDirection: .leftToRight)
+            XCTAssertEqual(motion.progress, CGFloat(index), accuracy: 0.001)
+            motion.update(from: [next.id: .init(minX: 0, width: 400)], layoutDirection: .leftToRight)
+            XCTAssertEqual(motion.progress, CGFloat(index + 1), accuracy: 0.001)
+        }
+    }
+
+    @MainActor
+    func testProgressMirrorsRTLAndIgnoresInvalidMeasurements() {
+        let motion = RelationshipPageMotion()
+        motion.update(from: [RelationshipArchivePage.people.id: .init(minX: 200, width: 400)],
+                      layoutDirection: .rightToLeft)
+        XCTAssertEqual(motion.progress, 2.5, accuracy: 0.001)
+        motion.update(from: ["unknown": .init(minX: 0, width: 400),
+                             RelationshipArchivePage.people.id: .init(minX: .nan, width: 0)],
+                      layoutDirection: .leftToRight)
+        XCTAssertEqual(motion.progress, 2.5, accuracy: 0.001)
+        motion.update(from: [RelationshipArchivePage.meetings.id: .init(minX: -70, width: 400)],
+                      layoutDirection: .leftToRight)
+        XCTAssertEqual(motion.progress, 3)
+    }
+
+    func testMeetingDraftNamesExactTimeZoneAndKeepsRecollectionEditable() throws {
+        let activity = try XCTUnwrap(RelationshipCalendarProjection.activities(
+            snapshot: .preview, isPreview: true
+        ).first)
+        let note = RelationshipMeetingIntent.notes.draft(for: activity, language: .english)
+        XCTAssertTrue(note.contains(activity.personDisplayLabel))
+        XCTAssertTrue(note.contains(activity.timeZoneIdentifier))
+        XCTAssertTrue(note.hasSuffix("\n\n"))
+        XCTAssertFalse(note.contains("confirmed"))
+        let preparation = RelationshipMeetingIntent.preparation.draft(for: activity, language: .english)
+        XCTAssertTrue(preparation.contains(activity.timeZoneIdentifier))
+        XCTAssertTrue(preparation.contains("unresolved evidence"))
+    }
+}

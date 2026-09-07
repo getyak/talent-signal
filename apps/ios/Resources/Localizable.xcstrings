@@ -28861,6 +28861,86 @@
           }
         }
       }
+    },
+    "Meetings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会面"
+          }
+        }
+      }
+    },
+    "No meetings yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有会面日程"
+          }
+        }
+      }
+    },
+    "Notes from %1$@ with %2$@ (%3$@):": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "与%2$@的%1$@记录（%3$@）："
+          }
+        }
+      }
+    },
+    "Add meeting notes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录会后要点"
+          }
+        }
+      }
+    },
+    "Open Agent Studio": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 Agent Studio"
+          }
+        }
+      }
+    },
+    "Needs your decision": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待处理"
+          }
+        }
+      }
+    },
+    "Open calendar": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开日历"
+          }
+        }
+      }
+    },
+    "Nothing needs attention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无待处理事项"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
