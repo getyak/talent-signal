@@ -1223,43 +1223,59 @@ private struct RelationshipArchiveHeader: View {
     @Environment(\.talentSignalReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 6) {
-            Button(action: onOpenAgentStudio) {
-                RelationshipSignalOrb()
-                    .frame(width: 26, height: 26)
-                    .frame(width: 44, height: 48)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(appLanguage.text("Open Agent Studio"))
-            .accessibilityIdentifier("relationship-agent-studio")
+        GeometryReader { headerGeometry in
+            let compact = headerGeometry.size.width < 360
+            HStack(spacing: compact ? 8 : 16) {
+                Button(action: onOpenAgentStudio) {
+                    RelationshipSignalOrb()
+                        .frame(width: 22, height: 22)
+                        .opacity(0.8)
+                        .frame(width: 44, height: 48)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(appLanguage.text("Open Agent Studio"))
+                .accessibilityIdentifier("relationship-agent-studio")
 
-            GeometryReader { geometry in
-                let progress = reduceMotion ? CGFloat(selectedPage.pageIndex) : motion.progress
-                let labelSpace = max(0, geometry.size.width - 44 * CGFloat(RelationshipArchivePage.allCases.count))
-                HStack(spacing: 0) {
-                    ForEach(RelationshipArchivePage.allCases) { page in
-                        let emphasis = RelationshipPageMotion.emphasis(for: page, progress: progress)
-                        if page == .meetings {
-                            pageButton(page, emphasis: emphasis, labelSpace: labelSpace)
-                                .contextMenu { calendarShortcuts }
-                                .accessibilityAction(named: Text(appLanguage.text("This week"))) {
-                                    onOpenCalendar(.thisWeek)
-                                }
-                                .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
-                                    onOpenCalendar(.addActivity)
-                                }
-                        } else {
-                            pageButton(page, emphasis: emphasis, labelSpace: labelSpace)
+                GeometryReader { geometry in
+                    let progress = reduceMotion ? CGFloat(selectedPage.pageIndex) : motion.progress
+                    let slotWidth = geometry.size.width / CGFloat(RelationshipArchivePage.allCases.count)
+                    let capsuleWidth = min(60, slotWidth)
+                    HStack(spacing: 0) {
+                        ForEach(RelationshipArchivePage.allCases) { page in
+                            let emphasis = RelationshipPageMotion.emphasis(for: page, progress: progress)
+                            if page == .meetings {
+                                pageButton(page, emphasis: emphasis, slotWidth: slotWidth)
+                                    .contextMenu { calendarShortcuts }
+                                    .accessibilityAction(named: Text(appLanguage.text("This week"))) {
+                                        onOpenCalendar(.thisWeek)
+                                    }
+                                    .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
+                                        onOpenCalendar(.addActivity)
+                                    }
+                            } else {
+                                pageButton(page, emphasis: emphasis, slotWidth: slotWidth)
+                            }
                         }
                     }
+                    .background(alignment: .leading) {
+                        // The focus moves; neither selected state nor page progress
+                        // participates in the buttons' size or position.
+                        Capsule()
+                            .fill(Color.tsSurfaceMuted)
+                            .frame(width: capsuleWidth, height: 44)
+                            .offset(x: slotWidth * progress + (slotWidth - capsuleWidth) / 2)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
                 }
+                .frame(height: 48)
+                .accessibilityElement(children: .contain)
+                if let labAccessory { labAccessory.frame(width: 44, height: 48) }
             }
-            .frame(height: 48)
-            .accessibilityElement(children: .contain)
-            if let labAccessory { labAccessory.frame(width: 44, height: 48) }
+            .padding(.horizontal, compact ? 16 : 24)
+            .frame(height: 52)
         }
-        .padding(.horizontal, 14)
         .frame(height: 52)
         .background(Color.tsSurface)
     }
@@ -1284,36 +1300,25 @@ private struct RelationshipArchiveHeader: View {
     private func pageButton(
         _ page: RelationshipArchivePage,
         emphasis: CGFloat,
-        labelSpace: CGFloat
+        slotWidth: CGFloat
     ) -> some View {
         Button {
             // PageTabViewStyle owns interactive travel. Do not layer another
-            // spring onto geometry-driven labels during a finger gesture.
+            // spring onto the focus indicator during a finger gesture.
             if reduceMotion { selectedPage = page }
             else {
                 withAnimation(.easeInOut(duration: 0.28)) { selectedPage = page }
             }
         } label: {
-            HStack(spacing: 0) {
-                Image(systemName: page.symbolName)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Color.tsInk.opacity(0.55 + emphasis * 0.45))
-                    .frame(width: 44, height: 44)
-                Text(page.title(in: appLanguage))
-                    .font(.subheadline.weight(.semibold))
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                    .foregroundStyle(Color.tsInk)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .frame(width: max(0, labelSpace - 8), alignment: .leading)
-                    .padding(.trailing, min(8, labelSpace))
-                    .opacity(emphasis)
-                    .frame(width: labelSpace * emphasis, alignment: .leading)
-                    .clipped()
-            }
-            .frame(height: 48)
-            .contentShape(Rectangle())
-            .accessibilityHidden(true)
+            Image(systemName: page.symbolName)
+                .resizable()
+                .scaledToFit()
+                .fontWeight(.regular)
+                .foregroundStyle(Color.tsInk.opacity(0.55 + emphasis * 0.45))
+                .frame(width: 24, height: 24)
+                .frame(width: slotWidth, height: 48)
+                .contentShape(Rectangle())
+                .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(page.title(in: appLanguage))
