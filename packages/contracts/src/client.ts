@@ -1,3 +1,4 @@
+import type { AgentSessionListResponse,AgentSessionResponse,AgentSessionMutationRequest,AgentSessionDeleteRequest } from "./agentSessionSchemas.js";
 import type {
   AnalysisProposalResponse,
   AppleLoginChallengeRequest,
@@ -1000,6 +1001,22 @@ export class TalentSignalClient {
     });
   }
 
+  listAgentSessions(after?: string): Promise<AgentSessionListResponse> {
+    return this.request(`/v1/agent-sessions${after ? `?after=${encodeURIComponent(after)}` : ""}`, { method: "GET" });
+  }
+
+  getAgentSession(id: string): Promise<AgentSessionResponse> {
+    return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "GET" });
+  }
+
+  saveAgentSession(id: string, request: AgentSessionMutationRequest): Promise<AgentSessionResponse> {
+    return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "PUT", body: request });
+  }
+
+  deleteAgentSession(id: string, request: AgentSessionDeleteRequest): Promise<AgentSessionResponse> {
+    return this.request(`/v1/agent-sessions/${encodeURIComponent(id)}`, { method: "DELETE", body: request });
+  }
+
   sync(after = 0): Promise<SyncResponse> {
     return this.request(`/v1/sync?after=${after}`, { method: "GET" });
   }
@@ -1007,7 +1024,7 @@ export class TalentSignalClient {
   private async request<T>(
     path: string,
     options: {
-      method: "DELETE" | "GET" | "POST";
+      method: "DELETE" | "GET" | "POST" | "PUT";
       body?: unknown;
       authenticated?: boolean;
     },

@@ -35,6 +35,13 @@ struct AgentSessionTurn: Identifiable, Equatable {
     let response: RelationshipAskResponse
     let createdAt: Date
     let requiresRefresh: Bool
+    var feedback: AgentSessionFeedback? = nil
+    var feedbackUpdatedAt: Date? = nil
+}
+
+enum AgentSessionFeedback: String, Codable, Equatable {
+    case helpful
+    case unhelpful
 }
 
 struct AgentContactReceipt: Identifiable, Equatable {
@@ -328,6 +335,39 @@ struct AgentSession: Identifiable, Equatable {
     var pendingPersonResearchRequestIdentity: String? = nil
     var updatedAt: Date
     var isUnread: Bool
+    var originSessionID: UUID? = nil
+    var originTurnID: UUID? = nil
+    var originKind: String? = nil
+    var screenshotTaskIDs: [String] = []
+    var inheritedScreenshotTaskIDs: [String]? = nil
+    var composerDraft: String? = nil
+    var composerDraftUpdatedAt: Date? = nil
+    var pendingScopedAskIdempotencyKey: String? = nil
+    var pendingScopedAskRequestIdentity: String? = nil
+    var pendingScreenshotIdempotencyKey: String? = nil
+    var pendingScreenshotRequestIdentity: String? = nil
+    var pendingScreenshotCapturedAt: Date? = nil
+    var createdAt: Date? = nil
+    var retentionExpiresAt: Date? = nil
+    var contextWasTrimmed: Bool = false
+
+    var readOnlyScreenshotTaskIDs: Set<String> {
+        Set(inheritedScreenshotTaskIDs ?? (originSessionID == nil ? [] : screenshotTaskIDs))
+    }
+
+    var ownedScreenshotTaskIDs: [String] {
+        screenshotTaskIDs.filter { !readOnlyScreenshotTaskIDs.contains($0) }
+    }
+
+    static let retentionInterval: TimeInterval = 30 * 24 * 60 * 60
+
+    var originalCreatedAt: Date {
+        createdAt ?? ([updatedAt] + turns.map(\.createdAt) + contactReceipts.map(\.createdAt)).min() ?? updatedAt
+    }
+
+    var retentionDeadline: Date {
+        min(originalCreatedAt.addingTimeInterval(Self.retentionInterval), retentionExpiresAt ?? .distantFuture)
+    }
 
     var personID: String? { scope.personID }
     var relationshipContextID: String? { scope.relationshipContextID }
@@ -348,6 +388,10 @@ struct AgentSession: Identifiable, Equatable {
     var hasPendingPersonResearch: Bool {
         pendingPersonResearchIdempotencyKey != nil
             && pendingPersonResearchRequestIdentity != nil
+    }
+
+    var hasPendingScreenshotAdmission: Bool {
+        pendingScreenshotIdempotencyKey != nil
     }
 
     var hasPendingUnscopedChat: Bool {
@@ -520,7 +564,7 @@ struct AgentSessionDraft: Codable, Equatable {
     var requestIdentity: String? = nil
 }
 
-private struct AgentGlobalDraft: Codable, Equatable {
+struct AgentGlobalDraft: Codable, Equatable {
     var text: String
     var updatedAt: Date
 }
@@ -663,13 +707,18 @@ final class FileAgentSessionPersistence: AgentSessionPersisting {
     }
 }
 
-private struct PersistedAgentSessionEnvelope: Codable {
+struct PersistedAgentSessionEnvelope: Codable {
     let version: Int
     let sessions: [PersistedAgentSession]
     let drafts: [AgentSessionDraft]
     let globalDraft: AgentGlobalDraft?
     let evidenceReviews: [AgentEvidenceReviewOperation]?
     let contactProposal: AgentContactProposalDraft?
+    var contactProposals: [AgentContactProposalDraft]? = nil
+    var syncRevisions: [String: Int]? = nil
+    var syncTombstones: [String: Int]? = nil
+    var syncDigests: [String: String]? = nil
+    var retiredContactProposalIntentHashes: [String]? = nil
 }
 
 struct AgentContactProposalDraft: Codable, Equatable {
@@ -678,10 +727,21 @@ struct AgentContactProposalDraft: Codable, Equatable {
     let capturedAt: Date?
     let pendingTarget: ConversationContactTarget?
     let pendingConfirmIdentityClue: Bool?
-    let updatedAt: Date
+    var updatedAt: Date
+    var sessionID: UUID? = nil
+    var sourceMessageID: UUID? = nil
+    var sourceText: String? = nil
+    var expiresAt: Date? = nil
+    var status: Status? = nil
+
+    enum Status: String, Codable, Equatable {
+        case proposed, declined, expired, completed
+    }
+
+    var isActive: Bool { status == nil || status == .proposed }
 }
 
-private struct PersistedAgentSession: Codable {
+struct PersistedAgentSession: Codable {
     let id: UUID
     let scopeKind: String?
     let personID: String?
@@ -698,6 +758,22 @@ private struct PersistedAgentSession: Codable {
     let pendingPersonResearchRequestIdentity: String?
     let updatedAt: Date
     let isUnread: Bool
+    var originSessionID: UUID? = nil
+    var originTurnID: UUID? = nil
+    var originKind: String? = nil
+    var contactProposal: AgentContactProposalDraft? = nil
+    var screenshotTaskIDs: [String]? = nil
+    var inheritedScreenshotTaskIDs: [String]? = nil
+    var composerDraft: String? = nil
+    var composerDraftUpdatedAt: Date? = nil
+    var pendingScopedAskIdempotencyKey: String? = nil
+    var pendingScopedAskRequestIdentity: String? = nil
+    var pendingScreenshotIdempotencyKey: String? = nil
+    var pendingScreenshotRequestIdentity: String? = nil
+    var pendingScreenshotCapturedAt: Date? = nil
+    var createdAt: Date? = nil
+    var retentionExpiresAt: Date? = nil
+    var contextWasTrimmed: Bool? = nil
 
     init(_ value: AgentSession) {
         id = value.id
@@ -718,6 +794,21 @@ private struct PersistedAgentSession: Codable {
         pendingPersonResearchRequestIdentity = value.pendingPersonResearchRequestIdentity
         updatedAt = value.updatedAt
         isUnread = value.isUnread
+        originSessionID = value.originSessionID
+        originTurnID = value.originTurnID
+        originKind = value.originKind
+        screenshotTaskIDs = value.screenshotTaskIDs
+        inheritedScreenshotTaskIDs = value.inheritedScreenshotTaskIDs
+        composerDraft = value.composerDraft
+        composerDraftUpdatedAt = value.composerDraftUpdatedAt
+        pendingScopedAskIdempotencyKey = value.pendingScopedAskIdempotencyKey
+        pendingScopedAskRequestIdentity = value.pendingScopedAskRequestIdentity
+        pendingScreenshotIdempotencyKey = value.pendingScreenshotIdempotencyKey
+        pendingScreenshotRequestIdentity = value.pendingScreenshotRequestIdentity
+        pendingScreenshotCapturedAt = value.pendingScreenshotCapturedAt
+        createdAt = value.originalCreatedAt
+        retentionExpiresAt = value.retentionExpiresAt
+        contextWasTrimmed = value.contextWasTrimmed ? true : nil
     }
 
     func value() throws -> AgentSession {
@@ -754,12 +845,27 @@ private struct PersistedAgentSession: Codable {
             pendingPersonResearchIdempotencyKey: pendingPersonResearchIdempotencyKey,
             pendingPersonResearchRequestIdentity: pendingPersonResearchRequestIdentity,
             updatedAt: updatedAt,
-            isUnread: isUnread
+            isUnread: isUnread,
+            originSessionID: originSessionID,
+            originTurnID: originTurnID,
+            originKind: originKind,
+            screenshotTaskIDs: screenshotTaskIDs ?? [],
+            inheritedScreenshotTaskIDs: inheritedScreenshotTaskIDs ?? (originSessionID == nil ? nil : screenshotTaskIDs ?? []),
+            composerDraft: composerDraft,
+            composerDraftUpdatedAt: composerDraftUpdatedAt,
+            pendingScopedAskIdempotencyKey: pendingScopedAskIdempotencyKey,
+            pendingScopedAskRequestIdentity: pendingScopedAskRequestIdentity,
+            pendingScreenshotIdempotencyKey: pendingScreenshotIdempotencyKey,
+            pendingScreenshotRequestIdentity: pendingScreenshotRequestIdentity,
+            pendingScreenshotCapturedAt: pendingScreenshotCapturedAt,
+            createdAt: createdAt ?? ([updatedAt] + turns.map(\.createdAt) + (contactReceipts ?? []).map(\.createdAt)).min(),
+            retentionExpiresAt: retentionExpiresAt,
+            contextWasTrimmed: contextWasTrimmed ?? false
         )
     }
 }
 
-private struct PersistedAgentContactReceipt: Codable {
+struct PersistedAgentContactReceipt: Codable {
     let id: UUID
     let operationKey: String
     let outcome: AgentContactReceipt.Outcome
@@ -807,17 +913,21 @@ private struct PersistedAgentContactReceipt: Codable {
     }
 }
 
-private struct PersistedAgentSessionTurn: Codable {
+struct PersistedAgentSessionTurn: Codable {
     let id: UUID
     let objective: String
     let response: PersistedRelationshipAskResponse
     let createdAt: Date
+    var feedback: AgentSessionFeedback? = nil
+    var feedbackUpdatedAt: Date? = nil
 
     init(_ value: AgentSessionTurn) {
         id = value.id
         objective = value.objective
         response = PersistedRelationshipAskResponse(value.response)
         createdAt = value.createdAt
+        feedback = value.feedback
+        feedbackUpdatedAt = value.feedbackUpdatedAt
     }
 
     var value: AgentSessionTurn {
@@ -826,12 +936,14 @@ private struct PersistedAgentSessionTurn: Codable {
             objective: objective,
             response: response.value,
             createdAt: createdAt,
-            requiresRefresh: true
+            requiresRefresh: true,
+            feedback: feedback,
+            feedbackUpdatedAt: feedbackUpdatedAt
         )
     }
 }
 
-private struct PersistedRelationshipAskResponse: Codable {
+struct PersistedRelationshipAskResponse: Codable {
     let contractVersion: String
     let taskID: String
     let contextManifestID: String
@@ -842,24 +954,29 @@ private struct PersistedRelationshipAskResponse: Codable {
     let media: [ChatMediaAsset]?
     let createdAt: String
     let labFeatureReceipt: LabFeatureAdoptionReceipt?
+    var savedBlocks: [RelationshipAskResponse.Block]? = nil
 
     init(_ value: RelationshipAskResponse) {
+        let isRetracted = value.blocks.count == 1
+            && value.blocks.first?.kind == "continuity"
+            && value.blocks.first?.id == "restored-\(value.taskID)"
         contractVersion = value.contractVersion
         taskID = value.taskID
         contextManifestID = value.contextManifestID
         knowledgeSnapshotID = value.knowledgeSnapshotID
         disposition = value.disposition
         unboundPersonResearchBlocks = value.contextManifestID
-            == "none-unbound-person-research"
-            ? value.blocks
+            == "none-unbound-person-research" && !isRetracted
+            ? value.blocks.map(AgentSessionContextPolicy.readOnlyBlock)
             : nil
         unboundConversationBlocks = value.contextManifestID
-            == "none-unbound-conversation"
-            ? value.blocks
+            == "none-unbound-conversation" && !isRetracted
+            ? value.blocks.map(AgentSessionContextPolicy.readOnlyBlock)
             : nil
-        media = value.media
+        media = isRetracted ? nil : value.media
         createdAt = value.createdAt
         labFeatureReceipt = value.labFeatureReceipt
+        savedBlocks = isRetracted ? nil : value.blocks.map(AgentSessionContextPolicy.readOnlyBlock)
     }
 
     var value: RelationshipAskResponse {
@@ -869,7 +986,7 @@ private struct PersistedRelationshipAskResponse: Codable {
             contextManifestID: contextManifestID,
             knowledgeSnapshotID: knowledgeSnapshotID,
             disposition: disposition,
-            blocks: unboundPersonResearchBlocks ?? unboundConversationBlocks ?? [
+            blocks: savedBlocks ?? unboundPersonResearchBlocks ?? unboundConversationBlocks ?? [
                 .init(
                     id: "restored-\(taskID)",
                     kind: "continuity",
@@ -890,7 +1007,7 @@ private struct PersistedRelationshipAskResponse: Codable {
 
 @MainActor
 final class AgentSessionStore: ObservableObject {
-    private static let sessionRetention: TimeInterval = 30 * 24 * 60 * 60
+    private static let sessionRetention = AgentSession.retentionInterval
     private static let draftRetention: TimeInterval = 7 * 24 * 60 * 60
 
     private static func stableContactCaptureDate(_ date: Date) -> Date {
@@ -902,9 +1019,18 @@ final class AgentSessionStore: ObservableObject {
     @Published private(set) var transientSupersededEvidenceReviewKeys: Set<String>
     @Published private(set) var evidenceReviewAuthorityReadbackKeys: Set<String>
     @Published private(set) var persistenceNotice: String?
+    @Published private(set) var syncNotice: String?
+    @Published private(set) var isSynchronizing = false
+    @Published private(set) var sessionSyncNotices: [UUID: String] = [:]
+    private var hasGlobalSyncFailure = false
+    private var syncGeneration = UUID()
     private var drafts: [AgentSessionDraft]
     private var storedGlobalDraft: AgentGlobalDraft?
-    private var storedContactProposal: AgentContactProposalDraft?
+    private var storedContactProposals: [AgentContactProposalDraft] = []
+    private var retiredContactProposalIntentHashes = Set<String>()
+    private var syncRevisions: [String: Int] = [:]
+    private var syncTombstones: [String: Int] = [:]
+    private var syncDigests: [String: String] = [:]
     private let persistence: AgentSessionPersisting?
     private let now: () -> Date
     private var expirationTask: Task<Void, Never>?
@@ -920,12 +1046,19 @@ final class AgentSessionStore: ObservableObject {
         persistenceNotice = nil
         drafts = []
         storedGlobalDraft = nil
-        storedContactProposal = nil
+        storedContactProposals = []
         activeEvidenceReviewKeys = []
         transientSupersededEvidenceReviewKeys = []
         evidenceReviewAuthorityReadbackKeys = []
         storedEvidenceReviews = []
-        storedSessions = sessions.sorted { $0.updatedAt > $1.updatedAt }
+        storedSessions = sessions.map { session in
+            var restored = session
+            restored.createdAt = session.originalCreatedAt
+            if session.originSessionID != nil, session.inheritedScreenshotTaskIDs == nil {
+                restored.inheritedScreenshotTaskIDs = session.screenshotTaskIDs
+            }
+            return restored
+        }.sorted { $0.updatedAt > $1.updatedAt }
         defer { scheduleNextExpiration() }
         guard sessions.isEmpty, let persistence else { return }
         do {
@@ -942,7 +1075,7 @@ final class AgentSessionStore: ObservableObject {
                 PersistedAgentSessionEnvelope.self,
                 from: data
             )
-            guard [1, 2, 3, 4, 5, 6, 7].contains(envelope.version) else {
+            guard [1, 2, 3, 4, 5, 6, 7, 8].contains(envelope.version) else {
                 throw AgentSessionPersistenceError.unsupportedVersion
             }
             storedSessions = try envelope.sessions
@@ -950,7 +1083,12 @@ final class AgentSessionStore: ObservableObject {
                 .sorted { $0.updatedAt > $1.updatedAt }
             drafts = envelope.drafts
             storedGlobalDraft = envelope.globalDraft
-            storedContactProposal = envelope.contactProposal
+            storedContactProposals = envelope.contactProposals
+                ?? envelope.contactProposal.map { [$0] } ?? []
+            syncRevisions = envelope.syncRevisions ?? [:]
+            syncTombstones = envelope.syncTombstones ?? [:]
+            syncDigests = envelope.syncDigests ?? [:]
+            retiredContactProposalIntentHashes = Set(envelope.retiredContactProposalIntentHashes ?? [])
             storedEvidenceReviews = envelope.evidenceReviews ?? []
             evidenceReviewAuthorityReadbackKeys = Set(
                 storedEvidenceReviews.lazy
@@ -964,7 +1102,7 @@ final class AgentSessionStore: ObservableObject {
             storedSessions = []
             drafts = []
             storedGlobalDraft = nil
-            storedContactProposal = nil
+            storedContactProposals = []
             storedEvidenceReviews = []
             evidenceReviewAuthorityReadbackKeys = []
             persistenceNotice = "Saved Agent sessions could not be restored on this device."
@@ -1002,7 +1140,8 @@ final class AgentSessionStore: ObservableObject {
             contactReceipts: [],
             pendingObjective: objective,
             updatedAt: createdAt ?? now(),
-            isUnread: false
+            isUnread: false,
+            createdAt: createdAt ?? now()
         )
         let priorSessions = storedSessions
         storedSessions.append(session)
@@ -1024,7 +1163,7 @@ final class AgentSessionStore: ObservableObject {
         _ = pruneExpiredState()
         guard let index = storedSessions.firstIndex(where: {
             $0.id == sessionID && $0.isUnresolvedIntent
-        }) else { return nil }
+        }), !storedSessions[index].hasPendingScreenshotAdmission else { return nil }
         if storedSessions[index].pendingObjective == objective,
            storedSessions[index].pendingPersonResearchRequestIdentity == requestIdentity,
            let pending = storedSessions[index]
@@ -1053,7 +1192,7 @@ final class AgentSessionStore: ObservableObject {
         _ = pruneExpiredState()
         guard let index = storedSessions.firstIndex(where: {
             $0.id == sessionID && $0.isUnresolvedIntent
-        }) else { return nil }
+        }), !storedSessions[index].hasPendingScreenshotAdmission else { return nil }
         if storedSessions[index].pendingObjective == objective,
            let pending = storedSessions[index]
                 .pendingUnscopedChatIdempotencyKey {
@@ -1113,10 +1252,13 @@ final class AgentSessionStore: ObservableObject {
         guard let index = storedSessions.firstIndex(where: {
             $0.id == sessionID && $0.isUnresolvedIntent
         }) else { return false }
+        if storedSessions[index].turns.contains(where: { $0.response.taskID == response.taskID }) { return true }
         let prior = storedSessions[index]
+        let sourceMessageID = storedSessions[index].pendingUnscopedChatIdempotencyKey
+            .flatMap { UUID(uuidString: String($0.split(separator: ":").last ?? "")) }
         storedSessions[index].turns.append(
             AgentSessionTurn(
-                id: UUID(),
+                id: sourceMessageID ?? UUID(),
                 objective: objective,
                 response: response,
                 createdAt: createdAt,
@@ -1183,11 +1325,18 @@ final class AgentSessionStore: ObservableObject {
         response: RelationshipAskResponse,
         person: WorkspacePerson,
         context: WorkspacePerson.Context,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        sourceMessageID: UUID? = nil
     ) -> UUID {
         _ = pruneExpiredState()
+        if let sessionID, syncTombstones[sessionID.uuidString.lowercased()] != nil
+            || !storedSessions.contains(where: { $0.id == sessionID }) {
+            persistenceNotice = "The Session is no longer available. Its delayed answer was not restored."
+            return sessionID
+        }
+        let priorSessions = storedSessions
         let turn = AgentSessionTurn(
-            id: UUID(),
+            id: sourceMessageID ?? UUID(),
             objective: objective,
             response: response,
             createdAt: createdAt,
@@ -1222,6 +1371,8 @@ final class AgentSessionStore: ObservableObject {
                 )
             }
             storedSessions[index].pendingObjective = nil
+            storedSessions[index].pendingScopedAskIdempotencyKey = nil
+            storedSessions[index].pendingScopedAskRequestIdentity = nil
             storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
             storedSessions[index].pendingPersonResearchIdempotencyKey = nil
             storedSessions[index].pendingPersonResearchRequestIdentity = nil
@@ -1242,12 +1393,13 @@ final class AgentSessionStore: ObservableObject {
                     turns: [turn],
                     contactReceipts: [],
                     updatedAt: createdAt,
-                    isUnread: false
+                    isUnread: false,
+                    createdAt: createdAt
                 )
             )
         }
         sortSessions()
-        persist()
+        if !persist() { storedSessions = priorSessions }
         return resolvedID
     }
 
@@ -1258,7 +1410,8 @@ final class AgentSessionStore: ObservableObject {
         result: ResourceCaptureResult,
         personDisplayLabel: String,
         contextDisplayLabel: String?,
-        createdAt: Date? = nil
+        createdAt: Date? = nil,
+        sessionID: UUID? = nil
     ) -> UUID? {
         _ = pruneExpiredState()
         for session in storedSessions {
@@ -1325,27 +1478,47 @@ final class AgentSessionStore: ObservableObject {
             createdAt: receiptDate,
             requiresRefresh: false
         )
-        let session = AgentSession(
-            id: UUID(),
-            scope: scope,
-            title: Self.contactSessionTitle(
-                outcome: outcome,
-                personDisplayLabel: personDisplayLabel
-            ),
-            turns: [],
-            contactReceipts: [receipt],
-            updatedAt: receiptDate,
-            isUnread: false
-        )
+        let sourceSessionID = sessionID ?? storedContactProposals.first {
+            $0.idempotencyKey == operationKey
+        }?.sessionID
         let priorSessions = storedSessions
-        storedSessions.append(session)
+        let priorProposals = storedContactProposals
+        let priorRetiredIntents = retiredContactProposalIntentHashes
+        let resolvedID: UUID
+        if let sourceSessionID,
+           let index = storedSessions.firstIndex(where: { $0.id == sourceSessionID }) {
+            resolvedID = sourceSessionID
+            storedSessions[index].scope = scope
+            storedSessions[index].contactReceipts.append(receipt)
+            storedSessions[index].pendingObjective = nil
+            storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
+            storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+            storedSessions[index].pendingPersonResearchRequestIdentity = nil
+            storedSessions[index].updatedAt = receiptDate
+            storedSessions[index].isUnread = false
+        } else {
+            resolvedID = UUID()
+            storedSessions.append(AgentSession(
+                id: resolvedID, scope: scope,
+                title: Self.contactSessionTitle(outcome: outcome, personDisplayLabel: personDisplayLabel),
+                turns: [], contactReceipts: [receipt], updatedAt: receiptDate, isUnread: false, createdAt: receiptDate
+            ))
+        }
+        if let index = storedContactProposals.firstIndex(where: { $0.idempotencyKey == operationKey }) {
+            updateContactProposalTurn(storedContactProposals[index], status: .completed)
+            storedContactProposals[index].status = .completed
+            retiredContactProposalIntentHashes.insert(Self.contactProposalIntentHash(operationKey))
+            storedContactProposals[index].updatedAt = now()
+        }
         sortSessions()
         guard persist() else {
             storedSessions = priorSessions
+            storedContactProposals = priorProposals
+            retiredContactProposalIntentHashes = priorRetiredIntents
             scheduleNextExpiration()
             return nil
         }
-        return session.id
+        return resolvedID
     }
 
     func markRead(_ id: UUID) {
@@ -1368,9 +1541,19 @@ final class AgentSessionStore: ObservableObject {
         guard storedSessions.contains(where: { $0.id == id }) else {
             return true
         }
+        if storedContactProposals.contains(where: { $0.sessionID == id && $0.isActive && $0.pendingTarget != nil }) {
+            persistenceNotice = "Check the pending contact result before deleting this session."
+            return false
+        }
         let priorSessions = storedSessions
+        let priorProposals = storedContactProposals
+        let priorTombstones = syncTombstones
+        syncTombstones[id.uuidString.lowercased()] = -((syncRevisions[id.uuidString.lowercased()] ?? 0) + 1)
         storedSessions.removeAll { $0.id == id }
+        storedContactProposals.removeAll { $0.sessionID == id }
         guard persist() else {
+            storedContactProposals = priorProposals
+            syncTombstones = priorTombstones
             storedSessions = priorSessions
             scheduleNextExpiration()
             return false
@@ -1482,9 +1665,25 @@ final class AgentSessionStore: ObservableObject {
         personID: String,
         relationshipContextID: String,
         proposedIdempotencyKey: String,
-        requestIdentity: String? = nil
+        requestIdentity: String? = nil,
+        sessionID: UUID? = nil
     ) -> String? {
         _ = pruneExpiredState()
+        if let sessionID {
+            guard let index = storedSessions.firstIndex(where: {
+                $0.id == sessionID && $0.scope.matches(personID: personID, relationshipContextID: relationshipContextID)
+            }), !storedSessions[index].hasPendingScreenshotAdmission else { return nil }
+            let prior = storedSessions[index]
+            if prior.pendingObjective == text,
+               prior.pendingScopedAskRequestIdentity == requestIdentity,
+               let key = prior.pendingScopedAskIdempotencyKey { return key }
+            storedSessions[index].pendingObjective = text
+            storedSessions[index].pendingScopedAskIdempotencyKey = proposedIdempotencyKey
+            storedSessions[index].pendingScopedAskRequestIdentity = requestIdentity
+            storedSessions[index].updatedAt = now()
+            guard persist() else { storedSessions[index] = prior; return nil }
+            return proposedIdempotencyKey
+        }
         if let pending = drafts.first(where: {
             $0.personID == personID
                 && $0.relationshipContextID == relationshipContextID
@@ -1525,29 +1724,33 @@ final class AgentSessionStore: ObservableObject {
         persist()
     }
 
-    var contactProposalDraft: ConversationContactDraft? {
+    // Legacy accessors support pre-session callers during migration. New UI always supplies a session.
+    var contactProposalDraft: ConversationContactDraft? { contactProposal(sessionID: nil)?.draft }
+    var contactProposalOperationKey: String? { contactProposal(sessionID: nil)?.idempotencyKey }
+    var contactProposalCapturedAt: Date? { contactProposal(sessionID: nil)?.capturedAt }
+    var contactProposalPendingTarget: ConversationContactTarget? { contactProposal(sessionID: nil)?.pendingTarget }
+    var contactProposalPendingConfirmIdentityClue: Bool? { contactProposal(sessionID: nil)?.pendingConfirmIdentityClue }
+
+    func contactProposal(sessionID: UUID?) -> AgentContactProposalDraft? {
         pruneExpired()
-        return storedContactProposal?.draft
+        return storedContactProposals.filter {
+            $0.isActive && (sessionID == nil || $0.sessionID == sessionID)
+                && !retiredContactProposalIntentHashes.contains(Self.contactProposalIntentHash($0.idempotencyKey))
+        }.max { $0.updatedAt < $1.updatedAt }
     }
 
-    var contactProposalOperationKey: String? {
-        pruneExpired()
-        return storedContactProposal?.idempotencyKey
+    private static func contactProposalIntentHash(_ key: String) -> String {
+        SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    var contactProposalCapturedAt: Date? {
-        pruneExpired()
-        return storedContactProposal?.capturedAt
-    }
-
-    var contactProposalPendingTarget: ConversationContactTarget? {
-        pruneExpired()
-        return storedContactProposal?.pendingTarget
-    }
-
-    var contactProposalPendingConfirmIdentityClue: Bool? {
-        pruneExpired()
-        return storedContactProposal?.pendingConfirmIdentityClue
+    /// Pure freshness read for SwiftUI rendering. Pruning and publication happen only in store mutations.
+    func isContactProposalCurrent(sessionID: UUID?, idempotencyKey: String) -> Bool {
+        guard !retiredContactProposalIntentHashes.contains(Self.contactProposalIntentHash(idempotencyKey)),
+              let proposal = storedContactProposals.first(where: {
+                  $0.idempotencyKey == idempotencyKey && (sessionID == nil || $0.sessionID == sessionID)
+              }), proposal.isActive else { return false }
+        let expiration = proposal.expiresAt ?? proposal.updatedAt.addingTimeInterval(Self.draftRetention)
+        return proposal.pendingTarget != nil || expiration > now()
     }
 
     @discardableResult
@@ -1556,27 +1759,69 @@ final class AgentSessionStore: ObservableObject {
         idempotencyKey: String,
         pendingTarget: ConversationContactTarget? = nil,
         pendingConfirmIdentityClue: Bool? = nil,
-        clearingGlobalDraft: Bool = false
+        clearingGlobalDraft: Bool = false,
+        sessionID: UUID? = nil,
+        sourceMessageID: UUID? = nil
     ) -> Bool {
-        _ = pruneExpiredState()
-        let priorContactProposal = storedContactProposal
-        let priorGlobalDraft = storedGlobalDraft
-        let capturedAt = Self.stableContactCaptureDate(storedContactProposal.flatMap {
-            $0.idempotencyKey == idempotencyKey ? $0.capturedAt : nil
-        } ?? now())
-        storedContactProposal = AgentContactProposalDraft(
-            draft: draft,
-            idempotencyKey: idempotencyKey,
-            capturedAt: capturedAt,
-            pendingTarget: pendingTarget,
-            pendingConfirmIdentityClue: pendingConfirmIdentityClue,
-            updatedAt: now()
-        )
-        if clearingGlobalDraft {
-            storedGlobalDraft = nil
+        pruneExpired()
+        guard !retiredContactProposalIntentHashes.contains(Self.contactProposalIntentHash(idempotencyKey)) else { return false }
+        if let sessionID, !storedSessions.contains(where: { $0.id == sessionID }) { return false }
+        let previous = storedContactProposals.first { $0.idempotencyKey == idempotencyKey }
+        if let previous {
+            guard previous.isActive else { return false }
+            if previous.pendingTarget != nil {
+                guard previous.draft == draft, previous.pendingTarget == pendingTarget,
+                      previous.pendingConfirmIdentityClue == pendingConfirmIdentityClue else { return false }
+            }
         }
+        let resolvedSessionID = sessionID ?? previous?.sessionID
+        if let active = storedContactProposals.first(where: {
+            $0.sessionID == resolvedSessionID && $0.isActive
+        }), active.idempotencyKey != idempotencyKey, active.pendingTarget != nil {
+            persistenceNotice = "Resolve the pending contact result before replacing this proposal."
+            return false
+        }
+        let priorProposals = storedContactProposals
+        let priorRetiredIntents = retiredContactProposalIntentHashes
+        let priorSessions = storedSessions
+        let priorGlobalDraft = storedGlobalDraft
+        let capturedAt = Self.stableContactCaptureDate(previous?.capturedAt ?? now())
+        let messageID = sourceMessageID ?? previous?.sourceMessageID ?? UUID()
+        if let resolvedSessionID,
+           let original = storedSessions.first(where: { $0.id == resolvedSessionID })?.turns.first(where: { $0.id == messageID }),
+           original.objective != (previous?.sourceText ?? draft.sourceNote) { return false }
+        if let resolvedSessionID,
+           let index = storedSessions.firstIndex(where: { $0.id == resolvedSessionID }),
+           !storedSessions[index].turns.contains(where: { $0.id == messageID }) {
+            storedSessions[index].turns.append(Self.contactProposalTurn(
+                id: messageID, objective: draft.sourceNote, createdAt: capturedAt
+            ))
+            storedSessions[index].updatedAt = now()
+            if storedSessions[index].pendingObjective == draft.sourceNote {
+                storedSessions[index].pendingObjective = nil
+                storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
+                storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+                storedSessions[index].pendingPersonResearchRequestIdentity = nil
+            }
+        }
+        for replaced in storedContactProposals where replaced.sessionID == resolvedSessionID && replaced.idempotencyKey != idempotencyKey {
+            retiredContactProposalIntentHashes.insert(Self.contactProposalIntentHash(replaced.idempotencyKey))
+        }
+        storedContactProposals.removeAll { $0.sessionID == resolvedSessionID }
+        storedContactProposals.append(AgentContactProposalDraft(
+            draft: draft, idempotencyKey: idempotencyKey, capturedAt: capturedAt,
+            pendingTarget: pendingTarget, pendingConfirmIdentityClue: pendingConfirmIdentityClue,
+            updatedAt: now(), sessionID: resolvedSessionID, sourceMessageID: messageID,
+            sourceText: previous?.sourceText ?? draft.sourceNote,
+            expiresAt: previous?.expiresAt ?? now().addingTimeInterval(Self.draftRetention),
+            status: .proposed
+        ))
+        if clearingGlobalDraft { storedGlobalDraft = nil }
+        sortSessions()
         guard persist() else {
-            storedContactProposal = priorContactProposal
+            storedContactProposals = priorProposals
+            retiredContactProposalIntentHashes = priorRetiredIntents
+            storedSessions = priorSessions
             storedGlobalDraft = priorGlobalDraft
             scheduleNextExpiration()
             return false
@@ -1591,56 +1836,27 @@ final class AgentSessionStore: ObservableObject {
         unscopedChatIdempotencyKey: String,
         draft: ConversationContactDraft,
         proposalIdempotencyKey: String,
-        clearingGlobalDraft: Bool = false
+        clearingGlobalDraft: Bool = false,
+        sourceMessageID: UUID? = nil
     ) -> Bool {
         _ = pruneExpiredState()
         guard let index = storedSessions.firstIndex(where: {
             $0.id == sessionID && $0.isUnresolvedIntent
         }), storedSessions[index].pendingObjective == objective,
-        storedSessions[index].pendingUnscopedChatIdempotencyKey
-            == unscopedChatIdempotencyKey else {
+        storedSessions[index].pendingUnscopedChatIdempotencyKey == unscopedChatIdempotencyKey else {
             return false
         }
-
         let priorSessions = storedSessions
-        let priorContactProposal = storedContactProposal
-        let priorGlobalDraft = storedGlobalDraft
-        let capturedAt = Self.stableContactCaptureDate(
-            storedContactProposal.flatMap {
-                $0.idempotencyKey == proposalIdempotencyKey
-                    ? $0.capturedAt
-                    : nil
-            } ?? now()
-        )
-        storedContactProposal = AgentContactProposalDraft(
-            draft: draft,
-            idempotencyKey: proposalIdempotencyKey,
-            capturedAt: capturedAt,
-            pendingTarget: nil,
-            pendingConfirmIdentityClue: nil,
-            updatedAt: now()
-        )
-        if clearingGlobalDraft {
-            storedGlobalDraft = nil
-        }
-
-        if storedSessions[index].turns.isEmpty,
-           storedSessions[index].contactReceipts.isEmpty {
-            storedSessions.remove(at: index)
-        } else {
-            storedSessions[index].pendingObjective = nil
-            storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
-            storedSessions[index].pendingPersonResearchIdempotencyKey = nil
-            storedSessions[index].pendingPersonResearchRequestIdentity = nil
-            storedSessions[index].updatedAt = now()
-            storedSessions[index].isUnread = false
-            sortSessions()
-        }
-
-        guard persist() else {
+        storedSessions[index].pendingObjective = nil
+        storedSessions[index].pendingUnscopedChatIdempotencyKey = nil
+        storedSessions[index].pendingPersonResearchIdempotencyKey = nil
+        storedSessions[index].pendingPersonResearchRequestIdentity = nil
+        guard saveContactProposal(
+            draft, idempotencyKey: proposalIdempotencyKey,
+            clearingGlobalDraft: clearingGlobalDraft, sessionID: sessionID,
+            sourceMessageID: sourceMessageID
+        ) else {
             storedSessions = priorSessions
-            storedContactProposal = priorContactProposal
-            storedGlobalDraft = priorGlobalDraft
             scheduleNextExpiration()
             return false
         }
@@ -1648,16 +1864,81 @@ final class AgentSessionStore: ObservableObject {
     }
 
     @discardableResult
-    func clearContactProposal() -> Bool {
+    func clearContactProposal(sessionID: UUID? = nil) -> Bool {
         _ = pruneExpiredState()
-        let prior = storedContactProposal
-        storedContactProposal = nil
+        guard let current = contactProposal(sessionID: sessionID),
+              let index = storedContactProposals.firstIndex(where: { $0.idempotencyKey == current.idempotencyKey }) else {
+            return true
+        }
+        // An in-flight or unknown write must remain recoverable until canonical readback.
+        guard current.pendingTarget == nil else {
+            persistenceNotice = "Check the pending contact result before dismissing it."
+            return false
+        }
+        let prior = storedContactProposals
+        let priorRetiredIntents = retiredContactProposalIntentHashes
+        let priorSessions = storedSessions
+        updateContactProposalTurn(current, status: .declined)
+        storedContactProposals[index].status = .declined
+        retiredContactProposalIntentHashes.insert(Self.contactProposalIntentHash(current.idempotencyKey))
+        storedContactProposals[index].updatedAt = now()
         guard persist() else {
-            storedContactProposal = prior
+            storedContactProposals = prior
+            retiredContactProposalIntentHashes = priorRetiredIntents
+            storedSessions = priorSessions
             scheduleNextExpiration()
             return false
         }
         return true
+    }
+
+    private static func contactProposalStatusTurn(_ turn: AgentSessionTurn, status: AgentContactProposalDraft.Status) -> AgentSessionTurn {
+        let title: String
+        let body: String
+        switch status {
+        case .declined:
+            title = "No contact created"
+            body = "You declined this contact proposal. The original message is kept."
+        case .expired:
+            title = "Contact proposal expired"
+            body = "This proposal expired. The original message is kept; review fresh details to continue."
+        case .completed:
+            title = "Contact review completed"
+            body = "The contact result is recorded below."
+        case .proposed: return turn
+        }
+        let response = turn.response
+        return AgentSessionTurn(id: turn.id, objective: turn.objective,
+            response: .init(contractVersion: response.contractVersion, taskID: response.taskID,
+                contextManifestID: response.contextManifestID, knowledgeSnapshotID: response.knowledgeSnapshotID,
+                disposition: status == .declined ? "no_action" : status.rawValue,
+                blocks: [.init(id: response.blocks.first?.id ?? "proposal", kind: "contact_proposal",
+                    title: title, body: body, status: status.rawValue, citationDependencyIDs: [], requiresUserDecision: false)],
+                media: response.media, createdAt: response.createdAt, citations: []),
+            createdAt: turn.createdAt, requiresRefresh: turn.requiresRefresh,
+            feedback: turn.feedback, feedbackUpdatedAt: turn.feedbackUpdatedAt)
+    }
+
+    private func updateContactProposalTurn(_ proposal: AgentContactProposalDraft, status: AgentContactProposalDraft.Status) {
+        guard let sessionID = proposal.sessionID, let sourceID = proposal.sourceMessageID,
+              let index = storedSessions.firstIndex(where: { $0.id == sessionID }),
+              let turnIndex = storedSessions[index].turns.firstIndex(where: { $0.id == sourceID }) else { return }
+        storedSessions[index].turns[turnIndex] = Self.contactProposalStatusTurn(storedSessions[index].turns[turnIndex], status: status)
+    }
+
+    private static func contactProposalTurn(id: UUID, objective: String, createdAt: Date) -> AgentSessionTurn {
+        AgentSessionTurn(
+            id: id, objective: objective,
+            response: RelationshipAskResponse(
+                contractVersion: "2026-09-07", taskID: "contact-proposal-\(id.uuidString.lowercased())",
+                contextManifestID: "none-unbound-conversation", knowledgeSnapshotID: "none-unbound-conversation",
+                disposition: "proposal_only", blocks: [.init(
+                    id: "proposal-\(id.uuidString.lowercased())", kind: "contact_proposal",
+                    title: "Contact proposal", body: "Contact details were prepared for your review.",
+                    status: "needs_review", citationDependencyIDs: [], requiresUserDecision: false
+                )], media: [], createdAt: ISO8601DateFormatter().string(from: createdAt), citations: []
+            ), createdAt: createdAt, requiresRefresh: false
+        )
     }
 
     @discardableResult
@@ -1918,7 +2199,9 @@ final class AgentSessionStore: ObservableObject {
                     objective: turn.objective,
                     response: turn.response,
                     createdAt: turn.createdAt,
-                    requiresRefresh: true
+                    requiresRefresh: true,
+                    feedback: turn.feedback,
+                    feedbackUpdatedAt: turn.feedbackUpdatedAt
                 )
             }
             return next
@@ -1942,7 +2225,9 @@ final class AgentSessionStore: ObservableObject {
                     objective: turn.objective,
                     response: turn.response,
                     createdAt: turn.createdAt,
-                    requiresRefresh: true
+                    requiresRefresh: true,
+                    feedback: turn.feedback,
+                    feedbackUpdatedAt: turn.feedbackUpdatedAt
                 )
             }
             return next
@@ -1979,6 +2264,7 @@ final class AgentSessionStore: ObservableObject {
 
     @discardableResult
     func deleteAll() -> Bool {
+        syncGeneration = UUID()
         guard let persistence else {
             expirationTask?.cancel()
             activeEvidenceReviewKeys = []
@@ -1987,7 +2273,8 @@ final class AgentSessionStore: ObservableObject {
             storedSessions = []
             drafts = []
             storedGlobalDraft = nil
-            storedContactProposal = nil
+            storedContactProposals = []
+            retiredContactProposalIntentHashes = []
             storedEvidenceReviews = []
             persistenceNotice = nil
             return true
@@ -2005,7 +2292,8 @@ final class AgentSessionStore: ObservableObject {
         storedSessions = []
         drafts = []
         storedGlobalDraft = nil
-        storedContactProposal = nil
+        storedContactProposals = []
+        retiredContactProposalIntentHashes = []
         storedEvidenceReviews = []
         do {
             try persistence.completeDeletion()
@@ -2034,12 +2322,17 @@ final class AgentSessionStore: ObservableObject {
         guard let persistence else { return true }
         do {
             let envelope = PersistedAgentSessionEnvelope(
-                version: 7,
+                version: 8,
                 sessions: storedSessions.map(PersistedAgentSession.init),
                 drafts: drafts,
                 globalDraft: storedGlobalDraft,
                 evidenceReviews: storedEvidenceReviews,
-                contactProposal: storedContactProposal
+                contactProposal: nil,
+                contactProposals: storedContactProposals,
+                syncRevisions: syncRevisions,
+                syncTombstones: syncTombstones,
+                syncDigests: syncDigests,
+                retiredContactProposalIntentHashes: retiredContactProposalIntentHashes.sorted()
             )
             try persistence.save(try JSONEncoder.agentSession.encode(envelope))
             persistenceNotice = nil
@@ -2053,7 +2346,14 @@ final class AgentSessionStore: ObservableObject {
     private func pruneExpiredState() -> Bool {
         let sessionCutoff = now().addingTimeInterval(-Self.sessionRetention)
         let draftCutoff = now().addingTimeInterval(-Self.draftRetention)
-        let retainedSessions = storedSessions.filter { $0.updatedAt > sessionCutoff }
+        var retainedSessions = storedSessions.filter { $0.retentionDeadline > now() }
+        for index in retainedSessions.indices {
+            if retainedSessions[index].composerDraft != nil,
+               (retainedSessions[index].composerDraftUpdatedAt ?? retainedSessions[index].updatedAt) <= draftCutoff {
+                retainedSessions[index].composerDraft = nil
+                retainedSessions[index].composerDraftUpdatedAt = nil
+            }
+        }
         let retainedDrafts = drafts.filter { $0.updatedAt > draftCutoff }
         let retainedGlobalDraft = storedGlobalDraft.flatMap {
             $0.updatedAt > draftCutoff ? $0 : nil
@@ -2061,19 +2361,34 @@ final class AgentSessionStore: ObservableObject {
         let retainedEvidenceReviews = storedEvidenceReviews.filter {
             $0.updatedAt > sessionCutoff
         }
-        let retainedContactProposal = storedContactProposal.flatMap {
-            $0.updatedAt > draftCutoff ? $0 : nil
+        let retainedContactProposals = storedContactProposals.compactMap { proposal -> AgentContactProposalDraft? in
+            if let sessionID = proposal.sessionID,
+               !retainedSessions.contains(where: { $0.id == sessionID }) {
+                retiredContactProposalIntentHashes.insert(Self.contactProposalIntentHash(proposal.idempotencyKey))
+                return nil
+            }
+            let expiration = proposal.expiresAt ?? proposal.updatedAt.addingTimeInterval(Self.draftRetention)
+            guard expiration <= now() else { return proposal }
+            if proposal.pendingTarget != nil { return proposal }
+            retiredContactProposalIntentHashes.insert(Self.contactProposalIntentHash(proposal.idempotencyKey))
+            // The immutable source turn survives; expired fields and retry tokens are removed.
+            if proposal.isActive, let sessionID = proposal.sessionID, let sourceID = proposal.sourceMessageID,
+               let index = retainedSessions.firstIndex(where: { $0.id == sessionID }),
+               let turnIndex = retainedSessions[index].turns.firstIndex(where: { $0.id == sourceID }) {
+                retainedSessions[index].turns[turnIndex] = Self.contactProposalStatusTurn(retainedSessions[index].turns[turnIndex], status: .expired)
+            }
+            return nil
         }
-        let didChange = retainedSessions.count != storedSessions.count
+        let didChange = retainedSessions != storedSessions
             || retainedDrafts.count != drafts.count
             || retainedGlobalDraft != storedGlobalDraft
             || retainedEvidenceReviews.count != storedEvidenceReviews.count
-            || retainedContactProposal != storedContactProposal
+            || retainedContactProposals != storedContactProposals
         guard didChange else { return false }
         storedSessions = retainedSessions
         drafts = retainedDrafts
         storedGlobalDraft = retainedGlobalDraft
-        storedContactProposal = retainedContactProposal
+        storedContactProposals = retainedContactProposals
         storedEvidenceReviews = retainedEvidenceReviews
         let retainedReviewKeys = Set(
             retainedEvidenceReviews.map(\.idempotencyKey)
@@ -2090,11 +2405,12 @@ final class AgentSessionStore: ObservableObject {
 
     private func scheduleNextExpiration() {
         expirationTask?.cancel()
-        let sessionExpirations = storedSessions.map {
-            $0.updatedAt.addingTimeInterval(Self.sessionRetention)
-        }
+        let sessionExpirations = storedSessions.map(\.retentionDeadline)
         let draftExpirations = drafts.map {
             $0.updatedAt.addingTimeInterval(Self.draftRetention)
+        } + storedSessions.compactMap { session -> Date? in
+            guard session.composerDraft != nil else { return nil }
+            return (session.composerDraftUpdatedAt ?? session.updatedAt).addingTimeInterval(Self.draftRetention)
         }
         let globalDraftExpirations = storedGlobalDraft.map {
             [$0.updatedAt.addingTimeInterval(Self.draftRetention)]
@@ -2102,9 +2418,9 @@ final class AgentSessionStore: ObservableObject {
         let evidenceReviewExpirations = storedEvidenceReviews.map {
             $0.updatedAt.addingTimeInterval(Self.sessionRetention)
         }
-        let contactProposalExpirations = storedContactProposal.map {
-            [$0.updatedAt.addingTimeInterval(Self.draftRetention)]
-        } ?? []
+        let contactProposalExpirations = storedContactProposals.filter { $0.pendingTarget == nil }.map {
+            $0.expiresAt ?? $0.updatedAt.addingTimeInterval(Self.draftRetention)
+        }
         guard let nextExpiration = (
             sessionExpirations + draftExpirations + globalDraftExpirations
                 + evidenceReviewExpirations
@@ -2180,6 +2496,427 @@ final class AgentSessionStore: ObservableObject {
     }
 }
 
+extension AgentSessionStore {
+    func draft(sessionID: UUID) -> String { session(id: sessionID)?.composerDraft ?? "" }
+
+    @discardableResult
+    func saveDraft(_ value: String, sessionID: UUID) -> Bool {
+        guard value.count <= 12000,
+              let index = storedSessions.firstIndex(where: { $0.id == sessionID }) else { return false }
+        let proposed = value.isEmpty ? nil : value
+        guard storedSessions[index].composerDraft != proposed else { return true }
+        let prior = storedSessions[index]
+        storedSessions[index].composerDraft = proposed
+        storedSessions[index].composerDraftUpdatedAt = proposed == nil ? nil : now()
+        storedSessions[index].updatedAt = now()
+        guard persist() else { storedSessions[index] = prior; return false }
+        return true
+    }
+
+    @discardableResult
+    func clearDraft(sessionID: UUID) -> Bool { saveDraft("", sessionID: sessionID) }
+
+    @discardableResult
+    func beginSession(person: WorkspacePerson, context: WorkspacePerson.Context, objective: String, id: UUID = UUID()) -> UUID? {
+        guard person.contexts.contains(where: { $0.id == context.id }) else { return nil }
+        if let existing = session(id: id) {
+            return existing.scope.matches(personID: person.id, relationshipContextID: context.id) ? id : nil
+        }
+        let prior = storedSessions
+        storedSessions.append(AgentSession(
+            id: id, scope: .relationship(personID: person.id, relationshipContextID: context.id,
+                                         personDisplayLabel: person.displayLabel, contextDisplayLabel: context.displayLabel),
+            title: Self.sessionTitle(from: objective), turns: [], contactReceipts: [],
+            pendingObjective: objective, updatedAt: now(), isUnread: false, createdAt: now()
+        ))
+        sortSessions()
+        guard persist() else { storedSessions = prior; return nil }
+        return id
+    }
+
+    func screenshotAdmissionNotice(sessionID: UUID?) -> String? {
+        guard let sessionID, let session = storedSessions.first(where: { $0.id == sessionID }),
+              session.screenshotTaskIDs.count >= 20 else { return nil }
+        return "This Session has reached its screenshot limit. Open Session actions and choose Fork Session to continue with your selected images."
+    }
+
+    /// Reserve a screenshot admission before sending bytes. Recovery keeps only identity hashes and its stable token.
+    func beginScreenshotAdmission(sessionID: UUID, objective: String, requestIdentity: String, proposedIdempotencyKey: String, capturedAt: Date? = nil) -> String? {
+        _ = pruneExpiredState()
+        guard requestIdentity.utf8.count == 64,
+              requestIdentity.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
+              !proposedIdempotencyKey.isEmpty, proposedIdempotencyKey.count <= 200,
+              let index = storedSessions.firstIndex(where: { $0.id == sessionID }) else { return nil }
+        let prior = storedSessions[index]
+        if let key = prior.pendingScreenshotIdempotencyKey {
+            return prior.pendingObjective == objective && prior.pendingScreenshotRequestIdentity == requestIdentity
+                && prior.pendingScreenshotCapturedAt != nil ? key : nil
+        }
+        guard prior.screenshotTaskIDs.count < 20,
+              !prior.hasPendingUnscopedChat, !prior.hasPendingPersonResearch,
+              prior.pendingScopedAskIdempotencyKey == nil else { return nil }
+        storedSessions[index].pendingObjective = objective
+        storedSessions[index].pendingScreenshotIdempotencyKey = proposedIdempotencyKey
+        storedSessions[index].pendingScreenshotRequestIdentity = requestIdentity
+        storedSessions[index].pendingScreenshotCapturedAt = Self.stableContactCaptureDate(capturedAt ?? now())
+        storedSessions[index].updatedAt = now()
+        guard persist() else { storedSessions[index] = prior; return nil }
+        return proposedIdempotencyKey
+    }
+
+    @discardableResult
+    func recordScreenshotTask(sessionID: UUID, taskID: String, objective: String, summary: String, status: String, admissionIdempotencyKey: String? = nil) -> Bool {
+        _ = pruneExpiredState()
+        guard let index = storedSessions.firstIndex(where: { $0.id == sessionID }) else { return false }
+        guard !storedSessions[index].readOnlyScreenshotTaskIDs.contains(taskID) else { return false }
+        let isAdmittedRecovery = admissionIdempotencyKey != nil
+            && storedSessions[index].pendingScreenshotIdempotencyKey == admissionIdempotencyKey
+        guard storedSessions[index].screenshotTaskIDs.contains(taskID)
+                || storedSessions[index].screenshotTaskIDs.count < 20
+                || (isAdmittedRecovery && storedSessions[index].screenshotTaskIDs.count == 20) else { return false }
+        let prior = storedSessions[index]
+        let existing = storedSessions[index].turns.first { $0.response.taskID == taskID }
+        let createdAt = existing?.createdAt ?? now()
+        let turn = AgentSessionTurn(
+            id: existing?.id ?? UUID(), objective: existing?.objective ?? objective,
+            response: RelationshipAskResponse(
+                contractVersion: TalentSignalAPIContract.version, taskID: taskID,
+                contextManifestID: "none-unbound-conversation", knowledgeSnapshotID: "none-unbound-conversation",
+                disposition: "screenshot_processing", blocks: [.init(
+                    id: "screenshot-\(taskID)", kind: "screenshot_processing", title: "Screenshot",
+                    body: summary.isEmpty ? status : summary, status: status,
+                    citationDependencyIDs: [], requiresUserDecision: false
+                )], media: [], createdAt: ISO8601DateFormatter().string(from: createdAt), citations: []
+            ), createdAt: createdAt, requiresRefresh: false,
+            feedback: existing?.feedback, feedbackUpdatedAt: existing?.feedbackUpdatedAt
+        )
+        if let turnIndex = storedSessions[index].turns.firstIndex(where: { $0.id == turn.id }) {
+            storedSessions[index].turns[turnIndex] = turn
+        } else { storedSessions[index].turns.append(turn) }
+        if !storedSessions[index].screenshotTaskIDs.contains(taskID) { storedSessions[index].screenshotTaskIDs.append(taskID) }
+        if let admissionIdempotencyKey,
+           storedSessions[index].pendingScreenshotIdempotencyKey == admissionIdempotencyKey {
+            storedSessions[index].pendingScreenshotIdempotencyKey = nil
+            storedSessions[index].pendingScreenshotRequestIdentity = nil
+            storedSessions[index].pendingScreenshotCapturedAt = nil
+            storedSessions[index].pendingObjective = nil
+        } else if !storedSessions[index].hasPendingScreenshotAdmission,
+                  storedSessions[index].pendingObjective == objective {
+            storedSessions[index].pendingObjective = nil
+        }
+        storedSessions[index].updatedAt = now()
+        let exceededSyncCapacity = storedSessions[index].screenshotTaskIDs.count > 20
+        guard persist() else {
+            if let rollbackIndex = storedSessions.firstIndex(where: { $0.id == sessionID }) { storedSessions[rollbackIndex] = prior }
+            return false
+        }
+        guard storedSessions.contains(where: { $0.id == sessionID }) else { return false }
+        if exceededSyncCapacity {
+            sessionSyncNotices[sessionID] = screenshotAdmissionNotice(sessionID: sessionID)
+        }
+        return true
+    }
+
+    @discardableResult
+    func toggleFeedback(sessionID: UUID, turnID: UUID, feedback: AgentSessionFeedback) -> Bool {
+        guard let index = storedSessions.firstIndex(where: { $0.id == sessionID }),
+              let turnIndex = storedSessions[index].turns.firstIndex(where: { $0.id == turnID }) else { return false }
+        let prior = storedSessions[index]
+        storedSessions[index].turns[turnIndex].feedback = storedSessions[index].turns[turnIndex].feedback == feedback ? nil : feedback
+        storedSessions[index].turns[turnIndex].feedbackUpdatedAt = now()
+        storedSessions[index].updatedAt = now()
+        guard persist() else { storedSessions[index] = prior; return false }
+        return true
+    }
+
+    @discardableResult
+    func forkSession(_ id: UUID, throughTurnID: UUID? = nil) -> UUID? {
+        guard let original = session(id: id), !original.turns.isEmpty else { return nil }
+        let endIndex: Int
+        if let throughTurnID {
+            guard let index = original.turns.firstIndex(where: { $0.id == throughTurnID }) else { return nil }
+            endIndex = index + 1
+        } else { endIndex = original.turns.count }
+        var turns: [AgentSessionTurn] = []
+        var byteCount = 0
+        var inheritedScreenshotIDs = Set<String>()
+        for turn in original.turns.prefix(endIndex).suffix(40).reversed() {
+            let screenshotID = original.screenshotTaskIDs.contains(turn.response.taskID) ? turn.response.taskID : nil
+            if let screenshotID, !inheritedScreenshotIDs.contains(screenshotID), inheritedScreenshotIDs.count >= 19 { continue }
+            let copied = AgentSessionTurn(id: UUID(), objective: turn.objective,
+                response: AgentSessionContextPolicy.readOnlyResponse(turn.response),
+                createdAt: turn.createdAt, requiresRefresh: true)
+            guard let data = try? JSONEncoder.agentSession.encode(PersistedAgentSessionTurn(copied)),
+                  byteCount + data.count <= 128 * 1024 else { continue }
+            byteCount += data.count
+            if let screenshotID { inheritedScreenshotIDs.insert(screenshotID) }
+            turns.insert(copied, at: 0)
+        }
+        let fork = AgentSession(
+            id: UUID(), scope: original.scope, title: original.title, turns: turns,
+            contactReceipts: [], updatedAt: now(), isUnread: false,
+            originSessionID: id, originTurnID: throughTurnID ?? original.turns.last?.id,
+            originKind: syncDigests[id.uuidString.lowercased()] == Self.syncDigest(syncPayload(original)) ? nil : "local",
+            screenshotTaskIDs: original.screenshotTaskIDs.filter { inheritedScreenshotIDs.contains($0) },
+            inheritedScreenshotTaskIDs: original.screenshotTaskIDs.filter { inheritedScreenshotIDs.contains($0) },
+            createdAt: now(), retentionExpiresAt: original.retentionDeadline,
+            contextWasTrimmed: turns.count < endIndex
+        )
+        let prior = storedSessions
+        storedSessions.append(fork)
+        sortSessions()
+        guard persist() else { storedSessions = prior; return nil }
+        return fork.id
+    }
+
+    func exportMarkdown(sessionID: UUID, language: AppLanguage) -> String? {
+        session(id: sessionID).map { AgentSessionContextPolicy.exportMarkdown($0, language: language) }
+    }
+
+    func recordIfOwned(sessionID: UUID, objective: String, response: RelationshipAskResponse,
+                       person: WorkspacePerson, context: WorkspacePerson.Context,
+                       createdAt: Date = Date(), sourceMessageID: UUID? = nil) -> UUID? {
+        pruneExpired()
+        guard syncTombstones[sessionID.uuidString.lowercased()] == nil,
+              let owner = storedSessions.first(where: { $0.id == sessionID }),
+              owner.isUnresolvedIntent || owner.scope.matches(personID: person.id, relationshipContextID: context.id) else { return nil }
+        let result = record(sessionID: sessionID, objective: objective, response: response,
+                            person: person, context: context, createdAt: createdAt, sourceMessageID: sourceMessageID)
+        return storedSessions.first(where: { $0.id == result })?.turns.contains(where: { $0.response.taskID == response.taskID }) == true ? result : nil
+    }
+
+    /// Uploads readable history only. Pending exact-effect approval remains on its originating device.
+    private func syncPayload(_ session: AgentSession) -> PersistedAgentSession {
+        var payload = PersistedAgentSession(session)
+        payload.retentionExpiresAt = nil
+        if let proposal = storedContactProposals.first(where: { $0.sessionID == session.id }) {
+            payload.contactProposal = AgentContactProposalDraft(
+                draft: proposal.draft, idempotencyKey: proposal.idempotencyKey,
+                capturedAt: proposal.capturedAt, pendingTarget: nil, pendingConfirmIdentityClue: nil,
+                updatedAt: proposal.updatedAt, sessionID: proposal.sessionID,
+                sourceMessageID: proposal.sourceMessageID, sourceText: proposal.sourceText,
+                expiresAt: proposal.expiresAt, status: proposal.status
+            )
+        }
+        return payload
+    }
+
+    /// Reconcile immutable message identity by union; never use last-writer-wins for a transcript.
+    private func mergeRemote(_ remote: PersistedAgentSession, into local: AgentSession?) throws -> AgentSession {
+        let remoteSession = try remote.value()
+        guard let local else { return remoteSession }
+        var merged = local.updatedAt >= remoteSession.updatedAt ? local : remoteSession
+        var turns = local.turns
+        for incoming in remoteSession.turns {
+            if let index = turns.firstIndex(where: { $0.id == incoming.id }) {
+                guard turns[index].objective == incoming.objective,
+                      turns[index].response.taskID == incoming.response.taskID,
+                      abs(turns[index].createdAt.timeIntervalSince(incoming.createdAt)) < 1 else {
+                    throw AgentSessionSyncError.transcriptConflict
+                }
+                // A newer server revision may have invalidated evidence-backed display text.
+                let old = turns[index]
+                let unchangedDisplay = AgentSessionContextPolicy.readOnlyResponse(old.response)
+                    == AgentSessionContextPolicy.readOnlyResponse(incoming.response)
+                turns[index] = unchangedDisplay ? old : incoming
+                if (old.feedbackUpdatedAt ?? .distantPast) > (incoming.feedbackUpdatedAt ?? .distantPast) {
+                    turns[index].feedback = old.feedback
+                    turns[index].feedbackUpdatedAt = old.feedbackUpdatedAt
+                } else {
+                    turns[index].feedback = incoming.feedback
+                    turns[index].feedbackUpdatedAt = incoming.feedbackUpdatedAt
+                }
+            } else { turns.append(incoming) }
+        }
+        let remoteIDs = Set(remoteSession.turns.map(\.id))
+        merged.turns = remoteSession.turns.compactMap { incoming in turns.first { $0.id == incoming.id } }
+            + turns.filter { !remoteIDs.contains($0.id) }
+        merged.contactReceipts = local.contactReceipts + remoteSession.contactReceipts.filter { incoming in
+            !local.contactReceipts.contains(where: { $0.id == incoming.id || $0.operationKey == incoming.operationKey })
+        }
+        merged.screenshotTaskIDs = Array(Set(local.screenshotTaskIDs + remoteSession.screenshotTaskIDs)).sorted()
+        if local.originSessionID != nil || remoteSession.originSessionID != nil {
+            merged.inheritedScreenshotTaskIDs = Array(local.readOnlyScreenshotTaskIDs.union(remoteSession.readOnlyScreenshotTaskIDs)).sorted()
+        }
+        // A locally pending operation keeps its stable recovery token across a remote read.
+        if local.hasPendingUnscopedChat || local.hasPendingPersonResearch || local.pendingScopedAskIdempotencyKey != nil || local.hasPendingScreenshotAdmission {
+            merged.pendingObjective = local.pendingObjective
+            merged.pendingUnscopedChatIdempotencyKey = local.pendingUnscopedChatIdempotencyKey
+            merged.pendingPersonResearchIdempotencyKey = local.pendingPersonResearchIdempotencyKey
+            merged.pendingPersonResearchRequestIdentity = local.pendingPersonResearchRequestIdentity
+            merged.pendingScopedAskIdempotencyKey = local.pendingScopedAskIdempotencyKey
+            merged.pendingScopedAskRequestIdentity = local.pendingScopedAskRequestIdentity
+            merged.pendingScreenshotIdempotencyKey = local.pendingScreenshotIdempotencyKey
+            merged.pendingScreenshotRequestIdentity = local.pendingScreenshotRequestIdentity
+            merged.pendingScreenshotCapturedAt = local.pendingScreenshotCapturedAt
+        }
+        return merged
+    }
+
+    private func applyRemote(_ record: AgentSessionRemoteRecord) throws {
+        let key = record.sessionID.uuidString.lowercased()
+        guard record.revision >= (syncRevisions[key] ?? 0) else { return }
+        if record.payload == nil || record.deletedAt != nil || record.expiresAt <= now() {
+            storedSessions.removeAll { $0.id == record.sessionID }
+            storedContactProposals.removeAll { $0.sessionID == record.sessionID }
+            syncRevisions[key] = record.revision
+            syncTombstones[key] = record.revision
+            return
+        }
+        if let pendingDeletion = syncTombstones[key] {
+            if pendingDeletion < 0 { syncTombstones[key] = -(record.revision + 1) }
+            syncRevisions[key] = record.revision
+            return
+        }
+        guard let payload = record.payload, payload.id == record.sessionID else { return }
+        if record.revision == syncRevisions[key] { return }
+        syncDigests[key] = Self.syncDigest(payload)
+        let local = storedSessions.first { $0.id == record.sessionID }
+        var merged = try mergeRemote(payload, into: local)
+        merged.retentionExpiresAt = min(local?.retentionDeadline ?? .distantFuture, record.expiresAt)
+        storedSessions.removeAll { $0.id == record.sessionID }
+        storedSessions.append(merged)
+        if payload.contactProposal == nil, payload.turns.contains(where: {
+            $0.response.savedBlocks == nil && $0.response.unboundConversationBlocks == nil
+                && $0.response.unboundPersonResearchBlocks == nil
+        }) {
+            // A source retraction removes derived proposals, including their local raw excerpts.
+            for proposal in storedContactProposals where proposal.sessionID == record.sessionID {
+                retiredContactProposalIntentHashes.insert(Self.contactProposalIntentHash(proposal.idempotencyKey))
+            }
+            storedContactProposals.removeAll { $0.sessionID == record.sessionID }
+        }
+        if let incoming = payload.contactProposal,
+           !retiredContactProposalIntentHashes.contains(Self.contactProposalIntentHash(incoming.idempotencyKey)) {
+            let localProposal = storedContactProposals.first { $0.sessionID == record.sessionID }
+            if localProposal == nil || (localProposal!.pendingTarget == nil && incoming.updatedAt > localProposal!.updatedAt) {
+                storedContactProposals.removeAll { $0.sessionID == record.sessionID }
+                storedContactProposals.append(incoming)
+            }
+        }
+        syncRevisions[key] = record.revision
+    }
+
+    private static func syncDigest(_ payload: PersistedAgentSession) -> String? {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(payload) else { return nil }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    func syncNotice(sessionID: UUID?) -> String? {
+        guard let sessionID else { return syncNotice }
+        return sessionSyncNotices[sessionID] ?? (hasGlobalSyncFailure ? syncNotice : nil)
+    }
+
+    private static func syncLimitNotice(_ payload: PersistedAgentSession) -> String? {
+        guard payload.turns.count <= 200, (payload.screenshotTaskIDs?.count ?? 0) <= 20,
+              let data = try? JSONEncoder.agentSession.encode(payload),
+              data.count <= 230 * 1024 else {
+            return "This Session is too large to sync. Fork its recent context to continue; the original history stays here."
+        }
+        return nil
+    }
+
+    private static func isGlobalSyncError(_ error: Error) -> Bool {
+        guard let syncError = error as? AgentSessionSyncError else { return true }
+        switch syncError {
+        case .unavailable(let status): return status == 401 || status == 403 || status >= 500
+        case .invalidResponse: return true
+        case .conflict, .transcriptConflict: return false
+        }
+    }
+
+    @discardableResult
+    func synchronize(using client: AgentSessionSyncServing, requiredSessionID: UUID? = nil) async -> Bool {
+        guard !isSynchronizing else { return false }
+        isSynchronizing = true
+        sessionSyncNotices = [:]
+        hasGlobalSyncFailure = false
+        let generation = syncGeneration
+        var syncedIDs = Set<UUID>()
+        defer { isSynchronizing = false }
+        do {
+            var cursor: String? = nil
+            var visited = Set<String>()
+            repeat {
+                let page = try await client.list(after: cursor)
+                guard generation == syncGeneration, !Task.isCancelled else { return false }
+                for record in page.sessions {
+                    do { try applyRemote(record) }
+                    catch { sessionSyncNotices[record.sessionID] = error.localizedDescription }
+                }
+                sortSessions()
+                guard persist() else { throw AgentSessionSyncError.invalidResponse }
+                if page.complete { break }
+                guard let next = page.nextCursor, visited.insert(next).inserted else {
+                    throw AgentSessionSyncError.invalidResponse
+                }
+                cursor = next
+            } while true
+
+            for (key, revision) in syncTombstones.sorted(by: { $0.key < $1.key }) {
+                guard generation == syncGeneration, !Task.isCancelled else { return false }
+                guard let id = UUID(uuidString: key), revision < 0 else { continue }
+                do {
+                    let result = try await client.delete(id: id, expectedRevision: -revision - 1, idempotencyKey: UUID())
+                    guard generation == syncGeneration else { return false }
+                    try applyRemote(result)
+                    guard persist() else { throw AgentSessionSyncError.invalidResponse }
+                } catch {
+                    if Self.isGlobalSyncError(error) { throw error }
+                    sessionSyncNotices[id] = error.localizedDescription
+                }
+            }
+            let ids = storedSessions.map(\.id)
+            for id in ids {
+                guard generation == syncGeneration, !Task.isCancelled else { return false }
+                guard sessionSyncNotices[id] == nil,
+                      let current = storedSessions.first(where: { $0.id == id }) else { continue }
+                let key = id.uuidString.lowercased()
+                let payload = syncPayload(current)
+                if let limit = Self.syncLimitNotice(payload) {
+                    sessionSyncNotices[id] = limit
+                    continue
+                }
+                if syncDigests[key] == Self.syncDigest(payload) {
+                    syncedIDs.insert(id)
+                    continue
+                }
+                do {
+                    let result = try await client.put(payload, expectedRevision: syncRevisions[key] ?? 0, idempotencyKey: UUID())
+                    guard generation == syncGeneration else { return false }
+                    try applyRemote(result)
+                    guard persist() else { throw AgentSessionSyncError.invalidResponse }
+                    if storedSessions.contains(where: { $0.id == id }), syncTombstones[key] == nil {
+                        syncedIDs.insert(id)
+                    }
+                } catch {
+                    if Self.isGlobalSyncError(error) { throw error }
+                    sessionSyncNotices[id] = error.localizedDescription
+                }
+            }
+            syncNotice = sessionSyncNotices.isEmpty ? nil : "Some Sessions need attention before they can sync."
+            if let requiredSessionID {
+                let available = syncedIDs.contains(requiredSessionID)
+                    && syncTombstones[requiredSessionID.uuidString.lowercased()] == nil
+                    && storedSessions.contains { $0.id == requiredSessionID }
+                if !available, sessionSyncNotices[requiredSessionID] == nil {
+                    sessionSyncNotices[requiredSessionID] = "This Session is no longer available. Start a new Session to continue."
+                }
+                return available && sessionSyncNotices[requiredSessionID] == nil
+            }
+            return sessionSyncNotices.isEmpty
+        } catch {
+            hasGlobalSyncFailure = true
+            syncNotice = error.localizedDescription
+            return false
+        }
+    }
+
+}
+
 enum AgentSessionPersistenceError: LocalizedError, Equatable {
     case unsupportedVersion
     case invalidSessionScope
@@ -2206,7 +2943,7 @@ enum AgentSessionPersistenceError: LocalizedError, Equatable {
     }
 }
 
-private extension JSONEncoder {
+extension JSONEncoder {
     static let agentSession: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -2214,10 +2951,16 @@ private extension JSONEncoder {
     }()
 }
 
-private extension JSONDecoder {
+extension JSONDecoder {
     static let agentSession: JSONDecoder = {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let value = try decoder.singleValueContainer().decode(String.self)
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value) { return date }
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid Session timestamp."))
+        }
         return decoder
     }()
 }

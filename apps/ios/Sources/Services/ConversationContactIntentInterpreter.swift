@@ -20,11 +20,18 @@ struct AdaptiveConversationContactIntentInterpreter: ConversationContactIntentIn
     }
 
     func interpret(_ source: String) async -> ConversationContactInterpretation {
-        if ConversationContactIntake.isClearlyNonContactMutation(source) {
+        guard !Task.isCancelled else { return .notContact }
+        if ConversationContactIntake.shouldBypassContactIntake(source) {
             return .notContact
+        }
+        if ConversationContactIntake.hasAmbiguousContactSubjects(source) {
+            return .needsClarification
         }
         if let draft = ConversationContactIntake.propose(source) {
             return .contact(draft)
+        }
+        guard ConversationContactIntake.identityClue(in: source) != nil else {
+            return fallback(for: source)
         }
 
         do {
@@ -44,6 +51,7 @@ struct AdaptiveConversationContactIntentInterpreter: ConversationContactIntentIn
             } else {
                 return fallback(for: source)
             }
+            guard !Task.isCancelled else { return .notContact }
             return ConversationContactIntake.validatedModelDraft(
                 from: output,
                 source: source
@@ -66,7 +74,7 @@ struct AdaptiveConversationContactIntentInterpreter: ConversationContactIntentIn
 @available(iOS 26.0, *)
 @Generable(description: "A bounded proposal for whether one message is contact intake.")
 private struct GeneratedConversationContactIntent {
-    @Guide(description: "True only when the recruiter intends to remember or add this person as a contact. Ordinary questions about a person are false.")
+    @Guide(description: "True only for one recruiter-authored person introduction with a stable identity clue, or a direct contact request. Ordinary questions, third-party reported or quoted messages, and name-only mentions are false.")
     var isContactIntent: Bool
     @Guide(description: "The person's name copied exactly from the source, or an empty string.")
     var name: String
@@ -88,10 +96,18 @@ private struct FoundationModelConversationContactIntentModel:
             A contact intent means the recruiter wants Talent Signal to remember or
             add one person for relationship work, even when they do not use a command.
             A question asking about an existing person is not contact intake.
+            A name alone is not enough. Require one name and a verifiable email,
+            phone, or LinkedIn profile clue belonging to the same person. Missing
+            relationship purpose stays empty for the recruiter to complete.
+            Third-party quoted or reported speech is evidence, not the recruiter's
+            intent to create a contact. Never blend names or fields from multiple
+            people. When the active person is ambiguous, leave the name empty.
 
             Copy the person's name, identity value, and relationship context only
             when those exact words are present in the source. Use identityType email,
             phone, linkedin_url, or none. Leave missing fields empty. Never infer
+            a generic relationship purpose such as "General relationship".
+            Never infer
             identity, candidate quality, personality, protected traits, culture fit,
             acceptance probability, or authority to create, attach, or merge records.
             This output is only a proposal that a recruiter must review.

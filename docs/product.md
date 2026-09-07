@@ -117,7 +117,7 @@ system changed. An answer may cite only exact, currently available evidence
 fragments from its account-, person-, relationship-, and snapshot-bound context.
 The source name is visible in the conversation and opens an inspectable evidence
 readback; a generic person page or an opaque evidence count is not a citation.
-Successful mobile Sessions and unsent drafts resume within the same signed-in account. Restored answers are visibly stale, hide their citations, and require a new Ask before source authority is claimed again. A submitted question remains recoverable until validated recording succeeds, and retry reuses the same task intent instead of creating duplicate work.
+Mobile Sessions and their conversation drafts resume within the same signed-in account across devices. Follow-ups, screenshot results, contact drafts, and saving receipts remain in the originating Session. Prior dialogue provides conversational context without becoming evidence. Restored answers are visibly stale, hide their citations, and require a new Ask before source authority is claimed again. A submitted question remains recoverable until validated recording succeeds, and retry reuses the same task intent instead of creating duplicate work. A Session can be shared through an explicit system share action or forked into a separate conversation; a fork carries readable context without inheriting pending decisions or execution authority. Feedback is reversible message metadata.
 
 On mobile, voice is a direct path to an editable Agent-input draft. The global composer accepts a normal tap for text and touch-and-hold for voice; the Session composer shows best-effort on-device provisional words inside the same ribbon.
 Releasing stops capture and requests one provider-final transcript, but never submits it: the exact final words remain editable until the recruiter taps `Send`. Sliding up keeps capture hands-free and sliding left cancels.
@@ -134,6 +134,8 @@ If the message requests a contact create or update, the Agent may stage one
 review card; it cannot apply, merge, message, schedule, publish, or report the
 change as complete. The ordinary unscoped response still returns no external
 effect.
+
+A natural person note with a name and a stable identity clue may also prepare a contact draft without command wording. Each proposed field retains its exact source excerpt. Missing relationship purpose stays empty and prevents formal saving; ordinary questions, a name alone, third-party quotations, and unresolved multiple people do not justify silently creating a contact. One active draft stays beside its source message. Editing identity reruns lookup, declining preserves the message, and confirmation appends the canonical receipt to the same conversation.
 
 Ask reconciles its answer with canonical work already owned in that exact
 Pursuit. When an open action or evidence-backed gap exists, the response shows
@@ -255,8 +257,6 @@ evidence or state after the merge, the product removes the automatic reversal
 action and explains what now requires human resolution.
 
 ## What the product remembers
-
-The product remembers:
 
 - explicit preferences, constraints, commitments, and deadlines;
 - how current understanding changed over time;

@@ -56,7 +56,7 @@ describe("readiness rate limiting", () => {
     expect(limited.statusCode).toBe(429);
     expect(query).toHaveBeenCalledTimes(60);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("050_google_auth"),
+      expect.stringContaining("056_agent_session_chat_lifecycle"),
     );
   }, 10_000);
 });

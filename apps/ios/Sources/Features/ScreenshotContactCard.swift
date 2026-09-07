@@ -20,13 +20,15 @@ struct ScreenshotContactCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(statusLabel).font(.caption).foregroundStyle(Color.tsMutedInk)
-                    Text(task.contact?.displayName ?? language.text("Reading the conversation"))
+                    Text(task.contact?.displayName ?? language.text("Chat screenshot"))
                         .font(.title3.weight(.semibold)).foregroundStyle(Color.tsInk)
                 }
                 Spacer(minLength: 8)
                 if task.status == "running" { ProgressView().accessibilityLabel(statusLabel) }
                 if let contact = task.contact, let onOpenPerson {
-                    Button { onOpenPerson(contact.personID) } label: { Image(systemName: "person.crop.rectangle") }
+                    Button { onOpenPerson(contact.personID) } label: {
+                        Image(systemName: "person.crop.rectangle").frame(width: 44, height: 44)
+                    }
                         .accessibilityLabel(language.text("Open contact"))
                 }
             }
@@ -34,13 +36,18 @@ struct ScreenshotContactCard: View {
                 Text(verbatim: "\(contact.disposition == "created" ? language.text("Contact created") : language.text("Existing contact reused")) · \(task.messageCount) \(language.text("messages saved"))")
                     .font(.caption).foregroundStyle(Color.tsMutedInk)
             }
-            if !task.summary.isEmpty { Text(task.summary).font(.subheadline).textSelection(.enabled) }
+            if !task.summary.isEmpty { AgentMarkdownView(markdown: task.summary) }
             if let question = task.question {
                 Text(question).font(.subheadline.weight(.medium))
                 ForEach(task.candidates) { candidate in
-                    Button(candidate.displayName + " · " + candidate.relationshipLabel) {
+                    Button {
                         onResume?(.init(expectedRevision: task.revision, selectedPersonID: candidate.personID, selectedRelationshipContextID: candidate.relationshipContextID))
-                    }.buttonStyle(.bordered)
+                    } label: {
+                        Text(verbatim: candidate.displayName + " · " + candidate.relationshipLabel)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(onResume == nil)
                 }
                 if task.captureID == nil, task.extraction != nil, onResume != nil {
                     TextField(language.text("Contact name for filing"), text: $filingName).textFieldStyle(.roundedBorder)
@@ -56,13 +63,23 @@ struct ScreenshotContactCard: View {
                 Button(language.text("Reattach the same screenshot")) { showsImageRecovery = true }
             }
             if let recoveryError { Text(recoveryError).font(.caption).foregroundStyle(Color.tsMutedInk) }
-            if task.status == "running", let onCancel { Button(language.text("Stop"), action: onCancel).font(.caption) }
+            if task.status == "running", let onCancel {
+                Button(action: onCancel) { Text(language.text("Stop")).frame(minHeight: 44) }
+                    .font(.caption)
+            }
             ForEach(Array(task.findings.enumerated()), id: \.offset) { _, finding in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(finding.text).font(.subheadline)
-                    Text(verbatim: "“\(finding.sourceExcerpt)”").font(.caption).foregroundStyle(Color.tsMutedInk)
-                    Text(verbatim: "\(finding.epistemicStatus == "inference" ? language.text("Interpretation") : language.text("Source statement")) · \(finding.messageRefs.joined(separator: ", "))")
-                        .font(.caption2).foregroundStyle(Color.tsMutedInk)
+                    DisclosureGroup(finding.epistemicStatus == "inference"
+                        ? language.text("Interpretation · view evidence")
+                        : language.text("Source statement · view evidence")) {
+                        Text(verbatim: "“\(finding.sourceExcerpt)”")
+                            .font(.caption).foregroundStyle(Color.tsMutedInk)
+                            .textSelection(.enabled)
+                        Text(verbatim: finding.messageRefs.joined(separator: ", "))
+                            .font(.caption2).foregroundStyle(Color.tsMutedInk)
+                    }
+                    .font(.caption)
                 }.padding(.vertical, 6)
             }
             if !task.profileFields.isEmpty {
@@ -129,6 +146,7 @@ struct ScreenshotContactCard: View {
             }
         }.padding(20).background(Color.tsSurfaceMuted, in: RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.tsLine.opacity(0.7)))
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("screenshot-contact-card")
             .sheet(isPresented: $showsSourceImage, onDismiss: { sourceImage = nil }) {
                 NavigationStack {
@@ -155,9 +173,9 @@ struct ScreenshotContactCard: View {
     }
     private var statusLabel: String {
         switch task.status {
-        case "running": return language.text("Organizing")
-        case "completed": return language.text("Organized")
-        case "partial": return language.text("Saved, with unfinished work")
+        case "running": return language.text("Reading the conversation")
+        case "completed": return language.text("Screenshot summary")
+        case "partial": return language.text("Some items still need review")
         case "waiting_for_user": return language.text("Needs your clarification")
         case "deleted": return language.text("Source unavailable")
         case "cancelled": return language.text("Stopped")

@@ -203,6 +203,21 @@ export async function createScreenshotContactTask(pool: Pool,auth: AuthContext,r
   const request=parsed.data;const manifest=imageManifest(request);const hash=digest(JSON.stringify(manifest));
   if (Boolean(request.selected_person_id)!==Boolean(request.selected_relationship_context_id)) deny("CONTACT_TASK_SCOPE_INCOMPLETE");
   const result = await inTransaction(pool,async(client)=>{
+    // Serialize admission with Session deletion so an unknown receipt cannot
+    // create a new task after its Session's deletion tombstone commits.
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[
+      `${auth.accountId}:${auth.userId}:agent-sessions`,
+    ]);
+    const removedSession=await client.query(`SELECT 1 FROM agent_sessions retired
+      WHERE retired.account_id=$1 AND retired.created_by_user_id=$2 AND retired.screenshot_admission_key_hash=$3
+        AND (retired.deleted_at IS NOT NULL OR retired.expires_at<=now())
+        AND NOT EXISTS (SELECT 1 FROM agent_sessions active
+          WHERE active.account_id=$1 AND active.created_by_user_id=$2 AND active.deleted_at IS NULL AND active.expires_at>now()
+            AND (active.screenshot_admission_key_hash=$3 OR EXISTS (
+              SELECT 1 FROM screenshot_contact_tasks task WHERE task.account_id=$1 AND task.created_by_user_id=$2
+                AND task.idempotency_key=$4 AND COALESCE(active.payload->'screenshotTaskIDs','[]'::jsonb) ? task.id::text)))
+      LIMIT 1`,[auth.accountId,auth.userId,digest(request.idempotency_key),request.idempotency_key]);
+    if(removedSession.rowCount) throw new ApiError(410,"CONTACT_TASK_SESSION_DELETED","The Session for this screenshot request was deleted or expired.");
     if(request.selected_person_id) await getRelationshipScope(client,auth,request.selected_person_id,request.selected_relationship_context_id!);
     const id=randomUUID();const now=new Date().toISOString();
     const response:Response={...(storage?{source_images:contactImages(request).map((image,image_index)=>({...validateContactImage(image),image_index}))}:{}),task_id:id,revision:1,status:"running",contact:null,capture_id:null,source_resource_id:null,

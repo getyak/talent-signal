@@ -7,6 +7,8 @@ struct RelationshipArchiveView: View {
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @StateObject private var captureHandoff = CaptureHandoffStore.shared
     @StateObject private var captureIntentRouter = CaptureIntentRouter.shared
     @StateObject private var askDeepLinkRouter = AgentAskDeepLinkRouter.shared
@@ -84,56 +86,60 @@ struct RelationshipArchiveView: View {
                 previewSnapshot: previewSnapshot
             )
         )
-        let resolvedSessionStore: AgentSessionStore
+        // Keep loading, migration, and test resets inside StateObject's lazy
+        // creation. Rebuilding this View must not instantiate another store.
+        _sessionStore = StateObject(wrappedValue: {
+            let resolvedSessionStore: AgentSessionStore
 #if DEBUG
-        let usesPersistentPreview = ProcessInfo.processInfo.arguments.contains(
-            "--persist-preview-agent"
-        )
-        if resolvedService == nil, usesPersistentPreview {
-            let previewStore = AgentSessionStore(
-                persistence: FileAgentSessionPersistence(
-                    accountID: "ui-test-preview-agent"
+            let usesPersistentPreview = ProcessInfo.processInfo.arguments.contains(
+                "--persist-preview-agent"
+            )
+            if resolvedService == nil, usesPersistentPreview {
+                let previewStore = AgentSessionStore(
+                    persistence: FileAgentSessionPersistence(
+                        accountID: "ui-test-preview-agent"
+                    )
                 )
-            )
-            if ProcessInfo.processInfo.arguments.contains(
-                "--reset-preview-agent"
-            ) {
-                _ = previewStore.deleteAll()
-            }
-            resolvedSessionStore = previewStore
-        } else if resolvedService == nil {
-            resolvedSessionStore = AgentSessionStore.preview(
-                snapshot: previewSnapshot,
-                sessionCount: previewSessionCount
-            )
-        } else {
-            let canonicalStore = AgentSessionStore(
-                persistence: session.map {
-                    FileAgentSessionPersistence(accountID: $0.persistenceScope, legacyAccountID: $0.accountID)
+                if ProcessInfo.processInfo.arguments.contains(
+                    "--reset-preview-agent"
+                ) {
+                    _ = previewStore.deleteAll()
                 }
-            )
-            if ProcessInfo.processInfo.arguments.contains(
-                "--reset-agent-sessions"
-            ) {
-                _ = canonicalStore.deleteAll()
+                resolvedSessionStore = previewStore
+            } else if resolvedService == nil {
+                resolvedSessionStore = AgentSessionStore.preview(
+                    snapshot: previewSnapshot,
+                    sessionCount: previewSessionCount
+                )
+            } else {
+                let canonicalStore = AgentSessionStore(
+                    persistence: session.map {
+                        FileAgentSessionPersistence(accountID: $0.persistenceScope, legacyAccountID: $0.accountID)
+                    }
+                )
+                if ProcessInfo.processInfo.arguments.contains(
+                    "--reset-agent-sessions"
+                ) {
+                    _ = canonicalStore.deleteAll()
+                }
+                resolvedSessionStore = canonicalStore
             }
-            resolvedSessionStore = canonicalStore
-        }
 #else
-        if resolvedService == nil {
-            resolvedSessionStore = AgentSessionStore.preview(
-                snapshot: previewSnapshot,
-                sessionCount: previewSessionCount
-            )
-        } else {
-            resolvedSessionStore = AgentSessionStore(
-                persistence: session.map {
-                    FileAgentSessionPersistence(accountID: $0.persistenceScope, legacyAccountID: $0.accountID)
-                }
-            )
-        }
+            if resolvedService == nil {
+                resolvedSessionStore = AgentSessionStore.preview(
+                    snapshot: previewSnapshot,
+                    sessionCount: previewSessionCount
+                )
+            } else {
+                resolvedSessionStore = AgentSessionStore(
+                    persistence: session.map {
+                        FileAgentSessionPersistence(accountID: $0.persistenceScope, legacyAccountID: $0.accountID)
+                    }
+                )
+            }
 #endif
-        _sessionStore = StateObject(wrappedValue: resolvedSessionStore)
+            return resolvedSessionStore
+        }())
         let resolvedLabService = labService ?? session.map {
             URLTalentSignalLabClient(
                 baseURL: $0.baseURL,
@@ -202,6 +208,17 @@ struct RelationshipArchiveView: View {
                 guideRail
             }
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: Binding(
+                get: { askPresentation != nil },
+                set: { if !$0 { askPresentation = nil } }
+            )) {
+                if let presentation = askPresentation {
+                    askDestination(presentation)
+                }
+            }
+        }
+        .onChange(of: askPresentation?.id) { presentationID in
+            if presentationID == nil { completeDeferredTransition() }
         }
         .environment(\.layoutDirection, pageLayoutDirection)
         .overlay(alignment: .top) {
@@ -335,95 +352,6 @@ struct RelationshipArchiveView: View {
                 baseURL: reviewBaseURL, workspace: workspaceLabel, userScope: accountEmail, runtimeScope: runtimeScope,
                 onSignOut: onSignOut,
                 refreshWorkspace: workspaceStore.isCanonical ? { await workspaceStore.refreshForLab() } : nil)
-        }
-        .fullScreenCover(
-            item: $askPresentation,
-            onDismiss: completeDeferredTransition
-        ) { presentation in
-            if let snapshot = workspaceStore.snapshot {
-                RelationshipAskView(
-                    snapshot: snapshot,
-                    isCanonical: workspaceStore.isCanonical,
-                    workspaceStore: workspaceStore,
-                    sessionStore: sessionStore,
-                    sessionID: presentation.sessionID,
-                    initialSeed: presentation.seed,
-                    preferredPersonID: presentation.preferredPersonID,
-                    preferredPersonLabel: presentation.preferredPersonLabel,
-                    initialEntryMode: presentation.entryMode,
-                    ask: { objective, personID, contextID, idempotencyKey, mediaIDs in
-                        try await workspaceStore.ask(
-                            objective: objective,
-                            personID: personID,
-                            relationshipContextID: contextID,
-                            idempotencyKey: idempotencyKey,
-                            mediaIDs: mediaIDs
-                        )
-                    },
-                    saveContact: {
-                        draft,
-                        target,
-                        confirmIdentityClue,
-                        capturedAt,
-                        idempotencyKey in
-                        try await workspaceStore.saveContactDraft(
-                            draft,
-                            target: target,
-                            confirmIdentityClue: confirmIdentityClue,
-                            capturedAt: capturedAt,
-                            idempotencyKey: idempotencyKey
-                        )
-                    },
-                    reviewEvidence: {
-                        fragmentID,
-                        expectedReviewStatus,
-                        expectedLastReviewID,
-                        decision,
-                        reason,
-                        idempotencyKey in
-                        return try await workspaceStore.reviewEvidence(
-                            fragmentID: fragmentID,
-                            expectedReviewStatus: expectedReviewStatus,
-                            expectedLastReviewID: expectedLastReviewID,
-                            decision: decision,
-                            reason: reason,
-                            idempotencyKey: idempotencyKey
-                        )
-                    },
-                    revalidateSessions: {
-                        await revalidateSessionEvidence()
-                    },
-                    onOpenProposal: { proposal in
-                        deferredArchiveSheet = .proposal(proposal)
-                        askPresentation = nil
-                    },
-                    onCapture: { destination in
-                        switch destination {
-                        case .screenshotReview:
-                            deferredCapturePresentation = .screenshot
-                        case .foregroundAudio:
-                            deferredIntakePresentation = .init(
-                                initialDestination: .foregroundAudio
-                            )
-                        }
-                        askPresentation = nil
-                    },
-                    onOpenPerson: { personID in
-                        guard let currentSnapshot = workspaceStore.snapshot,
-                              let person = currentSnapshot.people.first(where: {
-                                $0.id == personID
-                              }) else { return }
-                        deferredArchiveSheet = .workspacePerson(
-                            person,
-                            roles(for: person.id, in: currentSnapshot)
-                        )
-                        askPresentation = nil
-                    },
-                    voiceTranscriber: composerVoiceTranscriber
-                )
-            } else {
-                PursuitWorkspaceLoadingView()
-            }
         }
         .fullScreenCover(
             item: $capturePresentation,
@@ -754,7 +682,7 @@ struct RelationshipArchiveView: View {
                     uniqueKeysWithValues: snapshot.people.map { ($0.id, $0) }
                 ),
                 isPreview: !workspaceStore.isCanonical,
-                persistenceNotice: sessionStore.persistenceNotice,
+                persistenceNotice: sessionStore.persistenceNotice ?? sessionStore.syncNotice,
                 restorationPosition: sessionRestorationPosition,
                 scrollPosition: Binding(
                     get: { sessionScrollPosition },
@@ -765,9 +693,19 @@ struct RelationshipArchiveView: View {
                     }
                 ),
                 onOpen: openSession,
-                onMarkRead: sessionStore.markRead,
-                onMarkUnread: sessionStore.markUnread,
-                onDelete: sessionStore.delete
+                onMarkRead: { id in
+                    sessionStore.markRead(id)
+                    Task { _ = await synchronizeAgentSessions() }
+                },
+                onMarkUnread: { id in
+                    sessionStore.markUnread(id)
+                    Task { _ = await synchronizeAgentSessions() }
+                },
+                onDelete: { id in
+                    let deleted = sessionStore.delete(id)
+                    if deleted { Task { _ = await synchronizeAgentSessions() } }
+                    return deleted
+                }
             )
         case .people:
             WorkspacePeopleView(
@@ -962,8 +900,115 @@ struct RelationshipArchiveView: View {
         relationshipCalendarActivities = merged.sorted { $0.startDate < $1.startDate }
     }
 
+    @ViewBuilder
+    private func askDestination(_ presentation: RelationshipAskPresentation) -> some View {
+        if let snapshot = workspaceStore.snapshot {
+            RelationshipAskView(
+                snapshot: snapshot,
+                isCanonical: workspaceStore.isCanonical,
+                workspaceStore: workspaceStore,
+                sessionStore: sessionStore,
+                sessionID: presentation.sessionID,
+                initialSeed: presentation.seed,
+                preferredPersonID: presentation.preferredPersonID,
+                preferredPersonLabel: presentation.preferredPersonLabel,
+                initialEntryMode: presentation.entryMode,
+                ask: { objective, personID, contextID, idempotencyKey, mediaIDs, sessionID, messageID in
+                    try await workspaceStore.ask(
+                        objective: objective,
+                        personID: personID,
+                        relationshipContextID: contextID,
+                        idempotencyKey: idempotencyKey,
+                        mediaIDs: mediaIDs,
+                        sessionID: sessionID,
+                        messageID: messageID
+                    )
+                },
+                saveContact: {
+                    draft,
+                    target,
+                    confirmIdentityClue,
+                    capturedAt,
+                    idempotencyKey in
+                    try await workspaceStore.saveContactDraft(
+                        draft,
+                        target: target,
+                        confirmIdentityClue: confirmIdentityClue,
+                        capturedAt: capturedAt,
+                        idempotencyKey: idempotencyKey
+                    )
+                },
+                reviewEvidence: {
+                    fragmentID,
+                    expectedReviewStatus,
+                    expectedLastReviewID,
+                    decision,
+                    reason,
+                    idempotencyKey in
+                    return try await workspaceStore.reviewEvidence(
+                        fragmentID: fragmentID,
+                        expectedReviewStatus: expectedReviewStatus,
+                        expectedLastReviewID: expectedLastReviewID,
+                        decision: decision,
+                        reason: reason,
+                        idempotencyKey: idempotencyKey
+                    )
+                },
+                revalidateSessions: {
+                    await revalidateSessionEvidence()
+                },
+                synchronizeSessions: synchronizeAgentSessions,
+                onOpenProposal: { proposal in
+                    deferredArchiveSheet = .proposal(proposal)
+                    askPresentation = nil
+                },
+                onCapture: { destination in
+                    switch destination {
+                    case .screenshotReview:
+                        deferredCapturePresentation = .screenshot
+                    case .foregroundAudio:
+                        deferredIntakePresentation = .init(
+                            initialDestination: .foregroundAudio
+                        )
+                    }
+                    askPresentation = nil
+                },
+                onOpenPerson: { personID in
+                    guard let currentSnapshot = workspaceStore.snapshot,
+                          let person = currentSnapshot.people.first(where: {
+                            $0.id == personID
+                          }) else { return }
+                    deferredArchiveSheet = .workspacePerson(
+                        person,
+                        roles(for: person.id, in: currentSnapshot)
+                    )
+                    askPresentation = nil
+                },
+                voiceTranscriber: composerVoiceTranscriber
+            )
+#if DEBUG
+            .dynamicTypeSize(ProcessInfo.processInfo.arguments.contains("--fixture-get-5-accessibility5") ? .accessibility5 : dynamicTypeSize)
+            .environment(\.labReduceMotion,
+                         ProcessInfo.processInfo.arguments.contains("--fixture-get-5-reduced-motion") || accessibilityReduceMotion)
+#endif
+        } else {
+            PursuitWorkspaceLoadingView()
+        }
+    }
+
+    private func synchronizeAgentSessions(_ requiredSessionID: UUID? = nil) async -> Bool {
+        guard let reviewBaseURL, let authenticatedAccessToken, workspaceStore.isCanonical else { return true }
+        let client = AgentSessionSyncClient(baseURL: reviewBaseURL, bearerToken: authenticatedAccessToken)
+        while sessionStore.isSynchronizing {
+            do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
+        }
+        guard !Task.isCancelled else { return false }
+        return await sessionStore.synchronize(using: client, requiredSessionID: requiredSessionID)
+    }
+
     private func revalidateSessionEvidence() async {
         guard workspaceStore.isCanonical else { return }
+        _ = await synchronizeAgentSessions()
         for target in sessionStore.validationTargets() {
             do {
                 try await workspaceStore.revalidateAsk(
@@ -3168,54 +3213,52 @@ struct AgentSessionListView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) { retrievalRail }
         .background(Color.tsSurface)
-        .alert(item: $presentedAlert) { alert in
+        .alert(sessionAlertTitle, isPresented: Binding(
+            get: { presentedAlert != nil },
+            set: { if !$0 { presentedAlert = nil } }
+        ), presenting: presentedAlert) { alert in
             switch alert {
             case let .delete(session):
-                return Alert(
-                    title: Text(
-                        appLanguage.text("Delete this session history from this device?")
-                    ),
-                    message: Text(
-                        appLanguage.text(
-                            "This deletes this session’s local messages, Agent responses, and receipts. Saved drafts, People, Pursuits, and workspace evidence stay unchanged."
-                        )
-                    ),
-                    primaryButton: .destructive(
-                        Text(
-                            appLanguage.text("Delete session history from this device")
-                        )
-                    ) {
-                        guard !onDelete(session.id) else {
-                            if scrollPosition == session.id {
-                                scrollPosition = nil
-                            }
-                            return
-                        }
-                        Task { @MainActor in
-                            await Task.yield()
-                            presentedAlert = .failure
-                        }
-                    },
-                    secondaryButton: .cancel(
-                        Text(appLanguage.text("Cancel"))
-                    )
-                )
+                Button(deleteActionTitle, role: .destructive) {
+                    guard !onDelete(session.id) else {
+                        if scrollPosition == session.id { scrollPosition = nil }
+                        return
+                    }
+                    Task { @MainActor in
+                        await Task.yield()
+                        presentedAlert = .failure
+                    }
+                }
+                .accessibilityIdentifier("confirm-delete-session")
+                Button(appLanguage.text("Cancel"), role: .cancel) {}
+                    .accessibilityIdentifier("cancel-delete-session")
             case .failure:
-                return Alert(
-                    title: Text(
-                        appLanguage.text("Session history was not deleted")
-                    ),
-                    message: Text(
-                        appLanguage.text(
-                            "The local save failed, so the original session is still here. Nothing was removed."
-                        )
-                    ),
-                    dismissButton: .cancel(
-                        Text(appLanguage.text("OK"))
-                    )
-                )
+                Button(appLanguage.text("OK"), role: .cancel) {}
+            }
+        } message: { alert in
+            switch alert {
+            case .delete:
+                Text(deleteScopeMessage)
+                    .accessibilityIdentifier("delete-session-scope")
+            case .failure:
+                Text(appLanguage.text("The local save failed, so the original session is still here. Nothing was removed."))
             }
         }
+    }
+
+    private var deleteActionTitle: String {
+        appLanguage.text(isPreview ? "Delete session history from this device" : "Delete Session across devices")
+    }
+
+    private var sessionAlertTitle: String {
+        if case .failure = presentedAlert { return appLanguage.text("Session history was not deleted") }
+        return appLanguage.text(isPreview ? "Delete this session history from this device?" : "Delete this Session across your devices?")
+    }
+
+    private var deleteScopeMessage: String {
+        appLanguage.text(isPreview
+            ? "This removes this preview Session, its messages, and its unsaved drafts from this device. Other Sessions and saved contacts stay unchanged."
+            : "This deletes this Session, its messages, and its unsaved drafts across your devices. Screenshots retained only by this Session are also removed. Saved contacts and other Sessions stay unchanged.")
     }
 
     private var filteredSessions: [AgentSession] {
@@ -3384,7 +3427,7 @@ struct AgentSessionListView: View {
                         }
                         .accessibilityAction(
                             named: Text(
-                                appLanguage.text("Delete session history from this device")
+                                deleteActionTitle
                             )
                         ) {
                             presentedAlert = .delete(session)
@@ -3446,7 +3489,7 @@ struct AgentSessionListView: View {
             presentedAlert = .delete(session)
         } label: {
             Label(
-                appLanguage.text("Delete session history from this device"),
+                deleteActionTitle,
                 systemImage: "trash"
             )
         }
@@ -3496,6 +3539,7 @@ private struct AgentSessionRow: View {
                 .padding(.trailing, 4)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 relativeTime
+                forkState
                 unreadState
                 if session.retrievalAttention != nil {
                     Text(verbatim: "·").foregroundStyle(Color.tsMutedInk)
@@ -3515,8 +3559,18 @@ private struct AgentSessionRow: View {
             attentionState
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 relativeTime
+                forkState
                 unreadState
             }
+        }
+    }
+
+    @ViewBuilder
+    private var forkState: some View {
+        if session.originSessionID != nil {
+            Label(appLanguage.text("Fork"), systemImage: "arrow.triangle.branch")
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
         }
     }
 
@@ -3618,6 +3672,7 @@ private struct AgentSessionRow: View {
     private var sessionAccessibilityLabel: String {
         [
             session.displayTitle(in: appLanguage),
+            session.originSessionID != nil ? appLanguage.text("Forked Session") : nil,
             participantContextLabel,
             session.updatedAt.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)),
             attentionAccessibilityLabel,

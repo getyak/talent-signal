@@ -140,3 +140,117 @@ enum AskInputCommitPolicy {
         hasCommittedInput && !isComposing
     }
 }
+
+/// An empty input is a voice surface; toolbar controls and marked text retain
+/// native editing ownership. Whitespace is a draft too and is never replaced.
+enum AskVoiceHoldPolicy {
+    static func canBegin(
+        location: CGPoint,
+        inputFrame: CGRect,
+        voiceControlFrame: CGRect,
+        draft: String,
+        hasAttachments: Bool,
+        isComposing: Bool,
+        isDisabled: Bool
+    ) -> Bool {
+        draft.isEmpty && !hasAttachments && !isComposing && !isDisabled
+            && (inputFrame.contains(location) || voiceControlFrame.contains(location))
+    }
+}
+
+struct VoiceTextInputFramePreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if !next.isEmpty { value = next }
+    }
+}
+
+/// Owns only empty-composer touch regions. A native recognizer distinguishes a
+/// completed tap from a held press before capture begins; UIKit retains ordinary
+/// text interaction whenever a committed or marked draft is present.
+struct AskVoiceHoldSurface: UIViewRepresentable {
+    let inputFrame: CGRect
+    let voiceControlFrame: CGRect
+    let draft: String
+    let hasAttachments: Bool
+    let isComposing: Bool
+    let isDisabled: Bool
+    let onTapInput: () -> Void
+    let onTapVoice: () -> Void
+    let onHoldBegan: () -> Void
+    let onHoldChanged: (CGSize) -> Void
+    let onHoldEnded: (Bool) -> Void
+
+    func makeUIView(context: Context) -> TouchSurface {
+        let view = TouchSurface()
+        view.configuration = self
+        return view
+    }
+
+    func updateUIView(_ uiView: TouchSurface, context: Context) {
+        uiView.configuration = self
+    }
+
+    final class TouchSurface: UIView {
+        var configuration: AskVoiceHoldSurface?
+        private var holdStart = CGPoint.zero
+        private var isHolding = false
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isAccessibilityElement = false
+            accessibilityElementsHidden = true
+            let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
+            hold.minimumPressDuration = 0.42
+            hold.allowableMovement = 32
+            let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+            tap.require(toFail: hold)
+            addGestureRecognizer(hold)
+            addGestureRecognizer(tap)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+            guard let configuration else { return false }
+            return AskVoiceHoldPolicy.canBegin(
+                location: convert(point, to: nil), inputFrame: configuration.inputFrame,
+                voiceControlFrame: configuration.voiceControlFrame,
+                draft: configuration.draft, hasAttachments: configuration.hasAttachments,
+                isComposing: configuration.isComposing, isDisabled: configuration.isDisabled
+            )
+        }
+
+        @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended, let configuration else { return }
+            let point = recognizer.location(in: nil)
+            if configuration.inputFrame.contains(point) {
+                configuration.onTapInput()
+            } else if configuration.voiceControlFrame.contains(point) {
+                configuration.onTapVoice()
+            }
+        }
+
+        @objc private func held(_ recognizer: UILongPressGestureRecognizer) {
+            switch recognizer.state {
+            case .began:
+                guard let configuration else { return }
+                holdStart = recognizer.location(in: nil)
+                isHolding = true
+                configuration.onHoldBegan()
+            case .changed:
+                guard isHolding else { return }
+                let point = recognizer.location(in: nil)
+                configuration?.onHoldChanged(CGSize(width: point.x - holdStart.x, height: point.y - holdStart.y))
+            case .ended, .cancelled, .failed:
+                guard isHolding else { return }
+                isHolding = false
+                configuration?.onHoldEnded(recognizer.state != .ended)
+            default:
+                break
+            }
+        }
+    }
+}

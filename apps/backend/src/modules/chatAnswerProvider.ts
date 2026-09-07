@@ -7,11 +7,13 @@ import {
   resolveProductPrompt,
   type PromptSnapshot,
   agentToolJsonSchema,
+  contactWorkspaceOperationTools,
   WorkspaceConversationFinalOutputSchema,
   type AgentProvider,
   type AgentProviderRequest,
   type AgentProviderResult,
   type AgentToolResult,
+  type ConversationMessage,
 } from "@talent-signal/agent";
 
 type RemoteChatBlockKind = "answer" | "question_set" | "clarification";
@@ -35,6 +37,10 @@ export interface RemoteChatAnswerRequest {
   prompt_preset?: ChatPromptPreset;
   mode?: "relationship" | "unscoped_conversation";
   objective: string;
+  /** Canonical Session dialogue, validated for the current account and scope. */
+  conversation_history?: readonly ConversationMessage[];
+  /** Internal canonical-source admission, never accepted from public Chat input. */
+  permits_unconfirmed_session_context_answer?: boolean;
   context_blocks: RemoteChatContextBlock[];
   allowed_citation_ids: string[];
   images?: RemoteChatImageInput[];
@@ -127,6 +133,48 @@ const DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_CONTEXT_CHARACTERS = 48_000;
 const MAX_PROVIDER_CONTENT_CHARACTERS = 16_000;
+
+export function boundedConversationHistory(
+  messages: readonly ConversationMessage[] = [],
+  currentMessageID?: string,
+): ConversationMessage[] {
+  let remaining = 12_000;
+  const selected: ConversationMessage[] = [];
+  for (const message of messages.slice(-12).reverse()) {
+    if (message.message_id === currentMessageID || !message.text.trim()) continue;
+    if (message.role !== "user" && message.role !== "assistant") continue;
+    const text = message.text.slice(0, Math.min(2_000, remaining));
+    if (!text) break;
+    selected.push({ message_id: message.message_id, role: message.role, text });
+    remaining -= text.length;
+  }
+  return selected.reverse();
+}
+
+const SCREENSHOT_INTERPRETATION_BOUNDARY = "Use only the existing labeled canonical screenshot summary as unconfirmed interpretation. Do not add participants, shared intent, agreement, dates, or time zones. Do not invent concrete dates even as examples; use [date] and [timezone] placeholders or ask directly. For missing timing ask the specific date/time-zone question or suggest reviewing the existing capture. Do not default to requesting the same screenshot again. This context grants no reviewed evidence or action authority.";
+
+function hasScreenshotConversationContext(messages: readonly ConversationMessage[] = []) {
+  return boundedConversationHistory(messages).some((message) =>
+    message.role === "assistant" && message.text.includes('"kind":"prior_screenshot_context"'));
+}
+
+function restrictScreenshotPrompt(
+  configured: { text: string; revision: string },
+  messages: readonly ConversationMessage[] = [],
+  canonicalAdmission = false,
+) {
+  // This marker only adds restrictions; it never admits citations or Tools.
+  if (!canonicalAdmission && !hasScreenshotConversationContext(messages)) return configured;
+  const text = `${configured.text}\n\n${SCREENSHOT_INTERPRETATION_BOUNDARY}`;
+  return { text, revision: createHash("sha256").update(text).digest("hex").slice(0, 16) };
+}
+
+function conversationContext(messages: readonly ConversationMessage[] = []) {
+  return {
+    authority: "conversation_only_not_evidence_or_tool_authorization",
+    messages: boundedConversationHistory(messages),
+  };
+}
 
 export { RELATIONSHIP_SYSTEM_PROMPT } from "@talent-signal/agent";
 
@@ -276,6 +324,7 @@ function uniqueContactSearchSelection(result: AgentToolResult): {
   if (data.operation !== "search" || !Array.isArray(data.results)) {
     return null;
   }
+  if (typeof data.result_count === "number" && data.result_count > data.results.length) return null;
   const pairs = data.results.flatMap((rawPerson) => {
     if (!rawPerson || typeof rawPerson !== "object" || Array.isArray(rawPerson)) {
       return [];
@@ -451,6 +500,8 @@ export class ZhipuChatAnswerProvider
     const contextPayload = JSON.stringify({
       mode,
       objective,
+      previous_dialogue: conversationContext(request.conversation_history),
+      ...(request.permits_unconfirmed_session_context_answer ? { answer_boundary: "You may answer conversationally from the labeled unconfirmed screenshot interpretation without citations. Attribute it as an unconfirmed prior interpretation; do not promote it to reviewed facts or action authority. Cite only current allowed evidence when making relationship fact claims. Do not add participants, shared intent, agreement, dates, or time zones. For missing timing ask the specific date/time-zone question or suggest reviewing the existing capture; do not default to uploading the same screenshot again." } : {}),
       context_blocks: request.context_blocks,
       allowed_citation_ids: request.allowed_citation_ids,
     });
@@ -461,7 +512,11 @@ export class ZhipuChatAnswerProvider
     const promptName = mode === "unscoped_conversation" ? "assistant/conversation" : "assistant/relationship";
     const snapshot = request.prompt_snapshot ?? await resolveProductPrompt(promptName);
     if (snapshot.name !== promptName) throw new Error("Frozen prompt task mismatch.");
-    const configured = configuredChatPrompt(mode, request.prompt_preset, snapshot.text);
+    const configured = restrictScreenshotPrompt(
+      configuredChatPrompt(mode, request.prompt_preset, snapshot.text),
+      request.conversation_history,
+      request.permits_unconfirmed_session_context_answer,
+    );
     const selectedModel = images.length > 0 ? this.visionModel! : this.model;
     const userContent = images.length === 0
       ? contextPayload
@@ -512,7 +567,7 @@ export class ZhipuChatAnswerProvider
     const answer = parseProviderAnswer(
       parseJsonObject(content),
       request.allowed_citation_ids,
-      images.length > 0 || mode === "unscoped_conversation",
+      images.length > 0 || mode === "unscoped_conversation" || request.permits_unconfirmed_session_context_answer === true,
     );
     return {
       ...answer,
@@ -543,7 +598,9 @@ export class ZhipuChatAnswerProvider
     preset: ChatPromptPreset,
     observed: (evidence: AgentRunConfigurationEvidence) => void,
   ): Promise<AgentProviderResult> {
-    const revision = configuredAgentPrompt(request.systemPrompt, preset).revision;
+    const revision = restrictScreenshotPrompt(
+      configuredAgentPrompt(request.systemPrompt, preset), request.conversationHistory,
+    ).revision;
     let started = 0, received = 0, inputTokens = 0, outputTokens = 0;
     let usageReported = true;
     let actualModel: string | null = null, requestID: string | null = null;
@@ -580,7 +637,8 @@ export class ZhipuChatAnswerProvider
         "The Chat Agent adapter only admits workspace conversation Runs.",
       );
     }
-    const explicitClue = explicitNamedRelationshipClue(request.objective);
+    const explicitClue = request.toolManifest.includes("contact_workspace")
+      ? explicitNamedRelationshipClue(request.objective) : null;
     if (explicitClue) {
       if (signal.aborted) throw signal.reason;
       const search = await invokeTool("contact_workspace", {
@@ -641,29 +699,38 @@ export class ZhipuChatAnswerProvider
     const messages: Array<Record<string, unknown>> = [
       {
         role: "system",
-        content: configuredAgentPrompt(request.systemPrompt, preset).text,
+        content: restrictScreenshotPrompt(
+          configuredAgentPrompt(request.systemPrompt, preset), request.conversationHistory,
+        ).text,
       },
       {
         role: "user",
         content: JSON.stringify({
           objective: request.objective,
+          previous_dialogue: conversationContext(request.conversationHistory),
           immutable_scope: request.scopeSummary,
         }),
       },
     ];
-    const availableTools = request.toolManifest.map((name) => ({
-      type: "function",
-      function: {
-        name,
-        description: AGENT_TOOL_CATALOG[name].description,
-        parameters: agentToolJsonSchema(name),
-      },
-    }));
+    const contactOperations = request.toolManifest.includes("contact_workspace")
+      ? contactWorkspaceOperationTools()
+      : [];
+    const availableTools = request.toolManifest.flatMap<{
+      type: string;
+      function: { name: string; description: string; parameters: Record<string, unknown> };
+    }>((name) => name === "contact_workspace"
+      ? contactOperations.map((tool) => ({ type: "function", function: {
+          name: tool.name,
+          description: `${tool.description} This function performs only ${tool.operation}; do not send an operation field.`,
+          parameters: tool.parameters,
+        } }))
+      : [{ type: "function", function: {
+          name, description: AGENT_TOOL_CATALOG[name].description, parameters: agentToolJsonSchema(name),
+        } }]);
     let inputTokens = 0;
     let outputTokens = 0;
     let lastResponseID: string | undefined;
     const permissionDenials: string[] = [];
-    let contactProposalStaged = false;
 
     for (let turn = 1; turn <= request.budget.maxTurns; turn += 1) {
       if (signal.aborted) throw signal.reason;
@@ -677,9 +744,8 @@ export class ZhipuChatAnswerProvider
         body: JSON.stringify({
           model: this.model,
           messages,
-          ...(contactProposalStaged
-            ? { response_format: { type: "json_object" } }
-            : { tools: availableTools, tool_choice: "auto" }),
+          tools: availableTools,
+          tool_choice: "auto",
           parallel_tool_calls: false,
           thinking: { type: "enabled" },
           reasoning_effort: "low",
@@ -737,14 +803,41 @@ export class ZhipuChatAnswerProvider
         } catch {
           parsed = call.function.arguments;
         }
-        const result = await invokeTool(call.function.name, parsed);
+        const operation = contactOperations.find((tool) => tool.name === call.function.name)?.operation;
+        const canonicalName = operation ? "contact_workspace" : call.function.name;
+        const suppliedOperation = operation && parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          && "operation" in parsed;
+        const authorized = request.toolManifest.some((name) => name === canonicalName);
+        const result: AgentToolResult = !authorized
+          ? { ok: false, callID: call.id, name: canonicalName,
+              error: { code: "TOOL_NOT_ALLOWED", message: "This function is outside the current immutable Tool manifest." } }
+          : suppliedOperation
+          ? { ok: false, callID: call.id, name: canonicalName,
+              error: { code: "TOOL_INPUT_INVALID", message: "The native function fixes its operation; omit the operation field." } }
+          : await invokeTool(canonicalName, operation && parsed && typeof parsed === "object" && !Array.isArray(parsed)
+              ? { ...parsed, operation } : parsed);
         if (!result.ok) {
           permissionDenials.push(
-            `${call.function.name}:${result.error?.code ?? "DENIED"}`,
+            `${canonicalName}:${result.error?.code ?? "DENIED"}`,
           );
         }
-        if (result.ok && result.candidateFingerprint) {
-          contactProposalStaged = true;
+        if (result.ok && result.name === "contact_workspace" && result.candidateFingerprint) {
+          // The host already validated and staged this exact review-only draft.
+          // Do not spend another model turn echoing its fingerprint or lose the
+          // draft when the successful Tool used the final allowed turn.
+          return {
+            structuredOutput: {
+              outcome: "contact_change_proposal",
+              candidate_fingerprint: result.candidateFingerprint,
+            },
+            inputTokens,
+            outputTokens,
+            estimatedUsd: 0,
+            turns: turn,
+            permissionDenials,
+            ...(lastResponseID ? { sessionID: lastResponseID } : {}),
+            terminalReason: "completed",
+          };
         }
         messages.push({
           role: "tool",

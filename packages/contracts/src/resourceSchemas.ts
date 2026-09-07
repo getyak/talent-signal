@@ -1677,6 +1677,8 @@ export const ChatTaskReadbackSchema = Type.Object(
 export const ChatTaskRequestSchema = Type.Object(
   {
     idempotency_key: IdempotencyKey,
+    session_id: Type.Optional(Id),
+    message_id: Type.Optional(Id),
     objective: Type.String({ minLength: 1, maxLength: 1_000 }),
     person_id: Id,
     relationship_context_id: Id,
@@ -1691,6 +1693,8 @@ export const ChatTaskRequestSchema = Type.Object(
 export const UnscopedChatTaskRequestSchema = Type.Object(
   {
     idempotency_key: IdempotencyKey,
+    session_id: Type.Optional(Id),
+    message_id: Type.Optional(Id),
     objective: Type.String({ minLength: 1, maxLength: 1_000 }),
   },
   { $id: "UnscopedChatTaskRequest", additionalProperties: false },
@@ -1743,7 +1747,7 @@ export const WorkspaceConversationAgentEventSchema = Type.Union([
       ]),
       candidate_fingerprint: Type.String({ pattern: "^[a-f0-9]{64}$" }),
       display_name: Type.String({ minLength: 1, maxLength: 200 }),
-      relationship_context: Type.String({ minLength: 1, maxLength: 200 }),
+      relationship_context: Type.String({ maxLength: 200 }),
       identity_clue: Type.Union([
         Type.Object(
           {
@@ -1763,6 +1767,7 @@ export const WorkspaceConversationAgentEventSchema = Type.Union([
         Type.String({ minLength: 1, maxLength: 1_000 }),
         { minItems: 1, maxItems: 5 },
       ),
+      source_message_id: Type.Optional(Id),
       reason: Type.String({ minLength: 1, maxLength: 500 }),
       target_person_id: Type.Union([Id, Type.Null()]),
       target_relationship_context_id: Type.Union([Id, Type.Null()]),

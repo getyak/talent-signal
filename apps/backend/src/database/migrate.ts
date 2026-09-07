@@ -57,6 +57,12 @@ const MIGRATIONS = [
   "048_contact_task_invalidation",
   "049_contact_task_images",
   "050_google_auth",
+  "051_agent_sessions",
+  "052_agent_session_screenshot_deletion",
+  "053_agent_session_review_guards",
+  "054_agent_session_identifier_canonicalization",
+  "055_agent_session_chat_sources",
+  "056_agent_session_chat_lifecycle",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {

@@ -1838,7 +1838,7 @@ final class RelationshipArchiveTests: XCTestCase {
         XCTAssertNotEqual(restoredTurn.response, response)
         XCTAssertEqual(restoredTurn.response.taskID, response.taskID)
         XCTAssertEqual(restoredTurn.response.citations, [])
-        XCTAssertEqual(restoredTurn.response.blocks.first?.status, "needs_review")
+        XCTAssertEqual(restoredTurn.response.blocks.first?.body, response.blocks.first?.body)
         XCTAssertTrue(
             restoredTurn.requiresRefresh
         )
@@ -1931,7 +1931,7 @@ final class RelationshipArchiveTests: XCTestCase {
             accountID: "account-one",
             rootURL: root
         )
-        let message = "Add Amara Singh for the health search"
+        let message = "Add Amara Singh, email amara@example.com, for the health search"
         let first = AgentSessionStore(
             persistence: persistence,
             now: { clock.now }
@@ -2031,7 +2031,7 @@ final class RelationshipArchiveTests: XCTestCase {
     func testContactProposalPromotionClearsGlobalDraftAtomically() throws {
         let persistence = ToggleSaveAgentSessionPersistence()
         let store = AgentSessionStore(persistence: persistence)
-        let message = "Add Amara Singh for the health search"
+        let message = "Add Amara Singh, email amara@example.com, for the health search"
         let proposal = try XCTUnwrap(ConversationContactIntake.propose(message))
         store.saveGlobalDraft(message)
         persistence.failSave = true
@@ -2062,10 +2062,10 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
-    func testUnscopedChatPromotionStoresOnlyTheContactProposalAtomically() throws {
+    func testUnscopedChatPromotionPreservesSourceSessionAtomically() throws {
         let persistence = ToggleSaveAgentSessionPersistence()
         let store = AgentSessionStore(persistence: persistence)
-        let message = "Add Amara Singh for the health search"
+        let message = "Add Amara Singh, email amara@example.com, for the health search"
         var proposal = try XCTUnwrap(ConversationContactIntake.propose(message))
         proposal.interpreter = .workspaceAgent
         store.saveGlobalDraft(message)
@@ -2108,7 +2108,7 @@ final class RelationshipArchiveTests: XCTestCase {
                 clearingGlobalDraft: true
             )
         )
-        XCTAssertNil(store.session(id: sessionID))
+        XCTAssertEqual(store.session(id: sessionID)?.turns.first?.objective, message)
         XCTAssertTrue(store.globalDraft().isEmpty)
         XCTAssertEqual(store.contactProposalDraft, proposal)
         XCTAssertEqual(
@@ -2117,7 +2117,7 @@ final class RelationshipArchiveTests: XCTestCase {
         )
 
         let restored = AgentSessionStore(persistence: persistence)
-        XCTAssertNil(restored.session(id: sessionID))
+        XCTAssertEqual(restored.session(id: sessionID)?.turns.first?.objective, message)
         XCTAssertEqual(restored.contactProposalDraft, proposal)
     }
 
@@ -2413,7 +2413,7 @@ final class RelationshipArchiveTests: XCTestCase {
             String(data: persistedData, encoding: .utf8)
         )
         XCTAssertFalse(persistedText.contains("noor@example.com"))
-        XCTAssertFalse(persistedText.contains("Add Noor Vega for Design"))
+        XCTAssertFalse(persistedText.contains("Add Noor Vega, email noor@example.com, for Design"))
         XCTAssertTrue(persistedText.contains("resource-contact-12345678"))
 
         let restored = AgentSessionStore(
@@ -2616,7 +2616,7 @@ final class RelationshipArchiveTests: XCTestCase {
             now: { clock.now }
         )
         let draft = try XCTUnwrap(
-            ConversationContactIntake.propose("Add Maya Chen for product")
+            ConversationContactIntake.propose("Add Maya Chen, email maya@example.com, for product")
         )
         XCTAssertTrue(
             store.saveContactProposal(
@@ -2642,7 +2642,7 @@ final class RelationshipArchiveTests: XCTestCase {
         let persistence = ToggleSaveAgentSessionPersistence()
         let store = AgentSessionStore(persistence: persistence)
         let draft = try XCTUnwrap(
-            ConversationContactIntake.propose("Add Maya Chen for product")
+            ConversationContactIntake.propose("Add Maya Chen, email maya@example.com, for product")
         )
         XCTAssertTrue(
             store.saveContactProposal(
@@ -2777,12 +2777,13 @@ final class RelationshipArchiveTests: XCTestCase {
     }
 
     @MainActor
-    func testFirstScopedResponseAdoptsProtectedActivitySessionID() throws {
+    func testFirstScopedResponseKeepsPersistedActivitySessionID() throws {
         let persistence = ToggleSaveAgentSessionPersistence()
         let store = AgentSessionStore(persistence: persistence)
         let person = try XCTUnwrap(PursuitWorkspaceSnapshot.preview.people.first)
         let context = try XCTUnwrap(person.contexts.first)
         let protectedID = UUID()
+        XCTAssertEqual(store.beginSession(person: person, context: context, objective: "What changed?", id: protectedID), protectedID)
 
         let recordedID = store.record(
             sessionID: protectedID,

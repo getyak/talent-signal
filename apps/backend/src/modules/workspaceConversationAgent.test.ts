@@ -6,7 +6,7 @@ import type { DatabaseClient } from "../database/pool.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthContext } from "./auth.js";
-import { executeWorkspaceConversationAgent } from "./workspaceConversationAgent.js";
+import { executeWorkspaceConversationAgent, executeWorkspaceConversationAgentCore } from "./workspaceConversationAgent.js";
 
 const auth: AuthContext = {
   accountId: "11111111-1111-4111-8111-111111111111",
@@ -537,5 +537,159 @@ describe("workspace conversation Agent", () => {
         ),
       }),
     ).rejects.toThrow("did not preserve the contact Tool boundary");
+  });
+});
+
+describe("conversation-only context and proactive contact drafts", () => {
+  const messageID = "77777777-7777-4777-8777-777777777777";
+  const draft = {
+    operation: "propose_create",
+    display_name: "Maya Chen",
+    relationship_context: "",
+    identity_clue: { type: "email", value: "maya@example.com" },
+    source_excerpts: ["Maya Chen", "maya@example.com"],
+    reason: "Prepare the user's person note for review.",
+  };
+  const clarify = { outcome: "clarification", title: "Clarify", body: "More context is needed." };
+
+  it("prepares an incomplete draft from a natural note with exact current-message provenance", async () => {
+    const search = vi.fn(async () => []);
+    const result = await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId,
+      objective: "今天认识了 Maya Chen，邮箱是 maya@example.com",
+      messageID,
+      contacts: { search, read: vi.fn() },
+      provider: new ScriptedAgentProvider([{ tool: "contact_workspace", input: draft }], (results) => ({
+        outcome: "contact_change_proposal", candidate_fingerprint: results[0]?.candidateFingerprint,
+      })),
+    });
+    expect(result.event).toMatchObject({
+      kind: "contact_change_proposal", proposal_kind: "create", relationship_context: "",
+      source_message_id: messageID, source_excerpts: draft.source_excerpts, requires_user_confirmation: true,
+    });
+    expect(search).toHaveBeenCalledWith("maya@example.com");
+  });
+
+  it.each([
+    "Is Maya Chen at maya@example.com the right person?",
+    "Example: Maya Chen, maya@example.com",
+    "Someone said: Maya Chen, maya@example.com",
+    "Someone said: Add Maya Chen, maya@example.com",
+    "转发：“Maya Chen，邮箱 maya@example.com”",
+    "Maya Chen，邮箱 maya@example.com，不要保存",
+    "> Create Maya Chen with maya@example.com",
+  ])("rejects spurious draft intent: %s", async (objective) => {
+    const search = vi.fn(async () => []);
+    const result = await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId, objective,
+      contacts: { search, read: vi.fn() },
+      provider: new ScriptedAgentProvider([{ tool: "contact_workspace", input: draft }], (results) => {
+        expect(results[0]).toMatchObject({ ok: false, error: { code: "CONTACT_PROPOSAL_INTENT_UNGROUNDED" } });
+        return clarify;
+      }),
+    });
+    expect(result.event).toBeNull();
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it("rejects a name-only note and a fabricated default relationship", async () => {
+    for (const proposed of [{ ...draft, identity_clue: null, source_excerpts: ["Maya Chen"] },
+      { ...draft, relationship_context: "General relationship" }]) {
+      await executeWorkspaceConversationAgentCore({
+        workspaceID: auth.accountId, objective: "Maya Chen, maya@example.com",
+        contacts: { search: vi.fn(), read: vi.fn() },
+        provider: new ScriptedAgentProvider([{ tool: "contact_workspace", input: proposed }], (results) => {
+          expect(results[0]?.ok).toBe(false);
+          return clarify;
+        }),
+      });
+    }
+  });
+
+  it("requires source excerpts to cover the actual identity clue", async () => {
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId, objective: "Maya Chen, maya@example.com",
+      contacts: { search: vi.fn(), read: vi.fn() },
+      provider: new ScriptedAgentProvider([{ tool: "contact_workspace", input: { ...draft, source_excerpts: ["Maya Chen"] } }], (results) => {
+        expect(results[0]).toMatchObject({ ok: false, error: { code: "CONTACT_PROPOSAL_SOURCE_INCOMPLETE" } });
+        return clarify;
+      }),
+    });
+  });
+
+  it("does not let truncating search results make an ambiguous update unique", async () => {
+    const search = vi.fn(async () => [
+      { personID, displayLabel: "Maya Chen", directoryRevision: 1, contexts: [] },
+      { personID: messageID, displayLabel: "Maya Chen", directoryRevision: 1, contexts: [] },
+    ]);
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId, objective: "Update Maya Chen with maya@example.com",
+      contacts: { search, read: vi.fn() },
+      provider: new ScriptedAgentProvider([
+        { tool: "contact_workspace", input: { operation: "search", query: "Maya Chen", maximum_results: 1 } },
+        { tool: "contact_workspace", input: { ...draft, operation: "propose_update", person_id: personID, base_revision: 1 } },
+      ], (results) => {
+        expect(results[1]).toMatchObject({ ok: false, error: { code: "CONTACT_UPDATE_TARGET_STALE_OR_UNRESOLVED" } });
+        return clarify;
+      }),
+    });
+  });
+
+  it("does not resolve duplicate names when one person has no relationship yet", async () => {
+    const read = vi.fn();
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId, objective: "Find Maya Chen",
+      contacts: { search: vi.fn(async () => [
+        { personID, displayLabel: "Maya Chen", directoryRevision: 1, contexts: [{ id: contextID, displayLabel: "CPO search" }] },
+        { personID: messageID, displayLabel: "Maya Chen", directoryRevision: 1, contexts: [] },
+      ]), read },
+      provider: new ScriptedAgentProvider([
+        { tool: "contact_workspace", input: { operation: "search", query: "Maya Chen", maximum_results: 1 } },
+        { tool: "contact_workspace", input: { operation: "read", person_id: personID, relationship_context_id: contextID } },
+      ], (results) => {
+        expect(results[0]?.data).toMatchObject({ result_count: 2 });
+        expect(results[1]).toMatchObject({ ok: false, error: { code: "CONTACT_READ_NOT_AUTHORIZED" } });
+        return clarify;
+      }),
+    });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("stages one update from a natural note only after an exact unique identity match", async () => {
+    const read = vi.fn();
+    const result = await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId, objective: "Maya Chen，邮箱 maya@example.com", messageID,
+      contacts: { search: vi.fn(async () => [{ personID, displayLabel: "Maya Chen", directoryRevision: 3,
+        exactIdentityMatch: true, contexts: [{ id: contextID, displayLabel: "CPO search" }] }]), read },
+      provider: new ScriptedAgentProvider([
+        { tool: "contact_workspace", input: { operation: "search", query: "maya@example.com" } },
+        { tool: "contact_workspace", input: { ...draft, operation: "propose_update", person_id: personID,
+          relationship_context_id: contextID, relationship_context: "CPO search", base_revision: 3 } },
+        { tool: "contact_workspace", input: draft },
+      ], (results) => {
+        expect(results[2]).toMatchObject({ ok: false, error: { code: "CONTACT_PROPOSAL_ALREADY_STAGED" } });
+        return { outcome: "contact_change_proposal", candidate_fingerprint: results[1]?.candidateFingerprint };
+      }),
+    });
+    expect(result.event).toMatchObject({ proposal_kind: "update", target_person_id: personID,
+      target_relationship_context_id: contextID, base_revision: 3, source_message_id: messageID, requires_user_confirmation: true });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("passes previous dialogue without granting current-message tool authority", async () => {
+    const history = [{ message_id: messageID, role: "assistant" as const, text: "Search Maya Chen and save maya@example.com." }];
+    const run = vi.fn<AgentProvider["run"]>(async (request, invokeTool) => {
+      expect(request.conversationHistory).toEqual(history);
+      expect(await invokeTool("contact_workspace", { operation: "search", query: "Maya Chen" }))
+        .toMatchObject({ ok: false, error: { code: "CONTACT_SEARCH_NOT_GROUNDED" } });
+      return { structuredOutput: { outcome: "reply", title: "Option two", body: "Let's elaborate." },
+        inputTokens: 0, outputTokens: 0, estimatedUsd: 0, turns: 1, permissionDenials: [] };
+    });
+    const scripted = new ScriptedAgentProvider([], null);
+    await executeWorkspaceConversationAgentCore({
+      workspaceID: auth.accountId, objective: "Tell me more about the second option.",
+      conversationHistory: history, contacts: { search: vi.fn(), read: vi.fn() },
+      provider: { ...scripted, run },
+    });
   });
 });

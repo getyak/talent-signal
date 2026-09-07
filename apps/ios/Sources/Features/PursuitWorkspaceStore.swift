@@ -365,7 +365,9 @@ final class PursuitWorkspaceStore: ObservableObject {
         personID: String,
         relationshipContextID: String,
         idempotencyKey: String,
-        mediaIDs: [String] = []
+        mediaIDs: [String] = [],
+        sessionID: UUID? = nil,
+        messageID: UUID? = nil
     ) async throws -> RelationshipAskResponse {
         guard let service else {
             throw PursuitWorkspaceClientError.askUnavailable
@@ -376,14 +378,18 @@ final class PursuitWorkspaceStore: ObservableObject {
                 personID: personID,
                 relationshipContextID: relationshipContextID,
                 idempotencyKey: idempotencyKey,
-                mediaIDs: mediaIDs
+                mediaIDs: mediaIDs,
+                sessionID: sessionID,
+                messageID: messageID
             )
         }
     }
 
     func chatUnscoped(
         objective: String,
-        idempotencyKey: String
+        idempotencyKey: String,
+        sessionID: UUID? = nil,
+        messageID: UUID? = nil
     ) async throws -> UnscopedChatTaskResponse {
         guard let service else {
             throw PursuitWorkspaceClientError.askUnavailable
@@ -391,7 +397,9 @@ final class PursuitWorkspaceStore: ObservableObject {
         return try await LabClientDiagnostics.measure(.conversationTask) {
             try await service.chatUnscoped(
                 objective: objective,
-                idempotencyKey: idempotencyKey
+                idempotencyKey: idempotencyKey,
+                sessionID: sessionID,
+                messageID: messageID
             )
         }
     }

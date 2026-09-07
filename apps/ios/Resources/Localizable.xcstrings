@@ -13982,7 +13982,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "核验时间"
+            "value": "已勾选"
           }
         }
       }
@@ -28198,6 +28198,666 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂时无法登录，请稍后重试。"
+          }
+        }
+      }
+    },
+    "Unchecked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未勾选"
+          }
+        }
+      }
+    },
+    "Code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代码"
+          }
+        }
+      }
+    },
+    "Copied": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制"
+          }
+        }
+      }
+    },
+    "Copy code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制代码"
+          }
+        }
+      }
+    },
+    "Interpretation · view evidence": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解读 · 查看依据"
+          }
+        }
+      }
+    },
+    "Source statement · view evidence": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原文陈述 · 查看依据"
+          }
+        }
+      }
+    },
+    "Screenshot summary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图摘要"
+          }
+        }
+      }
+    },
+    "Some items still need review": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分内容仍需审阅"
+          }
+        }
+      }
+    },
+    "Feedback could not be saved. Try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈未能保存，请重试。"
+          }
+        }
+      }
+    },
+    "When empty, hold anywhere in the input to talk. Release to review your words before sending.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入为空时，长按输入区域即可说话。松开后核对文字，再发送。"
+          }
+        }
+      }
+    },
+    "Share Session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享会话"
+          }
+        }
+      }
+    },
+    "Fork Session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分支会话"
+          }
+        }
+      }
+    },
+    "Screenshot history": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图处理历史"
+          }
+        }
+      }
+    },
+    "Session actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话操作"
+          }
+        }
+      }
+    },
+    "The Session could not be forked. Try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法创建会话分支，请重试。"
+          }
+        }
+      }
+    },
+    "Session fork created. Continue here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已创建会话分支，可以在这里继续。"
+          }
+        }
+      }
+    },
+    "The Session could not be protected. Your message was not sent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能保护会话，消息尚未发送。"
+          }
+        }
+      }
+    },
+    "The Session could not be protected. Your screenshot was not sent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能保护会话，截图尚未发送。"
+          }
+        }
+      }
+    },
+    "Read this screenshot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阅读这张截图"
+          }
+        }
+      }
+    },
+    "Reading the screenshot to identify the contact and preserve source-linked context.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在阅读截图，识别联系人并整理可追溯的上下文。"
+          }
+        }
+      }
+    },
+    "This screenshot source is no longer available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条截图来源已不可用。"
+          }
+        }
+      }
+    },
+    "One clarification is needed to continue.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要一项澄清才能继续。"
+          }
+        }
+      }
+    },
+    "Screenshot processing completed. Review its sources and results below.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图处理已完成，可在下方查看来源与结果。"
+          }
+        }
+      }
+    },
+    "Screenshot processing stopped. Review its current result before retrying.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图处理已停止，请先核对当前结果，再重试。"
+          }
+        }
+      }
+    },
+    "Screenshot processing is available, but Session recovery could not be saved.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图处理结果可用，但会话恢复记录未能保存。"
+          }
+        }
+      }
+    },
+    "A screenshot result could not be refreshed. Its saved message remains available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一条截图结果未能刷新，已保存的消息仍可查看。"
+          }
+        }
+      }
+    },
+    "Finish or dismiss the current contact proposal first.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先完成或关闭当前联系人提议。"
+          }
+        }
+      }
+    },
+    "Add a name and real relationship context before saving.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先补充姓名和真实的关系背景，再保存。"
+          }
+        }
+      }
+    },
+    "Not a contact": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不是联系人"
+          }
+        }
+      }
+    },
+    "Source message": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源消息"
+          }
+        }
+      }
+    },
+    "Identity clue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份线索"
+          }
+        }
+      }
+    },
+    "Reading screenshot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在阅读截图"
+          }
+        }
+      }
+    },
+    "Sources and processing details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源与处理详情"
+          }
+        }
+      }
+    },
+    "Regenerate": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新生成"
+          }
+        }
+      }
+    },
+    "Helpful": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有帮助"
+          }
+        }
+      }
+    },
+    "Not helpful": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有帮助"
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
+          }
+        }
+      }
+    },
+    "Copied conversation context; sources need refresh.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此会话包含复制的对话上下文；来源需要重新核验。"
+          }
+        }
+      }
+    },
+    "Saved context — verify current sources before acting.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存的上下文；行动前请核验最新来源。"
+          }
+        }
+      }
+    },
+    "Reattach the same screenshots to continue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新附上相同截图后继续"
+          }
+        }
+      }
+    },
+    "Choose the same screenshots in the same order to recover the original task.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择相同截图并保持原顺序，以恢复原任务。"
+          }
+        }
+      }
+    },
+    "Screenshot outcome needs checking": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图处理结果待核实"
+          }
+        }
+      }
+    },
+    "The screenshot may already be processing. Reattach the same images in the same order to check the original task. Its message will not be sent as text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "截图可能已经开始处理。请按原顺序重新附上相同图片，以核实原任务。这条消息不会作为纯文本发送。"
+          }
+        }
+      }
+    },
+    "Reattach same screenshots": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新附上相同截图"
+          }
+        }
+      }
+    },
+    "Check original screenshot task": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核实原截图任务"
+          }
+        }
+      }
+    },
+    "This proposal has ended. Its source remains in the Session. Send a new message to review a current proposal.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条提议已结束。来源仍保留在会话中。请发送新消息以审阅当前提议。"
+          }
+        }
+      }
+    },
+    "Proposal ended": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提议已结束"
+          }
+        }
+      }
+    },
+    "The Session could not be synced. Try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话未能同步，请重试。"
+          }
+        }
+      }
+    },
+    "The original Session is no longer available. Your message was not recorded.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原会话已不可用，消息未被记录。"
+          }
+        }
+      }
+    },
+    "A recent portion of this Session was copied. The complete history remains in the original Session.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制这段会话的近期内容，完整历史仍保留在原会话中。"
+          }
+        }
+      }
+    },
+    "Session history is full": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Session history is full"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话历史已满"
+          }
+        }
+      }
+    },
+    "This Session has reached its screenshot limit. Open Session actions and choose Fork Session to continue with your selected images.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Session has reached its screenshot limit. Open Session actions and choose Fork Session to continue with your selected images."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此会话已达到截图数量上限。打开右上角菜单并选择分支会话，即可继续使用已选图片。"
+          }
+        }
+      }
+    },
+    "The save outcome needs checking. Check or retry the original operation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The save outcome needs checking. Check or retry the original operation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存结果待核实，请检查或重试原操作。"
+          }
+        }
+      }
+    },
+    "The proposal could not be saved. Your proposal is still here.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The proposal could not be saved. Your proposal is still here."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提议未能保存，内容仍保留在这里。"
+          }
+        }
+      }
+    },
+    "Fork": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fork"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分支"
+          }
+        }
+      }
+    },
+    "Forked Session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forked Session"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分支会话"
+          }
+        }
+      }
+    },
+    "Delete Session across devices": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Session across devices"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跨设备删除会话"
+          }
+        }
+      }
+    },
+    "Delete this Session across your devices?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete this Session across your devices?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从你的所有设备删除此会话？"
+          }
+        }
+      }
+    },
+    "This removes this preview Session, its messages, and its unsaved drafts from this device. Other Sessions and saved contacts stay unchanged.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This removes this preview Session, its messages, and its unsaved drafts from this device. Other Sessions and saved contacts stay unchanged."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会从此设备移除该预览会话、消息和未保存的草稿。其他会话和已保存的联系人保持不变。"
+          }
+        }
+      }
+    },
+    "This deletes this Session, its messages, and its unsaved drafts across your devices. Screenshots retained only by this Session are also removed. Saved contacts and other Sessions stay unchanged.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This deletes this Session, its messages, and its unsaved drafts across your devices. Screenshots retained only by this Session are also removed. Saved contacts and other Sessions stay unchanged."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会从你的所有设备删除此会话、消息和未保存的草稿。仅由此会话保留的截图也会移除。已保存的联系人和其他会话保持不变。"
           }
         }
       }

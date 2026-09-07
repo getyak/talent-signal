@@ -15,3 +15,4 @@ export * from "./labRegressionSchemas.js";
 export * from "./labCISchemas.js";
 export * from "./labWorkspaceSchemas.js";
 export * from "./labFeatureSchemas.js";
+export * from "./agentSessionSchemas.js";

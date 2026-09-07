@@ -3,6 +3,7 @@ import { WORKSPACE_OUTPUT_GUIDANCE } from "./prompts.js";
 
 import {
   CreateResearchArtifactInputSchema,
+  ContactWorkspaceInputSchema,
   ContactWorkspaceToolInputSchema,
   CreatePersonResearchArtifactInputSchema,
   FetchWebInputSchema,
@@ -171,7 +172,7 @@ export const AGENT_TOOL_CATALOG: Readonly<
   },
   contact_workspace: {
     description:
-      "Search the authenticated account using a specific clue copied from the user's message; never enumerate contacts. Read only a uniquely resolved Person/relationship pair from this run. No match or ambiguity needs clarification. propose_create/propose_update stage a review-only change using exact message excerpts and current target labels; return its fingerprint for human confirmation. No apply, identity merge, or external communication.",
+      'Search the authenticated account using ONE exact contiguous clue copied from the current user message; never concatenate a name, email, and relationship into a query or enumerate contacts. A search uses only {"operation":"search","query":"exact email or name","maximum_results":4}; omit identity_clue and all proposal fields from search. Read only a uniquely resolved Person/relationship pair from this run. Ambiguity needs clarification. No match may produce a review-only create draft when the user provided a name and stable clue or explicitly requested a contact draft. propose_create/propose_update use exact message excerpts and current target labels; missing relationship_context stays empty. Return the staged fingerprint for human confirmation. No apply, identity merge, or external communication.',
     schema: ContactWorkspaceToolInputSchema,
     readOnly: false,
     openWorld: false,
@@ -190,6 +191,32 @@ export function agentToolJsonSchema(name: AgentToolName): Record<string, unknown
   >;
   const { $schema: _dialect, ...parameters } = converted;
   return parameters;
+}
+
+/** Flat native function schemas for providers that cannot consume unions. */
+export function contactWorkspaceOperationTools() {
+  const descriptions = {
+    search: 'Search the authenticated account using ONE exact contiguous name, email, phone, or profile URL from the current user message. Never concatenate separate clues or enumerate people. Input contains only query and optional maximum_results. No proposal or operation fields.',
+    read: 'Read only an exact uniquely resolved Person and relationship header from this Run. Use IDs from its authorized search result. Ambiguity requires clarification; no profile evidence or contact write is included.',
+    propose_create: 'Prepare one unsaved contact draft after no existing identity match. A natural person note with name and stable email/phone/profile clue needs no create-command wording. Copy proposed fields and source_excerpts from the current user message. Leave missing relationship_context empty. Questions, examples, or third-party quotations do not justify a draft. This stages a review-only fingerprint; no contact is written.',
+    propose_update: 'Prepare one unsaved update only for an exact uniquely searched Person and current directory revision. Keep existing target labels or copy proposed fields and source_excerpts from the current user message. No identity merge or contact write; explicit human save is required.',
+  };
+  return ContactWorkspaceInputSchema.options.map((schema) => {
+    const operation = schema.shape.operation.value;
+    const converted = z.toJSONSchema(schema) as {
+      $schema?: string; properties: Record<string, unknown>; required?: string[];
+      [key: string]: unknown;
+    };
+    const { $schema: _dialect, properties, required, ...parameters } = converted;
+    const { operation: _operation, ...fields } = properties;
+    return {
+      operation,
+      name: `contact_workspace_${operation}`,
+      description: descriptions[operation],
+      parameters: { ...parameters, properties: fields,
+        ...(required ? { required: required.filter((key) => key !== "operation") } : {}) },
+    };
+  });
 }
 
 export function candidateToolNames(

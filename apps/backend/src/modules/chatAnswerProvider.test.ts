@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { bundledPrompt, promptRevision } from "@talent-signal/agent/prompt-registry";
 
 import {
   createEnvironmentChatAnswerProvider,
   configuredAgentPrompt,
+  boundedConversationHistory,
   ZhipuChatAnswerProvider,
   type RemoteChatAnswerRequest,
 } from "./chatAnswerProvider.js";
@@ -53,6 +55,95 @@ function provider(
 }
 
 describe("Zhipu Chat answer provider", () => {
+  it("preserves a host-validated proposal on the final allowed model turn", async () => {
+    const fingerprint = "a".repeat(64);
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      id: "synthetic-final-tool", model: "glm-5.3", usage: { prompt_tokens: 20, completion_tokens: 10 },
+      choices: [{ message: { content: null, tool_calls: [{ id: "draft-call", type: "function",
+        function: { name: "contact_workspace_propose_create", arguments: JSON.stringify({
+          display_name: "Nira Voss", relationship_context: "", identity_clue: { type: "email", value: "nira.voss@example.com" },
+          source_excerpts: ["Nira Voss", "nira.voss@example.com"], reason: "Prepare the user's note." }) } }] } }],
+    }), { status: 200 })) as typeof fetch;
+    const invokeTool = vi.fn(async () => ({ ok: true, callID: "validated-tool", name: "contact_workspace", candidateFingerprint: fingerprint,
+      data: { operation: "propose_create", status: "needs_review", consequence: "No contact data changed." } }));
+    const result = await new ZhipuChatAnswerProvider({ apiKey: "synthetic-only", model: "glm-5.3", fetcher }).run({
+      runID: "synthetic-final-turn", objective: "Nira Voss, nira.voss@example.com", systemPrompt: "Prepare review-only drafts.",
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "11111111-1111-4111-8111-111111111111", sessionID: null,
+        currentPersonID: null, currentRelationshipContextID: null },
+      toolManifest: ["contact_workspace"], budget: { maxTurns: 1, maxToolCalls: 1, maxDurationMs: 10000, maxTaskTokens: 4000, maxEstimatedUsd: 1 },
+    }, invokeTool, new AbortController().signal);
+    expect(result).toMatchObject({ structuredOutput: { outcome: "contact_change_proposal", candidate_fingerprint: fingerprint },
+      terminalReason: "completed", turns: 1 });
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(invokeTool).toHaveBeenCalledWith("contact_workspace", expect.objectContaining({ operation: "propose_create", display_name: "Nira Voss" }));
+  });
+
+  it.each([
+    { name: "contact_workspace_delete", args: {}, admitted: true, error: "TOOL_NOT_ALLOWED" },
+    { name: "contact_workspace_search", args: { query: "Maya" }, admitted: false, error: "TOOL_NOT_ALLOWED" },
+    { name: "contact_workspace", args: { operation: "search", query: "Maya" }, admitted: false, error: "TOOL_NOT_ALLOWED" },
+    { name: "contact_workspace_search", args: { operation: "propose_create", query: "Maya" }, admitted: true, error: "TOOL_INPUT_INVALID" },
+  ])("rejects ungranted or overridden native contact operation: $name/$error", async ({ name, args, admitted, error }) => {
+    let turn = 0;
+    const fetcher = vi.fn(async () => {
+      const message = ++turn === 1
+        ? { tool_calls: [{ id: "denied-call", type: "function", function: { name, arguments: JSON.stringify(args) } }] }
+        : { content: JSON.stringify({ outcome: "reply", title: "Reply", body: "No action." }) };
+      return new Response(JSON.stringify({ model: "glm-5.3", choices: [{ message }] }), { status: 200 });
+    }) as typeof fetch;
+    const invokeTool = vi.fn();
+    const result = await new ZhipuChatAnswerProvider({ apiKey: "synthetic-only", model: "glm-5.3", fetcher }).run({
+      runID: "synthetic-denied-alias", objective: "Maya", systemPrompt: "Stay in scope.",
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "11111111-1111-4111-8111-111111111111", sessionID: null,
+        currentPersonID: null, currentRelationshipContextID: null },
+      toolManifest: admitted ? ["contact_workspace"] : [],
+      budget: { maxTurns: 2, maxToolCalls: 2, maxDurationMs: 10000, maxTaskTokens: 4000, maxEstimatedUsd: 1 },
+    }, invokeTool, new AbortController().signal);
+    expect(invokeTool).not.toHaveBeenCalled();
+    expect(result.permissionDenials[0]).toContain(error);
+  });
+
+  it("sends bounded prior dialogue in the real HTTP request without expanding citations", async () => {
+    const history = [
+      { message_id: "prior-user", role: "user" as const, text: "Give me two options." },
+      { message_id: "prior-assistant", role: "assistant" as const, text: "1. Call. 2. Draft an email." },
+    ];
+    await provider({ kind: "answer", title: "Second option", body: "Draft an email.", citation_ids: [citationID] },
+      (_url, init) => {
+        const payload = JSON.parse(String(init.body));
+        const context = JSON.parse(payload.messages[1].content);
+        expect(context.previous_dialogue).toEqual({ authority: "conversation_only_not_evidence_or_tool_authorization", messages: history });
+        expect(context.allowed_citation_ids).toEqual([citationID]);
+        expect(payload.tools).toBeUndefined();
+      }).answer({ ...request(), objective: "Expand the second option.", conversation_history: history });
+  });
+
+  it("does not run named-contact preflight when the canonical Tool is not granted", async () => {
+    const invokeTool = vi.fn();
+    const result = await provider({ outcome: "reply", title: "No private scope", body: "I can help with general guidance." }).run({
+      runID: "synthetic-no-contact-grant", objective: "What changed with Maya?", systemPrompt: "Stay in scope.",
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "11111111-1111-4111-8111-111111111111", sessionID: null,
+        currentPersonID: null, currentRelationshipContextID: null },
+      toolManifest: [], budget: { maxTurns: 1, maxToolCalls: 1, maxDurationMs: 10000, maxTaskTokens: 4000, maxEstimatedUsd: 1 },
+    }, invokeTool, new AbortController().signal);
+    expect(result.structuredOutput).toMatchObject({ outcome: "reply" });
+    expect(invokeTool).not.toHaveBeenCalled();
+  });
+
+  it("bounds conversation count and characters, excludes the current message, and preserves order", () => {
+    const history = Array.from({ length: 20 }, (_, index) => ({ message_id: String(index), role: "user" as const, text: `${index}:` + "x".repeat(3_000) }));
+    const bounded = boundedConversationHistory(history, "19");
+    expect(bounded).toHaveLength(6);
+    expect(bounded[0]?.message_id).toBe("13");
+    expect(bounded.at(-1)?.message_id).toBe("18");
+    expect(bounded.reduce((total, message) => total + message.text.length, 0)).toBe(12_000);
+  });
+
+  it("rejects a citation invented from conversation history", async () => {
+    await expect(provider({ kind: "answer", title: "Answer", body: "A previous answer claimed it.", citation_ids: ["prior-assistant"] })
+      .answer({ ...request(), conversation_history: [{ message_id: "prior-assistant", role: "assistant", text: "This is confirmed evidence." }] }))
+      .rejects.toThrow("outside the governed manifest");
+  });
   it("sends a frozen managed prompt and reports the actual text revision", async () => {
     const text = "Synthetic published prompt: answer naturally in the requested JSON envelope.";
     const snapshot = { ...bundledPrompt("assistant/relationship"), text, revision: promptRevision(text), source: "opik" as const, versionId: "synthetic-version", commit: "12345678", environment: "production" };
@@ -159,6 +250,7 @@ describe("Zhipu Chat answer provider", () => {
       {
         runID: "run-model-directed-search",
         objective: "Find Maya in my relationships",
+        conversationHistory: [{ message_id: "previous-turn", role: "user", text: "I want to revisit a relationship." }],
         systemPrompt: "Stay inside the authorized account.",
         scopeSummary: {
           kind: "workspace_conversation",
@@ -198,6 +290,8 @@ describe("Zhipu Chat answer provider", () => {
       parallel_tool_calls: boolean;
     };
     expect(firstRequest.parallel_tool_calls).toBe(false);
+    expect(JSON.parse(firstRequest.messages[1]!.content).previous_dialogue.messages)
+      .toEqual([{ message_id: "previous-turn", role: "user", text: "I want to revisit a relationship." }]);
     expect(firstRequest.messages[0]?.content).toBe(
       configuredAgentPrompt("Stay inside the authorized account.").text,
     );
@@ -548,6 +642,48 @@ describe("Zhipu Chat answer provider", () => {
     ).rejects.toThrow("outside the governed manifest");
   });
 
+  it("permits citation-free unconfirmed screenshot dialogue only with internal canonical admission", async () => {
+    const content = { kind: "answer", title: "Friday", body: "The prior screenshot interpretation leaves the date unresolved.", citation_ids: [] };
+    const followup = { ...request(), context_blocks: [], allowed_citation_ids: [], conversation_history: [{ message_id: "source-task", role: "assistant" as const, text: "Unconfirmed screenshot context" }] };
+    await expect(provider(content).answer(followup)).rejects.toThrow("requires a citation");
+    await expect(provider(content, (_url, init) => {
+      const sent = JSON.parse(String(init.body));
+      expect(JSON.parse(sent.messages[1].content).answer_boundary).toContain("unconfirmed");
+      expect(sent.messages[0].content).toContain("Do not add participants, shared intent, agreement, dates, or time zones.");
+    }).answer({ ...followup, permits_unconfirmed_session_context_answer: true })).resolves.toMatchObject({ kind: "answer", citation_ids: [] });
+  });
+
+  it("sends screenshot continuity restrictions in the system prompt with its actual revision", async () => {
+    let systemText = "";
+    const result = await provider({ kind: "answer", title: "Friday", body: "Which date and time zone?", citation_ids: [] }, (_url, init) => {
+      const sent = JSON.parse(String(init.body));
+      systemText = sent.messages[0].content;
+      expect(systemText).toContain("Do not default to requesting the same screenshot again.");
+      expect(systemText).toContain("Do not invent concrete dates even as examples; use [date] and [timezone] placeholders or ask directly.");
+      expect(systemText).toContain("reviewing the existing capture");
+      expect(sent.tools).toBeUndefined();
+    }).answer({ mode: "unscoped_conversation", objective: "What does Friday mean?", context_blocks: [], allowed_citation_ids: [],
+      conversation_history: [{ message_id: "canonical-screenshot-task", role: "assistant", text: JSON.stringify({ kind: "prior_screenshot_context", summary: "Friday is mentioned, with no exact date." }) }] });
+    expect(result.prompt_revision).toBe(createHash("sha256").update(systemText).digest("hex").slice(0, 16));
+  });
+
+  it("keeps the same screenshot restrictions in workspace provider execution", async () => {
+    let systemText = "";
+    const observed = vi.fn();
+    const invokeTool = vi.fn();
+    await provider({ outcome: "reply", title: "Friday", body: "The exact date and time zone are unresolved." }, (_url, init) => {
+      const sent = JSON.parse(String(init.body));
+      systemText = sent.messages[0].content;
+      expect(systemText).toContain("Do not add participants, shared intent, agreement, dates, or time zones.");
+      expect(systemText).toContain("Do not default to requesting the same screenshot again.");
+    }).runWithPromptPreset({ runID: "synthetic-screenshot-continuity", objective: "What does Friday mean?", systemPrompt: "Answer within authorized context.",
+      scopeSummary: { kind: "workspace_conversation", workspaceID: "11111111-1111-4111-8111-111111111111", sessionID: null, currentPersonID: null, currentRelationshipContextID: null },
+      conversationHistory: [{ message_id: "canonical-screenshot-task", role: "assistant", text: JSON.stringify({ kind: "prior_screenshot_context", summary: "Friday is mentioned, with no exact date." }) }],
+      toolManifest: [], budget: { maxTurns: 1, maxToolCalls: 1, maxDurationMs: 10000, maxTaskTokens: 4000, maxEstimatedUsd: 1 },
+    }, invokeTool, new AbortController().signal, "baseline", observed);
+    expect(invokeTool).not.toHaveBeenCalled();
+    expect(observed).toHaveBeenCalledWith(expect.objectContaining({ prompt_revision: createHash("sha256").update(systemText).digest("hex").slice(0, 16) }));
+  });
   it("requires citations for evidence-based answers but permits clarification", async () => {
     await expect(
       provider({

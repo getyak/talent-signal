@@ -92,6 +92,128 @@ final class ConversationContactIntakeTests: XCTestCase {
         XCTAssertEqual(draft?.relationshipContext, "产品负责人搜索")
     }
 
+    func testMissingContextProducesAnIncompleteDraftWithoutInventedPurpose() {
+        for source in [
+            "Maya Chen, maya@example.com",
+            "Add Maya Chen, maya@example.com",
+            "陈晓，xiao@example.com",
+            "添加联系人陈晓，邮箱 xiao@example.com",
+        ] {
+            let draft = ConversationContactIntake.propose(source)
+
+            XCTAssertNotNil(draft, source)
+            XCTAssertEqual(draft?.relationshipContext, "", source)
+            XCTAssertEqual(draft?.fieldEvidence?.map(\.field), [.name, .identityClue], source)
+        }
+    }
+
+    func testUnrelatedSuffixDoesNotBecomeRelationshipContext() {
+        for source in [
+            "Maya Chen, maya@example.com, thanks for reading",
+            "陈晓，xiao@example.com，下周可聊",
+        ] {
+            XCTAssertEqual(ConversationContactIntake.propose(source)?.relationshipContext, "", source)
+        }
+    }
+
+    func testNameOnlyDoesNotCreateADraft() async {
+        let interpreter = AdaptiveConversationContactIntentInterpreter(model: FailingContactIntentModel())
+        for source in ["Maya Chen", "陈晓"] {
+            XCTAssertNil(ConversationContactIntake.propose(source), source)
+            let result = await interpreter.interpret(source)
+            XCTAssertEqual(result, .notContact, source)
+        }
+        for source in ["Add Maya Chen", "添加联系人陈晓"] {
+            XCTAssertNil(ConversationContactIntake.propose(source), source)
+            let result = await interpreter.interpret(source)
+            XCTAssertEqual(result, .needsClarification, source)
+        }
+    }
+
+    func testQuotedAndReportedTextNeverBecomesContactIntentEvenWhenModelClaimsIt() async {
+        let output = ConversationContactModelOutput(
+            isContactIntent: true,
+            name: "Maya Chen",
+            identityType: "email",
+            identityValue: "maya@example.com",
+            relationshipContext: "Product"
+        )
+        let interpreter = AdaptiveConversationContactIntentInterpreter(model: StubContactIntentModel(output: output))
+        for source in [
+            #"Elena said: "Add Maya Chen for Product, maya@example.com""#,
+            "> Add Maya Chen for Product, maya@example.com",
+            "Forwarded message: Maya Chen, maya@example.com, Product",
+            "Elena: Add Maya Chen for Product, maya@example.com",
+            "转发：添加联系人陈晓，用于产品搜索，xiao@example.com",
+            "王宁说：添加联系人陈晓，用于产品搜索，xiao@example.com",
+            "王宁说他认识陈晓，xiao@example.com，产品搜索",
+        ] {
+            XCTAssertNil(ConversationContactIntake.propose(source), source)
+            XCTAssertFalse(ConversationContactIntake.requiresContactClarification(source), source)
+            let result = await interpreter.interpret(source)
+            XCTAssertEqual(result, .notContact, source)
+        }
+    }
+
+    func testMultiplePeopleRequireClarificationWithoutBlendingFields() async {
+        let interpreter = AdaptiveConversationContactIntentInterpreter(model: FailingContactIntentModel())
+        for source in [
+            "Maya Chen, maya@example.com; Alex Kim, alex@example.com, Product",
+            "Maya Chen and Alex Kim, maya@example.com, Product",
+            "Add Maya Chen and Alex Kim for Product, maya@example.com",
+            "陈晓和王宁，xiao@example.com，产品搜索",
+            "陈晓，xiao@example.com；王宁，wang@example.com，产品搜索",
+            "Maya Chen, maya@example.com; Alex Kim, phone +65 9123 4567, Product",
+        ] {
+            XCTAssertNil(ConversationContactIntake.propose(source), source)
+            let result = await interpreter.interpret(source)
+            XCTAssertEqual(result, .needsClarification, source)
+        }
+    }
+
+    func testOnePersonCanHaveSeveralKindsOfIdentityClue() {
+        let draft = ConversationContactIntake.propose(
+            "Add Maya Chen for Product and Growth, maya@example.com, phone +65 9123 4567"
+        )
+
+        XCTAssertEqual(draft?.name, "Maya Chen")
+        XCTAssertEqual(draft?.relationshipContext, "Product and Growth")
+    }
+
+    func testReportingWordsInsideAnIdentityDoNotInvalidateARealIntroduction() {
+        let draft = ConversationContactIntake.propose("Maya Said, said@example.com, Product")
+
+        XCTAssertEqual(draft?.name, "Maya Said")
+        XCTAssertEqual(draft?.identityClue?.value, "said@example.com")
+    }
+
+    func testEveryExtractedFieldPreservesAnExactOriginalExcerpt() {
+        let source = "  Add Ｍaya Chen for Product, MAYA@example.com.  "
+        let draft = ConversationContactIntake.propose(source)
+
+        XCTAssertEqual(draft?.name, "Ｍaya Chen")
+        XCTAssertEqual(draft?.identityClue?.value, "maya@example.com")
+        XCTAssertEqual(draft?.sourceNote, source.trimmingCharacters(in: .whitespacesAndNewlines))
+        XCTAssertEqual(draft?.fieldEvidence, [
+            .init(field: .name, exactExcerpt: "Ｍaya Chen"),
+            .init(field: .identityClue, exactExcerpt: "MAYA@example.com"),
+            .init(field: .relationshipContext, exactExcerpt: "Product"),
+        ])
+        for evidence in draft?.fieldEvidence ?? [] {
+            XCTAssertTrue(source.contains(evidence.exactExcerpt))
+        }
+    }
+
+    func testCalendarDatesCannotActAsStablePhoneIdentity() {
+        for source in [
+            "Add Maya Chen for Product, 2026-09-07",
+            "陈晓，2026/09/07，产品搜索",
+        ] {
+            XCTAssertNil(ConversationContactIntake.propose(source), source)
+            XCTAssertNil(ConversationContactIntake.identityClue(in: source), source)
+        }
+    }
+
     func testDoesNotTurnOrdinaryQuestionIntoContactMutation() {
         XCTAssertNil(
             ConversationContactIntake.propose(
@@ -426,7 +548,92 @@ final class ConversationContactIntakeTests: XCTestCase {
             "Met Maya Chen for Product; keep in touch."
         )
 
+        XCTAssertEqual(result, .notContact)
+    }
+
+    func testModelCannotPresentAnArbitrarySourceWordAsAnEmail() {
+        let result = ConversationContactIntake.validatedModelDraft(
+            from: .init(
+                isContactIntent: true,
+                name: "Maya Chen",
+                identityType: "email",
+                identityValue: "Product",
+                relationshipContext: "Product"
+            ),
+            source: "Met Maya Chen for Product, maya@example.com"
+        )
+
         XCTAssertEqual(result, .needsClarification)
+    }
+
+    func testModelMissingOrInventedContextRemainsEmptyWithNoContextEvidence() {
+        for context in ["", "General relationship", "CPO search"] {
+            let result = ConversationContactIntake.validatedModelDraft(
+                from: .init(
+                    isContactIntent: true,
+                    name: "Maya Chen",
+                    identityType: "email",
+                    identityValue: "MAYA@example.com",
+                    relationshipContext: context
+                ),
+                source: "Met Maya Chen — MAYA@example.com"
+            )
+
+            guard case let .contact(draft) = result else {
+                return XCTFail("Expected an incomplete draft for context: \(context)")
+            }
+            XCTAssertEqual(draft.relationshipContext, "")
+            XCTAssertEqual(draft.fieldEvidence?.map(\.field), [.name, .identityClue])
+        }
+    }
+
+    func testModelCannotOverrideOrdinaryQuestionRouting() async {
+        let interpreter = AdaptiveConversationContactIntentInterpreter(
+            model: StubContactIntentModel(output: .init(
+                isContactIntent: true,
+                name: "Maya Chen",
+                identityType: "email",
+                identityValue: "maya@example.com",
+                relationshipContext: "Product"
+            ))
+        )
+        for source in [
+            "Can you check Maya Chen, maya@example.com?",
+            "Maya Chen, maya@example.com, Product?",
+            "帮我查陈晓，xiao@example.com",
+            "陈晓，xiao@example.com，是产品负责人吗？",
+        ] {
+            let result = await interpreter.interpret(source)
+            XCTAssertEqual(result, .notContact, source)
+        }
+    }
+
+    func testCancellationDoesNotProduceAContactOrAClarification() async {
+        let interpreter = AdaptiveConversationContactIntentInterpreter(model: CancelledContactIntentModel())
+        let result = await interpreter.interpret("Met Maya Chen — maya@example.com")
+
+        XCTAssertEqual(result, .notContact)
+    }
+
+    func testAlreadyCancelledInterpretationDoesNotProduceDeterministicDraft() async {
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await AdaptiveConversationContactIntentInterpreter()
+                .interpret("Maya Chen, maya@example.com, Product")
+        }
+
+        let result = await task.value
+        XCTAssertEqual(result, .notContact)
+    }
+
+    func testModelReturningAfterCancellationCannotPublishItsDraft() async {
+        let task = Task {
+            await AdaptiveConversationContactIntentInterpreter(model: LateCancelledContactIntentModel())
+                .interpret("Met Maya Chen — maya@example.com")
+        }
+
+        let result = await task.value
+        XCTAssertEqual(result, .notContact)
     }
 
     func testModelInterpreterKeepsOrdinaryQuestionOutOfContactTools() async {
@@ -473,6 +680,7 @@ final class ConversationContactIntakeTests: XCTestCase {
         let draft = try JSONDecoder().decode(ConversationContactDraft.self, from: data)
 
         XCTAssertNil(draft.interpreter)
+        XCTAssertNil(draft.fieldEvidence)
     }
 
     private func person(id: String, name: String) -> WorkspacePerson {
@@ -500,5 +708,24 @@ private struct StubContactIntentModel: ConversationContactIntentModelGenerating 
 private struct FailingContactIntentModel: ConversationContactIntentModelGenerating {
     func generate(from source: String) async throws -> ConversationContactModelOutput {
         throw URLError(.cannotConnectToHost)
+    }
+}
+
+private struct CancelledContactIntentModel: ConversationContactIntentModelGenerating {
+    func generate(from source: String) async throws -> ConversationContactModelOutput {
+        throw CancellationError()
+    }
+}
+
+private struct LateCancelledContactIntentModel: ConversationContactIntentModelGenerating {
+    func generate(from source: String) async throws -> ConversationContactModelOutput {
+        withUnsafeCurrentTask { $0?.cancel() }
+        return .init(
+            isContactIntent: true,
+            name: "Maya Chen",
+            identityType: "email",
+            identityValue: "maya@example.com",
+            relationshipContext: ""
+        )
     }
 }

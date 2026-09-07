@@ -333,6 +333,13 @@ protocol PursuitWorkspaceServing {
         objective: String,
         idempotencyKey: String
     ) async throws -> UnscopedChatTaskResponse
+    func ask(
+        objective: String, personID: String, relationshipContextID: String,
+        idempotencyKey: String, mediaIDs: [String], sessionID: UUID?, messageID: UUID?
+    ) async throws -> RelationshipAskResponse
+    func chatUnscoped(
+        objective: String, idempotencyKey: String, sessionID: UUID?, messageID: UUID?
+    ) async throws -> UnscopedChatTaskResponse
     func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask
     func loadScreenshotContactTask(id: String) async throws -> ScreenshotContactTask
     func loadScreenshotContactImage(taskID: String, index: Int) async throws -> ChatMediaContent
@@ -437,6 +444,21 @@ extension PursuitWorkspaceServing {
         idempotencyKey: String
     ) async throws -> UnscopedChatTaskResponse {
         throw PursuitWorkspaceClientError.askUnavailable
+    }
+
+    func ask(
+        objective: String, personID: String, relationshipContextID: String,
+        idempotencyKey: String, mediaIDs: [String], sessionID: UUID?, messageID: UUID?
+    ) async throws -> RelationshipAskResponse {
+        try await ask(objective: objective, personID: personID,
+            relationshipContextID: relationshipContextID,
+            idempotencyKey: idempotencyKey, mediaIDs: mediaIDs)
+    }
+
+    func chatUnscoped(
+        objective: String, idempotencyKey: String, sessionID: UUID?, messageID: UUID?
+    ) async throws -> UnscopedChatTaskResponse {
+        try await chatUnscoped(objective: objective, idempotencyKey: idempotencyKey)
     }
 
     func createScreenshotContactTask(_ body: ScreenshotContactTaskBody) async throws -> ScreenshotContactTask { throw PursuitWorkspaceClientError.askUnavailable }
@@ -847,6 +869,16 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         idempotencyKey: String,
         mediaIDs: [String]
     ) async throws -> RelationshipAskResponse {
+        try await ask(objective: objective, personID: personID,
+            relationshipContextID: relationshipContextID,
+            idempotencyKey: idempotencyKey, mediaIDs: mediaIDs,
+            sessionID: nil, messageID: nil)
+    }
+
+    func ask(
+        objective: String, personID: String, relationshipContextID: String,
+        idempotencyKey: String, mediaIDs: [String], sessionID: UUID?, messageID: UUID?
+    ) async throws -> RelationshipAskResponse {
         guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
             throw PursuitWorkspaceClientError.loopbackOnly
         }
@@ -856,7 +888,9 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             objective: objective,
             personID: personID,
             relationshipContextID: relationshipContextID,
-            mediaIDs: mediaIDs
+            mediaIDs: mediaIDs,
+            sessionID: sessionID,
+            messageID: messageID
         )
         let response: RelationshipAskResponse
         do {
@@ -905,6 +939,13 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         objective: String,
         idempotencyKey: String
     ) async throws -> UnscopedChatTaskResponse {
+        try await chatUnscoped(objective: objective, idempotencyKey: idempotencyKey,
+            sessionID: nil, messageID: nil)
+    }
+
+    func chatUnscoped(
+        objective: String, idempotencyKey: String, sessionID: UUID?, messageID: UUID?
+    ) async throws -> UnscopedChatTaskResponse {
         guard authenticatedSession != nil || URLFixtureLoader.isLoopback(baseURL) else {
             throw PursuitWorkspaceClientError.loopbackOnly
         }
@@ -914,13 +955,18 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
             token: login.accessToken,
             body: UnscopedChatTaskBody(
                 idempotencyKey: idempotencyKey,
-                objective: objective
+                objective: objective,
+                sessionID: sessionID,
+                messageID: messageID
             )
         )
         guard response.contractVersion == TalentSignalAPIContract.version,
               UUID(uuidString: response.taskID) != nil,
               ["answer", "clarify"].contains(response.disposition),
               response.externalEffects.isEmpty,
+              (response.agentEvent?.kind != "contact_change_proposal"
+                  || messageID == nil
+                  || response.agentEvent?.sourceMessageID.flatMap(UUID.init(uuidString:)) == messageID),
               response.blocks.count == 1,
               response.blocks.allSatisfy({ block in
                   ["answer", "clarification", "identity_review"].contains(block.kind)
@@ -983,7 +1029,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
                     options: .regularExpression
                 ) != nil
                 && event.displayName?.isEmpty == false
-                && event.relationshipContext?.isEmpty == false
+                && event.relationshipContext != nil
                 && event.sourceExcerpts?.isEmpty == false
                 && event.requiresUserConfirmation == true
                 && isValidContactIdentityClue(event.identityClue)
@@ -1910,6 +1956,7 @@ struct UnscopedChatTaskResponse: Decodable, Equatable, Identifiable {
         let targetRelationshipContextID: String?
         let baseRevision: Int?
         let requiresUserConfirmation: Bool?
+        var sourceMessageID: String? = nil
 
         struct IdentityClue: Decodable, Equatable {
             let type: String
@@ -1948,6 +1995,7 @@ struct UnscopedChatTaskResponse: Decodable, Equatable, Identifiable {
             case targetRelationshipContextID = "target_relationship_context_id"
             case baseRevision = "base_revision"
             case requiresUserConfirmation = "requires_user_confirmation"
+            case sourceMessageID = "source_message_id"
         }
     }
 
@@ -2111,8 +2159,13 @@ private struct RelationshipAskBody: Encodable {
     let relationshipContextID: String
     let mediaIDs: [String]
 
+    let sessionID: UUID?
+    let messageID: UUID?
+
     enum CodingKeys: String, CodingKey {
         case idempotencyKey = "idempotency_key"
+        case sessionID = "session_id"
+        case messageID = "message_id"
         case objective
         case personID = "person_id"
         case relationshipContextID = "relationship_context_id"
@@ -2124,9 +2177,14 @@ private struct UnscopedChatTaskBody: Encodable {
     let idempotencyKey: String
     let objective: String
 
+    let sessionID: UUID?
+    let messageID: UUID?
+
     enum CodingKeys: String, CodingKey {
         case objective
         case idempotencyKey = "idempotency_key"
+        case sessionID = "session_id"
+        case messageID = "message_id"
     }
 }
 
