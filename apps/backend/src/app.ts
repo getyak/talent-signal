@@ -652,7 +652,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '056_agent_session_chat_lifecycle'`,
+           WHERE version = '057_feedback_learning'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");

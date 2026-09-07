@@ -8,7 +8,7 @@ import type { AuthContext } from "./auth.js";
 import type { RemoteChatAnswerProviding } from "./chatAnswerProvider.js";
 import { taskModelCatalog, taskPromptRevision } from "./labTaskConfiguration.js";
 import { labHash, labJobCases } from "./labJobCases.js";
-import { createJobAttempts, executeJobAttempt, LAB_JOB_INSTRUMENT_REVISION } from "./labJobRunner.js";
+import { createJobAttempts, executeJobAttempt, LabAttemptAuthorizationChanged, LAB_JOB_INSTRUMENT_REVISION } from "./labJobRunner.js";
 import { regressionForRun, regressionLineageCurrent, scrubExpiredRegressions } from "./labRegressions.js";
 import type { RuntimeObservationContext } from "@talent-signal/agent";
 import type { FeedbackExecutionRow } from "./feedbackExecutions.js";
@@ -233,26 +233,82 @@ export class LabExperimentJobService {
         const attempt = await this.reserveAttempt(row); if (!attempt) break;
         const sample = row.definition.cases.find((value) => value.id === attempt.case_id)!;
         const observation = await this.attemptObservation(row, attempt);
-        const result = await executeJobAttempt(attempt, sample, row.definition, this.modelEntry(row.definition.task, attempt.requested_model)?.provider, observation);
-        await this.pool.query(`UPDATE lab_experiment_attempts SET status=$3,record=$4::jsonb WHERE id=$1 AND status='dispatching'
-          AND EXISTS(SELECT 1 FROM lab_experiment_jobs WHERE id=$2 AND lease_id=$5 AND expires_at > now() AND status IN ('running','cancelling'))`,
-        [attempt.id, row.id, result.status, JSON.stringify(result), row.lease_id]);
+        if (!observation) { await this.stopReservedAttempt(row, attempt); break; }
+        const result = await executeJobAttempt(attempt, sample, row.definition, this.modelEntry(row.definition.task, attempt.requested_model)?.provider,
+          observation, async (invoke) => {
+            const authorized = await this.withCurrentAttempt(row, attempt, false, async () => {
+              // Start the provider while source/job locks still fence revocation. Release
+              // those locks after dispatch begins, without waiting for a network result.
+              const pending = invoke(); void pending.catch(() => {});
+              return { pending };
+            });
+            if (!authorized) throw new LabAttemptAuthorizationChanged();
+            return authorized.pending;
+          });
+        if (result.error_code === "LAB_ATTEMPT_AUTHORIZATION_CHANGED" && result.remote_requests_started === 0) {
+          await this.stopReservedAttempt(row, attempt); break;
+        }
+        await this.withCurrentAttempt(row, attempt, true, async (client) => {
+          await client.query("UPDATE lab_experiment_attempts SET status=$2,record=$3::jsonb WHERE id=$1 AND status='dispatching'",
+            [attempt.id, result.status, JSON.stringify(result)]);
+          return true;
+        });
+        if (result.error_code === "LAB_ATTEMPT_AUTHORIZATION_CHANGED") break;
       }
       await this.finish(row);
     } finally { clearInterval(heartbeat); }
   }
 
-  private async attemptObservation(row: JobRow, attempt: LabJobAttempt): Promise<RuntimeObservationContext> {
+  /** Source authorization is checked again at provider dispatch and result persistence,
+   * after asynchronous observation preparation, in the same lock order as retraction. */
+  private async withCurrentAttempt<T>(row: JobRow, attempt: LabJobAttempt, completing: boolean,
+    operation: (client: DatabaseClient) => Promise<T>): Promise<T | null> {
+    return inTransaction(this.pool, async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`lab-experiment:${row.account_id}`]);
+      if (row.definition.regression_source) {
+        try {
+          await regressionForRun(client, { accountId: row.account_id, userId: row.user_id }, row.definition.regression_source);
+        } catch (error) {
+          if (error instanceof ApiError && [404, 409, 410].includes(error.statusCode)) return null;
+          throw error;
+        }
+      }
+      const current = (await client.query<JobRow>(`SELECT j.* FROM lab_experiment_jobs j
+        WHERE j.id=$1 AND j.account_id=$2 AND j.user_id=$3 AND j.lease_id=$4
+          AND j.expires_at>clock_timestamp() AND j.lease_expires_at>clock_timestamp()
+          AND (j.status='running' OR ($6::boolean AND j.status='cancelling'))
+          AND ($6::boolean OR j.cancel_requested_at IS NULL)
+          AND EXISTS(SELECT 1 FROM lab_experiment_attempts a WHERE a.id=$5 AND a.job_id=j.id AND a.status='dispatching')
+        FOR SHARE`, [row.id, row.account_id, row.user_id, row.lease_id, attempt.id, completing])).rows[0];
+      if (!current || current.definition_hash !== row.definition_hash || labHash(current.definition) !== row.definition_hash
+        || current.definition.backend_revision !== this.backendRevision) return null;
+      return operation(client);
+    });
+  }
+
+  private async stopReservedAttempt(row: JobRow, attempt: LabJobAttempt): Promise<void> {
+    await inTransaction(this.pool, async (client) => {
+      const owned = await client.query("SELECT id FROM lab_experiment_jobs WHERE id=$1 AND lease_id=$2 FOR UPDATE", [row.id, row.lease_id]);
+      if (!owned.rows[0]) return;
+      await client.query(`UPDATE lab_experiment_attempts SET status='cancelled',record=record || jsonb_build_object(
+        'status','cancelled','error_code','LAB_ATTEMPT_AUTHORIZATION_CHANGED','execution','local_only',
+        'remote_requests_started',0,'finished_at',now()) WHERE id=$1 AND job_id=$2 AND status='dispatching'`, [attempt.id, row.id]);
+      await this.cancelPending(client, row.id, "LAB_ATTEMPT_AUTHORIZATION_CHANGED");
+    });
+  }
+
+  private async attemptObservation(row: JobRow, attempt: LabJobAttempt): Promise<RuntimeObservationContext | null> {
     const scope = row.definition.task === "unscoped_chat" ? "workspace_conversation" : row.definition.task;
     const context: RuntimeObservationContext = { run_id: attempt.id, workspace_id: row.account_id,
       authorization_scope: scope, source_lab_job_id: row.id };
     const source = row.definition.regression_source ? (await this.pool.query<FeedbackExecutionRow & { data_class: string }>(
       `SELECT e.*,r.snapshot->>'data_class' AS data_class FROM lab_regressions r LEFT JOIN feedback_execution_snapshots e
-        ON e.id=r.source_execution_id WHERE r.account_id=$1 AND r.user_id=$2 AND r.id=$3`,
+        ON e.id=r.source_execution_id WHERE r.account_id=$1 AND r.user_id=$2 AND r.id=$3
+          AND r.deleted_at IS NULL AND r.snapshot IS NOT NULL AND r.expires_at>clock_timestamp()`,
     [row.account_id, row.user_id, row.definition.regression_source.id])).rows[0] : null;
     if (!row.definition.regression_source || source?.data_class === "registered_synthetic")
       return { ...context, source_refs: { kind: "synthetic" } };
-    if (!source?.snapshot) return context; // Private lineage unavailable: observer fails closed.
+    if (source?.data_class !== "private_business" || !source.snapshot) return null; // Missing private lineage prohibits model exposure as well as observation.
     const product = await productObservationContext(this.pool, { accountId: row.account_id, userId: row.user_id }, attempt.id, scope,
       { sessionID: source.session_id, personID: source.person_id, contextID: source.relationship_context_id,
         fragmentIDs: source.snapshot.input.allowed_citation_ids });

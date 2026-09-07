@@ -301,7 +301,10 @@ function acquireExecutionLease(directory: string): () => void {
 function erasePhaseOnePrivateCopies(directory: string): void {
   const raw = object(privateJson(directory, "phase-one-controller.json"));
   for (const field of ["casesFile", "examplesFile"] as const) {
-    const name = controllerBasename(raw[field]), contents = privateJson(directory, name);
+    const name = controllerBasename(raw[field]);
+    let contents: unknown;
+    try { contents = privateJson(directory, name); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     if (Array.isArray(contents) && contents.some(item => field === "casesFile" ? item?.modelInput?.dataClass === "private_business" : item?.dataClass === "private_business")) {
       writeControllerArtifact(directory, name, { schemaVersion: "phase-one-private-copy-tombstone.v1", previousDigest: digestCanonicalJson(contents), reason: "source_or_run_tombstoned" });
     }
@@ -312,13 +315,31 @@ function erasePhaseOnePrivateCopies(directory: string): void {
   for (const temporary of readdirSync(directory).filter(file => file.startsWith(`${reviewsFile}.`) && file.endsWith(".tmp"))) unlinkSync(join(directory, temporary));
 }
 
+function stopPhaseOneBudgetRun(directory: string): void {
+  const raw = object(privateJson(directory, "phase-one-controller.json"));
+  if (raw.providerKind !== "real_model" || typeof raw.runId !== "string") return;
+  // An unconfigured controller has no paid run. Missing files inside an existing
+  // budget configuration are failures, not proof that its run was stopped.
+  try { privateText(directory, "controller.json"); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  const budget = readOptimizationBudgetController(directory, raw.runId);
+  try { budget.ledger.tombstone(raw.runId); }
+  finally { budget.ledger.close(); }
+}
+
 /** Called by the optimizer's zero-paid lifecycle maintainer, including while no experiment is running. */
 export async function sweepPhaseOneControllerSources(path: string, dependencies: { backendToken?: string; sourceFetcher?: typeof fetch } = {}): Promise<{ status: string }> {
   const directory = privateDirectory(path);
   try { privateJson(directory, "phase-one-controller.json"); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { status: "not_configured" }; throw error; }
   try { assertNotTombstoned(directory); }
-  catch { return { status: "tombstoned" }; }
+  catch (error) {
+    if (!(error instanceof Error) || error.message !== "PHASE_ONE_RUN_TOMBSTONED") throw error;
+    // The durable marker fences new work before erasure starts. A process may
+    // die at any later step, so every sweep must finish the idempotent cleanup.
+    await runPhaseOneCommand(["tombstone"], directory);
+    return { status: "tombstoned" };
+  }
   try {
     const config = loadController(directory);
     await assertPhaseOnePrivateSources({ cases: privateJson(directory, config.casesFile) as PhaseOneCase[],
@@ -340,23 +361,25 @@ export async function runPhaseOneCommand(argv: readonly string[], path: string):
   phaseOneAssert(argv.length === 1 && ["ci-verify", "freeze", "verify", "adjudicate", "inspect", "tombstone", ...releaseCommands].includes(argv[0]!), "PHASE_ONE_COMMAND_INVALID");
   const directory = privateDirectory(path), command = argv[0]!;
   if (command === "tombstone") {
-    artifactTransaction(directory, () => {
-      writeControllerArtifact(directory, "phase-one-tombstone.json", { schemaVersion: "phase-one-tombstone.v1", recordedAt: new Date().toISOString(), releaseAuthority: "none" });
-      const files = readdirSync(directory).filter(name => /^(?:phase-one-executions|phase-one-verification)\.json(?:\.[0-9a-f-]+\.tmp)?$/.test(name));
-      for (const file of files) {
-        try { unlinkSync(join(directory, file)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-      }
-      erasePhaseOnePrivateCopies(directory);
-    }, true);
-    // Stop any in-flight paid final calls using the same original budget run.
-    let budget: ReturnType<typeof readOptimizationBudgetController> | null = null;
+    const failures: unknown[] = [];
     try {
-      const raw = object(privateJson(directory, "phase-one-controller.json"));
-      if (raw.providerKind === "real_model" && typeof raw.runId === "string") {
-        budget = readOptimizationBudgetController(directory, raw.runId); budget.ledger.tombstone(raw.runId);
-      }
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-    finally { budget?.ledger.close(); }
+      artifactTransaction(directory, () => {
+        try { privateText(directory, "phase-one-tombstone.json"); }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          writeControllerArtifact(directory, "phase-one-tombstone.json", { schemaVersion: "phase-one-tombstone.v1", recordedAt: new Date().toISOString(), releaseAuthority: "none" });
+        }
+        const files = readdirSync(directory).filter(name => /^(?:phase-one-executions|phase-one-verification)\.json(?:\.[0-9a-f-]+\.tmp)?$/.test(name));
+        for (const file of files) {
+          try { unlinkSync(join(directory, file)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+        }
+        erasePhaseOnePrivateCopies(directory);
+      }, true);
+    } catch (error) { failures.push(error); }
+    // A file cleanup error must not leave the original paid budget running.
+    try { stopPhaseOneBudgetRun(directory); } catch (error) { failures.push(error); }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, "PHASE_ONE_TOMBSTONE_INCOMPLETE");
     return { status: "tombstoned", releaseAuthority: "none" };
   }
   assertNotTombstoned(directory);

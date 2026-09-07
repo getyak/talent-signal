@@ -13,8 +13,9 @@ within the owner's delegated scope. This does not grant candidate generators or
 judges business-action authority, access to independent holdouts, credentials, or
 release signing authority. No per-case privacy gate is added. Credentials stay
 out of evaluation content. Monetary limits and environment/exposure scope are
-still missing in GET-12; paid execution and actual deployment depend on those
-parameters, while implementation and deterministic proof proceed.
+still missing in GET-12; funded optimization and candidate rollout depend on
+those parameters. Implementation, deterministic proof and the existing baseline
+TestFlight backend update proceed under the current delivery authorization.
 
 ## Current evidence
 
@@ -63,13 +64,25 @@ outbox/runtime integration respectively. Independent review follows integration.
    durable failure/retry/deletion evidence; integrate shared contracts.
 3. **Complete:** task-level CLI, semantic/release controllers,
    source-lifecycle bridge, credential-free CI and private runtime-content readback.
-4. **Complete:** automatic observation retry and final-revision CI passed;
-   correctness/safety reviews have no open confirmed P0/P1. Signed proof records
-   implementation commit `59d6e11e`; later evidence-only documentation does not
-   change the implementation source or emitted build. Actual candidate release
-   still requires its own current-commit CI verification.
+4. **Active:** complete the requested PR delivery workflow. Updated local `main`
+   to `11984f15` and merged it into the isolated task branch. A fresh independent
+   review reproduced incomplete cleanup after a persisted final-controller
+   tombstone and provider dispatch after private-source withdrawal. Both were
+   repaired with crash and PostgreSQL race regressions; final independent
+   verification precedes PR creation. Also bind
+   readiness to migration 057 and wire optional runtime/release configuration
+   into the existing internal TestFlight deployment. Then require current-head
+   hosted CI/CD, automatic merge, and baseline deployment readback. Historical
+   signed implementation proof remains attached to `59d6e11e`.
 5. **Pending:** funded real optimization and scoped release/rollback once GET-12
    parameters arrive; report any unavailable external proof honestly.
+
+The current user has authorized branch publication, PR creation, remediation,
+merge after all applicable checks pass, and closing corresponding Linear issues
+only after their actual acceptance conditions are met. A parameter request is
+pending for funded optimization; this does not block the existing baseline
+TestFlight implementation deployment. Do not use a PR closing keyword to
+prematurely complete GET-11's unobserved live-optimization acceptance.
 
 ## Completion evidence
 

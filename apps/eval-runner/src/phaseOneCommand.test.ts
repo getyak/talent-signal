@@ -1,11 +1,12 @@
 import { generateKeyPairSync } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { digestCanonicalJson, type PhaseOneCase } from "@talent-signal/evaluation";
-import { createPhaseOneHttpRuntimeReader, runPhaseOneCommand } from "./phaseOneCommand.js";
+import { createPhaseOneHttpRuntimeReader, runPhaseOneCommand, sweepPhaseOneControllerSources } from "./phaseOneCommand.js";
+import { FileOptimizationBudgetLedger, type OptimizationBudgetPermit } from "./optimization/budget.js";
 
 const directories: string[] = [];
 const hash = digestCanonicalJson;
@@ -33,6 +34,28 @@ function fixture() {
   write("candidate.json", { schemaVersion: "optimization-candidate.v1", taskFragmentId: "concise", exampleIds: [] });
   const command = (name: string) => runPhaseOneCommand([name], directory);
   return { directory, write, read, config, cases, command };
+}
+function runningBudget(state: ReturnType<typeof fixture>) {
+  const bindings = { baselineDigest: hash("baseline"), datasetDigest: hash("dataset"), evaluatorVersion: "1", optimizerVersion: "1" };
+  const permit: OptimizationBudgetPermit = {
+    permitId: "permit-1", budgetScopeId: "scope-1", status: "active", currency: "USD",
+    issuedAt: new Date(Date.now() - 1000).toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    runLimits: { amountMicros: 1000, calls: 10, tokens: 1000, elapsedMs: 100000, candidateCount: 10, concurrency: 3 },
+    monthlyLimits: { amountMicros: 3000, calls: 30, tokens: 3000, elapsedMs: 300000, candidateCount: 30, concurrency: 9 },
+    finalValidationReserve: { amountMicros: 100, calls: 1, tokens: 100, elapsedMs: 1000, candidateCount: 0 },
+  };
+  state.write("phase-one-controller.json", { ...state.config, providerKind: "real_model" });
+  state.write("controller.json", { schemaVersion: "optimization-controller.v1", ledgerFile: "budget.sqlite", permitFile: "permit.json",
+    bindingsFile: "bindings.json", model: "glm-4.5", pricing: null, searchFile: "search.json" });
+  state.write("bindings.json", bindings); state.write("permit.json", permit);
+  const path = join(state.directory, "budget.sqlite"), ledger = new FileOptimizationBudgetLedger({ path });
+  try { expect(ledger.startRun({ runId: state.config.runId, bindings, permit }).status).toBe("running"); }
+  finally { ledger.close(); }
+  return () => {
+    const reopened = new FileOptimizationBudgetLedger({ path });
+    try { return reopened.snapshot(state.config.runId).status; }
+    finally { reopened.close(); }
+  };
 }
 afterEach(() => { for (const path of directories.splice(0)) rmSync(path, { recursive: true, force: true }); });
 
@@ -108,6 +131,79 @@ describe("independent phase one controller process", () => {
     expect(state.read("cases.json").schemaVersion).toBe("phase-one-private-copy-tombstone.v1");
     expect(readFileSync(join(state.directory, "cases.json"), "utf8")).not.toContain("private-copy-sentinel");
     expect(existsSync(join(state.directory, "cases.json.11111111-1111-4111-8111-111111111111.tmp"))).toBe(false);
+  });
+
+  it("resumes partial erasure and budget stopping in a fresh process after the deleting process dies", async () => {
+    const state = fixture(), budgetStatus = runningBudget(state);
+    state.write("cases.json", [{ modelInput: { dataClass: "private_business", objective: "private-case-sentinel" } }]);
+    state.write("examples.json", [{ dataClass: "private_business", input: "private-example-sentinel" }]);
+    state.write("reviews.json", [{ evidence: "private-review-sentinel" }]);
+    const pendingFiles = ["phase-one-executions.json", "phase-one-verification.json",
+      "examples.json.11111111-1111-4111-8111-111111111111.tmp"];
+    for (const name of pendingFiles) state.write(name, { value: "private-output-sentinel" });
+    const crashed = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", `
+      import fs from "node:fs";
+      import { syncBuiltinESMExports } from "node:module";
+      import { join } from "node:path";
+      const rename = fs.renameSync;
+      fs.renameSync = (from, to) => {
+        rename(from, to);
+        if (to === join(process.argv[1], "cases.json")) process.kill(process.pid, "SIGKILL");
+      };
+      syncBuiltinESMExports();
+      const { runPhaseOneCommand } = await import("./src/phaseOneCommand.ts");
+      await runPhaseOneCommand(["tombstone"], process.argv[1]);
+    `, state.directory], { cwd: process.cwd(), env: { PATH: process.env.PATH, NODE_NO_WARNINGS: "1" }, encoding: "utf8", timeout: 15000 });
+    expect(crashed.error).toBeUndefined(); expect(crashed.signal).toBe("SIGKILL");
+    expect(existsSync(join(state.directory, "phase-one-tombstone.json"))).toBe(true);
+    const originalTombstone = state.read("phase-one-tombstone.json");
+    expect(state.read("cases.json").schemaVersion).toBe("phase-one-private-copy-tombstone.v1");
+    expect(state.read("examples.json")[0].input).toBe("private-example-sentinel");
+    expect(state.read("reviews.json")[0].evidence).toBe("private-review-sentinel");
+    expect(budgetStatus()).toBe("running");
+    const recovered = JSON.parse(execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval", `
+      import { sweepPhaseOneControllerSources } from "./src/phaseOneCommand.ts";
+      console.log(JSON.stringify(await sweepPhaseOneControllerSources(process.argv[1])));
+    `, state.directory], { cwd: process.cwd(), env: { PATH: process.env.PATH, NODE_NO_WARNINGS: "1" }, encoding: "utf8", timeout: 15000 }));
+    expect(recovered).toEqual({ status: "tombstoned" });
+    expect(state.read("examples.json").schemaVersion).toBe("phase-one-private-copy-tombstone.v1");
+    expect(state.read("reviews.json")).toEqual([]);
+    for (const name of pendingFiles) expect(existsSync(join(state.directory, name))).toBe(false);
+    expect(budgetStatus()).toBe("tombstoned");
+    // A missing already-erased input must not prevent another idempotent sweep.
+    unlinkSync(join(state.directory, "cases.json"));
+    expect(await sweepPhaseOneControllerSources(state.directory)).toEqual({ status: "tombstoned" });
+    expect(budgetStatus()).toBe("tombstoned");
+    expect(state.read("phase-one-tombstone.json")).toEqual(originalTombstone);
+  });
+
+  it("stops the original budget even when private file erasure fails, and retries the remaining erasure", async () => {
+    const state = fixture(), budgetStatus = runningBudget(state);
+    state.write("examples.json", [{ dataClass: "private_business", input: "private-example-sentinel" }]);
+    chmodSync(join(state.directory, "examples.json"), 0o644);
+    await expect(state.command("tombstone")).rejects.toThrow("PHASE_ONE_CONTROLLER_FILE_PERMISSIONS_REQUIRED");
+    expect(budgetStatus()).toBe("tombstoned");
+    await expect(sweepPhaseOneControllerSources(state.directory)).rejects.toThrow("PHASE_ONE_CONTROLLER_FILE_PERMISSIONS_REQUIRED");
+    chmodSync(join(state.directory, "examples.json"), 0o600);
+    expect(await sweepPhaseOneControllerSources(state.directory)).toEqual({ status: "tombstoned" });
+    expect(state.read("examples.json").schemaVersion).toBe("phase-one-private-copy-tombstone.v1");
+  });
+
+  it("propagates tombstone read errors instead of treating them as completed deletion", async () => {
+    const state = fixture();
+    symlinkSync(join(state.directory, "reviews.json"), join(state.directory, "phase-one-tombstone.json"));
+    await expect(sweepPhaseOneControllerSources(state.directory)).rejects.toMatchObject({ code: "ELOOP" });
+  });
+
+  it("does not report completion when an existing budget configuration cannot be loaded", async () => {
+    const state = fixture(), budgetStatus = runningBudget(state), bindings = state.read("bindings.json");
+    unlinkSync(join(state.directory, "bindings.json"));
+    await expect(state.command("tombstone")).rejects.toMatchObject({ code: "ENOENT" });
+    expect(budgetStatus()).toBe("running");
+    await expect(sweepPhaseOneControllerSources(state.directory)).rejects.toMatchObject({ code: "ENOENT" });
+    state.write("bindings.json", bindings);
+    expect(await sweepPhaseOneControllerSources(state.directory)).toEqual({ status: "tombstoned" });
+    expect(budgetStatus()).toBe("tombstoned");
   });
 
   it("invalidates a signed report when the human review store is changed or withdrawn", async () => {

@@ -153,6 +153,13 @@ it before handlers run, and runtime readback reports its captured value and
 digest. A baseline process with no exposure configuration keeps its existing
 audience and reports no scoped-release proof.
 
+The existing internal TestFlight Compose passes these optional scope and Opik
+settings to the API and persists the outbox in its own named volume. An empty
+policy leaves export disabled. The normal deployment script captures the
+checkout revision when rebuilding; reuse or rollback must preserve the selected
+image's original revision or report it unavailable. Backend readiness requires
+the feedback migration 057 before admitting this implementation as ready.
+
 ## Observe and remove private runtime content
 
 Runtime observation is configured separately from prompt mirroring with

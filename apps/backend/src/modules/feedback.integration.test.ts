@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
 import { bundledPrompt } from "@talent-signal/agent/prompt-registry";
-import { CONTRACT_VERSION, type AgentSessionPayload, type FeedbackMutation, type FeedbackSource, type FeedbackObservationRequest } from "@talent-signal/contracts";
+import { createEnvironmentRuntimeObserver } from "@talent-signal/agent";
+import { CONTRACT_VERSION, type AgentSessionPayload, type FeedbackMutation, type FeedbackSource, type FeedbackObservationRequest, type LabJobRequest } from "@talent-signal/contracts";
 import { buildApp } from "../app.js";
 import type { AuthContext } from "./auth.js";
 import { configuredChatPrompt, type RemoteChatAnswerProviding, type RemoteChatAnswerRequest } from "./chatAnswerProvider.js";
@@ -37,6 +38,8 @@ beforeAll(async () => {
   if (!pool || !database) return;
   vi.stubEnv("TALENT_SIGNAL_BACKEND_REVISION", "feedback-proof-v1");
   vi.stubEnv("LOG_LEVEL", "silent");
+  vi.stubEnv("TALENT_SIGNAL_OPIK_RUNTIME_POLICY", undefined);
+  expect(createEnvironmentRuntimeObserver()).toBeNull();
   await pool.query("INSERT INTO accounts(id,slug,name) VALUES($1,$2,'Feedback proof')", [auth.accountId, auth.accountSlug]);
   for (const id of [auth.userId, randomUUID()]) await pool.query(
     "INSERT INTO users(id,account_id,email,display_name,kind) VALUES($1,$2,$3,'Feedback proof','simulated_human')",
@@ -110,16 +113,27 @@ async function put(id: string, body: FeedbackMutation, status = 200) {
   expect(result.statusCode, result.body).toBe(status);
   return result.json();
 }
-async function rerun(id: string) {
+async function queueRerun(id: string, productRoute = true) {
   const saved = await regressions.read(auth, id), jobID = randomUUID();
   const readback = await app.inject({ method: "GET", url: `/v1/lab/regressions/${id}/export`, headers });
   expect(readback.statusCode, readback.body).toBe(200);
   expect(readback.json().snapshot).toEqual(saved.snapshot);
-  const queued = await app.inject({ method: "POST", url: "/v1/lab/experiment-jobs", headers, payload: {
+  const request: LabJobRequest = {
     id: jobID, catalog_revision: jobs.catalogRevision, task: "relationship_text",
     case_ids: [saved.snapshot.case.id], configurations: [{ model: provider.model, prompt_preset: "baseline" }, { model: provider.model, prompt_preset: "concise" }],
-    repetitions: 1, call_limit: 2, regression_source: { id, content_hash: saved.content_hash } } });
-  expect(queued.statusCode, queued.body).toBe(202);
+    repetitions: 1, call_limit: 2, regression_source: { id, content_hash: saved.content_hash } };
+  if (productRoute) {
+    const queued = await app.inject({ method: "POST", url: "/v1/lab/experiment-jobs", headers, payload: request });
+    expect(queued.statusCode, queued.body).toBe(202);
+  } else {
+    // Worker race probes exercise the same admission service without exhausting
+    // the separate product route rate-limit; the main loop tests that route.
+    await jobs.start(auth, request);
+  }
+  return { saved, jobID };
+}
+async function rerun(id: string) {
+  const { saved, jobID } = await queueRerun(id);
   await jobs.tick(); await jobs.waitForIdle();
   const job = await jobs.read(auth, jobID);
   const product = await app.inject({ method: "GET", url: `/v1/lab/experiment-jobs/${jobID}`, headers });
@@ -130,6 +144,22 @@ async function rerun(id: string) {
   expect(job.definition.cases[0]!.input_hash).toBe(saved.snapshot.case.input_hash);
   expect(job.attempts.every((attempt) => attempt.status === "completed")).toBe(true);
   return { saved, job };
+}
+
+function pausedObservationPool(stage: "before" | "after") {
+  let reached!: () => void, resume!: () => void;
+  const paused = new Promise<void>((resolve) => { reached = resolve; });
+  const continuation = new Promise<void>((resolve) => { resume = resolve; });
+  let missingSourceRead = false;
+  const controlled = { connect: pool!.connect.bind(pool), async query(sql: string, values?: unknown[]) {
+    const observesSource = sql.startsWith("SELECT e.*,r.snapshot->>'data_class'");
+    if (observesSource && stage === "before") { reached(); await continuation; }
+    const result = await pool!.query(sql, values);
+    if (observesSource) missingSourceRead = !result.rows[0]?.snapshot;
+    if (observesSource && stage === "after") { reached(); await continuation; }
+    return result;
+  } } as unknown as Pool;
+  return { pool: controlled, paused, resume, get missingSourceRead() { return missingSourceRead; } };
 }
 
 function pausedRegressionPool() {
@@ -217,6 +247,74 @@ describe.skipIf(!pool)("Authenticated product feedback learning PostgreSQL loop"
     const rows = (await pool!.query("SELECT snapshot,deleted_at FROM lab_regressions WHERE source_feedback_id=$1", [id])).rows;
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ snapshot: null, deleted_at: expect.any(Date) });
+  }, 30_000);
+
+  it.each([
+    { stage: "before", change: "feedback" }, { stage: "after", change: "feedback" },
+    { stage: "before", change: "source" }, { stage: "after", change: "source" },
+  ] as const)("does not dispatch a reserved private Lab input when $change is revoked $stage observation source read", async ({ stage, change }) => {
+    const f = await fixture(), original = await turn(f), id = randomUUID(), body = mutation(original.source);
+    const feedback = (await put(id, body)).feedback;
+    const { jobID } = await queueRerun(feedback.regression_id, false), gate = pausedObservationPool(stage);
+    const worker = new LabExperimentJobService(gate.pool, new Map([[provider.model, provider]]), "feedback-proof-v1");
+    const calls = requests.length;
+    try {
+      await worker.tick(); await gate.paused;
+      expect((await pool!.query("SELECT calls_reserved FROM lab_experiment_jobs WHERE id=$1", [jobID])).rows[0].calls_reserved).toBe(1);
+      if (change === "feedback") await put(id, { ...body, expected_revision: 1, operation: "withdraw", idempotency_key: randomUUID() });
+      else await pool!.query("UPDATE source_retention_receipts SET authorization_state='revoked' WHERE capture_id=$1", [f.capture]);
+      gate.resume(); await worker.waitForIdle();
+      expect(gate.missingSourceRead).toBe(stage === "before");
+      expect(requests.length - calls).toBe(0);
+      expect((await pool!.query("SELECT definition->'cases' AS cases,lease_id,calls_reserved FROM lab_experiment_jobs WHERE id=$1", [jobID])).rows[0])
+        .toMatchObject({ cases: [], lease_id: null, calls_reserved: 1 });
+      expect((await pool!.query("SELECT record FROM lab_experiment_attempts WHERE job_id=$1", [jobID])).rows).toEqual([]);
+    } finally { gate.resume(); await worker.close(); }
+  }, 30_000);
+
+  it.each(["lease", "job", "source"] as const)("checks current %s expiry immediately before dispatch even when a private observation source was already read", async (expired) => {
+    const f = await fixture(), original = await turn(f), id = randomUUID();
+    const feedback = (await put(id, mutation(original.source))).feedback;
+    const { jobID } = await queueRerun(feedback.regression_id, false), gate = pausedObservationPool("after");
+    const worker = new LabExperimentJobService(gate.pool, new Map([[provider.model, provider]]), "feedback-proof-v1");
+    const calls = requests.length;
+    try {
+      await worker.tick(); await gate.paused;
+      if (expired === "lease") await pool!.query("UPDATE lab_experiment_jobs SET lease_expires_at=now()-interval '1 second' WHERE id=$1", [jobID]);
+      else if (expired === "job") await pool!.query("UPDATE lab_experiment_jobs SET expires_at=now()-interval '1 second' WHERE id=$1", [jobID]);
+      else await pool!.query("UPDATE feedback_execution_snapshots SET expires_at=now()-interval '1 second' WHERE id=$1", [original.source.execution_id]);
+      gate.resume(); await worker.waitForIdle();
+      expect(requests.length - calls).toBe(0);
+      const records = (await pool!.query("SELECT record FROM lab_experiment_attempts WHERE job_id=$1 ORDER BY ordinal", [jobID])).rows;
+      expect(records[0]!.record).toMatchObject({ status: "cancelled", error_code: "LAB_ATTEMPT_AUTHORIZATION_CHANGED", remote_requests_started: 0, answer: null });
+      expect(records.every((row) => row.record.status === "cancelled")).toBe(true);
+      expect((await pool!.query("SELECT calls_reserved FROM lab_experiment_jobs WHERE id=$1", [jobID])).rows[0].calls_reserved).toBe(1);
+    } finally { gate.resume(); await worker.close(); }
+  }, 30_000);
+
+  it("releases dispatch locks before a model responds and never persists its late private result after withdrawal", async () => {
+    const f = await fixture(), original = await turn(f), id = randomUUID(), body = mutation(original.source);
+    const feedback = (await put(id, body)).feedback;
+    const { jobID } = await queueRerun(feedback.regression_id, false);
+    let reached!: () => void, resume!: () => void;
+    const paused = new Promise<void>((resolve) => { reached = resolve; });
+    const continuation = new Promise<void>((resolve) => { resume = resolve; });
+    const originalAnswer = provider.answer.bind(provider);
+    let modelCalls = 0;
+    const intercepted = vi.spyOn(provider, "answer").mockImplementation(async (input) => {
+      modelCalls++; reached(); await continuation;
+      return { ...await originalAnswer(input), body: "late-private-Lab-result-must-not-persist" };
+    });
+    try {
+      await jobs.tick(); await paused;
+      await put(id, { ...body, expected_revision: 1, operation: "withdraw", idempotency_key: randomUUID() });
+      resume(); await jobs.waitForIdle();
+      expect(modelCalls).toBe(1);
+      expect((await pool!.query("SELECT record FROM lab_experiment_attempts WHERE job_id=$1", [jobID])).rows).toEqual([]);
+      expect((await pool!.query("SELECT definition->'cases' AS cases,lease_id FROM lab_experiment_jobs WHERE id=$1", [jobID])).rows[0])
+        .toMatchObject({ cases: [], lease_id: null });
+      await expect(jobs.read(auth, jobID)).rejects.toMatchObject({ statusCode: 410 });
+    } finally { resume(); intercepted.mockRestore(); }
   }, 30_000);
 
   it("records a changed-version later product exposure with bounded observation, then synchronously removes derived replay content on source revocation", async () => {

@@ -9,12 +9,18 @@ if [[ "${TS_INFISICAL_INJECTED:-false}" != "true" ]]; then
     env TS_INFISICAL_INJECTED=true "$0" "$@"
 fi
 
-for command_name in curl docker node tailscale; do
+for command_name in curl docker git node tailscale; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Required command is unavailable: $command_name" >&2
     exit 1
   fi
 done
+
+# Rebuilt images use this checkout; an explicitly selected rollback image must
+# supply its original revision or report it unavailable, never claim this checkout.
+if [[ "${TS_TESTFLIGHT_REBUILD:-true}" == "true" ]]; then
+  export TALENT_SIGNAL_BACKEND_REVISION="$(git -C "$repository_root" rev-parse HEAD)"
+fi
 
 node "$repository_root/scripts/infisical/verify-contract.mjs" testflightBackend
 node "$repository_root/scripts/deploy/verify-testflight-chat-environment.mjs"

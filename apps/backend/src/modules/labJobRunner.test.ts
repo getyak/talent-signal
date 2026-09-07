@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { LabJobDefinition } from "@talent-signal/contracts";
 import { configuredChatPrompt, ZhipuChatAnswerProvider, type RemoteChatAnswerProviding } from "./chatAnswerProvider.js";
 import { labHash, labJobCases } from "./labJobCases.js";
-import { createJobAttempts, executeJobAttempt, LAB_JOB_INSTRUMENT_REVISION } from "./labJobRunner.js";
+import { createJobAttempts, executeJobAttempt, LabAttemptAuthorizationChanged, LAB_JOB_INSTRUMENT_REVISION } from "./labJobRunner.js";
 import { taskModelCatalog, taskPromptRevision } from "./labTaskConfiguration.js";
 
 function definition(): LabJobDefinition {
@@ -49,6 +49,16 @@ describe("durable Lab batch runner", () => {
     plan.configurations[0]!.prompt_revision = labHash("changed");
     expect((await executeJobAttempt(attempt, plan.cases[0]!, plan, model)).status).toBe("failed");
     expect(model.answer).not.toHaveBeenCalled();
+  });
+  it("requires live dispatch authorization for every saved regression", async () => {
+    const plan = definition(), model = provider(), attempt = createJobAttempts(plan)[0]!;
+    plan.regression_source = { id: "7cd8f61d-cdd0-4bc8-a7bd-c2274be4b0db", content_hash: labHash("frozen") };
+    const denied = await executeJobAttempt(attempt, plan.cases[0]!, plan, model);
+    expect(denied).toMatchObject({ status: "cancelled", remote_requests_started: 0, answer: null, error_code: "LAB_ATTEMPT_AUTHORIZATION_CHANGED" });
+    expect(model.answer).not.toHaveBeenCalled();
+    const gate = vi.fn(async () => { throw new LabAttemptAuthorizationChanged(); });
+    await executeJobAttempt(attempt, plan.cases[0]!, plan, model, undefined, gate);
+    expect(gate).toHaveBeenCalledOnce(); expect(model.answer).not.toHaveBeenCalled();
   });
   it("hard failures are explicit and raw provider error data never escapes", async () => {
     const plan = definition(), model = provider(), attempt = createJobAttempts(plan)[0]!;
@@ -97,5 +107,18 @@ describe("durable Lab batch runner", () => {
     expect(result.actual_model).toBeNull();
     expect(result.checks.find((value) => value.id === "agent_tool_contract")?.verdict).toBe("pass");
     expect(fetcher).not.toHaveBeenCalled();
+    const gate = vi.fn(async () => { throw new LabAttemptAuthorizationChanged(); });
+    const denied = await executeJobAttempt(createJobAttempts(plan)[0]!, sample, plan, model, undefined, gate);
+    expect(denied).toMatchObject({ status: "cancelled", remote_requests_started: 0 });
+    expect(gate).toHaveBeenCalledOnce(); expect(fetcher).not.toHaveBeenCalled();
+    vi.spyOn(model, "runWithPromptPreset").mockImplementation(async (_request, _invokeTool, _signal, _preset, observed) => {
+      observed({ actual_model: entry.model, prompt_revision: plan.configurations[0]!.prompt_revision,
+        actual_prompt_revision: plan.configurations[0]!.prompt_revision, requests_started: 1, responses_received: 1,
+        input_tokens: 9, output_tokens: 4, provider_request_id: "started-before-revocation" });
+      throw new LabAttemptAuthorizationChanged();
+    });
+    const interrupted = await executeJobAttempt(createJobAttempts(plan)[0]!, sample, plan, model);
+    expect(interrupted).toMatchObject({ status: "unknown", remote_requests_started: 1, execution: "remote",
+      actual_model: entry.model, input_tokens: 9, output_tokens: 4, provider_request_id: "started-before-revocation", answer: null });
   });
 });

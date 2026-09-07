@@ -30,7 +30,7 @@ export async function regressionLineageCurrent(client: DatabaseClient, id: strin
   return result.rows[0]?.valid === true;
 }
 
-export async function regressionForRun(client: DatabaseClient, auth: AuthContext,
+export async function regressionForRun(client: DatabaseClient, auth: Pick<AuthContext, "accountId" | "userId">,
   source: { id: string; content_hash: string }): Promise<LabRegressionSnapshot> {
   // Source retraction locks executions before descendants. Follow the same order;
   // locking the parent first could deadlock against a concurrent source deletion.
