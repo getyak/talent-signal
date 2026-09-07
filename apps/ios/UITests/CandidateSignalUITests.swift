@@ -5496,6 +5496,13 @@ final class CandidateSignalUITests: XCTestCase {
         XCTAssertTrue(statusBar.exists)
         positionBelowStatusBar(reviewInstruction, statusBar: statusBar)
         XCTAssertGreaterThanOrEqual(reviewInstruction.frame.minY, statusBar.frame.maxY)
+        // Xcode 26 audits the antialiased remnant of a label clipped at the
+        // scroll viewport edge. Keep the known source label fully visible so
+        // the audit measures its rendered text instead of that clipped edge.
+        let sourceLabel = app.staticTexts["Candidate · m1"]
+        XCTAssertTrue(sourceLabel.exists)
+        positionBelowStatusBar(sourceLabel, statusBar: statusBar)
+        XCTAssertGreaterThanOrEqual(sourceLabel.frame.minY, statusBar.frame.maxY)
         XCTAssertTrue(reviewInstruction.frame.intersects(app.windows.firstMatch.frame))
         preserveScreenshot("AX5 dark status-safe review")
 
