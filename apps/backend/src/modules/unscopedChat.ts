@@ -21,6 +21,9 @@ import type {
   RemoteChatAnswerProviding,
   RemoteChatAnswerResult,
 } from "./chatAnswerProvider.js";
+import { boundedConversationHistory } from "./chatAnswerProvider.js";
+import { readAgentSessionConversation } from "./agentSessions.js";
+import { assertSessionChatSourcesAvailable, assertSessionForChat, purgeUnavailableSessionChatSources, recordSessionChatSources, markSessionContextAnswer, type AgentSessionChatSource } from "./agentSessionSources.js";
 import {
   executeWorkspaceConversationAgent,
   isWorkspaceConversationAgentProvider,
@@ -35,6 +38,9 @@ export interface UnscopedChatTaskMutationResult {
 
 interface UnscopedChatExecution {
   body: UnscopedChatTaskResponse;
+  conversationMessageIDs: string[];
+  conversationSources?: AgentSessionChatSource[];
+  previousTaskIDs: string[];
   remoteStatus: "agent_completed" | "completed" | "disabled" | "fallback";
   providerResult: RemoteChatAnswerResult | null;
   agentProviderResult: {
@@ -86,6 +92,16 @@ export async function executeUnscopedChatTask(input: {
   auth?: AuthContext;
   createdAt?: Date;
 }): Promise<UnscopedChatExecution> {
+  // Scope failures must escape before provider fallbacks; they are not model errors.
+  const sessionConversation = input.request.session_id && input.database && input.auth
+    ? await readAgentSessionConversation(
+        input.database, input.auth, input.request.session_id,
+        { personId: null, relationshipContextId: null },
+      )
+    : { messages: [] };
+  const conversationHistory = boundedConversationHistory(sessionConversation.messages, input.request.message_id);
+  if (sessionConversation.unavailableScreenshotContext && !sessionConversation.sources?.length)
+    throw new ApiError(409, "AGENT_SESSION_CONTEXT_UNAVAILABLE", "The screenshot summary is not currently available. Review its current task before continuing from it.");
   let providerResult: RemoteChatAnswerResult | null = null;
   let agentProviderResult: UnscopedChatExecution["agentProviderResult"] = null;
   let remoteStatus: UnscopedChatExecution["remoteStatus"] = input.provider
@@ -105,6 +121,9 @@ export async function executeUnscopedChatTask(input: {
           auth: input.auth,
           objective: input.request.objective,
           provider: input.provider,
+          sessionID: input.request.session_id ?? null,
+          ...(input.request.message_id ? { messageID: input.request.message_id } : {}),
+          conversationHistory,
         });
         block = execution.block;
         agentEvent = execution.event;
@@ -121,6 +140,7 @@ export async function executeUnscopedChatTask(input: {
         providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
           mode: "unscoped_conversation",
           objective: input.request.objective,
+          ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           context_blocks: [],
           allowed_citation_ids: [],
           images: [],
@@ -138,6 +158,7 @@ export async function executeUnscopedChatTask(input: {
         providerResult = await measureLabServerStage("model_adapter", () => input.provider!.answer({
           mode: "unscoped_conversation",
           objective: input.request.objective,
+          ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
           context_blocks: [],
           allowed_citation_ids: [],
           images: [],
@@ -157,11 +178,14 @@ export async function executeUnscopedChatTask(input: {
   }
 
   return {
+    conversationMessageIDs: conversationHistory.map((message) => message.message_id),
+    previousTaskIDs: conversationHistory.filter((message) => message.role === "assistant").map((message) => message.message_id),
+    ...(sessionConversation.sources ? { conversationSources: sessionConversation.sources } : {}),
     body: {
       contract_version: CONTRACT_VERSION,
       task_id: randomUUID(),
       disposition: block.kind === "clarification" ? "clarify" : "answer",
-      blocks: [block],
+      blocks: [sessionConversation.sources?.length ? markSessionContextAnswer(block, input.request.objective) : block],
       agent_event: agentEvent,
       external_effects: [],
       created_at: (input.createdAt ?? new Date()).toISOString(),
@@ -179,7 +203,9 @@ export async function createUnscopedChatTask(
   provider: RemoteChatAnswerProviding | null,
   selectRemoteProvider?: (client: DatabaseClient) => Promise<RemoteChatAnswerProviding | null>,
 ): Promise<UnscopedChatTaskMutationResult> {
+  if (request.session_id) await purgeUnavailableSessionChatSources(pool, auth);
   return inTransaction(pool, async (client) => {
+    if (request.session_id) await assertSessionForChat(client, auth, request.session_id);
     const requestIdentity = {
       objective_hash: createHash("sha256")
         .update(request.objective)
@@ -188,6 +214,8 @@ export async function createUnscopedChatTask(
       // an older iOS build can still replay safely across this server upgrade.
       context_scope: "none",
       external_effects: [],
+      ...(request.session_id ? { session_id: request.session_id } : {}),
+      ...(request.message_id ? { message_id: request.message_id } : {}),
     };
     const idempotency = await claimIdempotency(
       client,
@@ -197,7 +225,9 @@ export async function createUnscopedChatTask(
       requestIdentity,
     );
     if (idempotency.replay) {
+      if (request.session_id) await assertSessionForChat(client, auth, request.session_id, true);
       const replay = idempotency.replay.body as UnscopedChatTaskResponse;
+      if (replay?.task_id) await assertSessionChatSourcesAvailable(client, auth, replay.task_id);
       if (
         !replay ||
         typeof replay !== "object" ||
@@ -232,6 +262,9 @@ export async function createUnscopedChatTask(
       execution.body.task_id,
       {
         context_scope: "agent_bounded_contact_lookup",
+        conversation_session_id: request.session_id ?? null,
+        conversation_message_ids: execution.conversationMessageIDs,
+        current_message_id: request.message_id ?? null,
         evidence_count: 0,
         external_effect_count: 0,
         disposition: execution.body.disposition,
@@ -254,6 +287,7 @@ export async function createUnscopedChatTask(
             versionId: execution.providerResult.prompt_snapshot.versionId, source: execution.providerResult.prompt_snapshot.source } : null),
       },
     );
+    await recordSessionChatSources(client, auth, request.session_id, execution.body.task_id, execution.conversationSources ?? [], execution.previousTaskIDs);
     await completeIdempotency(client, idempotency, 201, execution.body);
     return { body: execution.body, replayed: false, status: 201,
       labProductOutcome: execution.remoteStatus === "agent_completed" || execution.remoteStatus === "completed" ? "accepted" : "fallback" };

@@ -26,6 +26,9 @@ import type {
   RemoteChatAnswerResult,
   RemoteChatContextBlock,
 } from "./chatAnswerProvider.js";
+import { boundedConversationHistory } from "./chatAnswerProvider.js";
+import { readAgentSessionConversation } from "./agentSessions.js";
+import { assertSessionChatSourcesAvailable, assertSessionForChat, purgeUnavailableSessionChatSources, recordSessionChatSources, markSessionContextAnswer } from "./agentSessionSources.js";
 import {
   bindChatMediaToManifest,
   getChatMediaContent,
@@ -44,7 +47,7 @@ import {
 } from "./telemetry.js";
 import { loadSnapshot } from "./wiki.js";
 
-const CHAT_POLICY_VERSION = "chat-context.v2";
+const CHAT_POLICY_VERSION = "chat-context.v3";
 
 export interface ChatTaskMutationResult {
   labProductOutcome?: "accepted" | "fallback";
@@ -262,6 +265,8 @@ export async function getChatTaskReadback(
   auth: AuthContext,
   taskId: string,
 ): Promise<ChatTaskReadback> {
+  await purgeUnavailableSessionChatSources(pool, auth);
+  await assertSessionChatSourcesAvailable(pool, auth, taskId);
   const manifestResult = await pool.query<ChatManifestRow>(
     `SELECT
        manifests.id,
@@ -783,7 +788,9 @@ export async function createChatTask(
   resolveLabFeatureReceipt?: (client: DatabaseClient) => Promise<LabFeatureAdoptionReceipt | null>,
 ): Promise<ChatTaskMutationResult> {
   const chatStartedAt = new Date().toISOString();
+  if (request.session_id) await purgeUnavailableSessionChatSources(pool, auth);
   return inTransaction(pool, async (client) => {
+    if (request.session_id) await assertSessionForChat(client, auth, request.session_id);
     const idempotency = await claimIdempotency(
       client,
       { accountId: auth.accountId, actorUserId: auth.userId },
@@ -792,7 +799,9 @@ export async function createChatTask(
       request,
     );
     if (idempotency.replay) {
+      if (request.session_id) await assertSessionForChat(client, auth, request.session_id, true);
       const replay = idempotency.replay.body as ChatTaskResponse;
+      if (replay?.task_id) await assertSessionChatSourcesAvailable(client, auth, replay.task_id);
       if (
         !replay ||
         typeof replay !== "object" ||
@@ -817,6 +826,15 @@ export async function createChatTask(
     if (request.telemetry) {
       await assertTelemetryContext(client, auth, request.telemetry);
     }
+    const sessionConversation = request.session_id
+      ? await readAgentSessionConversation(client, auth, request.session_id, {
+          personId: request.person_id,
+          relationshipContextId: request.relationship_context_id,
+        })
+      : { messages: [] };
+    const conversationHistory = boundedConversationHistory(sessionConversation.messages, request.message_id);
+    if (sessionConversation.unavailableScreenshotContext && !sessionConversation.sources?.length)
+      throw new ApiError(409, "AGENT_SESSION_CONTEXT_UNAVAILABLE", "The screenshot summary is not currently available. Review its current task before continuing from it.");
 
     const snapshot = await measureLabServerStage("context", () => loadSnapshot(
       client,
@@ -844,13 +862,23 @@ export async function createChatTask(
       ...snapshot.blocks.filter((item) => item.type === "conflict"),
       ...snapshot.blocks,
     ];
-    const selectedBlocks = prioritizedBlocks
+    let selectedBlocks = prioritizedBlocks
       .filter(
         (item, index, items) =>
           items.findIndex((candidate) => candidate.id === item.id) ===
           index,
       )
       .slice(0, 20);
+    if (sessionConversation.sources?.length) {
+      // Screenshot dialogue is unconfirmed context. It must not pull proposed
+      // OCR into the separate manifest of reviewed relationship evidence.
+      const fragmentIDs = unique(selectedBlocks.flatMap((item) => item.dependencies.filter((dependency) => dependency.type === "evidence_fragment").map((dependency) => dependency.id)));
+      const reviewed = new Set((await client.query<{ id: string }>(
+        "SELECT id FROM evidence_fragments WHERE account_id=$1 AND id=ANY($2::uuid[]) AND status='active' AND review_status='reviewed' AND attribution_status='confirmed'",
+        [auth.accountId, fragmentIDs],
+      )).rows.map((item) => item.id));
+      selectedBlocks = selectedBlocks.filter((item) => item.dependencies.every((dependency) => dependency.type !== "evidence_fragment" || reviewed.has(dependency.id)));
+    }
     const taskId = randomUUID();
     const manifestId = randomUUID();
     const authorizationScope =
@@ -965,6 +993,8 @@ export async function createChatTask(
             }));
         remoteChatResult = await measureLabServerStage("model_adapter", () => remoteChatProvider!.answer({
           objective: request.objective,
+          ...(conversationHistory.length > 0 ? { conversation_history: conversationHistory } : {}),
+          ...(sessionConversation.sources?.length ? { permits_unconfirmed_session_context_answer: true } : {}),
           context_blocks: selectedBlocks.map(remoteContextBlock),
           allowed_citation_ids: evidenceFragmentIds,
           images,
@@ -972,7 +1002,7 @@ export async function createChatTask(
         remoteEndedAt = new Date().toISOString();
         const nextBlocks = insertAfterPersonBrief(
           blocks,
-          remoteAnswerBlock(remoteChatResult),
+          sessionConversation.sources?.length ? markSessionContextAnswer(remoteAnswerBlock(remoteChatResult), request.objective) : remoteAnswerBlock(remoteChatResult),
         );
         remoteChatStatus = nextBlocks === blocks ? "fallback" : "completed";
         blocks = nextBlocks;
@@ -1096,6 +1126,9 @@ export async function createChatTask(
         included_block_count: selectedBlocks.length,
         included_evidence_count: evidenceFragmentIds.length,
         included_media_count: media.length,
+        conversation_session_id: request.session_id ?? null,
+        conversation_message_ids: conversationHistory.map((message) => message.message_id),
+        current_message_id: request.message_id ?? null,
         disposition: response.disposition,
         remote_chat_status: remoteChatStatus,
         remote_chat_provider_id: remoteChatResult?.provider_id ?? null,
@@ -1109,6 +1142,7 @@ export async function createChatTask(
         remote_chat_output_tokens: remoteChatResult?.output_tokens ?? 0,
       },
     );
+    await recordSessionChatSources(client, auth, request.session_id, taskId, sessionConversation.sources ?? [], conversationHistory.filter((message) => message.role === "assistant").map((message) => message.message_id));
     await completeIdempotency(client, idempotency, 201, response);
     return {
       body: response,

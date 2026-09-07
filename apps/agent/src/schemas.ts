@@ -141,15 +141,27 @@ const ContactIdentityClueSchema = z.strictObject({
     "linkedin_url",
     "public_profile_url",
   ]),
-  value: z.string().trim().min(1).max(500),
+  value: z.string().trim().min(1).max(500).describe(
+    "Copy the identity clue verbatim from one contiguous substring of the current user message. Never infer, normalize, translate, or combine values. If absent, set the parent identity_clue to null instead of inventing a value.",
+  ),
 });
 
-const ContactSourceExcerptSchema = z.string().trim().min(1).max(1_000);
+const ContactSourceExcerptSchema = z.string().trim().min(1).max(1_000).describe(
+  "An exact verbatim substring of the current user message, including its original words and punctuation. The excerpts must contain each proposed field.",
+);
+const ContactDisplayNameSchema = z.string().trim().min(1).max(200).describe(
+  "For a new contact, copy the name verbatim from the current user message; never infer a name from an email or invent a missing name. For an update, keep the exact resolved Person label.",
+);
+const ContactRelationshipContextSchema = z.string().trim().max(200).describe(
+  "For a new relationship, copy a VERBATIM CONTIGUOUS SUBSTRING of the current user message/source excerpt, character for character. Never paraphrase, translate, join separate excerpts, or remove words or particles. Prefer the shortest exact relationship label. Use an empty string when the relationship is absent. For an existing relationship update, keep its exact resolved label.",
+);
 
 export const ContactWorkspaceInputSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("search"),
-    query: z.string().trim().min(2).max(200),
+    query: z.string().trim().min(2).max(200).describe(
+      "One exact contiguous clue from the current user message, such as one email address. Never combine separate name, email, or relationship excerpts.",
+    ),
     maximum_results: z.number().int().min(1).max(6).default(4),
   }),
   z.strictObject({
@@ -159,8 +171,8 @@ export const ContactWorkspaceInputSchema = z.discriminatedUnion("operation", [
   }),
   z.strictObject({
     operation: z.literal("propose_create"),
-    display_name: z.string().trim().min(1).max(200),
-    relationship_context: z.string().trim().min(1).max(200),
+    display_name: ContactDisplayNameSchema,
+    relationship_context: ContactRelationshipContextSchema,
     identity_clue: ContactIdentityClueSchema.nullable().default(null),
     source_excerpts: z.array(ContactSourceExcerptSchema).min(1).max(5),
     reason: z.string().trim().min(1).max(500),
@@ -170,8 +182,8 @@ export const ContactWorkspaceInputSchema = z.discriminatedUnion("operation", [
     person_id: Id,
     relationship_context_id: Id.nullable().default(null),
     base_revision: z.number().int().min(1),
-    display_name: z.string().trim().min(1).max(200),
-    relationship_context: z.string().trim().min(1).max(200),
+    display_name: ContactDisplayNameSchema,
+    relationship_context: ContactRelationshipContextSchema,
     identity_clue: ContactIdentityClueSchema.nullable().default(null),
     source_excerpts: z.array(ContactSourceExcerptSchema).min(1).max(5),
     reason: z.string().trim().min(1).max(500),
@@ -188,8 +200,8 @@ export const ContactWorkspaceToolInputSchema = z.strictObject({
   person_id: Id.optional(),
   relationship_context_id: Id.nullable().optional(),
   base_revision: z.number().int().min(1).optional(),
-  display_name: z.string().trim().min(1).max(200).optional(),
-  relationship_context: z.string().trim().min(1).max(200).optional(),
+  display_name: ContactDisplayNameSchema.optional(),
+  relationship_context: ContactRelationshipContextSchema.optional(),
   identity_clue: ContactIdentityClueSchema.nullable().optional(),
   source_excerpts: z.array(ContactSourceExcerptSchema).min(1).max(5).optional(),
   reason: z.string().trim().min(1).max(500).optional(),

@@ -8,6 +8,7 @@ import {
 import {
   AGENT_TOOL_CATALOG,
   agentCapabilityManifest,
+  contactWorkspaceOperationTools,
   candidateOutcome,
   candidateToolNames,
 } from "./toolCatalog.js";
@@ -20,6 +21,21 @@ import {
 } from "./types.js";
 
 describe("provider-neutral Agent capability catalog", () => {
+  it("exposes operation-specific native contact Tools so search cannot include proposal fields", () => {
+    const nativeTools = contactWorkspaceOperationTools();
+    expect(nativeTools.map((tool) => tool.name)).toEqual([
+      "contact_workspace_search", "contact_workspace_read", "contact_workspace_propose_create", "contact_workspace_propose_update",
+    ]);
+    const search = nativeTools[0]!.parameters;
+    expect(search.type).toBe("object");
+    expect(search.additionalProperties).toBe(false);
+    expect(Object.keys(search.properties)).toEqual(["query", "maximum_results"]);
+    expect(ContactWorkspaceInputSchema.safeParse({
+      operation: "search", query: "nira.voss@example.com",
+      identity_clue: { type: "email", value: "nira.voss@example.com" },
+    }).success).toBe(false);
+  });
+
   it("keeps no_action in the terminal protocol rather than the tool surface", () => {
     expect(ALL_AGENT_TOOL_NAMES).not.toContain("record_no_action");
     expect(Object.keys(AGENT_TOOL_CATALOG)).not.toContain("record_no_action");

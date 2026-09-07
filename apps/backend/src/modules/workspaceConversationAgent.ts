@@ -12,6 +12,7 @@ import {
   type AgentProvider,
   type AgentProviderResult,
   type AgentToolResult,
+  type ConversationMessage,
 } from "@talent-signal/agent";
 import type {
   ChatResponseBlock,
@@ -31,6 +32,7 @@ export type WorkspaceContactSearchResult = {
   displayLabel: string;
   directoryRevision: number;
   contexts: Array<{ id: string; displayLabel: string }>;
+  exactIdentityMatch?: boolean;
 };
 
 export interface WorkspaceContactLookup {
@@ -52,7 +54,7 @@ function uniquelyGroundedScope(
   const pairs = results.flatMap((person) =>
     person.contexts.map((context) => ({ person, context })),
   );
-  if (pairs.length === 1) {
+  if (results.length === 1 && pairs.length === 1) {
     return scopeKey(pairs[0]!.person.personID, pairs[0]!.context.id);
   }
   const normalizedObjective = normalized(objective);
@@ -64,11 +66,12 @@ function uniquelyGroundedScope(
     const match = contextMatches[0]!;
     return scopeKey(match.person.personID, match.context.id);
   }
-  const exactPersonPairs = pairs.filter(({ person }) => {
+  const namedPeople = results.filter((person) => {
     const label = normalized(person.displayLabel);
     return label.length >= 2 && normalizedObjective.includes(label);
   });
-  if (exactPersonPairs.length === 1) {
+  const exactPersonPairs = pairs.filter(({ person }) => namedPeople.includes(person));
+  if (namedPeople.length === 1 && exactPersonPairs.length === 1) {
     const match = exactPersonPairs[0]!;
     return scopeKey(match.person.personID, match.context.id);
   }
@@ -86,7 +89,49 @@ function normalized(value: string): string {
 }
 
 function isGroundedExcerpt(excerpt: string, objective: string): boolean {
-  return normalized(objective).includes(normalized(excerpt));
+  return excerpt.trim().length > 0 && objective.includes(excerpt.trim());
+}
+
+function authoredNote(objective: string): string {
+  return objective
+    .replace(/```[\s\S]*?```/gu, " ")
+    .replace(/^\s*>.*$/gmu, " ")
+    .replace(/[“「『][\s\S]*?[”」』]/gu, " ")
+    .replace(/"[^"\n]*"/gu, " ");
+}
+
+function explicitContactChange(objective: string): boolean {
+  const note = authoredNote(objective).replace(/https?:\/\/\S+|[^\s@]+@[^\s@]+/gu, " ");
+  if (/\b(?:how|why|what|when|where)\b|如何|怎么|为什么/iu.test(note)) return false;
+  if (/不要|别(?:添加|创建|保存|更新)|do\s+not|don['’]t|never/iu.test(note)) return false;
+  return /^\s*(?:(?:please|can you|could you|would you|will you)\s+)*(?:create|add|save|update|record|register)\b/iu.test(note)
+    || /^\s*(?:创建|新增|添加|保存|更新|建档|录入|记下)/u.test(note)
+    || /^\s*(?:请|帮我|麻烦|我想|我要)[\s\S]{0,200}(?:创建|新增|添加|保存|更新|建档|录入|记下)/u.test(note);
+}
+
+function validStableClue(clue: { type: string; value: string }): boolean {
+  if (clue.type === "email") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(clue.value);
+  if (clue.type === "phone") {
+    const digits = clue.value.replace(/\D/gu, "");
+    return /^[+\d\s().-]+$/u.test(clue.value) && digits.length >= 7 && digits.length <= 15;
+  }
+  try {
+    const url = new URL(clue.value);
+    return ["https:", "http:"].includes(url.protocol) && url.hostname.includes(".")
+      && !url.username && !url.password
+      && (clue.type !== "linkedin_url" || /(^|\.)linkedin\.com$/iu.test(url.hostname));
+  } catch { return false; }
+}
+
+function permitsContactDraft(objective: string, name: string, clue: { type: string; value: string } | null): boolean {
+  if (/不要|别(?:添加|创建|保存|更新)|do\s+not|don['’]t|never/iu.test(authoredNote(objective))) return false;
+  if (explicitContactChange(objective)) return true;
+  const note = authoredNote(objective);
+  if (!clue || !isGroundedExcerpt(name, note) || !isGroundedExcerpt(clue.value, note)) return false;
+  const framing = note.replaceAll(clue.value, " ").replaceAll(name, " ");
+  return !/[?？]/u.test(framing)
+    && !/\b(?:what|why|how|who|example|hypothetical|suppose|says?|said|wrote|quoted?)\b/iu.test(framing)
+    && !/(?:什么|怎么|如何|是否|假设|例如|举例|示例|说[：:道]|引用|转发|不要|别保存|别添加)/u.test(framing);
 }
 
 function toolFailure(
@@ -125,10 +170,14 @@ export async function executeWorkspaceConversationAgentCore(input: {
   workspaceID: string;
   contacts: WorkspaceContactLookup;
   sessionID?: string | null;
+  messageID?: string;
+  conversationHistory?: readonly ConversationMessage[];
   promptSnapshot?: PromptSnapshot;
 }): Promise<WorkspaceConversationAgentExecution> {
   const searchResults = new Map<string, WorkspaceContactSearchResult>();
   const readableScopes = new Set<string>();
+  const updateablePeople = new Set<string>();
+  const sourceMessageID = input.messageID ?? randomUUID();
   const runState: {
     readScope: { personID: string; contextID: string } | null;
     proposal: WorkspaceConversationAgentEvent | null;
@@ -183,9 +232,16 @@ export async function executeWorkspaceConversationAgentCore(input: {
           "Search requires one specific clue grounded in the current user message.",
         );
       }
-      const results = (await input.contacts.search(request.query)).slice(0, request.maximum_results);
+      const matches = await input.contacts.search(request.query);
+      const results = matches.slice(0, request.maximum_results);
       for (const result of results) searchResults.set(result.personID, result);
-      const readableScope = uniquelyGroundedScope(results, input.objective);
+      const exactMatches = matches.filter((person) =>
+        person.exactIdentityMatch || normalized(person.displayLabel) === query,
+      );
+      if (exactMatches.length === 1 && results.some((person) => person.personID === exactMatches[0]!.personID)) {
+        updateablePeople.add(exactMatches[0]!.personID);
+      }
+      const readableScope = uniquelyGroundedScope(matches, input.objective);
       if (readableScope) readableScopes.add(readableScope);
       return {
         ok: true,
@@ -193,11 +249,12 @@ export async function executeWorkspaceConversationAgentCore(input: {
         name,
         data: {
           operation: "search",
-          result_count: results.length,
+          result_count: matches.length,
           results: results.map((result) => ({
             person_id: result.personID,
             display_label: result.displayLabel,
             directory_revision: result.directoryRevision,
+            exact_identity_match: updateablePeople.has(result.personID),
             relationship_contexts: result.contexts.map((context) => ({
               id: context.id,
               display_label: context.displayLabel,
@@ -282,6 +339,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
         || Boolean(existingContext);
       if (
         !result ||
+        !updateablePeople.has(request.person_id) ||
         !contextAllowed ||
         request.base_revision !== result.directoryRevision
       ) {
@@ -296,7 +354,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
       const relationshipContextAllowed = existingContext
         ? normalized(request.relationship_context) ===
           normalized(existingContext.displayLabel)
-        : isGroundedExcerpt(request.relationship_context, input.objective);
+        : !request.relationship_context || isGroundedExcerpt(request.relationship_context, input.objective);
       if (!displayNameAllowed || !relationshipContextAllowed) {
         return toolFailure(
           name,
@@ -306,7 +364,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
       }
     } else if (
       !isGroundedExcerpt(request.display_name, input.objective) ||
-      !isGroundedExcerpt(request.relationship_context, input.objective)
+      (request.relationship_context !== "" && !isGroundedExcerpt(request.relationship_context, input.objective))
     ) {
       return toolFailure(
         name,
@@ -317,7 +375,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
 
     if (
       request.identity_clue &&
-      !isGroundedExcerpt(request.identity_clue.value, input.objective)
+      (!isGroundedExcerpt(request.identity_clue.value, input.objective) || !validStableClue(request.identity_clue))
     ) {
       return toolFailure(
         name,
@@ -326,16 +384,35 @@ export async function executeWorkspaceConversationAgentCore(input: {
       );
     }
 
+    if (!permitsContactDraft(input.objective, request.display_name, request.identity_clue)) {
+      return toolFailure(name, "CONTACT_PROPOSAL_INTENT_UNGROUNDED",
+        "Prepare a draft only for an authored person note with a name and stable clue, or an explicit contact-change request.");
+    }
+    const proposedFields = [request.operation === "propose_create" ? request.display_name : null,
+      request.identity_clue?.value,
+      request.operation === "propose_create" || request.relationship_context_id === null
+        ? request.relationship_context : null].filter(Boolean) as string[];
+    if (proposedFields.some((value) => !request.source_excerpts.some((excerpt) => excerpt.includes(value)))) {
+      return toolFailure(name, "CONTACT_PROPOSAL_SOURCE_INCOMPLETE",
+        "Source excerpts must include each proposed name, identity clue, and new relationship field.");
+    }
+
     const possibleDuplicates = request.operation === "propose_create"
       ? (
           await input.contacts.search(request.identity_clue?.value ?? request.display_name)
         ).slice(0, 6)
       : [];
+    if (possibleDuplicates.some((person) => person.exactIdentityMatch
+      || normalized(person.displayLabel) === normalized(request.display_name))) {
+      return toolFailure(name, "CONTACT_CREATE_TARGET_ALREADY_EXISTS",
+        "An exact contact candidate already exists. Search its current identity clue and prepare an update only if uniquely resolved; otherwise clarify.");
+    }
 
     const candidateFingerprint = fingerprint({
       operation: request.operation,
       payload: request,
       accountID: input.workspaceID,
+      sourceMessageID,
     });
     runState.proposal = {
       kind: "contact_change_proposal",
@@ -346,6 +423,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
       relationship_context: request.relationship_context,
       identity_clue: request.identity_clue,
       source_excerpts: request.source_excerpts,
+      source_message_id: sourceMessageID,
       reason: request.reason,
       target_person_id:
         request.operation === "propose_update" ? request.person_id : null,
@@ -384,6 +462,7 @@ export async function executeWorkspaceConversationAgentCore(input: {
       {
         runID: randomUUID(),
         objective: input.objective,
+        conversationHistory: input.conversationHistory ?? [],
         systemPrompt: snapshot.text,
         scopeSummary: {
           kind: "workspace_conversation",
@@ -525,6 +604,8 @@ export async function executeWorkspaceConversationAgent(input: {
   objective: string;
   provider: AgentProvider;
   sessionID?: string | null;
+  messageID?: string;
+  conversationHistory?: readonly ConversationMessage[];
 }): Promise<WorkspaceConversationAgentExecution> {
   const contacts: WorkspaceContactLookup = {
     search: async (query) => {
@@ -537,6 +618,7 @@ export async function executeWorkspaceConversationAgent(input: {
           id: context.id,
           displayLabel: context.display_label,
         })),
+        exactIdentityMatch: person.identity_matches.some((match) => match.kind === "confirmed_handle"),
       }));
     },
     read: async (personID, contextID) => {
@@ -559,6 +641,8 @@ export async function executeWorkspaceConversationAgent(input: {
     provider: input.provider,
     workspaceID: input.auth.accountId,
     contacts,
+    ...(input.messageID === undefined ? {} : { messageID: input.messageID }),
+    ...(input.conversationHistory === undefined ? {} : { conversationHistory: input.conversationHistory }),
     ...(input.sessionID === undefined ? {} : { sessionID: input.sessionID }),
   });
 }

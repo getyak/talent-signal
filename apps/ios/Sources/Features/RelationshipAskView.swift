@@ -347,6 +347,11 @@ private enum AskFailureRecovery: Equatable {
     }
 }
 
+private struct AskSessionSynchronizationFailure: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
+}
+
 private enum VoiceRibbonMode: Equatable {
     case idle
     case pressToDraft
@@ -370,7 +375,9 @@ struct RelationshipAskView: View {
         _ personID: String,
         _ contextID: String,
         _ idempotencyKey: String,
-        _ mediaIDs: [String]
+        _ mediaIDs: [String],
+        _ sessionID: UUID?,
+        _ messageID: UUID?
     ) async throws -> RelationshipAskResponse
     let saveContact: (
         _ draft: ConversationContactDraft,
@@ -388,6 +395,7 @@ struct RelationshipAskView: View {
         _ idempotencyKey: String
     ) async throws -> PursuitEvidenceReviewResult
     let revalidateSessions: () async -> Void
+    var synchronizeSessions: (_ requiredSessionID: UUID?) async -> Bool = { _ in true }
     let onOpenProposal: (WorkspaceProposal) -> Void
     let onCapture: (RelationshipAskCaptureAction) -> Void
     let onOpenPerson: (String) -> Void
@@ -413,6 +421,7 @@ struct RelationshipAskView: View {
     @State private var isHomeAttachmentChooserPresented = false
     @State private var mediaDrafts: [AskMediaDraft] = []
     @State private var screenshotContactTask: ScreenshotContactTask?
+    @State private var screenshotTasks: [String: ScreenshotContactTask] = [:]
     @State private var screenshotContactRequest: ScreenshotContactTaskBody?
     @State private var showScreenshotHistory = false
     @State private var mediaNotice: String?
@@ -462,6 +471,8 @@ struct RelationshipAskView: View {
     @State private var voiceHoldActivated = false
     @State private var voiceGestureStartedInControl = false
     @State private var voiceQuickControlFrame = CGRect.zero
+    @State private var voiceTextInputFrame = CGRect.zero
+    @State private var sessionActionError: String?
     @State private var voiceReleasePending = false
     @State private var voiceTapSuppressed = false
     @State private var voiceStopRequested = false
@@ -477,8 +488,7 @@ struct RelationshipAskView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
                 if isNewSessionEntry {
                     newSessionHeader
                     if isHomeAttachmentChooserPresented {
@@ -505,7 +515,6 @@ struct RelationshipAskView: View {
                         Spacer(minLength: 14)
                     }
                 } else {
-                    chatHeader
                     if shouldShowScopeBar,
                        contactDraft == nil || contactSaveMessage != nil,
                        !usesScrollableScopeBar {
@@ -523,9 +532,23 @@ struct RelationshipAskView: View {
                     : .spring(response: 0.42, dampingFraction: 0.88),
                 value: isNewSessionEntry
             )
-            .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle(appLanguage.text("Session"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(isNewSessionEntry ? .hidden : .visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if !isNewSessionEntry { sessionMenu }
+            }
         }
         .tint(.tsInk)
+        .alert(appLanguage.text("Session"), isPresented: Binding(
+            get: { sessionActionError != nil },
+            set: { if !$0 { sessionActionError = nil } }
+        )) {
+            Button(appLanguage.text("OK"), role: .cancel) {}
+        } message: {
+            Text(sessionActionError ?? "")
+        }
         .sheet(isPresented: $showScreenshotHistory) {
             ScreenshotContactHistoryView(workspaceStore: workspaceStore, onOpenPerson: onOpenPerson)
         }
@@ -667,12 +690,49 @@ struct RelationshipAskView: View {
                     isChoosingScope = true
                 }
             }
+#if DEBUG
+            let fixtureEnvironment = ProcessInfo.processInfo.environment
+            let isFixturePreview = !isCanonical
+                && fixtureEnvironment["TS_IOS_UI_TEST_PREVIEW_WORKSPACE"] == "true"
+            let completedScreenshotArgument = ProcessInfo.processInfo.arguments.contains("--fixture-get-5-completed-screenshot")
+            let completedScreenshotEnvironment = fixtureEnvironment["TS_IOS_UI_TEST_GET5_COMPLETED_SCREENSHOT"] == "true"
+            let completedScreenshotRequested = isFixturePreview
+                && (completedScreenshotArgument || completedScreenshotEnvironment)
+            if isFixturePreview {
+                // Boolean-only diagnostics distinguish launch delivery from
+                // fixture seeding without logging arguments or evidence.
+                print("GET5 screenshot fixture: argument=\(completedScreenshotArgument) environment=\(completedScreenshotEnvironment) emptyEntry=\(activeSessionID == nil) cancelled=\(Task.isCancelled)")
+            }
+            if completedScreenshotRequested, activeSessionID == nil {
+                seedCompletedScreenshotFixture()
+                print("GET5 screenshot fixture seeded: session=\(activeSessionID != nil) task=\(screenshotContactTask != nil) error=\(errorMessage != nil)")
+            }
+            if ProcessInfo.processInfo.arguments.contains("--fixture-get-5-interrupted-screenshot"), activeSessionID == nil {
+                let objective = "Review the synthetic screenshot."
+                activeSessionID = sessionStore.beginUnscopedSession(objective: objective)
+                if let activeSessionID {
+                    _ = sessionStore.beginScreenshotAdmission(
+                        sessionID: activeSessionID, objective: objective,
+                        requestIdentity: String(repeating: "a", count: 64),
+                        proposedIdempotencyKey: "ios:contact-agent:00000000-0000-4000-8000-000000000005"
+                    )
+                }
+            }
+#endif
             restoreContactProposal()
-            restoreDraft(preferred: initialSeed?.suggestedObjective)
+            await restoreScreenshotTasks()
+            restoreDraft(preferred: sessionStore.session(id: activeSessionID)?.pendingObjective ?? initialSeed?.suggestedObjective)
+            if hasPendingScreenshotAdmission {
+                draft = ""
+                composerFocused = false
+            }
             if let sessionID,
                let session = sessionStore.session(id: sessionID),
                session.isUnresolvedIntent,
-               !session.hasPendingPersonResearch,
+               AskScreenshotAdmissionPolicy.canResumeAsText(
+                   hasPendingScreenshotAdmission: session.hasPendingScreenshotAdmission,
+                   hasPendingPersonResearch: session.hasPendingPersonResearch
+               ),
                let recoverableObjective = session.pendingObjective,
                !recoverableObjective.trimmingCharacters(
                    in: .whitespacesAndNewlines
@@ -700,6 +760,7 @@ struct RelationshipAskView: View {
                 }
             }
             if sessionID == nil,
+               activeSessionID == nil,
                initialSeed == nil,
                contactDraft == nil,
                preferredPersonID == nil {
@@ -726,8 +787,40 @@ struct RelationshipAskView: View {
                 await revalidateAndDismissUnavailableCitation()
             }
         }
+        .task(id: screenshotPollingKey) {
+            guard !isSending, let ownerSessionID = activeSessionID else { return }
+            let taskIDs = screenshotTasks.values.filter { $0.status == "running" }.map(\.taskID)
+            guard !taskIDs.isEmpty else { return }
+            do {
+                while !Task.isCancelled {
+                    try await Task.sleep(for: .seconds(2))
+                    for taskID in taskIDs {
+                        let current = try await workspaceStore.loadScreenshotContactTask(id: taskID)
+                        try Task.checkCancellation()
+                        guard AskScreenshotResponseOwner(sessionID: ownerSessionID, taskID: taskID)
+                            .accepts(currentSessionID: activeSessionID, responseTaskID: current.taskID) else { return }
+                        recordScreenshotResult(current, expectedSessionID: ownerSessionID)
+                    }
+                    if !screenshotTasks.values.contains(where: { $0.status == "running" }) { return }
+                }
+            } catch {
+                if !Task.isCancelled, activeSessionID == ownerSessionID { sourceReviewNotice = appLanguage.text("A screenshot result could not be refreshed. Its saved message remains available.") }
+            }
+        }
         .onChange(of: selectedCitationIsCurrent) { isCurrent in
             if !isCurrent { selectedCitation = nil }
+        }
+        .onChange(of: sessionStore.session(id: activeSessionID)?.updatedAt) { _ in
+            guard !isSending else { return }
+            Task { _ = await synchronizeSessions(nil) }
+        }
+        .onChange(of: isSending) { sending in
+            if !sending {
+                if let activeSessionID, draft.isEmpty {
+                    _ = sessionStore.clearDraft(sessionID: activeSessionID)
+                }
+                Task { _ = await synchronizeSessions(nil) }
+            }
         }
         .onChange(of: draft) { value in
             guard !isSending else { return }
@@ -839,6 +932,7 @@ struct RelationshipAskView: View {
                 )
             )
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("relationship-ask-screen")
         .labDiagnosticPresentation()
 #if DEBUG
@@ -910,7 +1004,7 @@ struct RelationshipAskView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(isSending)
+            .disabled(isSending || hasPendingScreenshotAdmission)
             .frame(
                 maxWidth: .infinity,
                 minHeight: scopeSelectorMinimumHeight,
@@ -1092,12 +1186,6 @@ struct RelationshipAskView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
-                    if let screenshotContactTask {
-                        ScreenshotContactCard(task: screenshotContactTask, language: appLanguage, onOpenPerson: onOpenPerson,
-                            onResume: { body in resumeScreenshotContact(body) },
-                            onCancel: { cancelScreenshotContact() },
-                            onLoadImage: { index in try await workspaceStore.loadScreenshotContactImage(taskID: screenshotContactTask.taskID, index: index) })
-                    }
                     if shouldShowScopeBar,
                        contactDraft == nil || contactSaveMessage != nil,
                        usesScrollableScopeBar {
@@ -1114,31 +1202,6 @@ struct RelationshipAskView: View {
                     if conversationItems.isEmpty, contactDraft == nil, screenshotContactTask == nil {
                         starterGrid
                             .padding(.top, 24)
-                    }
-
-                    if let contactDraft {
-                        ConversationContactProposalTurn(
-                            draft: contactDraftBinding(fallback: contactDraft),
-                            candidates: contactCandidates,
-                            lookupPhase: contactLookupPhase,
-                            selectedPersonID: $selectedContactPersonID,
-                            selectedContextID: $selectedContactContextID,
-                            createDistinct: $createDistinctContact,
-                            saveForIdentityReview: $saveContactForIdentityReview,
-                            confirmIdentityClue: $confirmContactIdentityClue,
-                            hasPendingWrite: pendingContactTarget != nil,
-                            isSaving: isSavingContact,
-                            saveMessage: contactSaveMessage,
-                            errorMessage: contactSaveError,
-                            isCanonical: isCanonical,
-                            language: appLanguage,
-                            onConfirm: saveContactProposal,
-                            onRetryLookup: {
-                                startContactLookup(for: contactDraft)
-                            },
-                            onCancel: clearContactProposal
-                        )
-                        .id("contact-proposal-turn")
                     }
 
                     if !conversationItems.isEmpty {
@@ -1201,11 +1264,65 @@ struct RelationshipAskView: View {
                                 },
                                 onReviewPublicProfile: { source in
                                     stagePublicProfileReview(source)
+                                },
+                                screenshotTask: screenshotTasks[turn.response.taskID],
+                                loadScreenshotImage: { taskID, index in
+                                    try await workspaceStore.loadScreenshotContactImage(taskID: taskID, index: index)
+                                },
+                                onResumeScreenshot: { task, body in resumeScreenshotContact(task, body: body) },
+                                onCancelScreenshot: { task in cancelScreenshotContact(task) },
+                                onOpenPerson: onOpenPerson,
+                                canRegenerate: !isSending && !hasBlockingContactProposal
+                                    && draft.isEmpty && mediaDrafts.isEmpty
+                                    && !voiceInput.isBusy && turn.response.media.isEmpty
+                                    && !turn.response.blocks.contains { $0.kind == "screenshot_processing" || $0.kind == "contact_proposal" },
+                                onRegenerate: { send(turn.objective) },
+                                onFeedback: { feedback in
+                                    guard let activeSessionID,
+                                          sessionStore.toggleFeedback(
+                                            sessionID: activeSessionID,
+                                            turnID: turn.id,
+                                            feedback: feedback
+                                          ) else {
+                                        sessionActionError = appLanguage.text("Feedback could not be saved. Try again.")
+                                        return
+                                    }
                                 }
                             )
                                 .id(item.id)
                             }
                         }
+                    }
+
+                    if hasPendingScreenshotAdmission, !isSending {
+                        screenshotAdmissionRecovery
+                            .id("ask-screenshot-admission-recovery")
+                    }
+
+                    if let contactDraft {
+                        ConversationContactProposalTurn(
+                            draft: contactDraftBinding(fallback: contactDraft),
+                            candidates: contactCandidates,
+                            lookupPhase: contactLookupPhase,
+                            selectedPersonID: $selectedContactPersonID,
+                            selectedContextID: $selectedContactContextID,
+                            createDistinct: $createDistinctContact,
+                            saveForIdentityReview: $saveContactForIdentityReview,
+                            confirmIdentityClue: $confirmContactIdentityClue,
+                            hasPendingWrite: pendingContactTarget != nil,
+                            isSaving: isSavingContact,
+                            saveMessage: contactSaveMessage,
+                            errorMessage: contactSaveError,
+                            isCanonical: isCanonical,
+                            isCurrent: isContactProposalCurrent,
+                            language: appLanguage,
+                            onConfirm: saveContactProposal,
+                            onRetryLookup: {
+                                if let current = self.contactDraft { startContactLookup(for: current) }
+                            },
+                            onCancel: clearContactProposal
+                        )
+                        .id("contact-proposal-turn")
                     }
 
                     if let pendingObjective {
@@ -1269,6 +1386,7 @@ struct RelationshipAskView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("ask-conversation")
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
@@ -1379,7 +1497,9 @@ struct RelationshipAskView: View {
                 .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(
-                        errorRecovery.needsSourceAttention
+                        screenshotAdmissionCapacityNotice != nil
+                            ? appLanguage.text("Session history is full")
+                            : errorRecovery.needsSourceAttention
                             ? appLanguage.text("Review one source to continue")
                             : appLanguage.text("This answer did not complete")
                     )
@@ -1392,7 +1512,7 @@ struct RelationshipAskView: View {
                 }
             }
 
-            if isCanonical {
+            if isCanonical, screenshotAdmissionCapacityNotice == nil {
                 switch errorRecovery {
                 case .retry:
                     Button(appLanguage.text("Try again")) {
@@ -1448,17 +1568,6 @@ struct RelationshipAskView: View {
         let controlSize = composerControlSize
 
         return VStack(spacing: 8) {
-            if isCanonical {
-                HStack {
-                    if !mediaDrafts.isEmpty {
-                        Text(appLanguage.text("Send to file messages and sourced contact context. Identity ambiguity pauses for you."))
-                            .font(.caption2).foregroundStyle(Color.tsMutedInk)
-                    }
-                    Spacer(minLength: 8)
-                    Button(appLanguage.text("Screenshot tasks")) { showScreenshotHistory = true }
-                        .font(.caption2).accessibilityIdentifier("screenshot-contact-history")
-                }
-            }
             askSubmissionStatus
             if !voiceInput.isRecording && voiceInput.phase != .transcribing {
                 voiceInputStatus
@@ -1506,7 +1615,27 @@ struct RelationshipAskView: View {
                 voiceQuickControlFrame = frame
             }
         }
-        .simultaneousGesture(voiceHoldGesture)
+        .onPreferenceChange(VoiceTextInputFramePreferenceKey.self) { frame in
+            voiceTextInputFrame = frame
+        }
+        .overlay {
+            AskVoiceHoldSurface(
+                inputFrame: voiceTextInputFrame,
+                voiceControlFrame: voiceQuickControlFrame,
+                draft: draft,
+                hasAttachments: !mediaDrafts.isEmpty,
+                isComposing: isComposerComposing,
+                isDisabled: composerInputDisabled || hasPendingScreenshotAdmission,
+                onTapInput: { composerFocused = true },
+                onTapVoice: { requestVoiceInput(mode: .locked) },
+                onHoldBegan: beginVoiceHold,
+                onHoldChanged: updateVoiceHold,
+                onHoldEnded: endVoiceHold
+            )
+            .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-message-composer")
     }
 
     private var compactMarkdownComposer: some View {
@@ -1650,8 +1779,8 @@ struct RelationshipAskView: View {
                 )
             }
         }
-        .disabled(composerInputDisabled || hasComposerInput)
-        .opacity(composerInputDisabled || hasComposerInput ? 0.28 : 1)
+        .disabled(composerInputDisabled || !draft.isEmpty || !mediaDrafts.isEmpty || isComposerComposing || hasPendingScreenshotAdmission)
+        .opacity(composerInputDisabled || !draft.isEmpty || !mediaDrafts.isEmpty || isComposerComposing || hasPendingScreenshotAdmission ? 0.28 : 1)
         .accessibilityLabel(appLanguage.text("Hold to talk"))
         .accessibilityHint(
             appLanguage.text(
@@ -1767,7 +1896,6 @@ struct RelationshipAskView: View {
                     lineWidth: 1
                 )
         }
-        .simultaneousGesture(voiceHoldGesture)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
@@ -1818,7 +1946,7 @@ struct RelationshipAskView: View {
             guard hasComposerInput, !composerPrimaryDisabled else { return }
             composerPrimaryAction()
         }
-        .disabled(composerInputDisabled)
+        .disabled(composerInputDisabled || hasPendingScreenshotAdmission)
         .padding(.horizontal, horizontalPadding)
         .padding(.vertical, verticalPadding)
         .frame(
@@ -1841,6 +1969,15 @@ struct RelationshipAskView: View {
             }
             .frame(width: 0, height: 0)
         }
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: VoiceTextInputFramePreferenceKey.self,
+                    value: proxy.frame(in: .global)
+                )
+            }
+        }
+        .accessibilityHint(appLanguage.text("When empty, hold anywhere in the input to talk. Release to review your words before sending."))
         .accessibilityIdentifier("ask-composer")
     }
 
@@ -2300,7 +2437,8 @@ struct RelationshipAskView: View {
             voiceInput.reportUnavailable()
             return
         }
-        guard !hasComposerInput, !isSending else { return }
+        guard draft.isEmpty, mediaDrafts.isEmpty, !isComposerComposing, !composerInputDisabled,
+              !hasPendingScreenshotAdmission else { return }
         voiceRibbonMode = mode
         guard hasAcceptedVoiceDisclosure else {
             voiceRibbonMode = .locked
@@ -2354,70 +2492,53 @@ struct RelationshipAskView: View {
         }
     }
 
-    private var voiceHoldGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.42, maximumDistance: 32)
-            .simultaneously(
-                with: DragGesture(minimumDistance: 0, coordinateSpace: .global)
-            )
-            .onChanged { value in
-                if !voiceGestureStartedInControl,
-                   let drag = value.second,
-                   voiceQuickControlFrame.contains(drag.startLocation) {
-                    voiceGestureStartedInControl = true
-                }
-                guard voiceGestureStartedInControl else { return }
-                guard (!hasComposerInput && !composerInputDisabled)
-                        || voiceInput.isRecording else { return }
-                if value.first == true, !voiceHoldActivated {
-                    voiceHoldActivated = true
-                    voiceTapSuppressed = true
-                    voiceRibbonMode = .pressToDraft
-                    requestVoiceInput(mode: .pressToDraft)
-                }
-                if voiceHoldActivated, let drag = value.second {
-                    let translation = drag.translation
-                    if translation.width <= -72 {
-                        voiceRibbonMode = .cancelling
-                    } else if translation.height <= -56 {
-                        voiceRibbonMode = .locked
-                    } else {
-                        voiceRibbonMode = .pressToDraft
-                    }
-                }
+    private func beginVoiceHold() {
+        guard draft.isEmpty, mediaDrafts.isEmpty, !isComposerComposing,
+              !composerInputDisabled, !hasPendingScreenshotAdmission else { return }
+        voiceHoldActivated = true
+        voiceTapSuppressed = true
+        voiceGestureStartedInControl = true
+        voiceRibbonMode = .pressToDraft
+        requestVoiceInput(mode: .pressToDraft)
+    }
+
+    private func updateVoiceHold(_ translation: CGSize) {
+        guard voiceHoldActivated else { return }
+        if translation.width <= -72 {
+            voiceRibbonMode = .cancelling
+        } else if translation.height <= -56 {
+            voiceRibbonMode = .locked
+        } else {
+            voiceRibbonMode = .pressToDraft
+        }
+    }
+
+    private func endVoiceHold(cancelled: Bool) {
+        guard voiceGestureStartedInControl else { return }
+        voiceGestureStartedInControl = false
+        guard voiceHoldActivated else { return }
+        voiceHoldActivated = false
+        defer { voiceTapSuppressed = false }
+        if cancelled {
+            cancelVoiceInput()
+            return
+        }
+        switch voiceRibbonMode {
+        case .cancelling:
+            cancelVoiceInput()
+        case .locked:
+            voiceHaptic(.soft)
+        case .pressToDraft, .idle:
+            if voiceInput.isRecording {
+                finishVoiceInputForReview()
+            } else if voiceInput.phase == .requestingPermission {
+                voiceReleasePending = true
+            } else {
+                // First-use permission may outlive the gesture. Its explicit
+                // confirmation owns a hands-free start after this touch ends.
+                voiceRibbonMode = .locked
             }
-            .onEnded { value in
-                guard voiceGestureStartedInControl else { return }
-                voiceGestureStartedInControl = false
-                guard voiceHoldActivated else {
-                    return
-                }
-                voiceHoldActivated = false
-                defer {
-                    Task { @MainActor in
-                        await Task.yield()
-                        voiceTapSuppressed = false
-                    }
-                }
-                switch voiceRibbonMode {
-                case .cancelling:
-                    cancelVoiceInput()
-                case .locked:
-                    voiceHaptic(.soft)
-                case .pressToDraft, .idle:
-                    if voiceInput.isRecording {
-                        finishVoiceInputForReview()
-                    } else if voiceInput.phase == .requestingPermission {
-                        // A quick release can beat audio-engine startup. Finish
-                        // as soon as capture becomes ready instead of turning a
-                        // deliberate hold into a hands-free recording.
-                        voiceReleasePending = true
-                    } else {
-                        // Permission and first-use sheets can outlive the finger.
-                        // Continue hands-free instead of producing an empty clip.
-                        voiceRibbonMode = .locked
-                    }
-                }
-            }
+        }
     }
 
     private func voiceHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
@@ -2457,7 +2578,9 @@ struct RelationshipAskView: View {
     }
 
     private func persistDraft(_ value: String) {
-        if let selectedScope {
+        if let activeSessionID {
+            _ = sessionStore.saveDraft(value, sessionID: activeSessionID)
+        } else if let selectedScope {
             sessionStore.saveDraft(
                 value,
                 personID: selectedScope.person.id,
@@ -2519,39 +2642,57 @@ struct RelationshipAskView: View {
         .accessibilityIdentifier("ask-new-session-header")
     }
 
-    private var chatHeader: some View {
-        HStack(spacing: 10) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.body.weight(.medium))
-                    .frame(width: 48, height: 48)
-                    .contentShape(Rectangle())
+    private var sessionMenu: some View {
+        Menu {
+            if let activeSessionID,
+               let markdown = sessionStore.exportMarkdown(
+                   sessionID: activeSessionID, language: appLanguage
+               ) {
+                ShareLink(item: markdown) {
+                    Label(appLanguage.text("Share Session"), systemImage: "square.and.arrow.up")
+                }
+                .accessibilityIdentifier("ask-share-session")
+                Button {
+                    forkCurrentSession()
+                } label: {
+                    Label(appLanguage.text("Fork Session"), systemImage: "arrow.triangle.branch")
+                }
+                .disabled(isSending || voiceInput.isBusy || hasBlockingContactProposal || hasPendingScreenshotAdmission)
+                .accessibilityIdentifier("ask-fork-session")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(appLanguage.text("Close", zhHans: "关闭"))
-            .accessibilityIdentifier("ask-close")
-
-            Spacer(minLength: 0)
-
-            Text(appLanguage.text("Session", zhHans: "会话"))
-                .font(.headline)
-                .foregroundStyle(Color.tsInk)
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-
-            Color.clear
-                .frame(width: 48, height: 48)
-                .accessibilityHidden(true)
+            if isCanonical {
+                Button { showScreenshotHistory = true } label: {
+                    Label(appLanguage.text("Screenshot history"), systemImage: "photo.stack")
+                }
+                .accessibilityIdentifier("screenshot-contact-history")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.body.weight(.medium))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
-        .padding(.horizontal, 12)
-        .padding(.top, usesAccessibilityLayout ? 2 : 6)
-        .padding(.bottom, 0)
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("ask-chat-header")
+        .accessibilityLabel(appLanguage.text("Session actions"))
+        .accessibilityIdentifier("ask-session-menu")
+    }
+
+    private func forkCurrentSession() {
+        guard let activeSessionID, !isSending, !hasBlockingContactProposal,
+              let forkID = sessionStore.forkSession(activeSessionID) else {
+            sessionActionError = appLanguage.text("The Session could not be forked. Try again.")
+            return
+        }
+        flushDraftPersistence()
+        self.activeSessionID = forkID
+        _ = sessionStore.saveDraft(draft, sessionID: forkID)
+        errorMessage = nil
+        screenshotTasks = [:]
+        screenshotContactTask = nil
+        sessionStore.markRead(forkID)
+        Task { await restoreScreenshotTasks() }
+        sourceReviewNotice = sessionStore.session(id: forkID)?.contextWasTrimmed == true
+            ? appLanguage.text("A recent portion of this Session was copied. The complete history remains in the original Session.")
+            : appLanguage.text("Session fork created. Continue here.")
     }
 
     private var usesAccessibilityLayout: Bool {
@@ -2758,6 +2899,9 @@ struct RelationshipAskView: View {
     }
 
     private var composerPlaceholder: String {
+        if hasPendingScreenshotAdmission {
+            return appLanguage.text("Reattach the same screenshots to continue")
+        }
         if hasBlockingContactProposal {
             return appLanguage.text("Finish reviewing the contact first")
         }
@@ -2768,6 +2912,17 @@ struct RelationshipAskView: View {
             return appLanguage.text("Ask about anyone or anything…")
         }
         return appLanguage.text("Reply…")
+    }
+
+    private var isContactProposalCurrent: Bool {
+        guard let contactOperationKey else { return false }
+        return sessionStore.isContactProposalCurrent(
+            sessionID: activeSessionID, idempotencyKey: contactOperationKey
+        )
+    }
+
+    private var endedContactProposalMessage: String {
+        appLanguage.text("This proposal has ended. Its source remains in the Session. Send a new message to review a current proposal.")
     }
 
     private var hasBlockingContactProposal: Bool {
@@ -2814,14 +2969,7 @@ struct RelationshipAskView: View {
         guard let session = sessionStore.session(id: activeSessionID) else {
             return []
         }
-        let hiddenOperationKey = contactSaveMessage == nil
-            ? nil
-            : contactOperationKey
-        let receiptItems = session.contactReceipts.compactMap { receipt in
-            receipt.operationKey == hiddenOperationKey
-                ? nil
-                : AgentConversationItem.contactReceipt(receipt)
-        }
+        let receiptItems = session.contactReceipts.map(AgentConversationItem.contactReceipt)
         return (receiptItems + session.turns.map(AgentConversationItem.ask))
             .sorted { lhs, rhs in
                 lhs.createdAt == rhs.createdAt
@@ -2989,7 +3137,7 @@ struct RelationshipAskView: View {
             mediaDrafts[index].routingText = recognizedText
         }
         mediaNotice = nil
-        if let selectedScope {
+        if let selectedScope, !hasPendingScreenshotAdmission {
             uploadMediaDraft(id, scope: selectedScope)
         }
     }
@@ -3125,7 +3273,14 @@ struct RelationshipAskView: View {
     ]
 
     private func send(_ objective: String) {
-        let trimmed = objective.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hasPendingScreenshotAdmission, mediaDrafts.isEmpty {
+            mediaNotice = appLanguage.text("Reattach the same screenshots to continue")
+            return
+        }
+        let submittedObjective = hasPendingScreenshotAdmission
+            ? sessionStore.session(id: activeSessionID)?.pendingObjective ?? objective
+            : objective
+        let trimmed = submittedObjective.trimmingCharacters(in: .whitespacesAndNewlines)
         guard AskInputCommitPolicy.canSubmit(
                 hasCommittedInput: !trimmed.isEmpty || !mediaDrafts.isEmpty,
                 isComposing: isComposerComposing
@@ -3167,6 +3322,11 @@ struct RelationshipAskView: View {
                     "Read the attached material. Tell me what changed, what remains uncertain, and the smallest safe next step."
                 )
             : trimmed
+        if let capacityNotice = screenshotAdmissionCapacityNotice {
+            errorMessage = capacityNotice
+            composerFocused = false
+            return
+        }
         if (selectedScope != nil || isUnscopedPersonResearch), !isCanonical {
             errorMessage = appLanguage.text(
                 "This is preview data, so no question was sent. Open a signed-in workspace connected to the backend, then try again."
@@ -3191,7 +3351,17 @@ struct RelationshipAskView: View {
                 personID: selectedScope.person.id,
                 relationshipContextID: selectedScope.context.id
             ) != true {
-                activeSessionID = UUID()
+                guard let created = sessionStore.beginSession(
+                    person: selectedScope.person, context: selectedScope.context,
+                    objective: effectiveObjective
+                ) else {
+                    draft = trimmed
+                    pendingObjective = nil
+                    isSending = false
+                    errorMessage = appLanguage.text("The Session could not be protected. Your message was not sent.")
+                    return
+                }
+                activeSessionID = created
             }
             pendingScopedSend = effectiveObjective
             relationshipRecallPhase = .reading(nil)
@@ -3245,83 +3415,303 @@ struct RelationshipAskView: View {
         )
     }
 
+    private func sessionSynchronizationFailure(_ sessionID: UUID) -> AskSessionSynchronizationFailure {
+        AskSessionSynchronizationFailure(message: sessionStore.syncNotice(sessionID: sessionID)
+            ?? appLanguage.text("The Session could not be synced. Try again."))
+    }
+
+    private var screenshotAdmissionCapacityNotice: String? {
+        guard let activeSessionID,
+              let notice = AskScreenshotAdmissionPolicy.newAdmissionCapacityNotice(
+                hasAttachments: !mediaDrafts.isEmpty,
+                hasPendingScreenshotAdmission: hasPendingScreenshotAdmission,
+                capacityNotice: sessionStore.screenshotAdmissionNotice(sessionID: activeSessionID)
+              ) else { return nil }
+        return appLanguage.text(notice)
+    }
+
     private func performScreenshotContact(media: [AskMediaDraft], objective: String, originalDraft: String) {
-        let proposed = ScreenshotContactTaskBody(idempotencyKey: "ios:contact-agent:\(UUID().uuidString.lowercased())", objective: objective,
-            images: media.map { .init(data: $0.data, mediaType: $0.mediaType) }, personID: selectedScope?.person.id, contextID: selectedScope?.context.id)
-        let previousHashes = screenshotContactRequest.map { [$0.image.contentHash] + ($0.additionalImages ?? []).map(\.contentHash) }
-        let proposedHashes = [proposed.image.contentHash] + (proposed.additionalImages ?? []).map(\.contentHash)
-        if previousHashes != proposedHashes || screenshotContactRequest?.objective != objective
-            || screenshotContactRequest?.selectedPersonID != proposed.selectedPersonID
-            || screenshotContactRequest?.selectedRelationshipContextID != proposed.selectedRelationshipContextID {
-            screenshotContactRequest = proposed
+        if activeSessionID == nil {
+            activeSessionID = selectedScope.map { scope in
+                sessionStore.beginSession(person: scope.person, context: scope.context, objective: objective)
+            } ?? sessionStore.beginUnscopedSession(objective: objective)
         }
-        guard let request = screenshotContactRequest else { return }
+        guard let activeSessionID else {
+            draft = originalDraft
+            pendingObjective = nil
+            isSending = false
+            errorMessage = appLanguage.text("The Session could not be protected. Your screenshot was not sent.")
+            return
+        }
+        let images = media.map { ScreenshotContactTaskBody.Image(data: $0.data, mediaType: $0.mediaType) }
+        guard let identity = AskScreenshotAdmissionPolicy.requestIdentity(
+            images: images, objective: objective, personID: selectedScope?.person.id,
+            relationshipContextID: selectedScope?.context.id
+        ), let operationKey = sessionStore.beginScreenshotAdmission(
+            sessionID: activeSessionID, objective: objective, requestIdentity: identity,
+            proposedIdempotencyKey: "ios:contact-agent:\(UUID().uuidString.lowercased())"
+        ), let capturedAt = sessionStore.session(id: activeSessionID)?.pendingScreenshotCapturedAt else {
+            draft = hasPendingScreenshotAdmission ? "" : originalDraft
+            pendingObjective = nil
+            isSending = false
+            errorMessage = screenshotAdmissionCapacityNotice
+                ?? appLanguage.text("Choose the same screenshots in the same order to recover the original task.")
+            return
+        }
+        let request = ScreenshotContactTaskBody(
+            idempotencyKey: operationKey, objective: objective, images: images,
+            personID: selectedScope?.person.id, contextID: selectedScope?.context.id,
+            capturedAt: capturedAt
+        )
+        screenshotContactRequest = request
         updateAskSubmissionPhase(.requestingWorkspaceAnswer)
         askOperation?.cancel()
         askOperation = Task {
             var accepted = false
             do {
+                guard await synchronizeSessions(activeSessionID) else { throw sessionSynchronizationFailure(activeSessionID) }
+                guard self.activeSessionID == activeSessionID, !Task.isCancelled else { return }
                 var response = try await workspaceStore.createScreenshotContactTask(request)
-                try Task.checkCancellation()
-                screenshotContactTask = response
+                guard AskScreenshotResponseOwner(sessionID: activeSessionID, taskID: nil)
+                    .accepts(currentSessionID: self.activeSessionID, responseTaskID: response.taskID) else { return }
+                guard recordScreenshotResult(response, expectedSessionID: activeSessionID, admissionIdempotencyKey: request.idempotencyKey) else {
+                    throw AskSessionSynchronizationFailure(message: appLanguage.text("Screenshot processing is available, but Session recovery could not be saved."))
+                }
                 accepted = true
+                try Task.checkCancellation()
                 screenshotContactRequest = nil
                 mediaDrafts = []
                 mediaNotice = nil
                 while response.status == "running" {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
-                    response = try await workspaceStore.loadScreenshotContactTask(id: response.taskID)
+                    let expectedTaskID = response.taskID
+                    response = try await workspaceStore.loadScreenshotContactTask(id: expectedTaskID)
                     try Task.checkCancellation()
-                    screenshotContactTask = response
+                    guard AskScreenshotResponseOwner(sessionID: activeSessionID, taskID: expectedTaskID)
+                        .accepts(currentSessionID: self.activeSessionID, responseTaskID: response.taskID) else { return }
+                    recordScreenshotResult(response, expectedSessionID: activeSessionID)
                 }
                 await workspaceStore.load()
+                guard self.activeSessionID == activeSessionID, !Task.isCancelled else { return }
+                bindScreenshotContact(response)
                 pendingObjective = nil
                 pendingScopedSend = nil
                 updateAskSubmissionPhase(.idle)
                 isSending = false
                 askOperation = nil
             } catch {
-                if Task.isCancelled { return }
-                draft = accepted ? "" : originalDraft
+                if Task.isCancelled || self.activeSessionID != activeSessionID { return }
+                draft = hasPendingScreenshotAdmission || accepted ? "" : originalDraft
                 pendingObjective = nil
                 updateAskSubmissionPhase(.idle)
                 isSending = false
-                presentAskFailure(error)
+                if hasPendingScreenshotAdmission {
+                    errorMessage = nil
+                    mediaNotice = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                } else {
+                    presentAskFailure(error)
+                }
                 askOperation = nil
             }
         }
     }
 
-    private func resumeScreenshotContact(_ body: ScreenshotContactResumeBody) {
-        guard let current = screenshotContactTask else { return }
+    private func resumeScreenshotContact(_ current: ScreenshotContactTask, body: ScreenshotContactResumeBody) {
+        guard !isSending, let ownerSessionID = activeSessionID,
+              screenshotTasks[current.taskID] != nil,
+              sessionStore.session(id: ownerSessionID)?.readOnlyScreenshotTaskIDs.contains(current.taskID) == false else { return }
+        let owner = AskScreenshotResponseOwner(sessionID: ownerSessionID, taskID: current.taskID)
         isSending = true
         askOperation?.cancel()
         askOperation = Task {
             do {
                 var response = try await workspaceStore.resumeScreenshotContactTask(id: current.taskID, body: body)
-                screenshotContactTask = response
+                guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: response.taskID), !Task.isCancelled else { return }
+                recordScreenshotResult(response, expectedSessionID: ownerSessionID)
                 while response.status == "running" {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
                     response = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
                     try Task.checkCancellation()
-                    screenshotContactTask = response
+                    guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: response.taskID) else { return }
+                    recordScreenshotResult(response, expectedSessionID: ownerSessionID)
                 }
                 await workspaceStore.load()
-            } catch { if !Task.isCancelled { presentAskFailure(error) } }
+                guard activeSessionID == ownerSessionID, !Task.isCancelled else { return }
+                bindScreenshotContact(response)
+            } catch {
+                guard activeSessionID == ownerSessionID, !Task.isCancelled else { return }
+                presentAskFailure(error)
+            }
             isSending = false
             askOperation = nil
         }
     }
 
-    private func cancelScreenshotContact() {
-        guard let current = screenshotContactTask else { return }
+    private func cancelScreenshotContact(_ current: ScreenshotContactTask) {
+        guard let ownerSessionID = activeSessionID, screenshotTasks[current.taskID] != nil,
+              sessionStore.session(id: ownerSessionID)?.readOnlyScreenshotTaskIDs.contains(current.taskID) == false else { return }
+        let owner = AskScreenshotResponseOwner(sessionID: ownerSessionID, taskID: current.taskID)
         Task {
             do {
                 let latest = try await workspaceStore.loadScreenshotContactTask(id: current.taskID)
-                screenshotContactTask = try await workspaceStore.cancelScreenshotContactTask(id: current.taskID, revision: latest.revision)
+                guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: latest.taskID), !Task.isCancelled else { return }
+                let cancelled = try await workspaceStore.cancelScreenshotContactTask(id: current.taskID, revision: latest.revision)
+                guard owner.accepts(currentSessionID: activeSessionID, responseTaskID: cancelled.taskID), !Task.isCancelled else { return }
+                recordScreenshotResult(cancelled, expectedSessionID: ownerSessionID)
                 askOperation?.cancel(); askOperation = nil; isSending = false
                 pendingObjective = nil; updateAskSubmissionPhase(.idle)
-            } catch { presentAskFailure(error) }
+            } catch {
+                guard activeSessionID == ownerSessionID, !Task.isCancelled else { return }
+                presentAskFailure(error)
+            }
+        }
+    }
+
+#if DEBUG
+    private func seedCompletedScreenshotFixture() {
+        let objective = "Review this synthetic screenshot."
+        guard let created = sessionStore.beginUnscopedSession(objective: objective) else {
+            errorMessage = appLanguage.text("The preview reply could not be saved.")
+            return
+        }
+        let task = ScreenshotContactTask(
+            sourceImages: [], taskID: "00000000-0000-4000-8000-000000000013",
+            revision: 1, status: "completed", contact: nil, captureID: nil,
+            sourceResourceID: nil, messageCount: 2,
+            extraction: .init(messages: [
+                .init(messageID: "synthetic-message-1", text: "Could we review the draft on Friday?",
+                      speakerSide: "left", timeText: nil, sourceImageIndex: nil),
+                .init(messageID: "synthetic-message-2", text: "I will check and reply.",
+                      speakerSide: "right", timeText: nil, sourceImageIndex: nil)
+            ], uncertainties: ["Friday has no confirmed date or time zone."]),
+            summary: "The source proposes reviewing a draft on Friday. **No action has been taken.**",
+            findings: [], profileFields: [], publicSources: [], question: nil,
+            candidates: [], limitations: ["Synthetic preview. No contact, source, or calendar was changed."],
+            events: []
+        )
+        activeSessionID = created
+        pendingObjective = objective
+        recordScreenshotResult(task, expectedSessionID: created)
+        composerFocused = false
+    }
+#endif
+
+    private var hasPendingScreenshotAdmission: Bool {
+        sessionStore.session(id: activeSessionID)?.hasPendingScreenshotAdmission == true
+    }
+
+    private var screenshotAdmissionRecovery: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let objective = sessionStore.session(id: activeSessionID)?.pendingObjective {
+                AskUserMessageBubble(message: objective)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            Label(appLanguage.text("Screenshot outcome needs checking"), systemImage: "photo.badge.exclamationmark")
+                .font(.subheadline.weight(.semibold))
+            Text(appLanguage.text("The screenshot may already be processing. Reattach the same images in the same order to check the original task. Its message will not be sent as text."))
+                .font(.caption).foregroundStyle(Color.tsMutedInk)
+            Button {
+                composerFocused = false
+                discardMediaDrafts()
+                selectedPhotoItems = []
+                isPhotoLibraryPresented = true
+            } label: {
+                Label(appLanguage.text("Reattach same screenshots"), systemImage: "photo.on.rectangle")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .accessibilityIdentifier("ask-reattach-admission-screenshots")
+            if !mediaDrafts.isEmpty {
+                Button { send("") } label: {
+                    Label(appLanguage.text("Check original screenshot task"), systemImage: "arrow.clockwise")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("ask-reconcile-screenshot-admission")
+            }
+        }
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-screenshot-admission-recovery")
+    }
+
+    private var screenshotPollingKey: String {
+        "\(activeSessionID?.uuidString ?? "none"):\(isSending):" + screenshotTasks.values.filter { $0.status == "running" }.map(\.taskID).sorted().joined(separator: ":")
+    }
+
+    private func bindScreenshotContact(_ task: ScreenshotContactTask) {
+        guard !hasPendingScreenshotAdmission,
+              let activeSessionID, let contact = task.contact,
+              let person = currentSnapshot.people.first(where: { $0.id == contact.personID }),
+              let context = person.contexts.first(where: { $0.id == contact.relationshipContextID }),
+              let session = sessionStore.session(id: activeSessionID) else { return }
+        if session.scope.matches(personID: person.id, relationshipContextID: context.id) {
+            selectedScope = AskScope(person: person, context: context)
+        } else if session.isUnresolvedIntent,
+                  sessionStore.bindUnscopedSession(id: activeSessionID, person: person, context: context) {
+            selectedScope = AskScope(person: person, context: context)
+        }
+    }
+
+    @discardableResult
+    private func recordScreenshotResult(_ receivedTask: ScreenshotContactTask, expectedSessionID: UUID, admissionIdempotencyKey: String? = nil) -> Bool {
+        let task = screenshotTasks[receivedTask.taskID].map {
+            $0.revision > receivedTask.revision ? $0 : receivedTask
+        } ?? receivedTask
+        guard let ownerSession = sessionStore.session(id: expectedSessionID),
+              AskScreenshotResponseOwner(sessionID: expectedSessionID, taskID: nil)
+                .accepts(currentSessionID: activeSessionID, responseTaskID: task.taskID,
+                         readOnlyTaskIDs: ownerSession.readOnlyScreenshotTaskIDs) else { return false }
+        screenshotContactTask = task
+        screenshotTasks[task.taskID] = task
+        let activeSessionID = expectedSessionID
+        let objective = turns.first { $0.response.taskID == task.taskID }?.objective
+            ?? (admissionIdempotencyKey != nil ? sessionStore.session(id: activeSessionID)?.pendingObjective : nil)
+            ?? pendingObjective ?? appLanguage.text("Read this screenshot")
+        let fallback: String
+        switch task.status {
+        case "running": fallback = appLanguage.text("Reading the screenshot to identify the contact and preserve source-linked context.")
+        case "deleted": fallback = appLanguage.text("This screenshot source is no longer available.")
+        case "waiting_for_user": fallback = task.question ?? appLanguage.text("One clarification is needed to continue.")
+        case "completed": fallback = appLanguage.text("Screenshot processing completed. Review its sources and results below.")
+        default: fallback = appLanguage.text("Screenshot processing stopped. Review its current result before retrying.")
+        }
+        let summary = task.status == "deleted" || task.summary.isEmpty ? fallback : task.summary
+        if !sessionStore.recordScreenshotTask(
+            sessionID: activeSessionID, taskID: task.taskID,
+            objective: objective, summary: summary, status: task.status,
+            admissionIdempotencyKey: admissionIdempotencyKey
+        ) {
+            sourceReviewNotice = appLanguage.text("Screenshot processing is available, but Session recovery could not be saved.")
+            return false
+        }
+        bindScreenshotContact(task)
+        // The accepted image is now represented by its original Session message.
+        pendingObjective = nil
+        return true
+    }
+
+    private func restoreScreenshotTasks() async {
+        guard isCanonical, let session = sessionStore.session(id: activeSessionID) else { return }
+        for taskID in session.ownedScreenshotTaskIDs {
+            do {
+                let task = try await workspaceStore.loadScreenshotContactTask(id: taskID)
+                try Task.checkCancellation()
+                guard AskScreenshotResponseOwner(sessionID: session.id, taskID: taskID)
+                    .accepts(currentSessionID: activeSessionID, responseTaskID: task.taskID) else { return }
+                recordScreenshotResult(task, expectedSessionID: session.id)
+            } catch {
+                if Task.isCancelled || activeSessionID != session.id { return }
+                sourceReviewNotice = appLanguage.text("A screenshot result could not be refreshed. Its saved message remains available.")
+            }
         }
     }
 
@@ -3509,9 +3899,16 @@ struct RelationshipAskView: View {
             let activityIdentity = await startAskActivity(sessionID: sessionID)
             do {
                 try await waitForFixtureAskDelayIfNeeded()
+                guard await synchronizeSessions(sessionID) else {
+                    throw sessionSynchronizationFailure(sessionID)
+                }
+                guard activeSessionID == sessionID, !Task.isCancelled,
+                      pendingScopedSend == effectiveObjective else { return }
                 let response = try await workspaceStore.chatUnscoped(
                     objective: effectiveObjective,
-                    idempotencyKey: idempotencyKey
+                    idempotencyKey: idempotencyKey,
+                    sessionID: sessionID,
+                    messageID: UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? "")
                 )
                 try Task.checkCancellation()
                 guard activeSessionID == sessionID,
@@ -3704,6 +4101,7 @@ struct RelationshipAskView: View {
                 person: selectedScope.person,
                 context: selectedScope.context
             )
+            if let activeSessionID { _ = sessionStore.clearDraft(sessionID: activeSessionID) }
             sessionStore.clearDraft(
                 personID: selectedScope.person.id,
                 relationshipContextID: selectedScope.context.id
@@ -3739,11 +4137,46 @@ struct RelationshipAskView: View {
             return
         }
         sessionStore.saveGlobalDraft("")
+        _ = sessionStore.clearDraft(sessionID: sessionID)
     }
 
     private func previewUnscopedResponse(
         for objective: String
     ) -> RelationshipAskResponse {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--fixture-get-5-markdown") {
+            return RelationshipAskResponse(
+                contractVersion: "preview", taskID: UUID().uuidString.lowercased(),
+                contextManifestID: "none-unbound-conversation",
+                knowledgeSnapshotID: "none-unbound-conversation", disposition: "answer",
+                blocks: [.init(
+                    id: UUID().uuidString.lowercased(), kind: "answer", title: "Review plan",
+                    body: """
+                    # Delivery plan
+
+                    Keep the source beside the decision.
+
+                    - Review the message
+                      - Preserve its exact wording
+                    - [x] Keep the original Session
+                    - [ ] Confirm the contact context
+
+                    | Step | State |
+                    | --- | --- |
+                    | Source | Available |
+                    | Contact | Proposed |
+
+                    ```swift
+                    let decision = "review"
+                    ```
+
+                    This is a synthetic preview. Nothing has been saved to a contact.
+                    """,
+                    status: "informational", citationDependencyIDs: [], requiresUserDecision: false
+                )], createdAt: ISO8601DateFormatter().string(from: Date())
+            )
+        }
+#endif
         let usesChinese = objective.range(
             of: #"\p{Script=Han}"#,
             options: .regularExpression
@@ -3883,7 +4316,8 @@ struct RelationshipAskView: View {
                     proposedIdempotencyKey: "ios:ask:\(operationID.uuidString.lowercased())",
                     requestIdentity: mediaIDs.isEmpty
                         ? nil
-                        : mediaIDs.joined(separator: ":")
+                        : mediaIDs.joined(separator: ":"),
+                    sessionID: sessionID
                 ) else {
                     draft = originalDraft
                     pendingObjective = nil
@@ -3902,15 +4336,22 @@ struct RelationshipAskView: View {
 #if DEBUG
                 fixtureAskRequestCount += 1
 #endif
+                guard await synchronizeSessions(sessionID) else {
+                    throw sessionSynchronizationFailure(sessionID)
+                }
+                guard activeSessionID == sessionID, !Task.isCancelled,
+                      pendingScopedSend == effectiveObjective else { return }
                 let response = try await ask(
                     effectiveObjective,
                     scope.person.id,
                     scope.context.id,
                     idempotencyKey,
-                    mediaIDs
+                    mediaIDs,
+                    sessionID,
+                    UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? "")
                 )
                 try Task.checkCancellation()
-                guard selectedScope?.id == scope.id,
+                guard activeSessionID == sessionID, selectedScope?.id == scope.id,
                       pendingScopedSend == effectiveObjective else {
                     return
                 }
@@ -3921,13 +4362,17 @@ struct RelationshipAskView: View {
                         zhHans: "已有更新的来源决定生效。这条较早的操作不能再次重试。"
                     )
                 )
-                activeSessionID = sessionStore.record(
+                guard let recordedSessionID = sessionStore.recordIfOwned(
                     sessionID: sessionID,
                     objective: effectiveObjective,
                     response: response,
                     person: scope.person,
-                    context: scope.context
-                )
+                    context: scope.context,
+                    sourceMessageID: UUID(uuidString: idempotencyKey.components(separatedBy: ":").last ?? "")
+                ) else {
+                    throw AskSessionSynchronizationFailure(message: appLanguage.text("The original Session is no longer available. Your message was not recorded."))
+                }
+                activeSessionID = recordedSessionID
                 pendingObjective = nil
                 pendingScopedSend = nil
                 relationshipRecallPhase = .idle
@@ -4176,6 +4621,10 @@ struct RelationshipAskView: View {
         suggestedContextID: String? = nil,
         proposalIsProtected: Bool = false
     ) {
+        guard contactDraft == nil || contactSaveMessage != nil else {
+            sessionActionError = appLanguage.text("Finish or dismiss the current contact proposal first.")
+            return
+        }
         pendingScopedSend = nil
         errorMessage = nil
         isChoosingScope = false
@@ -4209,12 +4658,18 @@ struct RelationshipAskView: View {
            !sessionStore.saveContactProposal(
                 proposedContact,
                 idempotencyKey: contactOperationKey,
-                clearingGlobalDraft: true
+                clearingGlobalDraft: true,
+                sessionID: activeSessionID
            ) {
             contactSaveError = appLanguage.text(
                 "The proposal is open, but this device could not protect it for relaunch."
             )
         }
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--fixture-get-5-ended-contact-proposal") {
+            _ = sessionStore.clearContactProposal(sessionID: activeSessionID)
+        }
+#endif
         draft = ""
         composerFocused = false
     }
@@ -4267,7 +4722,15 @@ struct RelationshipAskView: View {
             identityClue: clue,
             relationshipContext: relationshipContext,
             sourceNote: source,
-            interpreter: .workspaceAgent
+            interpreter: .workspaceAgent,
+            fieldEvidence: [
+                source.contains(displayName) ? ConversationContactDraft.FieldEvidence(field: .name, exactExcerpt: displayName) : nil,
+                clue.flatMap { clue -> ConversationContactDraft.FieldEvidence? in
+                    source.contains(clue.value) ? .init(field: .identityClue, exactExcerpt: clue.value) : nil
+                },
+                !relationshipContext.isEmpty && source.contains(relationshipContext)
+                    ? ConversationContactDraft.FieldEvidence(field: .relationshipContext, exactExcerpt: relationshipContext) : nil,
+            ].compactMap { $0 }
         )
         let operationKey = "ios:agent-contact:\(fingerprint)"
         guard sessionStore.promoteUnscopedChatToContactProposal(
@@ -4276,7 +4739,8 @@ struct RelationshipAskView: View {
             unscopedChatIdempotencyKey: unscopedChatIdempotencyKey,
             draft: proposal,
             proposalIdempotencyKey: operationKey,
-            clearingGlobalDraft: true
+            clearingGlobalDraft: true,
+            sourceMessageID: event.sourceMessageID.flatMap(UUID.init(uuidString:))
         ) else {
             return false
         }
@@ -4327,10 +4791,7 @@ struct RelationshipAskView: View {
                         : "public_profile_url",
                     value: source.profileURL
                 ),
-                relationshipContext: appLanguage.text(
-                    "General relationship",
-                    zhHans: "一般关系"
-                ),
+                relationshipContext: "",
                 sourceNote: appLanguage.text(
                     "Review public profile from \(source.platform): \(source.profileURL)",
                     zhHans: "核对来自 \(source.platform) 的公开资料：\(source.profileURL)"
@@ -4390,14 +4851,15 @@ struct RelationshipAskView: View {
         }
         contactCandidates = []
         contactLookupPhase = .checking
-        let sourceNote = proposal.sourceNote
         contactLookupTask = Task {
             do {
+                try await Task.sleep(for: .milliseconds(250))
+                guard isContactProposalCurrent, contactDraft == proposal else { return }
                 try await waitForFixtureContactLookupIfNeeded()
                 let matches = try await workspaceStore.findContactMatches(
                     identityClue: identityClue
                 )
-                guard !Task.isCancelled, contactDraft?.sourceNote == sourceNote else {
+                guard !Task.isCancelled, isContactProposalCurrent, contactDraft == proposal else {
                     return
                 }
                 contactCandidates = matches
@@ -4405,7 +4867,7 @@ struct RelationshipAskView: View {
             } catch is CancellationError {
                 return
             } catch {
-                guard contactDraft?.sourceNote == sourceNote else { return }
+                guard contactDraft == proposal else { return }
                 contactCandidates = []
                 contactLookupPhase = .failed(
                     (error as? LocalizedError)?.errorDescription
@@ -4437,6 +4899,15 @@ struct RelationshipAskView: View {
 
     private func saveContactProposal() {
         guard let contactDraft, !isSavingContact else { return }
+        guard isContactProposalCurrent else {
+            contactSaveError = endedContactProposalMessage
+            return
+        }
+        guard !contactDraft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !contactDraft.relationshipContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            contactSaveError = appLanguage.text("Add a name and real relationship context before saving.")
+            return
+        }
         guard contactLookupPhase == .complete else {
             contactSaveError = appLanguage.text(
                 "Wait for identity checking or retry it before saving."
@@ -4469,17 +4940,19 @@ struct RelationshipAskView: View {
         contactSaveError = nil
         contactSaveMessage = nil
         isSavingContact = true
-        let operationKey = contactOperationKey
-            ?? sessionStore.contactProposalOperationKey
-            ?? "ios:contact:\(UUID().uuidString.lowercased())"
-        contactOperationKey = operationKey
+        guard let operationKey = contactOperationKey else {
+            isSavingContact = false
+            contactSaveError = endedContactProposalMessage
+            return
+        }
         let confirmedIdentityClue = pendingContactConfirmIdentityClue
             ?? confirmContactIdentityClue
         guard sessionStore.saveContactProposal(
             contactDraft,
             idempotencyKey: operationKey,
             pendingTarget: target,
-            pendingConfirmIdentityClue: confirmedIdentityClue
+            pendingConfirmIdentityClue: confirmedIdentityClue,
+            sessionID: activeSessionID
         ) else {
             isSavingContact = false
             contactSaveError = appLanguage.text(
@@ -4487,7 +4960,7 @@ struct RelationshipAskView: View {
             )
             return
         }
-        let capturedAt = sessionStore.contactProposalCapturedAt ?? Date()
+        let capturedAt = sessionStore.contactProposal(sessionID: activeSessionID)?.capturedAt ?? Date()
         pendingContactTarget = target
         pendingContactCapturedAt = capturedAt
         pendingContactConfirmIdentityClue = confirmedIdentityClue
@@ -4530,13 +5003,14 @@ struct RelationshipAskView: View {
                     contextDisplayLabel: canonicalContext?.displayLabel
                         ?? (receiptOutcome == .identityReview
                             ? nil
-                            : contactDraft.relationshipContext)
+                            : contactDraft.relationshipContext),
+                    sessionID: activeSessionID
                 )
                 bindContactContinuation(
                     to: result,
                     sessionID: receiptSessionID
                 )
-                let didClearRecovery = sessionStore.clearContactProposal()
+                let didClearRecovery = sessionStore.clearContactProposal(sessionID: activeSessionID)
                 if didClearRecovery {
                     pendingContactTarget = nil
                     pendingContactCapturedAt = nil
@@ -4573,12 +5047,17 @@ struct RelationshipAskView: View {
                         )
                 }
             } catch {
-                contactSaveError = (error as? LocalizedError)?.errorDescription
-                    ?? appLanguage.text(
-                        "The contact was not saved. Your proposal is still here."
-                    )
+                contactSaveError = pendingContactTarget != nil
+                    ? appLanguage.text("The save outcome needs checking. Check or retry the original operation.")
+                    : (error as? LocalizedError)?.errorDescription
+                        ?? appLanguage.text("The proposal could not be saved. Your proposal is still here.")
             }
             isSavingContact = false
+            if contactSaveMessage != nil && pendingContactTarget == nil {
+                self.contactDraft = nil
+                self.contactOperationKey = nil
+                self.contactSaveMessage = nil
+            }
         }
     }
 
@@ -4613,7 +5092,7 @@ struct RelationshipAskView: View {
     }
 
     private func clearContactProposal() {
-        guard sessionStore.clearContactProposal() else {
+        guard !isContactProposalCurrent || sessionStore.clearContactProposal(sessionID: activeSessionID) else {
             contactSaveError = appLanguage.text(
                 "The proposal could not be cleared from protected recovery. It remains open."
             )
@@ -4643,22 +5122,26 @@ struct RelationshipAskView: View {
         Binding(
             get: { contactDraft ?? fallback },
             set: { updated in
-                contactDraft = updated
-                let wasPending = pendingContactTarget != nil
-                let operationKey = wasPending
-                    ? "ios:contact:\(UUID().uuidString.lowercased())"
-                    : contactOperationKey
-                        ?? sessionStore.contactProposalOperationKey
-                        ?? "ios:contact:\(UUID().uuidString.lowercased())"
-                contactOperationKey = operationKey
-                if wasPending {
-                    pendingContactTarget = nil
-                    pendingContactCapturedAt = nil
-                    pendingContactConfirmIdentityClue = nil
+                guard pendingContactTarget == nil, !isSavingContact, contactSaveMessage == nil else { return }
+                guard isContactProposalCurrent else {
+                    contactSaveError = endedContactProposalMessage
+                    return
                 }
+                let previous = contactDraft
+                contactDraft = updated
+                if previous?.name != updated.name || previous?.identityClue != updated.identityClue
+                    || previous?.relationshipContext != updated.relationshipContext {
+                    confirmContactIdentityClue = updated.identityClue != nil
+                    startContactLookup(for: updated)
+                }
+                let operationKey = contactOperationKey
+                    ?? sessionStore.contactProposal(sessionID: activeSessionID)?.idempotencyKey
+                    ?? "ios:contact:\(UUID().uuidString.lowercased())"
+                contactOperationKey = operationKey
                 if !sessionStore.saveContactProposal(
                     updated,
-                    idempotencyKey: operationKey
+                    idempotencyKey: operationKey,
+                    sessionID: activeSessionID
                 ) {
                     contactSaveError = appLanguage.text(
                         "This edit is visible, but it could not be protected for relaunch."
@@ -4687,21 +5170,20 @@ struct RelationshipAskView: View {
     }
 
     private func restoreContactProposal() {
-        guard sessionID == nil,
-              initialSeed == nil,
-              contactDraft == nil,
-              let restoredDraft = sessionStore.contactProposalDraft else {
+        guard initialSeed == nil, contactDraft == nil,
+              let saved = sessionStore.contactProposal(sessionID: activeSessionID) else {
             return
         }
-        contactDraft = restoredDraft
-        contactOperationKey = sessionStore.contactProposalOperationKey
-        pendingContactTarget = sessionStore.contactProposalPendingTarget
-        pendingContactCapturedAt = sessionStore.contactProposalCapturedAt
-        pendingContactConfirmIdentityClue =
-            sessionStore.contactProposalPendingConfirmIdentityClue
-        confirmContactIdentityClue = restoredDraft.identityClue != nil
+        // A fresh composer must not silently load another existing Session's draft.
+        guard activeSessionID != nil || saved.sessionID == nil else { return }
+        contactDraft = saved.draft
+        contactOperationKey = saved.idempotencyKey
+        pendingContactTarget = saved.pendingTarget
+        pendingContactCapturedAt = saved.capturedAt
+        pendingContactConfirmIdentityClue = saved.pendingConfirmIdentityClue
+        confirmContactIdentityClue = saved.draft.identityClue != nil
         restorePendingContactChoice()
-        startContactLookup(for: restoredDraft)
+        startContactLookup(for: saved.draft, preservePendingWrite: saved.pendingTarget != nil)
     }
 
     private func initials(_ name: String) -> String {
@@ -4711,7 +5193,9 @@ struct RelationshipAskView: View {
 
     private func restoreDraft(preferred: String? = nil) {
         let saved: String
-        if let selectedScope {
+        if let activeSessionID {
+            saved = sessionStore.draft(sessionID: activeSessionID)
+        } else if let selectedScope {
             saved = sessionStore.draft(
                 personID: selectedScope.person.id,
                 relationshipContextID: selectedScope.context.id
@@ -4723,9 +5207,7 @@ struct RelationshipAskView: View {
         } else {
             return
         }
-        draft = saved.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? preferred ?? ""
-            : saved
+        draft = saved.isEmpty ? preferred ?? "" : saved
     }
 
     private func selectScope(_ scope: AskScope) {
@@ -4740,8 +5222,18 @@ struct RelationshipAskView: View {
         let wasGlobalComposition = activeSessionID == nil
             && initialSeed == nil
 
+        flushDraftPersistence()
+        if let activeSessionID, let current = sessionStore.session(id: activeSessionID) {
+            if current.scope.matches(personID: scope.person.id, relationshipContextID: scope.context.id) {
+                // Re-selecting the same context keeps the current conversation.
+            } else if current.isUnresolvedIntent,
+                      sessionStore.bindUnscopedSession(id: activeSessionID, person: scope.person, context: scope.context) {
+                // Exact selected scope joins the existing unbound Session.
+            } else {
+                self.activeSessionID = nil
+            }
+        }
         selectedScope = scope
-        activeSessionID = nil
         scopeQuery = ""
         isChoosingScope = false
         isRequestingScope = false
@@ -4772,6 +5264,8 @@ struct RelationshipAskView: View {
                     composerFocused = true
                 }
             }
+        } else if let activeSessionID {
+            draft = sessionStore.draft(sessionID: activeSessionID)
         } else {
             draft = sessionStore.draft(
                 personID: scope.person.id,
@@ -5041,6 +5535,7 @@ private struct ConversationContactProposalTurn: View {
     let saveMessage: String?
     let errorMessage: String?
     let isCanonical: Bool
+    let isCurrent: Bool
     let language: AppLanguage
     let onConfirm: () -> Void
     let onRetryLookup: () -> Void
@@ -5056,6 +5551,7 @@ private struct ConversationContactProposalTurn: View {
 
     private var canConfirm: Bool {
         isCanonical
+            && isCurrent
             && !isSaving
             && lookupPhase == .complete
             && !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -5076,7 +5572,7 @@ private struct ConversationContactProposalTurn: View {
     }
 
     private var isReadOnly: Bool {
-        hasPendingWrite || saveMessage != nil
+        !isCurrent || hasPendingWrite || saveMessage != nil
     }
 
     private var confirmButtonEmphasized: Bool {
@@ -5085,12 +5581,6 @@ private struct ConversationContactProposalTurn: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            AskUserMessageBubble(
-                message: draft.sourceNote,
-                accessibilityIdentifier: "contact-user-message"
-            )
-            .frame(maxWidth: .infinity, alignment: .trailing)
-
             HStack(alignment: .top, spacing: 0) {
                 proposalCard
                     .frame(
@@ -5103,8 +5593,6 @@ private struct ConversationContactProposalTurn: View {
                 Spacer(minLength: 0)
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("contact-proposal-turn")
     }
 
     private var proposalCard: some View {
@@ -5126,21 +5614,36 @@ private struct ConversationContactProposalTurn: View {
                 }
                 Spacer(minLength: 8)
                 Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
-                        .frame(width: 44, height: 44)
+                    Text(language.text(isCurrent ? "Not a contact" : "Dismiss"))
+                        .font(.caption)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(isSaving || (hasPendingWrite && saveMessage == nil))
-                .opacity(isSaving || (hasPendingWrite && saveMessage == nil) ? 0.42 : 1)
-                .accessibilityLabel(language.text("Dismiss proposal", zhHans: "关闭提议"))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .disabled(isSaving || (isCurrent && hasPendingWrite && saveMessage == nil))
+                .opacity(isSaving || (isCurrent && hasPendingWrite && saveMessage == nil) ? 0.42 : 1)
+                .accessibilityLabel(language.text(isCurrent ? "Not a contact" : "Dismiss"))
                 .accessibilityIdentifier("contact-dismiss-proposal")
             }
 
             if let saveMessage {
                 completedReceipt(saveMessage)
+            } else if !isCurrent {
+                contactDetails
+                sourceDetails
+                Label(
+                    language.text("This proposal has ended. Its source remains in the Session. Send a new message to review a current proposal."),
+                    systemImage: "clock.badge.exclamationmark"
+                )
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("contact-proposal-ended")
             } else {
                 contactDetails
+                sourceDetails
                 reviewedPublicProfileDetails
 
                 if let clue = draft.identityClue {
@@ -5228,7 +5731,11 @@ private struct ConversationContactProposalTurn: View {
             }
 
             Label(
-                saveMessage == nil
+                hasPendingWrite && saveMessage == nil
+                    ? language.text("The save outcome needs checking. Check or retry the original operation.")
+                    : !isCurrent && saveMessage == nil
+                    ? language.text("Proposal ended")
+                    : saveMessage == nil
                     ? language.text(
                         "Proposed only · nothing changes until you confirm",
                         zhHans: "仅为提议 · 确认前不会发生任何更改"
@@ -5236,10 +5743,11 @@ private struct ConversationContactProposalTurn: View {
                     : language.text(
                         "Saved with canonical receipt · source remains traceable"
                     ),
-                systemImage: saveMessage == nil ? "lock.shield" : "checkmark.shield"
+                systemImage: hasPendingWrite && saveMessage == nil ? "arrow.clockwise" : saveMessage == nil ? "lock.shield" : "checkmark.shield"
             )
             .font(.caption2)
             .foregroundStyle(Color.tsMutedInk)
+            .accessibilityElement(children: .combine)
             .accessibilityIdentifier(
                 saveMessage == nil ? "contact-proposal-boundary" : "contact-receipt-boundary"
             )
@@ -5252,24 +5760,32 @@ private struct ConversationContactProposalTurn: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("contact-proposal-card")
-        .onChange(of: draft.name) { _ in
-            selectedPersonID = nil
-            selectedContextID = nil
-            createDistinct = false
-            saveForIdentityReview = false
-            showsAllMatches = false
-            if draft.identityClue == nil {
-                onRetryLookup()
+    }
+
+    private var sourceDetails: some View {
+        DisclosureGroup(language.text("Source message")) {
+            Text(verbatim: draft.sourceNote)
+                .font(.caption)
+                .foregroundStyle(Color.tsMutedInk)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 6)
+            ForEach(Array((draft.fieldEvidence ?? []).enumerated()), id: \.offset) { _, evidence in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(fieldEvidenceLabel(evidence.field)).font(.caption.weight(.semibold))
+                    Text(verbatim: "“\(evidence.exactExcerpt)”").font(.caption)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4)
             }
         }
-        .onChange(of: draft.identityClue) { clue in
-            selectedPersonID = nil
-            selectedContextID = nil
-            createDistinct = false
-            saveForIdentityReview = false
-            confirmIdentityClue = clue != nil
-            showsAllMatches = false
-            onRetryLookup()
+        .font(.caption)
+        .accessibilityIdentifier("contact-proposal-source")
+    }
+
+    private func fieldEvidenceLabel(_ field: ConversationContactDraft.FieldEvidence.Field) -> String {
+        switch field {
+        case .name: return language.text("Name")
+        case .identityClue: return language.text("Identity clue")
+        case .relationshipContext: return language.text("Relationship")
         }
     }
 
@@ -5330,6 +5846,7 @@ private struct ConversationContactProposalTurn: View {
         if saveMessage != nil {
             return language.text("Contact saved")
         }
+        if !isCurrent { return language.text("Proposal ended") }
         if hasPendingWrite {
             return language.text("Confirm the original save")
         }
@@ -5425,7 +5942,7 @@ private struct ConversationContactProposalTurn: View {
                             ? language.text("Name needed")
                             : draft.name
                     )
-                    .font(.title3.weight(.semibold))
+                    .font(.headline)
                     .foregroundStyle(Color.tsInk)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("contact-summary-name")
@@ -5457,14 +5974,16 @@ private struct ConversationContactProposalTurn: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.tsInk)
                         .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                     .accessibilityLabel(language.text("Edit contact details"))
                     .accessibilityIdentifier("contact-edit-details")
                 }
             }
-            .padding(14)
-            .background(Color.tsSurface, in: RoundedRectangle(cornerRadius: 16))
+            .padding(.vertical, 2)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("contact-proposal-summary")
         }
@@ -6709,6 +7228,47 @@ private struct PublicProfileCandidateCard: View {
     }
 }
 
+private struct ScreenshotContactInlineResult: View {
+    let task: ScreenshotContactTask
+    let language: AppLanguage
+    let onOpenPerson: (String) -> Void
+    let onResume: (ScreenshotContactResumeBody) -> Void
+    let onCancel: () -> Void
+    let onLoadImage: (Int) async throws -> ChatMediaContent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let contact = task.contact {
+                Button { onOpenPerson(contact.personID) } label: {
+                    Label(contact.displayName, systemImage: "person.crop.rectangle")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
+            if task.status == "running" {
+                Label(language.text("Reading screenshot"), systemImage: "photo.badge.arrow.down")
+                    .font(.caption).foregroundStyle(Color.tsMutedInk)
+            }
+            if ["waiting_for_user", "failed", "partial", "cancelled"].contains(task.status) {
+                detail
+            } else {
+                DisclosureGroup(language.text("Sources and processing details")) { detail }
+                    .font(.caption)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-screenshot-result")
+    }
+
+    private var detail: some View {
+        ScreenshotContactCard(
+            task: task, language: language, onOpenPerson: onOpenPerson,
+            onResume: onResume, onCancel: onCancel, onLoadImage: onLoadImage
+        )
+    }
+}
+
 private struct AskTurnView: View {
     let turn: AgentSessionTurn
     let language: AppLanguage
@@ -6724,6 +7284,15 @@ private struct AskTurnView: View {
     let onStartFreshAsk: () -> Void
     let onOpenPursuit: (String, String) -> Void
     let onReviewPublicProfile: (RelationshipAskResponse.Block.PublicSource) -> Void
+    let screenshotTask: ScreenshotContactTask?
+    let loadScreenshotImage: (String, Int) async throws -> ChatMediaContent
+    let onResumeScreenshot: (ScreenshotContactTask, ScreenshotContactResumeBody) -> Void
+    let onCancelScreenshot: (ScreenshotContactTask) -> Void
+    let onOpenPerson: (String) -> Void
+    let canRegenerate: Bool
+    let onRegenerate: () -> Void
+    let onFeedback: (AgentSessionFeedback) -> Void
+    @State private var didCopy = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -6792,10 +7361,7 @@ private struct AskTurnView: View {
                             onOpenPursuit: onOpenPursuit
                         )
                     } else {
-                        Text(block.body)
-                            .font(.subheadline)
-                            .foregroundStyle(Color.tsInk)
-                            .fixedSize(horizontal: false, vertical: true)
+                        AgentMarkdownView(markdown: block.body)
                     }
                     if let publicSources = block.publicSources,
                        !publicSources.isEmpty {
@@ -6879,8 +7445,21 @@ private struct AskTurnView: View {
                 }
                 .padding(.vertical, 14)
                 .overlay(alignment: .bottom) { Divider().overlay(Color.tsLine) }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("ask-response-block-\(turn.response.taskID)-\(block.id)")
                 .id("ask-response-block-\(block.id)")
             }
+
+            if let screenshotTask {
+                ScreenshotContactInlineResult(
+                    task: screenshotTask, language: language,
+                    onOpenPerson: onOpenPerson,
+                    onResume: { onResumeScreenshot(screenshotTask, $0) },
+                    onCancel: { onCancelScreenshot(screenshotTask) },
+                    onLoadImage: { try await loadScreenshotImage(screenshotTask.taskID, $0) }
+                )
+            }
+            responseControls
 
             ForEach(evidenceReviews) { operation in
                 AskEvidenceReviewStatusView(
@@ -6912,6 +7491,60 @@ private struct AskTurnView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ask-response-turn")
+    }
+
+    private var responseControls: some View {
+        HStack(spacing: 0) {
+            responseControl(
+                symbol: "arrow.clockwise", title: language.text("Regenerate"),
+                identifier: "ask-regenerate", action: onRegenerate
+            )
+            .disabled(!canRegenerate)
+            .opacity(canRegenerate ? 1 : 0.35)
+            responseControl(
+                symbol: didCopy ? "checkmark" : "doc.on.doc",
+                title: language.text(didCopy ? "Copied" : "Copy"),
+                identifier: "ask-copy"
+            ) {
+                let text = turn.response.blocks.map { $0.body }.joined(separator: "\n\n")
+                UIPasteboard.general.setItems(
+                    [[UTType.utf8PlainText.identifier: text]],
+                    options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(300)]
+                )
+                didCopy = true
+            }
+            responseControl(
+                symbol: turn.feedback == .helpful ? "hand.thumbsup.fill" : "hand.thumbsup",
+                title: language.text("Helpful"),
+                identifier: "ask-feedback-helpful"
+            ) { onFeedback(.helpful) }
+            .accessibilityValue(turn.feedback == .helpful ? language.text("Selected") : "")
+            responseControl(
+                symbol: turn.feedback == .unhelpful ? "hand.thumbsdown.fill" : "hand.thumbsdown",
+                title: language.text("Not helpful"),
+                identifier: "ask-feedback-unhelpful"
+            ) { onFeedback(.unhelpful) }
+            .accessibilityValue(turn.feedback == .unhelpful ? language.text("Selected") : "")
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Color.tsMutedInk)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("ask-response-controls")
+    }
+
+    private func responseControl(
+        symbol: String, title: String, identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .regular))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier(identifier)
     }
 
     private func responseEyebrow(

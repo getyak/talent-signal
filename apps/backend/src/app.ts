@@ -1,3 +1,4 @@
+import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
 import { registerLabDiagnostics } from "./lib/labDiagnostics.js";
 import { LabTaskTrialService } from "./modules/labTaskTrials.js";
@@ -489,6 +490,8 @@ export async function buildApp(
       redact: {
         paths: [
           "req.headers.authorization",
+          "req.body.payload",
+          "body.payload",
           "req.body.password",
           "req.body.access_token",
           "req.body.audio_base64",
@@ -632,7 +635,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '050_google_auth'`,
+           WHERE version = '056_agent_session_chat_lifecycle'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -765,6 +768,7 @@ export async function buildApp(
 
   registerGoogleAuth(app, pool, config);
   const authenticate = createAuthGuard(pool);
+  registerAgentSessionRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
   registerRuntimeManifest(app, config);
   registerLabWorkspaceRoutes(app,new LabWorkspaceService(pool,chatMediaStorage,config.sessionTtlSeconds),authenticate,config.internalLabEnabled===true);

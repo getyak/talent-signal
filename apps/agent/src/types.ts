@@ -361,9 +361,17 @@ export interface AgentToolResult {
   error?: { code: string; message: string };
 }
 
+/** Previous dialogue is working context, never evidence or tool authority. */
+export interface ConversationMessage {
+  message_id: string;
+  role: "user" | "assistant";
+  text: string;
+}
+
 export interface AgentProviderRequest {
   runID: string;
   objective: string;
+  conversationHistory?: readonly ConversationMessage[];
   systemPrompt: string;
   scopeSummary:
     | {

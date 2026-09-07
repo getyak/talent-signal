@@ -1,5 +1,10 @@
 name: TalentSignal
 
+packages:
+  SwiftMarkdown:
+    url: https://github.com/swiftlang/swift-markdown.git
+    exactVersion: 0.8.0
+
 options:
   bundleIdPrefix: com.talentsignal
   deploymentTarget:
@@ -58,6 +63,8 @@ targets:
       Debug: Config/Environment.xcconfig
       Release: Config/Environment.xcconfig
     dependencies:
+      - package: SwiftMarkdown
+        product: Markdown
       - target: TalentSignalLiveActivity
         embed: true
       - target: TalentSignalShare
