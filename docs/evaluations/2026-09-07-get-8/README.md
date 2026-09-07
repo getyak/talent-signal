@@ -131,7 +131,7 @@ update identity, unknown/missing/failed outcomes, retry and retention.
 
 ## Scoped product review
 
-`reviewer: mobile-ux-reviewer`  
+`reviewer: mobile-ux-reviewer`
 `lens: mobile task completion, visual hierarchy, accessibility, and recovery`
 
 Evidence level 1 for the tested native interactions; visual judgments are
@@ -149,6 +149,9 @@ critical-path defect. Hardware smoothness and assistive-technology user testing 
 observed evidence; this is not a TestFlight release approval.
 
 ## Boundaries
+
+The later user-authorized [TestFlight release](release.md) records the merged
+source, required CI, processed build and internal access readback separately.
 
 People and relationship contexts remain canonical. Meetings is a time view of
 existing activities, not a new record system. Preparation and notes open a
