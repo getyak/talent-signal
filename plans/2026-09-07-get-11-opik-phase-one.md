@@ -65,43 +65,38 @@ outbox/runtime integration respectively. Independent review follows integration.
    durable failure/retry/deletion evidence; integrate shared contracts.
 3. **Complete:** task-level CLI, semantic/release controllers,
    source-lifecycle bridge, credential-free CI and private runtime-content readback.
-4. **Active:** complete the requested PR delivery workflow. Updated local `main`
-   to `11984f15` and merged it into the isolated task branch. A fresh independent
-   review reproduced incomplete cleanup after a persisted final-controller
-   tombstone and provider dispatch after private-source withdrawal. Both were
-   repaired with crash and PostgreSQL race regressions. Independent final
-   PostgreSQL/runner verification passed 28 tests on `6601c575`; no confirmed
-   P0/P1 remains open in that review. [PR 153](https://github.com/getyak/talent-signal/pull/153)
-   is open. Its first hosted run exposed secret-name inventory omissions,
-   overloaded process-test timeouts and CodeQL findings. Repairs preserve the
-   complete test suite, replace dynamic child source with a static JSON-input
-   fixture, bound contact parsing and remove credential-derived cache hashes.
-   Independent review passed 43 Agent and 61 budget/controller/CLI tests.
-   The separately reviewed final-judge I/O alert is individually adjudicated;
-   its rule and CI job remain enabled. Native UI-to-PostgreSQL verification
-   passed 40 tests with zero failures/skips, including process restart and the
-   frozen rerun. Terminal receipt deletion now rejects a late autosave, with
-   independent review and Simulator regression proof. A fresh GET-16 acceptance
-   audit found missing atomic metrics, varied behavior/tool-failure proof and
-   an explicit holdout retirement/replacement bridge. All three are implemented
-   and independently tested. Two cleanup findings are closed, including known
-   local withdrawal winning a native 503. A final source review found that
-   different executions from one native Session could cross dataset partitions;
-   the trusted Session binding, legacy cleanup compatibility and direct
-   checkpoint-to-final verification now pass both independent reviews. Final
-   local verification passed all 196 runner tests, 63 evaluation tests and the
-   backend build/type/test suite; independent PostgreSQL verification passed
-   20 tests. No confirmed P0/P1 remains open in these reviews. Readiness is bound
-   to migration 057 and optional runtime/release
-   configuration is wired into the existing internal TestFlight deployment.
-   The PR CodeQL aggregate subsequently found a SQLite existence-check/open
-   race. The repair opens atomically with no-follow, accepts only ENOENT as
-   absence, and retains descriptor, owner and private-directory validation
-   while SQLite reads the authority. All 43 targeted lifecycle/controller
-   tests and TypeScript validation pass; the alert is not considered closed
-   until the final PR merge-ref analysis succeeds. Then require current-head
-   hosted CI/CD, automatic merge, and baseline deployment readback. Historical
-   signed implementation proof remains attached to `59d6e11e`.
+4. **Active:** finish the main-branch delivery checks. [PR 153](https://github.com/getyak/talent-signal/pull/153)
+   merged as `5dffa3d32dd41da79663afbd33faa28a00b85981` after the final
+   `929468a8` PR CI, applicable Security analyses and independent reviews
+   passed. No confirmed P0/P1 remains open in those reviews. Local verification
+   passed 201 runner, 63 evaluation, 101 Agent and 375 backend tests; dedicated
+   PostgreSQL and native UI evidence remain linked in the evaluation report.
+   The existing baseline backend was deployed from the merge revision, and
+   all 35 scoped readback checks passed. These include migration 057, source
+   and installed-build digests, HTTPS readiness and authentication rejection;
+   authenticated running-API configuration readback was not available.
+   The [main CI run](https://github.com/getyak/talent-signal/actions/runs/34134788085)
+   passed, including iOS smoke. [TestFlight v0.1.64](https://github.com/getyak/talent-signal/releases/tag/v0.1.64)
+   build `20260907152335` was confirmed processed for the same merge revision.
+   The main Security run's Swift
+   build exceeded its 45-minute job limit while compiling both simulator
+   architectures; Analyze was skipped, so security delivery is incomplete.
+   Follow-up branch `codex/get-11-swift-codeql` starts from freshly updated
+   `main` at `5dffa3d3`. The first `ARCHS=arm64`-only
+   dispatch also reached 45 minutes while the full Release build progressed
+   into the main app; Analyze was skipped. All ordinary PR 155 CI passed. The
+   next repair retains that architecture change and raises only the bounded
+   Swift job allowance to 90 minutes, preserving optimization, Release conditions,
+   all targets and every security gate. No pre-resolution/cache or compiler-mode
+   experiment is combined with it. Require updated independent review and
+   actual exact-head hosted Swift extraction/analysis before
+   merging, then verify main again. The next PR CI exposed one private-source
+   lifecycle integration test exceeding its default five-second harness deadline;
+   only that test receives 30 seconds, with all product deadlines and assertions
+   preserved. Require complete runner verification and latest-head CI again.
+   See the [delivery recovery evidence](../docs/evaluations/2026-09-07-get-11-opik/delivery-recovery.md).
+   GET-13/14/15/16/17/19 are Done with acceptance receipts read back in Linear;
+   GET-18/20/21 and the parent retain their unobserved live acceptance criteria.
 5. **Pending:** funded real optimization and scoped release/rollback once GET-12
    parameters arrive; report any unavailable external proof honestly.
 
