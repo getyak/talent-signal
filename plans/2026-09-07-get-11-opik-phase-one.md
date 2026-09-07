@@ -85,7 +85,11 @@ outbox/runtime integration respectively. Independent review follows integration.
    Swift build, Analyze and processed analysis `1737292249` on the merge SHA,
    with no Swift errors, warnings or results.
    The [delivery recovery record](../docs/evaluations/2026-09-07-get-11-opik/delivery-recovery.md)
-   owns failure history, exact receipts and coverage limits.
+   owns failure history, exact receipts and coverage limits. Delivery-record
+   [PR 157](https://github.com/getyak/talent-signal/pull/157) also corrects one
+   enclosing five-behavior controller/replay test deadline after its own CI
+   exceeded five seconds; its updated review and latest-head hosted checks
+   remain the gate for that follow-up, with final receipts maintained on the PR.
    GET-13/14/15/16/17/19 are Done with acceptance receipts. GET-11 remains
    In Progress with GET-12/18/20/21 unaccepted; an integration's automatic
    Done transition after PR 155 was restored to the actual acceptance state.

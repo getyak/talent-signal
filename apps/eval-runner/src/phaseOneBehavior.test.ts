@@ -93,6 +93,8 @@ async function compare(selected: PhaseOneCase[], options: {
 }
 
 describe("five synthetic behaviors through the shared production task", () => {
+  // Sixty signed recordings plus sixty replays and SQLite/fsync checkpoints
+  // need scheduling headroom on shared CI; product deadlines remain unchanged.
   it("runs the generated five-behavior corpus through the controller and replays its failed and completed receipts", async () => {
     const controller = join(directory, "controller");
     expect(await runPhaseOneCommand(["freeze"], controller)).toMatchObject({ status: "frozen" });
@@ -105,7 +107,7 @@ describe("five synthetic behaviors through the shared production task", () => {
     expect(journal.records.every(item => item.recording.receipt.providerKind === "deterministic_fake")).toBe(true);
     expect(await runPhaseOneCommand(["adjudicate"], controller)).toMatchObject({ liveCalls: 0, replayedCalls: 60, releaseAuthority: "none" });
     expect(await runPhaseOneCommand(["inspect"], controller)).toMatchObject({ status: "verified_signature", releaseAuthority: "none" });
-  });
+  }, 30_000);
 
   it.each(behaviors)("records the actual %s serializer/parser result for both configurations", async behavior => {
     const item = cases.find(item => item.sourcePartition === "dev" && item.slices.behavior === behavior)!;

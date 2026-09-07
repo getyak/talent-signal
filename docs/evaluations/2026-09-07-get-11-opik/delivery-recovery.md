@@ -151,3 +151,22 @@ marked GET-11 Done at 17:35:18Z; its owner restored In Progress at 17:37:58Z
 because GET-12/18/20/21 still have unobserved acceptance. GET-13/14/15/16/17/19
 retain their six accepted results. Missing currency, per-run/monthly monetary
 limits and candidate environment/workspace scope still prevent funded execution.
+
+## Delivery-record CI follow-up
+
+The initial [PR 157 CI](https://github.com/getyak/talent-signal/actions/runs/34151313783)
+on documentation head `7810b195` exposed another enclosing test deadline:
+`phaseOneBehavior.test.ts` took 5.132 seconds for the full five-behavior
+controller and replay case, exceeding Vitest's default five seconds. The other
+200 runner tests passed; the failed required gate prevented merge. This run
+is retained as failure evidence, not replaced by the earlier passing suite.
+
+The narrow follow-up gives that one test 30 seconds for 60 offline adapter
+responses, signed journal/SQLite persistence, 60 adjudication replays and
+signature inspection. The fixture-creation subprocess runs in `beforeAll`,
+outside this test deadline. All 60/48/12/60 receipt-count, fake-provider and
+no-release-authority assertions remain, along with the network guard and
+product request deadlines. This changes the test harness, not candidate behavior.
+[PR 157](https://github.com/getyak/talent-signal/pull/157) owns the independent
+updated-diff review, latest-head check results and eventual merge readback for
+this follow-up; prior-head success cannot satisfy its merge gate.
