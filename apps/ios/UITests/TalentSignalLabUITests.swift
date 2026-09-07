@@ -29,18 +29,12 @@ final class TalentSignalLabUITests: XCTestCase {
         ]
         app.launch()
 
-        let capsule = app.buttons["talent-signal-lab-capsule"]
-        guard capsule.waitForExistence(timeout: 20) else {
-            XCTFail("The capability-gated native Lab capsule did not appear.")
-            return
-        }
-        XCTAssertTrue(capsule.isHittable)
-        XCTAssertGreaterThanOrEqual(capsule.frame.height, 44)
-        preserveScreenshot("Native Lab entry capsule")
-        capsule.tap()
+        app.openProductLabFromSettings(timeout: 20)
+        preserveScreenshot("Native Lab settings entry")
 
-        XCTAssertTrue(app.buttons["product-lab-deterministic"].waitForExistence(timeout: 8))
-        app.buttons["product-lab-deterministic"].tap()
+        let deterministic = app.buttons["product-lab-deterministic"]
+        scrollToVisible(deterministic)
+        deterministic.tap()
 
         guard element("lab-isolation-seal").waitForExistence(timeout: 8) else {
             XCTFail("The Lab sheet did not expose its isolation boundary.")
@@ -122,11 +116,7 @@ final class TalentSignalLabUITests: XCTestCase {
         ]
         app.launch()
 
-        let capsule = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(capsule.waitForExistence(timeout: 20))
-        XCTAssertGreaterThanOrEqual(capsule.frame.height, 44)
-        XCTAssertTrue(capsule.isHittable)
-        capsule.tap()
+        app.openProductLabFromSettings(timeout: 20)
 
         XCTAssertTrue(app.buttons["product-lab-deterministic"].waitForExistence(timeout: 8))
         scrollToVisible(app.buttons["product-lab-deterministic"])

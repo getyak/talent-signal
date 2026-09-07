@@ -6,12 +6,11 @@ final class ProductLabUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--preview-workspace", "-talent-signal.interface-language", "zh-Hans"]
         app.launch()
-        let lab = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(lab.waitForExistence(timeout: 12))
-        lab.tap()
-        XCTAssertTrue(app.buttons["product-lab-maintenance"].waitForExistence(timeout: 5))
+        app.openProductLabFromSettings()
         capture("lab-v2-home-zh")
-        app.buttons["product-lab-maintenance"].tap()
+        let maintenance = app.buttons["product-lab-maintenance"]
+        scrollTo(maintenance, in: app)
+        maintenance.tap()
         app.buttons["product-lab-clear-cache"].tap()
         XCTAssertTrue(app.staticTexts["product-lab-cache-cleared"].waitForExistence(timeout: 5)
             || app.otherElements["product-lab-cache-cleared"].exists)
@@ -41,8 +40,10 @@ final class ProductLabUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--preview-workspace", "--force-dark", "-talent-signal.interface-language", "en"]
         app.launch()
-        app.buttons["talent-signal-lab-capsule"].tap()
-        app.buttons["product-lab-appearance"].tap()
+        app.openProductLabFromSettings()
+        let appearance = app.buttons["product-lab-appearance"]
+        scrollTo(appearance, in: app)
+        appearance.tap()
         capture("lab-v2-appearance-dark")
         app.buttons["product-lab-live-preview"].tap()
         XCTAssertTrue(app.buttons["lab-preview-close"].waitForExistence(timeout: 5))
@@ -56,9 +57,7 @@ final class ProductLabUITests: XCTestCase {
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
             "-UIAccessibilityReduceMotionEnabled", "YES"]
         app.launch()
-        let entry = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 12))
-        entry.tap()
+        app.openProductLabFromSettings()
         capture("lab-v2-home-zh-ax5")
         let tool = app.buttons["product-lab-maintenance"]
         scrollTo(tool, in: app)
@@ -82,9 +81,7 @@ final class ProductLabUITests: XCTestCase {
         app.launchArguments = ["--workspace-backend-url", baseURL, "--workspace-account-slug", "fixture-alpha",
             "--workspace-user-email", "reviewer@alpha.local", "-talent-signal.interface-language", "zh-Hans"]
         app.launch()
-        let entry = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 15))
-        entry.tap()
+        app.openProductLabFromSettings()
         app.buttons["product-lab-experiments"].tap()
         let previous = app.buttons["lab-job-previous-comparisons"]
         scrollTo(previous, in: app)
@@ -113,9 +110,7 @@ final class ProductLabUITests: XCTestCase {
             "--workspace-account-slug", "fixture-alpha", "--workspace-user-email", "recruiter@alpha.local",
             "-talent-signal.interface-language", "en"]
         app.launch()
-        let lab = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(lab.waitForExistence(timeout: 15))
-        lab.tap()
+        app.openProductLabFromSettings()
         let feature = app.buttons["product-lab-feature-overrides"]
         XCTAssertTrue(feature.waitForExistence(timeout: 8))
         feature.tap()

@@ -1971,3 +1971,55 @@ confirmed state.
 - Vetoes: none.
 
 final result: passed
+
+---
+
+# Stable iOS navigation design QA
+
+## Comparison target
+
+- Source visual truth: `/Users/cubxxw/Downloads/IMG_6984.PNG`
+- Implementation screenshot: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/6053BAE1-8579-44D8-BA73-C6934B6D9DAF.png`
+- Viewport: iPhone 17 Pro simulator, 402 x 874 points, light appearance, Sessions selected
+- Source pixels: 1206 x 2622; implementation pixels: 1206 x 2622
+- Logical size and density: both normalized to a 402 x 874 point viewport at 3x. CSS size is not applicable to this native SwiftUI surface. The source's 144 DPI file metadata was normalized when composing the comparison and did not change its pixel dimensions.
+- State: signed-in synthetic preview with Sessions selected. The reference provides interaction and navigation-state direction; its app content, Dynamic Island, avatar, and product-specific destinations are not implementation targets.
+
+## Evidence
+
+- Full-view comparison: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/full-view-comparison.png`
+- Focused navigation comparison: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/focused-navigation-comparison.png`
+- Additional final states:
+  - Today: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/F2841851-9A01-4037-B10B-888C0B496297.png`
+  - People: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/6A5EDBE2-62AD-4C01-99E8-3C26A30FE33B.png`
+  - Meetings: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/B7BBF61F-9448-4938-B937-EF906F4A8F88.png`
+  - Chinese dark mode with reduced motion: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/E684098B-0544-454B-9A78-45FE4B77C9F1.png`
+  - AX5 LTR: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/C9123A3C-150A-45B5-A61F-ABE3CD2D8B08.png`
+  - AX5 RTL: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/711125EC-E2D9-46C7-8CBB-CD543DAE4486.png`
+  - Internal testing in Workspace settings: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v2/final-v9/BBCE483E-80AB-41AF-8A51-6D6A99C905A6.png`
+
+## Findings
+
+- No actionable P0, P1, or P2 mismatch remains.
+- Typography: the implementation uses the native system family, 16-point Medium weight for the selected label, regular weight for inactive symbols, and one-line scaling for localized or enlarged text. The hierarchy is quieter than the reference while preserving the requested icon-plus-label selected state; no clipping or awkward wrapping appears in default, Chinese, dark, AX5, or RTL evidence.
+- Spacing and layout: the logo and four destination controls keep fixed accessibility frames and fixed center positions while the selected visual capsule overflows its slot. The middle capsule is 112 points and edge capsules are 96 points at the tested width. The selected visual grows without reflowing the navigation skeleton or page content.
+- Colors and tokens: one existing muted warm surface token supplies the selected fill, inactive controls share one muted foreground treatment, and the selected foreground gains contrast. The result retains Talent Signal's quiet warm surface rather than copying the reference app's cooler component styling.
+- Image quality and assets: SF Symbols remain sharp at native resolution. The reference avatar is intentionally replaced by the existing Talent Signal brand mark because identity and app-specific imagery are outside the target behavior; no placeholder, raster substitute, or custom-drawn icon was introduced.
+- Copy and content: `Sessions`, `People`, and `Meetings` preserve the product's established taxonomy while matching the reference's active-label behavior. Internal testing is absent from primary navigation and appears only in Workspace settings when the build or workspace enables it.
+- Interaction and accessibility: selected state changes only after the destination changes; swipe progress changes bounded symbol emphasis without resizing controls. Tests cover exact frame stability, 44-point targets, cancelled and rapid paging, RTL, AX5 text, reduced motion, Chinese dark mode, and the internal-settings route.
+
+## Comparison history
+
+1. Iteration 1 found a P2 stability defect: the active item participated in the horizontal layout and moved neighboring controls by as much as 37.9 points. The fix gave every destination a fixed slot and drew the active capsule as an overflowing visual layer. Post-fix UI assertions hold every control's `midX`, width, vertical position, and height within 0.5 points across selection changes.
+2. Iteration 2 found a P2 edge-spacing defect: the 112-point Meetings capsule crowded the trailing edge. The fix uses 96-point capsules for Today and Meetings while preserving 112 points for Sessions and People. The final Meetings screenshot shows the label and icon fully visible without moving the other controls.
+3. Final comparison found no actionable P0, P1, or P2 issue. The focused comparison confirms the intended stable shell, one enlarged selected capsule, consistent icon family, and lower-noise brand treatment.
+
+## Implementation checklist
+
+- [x] Keep destination frames and centers fixed across all selected states.
+- [x] Show the selected icon and text in one 44-point muted capsule.
+- [x] Keep inactive symbols at 24 points with uniform weight and color.
+- [x] Remove the flask from primary navigation and expose internal testing from Workspace settings only when enabled.
+- [x] Verify default, dark, Chinese, reduced-motion, AX5, LTR, RTL, cancelled-swipe, and rapid-navigation states.
+
+final result: passed

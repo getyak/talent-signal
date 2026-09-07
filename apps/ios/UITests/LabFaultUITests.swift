@@ -85,8 +85,7 @@ final class LabFaultUITests: XCTestCase {
         app.launchArguments = ["--preview-workspace", "-talent-signal.interface-language", language]
         if accessibility { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
-        let entry = app.buttons["talent-signal-lab-capsule"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 12)); entry.tap()
+        app.openProductLabFromSettings()
         let diagnostics = app.buttons["product-lab-diagnostics"]; reveal(diagnostics, app); diagnostics.tap()
         let faults = app.buttons["lab-diagnostics-faults"]; reveal(faults, app); faults.tap()
         let open = app.buttons["lab-fault-open"]; reveal(open, app)

@@ -3230,6 +3230,7 @@ enum RelationshipArchiveSheet: Identifiable {
     case proposal(WorkspaceProposal)
     case agentStudio
     case menu
+    case internalTesting
 
     var id: String {
         switch self {
@@ -3249,6 +3250,8 @@ enum RelationshipArchiveSheet: Identifiable {
             return "agent-studio"
         case .menu:
             return "menu"
+        case .internalTesting:
+            return "internal-testing"
         }
     }
 }

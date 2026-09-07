@@ -1280,13 +1280,13 @@ final class CandidateSignalUITests: XCTestCase {
         let nearby = content.coordinate(withNormalizedOffset: CGVector(dx: 0.58, dy: 0.45))
         start.press(forDuration: 0.05, thenDragTo: nearby, withVelocity: .slow, thenHoldForDuration: 0.35)
         XCTAssertTrue(today.isSelected, "A cancelled drag must not commit another destination.")
-        assertHeaderFrames(headerFrames)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-today")
         for (surface, next) in [("editorial-today", "sessions"),
                                  ("agent-session-list", "people"),
                                  ("workspace-people-list", "meetings")] {
             element(surface).swipeLeft()
             XCTAssertTrue(app.buttons["archive-tab-\(next)"].isSelected)
-            assertHeaderFrames(headerFrames)
+            assertHeaderGeometry(headerFrames, selected: "archive-tab-\(next)")
             preserveScreenshot("Stable navigation - \(next)")
         }
         XCTAssertTrue(element("relationship-calendar").waitForExistence(timeout: 5))
@@ -1303,7 +1303,7 @@ final class CandidateSignalUITests: XCTestCase {
         for name in ["sessions", "meetings", "today", "people", "today"] {
             app.buttons["archive-tab-\(name)"].tap()
             XCTAssertTrue(app.buttons["archive-tab-\(name)"].isSelected)
-            assertHeaderFrames(headerFrames)
+            assertHeaderGeometry(headerFrames, selected: "archive-tab-\(name)")
         }
         let settled = expectation(for: NSPredicate { _, _ in
             abs(content.frame.minX - self.app.frame.minX) < 1
@@ -1399,14 +1399,14 @@ final class CandidateSignalUITests: XCTestCase {
 
         sessions.tap()
         XCTAssertTrue(sessions.isSelected)
-        assertHeaderFrames(headerFrames)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-sessions")
         XCTAssertTrue(sessions.isHittable)
         XCTAssertGreaterThanOrEqual(sessions.frame.minX, selectorViewport.frame.minX)
         XCTAssertLessThanOrEqual(sessions.frame.maxX, selectorViewport.frame.maxX)
 
         people.tap()
         XCTAssertTrue(people.isSelected)
-        assertHeaderFrames(headerFrames)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-people")
         XCTAssertTrue(people.isHittable)
         XCTAssertGreaterThanOrEqual(people.frame.minX, selectorViewport.frame.minX)
         XCTAssertLessThanOrEqual(people.frame.maxX, selectorViewport.frame.maxX)
@@ -1435,14 +1435,14 @@ final class CandidateSignalUITests: XCTestCase {
 
         sessions.tap()
         XCTAssertTrue(sessions.isSelected)
-        assertHeaderFrames(headerFrames)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-sessions")
         XCTAssertTrue(sessions.isHittable)
         XCTAssertGreaterThanOrEqual(sessions.frame.minX, selectorViewport.frame.minX)
         XCTAssertLessThanOrEqual(sessions.frame.maxX, selectorViewport.frame.maxX)
 
         people.tap()
         XCTAssertTrue(people.isSelected)
-        assertHeaderFrames(headerFrames)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-people")
         XCTAssertTrue(people.isHittable)
         XCTAssertGreaterThanOrEqual(people.frame.minX, selectorViewport.frame.minX)
         XCTAssertLessThanOrEqual(people.frame.maxX, selectorViewport.frame.maxX)
@@ -1459,18 +1459,40 @@ final class CandidateSignalUITests: XCTestCase {
         app.buttons["archive-tab-sessions"].tap()
         XCTAssertTrue(element("agent-session-list").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-sessions"].isSelected)
-        assertHeaderFrames(headerFrames)
-        preserveScreenshot("Stable navigation - Chinese dark Sessions")
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-sessions")
+        preserveScreenshot("Expanded navigation - Chinese dark Sessions")
 
         app.buttons["archive-tab-people"].tap()
         XCTAssertTrue(element("relationship-people").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-people"].isSelected)
-        assertHeaderFrames(headerFrames)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-people")
         app.buttons["archive-tab-meetings"].tap()
         XCTAssertTrue(element("relationship-calendar").waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["archive-tab-meetings"].isSelected)
-        assertHeaderFrames(headerFrames)
+        assertHeaderGeometry(headerFrames, selected: "archive-tab-meetings")
         preserveScreenshot("GET-8 Chinese dark Meetings with reduced motion")
+    }
+
+    func testInternalTestingLivesInWorkspaceSettingsInsteadOfPrimaryNavigation() {
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["archive-tab-today"].waitForExistence(timeout: 8)
+        )
+        XCTAssertFalse(app.buttons["talent-signal-lab-capsule"].exists)
+        app.buttons["relationship-agent-studio"].tap()
+        XCTAssertTrue(app.buttons["agent-settings"].waitForExistence(timeout: 5))
+        app.buttons["agent-settings"].tap()
+
+        let internalTesting = app.buttons["open-internal-testing"]
+        scrollToVisible(internalTesting, maxSwipes: 18)
+        XCTAssertTrue(internalTesting.isHittable)
+        XCTAssertGreaterThanOrEqual(internalTesting.frame.height, 44)
+        preserveScreenshot("Internal testing in workspace settings")
+        internalTesting.tap()
+        XCTAssertTrue(
+            app.buttons["product-lab-done"].waitForExistence(timeout: 10)
+        )
     }
 
     private func captureHeaderFrames() -> [String: CGRect] {
@@ -1479,8 +1501,11 @@ final class CandidateSignalUITests: XCTestCase {
         return Dictionary(uniqueKeysWithValues: identifiers.map { ($0, app.buttons[$0].frame) })
     }
 
-    private func assertHeaderFrames(
-        _ baseline: [String: CGRect], file: StaticString = #filePath, line: UInt = #line
+    private func assertHeaderGeometry(
+        _ baseline: [String: CGRect],
+        selected _: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
     ) {
         for (identifier, expected) in baseline {
             let control = app.buttons[identifier]
@@ -1488,10 +1513,11 @@ final class CandidateSignalUITests: XCTestCase {
             XCTAssertTrue(control.isHittable, identifier, file: file, line: line)
             XCTAssertGreaterThanOrEqual(actual.width, 44, identifier, file: file, line: line)
             XCTAssertGreaterThanOrEqual(actual.height, 44, identifier, file: file, line: line)
-            XCTAssertEqual(actual.minX, expected.minX, accuracy: 0.5, identifier, file: file, line: line)
             XCTAssertEqual(actual.minY, expected.minY, accuracy: 0.5, identifier, file: file, line: line)
-            XCTAssertEqual(actual.width, expected.width, accuracy: 0.5, identifier, file: file, line: line)
             XCTAssertEqual(actual.height, expected.height, accuracy: 0.5, identifier, file: file, line: line)
+
+            XCTAssertEqual(actual.midX, expected.midX, accuracy: 0.5, identifier, file: file, line: line)
+            XCTAssertEqual(actual.width, expected.width, accuracy: 0.5, identifier, file: file, line: line)
         }
     }
 
