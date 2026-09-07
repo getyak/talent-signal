@@ -2086,3 +2086,80 @@ Workspace Settings when enabled.
 - Vetoes: none.
 
 final result: passed
+
+
+---
+
+# Design QA — reciprocal local navigation morph
+
+## Outcome and visual truth
+
+- Source interaction recording: `/Users/cubxxw/Downloads/ScreenRecording_09-07-2026 21-57-59_1.MP4`
+- Same-state motion comparison: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v4/notion-motion-comparison.png`
+- Final executable recording: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v4/final/notion-local-morph.mp4`
+- Final screenshots and manifest: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v4/final/validation/`
+- Decision contract and comparative result: `/Users/cubxxw/.codex/visualizations/2026/09/07/01a07bb9-5bd0-7c52-b82d-5bcaa46c2969/stable-navigation-v4/motion-study.md`
+- Viewport: iPhone 17 Pro simulator, 402 × 874 points at 3×.
+
+The prior implementation preserved adjacent-borrowing geometry but moved one
+shared capsule between destinations and hid both names through most of the
+transition. The user rejected that motion because it lacked the reciprocal,
+contained breathing visible in the Notion reference.
+
+The final implementation gives every destination its own faint rounded
+surface. On selection, the outgoing capsule contracts where it is while the
+destination capsule expands where it is. Both labels stay mounted, so the old
+name is progressively clipped and the new name is progressively revealed by
+the animated capsule boundary. The selected icon gains fill and contrast
+without changing its 24-point layout frame. A selected 104-point control still
+borrows only from its adjacent donor; all controls retain at least 44-point
+targets.
+
+## Motion inspection
+
+The width and layout changes share a 0.22-response interactive spring with 0.82
+damping and 0.08 blending. The selected/donor pair therefore preserves motion
+when the user retargets before settlement. Pressing scales only that control to
+0.965 with a shorter spring and a selection haptic. Reduce Motion applies the
+new geometry directly.
+
+Frame comparison of Today → Sessions shows the same interaction structure as
+the source: early destination emphasis, local reciprocal width change, two
+briefly coexisting names, rounded clipping, and a settled destination in about
+a quarter second. Sessions → People and the rapid four-destination pass settle
+without detached text, residual glyphs, rectangular clipping, or a shifted
+far-edge destination. The temporary recording-only test was removed before
+the final suite.
+
+## Verification
+
+- Five focused UI tests passed in
+  `/tmp/talent-signal-notion-motion-final-ui.xcresult`: four-page navigation and
+  retained state, AX5 LTR, AX5 RTL, Chinese dark Reduce Motion, and internal
+  testing in Workspace Settings.
+- Same-reference comparison was inspected at six 0.05-second intervals.
+- The final executable recording includes ordinary adjacent transitions and a
+  rapid interrupted sequence.
+- Release simulator build passed with derived data at
+  `/tmp/talent-signal-notion-motion-release`.
+- `pnpm docs:check` passed across 11 canonical documents, 495 Markdown files,
+  three published wiki pages, and all architecture diagrams.
+- `git diff --check` passed.
+
+## Mobile UX review
+
+- Evidence level: 1 — executable Simulator build with direct interaction,
+  geometry assertions, accessibility traits, and captured transitions.
+- Platform interaction: 3 — local press acknowledgement, interruptible spring,
+  page swipe/tap continuity, and stable final selection.
+- Accessibility: 3 — 44-point targets, full labels and selected traits, AX5,
+  RTL, Chinese, dark appearance, and Reduce Motion are verified.
+- Visual craft: 3 — one focus, continuous rounded boundaries, no stale text,
+  and low-noise inactive states across the tested variants.
+- Performance feel: 3 — immediate press response and continuous captured
+  frames; no visible header jump in ordinary or interrupted transitions.
+- Vetoes: none.
+- Remaining limit: Simulator evidence cannot judge the physical strength of
+  the UIKit selection haptic.
+
+final result: passed

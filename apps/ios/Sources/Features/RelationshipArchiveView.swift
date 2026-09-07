@@ -1231,9 +1231,16 @@ private struct RelationshipArchiveHeader: View {
     @ObservedObject var motion: RelationshipPageMotion
     let onOpenCalendar: (RelationshipCalendarLaunchIntent) -> Void
     let onOpenAgentStudio: () -> Void
-    @State private var revealedTitlePage: RelationshipArchivePage? = .today
     @Environment(\.appLanguage) private var appLanguage
     @Environment(\.talentSignalReduceMotion) private var reduceMotion
+
+    private var selectionAnimation: Animation {
+        .interactiveSpring(
+            response: 0.22,
+            dampingFraction: 0.82,
+            blendDuration: 0.08
+        )
+    }
 
     var body: some View {
         GeometryReader { headerGeometry in
@@ -1268,51 +1275,44 @@ private struct RelationshipArchiveHeader: View {
                         if page == donorPage { return compressedWidth }
                         return slotWidth
                     }
-                    let selectedOffset = itemWidths
-                        .prefix(selectedPage.pageIndex)
-                        .reduce(CGFloat.zero, +)
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.tsSurfaceMuted.opacity(0.72))
-                            .frame(width: activeWidth - 4, height: 40)
-                            .offset(x: selectedOffset + 2)
-
-                        HStack(spacing: 0) {
-                            ForEach(RelationshipArchivePage.allCases) { page in
-                                let emphasis = RelationshipPageMotion.emphasis(for: page, progress: progress)
-                                let isSelected = selectedPage == page
-                                let itemWidth = itemWidths[page.pageIndex]
-                                if page == .meetings {
-                                    pageButton(
-                                        page,
-                                        emphasis: emphasis,
-                                        isSelected: isSelected,
-                                        showsTitle: isSelected && revealedTitlePage == page,
-                                        itemWidth: itemWidth
-                                    )
-                                        .zIndex(isSelected ? 1 : 0)
-                                        .contextMenu { calendarShortcuts }
-                                        .accessibilityAction(named: Text(appLanguage.text("This week"))) {
-                                            onOpenCalendar(.thisWeek)
-                                        }
-                                        .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
-                                            onOpenCalendar(.addActivity)
-                                        }
-                                } else {
-                                    pageButton(
-                                        page,
-                                        emphasis: emphasis,
-                                        isSelected: isSelected,
-                                        showsTitle: isSelected && revealedTitlePage == page,
-                                        itemWidth: itemWidth
-                                    )
-                                        .zIndex(isSelected ? 1 : 0)
-                                }
+                    HStack(spacing: 0) {
+                        ForEach(RelationshipArchivePage.allCases) { page in
+                            let emphasis = RelationshipPageMotion.emphasis(
+                                for: page,
+                                progress: progress
+                            )
+                            let isSelected = selectedPage == page
+                            let itemWidth = itemWidths[page.pageIndex]
+                            if page == .meetings {
+                                pageButton(
+                                    page,
+                                    emphasis: emphasis,
+                                    isSelected: isSelected,
+                                    activeVisualWidth: activeWidth - 4,
+                                    itemWidth: itemWidth
+                                )
+                                    .zIndex(isSelected ? 1 : 0)
+                                    .contextMenu { calendarShortcuts }
+                                    .accessibilityAction(named: Text(appLanguage.text("This week"))) {
+                                        onOpenCalendar(.thisWeek)
+                                    }
+                                    .accessibilityAction(named: Text(appLanguage.text("Add activity"))) {
+                                        onOpenCalendar(.addActivity)
+                                    }
+                            } else {
+                                pageButton(
+                                    page,
+                                    emphasis: emphasis,
+                                    isSelected: isSelected,
+                                    activeVisualWidth: activeWidth - 4,
+                                    itemWidth: itemWidth
+                                )
+                                    .zIndex(isSelected ? 1 : 0)
                             }
                         }
                     }
                     .animation(
-                        reduceMotion ? nil : .easeInOut(duration: 0.28),
+                        reduceMotion ? nil : selectionAnimation,
                         value: selectedPage
                     )
                 }
@@ -1324,23 +1324,6 @@ private struct RelationshipArchiveHeader: View {
         }
         .frame(height: 52)
         .background(Color.tsSurface)
-        .task(id: selectedPage) {
-            let destination = selectedPage
-            if reduceMotion {
-                revealedTitlePage = destination
-                return
-            }
-            guard revealedTitlePage != destination else { return }
-            withAnimation(.easeOut(duration: 0.06)) {
-                revealedTitlePage = nil
-            }
-            do { try await Task.sleep(for: .milliseconds(220)) }
-            catch { return }
-            guard !Task.isCancelled, selectedPage == destination else { return }
-            withAnimation(.easeOut(duration: 0.12)) {
-                revealedTitlePage = destination
-            }
-        }
     }
 
     private var calendarShortcuts: some View {
@@ -1364,44 +1347,56 @@ private struct RelationshipArchiveHeader: View {
         _ page: RelationshipArchivePage,
         emphasis: CGFloat,
         isSelected: Bool,
-        showsTitle: Bool,
+        activeVisualWidth: CGFloat,
         itemWidth: CGFloat
     ) -> some View {
-        Button {
-            // PageTabViewStyle owns interactive travel. Do not layer another
-            // spring onto the focus indicator during a finger gesture.
+        let inactiveVisualWidth = min(42, itemWidth - 2)
+        let capsuleWidth = isSelected ? activeVisualWidth : inactiveVisualWidth
+
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
             if reduceMotion { selectedPage = page }
             else {
-                withAnimation(.easeInOut(duration: 0.28)) { selectedPage = page }
+                withAnimation(selectionAnimation) { selectedPage = page }
             }
         } label: {
-            HStack(spacing: showsTitle ? 6 : 0) {
+            HStack(spacing: 10.5) {
                 Image(systemName: page.symbolName)
                     .resizable()
                     .scaledToFit()
+                    .symbolVariant(isSelected ? .fill : .none)
                     .fontWeight(isSelected ? .medium : .regular)
-                    .frame(
-                        width: isSelected ? 24 : 22,
-                        height: isSelected ? 24 : 22
-                    )
+                    .frame(width: 24, height: 24)
+                    .scaleEffect(0.92 + emphasis * 0.08)
+                    .layoutPriority(2)
 
-                if showsTitle {
-                    Text(page.title(in: appLanguage))
-                        .font(.system(size: 16, weight: .medium))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .transition(.asymmetric(insertion: .opacity, removal: .identity))
-                }
+                Text(page.title(in: appLanguage))
+                    .font(.system(size: 16, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .allowsTightening(true)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
             }
             .foregroundStyle(Color.tsInk.opacity(0.48 + emphasis * 0.42))
-            .padding(.horizontal, showsTitle ? 6 : 0)
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .padding(.leading, 9)
+            .padding(.trailing, 4)
+            // Keep every title mounted. The rounded boundary reveals the new
+            // title and truncates the old one while their local capsules morph.
+            .frame(width: activeVisualWidth, height: 40, alignment: .leading)
+            .frame(width: capsuleWidth, height: 40, alignment: .leading)
+            .background(
+                Color.tsSurfaceMuted.opacity(0.38 + emphasis * 0.50),
+                in: Capsule()
+            )
+            .clipShape(Capsule())
             .frame(width: itemWidth, height: 44)
             .frame(height: 48)
             .contentShape(Rectangle())
             .accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RelationshipNavigationButtonStyle(reduceMotion: reduceMotion))
         .accessibilityLabel(page.title(in: appLanguage))
         .accessibilityAddTraits(selectedPage == page ? .isSelected : [])
         .accessibilityIdentifier("archive-tab-\(page.accessibilityIdentifier)")
@@ -1416,6 +1411,26 @@ private struct RelationshipArchiveHeader: View {
             ? page.pageIndex - 1
             : page.pageIndex + 1
         return pages[donorIndex]
+    }
+}
+
+private struct RelationshipNavigationButtonStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.965 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .interactiveSpring(
+                        response: 0.18,
+                        dampingFraction: 0.78,
+                        blendDuration: 0.04
+                    ),
+                value: configuration.isPressed
+            )
     }
 }
 
