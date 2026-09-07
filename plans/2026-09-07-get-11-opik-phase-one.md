@@ -25,9 +25,11 @@ TestFlight backend update proceed under the current delivery authorization.
   GET-15 correction cases; GET-16 paired comparisons and splits; GET-17 budget;
   GET-18 candidate worker; GET-19 independent CI; GET-20 release/readback;
   GET-21 post-release learning; GET-12 execution parameters.
-- Isolated worktree: `/Users/cubxxw/data/talent-signal-get11`, branch
-  `codex/get-11-opik-phase-one`, base `9041aaa3`. Concurrent GET-8 changes in the
-  original worktree are outside this task's ownership.
+- The implementation used `/Users/cubxxw/data/talent-signal-get11`, branch
+  `codex/get-11-opik-phase-one`, initially based on `9041aaa3`. The CI repair
+  and delivery-record branches each start from freshly updated main. Current
+  delivery-record branch: `codex/get-11-delivery-receipts`, base `2b712e62`.
+  Concurrent GET-8 changes in the original worktree remain outside this task's ownership.
 - Existing private Opik at `http://localhost:5173/api` responds with version
   `2.2.45`. Existing containers and volumes are reused, not redeployed.
 - Node dependencies installed with the frozen lockfile. Opik SDK is pinned to
@@ -65,38 +67,28 @@ outbox/runtime integration respectively. Independent review follows integration.
    durable failure/retry/deletion evidence; integrate shared contracts.
 3. **Complete:** task-level CLI, semantic/release controllers,
    source-lifecycle bridge, credential-free CI and private runtime-content readback.
-4. **Active:** finish the main-branch delivery checks. [PR 153](https://github.com/getyak/talent-signal/pull/153)
-   merged as `5dffa3d32dd41da79663afbd33faa28a00b85981` after the final
-   `929468a8` PR CI, applicable Security analyses and independent reviews
-   passed. No confirmed P0/P1 remains open in those reviews. Local verification
-   passed 201 runner, 63 evaluation, 101 Agent and 375 backend tests; dedicated
-   PostgreSQL and native UI evidence remain linked in the evaluation report.
-   The existing baseline backend was deployed from the merge revision, and
-   all 35 scoped readback checks passed. These include migration 057, source
-   and installed-build digests, HTTPS readiness and authentication rejection;
-   authenticated running-API configuration readback was not available.
-   The [main CI run](https://github.com/getyak/talent-signal/actions/runs/34134788085)
-   passed, including iOS smoke. [TestFlight v0.1.64](https://github.com/getyak/talent-signal/releases/tag/v0.1.64)
-   build `20260907152335` was confirmed processed for the same merge revision.
-   The main Security run's Swift
-   build exceeded its 45-minute job limit while compiling both simulator
-   architectures; Analyze was skipped, so security delivery is incomplete.
-   Follow-up branch `codex/get-11-swift-codeql` starts from freshly updated
-   `main` at `5dffa3d3`. The first `ARCHS=arm64`-only
-   dispatch also reached 45 minutes while the full Release build progressed
-   into the main app; Analyze was skipped. All ordinary PR 155 CI passed. The
-   next repair retains that architecture change and raises only the bounded
-   Swift job allowance to 90 minutes, preserving optimization, Release conditions,
-   all targets and every security gate. No pre-resolution/cache or compiler-mode
-   experiment is combined with it. Require updated independent review and
-   actual exact-head hosted Swift extraction/analysis before
-   merging, then verify main again. The next PR CI exposed one private-source
-   lifecycle integration test exceeding its default five-second harness deadline;
-   only that test receives 30 seconds, with all product deadlines and assertions
-   preserved. Require complete runner verification and latest-head CI again.
-   See the [delivery recovery evidence](../docs/evaluations/2026-09-07-get-11-opik/delivery-recovery.md).
-   GET-13/14/15/16/17/19 are Done with acceptance receipts read back in Linear;
-   GET-18/20/21 and the parent retain their unobserved live acceptance criteria.
+4. **Complete:** verify implementation and main-branch delivery. [PR 153](https://github.com/getyak/talent-signal/pull/153)
+   merged as `5dffa3d32dd41da79663afbd33faa28a00b85981`; its baseline backend
+   deployment passed all 35 scoped readback checks, and TestFlight v0.1.64 /
+   build `20260907152335` was confirmed processed for that revision. The
+   installed-artifact check is not authenticated running-API configuration proof.
+   [PR 155](https://github.com/getyak/talent-signal/pull/155) then repaired Swift
+   CodeQL build duration and one enclosing test deadline. It merged as
+   `2b712e62c7a4894ea60c7c1b398ecfc994d1c0e9` after independent actual-diff
+   review with no confirmed open P0/P1, complete PR CI and real final-head
+   Swift analysis passed. All 158 iOS product Swift compile paths were verified;
+   Release build, 532 Debug unit tests, nine UI smoke tests and 201 runner tests
+   passed. The latest tested and merged trees are identical.
+   Main CI `34148228404` passed, including iOS smoke. Release classifier
+   `34150103081` verified the same SHA and correctly required no new TestFlight
+   build. Actual main Security `34148228407` also passed, including successful
+   Swift build, Analyze and processed analysis `1737292249` on the merge SHA,
+   with no Swift errors, warnings or results.
+   The [delivery recovery record](../docs/evaluations/2026-09-07-get-11-opik/delivery-recovery.md)
+   owns failure history, exact receipts and coverage limits.
+   GET-13/14/15/16/17/19 are Done with acceptance receipts. GET-11 remains
+   In Progress with GET-12/18/20/21 unaccepted; an integration's automatic
+   Done transition after PR 155 was restored to the actual acceptance state.
 5. **Pending:** funded real optimization and scoped release/rollback once GET-12
    parameters arrive; report any unavailable external proof honestly.
 

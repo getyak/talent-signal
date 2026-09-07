@@ -1,6 +1,6 @@
 # GET-11 delivery and Swift analysis recovery
 
-Date: 2026-09-07. This records implementation delivery; funded optimization,
+Updated: 2026-09-08 (Asia/Shanghai). This records implementation delivery; funded optimization,
 candidate exposure and post-candidate-release observations remain unverified.
 
 ## Delivered baseline
@@ -98,3 +98,56 @@ to compile for arm64, successful build and extraction, successful Analyze and
 processing of the real `/language:swift` result, plus the required Security gate.
 Repeat the eligible security check on main after merge. A skipped job, failed-run
 SARIF or local build alone cannot satisfy that evidence.
+
+## Verified repair and remaining acceptance
+
+[PR 155](https://github.com/getyak/talent-signal/pull/155) merged as
+`2b712e62c7a4894ea60c7c1b398ecfc994d1c0e9` after final head
+`1ebfa08ab23e5e1400ac24f64b10b84c34cea0b8` passed independent actual-diff
+reviews, all applicable PR checks and a separately eligible real Swift scan.
+The complete reviewed, tested and merged trees equal
+`efdc436abe1321ba4720e8636ce19b1eefa5a08b`.
+The [final validation receipt](https://github.com/getyak/talent-signal/pull/155#issuecomment-5574002321)
+binds each check to that head.
+
+[Final PR CI](https://github.com/getyak/talent-signal/actions/runs/34144484216)
+passed all seven jobs. Independent completed-log inspection confirmed a
+successful Release build, followed by 532 Debug unit tests and all nine
+configured UI smoke tests, with zero failed or skipped cases. The full runner
+suite passed 201 tests. These are the configured smoke and control-plane checks,
+not paid-model or live candidate acceptance.
+
+The Swift job in [actual Security](https://github.com/getyak/talent-signal/actions/runs/34144486125)
+passed in 46m27s. Build succeeded at 17:28:30Z on 2026-09-07, upload processing
+completed at 17:30:02Z and Security required passed at 17:30:18Z. Processed
+analysis `1737157893` binds the final head with empty error/warning and zero
+Swift results. Compile paths exactly match all 158 iOS product Swift files
+across Sources, Shared, ShareExtension and LiveActivityExtension. The analyzer
+reports 158 of 275 repository Swift files; the remaining 117 are iOS tests (69),
+macOS files (47) and a documentation example (1). Release, `-O`, whole-module
+optimization and all three targets remain present. This is arm64 simulator
+product coverage, not every platform or branch condition. The analyzer reports
+348 unresolved AST nodes out of 1,770,256 extracted nodes; their details were
+unavailable, so complete AST resolution is not claimed. The branch has no new
+alerts relative to the eight pre-existing baseline alerts; the PR merge ref
+has no open alerts. Existing repository alerts are not claimed to be zero.
+
+The [main CI](https://github.com/getyak/talent-signal/actions/runs/34148228404)
+on `2b712e62` passed, including iOS smoke. Its eligible
+[release classifier](https://github.com/getyak/talent-signal/actions/runs/34150103081)
+verified the same SHA against trusted receipt v0.1.64 at 18:03:57Z and reported
+`TestFlight release required: false`; archive, upload and finalize were skipped.
+[Main Security](https://github.com/getyak/talent-signal/actions/runs/34148228407)
+also passed. Its real Swift job completed in 41m18s: Build succeeded at
+18:15:20Z, Swift finished at 18:17:02Z and Security required at 18:17:07Z.
+Processed analysis `1737292249` binds the exact merge SHA with empty error and
+warning and zero Swift results. This completes the required actual main scan;
+the intentionally skipped PR-event Swift job was not used as its substitute.
+
+The repair changes only CI, a test harness and documentation. The delivered
+backend and TestFlight v0.1.64 remain bound to product implementation `5dffa3d3`;
+no optimized candidate was deployed. GitHub's merge integration automatically
+marked GET-11 Done at 17:35:18Z; its owner restored In Progress at 17:37:58Z
+because GET-12/18/20/21 still have unobserved acceptance. GET-13/14/15/16/17/19
+retain their six accepted results. Missing currency, per-run/monthly monetary
+limits and candidate environment/workspace scope still prevent funded execution.
