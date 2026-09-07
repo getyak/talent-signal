@@ -131,7 +131,7 @@ update identity, unknown/missing/failed outcomes, retry and retention.
 
 ## Scoped product review
 
-`reviewer: mobile-ux-reviewer`  
+`reviewer: mobile-ux-reviewer`
 `lens: mobile task completion, visual hierarchy, accessibility, and recovery`
 
 Evidence level 1 for the tested native interactions; visual judgments are

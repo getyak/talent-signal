@@ -25,4 +25,3 @@
             XCTAssertTrue(app.buttons["archive-tab-\(start)"].isSelected)
         }
     }
-
