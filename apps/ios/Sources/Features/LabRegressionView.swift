@@ -10,11 +10,11 @@ struct LabRegressionLibrary: View {
         List {
             Section {
                 Text(language.text("Keep a failure reproducible.")).font(.headline)
-                Text(language.text("Save a specific experiment output and expected behavior. Rerun the frozen input after a change."))
+                Text(language.text("Experiment outputs and response feedback become development cases. Rerun the frozen input after a change."))
                     .font(.footnote).foregroundStyle(Color.tsMutedInk)
             }
             Section(language.text("Saved cases")) {
-                if store.items.isEmpty { Text(language.text("Open an experiment output to save your first regression case.")) }
+                if store.items.isEmpty { Text(language.text("Flag an answer or save an experiment output to create a development case.")) }
                 ForEach(store.items) { item in
                     NavigationLink {
                         LabRegressionDetailView(id: item.id, store: store, jobs: jobs, previous: previous)
@@ -40,6 +40,7 @@ struct LabRegressionSaveView: View {
     let job: LabJobRecord
     let attempt: LabJobAttempt
     let sample: LabJobCase
+    var isPrivateSource = false
     @Environment(\.appLanguage) private var language
     @State private var failures = Set<String>()
     @State private var expected = ""
@@ -68,7 +69,11 @@ struct LabRegressionSaveView: View {
             Section(language.text("Review note · Optional")) {
                 TextEditor(text: $note).focused($editing).frame(minHeight: 65).accessibilityIdentifier("lab-regression-note")
                     .onChange(of: note) { value in if value.count > 2000 { note = String(value.prefix(2000)) } }
-                Text(language.text("Use synthetic content only. The saved case is retained for 90 days and can be deleted. Notes are never sent as model input."))
+                Text(language.text(isPrivateSource
+                    ? "This case contains private source material. Its availability follows the original feedback and source. Notes are never sent as model input."
+                    : job.definition.regression_source != nil
+                    ? "This case reuses frozen source material. Its availability follows the source. Notes are never sent as model input."
+                    : "Use synthetic content only. The saved case is retained for 90 days and can be deleted. Notes are never sent as model input."))
                     .font(.footnote).foregroundStyle(Color.tsMutedInk)
             }.disabled(store.pending != nil || (requestedID != nil && requestedID == store.record?.id))
             if let id = requestedID, store.record?.id == id {
@@ -109,14 +114,22 @@ struct LabRegressionDetailView: View {
             if let record = store.record, record.id == id {
                 Section {
                     Text(language.text(record.snapshot.sample.title)).font(.headline)
+                    if record.snapshot.isFeedbackDevelopmentCase {
+                        Text(language.text("From response feedback · Development proposal"))
+                            .font(.subheadline).accessibilityIdentifier("lab-regression-feedback-source")
+                    }
                     Text(language.text(LabCICopy.status(record.release_check))).accessibilityIdentifier("lab-regression-release-status")
                     Text(language.text("Saving a case, checking it in CI and approving its quality are separate steps."))
                         .font(.footnote).foregroundStyle(Color.tsMutedInk)
                     NavigationLink(language.text("CI verification")) { LabCIView(id: id, regressions: store, store: store.ci) }
                         .accessibilityIdentifier("lab-regression-ci")
                 }
-                Section(language.text("Expected behavior")) {
+                Section(language.text(record.snapshot.isFeedbackDevelopmentCase ? "Expected behavior proposal" : "Expected behavior")) {
                     Text(record.snapshot.expected_behavior)
+                    if record.snapshot.isFeedbackDevelopmentCase {
+                        Text(language.text("Feedback supplies a development proposal. Independent semantic review is still required."))
+                            .font(.footnote).foregroundStyle(Color.tsMutedInk)
+                    }
                     Text(record.snapshot.failure_categories.map { LabJobCopy.text($0, language) }.joined(separator: " · ")).font(.caption)
                     if !record.snapshot.review_note.isEmpty { Text(record.snapshot.review_note).font(.footnote).foregroundStyle(Color.tsMutedInk) }
                 }
@@ -142,8 +155,13 @@ struct LabRegressionDetailView: View {
                     DisclosureGroup(language.text("Frozen input")) { Text(record.snapshot.sample.input_json).font(.caption).textSelection(.enabled) }
                     DisclosureGroup(language.text("Source and retention")) {
                         LabInfoRow(label: language.text("Snapshot"), value: record.content_hash)
-                        LabInfoRow(label: language.text("Source batch"), value: record.snapshot.source_job_id)
+                        LabInfoRow(label: language.text(record.snapshot.configurations.count == 1 && record.snapshot.isFeedbackDevelopmentCase ? "Original product task" : "Source batch"), value: record.snapshot.source_job_id)
                         LabInfoRow(label: language.text("Source execution"), value: record.snapshot.source_attempt.id)
+                        if let feedback = record.snapshot.feedback_source {
+                            LabInfoRow(label: language.text("Feedback"), value: feedback.feedback_id)
+                            LabInfoRow(label: language.text("Feedback revision"), value: String(feedback.feedback_revision))
+                            LabInfoRow(label: language.text("Original output hash"), value: feedback.original_output_hash)
+                        }
                         LabInfoRow(label: language.text("Reference time"), value: record.snapshot.reference_time)
                         LabInfoRow(label: language.text("Expires"), value: record.expires_at)
                     }
@@ -166,7 +184,8 @@ struct LabRegressionDetailView: View {
             Text(language.text("This removes the saved input, output, review, derived cases and rerun results. Reserved calls may still be charged. Previously exported files must be removed separately."))
         }
         .sheet(isPresented: Binding(get: { store.exportData != nil }, set: { if !$0 { store.clearExport() } })) {
-            if let data = store.exportData { LabRegressionExportView(id: id, data: data, onClose: { store.clearExport() }) }
+            if let data = store.exportData { LabRegressionExportView(id: id, data: data,
+                isPrivateSource: store.record?.snapshot.isFeedbackDevelopmentCase == true, onClose: { store.clearExport() }) }
         }
     }
 }
@@ -205,6 +224,7 @@ struct LabRegressionExportDocument: FileDocument {
 private struct LabRegressionExportView: View {
     let id: String
     let data: Data
+    let isPrivateSource: Bool
     let onClose: () -> Void
     @Environment(\.appLanguage) private var language
     @State private var exporting = false
@@ -213,7 +233,9 @@ private struct LabRegressionExportView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text(language.text("This file includes synthetic input, model output and your review. Inspect it before saving a separate copy."))
+                    Text(language.text(isPrivateSource
+                        ? "This file includes private source input, model output and feedback. Inspect it before saving a separate copy."
+                        : "This file includes synthetic input, model output and your review. Inspect it before saving a separate copy."))
                     Text(String(decoding: data, as: UTF8.self)).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                         .accessibilityIdentifier("lab-regression-export-json")
                     if let error { Text(error).foregroundStyle(Color.tsVermilion) }

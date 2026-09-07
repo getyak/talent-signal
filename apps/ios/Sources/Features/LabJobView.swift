@@ -19,11 +19,15 @@ struct LabJobView: View {
     @State private var confirmsCancel = false
     @State private var initializedRegression = false
     private var plannedCalls: Int { cases.count * 2 * repetitions }
+    private var hasFrozenRegressionSource: Bool { regression != nil || store.record?.definition.regression_source != nil }
     var body: some View {
         List {
             Section {
                 Text(language.text(regression == nil ? "Compare real answers across a frozen set of cases." : "Rerun the same input against today's admitted configurations.")).font(.headline)
-                Text(language.text("Synthetic input · Real model calls · No business-write tools"))
+                Text(language.text(regression?.snapshot.isFeedbackDevelopmentCase == true
+                    ? "Private source input · Real model calls · No business-write tools"
+                    : hasFrozenRegressionSource ? "Frozen source input · Real model calls · No business-write tools"
+                    : "Synthetic input · Real model calls · No business-write tools"))
                     .font(.footnote).foregroundStyle(Color.tsMutedInk)
                 if let regression {
                     Text(language.text(regression.snapshot.sample.title))
@@ -79,7 +83,9 @@ struct LabJobView: View {
         }
         .onChange(of: modelA) { _ in defaults() }
         .onChange(of: modelB) { _ in defaults() }
-        .onChange(of: task) { _ in cases.removeAll(); modelA = ""; modelB = ""; defaults() }
+        .onChange(of: task) { _ in
+            if regression == nil { cases.removeAll(); modelA = ""; modelB = ""; defaults() }
+        }
         .onChange(of: plannedCalls) { _ in callLimit = max(2, plannedCalls) }
         .confirmationDialog(language.text("Run this frozen experiment batch?"), isPresented: $confirmsRun, titleVisibility: .visible) {
             Button(language.text("Run batch")) { if let prepared { Task { await store.start(prepared) } } }
@@ -101,10 +107,12 @@ struct LabJobView: View {
         guard let catalog = store.catalog else { return }
         if let regression {
             if !initializedRegression {
+                let choices = regression.snapshot.initialRerunConfigurations
+                guard choices.count == 2 else { return }
                 initializedRegression = true; task = regression.snapshot.task ?? regression.snapshot.sample.task ?? "relationship_text"
                 cases = [regression.snapshot.sample.id]
-                modelA = regression.snapshot.configurations[0].model; modelB = regression.snapshot.configurations[1].model
-                presetA = regression.snapshot.configurations[0].prompt_preset; presetB = regression.snapshot.configurations[1].prompt_preset
+                modelA = choices[0].model; modelB = choices[1].model
+                presetA = choices[0].prompt_preset; presetB = choices[1].prompt_preset
             }
             return
         }
@@ -124,7 +132,9 @@ struct LabJobView: View {
                         && catalog.models.contains { ($0.task ?? "relationship_text") == candidate }
                 }, id: \.self) { candidate in Text(LabJobCopy.task(candidate, language)).tag(candidate) }
             }.disabled(regression != nil).accessibilityIdentifier("lab-job-task")
-            Text(language.text(task == "relationship_image" ? "The frozen synthetic screenshot is sent only to the admitted vision model."
+            Text(language.text(regression?.snapshot.isFeedbackDevelopmentCase == true
+                ? "The original private input is replayed. Feedback expectations remain outside the model input."
+                : task == "relationship_image" ? "The frozen synthetic screenshot is sent only to the admitted vision model."
                 : task == "unscoped_chat" ? "The product Workspace Agent runs against a read-only synthetic contact directory."
                 : "Reviewed synthetic evidence is sent through the relationship answer path."))
                 .font(.footnote).foregroundStyle(Color.tsMutedInk)
@@ -141,8 +151,8 @@ struct LabJobView: View {
             Text(language.text("Repeated runs measure variation; they are not additional independent cases."))
                 .font(.footnote).foregroundStyle(Color.tsMutedInk)
         }
-        choice(language.text("Configuration A"), model: $modelA, preset: $presetA, catalog: catalog, identifier: "a")
-        choice(language.text("Configuration B"), model: $modelB, preset: $presetB, catalog: catalog, identifier: "b")
+        choice(language.text(regression?.snapshot.isFeedbackDevelopmentCase == true ? "Baseline configuration" : "Configuration A"), model: $modelA, preset: $presetA, catalog: catalog, identifier: "a")
+        choice(language.text(regression?.snapshot.isFeedbackDevelopmentCase == true ? "Candidate configuration" : "Configuration B"), model: $modelB, preset: $presetB, catalog: catalog, identifier: "b")
         Section(language.text("Call budget")) {
             if plannedCalls >= 2 {
                 Stepper(value: $callLimit, in: 2...plannedCalls) {
@@ -160,7 +170,10 @@ struct LabJobView: View {
                 confirmsRun = true
             }.disabled(!catalog.enabled || cases.isEmpty || !admitted(catalog, modelA, presetA) || !admitted(catalog, modelB, presetB) || store.isWorking || store.pending != nil || store.record?.isActive == true)
                 .accessibilityIdentifier("lab-job-start")
-            if !admitted(catalog, modelA, presetA) || !admitted(catalog, modelB, presetB) {
+            if presetB.isEmpty {
+                Text(language.text("Choose a candidate prompt preset before reviewing this rerun."))
+                    .font(.footnote).foregroundStyle(Color.tsMutedInk)
+            } else if !admitted(catalog, modelA, presetA) || !admitted(catalog, modelB, presetB) {
                 Text(language.text("A saved configuration is no longer available. Choose an admitted model and prompt before running."))
                     .font(.footnote).foregroundStyle(Color.tsMutedInk)
             }
@@ -188,7 +201,8 @@ struct LabJobView: View {
             }.accessibilityIdentifier("lab-job-model-\(identifier)")
             Picker(language.text("Prompt preset"), selection: preset) {
                 if models.first(where: { $0.id == model.wrappedValue })?.prompt_presets.contains(preset.wrappedValue) != true {
-                    Text(language.text("Unavailable") + ": " + LabJobCopy.text(preset.wrappedValue, language)).tag(preset.wrappedValue)
+                    Text(preset.wrappedValue.isEmpty ? language.text("Choose a prompt preset")
+                        : language.text("Unavailable") + ": " + LabJobCopy.text(preset.wrappedValue, language)).tag(preset.wrappedValue)
                 }
                 ForEach(models.first(where: { $0.id == model.wrappedValue })?.prompt_presets ?? [], id: \.self) {
                     Text(LabJobCopy.text($0, language)).tag($0)
@@ -202,6 +216,12 @@ struct LabJobView: View {
                 .accessibilityElement(children: .combine).accessibilityIdentifier("lab-job-status")
             LabInfoRow(label: language.text("Comparison"), value: LabJobCopy.text(record.definition.comparison, language))
             LabInfoRow(label: language.text("Product path"), value: LabJobCopy.task(record.definition.task, language))
+            if let source = record.definition.regression_source {
+                Text(language.text("Frozen source input")).font(.footnote).foregroundStyle(Color.tsMutedInk)
+                NavigationLink(language.text("Open saved case")) {
+                    LabRegressionDetailView(id: source.id, store: regressions, jobs: store, previous: previous)
+                }.accessibilityIdentifier("lab-job-source-regression")
+            }
             LabInfoRow(label: language.text("Reserved calls"), value: "\(record.calls_reserved) / \(record.definition.call_limit)")
             if record.status == "unknown" {
                 Text(language.text("A worker lost contact after reserving a call. This batch will not restart automatically; the provider result and charge may be unknown."))
@@ -213,7 +233,8 @@ struct LabJobView: View {
             Text(language.text(record.quality == "blocked" ? "A hard check failed. Preference or speed cannot remove this failure." : "Content review is still required. No automatic winner or release approval is claimed."))
                 .font(.footnote).foregroundStyle(record.quality == "blocked" ? Color.tsVermilion : Color.tsMutedInk)
             ForEach(record.definition.cases) { sample in
-                NavigationLink { LabJobCaseResults(record: record, sample: sample, regressions: regressions, jobs: store, previous: previous) } label: {
+                NavigationLink { LabJobCaseResults(record: record, sample: sample, regressions: regressions, jobs: store, previous: previous,
+                    isPrivateSource: regression?.snapshot.isFeedbackDevelopmentCase == true) } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(language.text(sample.title))
                         let attempts = record.attempts.filter { $0.case_id == sample.id }
@@ -266,11 +287,15 @@ private struct LabJobCaseResults: View {
     @ObservedObject var regressions: LabRegressionStore
     @ObservedObject var jobs: LabJobStore
     @ObservedObject var previous: LabExperimentStore
+    let isPrivateSource: Bool
     @Environment(\.appLanguage) private var language
+    private var attempts: [LabJobAttempt] {
+        record.attempts.filter { $0.case_id == sample.id }.sorted { ($0.repetition, $0.configuration_index) < ($1.repetition, $1.configuration_index) }
+    }
     var body: some View {
         List {
             Section(language.text("Expected behavior")) { Text(sample.expected) }
-            ForEach(record.attempts.filter { $0.case_id == sample.id }.sorted { ($0.repetition, $0.configuration_index) < ($1.repetition, $1.configuration_index) }) { attempt in
+            ForEach(attempts) { attempt in
                 Section("\(attempt.configuration_index == 0 ? "A" : "B") · \(language.text("Run")) \(attempt.repetition)") {
                     LabInfoRow(label: language.text("Status"), value: LabJobCopy.text(attempt.status, language))
                     LabInfoRow(label: language.text("Actual model"), value: attempt.actual_model ?? language.text("Not reported"))
@@ -294,7 +319,8 @@ private struct LabJobCaseResults: View {
                     }
                     if !record.isActive, ["completed", "failed", "unknown"].contains(attempt.status) {
                         NavigationLink(language.text("Save this failure as a regression")) {
-                            LabRegressionSaveView(store: regressions, jobs: jobs, previous: previous, job: record, attempt: attempt, sample: sample)
+                            LabRegressionSaveView(store: regressions, jobs: jobs, previous: previous, job: record, attempt: attempt, sample: sample,
+                                isPrivateSource: isPrivateSource)
                         }.accessibilityIdentifier("lab-job-save-regression-\(attempt.ordinal)")
                     }
                 }

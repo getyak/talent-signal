@@ -771,7 +771,8 @@ export async function revokeCurrentSession(
   };
 }
 
-export function createAuthGuard(pool: Pool): preHandlerHookHandler {
+export function createAuthGuard(pool: Pool, deploymentWorkspaceIds?: readonly string[]): preHandlerHookHandler {
+  const audience = deploymentWorkspaceIds ? new Set(deploymentWorkspaceIds) : null;
   return async function authGuard(request): Promise<void> {
     const authorization = request.headers.authorization;
     if (!authorization?.startsWith("Bearer ")) {
@@ -816,6 +817,9 @@ export function createAuthGuard(pool: Pool): preHandlerHookHandler {
         "SESSION_INVALID",
         "The session is invalid, expired, or revoked.",
       );
+    }
+    if (audience && !audience.has(auth.account_id)) {
+      throw new ApiError(403, "DEPLOYMENT_WORKSPACE_NOT_ADMITTED", "This workspace is outside this deployment's configured audience.");
     }
     request.auth = {
       accountId: auth.account_id,

@@ -369,6 +369,8 @@ export interface ConversationMessage {
 }
 
 export interface AgentProviderRequest {
+  /** Trusted host source lineage for opt-in private observation; never model authority. */
+  observation?: import("./runtimeObservation.js").RuntimeObservationContext;
   runID: string;
   objective: string;
   conversationHistory?: readonly ConversationMessage[];

@@ -11,6 +11,9 @@ actor PendingCaptureInbox {
     private let legacyMetadataURL: URL
     private let legacyImageURL: URL
     private let legacyDraftURL: URL
+    // A live review may still hold its seed after another view removes it.
+    // Keep only process-local identifiers; a deliberate reimport gets a new ID.
+    private var removedCaptureIDs = Set<UUID>()
 
     init(directoryURL: URL? = nil) {
         let resolvedDirectory = directoryURL
@@ -141,6 +144,7 @@ actor PendingCaptureInbox {
     func remove(id: UUID) throws {
         try prepareQueue()
         try removeFiles(id: id)
+        removedCaptureIDs.insert(id)
     }
 
     private func removeFiles(id: UUID) throws {
@@ -193,6 +197,7 @@ actor PendingCaptureInbox {
 
     func saveReview(seed: PendingCaptureSeed, draft: RecognizedCaptureDraft,
                     recovery: CaptureReviewRecovery, scope: String?) throws {
+        guard !removedCaptureIDs.contains(seed.id) else { throw CocoaError(.fileNoSuchFile) }
         try prepareQueue()
         guard Date().timeIntervalSince(seed.createdAt) < 30 * 86_400 else {
             throw CocoaError(.fileNoSuchFile)

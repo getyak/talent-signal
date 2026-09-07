@@ -942,6 +942,9 @@ struct RelationshipArchiveView: View {
                     await revalidateSessionEvidence()
                 },
                 synchronizeSessions: synchronizeAgentSessions,
+                answerFeedbackClient: workspaceStore.isCanonical ? reviewBaseURL.flatMap { url in
+                    authenticatedAccessToken.map { AnswerFeedbackClient(baseURL: url, bearerToken: $0) }
+                } : nil,
                 onOpenProposal: { proposal in
                     deferredArchiveSheet = .proposal(proposal)
                     askPresentation = nil

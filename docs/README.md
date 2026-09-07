@@ -83,6 +83,8 @@ updated.
   injection, workload identity, environment isolation, and rotation.
 - [Prompt operations](operations/opik-prompts.md) explains editing, publishing,
   source imports and bundled releases with Opik version mirroring.
+- [Private Opik improvement](operations/opik-phase-one.md) covers corrections,
+  bounded search, independent verification, release readback and source removal.
 - [Internal TestFlight backend on Tailscale](operations/testflight-local-backend.md)
   defines the owner-operated Mac, loopback, tailnet, and no-seed testing
   boundary.

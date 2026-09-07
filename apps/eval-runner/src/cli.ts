@@ -37,6 +37,7 @@ import {
 import { RestOpikAnnotationTransport } from "./opik/opikAnnotationTransport.js";
 import { SdkOpikTransport, type OpikConnectionOptions } from "./opik/opikTransport.js";
 import { createDatasetSyncPlan } from "./opik/syncDataset.js";
+import { retryOpikProjection } from "./opik/retryProjection.js";
 import { createDefaultModeDispatcher } from "./builtinExecutors.js";
 import { ProjectionLedger } from "./projectionLedger.js";
 import { createRuntimeForProfile, runtimeDispatchClock } from "./profileRuntime.js";
@@ -51,6 +52,8 @@ import { renderEvaluationMarkdown, summarizeEvaluationResults } from "./report.j
 import { runEvaluationCase, type RunEvaluationCaseOutputV1 } from "./runSuite.js";
 import { consumeLabRegression } from "./labRegression.js";
 import { readLabRegressionFromBackend } from "./labRegressionReadback.js";
+import { runOptimizationControllerCommand } from "./optimization/controller.js";
+import { runPhaseOneCommand } from "./phaseOneCommand.js";
 
 const execFileAsync = promisify(execFile);
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -244,25 +247,20 @@ async function replayCommand(): Promise<RunEvaluationCaseOutputV1> {
   const runtimeFingerprint = await evaluationRuntimeFingerprint();
   const withOpik = process.argv.includes("--opik");
   const definition = agentDefinition(git, withOpik);
-  const projectionReporters: EvaluationReporter[] = [];
-  if (withOpik) {
+  const createProjectionReporters = (): EvaluationReporter[] => {
+    if (!withOpik) return [];
     const options = opikOptions();
     const transport = new SdkOpikTransport(options);
     const datasetName = argument("--dataset") ?? suite.suiteId;
-    const remoteDigest = await transport.readDatasetDigest(datasetName);
     const plan = createDatasetSyncPlan({
       projectName: options.projectName,
       datasetName,
       suite,
       scenarios: repository.scenarios,
       ownerControlledInstance: process.argv.includes("--owner-controlled"),
-      dryRun: false,
-      ...(remoteDigest === undefined ? {} : { remote: { datasetDigest: remoteDigest } }),
+      dryRun: true,
     });
-    if (plan.operation !== "noop") {
-      throw new Error("OPIK_DATASET_NOT_SYNCED: run opik-sync before projecting an experiment");
-    }
-    projectionReporters.push(
+    return [
       new OpikReporter({
         projectName: options.projectName,
         datasetName,
@@ -272,15 +270,15 @@ async function replayCommand(): Promise<RunEvaluationCaseOutputV1> {
         ledger: new ProjectionLedger(projectionLedgerDirectory()),
         transport,
       }),
-    );
-  }
+    ];
+  };
   return runEvaluationCase({
     scenario,
     profile,
     suite,
     dispatcher: createDefaultModeDispatcher(process.env, runtimeDispatchClock(runtime)),
     localReporter: new LocalJsonReporter({ outputDirectory, runtime }),
-    projectionReporters,
+    createProjectionReporters,
     gitSha: git,
     agentDefinition: definition,
     fingerprints: { sdk: runtimeFingerprint },
@@ -516,6 +514,18 @@ async function opikLedgerCommand(): Promise<unknown> {
   );
 }
 
+async function opikExportCommand(): Promise<unknown> {
+  const options = opikOptions();
+  return retryOpikProjection({
+    runId: requiredArgument("--run-id"),
+    artifactDirectory: artifactDirectory(),
+    projectName: options.projectName,
+    ownerControlledInstance: process.argv.includes("--owner-controlled"),
+    ledger: new ProjectionLedger(projectionLedgerDirectory()),
+    transport: new SdkOpikTransport(options),
+  });
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2] ?? "validate";
   let output: unknown;
@@ -532,12 +542,35 @@ async function main(): Promise<void> {
   else if (command === "opik-annotation-bootstrap") output = await opikAnnotationBootstrapCommand();
   else if (command === "opik-delete") output = await opikDeleteCommand();
   else if (command === "opik-ledger") output = await opikLedgerCommand();
+  else if (command === "opik-export") output = await opikExportCommand();
   else if (command === "annotations-import") output = await annotationImportCommand();
   else if (command === "annotations-adjudicate") output = await annotationAdjudicateCommand();
   else if (command === "calibrate") output = await calibrationCommand();
+  else if (command === "optimization" || command === "phase-one") {
+    const args = process.argv.slice(3);
+    const index = args.indexOf("--controller-dir");
+    if (index < 0 || !args[index + 1] || args[index + 1]!.startsWith("--")
+      || args.lastIndexOf("--controller-dir") !== index) throw new Error("Exactly one --controller-dir is required");
+    const directory = resolve(args[index + 1]!);
+    args.splice(index, 2);
+    output = command === "phase-one" ? await runPhaseOneCommand(args, directory)
+      : await runOptimizationControllerCommand(args, directory, {
+        ...(process.env.TALENT_SIGNAL_PHASE_ONE_PROVIDER_API_KEY
+          ? { apiKey: process.env.TALENT_SIGNAL_PHASE_ONE_PROVIDER_API_KEY } : {}),
+        ...(process.env.TALENT_SIGNAL_PHASE_ONE_BACKEND_TOKEN
+          ? { backendToken: process.env.TALENT_SIGNAL_PHASE_ONE_BACKEND_TOKEN } : {}),
+      });
+  }
   else throw new Error(`Unknown evaluation command: ${command}`);
 
   process.stdout.write(typeof output === "string" ? `${output}\n` : `${JSON.stringify(output, null, 2)}\n`);
+  if (command === "opik-export" && (output as { receipt: { status: string } }).receipt.status !== "succeeded") {
+    process.exitCode = 1;
+  }
+  if (command === "opik-delete" && ((output as { status?: string }).status === "failed"
+    || (output as { readBackVerified?: boolean }).readBackVerified !== true)) {
+    process.exitCode = 1;
+  }
   if (
     ((command === "replay" &&
       ["fail", "not_run"].includes((output as RunEvaluationCaseOutputV1).gate.status)) ||

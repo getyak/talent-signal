@@ -292,7 +292,8 @@ Evaluate layers independently:
 
 Evaluate both trajectory and outcome. An agent saying it is finished is not evidence that the environment is correct.
 
-Internal Lab evaluation binds comparison to one frozen synthetic snapshot and requires human promotion before a redacted issue becomes a versioned Eval Case; see [ADR 0011](decisions/0011-product-native-internal-lab.md).
+Internal evaluation binds frozen inputs, lineage, reference time and actual configuration; real corrections, Agent judgments and human gold remain distinct.
+Codex may review independently verified candidates within explicit budget and release scope; generators cannot see holdouts or approve releases, and business-action authority is unchanged. See [ADR 0015](decisions/0015-private-evaluation-and-delegated-prompt-improvement.md).
 
 Release boundaries include:
 - every consequential write has specific approval and provenance;

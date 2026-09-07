@@ -394,6 +394,7 @@ final class RelationshipCaptureStore: ObservableObject {
             dismissedCount: changes?.dismissedCount ?? 0, needsEvidenceReview: changes?.needsEvidenceReview ?? false)
     }
     private func saveRecovery() async throws {
+        try Task.checkCancellation()
         guard !removedFromInbox else { return }
         recovery.selectedCandidateID = selectedCandidateID
         recovery.selectedContextID = selectedContextID
@@ -417,6 +418,10 @@ final class RelationshipCaptureStore: ObservableObject {
     private func run(stage: RelationshipCaptureStage, recoveryStage: RelationshipCaptureFailure.RecoveryStage,
                      operation: @escaping @MainActor () async throws -> Void) {
         task?.cancel()
+        // The operation persists the current review itself. A prior debounced
+        // position save must not outlive it or race a terminal inbox removal.
+        draftTask?.cancel()
+        draftTask = nil
         self.stage = stage
         task = Task { [weak self] in
             do { try await operation() }

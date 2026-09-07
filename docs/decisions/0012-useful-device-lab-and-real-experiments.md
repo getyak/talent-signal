@@ -6,6 +6,11 @@ Accepted for device experiments, durable batches, saved regressions, runtime env
 ADR 0011; its deterministic scenario
 and receipt contracts remain valid.
 
+[ADR 0015](0015-private-evaluation-and-delegated-prompt-improvement.md) extends
+the synthetic-only experiment input boundary for authorized private evaluation
+and adds delegated candidate review. Device diagnostics and business-effect
+isolation retain their original scope.
+
 ## Context
 
 Fixed output replay helps verify presentation and boundaries, but cannot show
