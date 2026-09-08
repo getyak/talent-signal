@@ -330,6 +330,7 @@ jobs:
           pnpm --filter @talent-signal/agent exec vitest run src/runtimeObservation.test.ts
           pnpm --filter @talent-signal/eval-runner exec vitest run src --maxWorkers=2
           pnpm --filter @talent-signal/eval-runner p0
+          pnpm eval:proof
           python3 -m unittest discover -s apps/eval-runner/optimizer -p '*_test.py'
 
       - name: Record what this credential-free job proves
@@ -342,6 +343,17 @@ jobs:
           name: phase-one-ci-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/phase-one-ci.json
           retention-days: 7
+
+      # Exercise the same pinned downloader used to restore release IPAs.
+      - name: Restore control-plane verification status
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: phase-one-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/restored-phase-one
+          digest-mismatch: error
+
+      - name: Verify restored artifact matches original
+        run: cmp build/phase-one-ci.json build/restored-phase-one/phase-one-ci.json
 
   ios:
     name: iOS release smoke

@@ -23,7 +23,7 @@ import type {
   AgentToolResult,
 } from "./types.js";
 
-const SDK_VERSION = "0.3.241";
+const SDK_VERSION = "0.3.260";
 const MCP_SERVER_NAME = "talent_signal";
 const MCP_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 const PROHIBITED_BUILT_INS = [

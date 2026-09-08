@@ -39,9 +39,9 @@
     "opik": "2.2.45"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
-    "tsx": "^4.23.12",
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
     "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   }
 }
