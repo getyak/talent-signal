@@ -1,11 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useSyncExternalStore, useTransition } from "react";
 import { isMarketingLocale, localeCookie } from "@/lib/marketing-locale";
 import { useMarketingLocale } from "./locale-provider";
 
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
 export function LanguageSwitcher() {
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    clientReady,
+    serverReady,
+  );
   const locale = useMarketingLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -14,7 +23,7 @@ export function LanguageSwitcher() {
       className="site-language"
       aria-label={locale === "en" ? "Language" : "语言"}
       value={locale}
-      disabled={pending}
+      disabled={pending || !hydrated}
       onChange={(event) => {
         const next = event.target.value;
         if (!isMarketingLocale(next)) return;

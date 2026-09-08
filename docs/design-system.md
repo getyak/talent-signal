@@ -18,11 +18,12 @@ without making the system feel more important than the relationship.
 
 ## Ownable causal grammar
 
-The product should make its governing relationship visible, not merely describe
-it. On a public proof surface, exact source evidence and the proposed
-relationship change belong in one composition, joined by a clear causal seam.
-Removing or contesting source evidence must retract the interpretation and any
-dependent action.
+Public storytelling makes the visitor's transformation visible: capture a person,
+reconcile scattered context, then discover a meaningful relationship or intent path.
+Motion communicates continuity and discovery; source inspection sits one deliberate
+step from the claim. Removing evidence retracts all dependent interpretations and
+paths. Clearly distinguish synthetic future experiences from available integrations.
+Functional checks establish reliability, not aesthetic success or user acceptance.
 
 The vermilion redline is that seam. It marks a consequential, reviewable change
 between what was said and what may become current understanding. It is not a

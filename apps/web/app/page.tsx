@@ -3,17 +3,14 @@ import { MarketingHome } from "@/components/marketing/marketing-home";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { StructuredData } from "@/components/structured-data";
-import { marketingCopy } from "@/lib/marketing-copy";
+import { relationshipVisionCopy } from "@/lib/relationship-vision-copy";
 import { getMarketingLocale } from "@/lib/server/marketing-locale";
 import { siteConfig } from "@/lib/site";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getMarketingLocale();
-  const c = marketingCopy(locale);
-  const title =
-    locale === "en"
-      ? "Talent Signal | A CRM for continuing relationships"
-      : "Talent Signal｜每次跟进，都接得上上次对话";
+  const c = relationshipVisionCopy(locale);
+  const title = c.title;
   return {
     title: { absolute: title },
     description: c.promise,
@@ -28,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const locale = await getMarketingLocale();
-  const c = marketingCopy(locale);
+  const c = relationshipVisionCopy(locale);
   return (
     <>
       <StructuredData
