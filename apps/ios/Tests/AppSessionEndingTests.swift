@@ -11,6 +11,34 @@ final class AppSessionEndingTests: XCTestCase {
             account: .init(id: "fixture-account", slug: "fixture-account", name: "Synthetic account"),
             user: .init(id: "fixture-user", email: "fixture@example.test", displayName: "Synthetic user", kind: "simulated_human"))
     }
+    func testRecoveryAttentionEndsOnlyAfterVerifiedRetry() async throws {
+        let saved = session(), local = EndingSessionMemory(), journal = MemoryAppSessionEndings(), client = EndingAuthentication()
+        local.value = saved; client.response = saved; client.logoutFailure = URLError(.notConnectedToInternet)
+        let store = AppSessionStore(baseURL: endpoint, persistence: local, client: client, endings: journal)
+        await store.restore()
+        let ending = await store.signOut()
+        let result = try XCTUnwrap(ending)
+        XCTAssertTrue(store.needsSignOutRecovery)
+        client.logoutFailure = nil
+        await store.retrySignOut(result.id)
+        XCTAssertFalse(store.needsSignOutRecovery)
+        XCTAssertNil(store.notice, "Successful sign-out must leave the ordinary login quiet")
+        XCTAssertEqual(store.endingReceipts.count, 1, "History remains available in recovery tools")
+    }
+
+    func testUnreadableRecoveryJournalRetainsRecoveryEntry() async {
+        let journal = MemoryAppSessionEndings()
+        journal.failsLoad = true
+        let store = AppSessionStore(baseURL: endpoint, persistence: EndingSessionMemory(),
+            client: EndingAuthentication(), endings: journal)
+        await store.restore()
+        XCTAssertTrue(store.needsSignOutRecovery)
+        XCTAssertEqual(store.phase, .signedOut)
+        journal.failsLoad = false
+        store.refreshSignOutReceipts()
+        XCTAssertFalse(store.needsSignOutRecovery)
+    }
+
     func testLateValidationCannotReopenSignedOutSession() async throws {
         let saved = session(), local = EndingSessionMemory(), journal = MemoryAppSessionEndings(), client = EndingAuthentication()
         local.value = saved; client.response = saved; client.suspendsValidation = true
@@ -194,7 +222,11 @@ final class MemoryAppSessionEndings: AppSessionEndingPersisting {
     var values: [AppSessionEnding] = []
     var writes = 0
     var failAt = Set<Int>()
-    func load() throws -> [AppSessionEnding] { values }
+    var failsLoad = false
+    func load() throws -> [AppSessionEnding] {
+        if failsLoad { throw AppSessionEndingError.unreadable }
+        return values
+    }
     func save(_ values: [AppSessionEnding]) throws {
         writes += 1
         if failAt.contains(writes) { throw CocoaError(.fileWriteNoPermission) }
@@ -226,4 +258,21 @@ private final class EndingAuthentication: AppAuthenticationServing {
         return stored
     }
     func logout(_ stored: TalentSignalSession) async throws { loggedOutTokens.append(stored.accessToken); if let logoutFailure { throw logoutFailure } }
+}
+
+final class AuthenticationWelcomeGestureTests: XCTestCase {
+    func testExploratoryAndSidewaysPullsDoNotCommit() {
+        XCTAssertFalse(AuthenticationWelcomeGesture.shouldEnter(translation: CGSize(width: 0, height: -32),
+            predicted: CGSize(width: 0, height: -400), travel: 210))
+        XCTAssertFalse(AuthenticationWelcomeGesture.shouldEnter(translation: CGSize(width: 180, height: -150),
+            predicted: CGSize(width: 220, height: -300), travel: 210))
+        XCTAssertFalse(AuthenticationWelcomeGesture.shouldEnter(translation: CGSize(width: 0, height: 120),
+            predicted: CGSize(width: 0, height: 200), travel: 210))
+    }
+    func testDeliberatePullAndFlingBothEnter() {
+        XCTAssertTrue(AuthenticationWelcomeGesture.shouldEnter(translation: CGSize(width: 8, height: -160),
+            predicted: CGSize(width: 8, height: -160), travel: 210))
+        XCTAssertTrue(AuthenticationWelcomeGesture.shouldEnter(translation: CGSize(width: 0, height: -80),
+            predicted: CGSize(width: 0, height: -240), travel: 210))
+    }
 }

@@ -53,6 +53,7 @@ final class LabStagesUITests: XCTestCase {
         capture("lab-stages-restored-server")
     }
     private func open(_ app: XCUIApplication) {
+        app.revealLoginLabMenu()
         let lab = app.buttons["login-product-lab"]
         XCTAssertTrue(lab.waitForExistence(timeout: 15)); lab.tap()
         app.buttons["product-lab-diagnostics"].tap()

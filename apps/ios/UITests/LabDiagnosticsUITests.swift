@@ -125,6 +125,7 @@ final class LabDiagnosticsUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--show-login", "--auth-backend-url", "http://127.0.0.1:1", "-talent-signal.interface-language", "en"]
         app.launch()
+        app.revealLoginLabMenu()
         let entry = app.buttons["login-product-lab"]
         XCTAssertTrue(entry.waitForExistence(timeout: 15)); entry.tap()
         app.buttons["product-lab-diagnostics"].tap()

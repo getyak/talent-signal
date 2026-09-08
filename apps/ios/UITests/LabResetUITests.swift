@@ -87,6 +87,7 @@ final class LabResetUITests: XCTestCase {
         capture("reset-reviewed-scope-zh-ax5-dark")
     }
     private func openReset(_ app: XCUIApplication) {
+        app.revealLoginLabMenu()
         let lab = app.buttons["login-product-lab"]
         XCTAssertTrue(lab.waitForExistence(timeout: 15)); lab.tap()
         reveal(app.buttons["product-lab-maintenance"], app); app.buttons["product-lab-maintenance"].tap()

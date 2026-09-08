@@ -45,6 +45,7 @@ final class LabMetricKitUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["MetricKit 历史报告"].waitForExistence(timeout: 5))
     }
     private func open(_ app: XCUIApplication) {
+        app.revealLoginLabMenu()
         let lab = app.buttons["login-product-lab"]
         XCTAssertTrue(lab.waitForExistence(timeout: 15)); lab.tap()
         let diagnostics = app.buttons["product-lab-diagnostics"]; reveal(diagnostics, app); diagnostics.tap()
