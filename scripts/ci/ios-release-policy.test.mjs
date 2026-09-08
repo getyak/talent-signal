@@ -288,10 +288,19 @@ test("automatic releases classify all changes since the last trusted receipt", (
   assert.match(releaseWorkflow, /build\/ios\/TalentSignal\.ipa/);
   assert.match(releaseWorkflow, /Finalize TestFlight release/);
   assert.match(releaseWorkflow, /wait-for-testflight-build\.mjs/);
-  assert.match(
-    releaseWorkflow,
-    /actions\/download-artifact@[0-9a-f]{40} # v7/,
-  );
+  for (const label of ["Restore exact archived IPA", "Restore exact uploaded IPA"]) {
+    const restoreStep = releaseWorkflow.match(
+      new RegExp(`      - name: ${label}\\n([\\s\\S]*?)(?=\\n      - name:)`),
+    );
+    assert.ok(restoreStep, `expected ${label}`);
+    assert.match(restoreStep[1], /actions\/download-artifact@[0-9a-f]{40}\b/);
+    assert.match(restoreStep[1], /digest-mismatch: error/);
+    assert.match(
+      restoreStep[1],
+      /name: TalentSignal-\$\{\{ needs\.package\.outputs\.release_version \}\}-\$\{\{ needs\.package\.outputs\.build_number \}\}/,
+    );
+    assert.match(restoreStep[1], /path: build\/ios/);
+  }
   assert.ok(
     releaseWorkflow.indexOf("Preserve IPA before Apple upload") <
       releaseWorkflow.indexOf("Submit exact archived IPA") &&
