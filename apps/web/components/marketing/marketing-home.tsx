@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useState, useRef } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -17,13 +17,10 @@ import {
 import { relationshipVisionCopy } from "@/lib/relationship-vision-copy";
 import type { MarketingLocale } from "@/lib/marketing-locale";
 import { useReducedMotionPreference } from "@/lib/use-reduced-motion";
-import {
-  ActionMark,
-  PersonPortrait,
-  RelationshipUniverse,
-} from "./relationship-universe";
+import { ActionMark, PersonPortrait } from "./relationship-universe";
 import { initialVisionState, visionReducer } from "@/lib/relationship-vision";
 import s from "./universe.module.css";
+import { RelationshipFilm } from "./relationship-film";
 export function MarketingHome({ locale }: { locale: MarketingLocale }) {
   const c = relationshipVisionCopy(locale);
   const [surface, setSurface] = useState(0);
@@ -33,44 +30,28 @@ export function MarketingHome({ locale }: { locale: MarketingLocale }) {
   const [vision, dispatch] = useReducer(visionReducer, initialVisionState);
   const [entry, setEntry] = useState(0);
   function enter() {
-    dispatch({ type: "reset" });
     setEntry((value) => value + 1);
   }
+  const handledEntry = useRef(0);
   useEffect(() => {
-    if (entry === 0) return;
+    if (entry === 0 || handledEntry.current === entry) return;
     const frame = requestAnimationFrame(() => {
-      document
-        .getElementById("relationship-universe")
-        ?.scrollIntoView({
-          behavior: reduced ? "instant" : "smooth",
-          block: "start",
-        });
-      document
-        .querySelector<HTMLButtonElement>(
-          `[aria-label="${locale === "en" ? "Press the Action Button" : "按下 Action Button"}"]`,
-        )
-        ?.focus({ preventScroll: true });
+      handledEntry.current = entry;
+      document.getElementById("product")?.scrollIntoView({
+        behavior: reduced ? "instant" : "smooth",
+        block: "start",
+      });
     });
     return () => cancelAnimationFrame(frame);
   }, [entry, locale, reduced]);
   return (
     <main id="main-content" tabIndex={-1} className={s.page} lang={locale}>
-      <section className={s.hero} id="product" aria-labelledby="hero-title">
-        <div className={s.heroIntro}>
-          <p>{c.eyebrow}</p>
-          <h1 id="hero-title">
-            {c.headline[0]}
-            <span>{c.headline[1]}</span>
-          </h1>
-          <p>{c.promise}</p>
-        </div>
-        <RelationshipUniverse
-          key={entry}
-          locale={locale}
-          state={vision}
-          dispatch={dispatch}
-        />
-      </section>
+      <RelationshipFilm
+        locale={locale}
+        bridgeAvailable={vision.bridgeAvailable}
+        onRemoveBridge={() => dispatch({ type: "remove-bridge" })}
+        replayRequest={entry}
+      />
       <section
         className={s.capture}
         id="method"
