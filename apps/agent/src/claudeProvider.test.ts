@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sdk = vi.hoisted(() => ({
@@ -82,6 +84,15 @@ function stream(
 }
 
 describe("ClaudeAgentSDKProvider", () => {
+  it("reports the exact SDK version pinned by the agent package", () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    );
+    expect(new ClaudeAgentSDKProvider("claude-synthetic-pinned").sdkVersion).toBe(
+      manifest.dependencies["@anthropic-ai/claude-agent-sdk"],
+    );
+  });
+
   beforeEach(() => {
     sdk.query.mockReset();
     vi.stubEnv("ANTHROPIC_BASE_URL", "https://compatible-proxy.example/v1");

@@ -4,6 +4,11 @@ packages:
 
 overrides:
   "argparse@1.0.3>lodash": "4.18.0"
+  # https://github.com/fastify/fast-uri/security/advisories/GHSA-58mr-gqgx-xq4g
+  "fast-uri@3.1.5": "3.1.7"
+  "fast-uri@4.1.2": "4.1.4"
+  # https://github.com/ljharb/qs/security/advisories/GHSA-4mjr-xmp4-gh2g
+  "qs@6.15.3": "6.16.0"
 
 allowBuilds:
   esbuild: true
