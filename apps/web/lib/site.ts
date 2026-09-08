@@ -1,42 +1,14 @@
 export const siteConfig = {
   name: "Talent Signal",
-  title: "Talent Signal｜高管寻访的关系智能工作台",
+  title: "Talent Signal｜以联系人为中心的关系 CRM",
   description:
-    "把一段由招聘顾问主动提供的对话，转化为可核验的关系背景与最小、稳妥的下一步。",
+    "保留联系人的背景，发现对话里的变化，准备恰当的下一步。面向独立猎头与精品寻访团队的关系 CRM。",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://gettalentsignal.com",
   email: "hello@talentsignal.ai",
 } as const;
 
 export const accessRequestHref =
   `mailto:${siteConfig.email}?subject=${encodeURIComponent("申请使用 Talent Signal")}`;
-
-export const navigation = [
-  {
-    href: "/#product",
-    label: "产品",
-    description: "查看证据如何改变当前理解",
-  },
-  {
-    href: "/relationships",
-    label: "关系工作台",
-    description: "体验安静、可追溯的关系工作区",
-  },
-  {
-    href: "/#method",
-    label: "方法",
-    description: "查看受治理的状态历史",
-  },
-  {
-    href: "/blog",
-    label: "研究",
-    description: "阅读证据优先的产品方法",
-  },
-  {
-    href: "/#principles",
-    label: "信任",
-    description: "了解人的决策边界",
-  },
-] as const;
 
 export const faqs = [
   {

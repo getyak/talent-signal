@@ -11,6 +11,8 @@ function read(relativePath: string) {
 describe("workspace skip-link landmarks", () => {
   it("keeps the global skip link bound to the stable main target", () => {
     expect(read("app/layout.tsx")).toContain('href="#main-content"');
+    // Legacy Chinese content and body portals must not inherit an English marketing preference.
+    expect(read("app/layout.tsx")).toContain('<body lang="zh-CN">');
   });
 
   it.each([
@@ -27,7 +29,8 @@ describe("workspace skip-link landmarks", () => {
   });
 
   it.each([
-    "app/page.tsx",
+    "components/marketing/marketing-home.tsx",
+    "components/marketing/marketing-subpage.tsx",
     "app/demo/page.tsx",
     "app/relationships/page.tsx",
     "app/blog/page.tsx",
