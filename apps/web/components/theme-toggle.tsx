@@ -2,13 +2,17 @@
 
 import { Moon, Sun } from "@phosphor-icons/react";
 
-export function ThemeToggle() {
+export function ThemeToggle({ label = "切换明暗主题" }: { label?: string }) {
   function toggleTheme() {
     const currentTheme =
       document.documentElement.dataset.theme === "dark" ? "dark" : "light";
     const nextTheme = currentTheme === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem("talent-signal-theme", nextTheme);
+    try {
+      window.localStorage.setItem("talent-signal-theme", nextTheme);
+    } catch {
+      /* Theme still works when persistence is unavailable. */
+    }
   }
 
   return (
@@ -16,8 +20,8 @@ export function ThemeToggle() {
       className="icon-button theme-toggle"
       type="button"
       onClick={toggleTheme}
-      aria-label="切换明暗主题"
-      title="切换明暗主题"
+      aria-label={label}
+      title={label}
     >
       <span className="theme-toggle__dark" aria-hidden="true">
         <Moon aria-hidden="true" size={18} weight="regular" />

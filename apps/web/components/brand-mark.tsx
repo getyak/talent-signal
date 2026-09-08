@@ -2,11 +2,12 @@ import Link from "next/link";
 
 type BrandMarkProps = {
   compact?: boolean;
+  label?: string;
 };
 
-export function BrandMark({ compact = false }: BrandMarkProps) {
+export function BrandMark({ compact = false, label = "Talent Signal 首页" }: BrandMarkProps) {
   return (
-    <Link className="brand" href="/" aria-label="Talent Signal 首页">
+    <Link className="brand" href="/" aria-label={label}>
       <svg
         className="brand__mark"
         aria-hidden="true"
