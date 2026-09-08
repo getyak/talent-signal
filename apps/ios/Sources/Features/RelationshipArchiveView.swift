@@ -1369,6 +1369,9 @@ private struct RelationshipArchiveHeader: View {
                     .scaledToFit()
                     .symbolVariant(isSelected ? .fill : .none)
                     .fontWeight(isSelected ? .medium : .regular)
+                    // Swap the glyph without fading it out during the capsule reveal.
+                    // https://developer.apple.com/documentation/swiftui/contenttransition/identity
+                    .contentTransition(.identity)
                     .frame(width: 24, height: 24)
                     .scaleEffect(0.92 + emphasis * 0.08)
                     .layoutPriority(2)
