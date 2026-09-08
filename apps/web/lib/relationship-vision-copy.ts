@@ -16,7 +16,7 @@ const copy = {
       "好工具的起点，是理解使用它的人。",
     ],
     captureNote: "未来跨平台捕捉体验 · 合成素材",
-    captureAction: "试试这个 Action Button",
+    captureAction: "观看这段体验",
     livingTitle: ["散落的背景，", "汇成一个鲜活的人。"],
     livingText:
       "她正在做什么，你们聊过什么，哪些朋友与你们有关。Agent 把不同平台的线索放回同一个人，随着每次交谈继续生长。",
@@ -83,7 +83,7 @@ const copy = {
       "A good tool begins with understanding the person using it.",
     ],
     captureNote: "Future cross-platform capture · Synthetic material",
-    captureAction: "Try this Action Button",
+    captureAction: "Watch the experience",
     livingTitle: ["Scattered context.", "One living person."],
     livingText:
       "What she is building. What you talked about. The people your worlds share. The Agent brings it back to one person, growing with each conversation.",
