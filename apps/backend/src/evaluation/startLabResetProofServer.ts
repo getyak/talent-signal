@@ -17,6 +17,9 @@ app.post("/test/fixture", async () => {
 });
 app.post("/v1/auth/apple/challenges", async () => ({ contract_version: CONTRACT_VERSION,
   challenge_id: "synthetic-reset-challenge", nonce: "synthetic-reset-only", expires_at: new Date(Date.now() + 60_000).toISOString() }));
+app.post("/v1/auth/password/login", async (_request, reply) => reply.code(401).send({
+  error: { code: "PASSWORD_SIGN_IN_FAILED", message: "Synthetic invalid credentials." },
+}));
 app.get("/v1/auth/session", async (request, reply) => {
   validations++;
   const value = sessions.get(request.headers.authorization?.replace(/^Bearer /, "") ?? "");

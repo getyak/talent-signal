@@ -63,8 +63,7 @@ progressively stronger attention.
 
 ### History without clutter
 
-The current state should be simple, while prior values, conflicts, corrections,
-and outcomes remain available through progressive disclosure.
+The current state stays simple; history remains available on demand. On the signed-out home, gestures directly control a reversible reveal, with tap and reduced-motion alternatives. Successful receipts, diagnostics and repeated reassurance stay off the home; failed or unknown operations retain visible recovery until resolved.
 
 Calendar scanning leads with time, person, and activity. Keep secondary
 properties and inactive filters behind a named control; reveal an active filter

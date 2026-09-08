@@ -314,7 +314,8 @@ struct TalentSignalApp: App {
                     LabWorkspaceRecoveryView(store: labRuntimeStore.workspaceStore,
                         sessionStore: appSessionStore)
                 } else {
-                    AppAuthenticationView(store: appSessionStore)
+                    AppAuthenticationView(store: appSessionStore,
+                        openLab: DeviceLabAvailability.enabled ? { showsLoginLab = true } : nil)
                 }
             }
                 .task { await CaptureHandoffStore.shared.changeRuntimeScope(nil) }
@@ -327,11 +328,6 @@ struct TalentSignalApp: App {
                             .frame(minHeight: 44)
                             .disabled(labRuntimeStore.workspaceStore.isWorking)
                             .accessibilityIdentifier("login-lab-workspace-recovery")
-                        }
-                        if DeviceLabAvailability.enabled {
-                            Button(appLanguage.text("LAB · Experiments & tools")) { showsLoginLab = true }
-                                .frame(minHeight: 44)
-                                .accessibilityIdentifier("login-product-lab")
                         }
                     }
                 }

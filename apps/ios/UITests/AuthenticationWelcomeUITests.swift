@@ -3,7 +3,7 @@ import XCTest
 final class AuthenticationWelcomeUITests: XCTestCase {
     func testFirstMeetingSwipeRevealAndEmailRecovery() {
         let app = XCUIApplication()
-        app.launchArguments = ["--auth-backend-url", "http://localhost:4317", "-AppleLanguages", "(zh-Hans)"]
+        app.launchArguments = ["--auth-backend-url", "http://127.0.0.1:4341", "-talent-signal.interface-language", "zh-Hans", "--welcome-first-meeting"]
         app.launch()
         let skip = app.buttons["welcome-skip"]
         XCTAssertTrue(skip.waitForExistence(timeout: 15))
@@ -12,11 +12,21 @@ final class AuthenticationWelcomeUITests: XCTestCase {
         XCTAssertTrue(invitation.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["sign-in-with-google"].exists)
         save(app, "01-first-meeting")
+        // A short exploratory tug must not commit, even with a flick prediction.
+        let origin = invitation.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        origin.press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 0, dy: -32)))
+        XCTAssertTrue(invitation.exists)
+        XCTAssertFalse(app.buttons["sign-in-with-google"].exists)
+        save(app, "01b-small-pull-return")
+        XCTAssertFalse(app.buttons["login-product-lab"].exists)
+        XCTAssertFalse(app.buttons["login-ending-recovery"].exists)
         invitation.swipeUp()
         let google = app.buttons["sign-in-with-google"]
         XCTAssertTrue(google.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["sign-in-with-email"].exists)
         save(app, "02-emergence")
+        XCTAssertFalse(app.staticTexts["留住来时的线索，让下一步自然发生。"].exists)
+        XCTAssertFalse(app.buttons["login-ending-recovery"].exists)
         app.buttons["sign-in-with-email"].tap()
         let email = app.textFields["login-email"]
         XCTAssertTrue(email.waitForExistence(timeout: 3))
@@ -43,7 +53,7 @@ final class AuthenticationWelcomeUITests: XCTestCase {
     }
     func testReducedMotionDarkEntryRemainsAccessible() {
         let app = XCUIApplication()
-        app.launchArguments = ["--auth-backend-url", "http://localhost:4317", "-AppleLanguages", "(zh-Hans)", "--force-dark", "--reduce-motion"]
+        app.launchArguments = ["--auth-backend-url", "http://127.0.0.1:4341", "-talent-signal.interface-language", "zh-Hans", "--welcome-first-meeting", "--force-dark", "--reduce-motion"]
         app.launch()
         let skip = app.buttons["welcome-skip"]
         XCTAssertTrue(skip.waitForExistence(timeout: 15))
@@ -52,6 +62,28 @@ final class AuthenticationWelcomeUITests: XCTestCase {
         app.buttons["welcome-enter"].tap()
         XCTAssertTrue(app.buttons["sign-in-with-google"].waitForExistence(timeout: 5))
         save(app, "07-dark-reduced-motion")
+    }
+
+    func testOfflineRetryAndAccessibilityEntryRemainReachable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--auth-backend-url", "http://127.0.0.1:4799", "--welcome-first-meeting",
+            "--reduce-motion", "--force-dark", "-talent-signal.interface-language", "zh-Hans",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.buttons["welcome-skip"].waitForExistence(timeout: 15))
+        app.buttons["welcome-skip"].tap()
+        let retry = app.buttons["retry-apple-challenge"]
+        for _ in 0..<6 where !retry.isHittable { app.swipeUp() }
+        XCTAssertTrue(retry.waitForExistence(timeout: 10))
+        XCTAssertTrue(retry.isHittable)
+        XCTAssertTrue(app.buttons["sign-in-with-email"].exists)
+        retry.tap()
+        XCTAssertTrue(app.staticTexts["authentication-notice"].waitForExistence(timeout: 10))
+        let email = app.buttons["sign-in-with-email"]
+        for _ in 0..<6 where !email.isHittable { app.swipeUp() }
+        XCTAssertTrue(email.isHittable)
+        XCTAssertFalse(app.staticTexts["让每一段关系，\n都有新的可能。"].exists)
+        save(app, "08-offline-accessibility-recovery")
     }
 
     private func save(_ app: XCUIApplication, _ name: String) {

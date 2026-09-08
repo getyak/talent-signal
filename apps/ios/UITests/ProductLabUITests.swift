@@ -27,6 +27,7 @@ final class ProductLabUITests: XCTestCase {
         app.launchArguments = ["--show-login", "--auth-backend-url", "http://127.0.0.1:1",
             "-talent-signal.interface-language", "en"]
         app.launch()
+        app.revealLoginLabMenu()
         let lab = app.buttons["login-product-lab"]
         XCTAssertTrue(lab.waitForExistence(timeout: 15))
         lab.tap()

@@ -21,7 +21,7 @@ final class LabRuntimeUITests: XCTestCase {
         capture("runtime-verified-b")
         switchButton.tap()
         app.buttons["lab-environment-confirm"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["login-product-lab"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["welcome-brand"].waitForExistence(timeout: 10))
         app.terminate()
         app.launch()
         openEnvironments(app)
@@ -35,13 +35,14 @@ final class LabRuntimeUITests: XCTestCase {
         scrollTo(app.buttons["lab-environment-switch"], in: app)
         app.buttons["lab-environment-switch"].tap()
         app.buttons["lab-environment-confirm"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["login-product-lab"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["welcome-brand"].waitForExistence(timeout: 10))
         openEnvironments(app)
         XCTAssertEqual(app.descendants(matching: .any)["lab-current-environment"].firstMatch.value as? String, "build-default")
         capture("runtime-returned-a")
     }
 
     private func openEnvironments(_ app: XCUIApplication) {
+        app.revealLoginLabMenu()
         let entry = app.buttons["login-product-lab"]
         XCTAssertTrue(entry.waitForExistence(timeout: 12))
         entry.tap()

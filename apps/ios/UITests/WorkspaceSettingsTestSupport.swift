@@ -2,6 +2,13 @@ import XCTest
 
 @MainActor
 extension XCUIApplication {
+    func revealLoginLabMenu() {
+        let brand = staticTexts["welcome-brand"]
+        XCTAssertTrue(brand.waitForExistence(timeout: 15))
+        brand.press(forDuration: 0.7)
+        XCTAssertTrue(buttons["login-product-lab"].waitForExistence(timeout: 5))
+    }
+
     func openProductLabFromSettings(
         timeout: TimeInterval = 15,
         file: StaticString = #filePath,

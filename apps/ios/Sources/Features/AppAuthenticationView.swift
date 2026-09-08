@@ -17,6 +17,8 @@ final class AppSessionStore: ObservableObject {
     @Published private(set) var contextGeneration = UUID()
     @Published var notice: String?
     @Published private(set) var endingReceipts: [AppSessionEndingReceipt] = []
+    @Published private(set) var signOutRecoveryReadFailed = false
+    var needsSignOutRecovery: Bool { signOutRecoveryReadFailed || endingReceipts.contains { !$0.settled } }
     private var authenticationAllowed = true
 
     private var client: (any AppAuthenticationServing)?
@@ -64,6 +66,7 @@ final class AppSessionStore: ObservableObject {
         persistence = persistenceFactory(target)
         endingPersistence = endingFactory(target)
         endingReceipts = []
+        signOutRecoveryReadFailed = false
         challenge = nil
         notice = nil
         phase = .restoring
@@ -82,7 +85,14 @@ final class AppSessionStore: ObservableObject {
             return
         }
         do {
-            let endingRecords = try endingPersistence.load()
+            let endingRecords: [AppSessionEnding]
+            do {
+                endingRecords = try endingPersistence.load()
+                signOutRecoveryReadFailed = false
+            } catch {
+                signOutRecoveryReadFailed = true
+                throw error
+            }
             endingReceipts = endingRecords.map(AppSessionEndingReceipt.init)
             guard let stored = try persistence.load(), stored.expiresAt > .now else {
                 try? persistence.delete()
@@ -264,8 +274,13 @@ final class AppSessionStore: ObservableObject {
 
     func refreshSignOutReceipts() {
         guard !isWorking else { return }
-        do { endingReceipts = try endingPersistence.load().map(AppSessionEndingReceipt.init) }
-        catch { notice = AppSessionEndingError.unreadable.localizedDescription }
+        do {
+            endingReceipts = try endingPersistence.load().map(AppSessionEndingReceipt.init)
+            signOutRecoveryReadFailed = false
+        } catch {
+            signOutRecoveryReadFailed = true
+            notice = AppSessionEndingError.unreadable.localizedDescription
+        }
     }
 
     func finishResetSignOut(fingerprint: String) async -> AppSessionEndingReceipt? {
@@ -360,8 +375,7 @@ final class AppSessionStore: ObservableObject {
             endingReceipts = try endingPersistence.load().map(AppSessionEndingReceipt.init)
             if record.local == .removed {
                 switch record.remote {
-                case .revoked, .alreadyInvalid: endingNotice = "Signed out on this device. The server revoked or rejected this session."
-                case .expired: endingNotice = "Signed out on this device. The saved session has reached its reported expiry."
+                case .revoked, .alreadyInvalid, .expired: endingNotice = nil
                 default: endingNotice = "Signed out on this device. The remote session could not be revoked. Review and retry the retained revocation-only recovery in Lab."
                 }
             } else if record.remoteSettled {
@@ -376,6 +390,7 @@ final class AppSessionStore: ObservableObject {
         }
         RuntimeWorkRegistry.shared.endMaintenance(permit)
         isWorking = false
+        refreshSignOutReceipts()
         if closed {
             await prepareChallenge()
             notice = endingNotice ?? notice
@@ -395,13 +410,14 @@ final class AppSessionStore: ObservableObject {
 
 struct AppAuthenticationView: View {
     @ObservedObject var store: AppSessionStore
+    var openLab: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appLanguage) private var appLanguage
     @State private var showsSignOutRecovery = false
     @State private var showsEmail = false
 
     var body: some View {
-        AuthenticationWelcomeView {
+        AuthenticationWelcomeView(openLab: openLab, needsRecovery: store.needsSignOutRecovery) {
             VStack(spacing: 10) {
                 if GoogleSignInFlow.clientID != nil {
                     Button { Task { await store.signInWithGoogle() } } label: {
@@ -457,7 +473,7 @@ struct AppAuthenticationView: View {
                     } label: {
                         HStack {
                             if store.isWorking { ProgressView() }
-                            Text(store.isWorking ? "Connecting…" : "Try again")
+                            Text(store.isWorking ? "Connecting…" : "Retry")
                                 .font(.headline)
                         }
                         .frame(maxWidth: .infinity, minHeight: 52)
@@ -482,17 +498,11 @@ struct AppAuthenticationView: View {
                         .accessibilityIdentifier("authentication-notice")
                 }
 
-                if !store.endingReceipts.isEmpty {
-                    Button(appLanguage.text("Review sign-out")) { showsSignOutRecovery = true }
+                if store.needsSignOutRecovery {
+                    Button(appLanguage.text("Sign-in & recovery")) { showsSignOutRecovery = true }
                         .frame(minHeight: 44)
                         .accessibilityIdentifier("login-ending-recovery")
                 }
-
-                Label("Account-scoped · no automatic messages", systemImage: "lock")
-                    .font(.caption)
-                    .foregroundStyle(Color.tsMutedInk)
-                    .padding(.top, 20)
-                    .padding(.bottom, 10)
             }
         }
         .task {
