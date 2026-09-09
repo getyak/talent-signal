@@ -92,6 +92,32 @@ describe.skipIf(!pool)("GET-9 SDK screenshot authority",()=>{
     expect((await pool!.query("SELECT id FROM subjects WHERE account_id=$1 AND display_label=$2",[auth.accountId,name])).rowCount).toBe(1);
   });
 
+  it("keeps actual chat about a website as attributed chat evidence and rejects public references in findings", async () => {
+    const name = `Chat website ${randomUUID().slice(0, 8)}`;
+    const message = "The website says the launch is Friday. I will send the revised plan tomorrow.";
+    const extraction: ContactChatExtraction = { platform: "Synthetic IM", conversation_kind: "direct", contact_name: name,
+      identity_clues: [{kind:"name",value:name,source_excerpt:name}],
+      messages: [{message_id:"m1",sequence:0,text:message,speaker_side:"left",speaker_label:name,time_text:null}], uncertainties: [] };
+    const sdk = sdkModel(async (request, signal) => {
+      await request.recordUnderstanding([extraction], signal);
+      await request.invoke("search_contacts", {query:name}, signal);
+      await request.invoke("create_contact", {display_name:name}, signal);
+      const finding = {kind:"commitment",text:`${name} says the website lists Friday for launch and commits to sending the revised plan tomorrow.`,
+        message_refs:["m1"],source_excerpt:message,epistemic_status:"inference"};
+      await expect(request.invoke("finish_contact_task", {summary:"Synthetic chat filed.",findings:[{...finding,message_refs:["public1"]}],limitations:[]}, signal))
+        .resolves.toMatchObject({error:"CONTACT_CITATION_SOURCE_UNAVAILABLE"});
+      await request.invoke("finish_contact_task", {summary:"Synthetic chat filed.",findings:[finding],limitations:[]}, signal);
+      return sdkReceipt();
+    });
+    const request=input(), created=await createScreenshotContactTask(pool!,auth,request);
+    await new ScreenshotContactTaskRunner(pool!,{model:sdk,research:null}).start(auth,created.body.task_id,request.image);
+    const result=await loadScreenshotContactTask(pool!,auth,created.body.task_id);
+    expect(result.status).toBe("completed");
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]).toMatchObject({kind:"commitment",message_refs:["m1"],source_excerpt:message,epistemic_status:"inference"});
+    expect(result.events.some(event=>event.tool==="finish_contact_task"&&event.status==="denied")).toBe(true);
+  });
+
   it("files from the main Agent image understanding and reuses one existing contact",async()=>{
     const name=`SDK reuse ${randomUUID().slice(0,8)}`;
     const original=await model(name).extract(input().image,new AbortController().signal);

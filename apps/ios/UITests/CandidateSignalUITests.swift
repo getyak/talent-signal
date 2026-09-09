@@ -380,17 +380,17 @@ final class CandidateSignalUITests: XCTestCase {
         preserveScreenshot("Calendar proposal confirmed in app")
     }
 
-    /// Exact three live SDK drafts from E10 eighth attempt; each uses an owned synthetic Calendar.
+    /// Exact three live SDK drafts from E10 tenth attempt; each uses an owned synthetic Calendar.
     func testGET9LiveCalendarDraftTrial1RequiresConfirmationAndRealReadback() throws {
-        try verifyGET9CalendarDraft(#"{"id":"ca3322d4-4534-4e6c-95df-b0ffed3c0574","title":"和陈夏聊天","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"b31d4f3e-fa98-4eea-8b57-7a278d10dd41","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 1)
+        try verifyGET9CalendarDraft(#"{"id":"23a1e0dc-ae4b-4c50-99fb-c0e8320a41f8","title":"和陈夏聊天","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"eb8a5137-a29d-45a1-a81d-f65685d49e71","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 1)
     }
 
     func testGET9LiveCalendarDraftTrial2RequiresConfirmationAndRealReadback() throws {
-        try verifyGET9CalendarDraft(#"{"id":"2a0a7186-4047-4dd4-a4c8-34354a887c72","title":"和陈夏聊","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"77f1398c-c7b3-42bf-a352-bc9aad0414c6","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 2)
+        try verifyGET9CalendarDraft(#"{"id":"71ef7eec-7567-449e-bb6d-0097822694d3","title":"和陈夏聊天","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"2e88d62b-2396-461e-8595-bd98142b083e","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 2)
     }
 
     func testGET9LiveCalendarDraftTrial3RequiresConfirmationAndRealReadback() throws {
-        try verifyGET9CalendarDraft(#"{"id":"aac2e37f-abe9-48bb-a48a-6a91c2f6920f","title":"和陈夏聊天","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"958b17f3-263d-4dff-9b25-25960161441d","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 3)
+        try verifyGET9CalendarDraft(#"{"id":"7aac21c5-c9ea-4265-a18e-851fc2b4ecf2","title":"和陈夏聊天","starts_at":"2026-09-10T07:00:00.000Z","ends_at":"2026-09-10T07:30:00.000Z","time_zone":"Asia/Shanghai","source_request_id":"2243ec70-bc56-4821-b29f-9c7054b87fe1","source_excerpt":"明天下午三点和陈夏聊半小时","reference_time":"2026-09-09T02:00:00.000Z","status":"needs_review","external_effect":"none"}"#, trial: 3)
     }
 
     private func verifyGET9CalendarDraft(_ draft: String, trial: Int) throws {

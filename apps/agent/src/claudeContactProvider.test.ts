@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { ClaudeContactAgentModel } from "./claudeContactProvider.js";
 import { claudeHarnessConfiguration } from "./claudeHarnessConfiguration.js";
 import type { ClaudeHarnessRequest } from "./claudeHarness.js";
@@ -16,6 +17,12 @@ describe("multimodal contact SDK adapter", () => {
       expect(request.tools.map((tool) => tool.name)).toContain("record_screenshot_understanding");
       expect(request.skills?.map((skill) => skill.name)).toEqual(["relationship-evidence"]);
       expect(request.outputSchema).toBeUndefined();
+      const finish = request.tools.find((tool) => tool.name === "finish_contact_task")!;
+      const schema = z.toJSONSchema(finish.schema) as any;
+      expect(schema.properties.findings.description).toContain("Return []");
+      expect(schema.properties.findings.items.properties.text.description).toContain("supported entirely by the cited original chat messages");
+      expect(schema.properties.findings.items.properties.message_refs.description).toContain("All actual message_id");
+      expect(schema.properties.findings.items.properties.source_excerpt.description).toContain("One contiguous exact substring");
       return { text: "Synthetic", structuredOutput: null, sessionID: "synthetic-run", inputTokens: 10, outputTokens: 10,
         estimatedUsd: 0, turns: 1, toolCalls: 0, terminalReason: "completed", permissionDenials: [], reportedModels: ["synthetic"] };
     });

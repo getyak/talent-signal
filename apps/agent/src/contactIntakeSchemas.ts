@@ -35,10 +35,10 @@ export const ContactProfileFieldSchema = z.strictObject({
 
 export const ContactFindingSchema = z.strictObject({
   kind: z.enum(["change", "commitment", "constraint", "open_question", "next_step", "no_action"]),
-  text: Text.max(1_000),
-  message_refs: z.array(Text.max(80)).min(1).max(10),
-  source_excerpt: Text.max(2_000),
-  epistemic_status: z.enum(["source_statement", "inference"]),
+  text: Text.max(1_000).describe("One material observation relevant to the task, supported entirely by the cited original chat messages. Attribute every statement to its recorded speaker; self/我 is the account owner. Do not add research-derived verification, agreement with public pages, or employment conclusions. If a speaker discusses a website, report what that speaker said without presenting it as independently verified."),
+  message_refs: z.array(Text.max(80)).min(1).max(10).describe("All actual message_id values supporting every factual clause and quotation in text. Only original chat messages; public source and identity clue references are not valid here."),
+  source_excerpt: Text.max(2_000).describe("One contiguous exact substring from one cited original chat message. Never concatenate messages or substitute public page text."),
+  epistemic_status: z.enum(["source_statement", "inference"]).describe("source_statement copies the source wording. A paraphrase is inference, which still requires complete chat support and correct speaker attribution."),
 });
 
 export const CONTACT_INTAKE_TOOLS = {
@@ -75,8 +75,8 @@ export const CONTACT_INTAKE_TOOLS = {
     schema: z.strictObject({ person_id: ID, expected_revision: z.number().int().min(1) }),
   },
   finish_contact_task: {
-    description: "Finish after contact and IM readback. Summarize the completed task, including source-linked public observations already saved through update_contact. findings are ONLY about the original chat, with the actual message_id values from extraction (including any later message, not only m1 and m2): each source_excerpt must be one contiguous exact substring from ONE cited message; never concatenate messages or quote public pages in findings. Public claims and dates belong ONLY in update_contact fields, never in a finding supported by chat references. A finding must not summarize uncited messages: include the message_id for every message mentioned or quoted in its text, and name the recorded speaker explicitly rather than using relative phrases like the other party. Include only material changes, commitments, constraints or questions relevant to the user objective. When the chat contains only background statements or acknowledgments and no actionable change, return findings: [] instead of narrating the exchange as a no_action finding. Routine acknowledgments alone do not justify a finding or show contact interest. Verify each cited speaker_label: 我/self is the account owner, not the contact; screen side alone does not define roles. source_statement copies source wording; a paraphrase remains an inference but still must attribute its speaker correctly. Explain research limitations while preserving completed work. No external message has been sent.",
-    schema: z.strictObject({ summary: Text.max(2_000), findings: z.array(ContactFindingSchema).max(10), limitations: z.array(Text.max(500)).max(10) }),
+    description: "Finish after contact and IM readback. Summarize completed work, source-linked public observations already saved through update_contact, and research limitations. Keep public research separate from chat findings. No external message has been sent.",
+    schema: z.strictObject({ summary: Text.max(2_000), findings: z.array(ContactFindingSchema).max(10).describe("Material chat changes, commitments, constraints, or questions relevant to the objective. Return [] for ordinary background, introductions, or acknowledgments without a material development. Acknowledgment alone does not show contact interest. Public research belongs in sourced profile fields and the task summary, not chat findings."), limitations: z.array(Text.max(500)).max(10) }),
   },
   ask_contact_clarification: {
     description: "Pause this same durable task for one necessary identity or source clarification. Preserve completed work and ask about the ambiguity without guessing. The user can choose one returned contact or explain the screenshot.",
