@@ -64,7 +64,10 @@ CI, merge and deployment verification remain pending; Linear is not yet complete
   existing Session/feedback dependencies. The real workspace lifecycle now
   passes creation, late-write rejection and deletion of runs, spans, feedback
   events and linked cases. The 29 feedback tests passed again with these guards.
-  This lifecycle evaluation now runs in backend CI.
+  This lifecycle evaluation now runs in backend CI. The shared dependency fix
+  uses the byte-identical `059_lab_account_cleanup.sql` from parallel PR #169,
+  preserving its already-deployed checksum; GET-23 owns only its three new
+  table classifications in migration 058.
 
 
 ## Real UI evidence

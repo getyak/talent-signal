@@ -65,6 +65,7 @@ const MIGRATIONS = [
   "056_agent_session_chat_lifecycle",
   "057_feedback_learning",
   "058_product_run_monitor",
+  "059_lab_account_cleanup",
 ] as const;
 
 async function migrationSql(version: string): Promise<string> {
