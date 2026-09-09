@@ -1425,6 +1425,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
     ) async throws -> Response {
         var request = URLRequest(url: baseURL.appending(path: path))
         request.httpMethod = "POST"
+        request.setValue("ios", forHTTPHeaderField: "x-talent-signal-platform")
         request.setValue("application/json", forHTTPHeaderField: "accept")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
@@ -1503,6 +1504,7 @@ actor URLPursuitWorkspaceClient: PursuitWorkspaceServing {
         if let authenticatedSession { return authenticatedSession }
         var request = URLRequest(url: baseURL.appending(path: "v1/auth/simulated-login"))
         request.httpMethod = "POST"
+        request.setValue("ios", forHTTPHeaderField: "x-talent-signal-platform")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONEncoder().encode(
             WorkspaceLoginBody(

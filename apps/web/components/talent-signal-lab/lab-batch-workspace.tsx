@@ -281,11 +281,29 @@ export function LabBatchWorkspace() {
     try {
       const payload = await requestJSON<{ regression: LabRegression }>(`/api/lab/regressions/${id}`, {}, "回归案例当前不可读取。");
       setRegression(payload.regression);
+      if (payload.regression.snapshot.product_run_source && catalog) {
+        const sourceTask = payload.regression.snapshot.task ?? "relationship_text";
+        const models = catalog.models.filter(model => (model.task ?? "relationship_text") === sourceTask);
+        const first = models[0], second = models[1] ?? first;
+        const compatible = (current: Configuration | null) => current && models.some(model => model.id === current.model && model.prompt_presets.includes(current.prompt_preset));
+        setTask(sourceTask);
+        setSelectedCases(catalog.cases.filter(sample => (sample.task ?? "relationship_text") === sourceTask).slice(0,3).map(sample => sample.id));
+        setConfigA(current => compatible(current) ? current : first?.prompt_presets[0] ? {model:first.id,prompt_preset:first.prompt_presets[0]} : null);
+        const preset = second?.prompt_presets.find(value => value !== first?.prompt_presets[0]) ?? second?.prompt_presets[0];
+        setConfigB(current => compatible(current) ? current : second && preset ? {model:second.id,prompt_preset:preset} : null);
+      }
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "回归案例当前不可读取。");
     }
-  }, []);
+  }, [catalog]);
+
+  useEffect(() => {
+    const id = new URL(window.location.href).searchParams.get("regression");
+    if (!id || !/^[a-f0-9-]{36}$/i.test(id)) return;
+    const timer = setTimeout(() => void loadRegression(id), 0);
+    return () => clearTimeout(timer);
+  }, [loadRegression]);
 
   useEffect(() => {
     if (!job || !activeLabJobStatuses.has(job.status)) return;
@@ -421,7 +439,9 @@ export function LabBatchWorkspace() {
 
   async function rerunRegression() {
     if (!regression) return;
-    const configurations = regression.snapshot.configurations.map(({ model, prompt_preset }) => ({ model, prompt_preset })) as [Configuration, Configuration];
+    if (regression.snapshot.product_run_source && (!configA || !configB)) return;
+    const configurations = regression.snapshot.product_run_source ? [configA!, configB!] as [Configuration, Configuration]
+      : regression.snapshot.configurations.map(({ model, prompt_preset }) => ({ model, prompt_preset })) as [Configuration, Configuration];
     await startJob({
       task: regression.snapshot.task ?? regression.snapshot.case.task ?? "relationship_text",
       caseIds: [regression.snapshot.case.id],
@@ -643,6 +663,7 @@ export function LabBatchWorkspace() {
                 <div><dt>冻结版本</dt><dd>{regression.snapshot.backend_revision ?? "未报告"} · {regression.snapshot.instrument_revision}</dd></div>
                 <div><dt>重跑</dt><dd>{regression.reruns.length} 次</dd></div>
               </dl>
+              {regression.snapshot.product_run_source && <p>使用上方 A/B 配置比较这次真实运行的原始输入。原回答和用户预期会保留供审阅。</p>}
               <button className={styles.primaryButton} disabled={pending !== null} onClick={() => void rerunRegression()} type="button">
                 {pending === "rerun" ? <SpinnerGap aria-hidden="true" className={styles.spin} size={17} /> : <GitDiff aria-hidden="true" size={17} />}用冻结案例重新比较
               </button>

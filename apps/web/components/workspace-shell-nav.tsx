@@ -41,10 +41,10 @@ const items = [
     matches: (pathname: string) => pathname.startsWith("/workspace/people"),
   },
   {
-    href: "/workspace/evals",
+    href: "/workspace/monitor",
     icon: ChartLine,
-    label: "评测",
-    matches: (pathname: string) => pathname.startsWith("/workspace/evals"),
+    label: "运行反馈",
+    matches: (pathname: string) => pathname.startsWith("/workspace/evals") || pathname.startsWith("/workspace/monitor"),
   },
 ] as const;
 

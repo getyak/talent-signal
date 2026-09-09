@@ -263,9 +263,10 @@ jobs:
 
       - name: Verify feedback and observation deletion across database connections
         env:
+          PRODUCT_RUN_TEST_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
           FEEDBACK_TEST_DATABASE_URL: postgresql://postgres:lab-ci-only@127.0.0.1:5432/lab_regression_ci
         run: |
-          pnpm --filter @talent-signal/backend exec vitest run src/modules/feedback.integration.test.ts src/modules/runtimeObservationLifecycle.integration.test.ts
+          pnpm --filter @talent-signal/backend exec vitest run src/modules/feedback.integration.test.ts src/modules/runtimeObservationLifecycle.integration.test.ts src/modules/productRuns.integration.test.ts
 
       - name: Preserve Lab regression fixture metadata
         if: always()

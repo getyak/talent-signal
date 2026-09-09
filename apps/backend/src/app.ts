@@ -1,3 +1,4 @@
+import { registerProductRunMonitoring } from "./modules/productRuns.js";
 import { registerAgentSessionRoutes } from "./modules/agentSessionRoutes.js";
 import { registerFeedbackRoutes } from "./modules/feedbackRoutes.js";
 import { registerGoogleAuth } from "./modules/googleAuth.js";
@@ -652,7 +653,7 @@ export async function buildApp(
         const result = await pool.query<{ version: string }>(
           `SELECT version
            FROM schema_migrations
-           WHERE version = '057_feedback_learning'`,
+           WHERE version = '058_product_run_monitor'`,
         );
         if (!result.rows[0]) {
           throw new Error("migration unavailable");
@@ -785,6 +786,7 @@ export async function buildApp(
 
   registerGoogleAuth(app, pool, config);
   const authenticate = createAuthGuard(pool, deploymentExposure?.workspaceIds);
+  registerProductRunMonitoring(app, pool, authenticate);
   registerAgentSessionRoutes(app, pool, authenticate);
   registerFeedbackRoutes(app, pool, authenticate);
   const security = [{ bearerSession: [] }];
